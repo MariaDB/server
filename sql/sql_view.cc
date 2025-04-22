@@ -337,7 +337,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
       {
         if (check_single_table_access(thd, SELECT_ACL, tbl, FALSE))
         {
-          tbl->hide_view_error(thd);
+          tbl->replace_view_error_with_generic(thd);
           goto err;
         }
       }
@@ -443,8 +443,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-
   /*
     ignore lock specs for CREATE statement
   */
@@ -462,12 +460,19 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
 #ifdef WITH_WSREP
-  if(!wsrep_should_replicate_ddl_iterate(thd, static_cast<const TABLE_LIST *>(tables)))
+  /* Resolve should we replicate creation of the view.
+     It should be replicated if storage engine(s) associated
+     to view are replicated by Galera.
+  */
+  if (WSREP(thd) &&
+      !wsrep_should_replicate_ddl_iterate(thd, tables))
   {
     res= TRUE;
     goto err_no_relink;
   }
 #endif
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   view= lex->unlink_first_table(&link_to_local);
 

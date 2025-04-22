@@ -961,7 +961,7 @@ str_to_DDhhmmssff_internal(my_bool neg, const char *str, size_t length,
   {
     /* String given as one number; assume HHMMSS format */
     date[0]= 0;
-    DBUG_ASSERT(value <= ((ulonglong) UINT_MAX32) * 10000ULL);
+    DBUG_ASSERT(value / 10000 <= ((ulonglong) UINT_MAX32));
     date[1]= (ulong) (value/10000);
     date[2]= (ulong) (value/100 % 100);
     date[3]= (ulong) (value % 100);

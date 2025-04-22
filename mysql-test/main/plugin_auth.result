@@ -338,7 +338,7 @@ FLUSH PRIVILEGES;
 # Executing 'mysqladmin'
 mysqld is alive
 # Executing 'mysqldump'
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 # Executing 'mysql_upgrade'
 #
 # Bug #59657: Move the client authentication_pam plugin into the 

@@ -565,3 +565,23 @@ create table s sequence=1 as select 1;
 --echo #
 --echo # End of 10.4 test
 --echo #
+
+--echo #
+--echo # Ensure that SHOW CREATE TABLE shows used table options
+--echo #
+
+SET @@innodb_compression_default=ON;
+CREATE TABLE seq (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) engine=innodb,sequence=1;
+show create sequence seq;
+show create table seq;
+drop sequence seq;
+SET @@innodb_compression_default=DEFAULT;

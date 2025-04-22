@@ -787,18 +787,12 @@ DROP TABLE t1;
 #
 # MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
 #
-# Note, different MariaDB versions can return different results
-# in the two rows (such as "latin1" vs "binary"). This is wrong.
-# Both lines should return equal values.
-# The point in this test is to make sure it does not crash.
-# As this is a minor issue, bad result will be fixed
-# in a later version, presumably in 10.4.
 CREATE TABLE t (d DATE) ENGINE=MyISAM;
 INSERT INTO t VALUES ('2018-12-12');
 SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
 f
 binary
-latin1
+binary
 DROP TABLE t;
 #
 # MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP

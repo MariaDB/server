@@ -267,6 +267,11 @@
                                     OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
 
 /*
+  See adjust_secondary_key_cost in sys_vars.cc for symbolic names.
+*/
+#define OPTIMIZER_ADJ_FIX_CARD_MULT (1)
+
+/*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should
   contact the replication team because the replication code should then be

@@ -674,9 +674,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(2333),
                  va VARCHAR(171) AS (a)) ENGINE=InnoDB;
 INSERT INTO t1 (id,a) VALUES (1,REPEAT('x',200));
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT id, va INTO OUTFILE 'load_t1' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --error ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id,va);
 SELECT * FROM t1;
@@ -689,9 +691,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (id BIGINT PRIMARY KEY, a VARCHAR(2333),
                  va VARCHAR(171) AS (a)) ENGINE=InnoDB;
 INSERT INTO t1 (id,a) VALUES (1,REPEAT('x',200));
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT id, va INTO OUTFILE 'load_t1' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --error ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id,va);
 SELECT * FROM t1;
@@ -711,9 +715,11 @@ CREATE TABLE t1 (id INT PRIMARY KEY,
                  ts TIMESTAMP DEFAULT '1971-01-01 00:00:00',
                  c VARBINARY(8) DEFAULT '', vc VARCHAR(3) AS (c) STORED);
 INSERT IGNORE INTO t1 (id,c) VALUES (1,'foobar');
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT id, ts, vc INTO OUTFILE 'load_t1' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --error 0,ER_DATA_TOO_LONG
 LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id, ts, vc);
 INSERT IGNORE INTO t1 (id) VALUES (2);

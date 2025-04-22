@@ -163,20 +163,24 @@ longlong Item::val_time_packed_result(THD *thd)
 String *Item::val_str_ascii(String *str)
 {
   DBUG_ASSERT(str != &str_value);
-  
-  uint errors;
-  String *res= val_str(&str_value);
+
+  if (!(collation.collation->state & MY_CS_NONASCII))
+    return val_str(str);
+
+  /*
+    We cannot use str_value as a buffer here,
+    because val_str() can use it. Let's have a local buffer.
+  */
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
+  String *res= val_str(&tmp);
+
   if (!res)
     return 0;
-  
-  if (!(res->charset()->state & MY_CS_NONASCII))
-    str= res;
-  else
-  {
-    if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
-                               &my_charset_latin1, &errors)))
-      return 0;
-  }
+
+  uint errors;
+  if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
+                             &my_charset_latin1, &errors)))
+    return 0;
 
   return str;
 }
@@ -826,6 +830,30 @@ bool Item_field::rename_fields_processor(void *arg)
       break;
     }
   }
+  return 0;
+}
+
+/**
+   Rename table and clean field for EXCHANGE comparison
+*/
+
+bool Item_field::rename_table_processor(void *arg)
+{
+  Item::func_processor_rename_table *p= (Item::func_processor_rename_table*) arg;
+
+  /* If (db_name, table_name) matches (p->old_db, p->old_table)
+     rename to (p->new_db, p->new_table) */
+  if (((!db_name.str && !p->old_db.str) ||
+       db_name.streq(p->old_db)) &&
+      ((!table_name.str && !p->old_table.str) ||
+       table_name.streq(p->old_table)))
+  {
+    db_name= p->new_db;
+    table_name= p->new_table;
+  }
+
+  /* Item_field equality is done by field pointer if it is set, we need to avoid that */
+  field= NULL;
   return 0;
 }
 
@@ -2715,7 +2743,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
    @retval 0 on a failure
 */
 
-Item* Item_func_or_sum::build_clone(THD *thd)
+Item* Item_func_or_sum::do_build_clone(THD *thd) const
 {
   Item *copy_tmp_args[2]= {0,0};
   Item **copy_args= copy_tmp_args;
@@ -3035,7 +3063,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
      0 if an error occurred
 */ 
 
-Item* Item_ref::build_clone(THD *thd)
+Item* Item_ref::do_build_clone(THD *thd) const
 {
   Item_ref *copy= (Item_ref *) get_copy(thd);
   if (unlikely(!copy) ||
@@ -3847,7 +3875,7 @@ void Item_decimal::set_decimal_value(my_decimal *value_par)
 }
 
 
-Item *Item_decimal::clone_item(THD *thd)
+Item *Item_decimal::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_decimal(thd, name.str, &decimal_value, decimals,
                                          max_length);
@@ -3868,7 +3896,7 @@ my_decimal *Item_float::val_decimal(my_decimal *decimal_value)
 }
 
 
-Item *Item_float::clone_item(THD *thd)
+Item *Item_float::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_float(thd, name.str, value, decimals,
                                        max_length);
@@ -3908,7 +3936,7 @@ void Item_string::print(String *str, enum_query_type query_type)
     }
     else
     {
-      str_value.print(str, system_charset_info);
+      str_value.print(str, &my_charset_utf8mb4_general_ci);
     }
   }
   else
@@ -4032,7 +4060,7 @@ Item *Item_null::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   return this;
 }
 
-Item *Item_null::clone_item(THD *thd)
+Item *Item_null::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_null(thd, name.str);
 }
@@ -4164,6 +4192,7 @@ void Item_param::set_null()
   max_length= 0;
   decimals= 0;
   state= NULL_VALUE;
+  value.set_handler(&type_handler_null);
   DBUG_VOID_RETURN;
 }
 
@@ -4422,6 +4451,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     if (item->null_value)
     {
       set_null();
+      set_handler(&type_handler_null);
       DBUG_RETURN(false);
     }
     else
@@ -4439,7 +4469,10 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     DBUG_RETURN(set_value(thd, item, &tmp, h));
   }
   else
+  {
     set_null();
+    set_handler(&type_handler_null);
+  }
 
   DBUG_RETURN(0);
 }
@@ -4837,7 +4870,7 @@ bool Item_param::basic_const_item() const
 }
 
 
-Item *Item_param::value_clone_item(THD *thd)
+Item *Item_param::value_clone_item(THD *thd) const
 {
   MEM_ROOT *mem_root= thd->mem_root;
   switch (value.type_handler()->cmp_type()) {
@@ -4851,12 +4884,15 @@ Item *Item_param::value_clone_item(THD *thd)
   case DECIMAL_RESULT:
     return 0; // Should create Item_decimal. See MDEV-11361.
   case STRING_RESULT:
+  {
+    String value_copy = value.m_string; // to preserve constness of the func
     return new (mem_root) Item_string(thd, name,
-                                      Lex_cstring(value.m_string.c_ptr_quick(),
-                                                  value.m_string.length()),
-                                      value.m_string.charset(),
+                                      Lex_cstring(value_copy.c_ptr_quick(),
+                                                  value_copy.length()),
+                                      value_copy.charset(),
                                       collation.derivation,
                                       collation.repertoire);
+  }
   case TIME_RESULT:
     break;
   case ROW_RESULT:
@@ -4870,7 +4906,7 @@ Item *Item_param::value_clone_item(THD *thd)
 /* see comments in the header file */
 
 Item *
-Item_param::clone_item(THD *thd)
+Item_param::clone_item(THD *thd) const
 {
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
@@ -4956,7 +4992,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 }
 
 
-void Item_param::set_default()
+void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
   state= DEFAULT_VALUE;
@@ -4969,13 +5005,23 @@ void Item_param::set_default()
     can misbehave (e.g. crash on asserts).
   */
   null_value= true;
+  if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
+    set_handler(&type_handler_null);
+  }
 }
 
-void Item_param::set_ignore()
+void Item_param::set_ignore(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
   state= IGNORE_VALUE;
   null_value= true;
+  if (set_type_handler_null)
+  {
+    value.set_handler(&type_handler_null);
+    set_handler(&type_handler_null);
+  }
 }
 
 /**
@@ -5172,6 +5218,7 @@ bool Item_param::assign_default(Field *field)
 
 double Item_copy_string::val_real()
 {
+  DBUG_ASSERT(copied_in);
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
@@ -5182,6 +5229,7 @@ double Item_copy_string::val_real()
 
 longlong Item_copy_string::val_int()
 {
+  DBUG_ASSERT(copied_in);
   int err;
   return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
                                                         str_value.length(), 10,
@@ -5191,6 +5239,7 @@ longlong Item_copy_string::val_int()
 
 int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 {
+  DBUG_ASSERT(copied_in);
   return save_str_value_in_field(field, &str_value);
 }
 
@@ -5201,11 +5250,15 @@ void Item_copy_string::copy()
   if (res && res != &str_value)
     str_value.copy(*res);
   null_value=item->null_value;
+#ifndef DBUG_OFF
+  copied_in= 1;
+#endif
 }
 
 /* ARGSUSED */
 String *Item_copy_string::val_str(String *str)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (String*) 0;
@@ -5215,6 +5268,7 @@ String *Item_copy_string::val_str(String *str)
 
 my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (my_decimal *) 0;
@@ -6950,7 +7004,7 @@ int Item_string::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_string::clone_item(THD *thd)
+Item *Item_string::clone_item(THD *thd) const
 {
   LEX_CSTRING val;
   str_value.get_value(&val);
@@ -7014,7 +7068,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_int::clone_item(THD *thd)
+Item *Item_int::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_int(thd, name.str, value, max_length, unsigned_flag);
 }
@@ -7043,7 +7097,7 @@ int Item_decimal::save_in_field(Field *field, bool no_conversions)
 }
 
 
-Item *Item_int_with_ref::clone_item(THD *thd)
+Item *Item_int_with_ref::clone_item(THD *thd) const
 {
   DBUG_ASSERT(ref->const_item());
   /*
@@ -7139,7 +7193,7 @@ Item *Item_uint::neg(THD *thd)
 }
 
 
-Item *Item_uint::clone_item(THD *thd)
+Item *Item_uint::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_uint(thd, name.str, value, max_length);
 }
@@ -7275,10 +7329,8 @@ void Item_hex_constant::hex_string_init(THD *thd, const char *str, size_t str_le
 
 void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
-  uint32 len= MY_MIN(str_value.length(), sizeof(longlong));
-  const char *ptr= str_value.ptr() + str_value.length() - len;
   str->append("0x");
-  str->append_hex(ptr, len);
+  str->append_hex(str_value.ptr(), str_value.length());
 }
 
 
@@ -7379,7 +7431,7 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_date_literal::clone_item(THD *thd)
+Item *Item_date_literal::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_date_literal(thd, &cached_time);
 }
@@ -7404,7 +7456,7 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_datetime_literal::clone_item(THD *thd)
+Item *Item_datetime_literal::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_datetime_literal(thd, &cached_time, decimals);
 }
@@ -7429,7 +7481,7 @@ void Item_time_literal::print(String *str, enum_query_type query_type)
 }
 
 
-Item *Item_time_literal::clone_item(THD *thd)
+Item *Item_time_literal::clone_item(THD *thd) const
 {
   return new (thd->mem_root) Item_time_literal(thd, &cached_time, decimals);
 }
@@ -7870,6 +7922,7 @@ static
 Item *find_producing_item(Item *item, st_select_lex *sel)
 {
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+              item->type() == Item::TRIGGER_FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
   Item_field *field_item= NULL;
@@ -9657,7 +9710,8 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
 
 void Item_default_value::cleanup()
 {
-  delete field;                        // Free cached blob data
+  if (!m_share_field)
+    delete field;                      // Free cached blob data
   Item_field::cleanup();
 }
 
@@ -10388,7 +10442,7 @@ void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 }
 
 
-Item *Item_cache_temporal::clone_item(THD *thd)
+Item *Item_cache_temporal::clone_item(THD *thd) const
 {
   Item_cache *tmp= type_handler()->Item_get_cache(thd, this);
   Item_cache_temporal *item= static_cast<Item_cache_temporal*>(tmp);
@@ -10876,8 +10930,8 @@ void dummy_error_processor(THD *thd, void *data)
 {}
 
 /**
-  Wrapper of hide_view_error call for Name_resolution_context error
-  processor.
+  Wrapper of replace_view_error_with_generic call for Name_resolution_context
+  error processor.
 
   @note
     hide view underlying tables details in error messages
@@ -10885,7 +10939,7 @@ void dummy_error_processor(THD *thd, void *data)
 
 void view_error_processor(THD *thd, void *data)
 {
-  ((TABLE_LIST *)data)->hide_view_error(thd);
+  ((TABLE_LIST *)data)->replace_view_error_with_generic(thd);
 }
 
 /**

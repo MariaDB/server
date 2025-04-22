@@ -271,12 +271,7 @@ error_exit_in_thread(intptr_t code)
   CRITICAL_SECTION_ENTER(grntest_cs);
   grntest_stop_flag = 1;
   CRITICAL_SECTION_LEAVE(grntest_cs);
-#ifdef WIN32
-  _endthreadex(code);
-#else
-  pthread_exit((void *)code);
-#endif /* WIN32 */
-  return 0;
+  return code;
 }
 
 

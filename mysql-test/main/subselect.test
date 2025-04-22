@@ -71,10 +71,13 @@ SELECT ROW(1,2,3) = (SELECT 1,2,3);
 SELECT ROW(1,2,3) = (SELECT 1,2,1);
 SELECT ROW(1,2,3) < (SELECT 1,2,1);
 SELECT ROW(1,2,3) > (SELECT 1,2,1);
+#enable after fix MDEV-31728
+--disable_cursor_protocol
 #enable after fix MDEV-28585
 --disable_view_protocol
 SELECT ROW(1,2,3) = (SELECT 1,2,NULL);
 --enable_view_protocol
+--enable_cursor_protocol
 SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'a') AS m;
 SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'b') AS m;
 SELECT (SELECT 1.5,2,'a') = ROW('1.5b',2,'b') AS m;
@@ -507,8 +510,11 @@ select 1 IN (SELECT * from t1);
 select 3 IN (SELECT * from t1);
 select 10 IN (SELECT * from t1);
 select 1 > ALL (SELECT * from t1);
+#enable after fix MDEV-31728
+--disable_cursor_protocol
 select 10 > ALL (SELECT * from t1);
 select 1 > ANY (SELECT * from t1);
+--enable_cursor_protocol
 select 10 > ANY (SELECT * from t1);
 drop table t1;
 create table t1 (a varchar(20));
@@ -521,8 +527,11 @@ select 'A' IN (SELECT * from t1);
 select 'DEF' IN (SELECT * from t1);
 select 'XYZS' IN (SELECT * from t1);
 select 'A' > ALL (SELECT * from t1);
+#enable after fix MDEV-31728
+--disable_cursor_protocol
 select 'XYZS' > ALL (SELECT * from t1);
 select 'A' > ANY (SELECT * from t1);
+--enable_cursor_protocol
 select 'XYZS' > ANY (SELECT * from t1);
 drop table t1;
 create table t1 (a float);
@@ -535,15 +544,21 @@ select 1.5 IN (SELECT * from t1);
 select 3.5 IN (SELECT * from t1);
 select 10.5 IN (SELECT * from t1);
 select 1.5 > ALL (SELECT * from t1);
+#enable after fix MDEV-31728
+--disable_cursor_protocol
 select 10.5 > ALL (SELECT * from t1);
 select 1.5 > ANY (SELECT * from t1);
+--enable_cursor_protocol
 update t1 set a=NULL where a=2.5;
 select 1.5 IN (SELECT * from t1);
 select 3.5 IN (SELECT * from t1);
 select 10.5 IN (SELECT * from t1);
 select 1.5 > ALL (SELECT * from t1);
+#enable after fix MDEV-31728
+--disable_cursor_protocol
 select 10.5 > ALL (SELECT * from t1);
 select 1.5 > ANY (SELECT * from t1);
+--enable_cursor_protocol
 select 10.5 > ANY (SELECT * from t1);
 --enable_view_protocol
 explain extended select (select a+1) from t1;
@@ -1177,7 +1192,9 @@ let $outfile_rel= ../../tmp/subselect.out.file.1;
 --error 0,1
 --remove_file $outfile_abs
 --enable_warnings
+--disable_cursor_protocol
 eval select a, (select max(b) from t1) into outfile "$outfile_rel" from t1;
+--enable_cursor_protocol
 delete from t1;
 eval load data infile "$outfile_rel" into table t1;
 --remove_file $outfile_abs
@@ -3583,7 +3600,9 @@ DROP TABLE t1,t2;
 CREATE TABLE t1(a1 int);
 INSERT INTO t1 VALUES (1),(2);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 ## First a simpler query, illustrating the transformation
@@ -3621,7 +3640,9 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2(a1 int);
 INSERT INTO t2 VALUES (3);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 ## All these are subject to the transformation
@@ -3642,7 +3663,9 @@ DROP TABLE t1, t2;
 create table t2(i int);
 insert into t2 values(0);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 CREATE VIEW v1 AS  
@@ -5018,7 +5041,9 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2(a1 int);
 INSERT INTO t2 VALUES (3);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 ## All these are subject to the transformation
@@ -5035,7 +5060,9 @@ DROP TABLE t1, t2;
 create table t2(i int);
 insert into t2 values(0);
 
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 
 CREATE VIEW v1 AS  
@@ -5427,8 +5454,10 @@ DROP TABLE t1,t2,t3;
  
 CREATE TABLE t1(a1 int);
 INSERT INTO t1 VALUES (1),(2);
- 
+
+--disable_cursor_protocol
 SELECT @@session.sql_mode INTO @old_sql_mode;
+--enable_cursor_protocol
 SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
  
 ## First a simpler query, illustrating the transformation
@@ -5855,10 +5884,12 @@ FROM t2 alias1, t1 alias2, t1 alias3;
 --disable_ps2_protocol
 flush status;
 
+--disable_cursor_protocol
 SELECT
   (SELECT MIN(b) FROM t1, t2
      WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
+--enable_cursor_protocol
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -5873,10 +5904,12 @@ FROM t2 alias1, t1 alias2, t1 alias3;
 
 flush status;
 
+--disable_cursor_protocol
 SELECT
   (SELECT MIN(b) FROM t1, t2
      WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
+--enable_cursor_protocol
 
 show status like "subquery_cache%";
 show status like '%Handler_read%';
@@ -5932,7 +5965,9 @@ WHERE SLEEP(0.1) OR c < 'p' OR b = ( SELECT MIN(b) FROM t2 );
 --enable_ps2_protocol
 
 --echo # The following shows that t2 was indeed scanned with a full scan.
+--sorted_result
 show table_statistics;
+--sorted_result
 show index_statistics;
 set global userstat=@tmp_mdev410;
 

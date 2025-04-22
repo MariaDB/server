@@ -28,7 +28,8 @@
 # elif __GNUC__ >= 14 || (defined __clang_major__ && __clang_major__ >= 18)
 #  define TARGET "pclmul,evex512,avx512f,avx512dq,avx512bw,avx512vl,vpclmulqdq"
 #  define USE_VPCLMULQDQ __attribute__((target(TARGET)))
-# elif __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 8)
+# elif __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 9)
+/* clang 8 does not support _xgetbv(), which we also need */
 #  define TARGET "pclmul,avx512f,avx512dq,avx512bw,avx512vl,vpclmulqdq"
 #  define USE_VPCLMULQDQ __attribute__((target(TARGET)))
 # endif
@@ -38,6 +39,7 @@ extern "C" unsigned crc32c_sse42(unsigned crc, const void* buf, size_t size);
 
 constexpr uint32_t cpuid_ecx_SSE42= 1U << 20;
 constexpr uint32_t cpuid_ecx_SSE42_AND_PCLMUL= cpuid_ecx_SSE42 | 1U << 1;
+constexpr uint32_t cpuid_ecx_AVX_AND_XSAVE= 1U << 28 | 1U << 27;
 
 static uint32_t cpuid_ecx()
 {
@@ -382,8 +384,19 @@ static unsigned crc32_avx512(unsigned crc, const char *buf, size_t size,
   }
 }
 
-static ATTRIBUTE_NOINLINE int have_vpclmulqdq()
+#ifdef __GNUC__
+__attribute__((target("xsave")))
+#endif
+static bool os_have_avx512()
 {
+  // The following flags must be set: SSE, AVX, OPMASK, ZMM_HI256, HI16_ZMM
+  return !(~_xgetbv(0 /*_XCR_XFEATURE_ENABLED_MASK*/) & 0xe6);
+}
+
+static ATTRIBUTE_NOINLINE bool have_vpclmulqdq(uint32_t cpuid_ecx)
+{
+  if ((~cpuid_ecx & cpuid_ecx_AVX_AND_XSAVE) || !os_have_avx512())
+    return false;
 # ifdef _MSC_VER
   int regs[4];
   __cpuidex(regs, 7, 0);
@@ -410,10 +423,11 @@ static unsigned crc32c_vpclmulqdq(unsigned crc, const void *buf, size_t size)
 
 extern "C" my_crc32_t crc32_pclmul_enabled(void)
 {
-  if (~cpuid_ecx() & cpuid_ecx_SSE42_AND_PCLMUL)
+  const uint32_t ecx= cpuid_ecx();
+  if (~ecx & cpuid_ecx_SSE42_AND_PCLMUL)
     return nullptr;
 #ifdef USE_VPCLMULQDQ
-  if (have_vpclmulqdq())
+  if (have_vpclmulqdq(ecx))
     return crc32_vpclmulqdq;
 #endif
   return crc32_pclmul;
@@ -421,19 +435,20 @@ extern "C" my_crc32_t crc32_pclmul_enabled(void)
 
 extern "C" my_crc32_t crc32c_x86_available(void)
 {
+  const uint32_t ecx= cpuid_ecx();
 #ifdef USE_VPCLMULQDQ
-  if (have_vpclmulqdq())
+  if (have_vpclmulqdq(ecx))
     return crc32c_vpclmulqdq;
 #endif
 #if SIZEOF_SIZE_T == 8
-  switch (cpuid_ecx() & cpuid_ecx_SSE42_AND_PCLMUL) {
+  switch (ecx & cpuid_ecx_SSE42_AND_PCLMUL) {
   case cpuid_ecx_SSE42_AND_PCLMUL:
     return crc32c_3way;
   case cpuid_ecx_SSE42:
     return crc32c_sse42;
   }
 #else
-  if (cpuid_ecx() & cpuid_ecx_SSE42)
+  if (ecx & cpuid_ecx_SSE42)
     return crc32c_sse42;
 #endif
   return nullptr;

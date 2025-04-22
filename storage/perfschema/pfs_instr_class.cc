@@ -403,19 +403,19 @@ void cleanup_table_share(void)
 
 C_MODE_START
 /** get_key function for @c table_share_hash. */
-static uchar *table_share_hash_get_key(const uchar *entry, size_t *length,
-                                       my_bool)
+static const uchar *table_share_hash_get_key(const void *entry, size_t *length,
+                                             my_bool)
 {
   const PFS_table_share * const *typed_entry;
   const PFS_table_share *share;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_table_share* const *> (entry);
+  typed_entry= static_cast<const PFS_table_share* const *> (entry);
   assert(typed_entry != NULL);
   share= *typed_entry;
   assert(share != NULL);
   *length= share->m_key.m_key_length;
   result= &share->m_key.m_hash_key[0];
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 

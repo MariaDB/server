@@ -3,7 +3,7 @@
 --source include/have_innodb.inc
 --source include/galera_no_debug_sync.inc
 
---let $galera_version=26.4.9
+--let $galera_version=26.4.21
 source include/check_galera_version.inc;
 
 source include/galera_variables_ok.inc;
@@ -23,4 +23,3 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 --echo # variables
 
 SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
-

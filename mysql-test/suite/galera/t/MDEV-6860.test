@@ -4,7 +4,7 @@
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3, MASTER_USE_GTID=slave_pos;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 

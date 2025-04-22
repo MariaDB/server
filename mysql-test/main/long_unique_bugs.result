@@ -729,4 +729,43 @@ alter table t1 enable keys;
 insert into t1 values (2);
 ERROR 23000: Duplicate entry '2' for key 'i'
 drop table t1;
+#
+# MDEV-25654 Unexpected ER_CRASHED_ON_USAGE and Assertion `limit >= trx_id' failed in purge_node_t::skip
+#
+create table t1 (a int, unique using hash (a)) engine=innodb
+partition by range(a) (
+partition p1 values less than (2),
+partition p2 values less than (101)
+);
+insert into t1 select seq from seq_1_to_100;
+alter table t1 add partition (partition p3 values less than (maxvalue));
+alter table t1 force;
+drop table t1;
+#
+# MDEV-33658 cannot add a foreign key on a table with a long UNIQUE
+# multi-column index, that contains a foreign key as a prefix.
+#
+create table a (id int primary key) engine = innodb;
+create table b (id int,
+long_text varchar(1000),
+constraint unique_b unique key (id, long_text)
+) engine=innodb default charset utf8mb4;
+alter table b add constraint b_fk_id foreign key (id) references a (id);
+show create table b;
+Table	Create Table
+b	CREATE TABLE `b` (
+  `id` int(11) DEFAULT NULL,
+  `long_text` varchar(1000) DEFAULT NULL,
+  UNIQUE KEY `unique_b` (`id`,`long_text`) USING HASH,
+  KEY `b_fk_id` (`id`),
+  CONSTRAINT `b_fk_id` FOREIGN KEY (`id`) REFERENCES `a` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+drop table b;
+drop table a;
+# veirfy that duplicate has unique is detected
+create table t1 (a blob unique);
+alter table t1 add constraint constraint_1 unique (a);
+Warnings:
+Note	1831	Duplicate index `constraint_1`. This is deprecated and will be disallowed in a future release
+drop table t1;
 # End of 10.5 tests

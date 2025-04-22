@@ -609,12 +609,15 @@ select round(99999999999999999.999,3);
 select round(-99999999999999999.999,3);
 #-- should return -100000000000000000.000
 #
+#enable after fix MDEV-31729
+--disable_cursor_protocol
 #enable after fix MDEV-28660
 --disable_view_protocol
 select truncate(99999999999999999999999999999999999999,49);
 #-- should return 99999999999999999999999999999999999999.000
 #
 --enable_view_protocol
+--enable_cursor_protocol
 select truncate(99.999999999999999999999999999999999999,49);
 #-- should return 99.9999999999999999999999999999999
 #
@@ -1266,11 +1269,12 @@ DROP TABLE t1;
 let $nine_81=
 999999999999999999999999999999999999999999999999999999999999999999999999999999999;
 
-
 #view protocol generates additional warning
 --disable_view_protocol
 eval SELECT substring(('M') FROM ($nine_81)) AS foo;
 --enable_view_protocol
+#check after fix MDEV-31729
+--disable_cursor_protocol
 #enable after fix MDEV-28661
 --disable_view_protocol
 eval SELECT min($nine_81) AS foo;
@@ -1284,6 +1288,7 @@ eval SELECT date_sub(($nine_81),
                      day_minute)
 AS foo;
 eval SELECT truncate($nine_81, 28) AS foo;
+--enable_cursor_protocol
 --enable_view_protocol
 
 --echo End of 5.0 tests
@@ -2044,6 +2049,17 @@ SHOW COLUMNS IN t2;
 DROP TABLE t1, t2;
 
 SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-25174 DOUBLE columns do not accept large hex hybrids
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(30,0));
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (0x8000000000000000);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF);
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests

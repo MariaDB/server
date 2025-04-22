@@ -28,10 +28,6 @@
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
-#ifdef WITH_WSREP
-#include "wsrep_mysqld.h" // wsrep_thd_is_local
-#include "wsrep_trans_observer.h" // wsrep_start_trx_if_not_started
-#endif
 
 const LEX_CSTRING rpl_gtid_slave_state_table_name=
   { STRING_WITH_LEN("gtid_slave_pos") };
@@ -696,23 +692,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
 
 #ifdef WITH_WSREP
-  /*
-    We should replicate local gtid_slave_pos updates to other nodes if
-    wsrep gtid mode is set.
-    In applier we should not append them to galera writeset.
-  */
-  if (WSREP_ON_ && wsrep_gtid_mode && wsrep_thd_is_local(thd))
-  {
-    thd->wsrep_ignore_table= false;
-    table->file->row_logging= 1; // replication requires binary logging
-    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-      thd->set_query_id(next_query_id());
-    wsrep_start_trx_if_not_started(thd);
-  }
-  else
-  {
-    thd->wsrep_ignore_table= true;
-  }
+  thd->wsrep_ignore_table= true; // Do not replicate mysql.gtid_slave_pos table
 #endif
 
   if (!in_transaction)
@@ -749,10 +729,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
 end:
 
-#ifdef WITH_WSREP
-  thd->wsrep_ignore_table= false;
-#endif
-
   if (table_opened)
   {
     if (err || (err= ha_commit_trans(thd, FALSE)))
@@ -764,6 +740,10 @@ end:
     else
       thd->release_transactional_locks();
   }
+
+#ifdef WITH_WSREP
+  thd->wsrep_ignore_table= false;
+#endif
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
   thd->resume_subsequent_commits(suspended_wfc);
@@ -877,25 +857,7 @@ rpl_slave_state::gtid_delete_pending(THD *thd,
     return;
 
 #ifdef WITH_WSREP
-  /*
-    We should replicate local gtid_slave_pos updates to other nodes if
-    wsrep gtid mode is set.
-    In applier we should not append them to galera writeset.
-  */
-  if (WSREP_ON_ && wsrep_gtid_mode &&
-      wsrep_thd_is_local(thd) &&
-      thd->wsrep_cs().state() != wsrep::client_state::s_none)
-  {
-    if (thd->wsrep_trx().active() == false)
-    {
-      if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-        thd->set_query_id(next_query_id());
-      wsrep_start_transaction(thd, thd->wsrep_next_trx_id());
-    }
-    thd->wsrep_ignore_table= false;
-  }
-  else
-    thd->wsrep_ignore_table= true;
+  thd->wsrep_ignore_table= true; // No Galera replication for mysql.gtid_pos_table
 #endif
 
   thd_saved_option= thd->variables.option_bits;
@@ -2925,10 +2887,10 @@ gtid_waiting::destroy()
 
 
 static int
-cmp_queue_elem(void *, uchar *a, uchar *b)
+cmp_queue_elem(void *, const void *a, const void *b)
 {
-  uint64 seq_no_a= *(uint64 *)a;
-  uint64 seq_no_b= *(uint64 *)b;
+  auto seq_no_a= *(static_cast<const uint64 *>(a));
+  auto seq_no_b= *(static_cast<const uint64 *>(b));
   if (seq_no_a < seq_no_b)
     return -1;
   else if (seq_no_a == seq_no_b)

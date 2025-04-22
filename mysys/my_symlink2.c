@@ -26,7 +26,7 @@
 #include <m_string.h>
 
 File my_create_with_symlink(const char *linkname, const char *filename,
-			    int createflags, int access_flags, myf MyFlags)
+			    mode_t createflags, int access_flags, myf MyFlags)
 {
   File file;
   int tmp_errno;

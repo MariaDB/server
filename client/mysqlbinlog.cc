@@ -142,11 +142,14 @@ static char *charset= 0;
 static uint verbose= 0;
 
 static ulonglong start_position, stop_position;
+static const longlong stop_position_default= (longlong)(~(my_off_t)0);
 #define start_position_mot ((my_off_t)start_position)
 #define stop_position_mot  ((my_off_t)stop_position)
 
 static char *start_datetime_str, *stop_datetime_str;
 static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
+static my_time_t last_processed_datetime= MY_TIME_T_MAX;
+
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
@@ -1010,6 +1013,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   DBUG_ENTER("process_event");
   Exit_status retval= OK_CONTINUE;
   IO_CACHE *const head= &print_event_info->head_cache;
+  my_time_t ev_when= ev->when;
 
   /* Bypass flashback settings to event */
   ev->is_flashback= opt_flashback;
@@ -1457,6 +1461,7 @@ err:
   retval= ERROR_STOP;
 end:
   rec_count++;
+  last_processed_datetime= ev_when;
 
   DBUG_PRINT("info", ("end event processing"));
   /*
@@ -1684,8 +1689,8 @@ static struct my_option my_options[] =
    "Stop reading the binlog at position N. Applies to the last binlog "
    "passed on the command line.",
    &stop_position, &stop_position, 0, GET_ULL,
-   REQUIRED_ARG, (longlong)(~(my_off_t)0), BIN_LOG_HEADER_SIZE,
-   (ulonglong)(~(my_off_t)0), 0, 0, 0},
+   REQUIRED_ARG, stop_position_default, BIN_LOG_HEADER_SIZE,
+   (ulonglong)stop_position_default, 0, 0, 0},
   {"table", 'T', "List entries for just this table (affects only row events).",
    &table, &table, 0, GET_STR_ALLOC, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
@@ -2937,7 +2942,20 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
               llstr(old_off,llbuff));
         goto err;
       }
-      // file->error == 0 means EOF, that's OK, we break in this case
+      // else file->error == 0 means EOF, that's OK, we break in this case
+
+      /*
+        Emit a warning in the event that we finished processing input
+        before reaching the boundary indicated by --stop-position.
+      */
+      if (((longlong)stop_position != stop_position_default) &&
+          stop_position > my_b_tell(file))
+      {
+          retval = OK_STOP;
+          warning("Did not reach stop position %llu before "
+                  "end of input", stop_position);
+      }
+
       goto end;
     }
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
@@ -3114,6 +3132,11 @@ int main(int argc, char** argv)
     // For next log, --start-position does not apply
     start_position= BIN_LOG_HEADER_SIZE;
   }
+
+  if (stop_datetime != MY_TIME_T_MAX &&
+      stop_datetime > last_processed_datetime)
+    warning("Did not reach stop datetime '%s' before end of input",
+            stop_datetime_str);
 
   /*
     If enable flashback, need to print the events from the end to the

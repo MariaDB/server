@@ -1306,6 +1306,7 @@ public:
 
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
+  uint	   original_table_count;
 
 /******* Join optimization state members start *******/
   /*
@@ -1473,7 +1474,7 @@ public:
 
     Then, ORDER/GROUP BY and Window Function code add columns that need to
     be saved to be available in the post-group-by context. These extra columns
-    are added to the front, because this->all_fields points to the suffix of
+    are added to the front, because this->fields_list points to the suffix of
     this list.
   */
   List<Item> all_fields;
@@ -1945,7 +1946,7 @@ int opt_sum_query(THD* thd,
                   List<TABLE_LIST> &tables, List<Item> &all_fields, COND *conds);
 
 /* from sql_delete.cc, used by opt_range.cc */
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b);
+extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
 /** class to copying an field/item to a key struct */
 
@@ -2597,5 +2598,8 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               List<Item_equal> *new_equalities,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
+
+#define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
+
 
 #endif /* SQL_SELECT_INCLUDED */

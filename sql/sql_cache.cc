@@ -840,13 +840,13 @@ void Query_cache_block::destroy()
   DBUG_VOID_RETURN;
 }
 
-uint Query_cache_block::headers_len()
+uint Query_cache_block::headers_len() const
 {
   return (ALIGN_SIZE(sizeof(Query_cache_block_table)*n_tables) +
 	  ALIGN_SIZE(sizeof(Query_cache_block)));
 }
 
-uchar* Query_cache_block::data(void)
+uchar* Query_cache_block::data(void) const
 {
   return (uchar*)( ((uchar*)this) + headers_len() );
 }
@@ -893,14 +893,14 @@ Query_cache_block_table * Query_cache_block::table(TABLE_COUNTER_TYPE n)
 
 extern "C"
 {
-uchar *query_cache_table_get_key(const uchar *record, size_t *length,
-				my_bool not_used __attribute__((unused)))
+const uchar *query_cache_table_get_key(const void *record, size_t *length,
+                                       my_bool)
 {
-  Query_cache_block* table_block = (Query_cache_block*) record;
-  *length = (table_block->used - table_block->headers_len() -
-	     ALIGN_SIZE(sizeof(Query_cache_table)));
-  return (((uchar *) table_block->data()) +
-	  ALIGN_SIZE(sizeof(Query_cache_table)));
+  auto table_block= static_cast<const Query_cache_block *>(record);
+  *length= (table_block->used - table_block->headers_len() -
+            ALIGN_SIZE(sizeof(Query_cache_table)));
+  return reinterpret_cast<const uchar *>(
+      ((table_block->data()) + ALIGN_SIZE(sizeof(Query_cache_table))));
 }
 }
 
@@ -991,14 +991,14 @@ void Query_cache_query::unlock_n_destroy()
 
 extern "C"
 {
-uchar *query_cache_query_get_key(const uchar *record, size_t *length,
-				my_bool not_used)
+const uchar *query_cache_query_get_key(const void *record, size_t *length,
+                                       my_bool)
 {
-  Query_cache_block *query_block = (Query_cache_block*) record;
-  *length = (query_block->used - query_block->headers_len() -
-	     ALIGN_SIZE(sizeof(Query_cache_query)));
-  return (((uchar *) query_block->data()) +
-	  ALIGN_SIZE(sizeof(Query_cache_query)));
+  auto query_block= static_cast<const Query_cache_block *>(record);
+  *length= (query_block->used - query_block->headers_len() -
+            ALIGN_SIZE(sizeof(Query_cache_query)));
+  return reinterpret_cast<const uchar *>
+      (((query_block->data()) + ALIGN_SIZE(sizeof(Query_cache_query))));
 }
 }
 
@@ -3552,6 +3552,7 @@ Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
     if (table_block == 0)
     {
       DBUG_PRINT("qcache", ("Can't write table name to cache"));
+      node->parent= NULL;
       DBUG_RETURN(0);
     }
     Query_cache_table *header= table_block->table();
@@ -3575,6 +3576,7 @@ Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
       DBUG_PRINT("qcache", ("Can't insert table to hash"));
       // write_block_data return locked block
       free_memory_block(table_block);
+      node->parent= NULL;
       DBUG_RETURN(0);
     }
     char *db= header->db();
@@ -4326,10 +4328,10 @@ my_bool Query_cache::move_by_type(uchar **border,
 		      *new_block =(Query_cache_block *) *border;
     size_t tablename_offset = block->table()->table() - block->table()->db();
     char *data = (char*) block->data();
-    uchar *key;
+    const uchar *key;
     size_t key_length;
-    key=query_cache_table_get_key((uchar*) block, &key_length, 0);
-    my_hash_first(&tables, (uchar*) key, key_length, &record_idx);
+    key=query_cache_table_get_key( block, &key_length, 0);
+    my_hash_first(&tables, key, key_length, &record_idx);
 
     block->destroy();
     new_block->init(len);
@@ -4386,10 +4388,10 @@ my_bool Query_cache::move_by_type(uchar **border,
     char *data = (char*) block->data();
     Query_cache_block *first_result_block = ((Query_cache_query *)
 					     block->data())->result();
-    uchar *key;
+    const uchar *key;
     size_t key_length;
-    key=query_cache_query_get_key((uchar*) block, &key_length, 0);
-    my_hash_first(&queries, (uchar*) key, key_length, &record_idx);
+    key=query_cache_query_get_key( block, &key_length, 0);
+    my_hash_first(&queries, key, key_length, &record_idx);
     block->query()->unlock_n_destroy();
     block->destroy();
     // Move table of used tables
@@ -5043,9 +5045,9 @@ my_bool Query_cache::check_integrity(bool locked)
       DBUG_PRINT("qcache", ("block %p, type %u...", 
 			    block, (uint) block->type));
       size_t length;
-      uchar *key = query_cache_query_get_key((uchar*) block, &length, 0);
+      const uchar *key= query_cache_query_get_key(block, &length, 0);
       uchar* val = my_hash_search(&queries, key, length);
-      if (((uchar*)block) != val)
+      if ((reinterpret_cast<uchar *>(block)) != val)
       {
 	DBUG_PRINT("error", ("block %p found in queries hash like %p",
 			     block, val));
@@ -5078,9 +5080,9 @@ my_bool Query_cache::check_integrity(bool locked)
       DBUG_PRINT("qcache", ("block %p, type %u...", 
 			    block, (uint) block->type));
       size_t length;
-      uchar *key = query_cache_table_get_key((uchar*) block, &length, 0);
+      const uchar *key= query_cache_table_get_key(block, &length, 0);
       uchar* val = my_hash_search(&tables, key, length);
-      if (((uchar*)block) != val)
+      if (reinterpret_cast<uchar *>(block) != val)
       {
 	DBUG_PRINT("error", ("block %p found in tables hash like %p",
 			     block, val));

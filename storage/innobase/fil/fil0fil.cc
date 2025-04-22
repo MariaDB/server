@@ -352,7 +352,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	this->size += size;
 	UT_LIST_ADD_LAST(chain, node);
 	if (node->is_open()) {
-		node->find_metadata(node->handle);
+		node->find_metadata();
 		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
@@ -1197,7 +1197,7 @@ err_exit:
 
     if (create_new_db)
     {
-      node->find_metadata(node->handle);
+      node->find_metadata();
       continue;
     }
     if (skip_read)
@@ -1554,17 +1554,18 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
   m_last= nullptr;
 
   const size_t len= strlen(path);
-  const size_t new_len= type == FILE_RENAME ? 1 + strlen(new_path) : 0;
+  const size_t new_len= new_path ? 1 + strlen(new_path) : 0;
   ut_ad(len > 0);
   byte *const log_ptr= m_log.open(1 + 3/*length*/ + 5/*space_id*/ +
                                   1/*page_no=0*/);
+  *log_ptr= type;
   byte *end= log_ptr + 1;
   end= mlog_encode_varint(end, space_id);
   *end++= 0;
-  if (UNIV_LIKELY(end + len + new_len >= &log_ptr[16]))
+  const byte *const final_end= end + len + new_len;
+  if (UNIV_LIKELY(final_end >= &log_ptr[16]))
   {
-    *log_ptr= type;
-    size_t total_len= len + new_len + end - log_ptr - 15;
+    size_t total_len= final_end - log_ptr - 15;
     if (total_len >= MIN_3BYTE)
       total_len+= 2;
     else if (total_len >= MIN_2BYTE)
@@ -1575,13 +1576,13 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
   }
   else
   {
-    *log_ptr= static_cast<byte>(type | (end + len + new_len - &log_ptr[1]));
+    *log_ptr= static_cast<byte>(*log_ptr | (final_end - &log_ptr[1]));
     ut_ad(*log_ptr & 15);
   }
 
   m_log.close(end);
 
-  if (type == FILE_RENAME)
+  if (new_path)
   {
     ut_ad(strchr(new_path, OS_PATH_SEPARATOR));
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len + 1));

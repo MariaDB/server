@@ -6,8 +6,9 @@
 
 SET @save_compression_algorithm=@@GLOBAL.innodb_compression_algorithm;
 SET GLOBAL innodb_compression_algorithm=0;
+--disable_cursor_protocol
 SELECT VARIABLE_VALUE INTO @compress_errors FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Innodb_num_pages_page_compression_error';
-
+--enable_cursor_protocol
 
 CREATE TABLE t (c INT) page_compressed=1 page_compression_level=4 ENGINE=InnoDB;
 INSERT INTO t VALUES (1);

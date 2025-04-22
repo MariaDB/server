@@ -137,7 +137,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
@@ -164,6 +164,8 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   };
 
   int m_state;
+  /* Padding to avoid false sharing */
+  char m_pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   bool is_executing_task()
   {
@@ -187,26 +189,6 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
     m_state(NONE),
     m_task_start_time()
   {}
-
-  /*Define custom new/delete because of overaligned structure. */
-  void* operator new(size_t size)
-  {
-#ifdef _WIN32
-    return _aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-#else
-    void* ptr;
-    int ret = posix_memalign(&ptr, CPU_LEVEL1_DCACHE_LINESIZE, size);
-    return ret ? 0 : ptr;
-#endif
-  }
-  void operator delete(void* p)
-  {
-#ifdef _WIN32
-    _aligned_free(p);
-#else
-    free(p);
-#endif
-  }
 };
 
 
@@ -589,8 +571,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
 {
   task* task;
   set_tls_pool(this);
-  if(m_worker_init_callback)
-   m_worker_init_callback();
+  m_worker_init_callback();
 
   tls_worker_data = thread_var;
 
@@ -599,8 +580,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
     task->execute();
   }
 
-  if (m_worker_destroy_callback)
-    m_worker_destroy_callback();
+  m_worker_destroy_callback();
 
   worker_end(thread_var);
 }

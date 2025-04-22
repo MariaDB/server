@@ -92,9 +92,12 @@ SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),r
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 --disable_view_protocol
+#chaeck after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 select replace('aaaa','a','bbbb');
 --disable_metadata
+--enable_cursor_protocol
 --enable_view_protocol
 select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') as exp;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
@@ -145,7 +148,10 @@ select length(unhex(md5("abrakadabra")));
 #
 # Bug #6564: QUOTE(NULL
 #
+#enable after fix MDEV-31587
+--disable_cursor_protocol
 select concat('a', quote(NULL));
+--enable_cursor_protocol
 
 #
 # Wrong usage of functions
@@ -741,8 +747,11 @@ create table t1 (i int);
 insert into t1 values (1000000000),(1);
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 select lpad(i, 7, ' ') as t from t1;
 select rpad(i, 7, ' ') as t from t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;
@@ -893,6 +902,8 @@ select format(NULL, NULL);
 select format(pi(), NULL);
 select format(NULL, 2);
 
+#check after fix MDEV-31587
+--disable_cursor_protocol
 #enable after fix MDEV-28585
 --disable_view_protocol
 select benchmark(NULL, NULL);
@@ -900,16 +911,20 @@ select benchmark(0, NULL);
 select benchmark(100, NULL);
 select benchmark(NULL, 1+1);
 --enable_view_protocol
+--enable_cursor_protocol
 
 #
 # Bug #20752: BENCHMARK with many iterations returns too quickly
 #
 
 # not a string, but belongs with the above Bug#22684
+#check after fix MDEV-31587
+--disable_cursor_protocol
 #enable after fix MDEV-28585
 --disable_view_protocol
 select benchmark(-1, 1);
 --enable_view_protocol
+--enable_cursor_protocol
 #
 # Please note:
 # 1) The collation of the password is irrelevant, the encryption uses
@@ -977,26 +992,26 @@ select left('hello', -1);
 select left('hello', -4294967295);
 #enable after fix MDEV-29552
 --disable_view_protocol
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select left('hello', 4294967295);
---enable_view_protocol
 select left('hello', -4294967296);
-#enable after fix MDEV-29552
---disable_view_protocol
 select left('hello', 4294967296);
---enable_view_protocol
 select left('hello', -4294967297);
-#enable after fix MDEV-29552
---disable_view_protocol
 select left('hello', 4294967297);
+--enable_cursor_protocol
 --enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select left('hello', -18446744073709551615);
 select left('hello', 18446744073709551615);
 select left('hello', -18446744073709551616);
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select left('hello', 18446744073709551616);
 select left('hello', -18446744073709551617);
 select left('hello', 18446744073709551617);
+--enable_cursor_protocol
 --enable_view_protocol
 
 select right('hello', 10);
@@ -1005,26 +1020,26 @@ select right('hello', -1);
 select right('hello', -4294967295);
 #enable after fix MDEV-29552
 --disable_view_protocol
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select right('hello', 4294967295);
---enable_view_protocol
 select right('hello', -4294967296);
-#enable after fix MDEV-29552
---disable_view_protocol
 select right('hello', 4294967296);
---enable_view_protocol
 select right('hello', -4294967297);
-#enable after fix MDEV-29552
---disable_view_protocol
 select right('hello', 4294967297);
+--enable_cursor_protocol
 --enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select right('hello', -18446744073709551615);
 select right('hello', 18446744073709551615);
 select right('hello', -18446744073709551616);
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select right('hello', 18446744073709551616);
 select right('hello', -18446744073709551617);
 select right('hello', 18446744073709551617);
+--enable_cursor_protocol
 --enable_view_protocol
 
 select substring('hello', 2, -1);
@@ -1049,6 +1064,8 @@ select substring('hello', 18446744073709551617, 1);
 #enable after fix MDEV-28652
 --disable_view_protocol
 select substring('hello', 1, -1);
+#check after fix MDEV-31587
+--disable_cursor_protocol
 select substring('hello', 1, -4294967295);
 select substring('hello', 1, 4294967295);
 select substring('hello', 1, -4294967296);
@@ -1064,6 +1081,7 @@ select substring('hello', 1, -18446744073709551616);
 select substring('hello', 1, 18446744073709551616);
 select substring('hello', 1, -18446744073709551617);
 select substring('hello', 1, 18446744073709551617);
+--enable_cursor_protocol
 --enable_view_protocol
 select substring('hello', -1, -1);
 select substring('hello', -4294967295, -4294967295);
@@ -1395,7 +1413,10 @@ create table t1(a float);
 insert into t1 values (1.33);
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 select format(a, 2) from t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;
@@ -1510,9 +1531,11 @@ SELECT CONVERT(('' IN (REVERSE(CAST(('') AS DECIMAL)), '')), CHAR(3));
 --echo #
 CREATE TABLE t1 ( a TEXT );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --disable_ps2_protocol
 --eval SELECT 'aaaaaaaaaaaaaa' INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt';
 --enable_ps2_protocol
+--enable_cursor_protocol
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
@@ -1595,11 +1618,17 @@ SELECT format(12345678901234567890.123, 3, 'ar_AE');
 SELECT format(12345678901234567890.123, 3, 'ar_SA');
 SELECT format(12345678901234567890.123, 3, 'be_BY');
 SELECT format(12345678901234567890.123, 3, 'de_DE');
+#check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'en_IN');
 SELECT format(12345678901234567890.123, 3, 'en_US');
+--enable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'it_CH');
 SELECT format(12345678901234567890.123, 3, 'ru_RU');
+#checkafter fix MDEV-31512
+--disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'ta_IN');
+--enable_cursor_protocol
 
 CREATE TABLE t1 (fmt CHAR(5) NOT NULL);
 INSERT INTO t1 VALUES ('ar_AE');
@@ -1611,6 +1640,8 @@ INSERT INTO t1 VALUES ('en_US');
 INSERT INTO t1 VALUES ('it_CH');
 INSERT INTO t1 VALUES ('ru_RU');
 INSERT INTO t1 VALUES ('ta_IN');
+#check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT fmt, format(12345678901234567890.123, 3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(12345678901234567890.123, 0, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(12345678901234567890,     3, fmt) FROM t1 ORDER BY fmt;
@@ -1618,6 +1649,7 @@ SELECT fmt, format(-12345678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(-02345678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(-00345678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(-00045678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
+--enable_cursor_protocol
 DROP TABLE t1;
 
 SELECT format(123, 1, 'Non-existent-locale');
@@ -2062,7 +2094,10 @@ DROP TABLE t1;
 --disable_view_protocol
 CREATE TABLE t1 (a INT, b TIME, c TIME);
 INSERT INTO t1 VALUES (NULL,'22:56:45','22:56:45'),(4,'12:51:42','12:51:42');
+#check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT REPLACE( BINARY c, a, b ) f FROM t1 GROUP BY f WITH ROLLUP;
+--enable_cursor_protocol
 DROP TABLE t1;
 --enable_view_protocol
 
@@ -2322,6 +2357,26 @@ SET @a='-9223372036854775808';  # Quite specific value; considerably varying it 
 CREATE TABLE t (c1 INT,c2 CHAR);
 SELECT SUBSTR(0,@a) FROM t;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+--echo #
+
+CREATE TABLE t1 (c BLOB);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+SELECT BIN(c) FROM t1;
+DROP TABLE t1;
+
+DO OCT(-9223372036854775808);
+
+--echo #
+--echo # MDEV-28652 SUBSTRING(str,pos,len) returns incorrect result in view (returns an empty string)
+--echo #
+
+create view v1 as select substring('hello', 1, 4294967295);
+select * from v1;
+drop view v1;
 
 --echo #
 --echo # End of 10.5 tests

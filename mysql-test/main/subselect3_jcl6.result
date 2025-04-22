@@ -1172,7 +1172,7 @@ count(*)
 show status like 'Created_tmp_disk_tables';
 Variable_name	Value
 Created_tmp_disk_tables	1
-set @save_max_heap_table_size=@@max_heap_table_size;
+set @@max_heap_table_size=@save_max_heap_table_size;
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t0, t1;
 create table t0 (a int);

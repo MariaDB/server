@@ -56,4 +56,19 @@ drop table t1;
 --remove_files_wildcard $TMP *.txt
 --remove_files_wildcard $TMP *.sql
 
+--echo #
+--echo # MDEV-31297 Create table as select on system versioned tables do not work consistently on replication
+--echo #
+--connection master
+create table t engine=innodb with system versioning as select 1 as i;
+show create table t;
+select * from t;
+
+--sync_slave_with_master
+show create table t;
+select * from t;
+
+--connection master
+drop table t;
+
 --source include/rpl_end.inc

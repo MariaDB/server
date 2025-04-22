@@ -7,6 +7,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+--source include/force_restart.inc
+
+# Verify that SSL is handled by the provider.
+SELECT COUNT(*) `expect 0` FROM performance_schema.socket_instances WHERE EVENT_NAME LIKE '%wsrep%';
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1

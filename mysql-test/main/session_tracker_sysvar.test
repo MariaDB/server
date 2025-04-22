@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+
+--enable_session_track_info
+
+--echo #
+--echo # MDEV-15477: SESSION_SYSVARS_TRACKER does not track last_gtid
+--echo #
+
+SET gtid_seq_no=1000;
+SET @@session.session_track_system_variables='last_gtid';
+create table t1 (a int) engine=innodb;
+select @@last_gtid;
+insert into t1 values (1);
+select @@last_gtid;
+drop table t1;
+
+--disable_session_track_info
+reset master;
+
+--echo #
+--echo # MDEV-35086 Trying to lock mutex when the mutex was already locked (session_tracker.cc), server hangs
+--echo #
+set session_track_system_variables='*';
+--error ER_NO_SUCH_TABLE
+alter table t1 nowait force;
+use mysql;
+set session_track_system_variables=default;
+
+--echo # End of 10.5 tests

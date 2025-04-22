@@ -724,3 +724,34 @@ ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of colum
 #
 # End of 10.4 test
 #
+#
+# Ensure that SHOW CREATE TABLE shows used table options
+#
+SET @@innodb_compression_default=ON;
+CREATE TABLE seq (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) engine=innodb,sequence=1;
+show create sequence seq;
+Table	Create Table
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB `PAGE_COMPRESSED`='ON'
+show create table seq;
+Table	Create Table
+seq	CREATE TABLE `seq` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) ENGINE=InnoDB SEQUENCE=1 `PAGE_COMPRESSED`='ON'
+drop sequence seq;
+SET @@innodb_compression_default=DEFAULT;

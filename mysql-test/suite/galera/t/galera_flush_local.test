@@ -68,11 +68,10 @@ REPAIR LOCAL TABLE x1, x2;
 --eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before AS wsrep_last_committed_diff;
 --enable_query_log
 
-SELECT COUNT(*) = 10 FROM t1;
-SELECT COUNT(*) = 10 FROM x1;
-SELECT COUNT(*) = 10000 FROM t2;
-SELECT COUNT(*) = 10 FROM x2;
-
+SELECT COUNT(*) AS EXPECT_10 FROM t1;
+SELECT COUNT(*) AS EXPECT_10 FROM x1;
+SELECT COUNT(*) AS EXPECT_10000 FROM t2;
+SELECT COUNT(*) AS EXPECT_10 FROM x2;
 
 --connection node_1
 DROP TABLE t1, t2, x1, x2;
@@ -133,10 +132,10 @@ REPAIR TABLE x1, x2;
 --eval SELECT $wsrep_last_committed_after2 = $wsrep_last_committed_before + 9 AS wsrep_last_committed_diff2;
 --enable_query_log
 
-SELECT COUNT(*) = 10 FROM t1;
-SELECT COUNT(*) = 10 FROM x1;
-SELECT COUNT(*) = 10000 FROM t2;
-SELECT COUNT(*) = 10 FROM x2;
+SELECT COUNT(*) AS EXPECT_10 FROM t1;
+SELECT COUNT(*) AS EXPECT_10 FROM x1;
+SELECT COUNT(*) AS EXPECT_10000 FROM t2;
+SELECT COUNT(*) AS EXPECT_10 FROM x2;
 
 --connection node_1
 set wsrep_on=1;

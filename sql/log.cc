@@ -694,6 +694,7 @@ bool Log_to_csv_event_handler::
 {
   TABLE_LIST table_list;
   TABLE *table;
+  const char *cause= 0;
   bool result= TRUE;
   bool need_close= FALSE;
   bool need_pop= FALSE;
@@ -728,13 +729,19 @@ bool Log_to_csv_event_handler::
   need_pop= TRUE;
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
+  {
+    cause= "can't open file";
     goto err;
+  }
 
   need_close= TRUE;
 
   if (table->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE) ||
       table->file->ha_rnd_init_with_error(0))
+  {
+    cause= "can't initialize table handler";
     goto err;
+  }
 
   need_rnd_end= TRUE;
 
@@ -753,12 +760,20 @@ bool Log_to_csv_event_handler::
 
   /* check that all columns exist */
   if (table->s->fields < 6)
+  {
+    cause= "incorrect number of fields in the log table";
     goto err;
+  }
 
   DBUG_ASSERT(table->field[0]->type() == MYSQL_TYPE_TIMESTAMP);
 
-  table->field[0]->store_timestamp(
-                  hrtime_to_my_time(event_time), hrtime_sec_part(event_time));
+  if (table->field[0]->store_timestamp(hrtime_to_my_time(event_time),
+                                       hrtime_sec_part(event_time)))
+  {
+    cause= "Can't write data (possible incorrect log table structure)";
+    goto err;
+  }
+
 
   /* do a write */
   if (table->field[1]->store(user_host, user_host_len, client_cs) ||
@@ -766,7 +781,10 @@ bool Log_to_csv_event_handler::
       table->field[3]->store((longlong) global_system_variables.server_id,
                              TRUE) ||
       table->field[4]->store(command_type, command_type_len, client_cs))
+  {
+    cause= "Can't write data (possible incorrect log table structure)";
     goto err;
+  }
 
   /*
     A positive return value in store() means truncation.
@@ -774,7 +792,10 @@ bool Log_to_csv_event_handler::
   */
   table->field[5]->flags|= FIELDFLAG_HEX_ESCAPE;
   if (table->field[5]->store(sql_text, sql_text_len, client_cs) < 0)
+  {
+    cause= "Can't write data (possible incorrect log table structure)";
     goto err;
+  }
 
   /* mark all fields as not null */
   table->field[1]->set_notnull();
@@ -790,14 +811,22 @@ bool Log_to_csv_event_handler::
   }
 
   if (table->file->ha_write_row(table->record[0]))
+  {
+    cause= "Can't write record";
     goto err;
+  }
 
   result= FALSE;
 
 err:
   if (result && !thd->killed)
+  {
+    const char *msg= error_handler.message();
+    if (!msg || !msg[0])
+      msg= cause;
     sql_print_error("Failed to write to mysql.general_log: %s",
-                    error_handler.message());
+                    msg);
+  }
 
   if (need_rnd_end)
   {
@@ -850,6 +879,8 @@ bool Log_to_csv_event_handler::
 {
   TABLE_LIST table_list;
   TABLE *table;
+  const char *cause= 0;
+  const char *msg;
   bool result= TRUE;
   bool need_close= FALSE;
   bool need_rnd_end= FALSE;
@@ -874,13 +905,19 @@ bool Log_to_csv_event_handler::
                             TL_WRITE_CONCURRENT_INSERT);
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
+  {
+    cause= "can't open file";
     goto err;
+  }
 
   need_close= TRUE;
 
   if (table->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE) ||
       table->file->ha_rnd_init_with_error(0))
+  {
+    cause= "can't initialize table handler";
     goto err;
+  }
 
   need_rnd_end= TRUE;
 
@@ -891,12 +928,19 @@ bool Log_to_csv_event_handler::
 
   /* check that all columns exist */
   if (table->s->fields < 13)
+  {
+    cause= "incorrect number of fields in the log table";
     goto err;
+  }
+
+  // It can be used in 13 places below so assign it here
+  cause= "Can't write data (possible incorrect log table structure)";
 
   /* store the time and user values */
   DBUG_ASSERT(table->field[0]->type() == MYSQL_TYPE_TIMESTAMP);
-  table->field[0]->store_timestamp(
-             hrtime_to_my_time(current_time), hrtime_sec_part(current_time));
+  if(table->field[0]->store_timestamp(hrtime_to_my_time(current_time),
+                                      hrtime_sec_part(current_time)))
+    goto err;
   if (table->field[1]->store(user_host, user_host_len, client_cs))
     goto err;
 
@@ -976,9 +1020,13 @@ bool Log_to_csv_event_handler::
                               (longlong) thd->get_stmt_da()->affected_rows() :
                               0, TRUE))
     goto err;
+  cause= 0; // just for safety
 
   if (table->file->ha_write_row(table->record[0]))
+  {
+    cause= "Can't write record";
     goto err;
+  }
 
   result= FALSE;
 
@@ -986,8 +1034,13 @@ err:
   thd->pop_internal_handler();
 
   if (result && !thd->killed)
+  {
+    msg= error_handler.message();
+    if (!msg || !msg[0])
+      msg= cause;
     sql_print_error("Failed to write to mysql.slow_log: %s",
-                    error_handler.message());
+                    msg);
+  }
 
   if (need_rnd_end)
   {
@@ -1330,7 +1383,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
                     user_host_buff);
 
     DBUG_ASSERT(thd->start_utime);
-    DBUG_ASSERT(thd->start_time);
+    DBUG_ASSERT(thd->start_time || thd->start_time_sec_part);
     query_utime= (current_utime - thd->start_utime);
     lock_utime=  (thd->utime_after_lock - thd->start_utime);
     my_hrtime_t current_time= { hrtime_from_time(thd->start_time) +
@@ -1758,6 +1811,16 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
       DBUG_RETURN(1);
     if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
       DBUG_RETURN(1);
+
+#ifdef WITH_WSREP
+    /* Wsrep transaction was BF aborted but it must replay because certification
+       succeeded. The transaction must not be written into binlog yet, it will
+       be done during commit after the replay. */
+    if (WSREP(thd) && wsrep_must_replay(thd))
+    {
+      DBUG_RETURN(0);
+    }
+#endif /* WITH_WSREP */
 
     /*
       Doing a commit or a rollback including non-transactional tables,
@@ -3324,7 +3387,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     }
     if (thd->db.str && strcmp(thd->db.str, db))
     {						// Database changed
-      if (my_b_printf(&log_file,"use %s;\n",thd->db.str))
+      if (my_b_printf(&log_file,"use %`s;\n",thd->db.str))
         goto err;
       strmov(db,thd->db.str);
     }
@@ -7735,7 +7798,12 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   {
     DBUG_RETURN(0);
   }
-  else if (!(thd->variables.option_bits & OPTION_BIN_LOG))
+
+  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
+#ifdef WITH_WSREP
+      && !WSREP(thd)
+#endif
+      )
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -8630,6 +8698,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
+#ifdef WITH_WSREP
+  if (WSREP(entry->thd) &&
+      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+  {
+    DBUG_RETURN(0);
+  }
+#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good
@@ -9215,6 +9290,25 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
 
 
 #ifndef EMBEDDED_LIBRARY
+#ifndef _WIN32
+#define fprintf_stderr(format, ...) fprintf(stderr, format, __VA_ARGS__)
+#else
+/*
+ On Windows, if FILE* is unbuffered, fprintf() writes output byte by byte.
+ This is suboptimal for printing to error log, we want full message at once.
+*/
+#define fprintf_stderr(format, ...)                                           \
+  do                                                                          \
+  {                                                                           \
+    char buf[256];                                                            \
+    size_t len= snprintf(buf, sizeof(buf), format, __VA_ARGS__);              \
+    if (len >= sizeof(buf))                                                   \
+      fprintf(stderr, format, __VA_ARGS__);                                   \
+    else                                                                      \
+      fwrite(buf, len, 1, stderr);                                            \
+  } while (0)
+#endif
+
 static void print_buffer_to_file(enum loglevel level, const char *buffer,
                                  size_t length)
 {
@@ -9248,7 +9342,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(stderr, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+  fprintf_stderr( "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
           start->tm_year + 1900,
           start->tm_mon+1,
           start->tm_mday,
@@ -10442,7 +10536,6 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   thd= new THD(next_thread_id());
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
-  thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);

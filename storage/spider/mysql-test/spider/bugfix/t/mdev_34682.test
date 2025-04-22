@@ -1,0 +1,14 @@
+set @old_aria_encrypt_tables=@@global.aria_encrypt_tables;
+set global aria_encrypt_tables=ON;
+
+CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
+call mtr.add_suppression(".*\\[ERROR\\] SPIDER plugin initialization failed at.* by 'Initialization of encryption failed for");
+call mtr.add_suppression(".*\\[ERROR\\] Plugin 'SPIDER' registration as a STORAGE ENGINE failed.");
+--error ER_CANT_INITIALIZE_UDF
+INSTALL PLUGIN spider SONAME 'ha_spider.so';
+--error ER_CANT_INITIALIZE_UDF
+SELECT spider_direct_sql ('SELECT * FROM s','a','srv "b"');
+
+--disable_query_log
+--source ../../include/clean_up_spider.inc
+set global aria_encrypt_tables=@old_aria_encrypt_tables;

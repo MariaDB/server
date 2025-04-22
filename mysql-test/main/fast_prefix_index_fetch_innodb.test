@@ -39,10 +39,12 @@ let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -56,10 +58,12 @@ select id, bigfield from prefixinno where bigfield = repeat('d', 31);
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -73,10 +77,12 @@ select id, bigfield from prefixinno where fake_id = 1031;
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -90,10 +96,12 @@ select id, bigfield from prefixinno where fake_id = 1033;
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -107,10 +115,12 @@ select id, bigfield from prefixinno where bigfield = repeat('x', 32);
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -124,10 +134,12 @@ select id, bigfield from prefixinno where bigfield = repeat('y', 33);
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -141,10 +153,12 @@ select id, bigfield from prefixinno where bigfield = repeat('b', 8);
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -158,10 +172,12 @@ select id, bigfield from prefixinno where bigfield = repeat('c', 24);
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -175,10 +191,12 @@ select id, bigfield from prefixinno where bigfield = repeat('z', 128);
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--disable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;
@@ -193,10 +211,12 @@ select id, bigfield from prefixinno where fake_id = 1033;
 let $count = query_get_value($show_count_statement, Value, 1);
 let $opt = query_get_value($show_opt_statement, Value, 1);
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $count - $base_count into @cluster_lookups;
 eval select $opt - $base_opt into @cluster_lookups_avoided;
 --enable_query_log
+--enable_cursor_protocol
 
 select @cluster_lookups;
 select @cluster_lookups_avoided;

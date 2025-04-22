@@ -1,0 +1,14 @@
+for master_1
+for child2
+for child3
+CREATE TABLE t (c INT) ENGINE=Spider;
+CREATE PROCEDURE p() CONTAINS SQL READS SQL DATA SELECT * FROM t INTO OUTFILE 'foo.txt';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p();
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop procedure p;
+drop table t;
+for master_1
+for child2
+for child3

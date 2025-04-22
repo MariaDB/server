@@ -380,6 +380,7 @@ struct rpl_parallel {
 extern struct rpl_parallel_thread_pool global_rpl_thread_pool;
 
 
+extern void wait_for_pending_deadlock_kill(THD *thd, rpl_group_info *rgi);
 extern int rpl_parallel_resize_pool_if_no_slaves(void);
 extern int rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool);
 extern int rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool);

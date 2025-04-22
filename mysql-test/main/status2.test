@@ -27,6 +27,7 @@ CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND
 CREATE TABLE t1 (c1 INT);
 CREATE TABLE t2 (c1 INT);
 
+--disable_cursor_protocol
 --echo Assert Questions == 7
 SHOW STATUS LIKE 'Questions';
 SELECT testQuestion();
@@ -38,6 +39,7 @@ SHOW STATUS LIKE 'Questions';
 SELECT 1;
 --echo Assert Questions == 13
 SHOW STATUS LIKE 'Questions';
+--enable_cursor_protocol
 connect (con1,localhost,root,,);
 connection con1;
 SELECT 1;

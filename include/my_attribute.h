@@ -70,5 +70,15 @@
 # endif /* GNUC >= 3.1 */
 #endif
 
-
+/* gcc 7.5.0 does not support __attribute__((no_sanitize("undefined")) */
+#ifndef ATTRIBUTE_NO_UBSAN
+# if (GCC_VERSION >= 8000) || defined(__clang__)
+#  define ATTRIBUTE_NO_UBSAN __attribute__((no_sanitize("undefined")))
+# elif (GCC_VERSION >= 6001)
+#  define ATTRIBUTE_NO_UBSAN __attribute__((no_sanitize_undefined))
+# else
+#  define ATTRIBUTE_NO_UBSAN
+# endif
 #endif
+
+#endif /* _my_attribute_h */

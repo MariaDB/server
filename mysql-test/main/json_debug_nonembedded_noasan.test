@@ -1,0 +1,48 @@
+-- source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/not_asan.inc
+
+--echo #
+--echo # Beginning of 10.3 test
+--echo # MDEV-28762: recursive call of some json functions without stack control
+--echo #
+
+SET @saved_dbug = @@debug_dbug;
+SET debug_dbug='+d,json_check_min_stack_requirement';
+
+SET @json1= '{"key1":{"key1":"val1"}}';
+SET @json2= '{"key1":{"key1":"val1"}}';
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_CONTAINS(@json1, @json2);
+
+SET debug_dbug='+d,temp';
+SET @json1= '[1, 2, 3, 4]';
+SET @json2= '[5, 6, 7, 8]';
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE(@json1, @json2);
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_MERGE_PATCH(@json1, @json2);
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_CONTAINS_PATH('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[2]");
+
+SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_SEARCH(@j, 'all', 'abc', NULL, '$[2]');
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT JSON_EXTRACT('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2");
+
+SET @@debug_dbug= @saved_dbug;
+
+--echo #
+--echo # End of 10.3 test
+--echo #

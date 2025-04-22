@@ -148,7 +148,9 @@ trx_undo_log_v_idx(
 	ulint n_idx = 0;
 	for (const auto& v_index : vcol->v_indexes) {
 		n_idx++;
-		/* FIXME: index->id is 64 bits! */
+		if (uint32_t hi= uint32_t(v_index.index->id >> 32)) {
+			size += 1 + mach_get_compressed_size(hi);
+		}
 		size += mach_get_compressed_size(uint32_t(v_index.index->id));
 		size += mach_get_compressed_size(v_index.nth_field);
 	}
@@ -175,10 +177,14 @@ trx_undo_log_v_idx(
 	ptr += mach_write_compressed(ptr, n_idx);
 
 	for (const auto& v_index : vcol->v_indexes) {
-		ptr += mach_write_compressed(
-			/* FIXME: index->id is 64 bits! */
-			ptr, uint32_t(v_index.index->id));
-
+		/* This is compatible with
+		ptr += mach_u64_write_much_compressed(ptr, v_index.index-id)
+		(the added "if" statement is fixing an old regression). */
+		if (uint32_t hi= uint32_t(v_index.index->id >> 32)) {
+			*ptr++ = 0xff;
+			ptr += mach_write_compressed(ptr, hi);
+		}
+		ptr += mach_write_compressed(ptr, uint32_t(v_index.index->id));
 		ptr += mach_write_compressed(ptr, v_index.nth_field);
 	}
 
@@ -217,7 +223,15 @@ trx_undo_read_v_idx_low(
 	dict_index_t*	clust_index = dict_table_get_first_index(table);
 
 	for (ulint i = 0; i < num_idx; i++) {
-		index_id_t	id = mach_read_next_compressed(&ptr);
+		index_id_t	id = 0;
+		/* This is like mach_u64_read_much_compressed(),
+		but advancing ptr to the next field. */
+		if (*ptr == 0xff) {
+			ptr++;
+			id = mach_read_next_compressed(&ptr);
+			id <<= 32;
+		}
+		id |= mach_read_next_compressed(&ptr);
 		ulint		pos = mach_read_next_compressed(&ptr);
 		dict_index_t*	index = dict_table_get_next_index(clust_index);
 

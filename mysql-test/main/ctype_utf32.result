@@ -3024,3 +3024,69 @@ HEX(DATE_FORMAT(TIME'11:22:33',@format))
 #
 # End of 10.4 tests
 #
+#
+# MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+#
+SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
+c1
+-9223372036854775808
+#
+# MDEV-29968 Functions in default values in tables with some character sets break SHOW CREATE (and mysqldump)
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (a CHAR(8) DEFAULT REVERSE('aha')) CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(8) DEFAULT reverse('aha')
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+a
+aha
+CREATE TABLE t2 (a CHAR(8) DEFAULT REVERSE('åäá')) CHARACTER SET utf32;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` char(8) DEFAULT reverse('åäá')
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+INSERT INTO t2 VALUES ();
+SELECT * FROM t2;
+a
+áäå
+CREATE TABLE t3 (a CHAR(8) DEFAULT REVERSE('😎😀')) CHARACTER SET utf32;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` char(8) DEFAULT reverse('😎😀')
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+INSERT INTO t3 VALUES ();
+SELECT * FROM t3;
+a
+😀😎
+CREATE TABLE t4 (a CHAR(8), b CHAR(8) AS (REVERSE('😎😀'))) CHARACTER SET utf32;
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` char(8) DEFAULT NULL,
+  `b` char(8) GENERATED ALWAYS AS (reverse('😎😀')) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+INSERT INTO t4 (a) VALUES ('');
+SELECT * FROM t4;
+a	b
+	😀😎
+CREATE TABLE t5 (a CHAR(8), b CHAR(8) CHECK (b=BINARY REVERSE('😎😀'))) CHARACTER SET utf32;
+SHOW CREATE TABLE t5;
+Table	Create Table
+t5	CREATE TABLE `t5` (
+  `a` char(8) DEFAULT NULL,
+  `b` char(8) DEFAULT NULL CHECK (`b` = cast(reverse('😎😀') as char charset binary))
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+INSERT INTO t5 VALUES ('','😎😀');
+ERROR 23000: CONSTRAINT `t5.b` failed for `test`.`t5`
+INSERT INTO t5 VALUES ('','😀😎');
+SELECT * FROM t5;
+a	b
+	😀😎
+DROP TABLE t1, t2, t3, t4, t5;
+# End of 10.5 tests

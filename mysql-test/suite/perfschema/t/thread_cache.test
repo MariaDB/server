@@ -36,8 +36,10 @@ let $con2_THREAD_ID=`select thread_id from performance_schema.threads
 --connection default
 
 --disable_query_log
+--disable_cursor_protocol
 eval select ($con2_ID - $con1_ID) into @id_increment;
 eval select ($con2_THREAD_ID - $con1_THREAD_ID) into @thread_id_increment;
+--enable_cursor_protocol
 --enable_query_log
 
 # Expect 1, connection_id() is incremented for each new connection
@@ -82,8 +84,10 @@ let $wait_condition=
 --source include/wait_condition.inc
 
 --disable_query_log
+--disable_cursor_protocol
 eval select ($con3_ID - $con2_ID) into @id_increment;
 eval select ($con3_THREAD_ID - $con2_THREAD_ID) into @thread_id_increment;
+--enable_cursor_protocol
 --enable_query_log
 
 select @id_increment;
@@ -110,8 +114,10 @@ let $con2_THREAD_ID=`select thread_id from performance_schema.threads
 --connection default
 
 --disable_query_log
+--disable_cursor_protocol
 eval select ($con2_ID - $con1_ID) into @id_increment;
 eval select ($con2_THREAD_ID - $con1_THREAD_ID) into @thread_id_increment;
+--enable_cursor_protocol
 --enable_query_log
 
 select @id_increment;
@@ -154,8 +160,10 @@ let $wait_condition=
 --source include/wait_condition.inc
 
 --disable_query_log
+--disable_cursor_protocol
 eval select ($con3_ID - $con2_ID) into @id_increment;
 eval select ($con3_THREAD_ID - $con2_THREAD_ID) into @thread_id_increment;
+--enable_cursor_protocol
 --enable_query_log
 
 # When caching threads, the pthread that executed con2 was parked in the

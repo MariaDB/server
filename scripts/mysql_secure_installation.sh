@@ -27,6 +27,7 @@ echo_c=
 basedir=
 defaults_file=
 defaults_extra_file=
+defaults_group_suffix=
 no_defaults=
 
 parse_arg()
@@ -52,6 +53,7 @@ parse_arguments()
       --basedir=*) basedir=`parse_arg "$arg"` ;;
       --defaults-file=*) defaults_file="$arg" ;;
       --defaults-extra-file=*) defaults_extra_file="$arg" ;;
+      --defaults-group-suffix=*) defaults_group_suffix="$arg" ;;
       --no-defaults) no_defaults="$arg" ;;
       *)
         if test -n "$pick_args"
@@ -184,7 +186,7 @@ fi
 
 # Now we can get arguments from the group [client] and [client-server]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
+parse_arguments `$print_defaults $defaults_file $defaults_extra_file $defaults_group_suffix $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 set_echo_compat() {

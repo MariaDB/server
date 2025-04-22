@@ -149,9 +149,9 @@ bool hostname_cache_init()
   Host_entry tmp;
   uint key_offset= (uint) ((char*) (&tmp.ip_key) - (char*) &tmp);
 
-  if (!(hostname_cache= new Hash_filo<Host_entry>(key_memory_host_cache_hostname,
-                             host_cache_size, key_offset, HOST_ENTRY_KEY_SIZE,
-                             NULL, (my_hash_free_key) free, &my_charset_bin)))
+  if (!(hostname_cache= new Hash_filo<Host_entry>(
+            key_memory_host_cache_hostname, host_cache_size, key_offset,
+            HOST_ENTRY_KEY_SIZE, NULL, free, &my_charset_bin)))
     return 1;
 
   hostname_cache->clear();

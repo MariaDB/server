@@ -1,0 +1,21 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+CREATE TABLE t (c INT) ENGINE=Spider;
+CREATE PROCEDURE p() CONTAINS SQL READS SQL DATA SELECT * FROM t INTO OUTFILE 'foo.txt';
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+CALL p();
+remove_file $MYSQLD_DATADIR/test/foo.txt;
+drop procedure p;
+drop table t;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

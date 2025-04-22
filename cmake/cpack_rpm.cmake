@@ -220,8 +220,10 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-    "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
+    "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat")
+  SETA(CPACK_RPM_test_PACKAGE_REQUIRES "socat")
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)

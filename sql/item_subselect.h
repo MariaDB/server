@@ -281,8 +281,8 @@ public:
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
 
-  Item* build_clone(THD *thd) override { return 0; }
-  Item* get_copy(THD *thd) override { return 0; }
+  Item* do_build_clone(THD *thd) const override { return nullptr; }
+  Item *do_get_copy(THD *thd) const override { return 0; }
 
   st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
@@ -835,7 +835,8 @@ public:
   enum enum_engine_type {ABSTRACT_ENGINE, SINGLE_SELECT_ENGINE,
                          UNION_ENGINE, UNIQUESUBQUERY_ENGINE,
                          INDEXSUBQUERY_ENGINE, HASH_SJ_ENGINE,
-                         ROWID_MERGE_ENGINE, TABLE_SCAN_ENGINE};
+                         ROWID_MERGE_ENGINE, TABLE_SCAN_ENGINE,
+                         SINGLE_COLUMN_ENGINE};
 
   subselect_engine(Item_subselect *si,
                    select_result_interceptor *res):
@@ -1175,6 +1176,9 @@ public:
     PARTIAL_MATCH,  /* Use some partial matching strategy. */
     PARTIAL_MATCH_MERGE, /* Use partial matching through index merging. */
     PARTIAL_MATCH_SCAN,  /* Use partial matching through table scan. */
+    SINGLE_COLUMN_MATCH, /* Use simplified matching when there is only
+                            one field involved. */
+    CONST_RETURN_NULL, /* The result of IN predicate is constant NULL */
     IMPOSSIBLE      /* Subquery materialization is not applicable. */
   };
 
@@ -1195,7 +1199,8 @@ protected:
   ulonglong rowid_merge_buff_size(bool has_non_null_key,
                                   bool has_covering_null_row,
                                   MY_BITMAP *partial_match_key_parts);
-  void choose_partial_match_strategy(bool has_non_null_key,
+  void choose_partial_match_strategy(uint field_count,
+                                     bool has_non_null_key,
                                      bool has_covering_null_row,
                                      MY_BITMAP *partial_match_key_parts);
   bool make_semi_join_conds();
@@ -1291,9 +1296,9 @@ protected:
     Quick sort comparison function that compares two rows of the same table
     indentfied with their row numbers.
   */
-  int cmp_keys_by_row_data(rownum_t a, rownum_t b);
-  static int cmp_keys_by_row_data_and_rownum(Ordered_key *key,
-                                             rownum_t* a, rownum_t* b);
+  int cmp_keys_by_row_data(const rownum_t a, const rownum_t b) const;
+  static int cmp_keys_by_row_data_and_rownum(void *key, const void *a,
+                                             const void *b);
 
   int cmp_key_with_search_key(rownum_t row_num);
 
@@ -1309,23 +1314,23 @@ public:
   /* Initialize a single-column index. */
   bool init(int col_idx);
 
-  uint get_column_count() { return key_column_count; }
-  uint get_keyid() { return keyid; }
-  Field *get_field(uint i)
+  uint get_column_count() const { return key_column_count; }
+  uint get_keyid() const { return keyid; }
+  Field *get_field(uint i) const
   {
     DBUG_ASSERT(i < key_column_count);
     return key_columns[i]->field;
   }
-  rownum_t get_min_null_row() { return min_null_row; }
-  rownum_t get_max_null_row() { return max_null_row; }
+  rownum_t get_min_null_row() const { return min_null_row; }
+  rownum_t get_max_null_row() const { return max_null_row; }
   MY_BITMAP * get_null_key() { return &null_key; }
-  ha_rows get_null_count() { return null_count; }
-  ha_rows get_key_buff_elements() { return key_buff_elements; }
+  ha_rows get_null_count() const { return null_count; }
+  ha_rows get_key_buff_elements() const { return key_buff_elements; }
   /*
     Get the search key element that corresponds to the i-th key part of this
     index.
   */
-  Item *get_search_key(uint i)
+  Item *get_search_key(uint i) const
   {
     return search_key->element_index(key_columns[i]->field->field_index);
   }
@@ -1338,7 +1343,7 @@ public:
   }
 
   bool sort_keys();
-  double null_selectivity();
+  inline double null_selectivity() const;
 
   /*
     Position the current element at the first row that matches the key.
@@ -1366,7 +1371,7 @@ public:
     return FALSE;
   };
   /* Return the current index element. */
-  rownum_t current()
+  rownum_t current() const
   {
     DBUG_ASSERT(key_buff_elements && cur_key_idx < key_buff_elements);
     return key_buff[cur_key_idx];
@@ -1376,7 +1381,7 @@ public:
   {
     bitmap_set_bit(&null_key, (uint)row_num);
   }
-  bool is_null(rownum_t row_num)
+  bool is_null(rownum_t row_num) const
   {
     /*
       Indexes consisting of only NULLs do not have a bitmap buffer at all.
@@ -1392,7 +1397,7 @@ public:
       return FALSE;
     return bitmap_is_set(&null_key, (uint)row_num);
   }
-  void print(String *str);
+  void print(String *str) const;
 };
 
 
@@ -1510,12 +1515,12 @@ protected:
     Comparison function to compare keys in order of decreasing bitmap
     selectivity.
   */
-  static int cmp_keys_by_null_selectivity(Ordered_key **k1, Ordered_key **k2);
+  static int cmp_keys_by_null_selectivity(const void *k1, const void *k2);
   /*
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.
   */
-  static int cmp_keys_by_cur_rownum(void *arg, uchar *k1, uchar *k2);
+  static int cmp_keys_by_cur_rownum(void *, const void *k1, const void *k2);
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
@@ -1557,6 +1562,37 @@ public:
                               uint count_columns_with_nulls_arg);
   void cleanup() override;
   enum_engine_type engine_type() override { return TABLE_SCAN_ENGINE; }
+};
+
+
+/*
+  An engine to handle NULL-aware Materialization for subqueries
+  that compare one column:
+
+    col1 IN (SELECT t2.col2 FROM t2 ...)
+
+  When only one column is used, we need to handle NULL values of
+  col1 and col2 but don't need to perform "partial" matches when only
+  a subset of compared columns is NULL.
+  This allows to save on some data structures.
+*/
+
+class subselect_single_column_match_engine:
+    public subselect_partial_match_engine
+{
+protected:
+  bool partial_match() override;
+public:
+  subselect_single_column_match_engine(
+                              subselect_uniquesubquery_engine *engine_arg,
+                              TABLE *tmp_table_arg, Item_subselect *item_arg,
+                              select_result_interceptor *result_arg,
+                              List<Item> *equi_join_conds_arg,
+                              bool has_covering_null_row_arg,
+                              bool has_covering_null_columns_arg,
+                              uint count_columns_with_nulls_arg);
+  void cleanup() override {}
+  enum_engine_type engine_type() override { return SINGLE_COLUMN_ENGINE; }
 };
 
 /**
@@ -1641,6 +1677,10 @@ private:
         return "index_lookup;array merge for partial match";
       case Strategy::PARTIAL_MATCH_SCAN:
         return "index_lookup;full scan for partial match";
+      case Strategy::SINGLE_COLUMN_MATCH:
+        return "null-aware index_lookup";
+      case Strategy::CONST_RETURN_NULL:
+        return "return NULL";
       default:
         return "unsupported";
     }

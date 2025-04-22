@@ -20,7 +20,7 @@ ERROR HY000: DDL-statement is forbidden as table storage engine does not support
 SHOW WARNINGS;
 Level	Code	Message
 Error	4165	DDL-statement is forbidden as table storage engine does not support Galera replication
-Warning	1031	WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.
+Warning	1031	WSREP: wsrep_strict_ddl enabled. Storage engine Aria not supported.
 connection node_2;
 SHOW CREATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -31,7 +31,9 @@ ERROR HY000: DDL-statement is forbidden as table storage engine does not support
 SHOW WARNINGS;
 Level	Code	Message
 Error	4165	DDL-statement is forbidden as table storage engine does not support Galera replication
-Warning	1031	WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.
+Warning	1031	WSREP: wsrep_strict_ddl enabled. Storage engine MyISAM not supported.
+Error	4165	DDL-statement is forbidden as table storage engine does not support Galera replication
+Warning	1031	WSREP: wsrep_strict_ddl enabled. Storage engine MyISAM not supported.
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (

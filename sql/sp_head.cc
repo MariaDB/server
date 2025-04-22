@@ -102,7 +102,7 @@ void init_sp_psi_keys()
 #define MYSQL_RUN_SP(SP, CODE) do { CODE; } while(0)
 #endif
 
-extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
+extern "C" const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool);
 
 /**
   Helper function which operates on a THD object to set the query start_time to
@@ -997,9 +997,10 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
 }
 
 
-int cmp_rqp_locations(Rewritable_query_parameter * const *a,
-                      Rewritable_query_parameter * const *b)
+int cmp_rqp_locations(const void *a_, const void *b_)
 {
+  auto a= static_cast<const Rewritable_query_parameter *const *>(a_);
+  auto b= static_cast<const Rewritable_query_parameter *const *>(b_);
   return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
 
@@ -3664,6 +3665,17 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   return res;
 }
 
+sp_lex_keeper::~sp_lex_keeper()
+{
+  if (m_lex_resp)
+  {
+    /* Prevent endless recursion. */
+    m_lex->sphead= NULL;
+    delete m_lex->result;
+    lex_end(m_lex);
+    delete m_lex;
+  }
+}
 
 /*
   sp_instr class functions
@@ -4976,11 +4988,11 @@ typedef struct st_sp_table
 } SP_TABLE;
 
 
-uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first)
+const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool)
 {
-  SP_TABLE *tab= (SP_TABLE *)ptr;
+  auto tab= static_cast<const SP_TABLE *>(ptr);
   *plen= tab->qname.length;
-  return (uchar *)tab->qname.str;
+  return reinterpret_cast<const uchar *>(tab->qname.str);
 }
 
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2019 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2024 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_schema.h" // wsrep_schema
 
 #include "slave.h" // opt_log_slave_updates
 #include "debug_sync.h"
@@ -82,7 +83,9 @@ wsrep_get_apply_format(THD* thd)
   return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
-void wsrep_store_error(const THD* const thd, wsrep::mutable_buffer& dst)
+void wsrep_store_error(const THD* const thd,
+                       wsrep::mutable_buffer& dst,
+                       bool const include_msg)
 {
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
@@ -100,8 +103,16 @@ void wsrep_store_error(const THD* const thd, wsrep::mutable_buffer& dst)
     uint const err_code= cond->get_sql_errno();
     const char* const err_str= cond->get_message_text();
 
-    slider+= my_snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
-                         err_str, err_code);
+    if (include_msg)
+    {
+      slider+= snprintf(slider, buf_end - slider, " %s, Error_code: %d;",
+                        err_str, err_code);
+    }
+    else
+    {
+      slider+= snprintf(slider, buf_end - slider, " Error_code: %d;",
+                        err_code);
+    }
   }
 
   if (slider != dst.data())
@@ -170,6 +181,10 @@ int wsrep_apply_events(THD*        thd,
         {
           thd->variables.gtid_seq_no= gtid_ev->seq_no;
         }
+
+        if (wsrep_gtid_mode)
+          wsrep_schema->store_gtid_event(thd, gtid_ev);
+
         delete ev;
       }
       continue;
@@ -201,7 +216,17 @@ int wsrep_apply_events(THD*        thd,
     }
 
     ev->thd= thd;
+    thd->set_time();
+
+    if (!ev->when)
+    {
+      my_hrtime_t hrtime= my_hrtime();
+      ev->when= hrtime_to_my_time(hrtime);
+      ev->when_sec_part= hrtime_sec_part(hrtime);
+    }
+
     exec_res= ev->apply_event(thd->wsrep_rgi);
+
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));
 
     if (exec_res)

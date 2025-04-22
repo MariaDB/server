@@ -290,7 +290,9 @@ drop table t1;
 #
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (0, 0), (2, 1), (2, 3), (1, 1), (30, 20);
+--disable_cursor_protocol
 SELECT a, b INTO @a, @b FROM t1 WHERE a=2 AND b=3 GROUP BY a, b;
+--enable_cursor_protocol
 SELECT @a, @b;
 SELECT a, b FROM t1 WHERE a=2 AND b=3 GROUP BY a, b;
 DROP TABLE t1;
@@ -384,7 +386,9 @@ DROP TABLE t1;
 #   SAME USER VARIABLE = CRASH
 #
 SET @bug12408412=1;
+--disable_cursor_protocol
 SELECT GROUP_CONCAT(@bug12408412 ORDER BY 1) INTO @bug12408412;
+--enable_cursor_protocol
 
 --echo End of 5.1 tests
 
@@ -459,7 +463,9 @@ DROP TABLE t1;
 --echo #
 
 SET @bug12408412=1;
+--disable_cursor_protocol
 SELECT GROUP_CONCAT(@bug12408412 ORDER BY 1) INTO @bug12408412;
+--enable_cursor_protocol
 
 #
 # MDEV-616 LP BUG#1002126

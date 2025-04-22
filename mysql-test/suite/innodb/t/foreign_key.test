@@ -1063,6 +1063,21 @@ alter table t2 add foreign key(a) references t1;
 show create table t2;
 drop tables t2, t1;
 
+
+--echo #
+--echo # MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
+--echo #
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(3), c INT AS (LENGTH(b)) VIRTUAL,
+                INDEX(c)) ENGINE=InnoDB;
+CREATE TABLE t2(a INT REFERENCES t1(a) ON UPDATE CASCADE,
+                b INT GENERATED ALWAYS AS(a) VIRTUAL, INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1,b='fu';
+INSERT INTO t2 SET a=1;
+UPDATE t1 SET a=2,b='bar';
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2,t1;
+
 --echo # End of 10.5 tests
 
 --source include/wait_until_count_sessions.inc

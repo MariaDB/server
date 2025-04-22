@@ -211,7 +211,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		trx->will_lock = false;
 		ut_ad(trx->mysql_thd);
 #ifdef WITH_WSREP
-		trx->wsrep= false;
+		ut_ad(!trx->is_wsrep());
 		trx->lock.was_chosen_as_wsrep_victim= false;
 #endif
 		return(DB_SUCCESS);

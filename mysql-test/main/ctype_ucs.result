@@ -6540,5 +6540,29 @@ DROP VIEW v1;
 DROP TABLE t1;
 SET NAMES utf8mb3;
 #
+# MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+#
+CREATE TABLE t1 (c TEXT CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+OCT(c)
+1000000000000000000000
+DROP TABLE t1;
+#
+# MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+#
+SELECT CAST(CONVERT('-9223372036854775808' USING ucs2) AS SIGNED) AS c1;
+c1
+-9223372036854775808
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_ucs2'' collate ucs2_general_nopad_ci, _ucs2 0x00000001000500000001) as c1;
+c1
+-1
+select strcmp(_ucs2'' collate ucs2_nopad_bin, _ucs2 0x00000001000500000001) as c1;
+c1
+-1
+#
 # End of 10.5 tests
 #

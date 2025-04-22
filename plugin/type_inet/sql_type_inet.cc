@@ -594,9 +594,9 @@ public:
     Inet6_null tmp(arg);
     return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
-    cmp_item_inet6 *tmp= static_cast<cmp_item_inet6*>(ci);
+    const cmp_item_inet6 *tmp= static_cast<const cmp_item_inet6*>(ci);
     DBUG_ASSERT(!m_null_value);
     DBUG_ASSERT(!tmp->m_null_value);
     return m_native.cmp(tmp->m_native);
@@ -1090,7 +1090,7 @@ public:
     Inet6_null tmp(args[0]);
     return null_value= tmp.is_null() || tmp.to_native(to);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_typecast_inet6>(thd, this); }
 };
 
@@ -1102,8 +1102,9 @@ public:
   Item_cache_inet6(THD *thd)
    :Item_cache(thd, &type_handler_inet6)
   { }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
   bool cache_value() override
   {
     if (!example)
@@ -1225,8 +1226,9 @@ public:
     str->append(tmp);
     str->append('\'');
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_literal_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
   // Non-overriding methods
   void set_value(const Inet6 &value)
@@ -1282,21 +1284,24 @@ public:
   {
     return Item::save_in_field(field, no_conversions);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_copy_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
-  static int cmp_inet6(void *cmp_arg, Inet6 *a, Inet6 *b)
+  static int cmp_inet6(void *, const void *a_, const void *b_)
   {
+    const Inet6 *a= static_cast<const Inet6*>(a_);
+    const Inet6 *b= static_cast<const Inet6*>(b_);
     return a->cmp(*b);
   }
 public:
   in_inet6(THD *thd, uint elements)
-   :in_vector(thd, elements, sizeof(Inet6), (qsort2_cmp) cmp_inet6, 0),
+   :in_vector(thd, elements, sizeof(Inet6), cmp_inet6, 0),
     m_value(Inet6_zero())
   { }
   const Type_handler *type_handler() const override

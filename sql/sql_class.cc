@@ -89,15 +89,17 @@ const char * const THD::DEFAULT_WHERE= "field list";
 ** User variables
 ****************************************************************************/
 
-extern "C" uchar *get_var_key(user_var_entry *entry, size_t *length,
-                              my_bool not_used __attribute__((unused)))
+extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
+                                    my_bool)
 {
+  auto entry= static_cast<const user_var_entry *>(entry_);
   *length= entry->name.length;
-  return (uchar*) entry->name.str;
+  return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
-extern "C" void free_user_var(user_var_entry *entry)
+extern "C" void free_user_var(void *entry_)
 {
+  user_var_entry *entry= static_cast<user_var_entry *>(entry_);
   char *pos= (char*) entry+ALIGN_SIZE(sizeof(*entry));
   if (entry->value && entry->value != pos)
     my_free(entry->value);
@@ -106,18 +108,17 @@ extern "C" void free_user_var(user_var_entry *entry)
 
 /* Functions for last-value-from-sequence hash */
 
-extern "C" uchar *get_sequence_last_key(SEQUENCE_LAST_VALUE *entry,
-                                        size_t *length,
-                                        my_bool not_used
-                                        __attribute__((unused)))
+extern "C" const uchar *get_sequence_last_key(const void *entry_,
+                                              size_t *length, my_bool)
 {
+  auto *entry= static_cast<const SEQUENCE_LAST_VALUE *>(entry_);
   *length= entry->length;
-  return (uchar*) entry->key;
+  return entry->key;
 }
 
-extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
+extern "C" void free_sequence_last(void *entry)
 {
-  delete entry;
+  delete static_cast<SEQUENCE_LAST_VALUE *>(entry);
 }
 
 
@@ -175,7 +176,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
+  period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -202,7 +204,7 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 /*
   Test if a foreign key (= generated key) is a prefix of the given key
-  (ignoring key name, key type and order of columns)
+  (ignoring key name and type, but minding the algorithm)
 
   NOTES:
     This is only used to test if an index for a FOREIGN KEY exists
@@ -217,6 +219,16 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 bool is_foreign_key_prefix(Key *a, Key *b)
 {
+  ha_key_alg a_alg= a->key_create_info.algorithm;
+  ha_key_alg b_alg= b->key_create_info.algorithm;
+
+  // The real algorithm in InnoDB will be BTREE if none was given by user.
+  a_alg= a_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : a_alg;
+  b_alg= b_alg == HA_KEY_ALG_UNDEF ? HA_KEY_ALG_BTREE : b_alg;
+
+  if (a_alg != b_alg)
+    return false;
+
   /* Ensure that 'a' is the generated key */
   if (a->generated)
   {
@@ -621,8 +633,9 @@ handle_condition(THD *thd,
    timeouts at end of query (and thus before THD is destroyed)
 */
 
-extern "C" void thd_kill_timeout(THD* thd)
+extern "C" void thd_kill_timeout(void *thd_)
 {
+  THD *thd= static_cast<THD *>(thd_);
   thd->status_var.max_statement_time_exceeded++;
   /* Kill queries that can't cause data corruptions */
   thd->awake(KILL_TIMEOUT);
@@ -853,12 +866,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #endif
   user_connect=(USER_CONN *)0;
   my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
-               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
-  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
-               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
-               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               USER_VARS_HASH_SIZE, 0, 0, get_var_key, free_user_var,
                HASH_THREAD_SPECIFIC);
+  my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
+               SEQUENCES_HASH_SIZE, 0, 0, get_sequence_last_key,
+               free_sequence_last, HASH_THREAD_SPECIFIC);
 
   /* For user vars replication*/
   if (opt_bin_log)
@@ -1448,12 +1460,11 @@ void THD::change_user(void)
   init();
   stmt_map.reset();
   my_hash_init(key_memory_user_var_entry, &user_vars, system_charset_info,
-               USER_VARS_HASH_SIZE, 0, 0, (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+               USER_VARS_HASH_SIZE, 0, 0, get_var_key, free_user_var,
+               HASH_THREAD_SPECIFIC);
   my_hash_init(key_memory_user_var_entry, &sequences,
-               Lex_ident_fs::charset_info(),
-               SEQUENCES_HASH_SIZE, 0, 0, (my_hash_get_key)
-               get_sequence_last_key, (my_hash_free_key) free_sequence_last,
+               Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
+               get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
   opt_trace.delete_traces();
@@ -2202,12 +2213,6 @@ void THD::reset_killed()
 
 void THD::store_globals()
 {
-  /*
-    Assert that thread_stack is initialized: it's necessary to be able
-    to track stack overrun.
-  */
-  DBUG_ASSERT(thread_stack);
-
   set_current_thd(this);
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2239,8 +2244,11 @@ void THD::store_globals()
   os_thread_id= 0;
 #endif
   real_id= pthread_self();                      // For debugging
-  mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
-                              STACK_DIRECTION * (long)my_thread_stack_size;
+
+  /* Set stack start and stack end */
+  my_get_stack_bounds(&thread_stack, &mysys_var->stack_ends_here,
+                      thread_stack, my_thread_stack_size);
+
   if (net.vio)
   {
     net.thd= this;
@@ -2251,6 +2259,7 @@ void THD::store_globals()
   */
   thr_lock_info_init(&lock_info, mysys_var);
 }
+
 
 /**
    Untie THD from current thread
@@ -3068,7 +3077,7 @@ void Item_change_list::rollback_item_tree_changes()
 ** Functions to provide a interface to select results
 *****************************************************************************/
 
-void select_result::cleanup()
+void select_result::reset_for_next_ps_execution()
 {
   /* do nothing */
 }
@@ -3137,6 +3146,7 @@ void select_send::abort_result_set()
     */
     thd->spcont->end_partial_result_set= TRUE;
   }
+  reset_for_next_ps_execution();
   DBUG_VOID_RETURN;
 }
 
@@ -3147,7 +3157,7 @@ void select_send::abort_result_set()
   stored procedure statement.
 */
 
-void select_send::cleanup()
+void select_send::reset_for_next_ps_execution()
 {
   is_result_set_started= FALSE;
 }
@@ -3185,7 +3195,7 @@ bool select_send::send_eof()
   if (unlikely(thd->is_error()))
     return TRUE;
   ::my_eof(thd);
-  is_result_set_started= 0;
+  reset_for_next_ps_execution();
   return FALSE;
 }
 
@@ -3194,10 +3204,22 @@ bool select_send::send_eof()
   Handling writing to file
 ************************************************************************/
 
+bool select_to_file::free_recources()
+{
+  if (file >= 0)
+  {
+    (void) end_io_cache(&cache);
+    bool error= mysql_file_close(file, MYF(MY_WME));
+    file= -1;
+    return error;
+  }
+  return FALSE;
+}
+
 bool select_to_file::send_eof()
 {
-  int error= MY_TEST(end_io_cache(&cache));
-  if (unlikely(mysql_file_close(file, MYF(MY_WME))) ||
+  int error= false;
+  if (unlikely(free_recources()) ||
       unlikely(thd->is_error()))
     error= true;
 
@@ -3205,20 +3227,19 @@ bool select_to_file::send_eof()
   {
     ::my_ok(thd,row_count);
   }
-  file= -1;
   return error;
 }
 
+void select_to_file::abort_result_set()
+{
+  select_result_interceptor::abort_result_set();
+  free_recources();
+}
 
-void select_to_file::cleanup()
+void select_to_file::reset_for_next_ps_execution()
 {
   /* In case of error send_eof() may be not called: close the file here. */
-  if (file >= 0)
-  {
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    file= -1;
-  }
+  free_recources();
   path[0]= '\0';
   row_count= 0;
 }
@@ -3226,12 +3247,8 @@ void select_to_file::cleanup()
 
 select_to_file::~select_to_file()
 {
-  if (file >= 0)
-  {					// This only happens in case of error
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    file= -1;
-  }
+  DBUG_ASSERT(file < 0);
+  free_recources(); // just in case
 }
 
 /***************************************************************************
@@ -3718,9 +3735,9 @@ int select_singlerow_subselect::send_data(List<Item> &items)
 }
 
 
-void select_max_min_finder_subselect::cleanup()
+void select_max_min_finder_subselect::reset_for_next_ps_execution()
 {
-  DBUG_ENTER("select_max_min_finder_subselect::cleanup");
+  DBUG_ENTER("select_max_min_finder_subselect::reset_for_next_ps_execution");
   cache= 0;
   DBUG_VOID_RETURN;
 }
@@ -3945,7 +3962,7 @@ bool select_dumpvar::check_simple_select() const
 }
 
 
-void select_dumpvar::cleanup()
+void select_dumpvar::reset_for_next_ps_execution()
 {
   row_count= 0;
 }
@@ -4096,13 +4113,12 @@ Statement::~Statement() = default;
 
 C_MODE_START
 
-static uchar *
-get_statement_id_as_hash_key(const uchar *record, size_t *key_length,
-                             my_bool not_used __attribute__((unused)))
+static const uchar *get_statement_id_as_hash_key(const void *record,
+                                                 size_t *key_length, my_bool)
 {
-  const Statement *statement= (const Statement *) record; 
+  auto statement= static_cast<const Statement *>(record);
   *key_length= sizeof(statement->id);
-  return (uchar *) &((const Statement *) statement)->id;
+  return reinterpret_cast<const uchar *>(&(statement)->id);
 }
 
 static void delete_statement_as_hash_key(void *key)
@@ -4110,11 +4126,12 @@ static void delete_statement_as_hash_key(void *key)
   delete (Statement *) key;
 }
 
-static uchar *get_stmt_name_hash_key(Statement *entry, size_t *length,
-                                    my_bool not_used __attribute__((unused)))
+static const uchar *get_stmt_name_hash_key(const void *entry_, size_t *length,
+                                           my_bool)
 {
+  auto entry= static_cast<const Statement *>(entry_);
   *length= entry->name.length;
-  return (uchar*) entry->name.str;
+  return reinterpret_cast<const uchar *>(entry->name.str);
 }
 
 C_MODE_END
@@ -4130,9 +4147,9 @@ Statement_map::Statement_map() :
   my_hash_init(key_memory_prepared_statement_map, &st_hash, &my_charset_bin,
                START_STMT_HASH_SIZE, 0, 0, get_statement_id_as_hash_key,
                delete_statement_as_hash_key, MYF(0));
-  my_hash_init(key_memory_prepared_statement_map, &names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
-               (my_hash_get_key) get_stmt_name_hash_key,
-               NULL, MYF(0));
+  my_hash_init(key_memory_prepared_statement_map, &names_hash,
+               system_charset_info, START_NAME_HASH_SIZE, 0, 0,
+               get_stmt_name_hash_key, NULL, MYF(0));
 }
 
 
@@ -4374,10 +4391,10 @@ void select_materialize_with_stats::reset()
 }
 
 
-void select_materialize_with_stats::cleanup()
+void select_materialize_with_stats::reset_for_next_ps_execution()
 {
   reset();
-  select_unit::cleanup();
+  select_unit::reset_for_next_ps_execution();
 }
 
 
@@ -5018,7 +5035,6 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_thd()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
@@ -5078,6 +5094,9 @@ MYSQL_THD create_background_thd()
   thd->real_id= 0;
   thd->thread_id= 0;
   thd->query_id= 0;
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= FALSE;
+#endif /* WITH_WSREP */
   return thd;
 }
 
@@ -5095,7 +5114,6 @@ void *thd_attach_thd(MYSQL_THD thd)
 
   auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
   pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
-  thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
 }
@@ -6343,7 +6361,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       wsrep_is_active(this) &&
       variables.wsrep_trx_fragment_size > 0)
   {
-    if (!is_current_stmt_binlog_format_row())
+    if (!is_current_stmt_binlog_disabled() &&
+        !is_current_stmt_binlog_format_row())
     {
       my_message(ER_NOT_SUPPORTED_YET,
                  "Streaming replication not supported with "
@@ -6370,6 +6389,24 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                           wsrep_forced_binlog_format == BINLOG_FORMAT_STMT ?
                           "STMT" : "MIXED");
     }
+    set_current_stmt_binlog_format_row();
+  }
+
+  /* If user has requested binlog_format STMT OR MIXED
+     in CREATE TABLE [SELECT|REPLACE] we will fall back
+     to ROW.
+
+     Note that we can't use local binlog_format variable
+     here because wsrep_binlog_format sets it to ROW.
+  */
+  if (wsrep_ctas && variables.binlog_format != BINLOG_FORMAT_ROW)
+  {
+    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_ERROR,
+                        "Galera does not support binlog_format = %s "
+                        "in CREATE TABLE [SELECT|REPLACE] forcing ROW",
+                        binlog_format == BINLOG_FORMAT_STMT ?
+                        "STMT" : "MIXED");
     set_current_stmt_binlog_format_row();
   }
 #endif /* WITH_WSREP */

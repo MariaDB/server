@@ -1334,8 +1334,6 @@ execute stmt1 using @a;
 set @a= 301;
 execute stmt1 using @a;
 deallocate prepare stmt1;
-insert into v3(a) select sum(302);
-insert into v3(a) select sum(303) over ();
 --sorted_result
 select * from v3;
 
@@ -2043,7 +2041,9 @@ drop view abc;
 flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
+--disable_cursor_protocol
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like "Created_tmp%";
 --enable_ps_protocol
@@ -2054,9 +2054,11 @@ set @tmp=@@optimizer_switch;
 set @@optimizer_switch='derived_merge=OFF';
 create table t1(f1 char(1));
 create view v1 as select * from t1;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
 --enable_ps2_protocol
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like "Created_tmp%";
 --enable_ps_protocol
@@ -3107,12 +3109,13 @@ DROP VIEW IF EXISTS v1;
 
 let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
+--disable_cursor_protocol
 eval $query;
 --error ER_PARSE_ERROR
 eval CREATE VIEW v1 AS $query;
 --echo # Previously the following would fail.
 eval $query;
-
+--enable_cursor_protocol
 
 #
 # Bug#24532 The return data type of IS TRUE is different from similar operations
@@ -4150,6 +4153,7 @@ INSERT INTO t2 VALUES
   (9,90), (16, 160), (11,110), (1,10), (18,180), (2,20),
   (14,140), (15, 150), (12,120), (3,30), (17,170), (19,190);
 
+--disable_cursor_protocol
 EXPLAIN EXTENDED
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 FLUSH STATUS;
@@ -4163,6 +4167,7 @@ FLUSH STATUS;
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
 DROP VIEW v;
+--enable_cursor_protocol
 
 DROP TABLE t1, t2;
 --enable_ps2_protocol
@@ -6719,3 +6724,48 @@ DROP VIEW v2;
 DROP TABLE t;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-29537: Creation of view with UNION and SELECT ... FOR UPDATE
+--echo # in definition is failed with error
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE;
+
+SELECT * FROM v1;
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+                  UNION
+                  (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE);
+SELECT * FROM v1;
+
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35090: (Item_func_current_user) Assertion
+--echo # `typeid(*copy) == typeid(*this)' failed in
+--echo # Item_func_or_sum::do_build_clone
+--echo #
+
+CREATE VIEW v AS SELECT 1;
+
+SELECT * FROM v WHERE UpdateXML('<user>N/A</user>','/a',CURRENT_USER());
+
+# Cleanup
+DROP VIEW v;
+
+--echo # End of 10.5 tests

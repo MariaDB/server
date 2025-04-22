@@ -1721,18 +1721,18 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
                                   Gtid_log_event::FL_COMPLETED_XA))) ||
       rpl_filter->db_ok(thd->db.str))
   {
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
     DBUG_PRINT("query",("%s", thd->query()));
 
 #ifdef WITH_WSREP
-    WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
-		thd_get_thread_id(thd), wsrep_thd_query(thd));
+    if (WSREP(thd))
+    {
+      WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
+		  thd_get_thread_id(thd), wsrep_thd_query(thd));
+    }
 #endif
 
     if (unlikely(!(expected_error= error_code)) ||
@@ -2863,10 +2863,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   */
   if (rpl_filter->db_ok(thd->db.str))
   {
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_id(next_query_id());
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
 
@@ -4042,7 +4039,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
     }
   }
 
-  general_log_print(thd, COM_QUERY, get_query());
+  general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   res= do_commit();
   if (!res && rgi->gtid_pending)
@@ -5517,15 +5514,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd))
+      if (WSREP(thd) && !thd->slave_thread)
       {
-        WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
+        WSREP_WARN("BF applier thread=%lu failed to open_and_lock_tables for "
+                   "%s, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-                    thd->get_stmt_da()->sql_errno(),
-                    thd->is_fatal_error,
-                    thd->wsrep_cs().mode(),
-                    thd->wsrep_trx().state(),
-                    (long long) wsrep_thd_trx_seqno(thd));
+                   thd_get_thread_id(thd),
+                   thd->get_stmt_da()->message(),
+                   thd->is_fatal_error,
+                   thd->wsrep_cs().mode(),
+                   thd->wsrep_trx().state(),
+                   wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
       if (thd->is_error() &&
@@ -5699,10 +5698,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       TIMESTAMP column to a table with one.
       So we call set_time(), like in SBR. Presently it changes nothing.
     */
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
 
     if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
@@ -7852,7 +7848,7 @@ void issue_long_find_row_warning(Log_event_type type,
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
                             "performance.",
-                            evt_type, table_name, (long) delta, scan_type);
+                            evt_type, table_name, delta, scan_type);
     }
   }
 }

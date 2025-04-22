@@ -678,7 +678,7 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		mem_heap_t*	heap = NULL;
 		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
 		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
-		rec_offs offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 3];
 		rec_offs_init(offsets_);
 		rec_offs*	offsets = rec_get_offsets(
 			rec, index, offsets_, index->n_core_fields,

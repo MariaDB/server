@@ -297,7 +297,7 @@ SET GLOBAL slave_parallel_threads=10;
 # Find the thread id of the driver SQL thread that we want to kill.
 --let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%Slave has read all relay log%'
 --source include/wait_condition.inc
---let $thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%Slave has read all relay log%'`
+--let $thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND LIKE 'Slave_SQL'`
 SET @old_max_queued= @@GLOBAL.slave_parallel_max_queued;
 SET GLOBAL slave_parallel_max_queued=9000;
 

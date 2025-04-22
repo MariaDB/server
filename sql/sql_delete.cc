@@ -379,9 +379,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (returning)
     (void) result->prepare(returning->item_list, NULL);
 
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
+    thd->lex->current_select->leaf_tables_saved= true;
     thd->lex->current_select->first_cond_optimization= 0;
   }
   /* check ORDER BY even if it can be ignored */
@@ -500,6 +501,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
 
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
+
     my_ok(thd, 0);
     DBUG_RETURN(0);
   }
@@ -530,6 +538,14 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     */
     if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
+
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
+
     my_ok(thd, 0);
     DBUG_RETURN(0);				// Nothing to delete
   }
@@ -706,8 +722,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     table->mark_columns_needed_for_delete();
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
-      !table->prepare_triggers_for_delete_stmt_or_event())
+  if (!table->prepare_triggers_for_delete_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE)
     will_batch= !table->file->start_bulk_delete();
 
   /*
@@ -895,9 +911,10 @@ cleanup:
     query_cache_invalidate3(thd, table_list, 1);
   }
 
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
+    thd->lex->current_select->leaf_tables_saved= true;
     thd->lex->current_select->first_cond_optimization= 0;
   }
 
@@ -1084,10 +1101,11 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
 ***************************************************************************/
 
 
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
+extern "C" int refpos_order_cmp(void *arg, const void *a, const void *b)
 {
-  handler *file= (handler*)arg;
-  return file->cmp_ref((const uchar*)a, (const uchar*)b);
+  auto file= static_cast<handler *>(arg);
+  return file->cmp_ref(static_cast<const uchar *>(a),
+                       static_cast<const uchar *>(b));
 }
 
 /*
@@ -1404,6 +1422,13 @@ void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::send_eof().
+
+  ***************************************************************************/
+
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
       (!thd->transaction->stmt.modified_non_trans_table && !deleted))
@@ -1603,6 +1628,13 @@ bool multi_delete::send_eof()
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::abort_result_set().
+
+  ***************************************************************************/
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;

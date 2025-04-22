@@ -682,6 +682,12 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-adjust-secondary-key-costs=name 
+ A bit field with the following values:
+ fix_card_multiplier = Fix the computation in
+ selectivity_for_indexes. selectivity_multiplier. This
+ variable will be deleted in MariaDB 11.0 as it is not
+ needed with the new 11.0 optimizer.
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -1642,6 +1648,7 @@ old-alter-table DEFAULT
 old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-adjust-secondary-key-costs fix_card_multiplier
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 1
 optimizer-search-depth 62

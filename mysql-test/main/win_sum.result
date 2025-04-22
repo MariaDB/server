@@ -105,3 +105,12 @@ EXISTS (SELECT 1 ORDER BY 1+sum(2) OVER ())
 #
 # End of 10.4 tests
 #
+#
+# MDEV-32411 Item_sum arguments incorrectly reset to temp table fields which causes crash
+#
+CREATE TABLE t1 (a INT NOT NULL) ;
+INSERT INTO t1 VALUES (EXISTS(SELECT avg(3) OVER (ORDER BY COUNT(DISTINCT a, HEX(a)))));
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

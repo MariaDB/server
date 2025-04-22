@@ -1,0 +1,108 @@
+#
+# MDEV-20281 "[ERROR] Failed to write to mysql.slow_log:" without
+# error reason
+#
+call mtr.add_suppression("Failed to write to mysql.slow_log:");
+SET @old_slow_query_log= @@global.slow_query_log;
+SET @old_log_output= @@global.log_output;
+SET @old_long_query_time= @@long_query_time;
+SET GLOBAL log_output= "TABLE";
+SET GLOBAL slow_query_log= ON;
+SET SESSION long_query_time= 0;
+select 1 from dual;
+1
+1
+show create table mysql.slow_log;
+Table	Create Table
+slow_log	CREATE TABLE `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` bigint(20) unsigned NOT NULL,
+  `rows_examined` bigint(20) unsigned NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` bigint(20) unsigned NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log'
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= "FILE";
+SET GLOBAL slow_query_log= OFF;
+drop table mysql.slow_log;
+# one field missing
+CREATE TABLE mysql.slow_log (
+`start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+`user_host` mediumtext NOT NULL,
+`query_time` time(6) NOT NULL,
+`lock_time` time(6) NOT NULL,
+`rows_sent` bigint(20) unsigned NOT NULL,
+`rows_examined` bigint(20) unsigned NOT NULL,
+`db` varchar(512) NOT NULL,
+`last_insert_id` int(11) NOT NULL,
+`insert_id` int(11) NOT NULL,
+`server_id` int(10) unsigned NOT NULL,
+`sql_text` mediumtext NOT NULL,
+`thread_id` bigint(21) unsigned NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
+SET GLOBAL log_output= "TABLE";
+SET GLOBAL slow_query_log= ON;
+SET SESSION long_query_time= 0;
+select 1 from dual;
+1
+1
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= "FILE";
+SET GLOBAL slow_query_log= OFF;
+drop table mysql.slow_log;
+# crazy types
+CREATE TABLE mysql.slow_log (
+`start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+`user_host` ENUM('apple','orange','pear') NOT NULL,
+`query_time` ENUM('apple','orange','pear') NOT NULL,
+`lock_time` ENUM('apple','orange','pear') NOT NULL,
+`rows_sent` ENUM('apple','orange','pear') NOT NULL,
+`rows_examined` ENUM('apple','orange','pear') NOT NULL,
+`db` ENUM('apple','orange','pear') NOT NULL,
+`last_insert_id` ENUM('apple','orange','pear') NOT NULL,
+`insert_id` ENUM('apple','orange','pear') NOT NULL,
+`server_id` ENUM('apple','orange','pear') NOT NULL,
+`sql_text` ENUM('apple','orange','pear') NOT NULL,
+`thread_id` ENUM('apple','orange','pear') NOT NULL,
+`rows_affected` ENUM('apple','orange','pear') NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
+SET GLOBAL log_output= "TABLE";
+SET GLOBAL slow_query_log= ON;
+SET SESSION long_query_time= 0;
+select 1 from dual;
+1
+1
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= "FILE";
+SET GLOBAL slow_query_log= OFF;
+drop table mysql.slow_log;
+# restore normal slow log table
+CREATE TABLE mysql.slow_log (
+`start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+`user_host` mediumtext NOT NULL,
+`query_time` time(6) NOT NULL,
+`lock_time` time(6) NOT NULL,
+`rows_sent` bigint(20) unsigned NOT NULL,
+`rows_examined` bigint(20) unsigned NOT NULL,
+`db` varchar(512) NOT NULL,
+`last_insert_id` int(11) NOT NULL,
+`insert_id` int(11) NOT NULL,
+`server_id` int(10) unsigned NOT NULL,
+`sql_text` mediumtext NOT NULL,
+`thread_id` bigint(21) unsigned NOT NULL,
+`rows_affected` bigint(20) unsigned NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci COMMENT='Slow log';
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= @old_log_output;
+SET @@global.slow_query_log= @old_slow_query_log;
+FOUND 2 /incorrect number of fields in the log table/ in mysqld.1.err
+FOUND 2 /Can't write data \(possible incorrect log table structure\)/ in mysqld.1.err
+# End of 10.5 tests

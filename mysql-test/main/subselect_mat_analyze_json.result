@@ -80,8 +80,6 @@ ANALYZE
   }
 }
 # "Partial match" is used due to NOT IN
-# Force rowid-merge partial partial matching
-set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
 analyze format=json select * from t1 where a not in (select b from t2);
 ANALYZE
 {
@@ -104,58 +102,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;array merge for partial match",
-          "r_loops": 4,
-          "r_index_lookups": 3,
-          "r_partial_matches": 1,
-          "r_partial_match_buffer_size": "REPLACED",
-          "r_partial_match_array_sizes": ["2"],
-          "query_block": {
-            "select_id": 2,
-            "r_loops": 1,
-            "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 100
-            }
-          }
-        }
-      }
-    ]
-  }
-}
-# Force table scan partial matching
-set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=on";
-analyze format=json select * from t1 where a not in (select b from t2);
-ANALYZE
-{
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 50,
-      "attached_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))"
-    },
-    "subqueries": [
-      {
-        "materialization": {
-          "r_strategy": "index_lookup;full scan for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -211,7 +158,7 @@ ANALYZE
         "subqueries": [
           {
             "materialization": {
-              "r_strategy": "index_lookup;full scan for partial match",
+              "r_strategy": "null-aware index_lookup",
               "r_loops": 4,
               "r_index_lookups": 3,
               "r_partial_matches": 1,
@@ -238,7 +185,6 @@ ANALYZE
     }
   }
 }
-set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
 analyze format=json select a from t1 group by a not in (select b from t2);
 ANALYZE
 {
@@ -269,12 +215,10 @@ ANALYZE
         "subqueries": [
           {
             "materialization": {
-              "r_strategy": "index_lookup;array merge for partial match",
+              "r_strategy": "null-aware index_lookup",
               "r_loops": 4,
               "r_index_lookups": 3,
               "r_partial_matches": 1,
-              "r_partial_match_buffer_size": "REPLACED",
-              "r_partial_match_array_sizes": ["2"],
               "query_block": {
                 "select_id": 2,
                 "r_loops": 1,
@@ -298,7 +242,6 @@ ANALYZE
     }
   }
 }
-set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=on";
 # Subselect in ORDER BY
 analyze format=json select a from t1 order by a in (select b from t2);
 ANALYZE
@@ -333,7 +276,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;full scan for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -381,7 +324,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;full scan for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -521,7 +464,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;full scan for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "query_block": {
@@ -614,6 +557,7 @@ create table t1 (a1 char(1), a2 char(1));
 insert into t1 values (null, 'b');
 create table t2 (b1 char(1), b2 char(2));
 insert into t2 values ('a','b'), ('c', 'd'), (null, 'e'), ('f', 'g');
+# Force rowid-merge partial matching
 set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
 explain format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
 EXPLAIN
@@ -690,6 +634,7 @@ ANALYZE
     ]
   }
 }
+# Force table scan partial matching
 set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=on";
 analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
 ANALYZE

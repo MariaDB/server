@@ -334,7 +334,11 @@ public:
 
     if (var->value->result_type() == STRING_RESULT)
     {
-      if (!(res=var->value->val_str(&str)))
+      /*
+        Convert from the expression character set to ascii.
+        This is OK, as typelib values cannot have non-ascii characters.
+      */
+      if (!(res= var->value->val_str_ascii(&str)))
         return true;
       else
       if (!(var->save_result.ulonglong_value=

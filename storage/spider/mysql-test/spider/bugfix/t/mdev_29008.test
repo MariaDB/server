@@ -17,6 +17,11 @@ eval CREATE TABLE tbl_a (
 ) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
 INSERT INTO tbl_a VALUES (1,2),(3,4);
 
+set @old_general_log=@@global.general_log;
+set global general_log=1;
+set @old_log_output=@@global.log_output;
+set global log_output="TABLE";
+
 --connection master_1
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
@@ -25,11 +30,23 @@ eval CREATE TABLE tbl_a (
     b INT
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 
+--disable_ps2_protocol
+--disable_view_protocol
 SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY f1, f2;
+SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY MIN(t2.a), MAX(t2.a), f2;
+--enable_view_protocol
+--enable_ps2_protocol
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
 --connection child2_1
+--disable_view_protocol
+--disable_ps2_protocol
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+--enable_ps2_protocol
+--enable_view_protocol
+set global log_output=@old_log_output;
+set global general_log=@old_general_log;
 DROP DATABASE IF EXISTS auto_test_remote;
 
 --disable_query_log

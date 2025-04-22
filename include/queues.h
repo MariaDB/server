@@ -31,6 +31,8 @@
 #ifndef _queues_h
 #define _queues_h
 
+#include <my_cmp.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -44,7 +46,7 @@ typedef struct st_queue {
   uint offset_to_queue_pos;    /* If we want to store position in element */
   uint auto_extent;
   int max_at_top;	/* Normally 1, set to -1 if queue_top gives max */
-  int  (*compare)(void *, uchar *,uchar *);
+  qsort_cmp2 compare;
 } QUEUE;
 
 #define queue_first_element(queue) 1
@@ -58,14 +60,13 @@ typedef struct st_queue {
 #define queue_set_max_at_top(queue, set_arg) \
   (queue)->max_at_top= set_arg ? -1 : 1
 #define queue_remove_top(queue_arg) queue_remove((queue_arg), queue_first_element(queue_arg))
-typedef int (*queue_compare)(void *,uchar *, uchar *);
 
 int init_queue(QUEUE *queue,uint max_elements,uint offset_to_key,
-	       my_bool max_at_top, queue_compare compare,
+	       my_bool max_at_top, qsort_cmp2 compare,
 	       void *first_cmp_arg, uint offset_to_queue_pos,
                uint auto_extent);
 int reinit_queue(QUEUE *queue,uint max_elements,uint offset_to_key,
-                 my_bool max_at_top, queue_compare compare,
+                 my_bool max_at_top, qsort_cmp2 compare,
                  void *first_cmp_arg, uint offset_to_queue_pos,
                  uint auto_extent);
 int resize_queue(QUEUE *queue, uint max_elements);

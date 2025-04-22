@@ -1470,5 +1470,61 @@ DROP FUNCTION params;
 DROP FUNCTION select01;
 DROP FUNCTION select02;
 #
+# MDEV-32891 Assertion `value <= ((ulonglong) 0xFFFFFFFFL) * 10000ULL' failed in str_to_DDhhmmssff_internal
+#
+SELECT EXTRACT(HOUR_MICROSECOND FROM '42949672955000x1');
+EXTRACT(HOUR_MICROSECOND FROM '42949672955000x1')
+NULL
+Warnings:
+Warning	1292	Incorrect interval value: '42949672955000x1'
+#
+# MDEV-23687 Assertion `is_valid_value_slow()' failed in Datetime::Datetime upon EXTRACT under mode ZERO_DATE_TIME_CAST
+#
+SET SESSION old_mode='ZERO_DATE_TIME_CAST';
+SELECT CAST('100000:00:00' AS DATETIME);
+CAST('100000:00:00' AS DATETIME)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATETIME));
+EXTRACT(DAY FROM CAST('100000:00:00' AS DATETIME))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT CAST('100000:00:00' AS DATE);
+CAST('100000:00:00' AS DATE)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATE));
+EXTRACT(DAY FROM CAST('100000:00:00' AS DATE))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SET SESSION old_mode=DEFAULT;
+#
+# MDEV-35489 Assertion `!ldate->neg' or unexpected result upon extracting unit from invalid value
+#
+SELECT EXTRACT(DAY FROM TIMESTAMP(-177498480000));
+EXTRACT(DAY FROM TIMESTAMP(-177498480000))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-177498480000'
+SELECT EXTRACT(DAY FROM TIMESTAMP(-177498480001));
+EXTRACT(DAY FROM TIMESTAMP(-177498480001))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-177498480001'
+SELECT EXTRACT(DAY FROM TIMESTAMP(-200000000000));
+EXTRACT(DAY FROM TIMESTAMP(-200000000000))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-200000000000'
+SELECT EXTRACT(DAY FROM TIMESTAMP(-221938034527));
+EXTRACT(DAY FROM TIMESTAMP(-221938034527))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-221938034527'
+#
 # End of 10.5 tests
 #

@@ -1,0 +1,13 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+Shutting down server ...
+connection node_1;
+Cleaning var directory ...
+connection node_2;
+Starting server ...
+include/assert_grep.inc [mariabackup: Using 128974848 bytes for buffer pool \(set by --use-memory parameter\)]
+disconnect node_2;
+disconnect node_1;

@@ -1749,11 +1749,13 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
 
 C_MODE_START
 
-static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, uchar *val1, uchar *val2)
+static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, const void *val1_,
+                                            const void *val2_)
 {
-  QUICK_ROR_UNION_SELECT *self= (QUICK_ROR_UNION_SELECT*)arg;
-  return self->head->file->cmp_ref(((QUICK_SELECT_I*)val1)->last_rowid,
-                                   ((QUICK_SELECT_I*)val2)->last_rowid);
+  auto self= static_cast<QUICK_ROR_UNION_SELECT *>(arg);
+  auto val1= static_cast<const QUICK_SELECT_I *>(val1_);
+  auto val2= static_cast<const QUICK_SELECT_I *>(val2_);
+  return self->head->file->cmp_ref(val1->last_rowid, val2->last_rowid);
 }
 
 C_MODE_END
@@ -3346,8 +3348,11 @@ double records_in_column_ranges(PARAM *param, uint idx,
 */
 
 static
-int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+int cmp_quick_ranges(void *table_, const void *a_, const void *b_)
 {
+  TABLE *table= static_cast<TABLE *>(table_);
+  const uint *a= static_cast<const uint *>(a_);
+  const uint *b= static_cast<const uint *>(b_);
   int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
   if (tmp)
     return tmp;
@@ -3440,9 +3445,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     if (table->opt_range_keys.is_set(keynr))
       optimal_key_order[ranges++]= keynr;
 
-  my_qsort2(optimal_key_order, ranges,
-            sizeof(optimal_key_order[0]),
-            (qsort2_cmp) cmp_quick_ranges, table);
+  my_qsort2(optimal_key_order, ranges, sizeof(optimal_key_order[0]),
+            cmp_quick_ranges, table);
 
   for (range_index= 0 ; range_index < ranges ; range_index++)
   {
@@ -3503,9 +3507,35 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
               */
               selectivity_mult= ((double)(i+1)) / i;
             }
-            table->cond_selectivity*= selectivity_mult;
             selectivity_for_index.add("selectivity_multiplier",
                                       selectivity_mult);
+
+            /*
+              Ok, now we assume that selectivity that range condition on
+              this index adds over selectivities on indexes that we've already
+              examined is
+
+                $SEL= (quick_cond_selectivity * selectivity_mult)
+
+              The heuristic that we used to obtain selectivity_mult may not be
+              correct (actually is known to be incorrect in simple cases), so
+              we make sure here that $SEL <= 1.0.
+
+              We adjust selectivity_mult (table->cond_selectivity was already
+              multiplied by quick_cond_selectivity above, so we will only
+              multiply it with selectivity_mult).
+            */
+            if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                 OPTIMIZER_ADJ_FIX_CARD_MULT) &&
+                selectivity_mult > 1.0 / quick_cond_selectivity)
+            {
+              selectivity_for_index.add("note", "multiplier too high, clipping");
+              selectivity_mult= 1.0/quick_cond_selectivity;
+              selectivity_for_index.add("clipped_multiplier", selectivity_mult);
+              DBUG_ASSERT(quick_cond_selectivity * selectivity_mult <= 1.0);
+            }
+
+            table->cond_selectivity*= selectivity_mult;
           }
           /*
             We need to set selectivity for fields supported by indexes.
@@ -5725,8 +5755,10 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 /* Compare two indexes scans for sort before search for the best intersection */
 
 static
-int cmp_intersect_index_scan(INDEX_SCAN_INFO **a, INDEX_SCAN_INFO **b)
+int cmp_intersect_index_scan(const void *a_, const void *b_)
 {
+  auto a= static_cast<const INDEX_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const INDEX_SCAN_INFO *const *>(b_);
   return (*a)->records < (*b)->records ?
           -1 : (*a)->records == (*b)->records ? 0 : 1;
 }
@@ -6659,8 +6691,10 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     1 a > b
 */
 
-static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info(const void *a_, const void *b_)
 {
+  auto a= static_cast<const ROR_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const ROR_SCAN_INFO *const *>(b_);
   double val1= rows2double((*a)->records) * (*a)->key_rec_length;
   double val2= rows2double((*b)->records) * (*b)->key_rec_length;
   return (val1 < val2)? -1: (val1 == val2)? 0 : 1;
@@ -6683,8 +6717,10 @@ static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
     1 a > b
 */
 
-static int cmp_ror_scan_info_covering(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info_covering(const void *a_, const void *b_)
 {
+  auto a= static_cast<const ROR_SCAN_INFO *const *>(a_);
+  auto b= static_cast<const ROR_SCAN_INFO *const *>(b_);
   if ((*a)->used_fields_covered > (*b)->used_fields_covered)
     return -1;
   if ((*a)->used_fields_covered < (*b)->used_fields_covered)
@@ -7956,7 +7992,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         if (!tree)
           break;
         i++;
-      } while (i < array->count && tree->type == SEL_TREE::IMPOSSIBLE);
+      } while (i < array->used_count && tree->type == SEL_TREE::IMPOSSIBLE);
 
       if (!tree || tree->type == SEL_TREE::IMPOSSIBLE)
       {

@@ -190,12 +190,14 @@ MY_FUNCTION_NAME(strnncoll)(CHARSET_INFO *cs __attribute__((unused)),
       0       >0     "a" is a prefix of "b", so "a" is smaller.
       >0      0      "b" is a prefix of "a", check b_is_prefix.
       >0      >0     Two weights were scanned, check weight difference.
+
+      Note: weights can be zero and positive (never negative).
     */
     if (!a_wlen)
-      return b_wlen ? -b_weight : 0;
+      return b_wlen ? -1 : 0;
 
     if (!b_wlen)
-      return b_is_prefix ? 0 : a_weight;
+      return b_is_prefix ? 0 : +1;
 
     if ((res= (a_weight - b_weight)))
       return res;

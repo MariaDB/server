@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -49,6 +48,10 @@ extern struct charset_info_st *spd_charset_utf8mb3_bin;
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 pthread_mutex_t spider_thread_id_mutex;
+/*
+  Starts from 1 and increment by 1 whenever a new SPIDER_TRX is
+  created.
+*/
 ulonglong spider_thread_id;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -63,29 +66,31 @@ extern ulong spider_allocated_thds_line_no;
 extern pthread_mutex_t spider_allocated_thds_mutex;
 
 // for spider_alter_tables
-uchar *spider_alter_tbl_get_key(
-  SPIDER_ALTER_TABLE *alter_table,
+const uchar *spider_alter_tbl_get_key(
+  const void *alter_table_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto alter_table= static_cast<const SPIDER_ALTER_TABLE *>(alter_table_);
   DBUG_ENTER("spider_alter_tbl_get_key");
   *length = alter_table->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
   DBUG_PRINT("info",("spider table_name=%s", alter_table->table_name));
-  DBUG_RETURN((uchar*) alter_table->table_name);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(alter_table->table_name));
 }
 
 // for SPIDER_TRX_HA
-uchar *spider_trx_ha_get_key(
-  SPIDER_TRX_HA *trx_ha,
+const uchar *spider_trx_ha_get_key(
+  const void *trx_ha_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto trx_ha= static_cast<const SPIDER_TRX_HA *>(trx_ha_);
   DBUG_ENTER("spider_trx_ha_get_key");
   *length = trx_ha->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
   DBUG_PRINT("info",("spider table_name=%s", trx_ha->table_name));
-  DBUG_RETURN((uchar*) trx_ha->table_name);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(trx_ha->table_name));
 }
 
 /*
@@ -379,12 +384,7 @@ void spider_free_trx_alter_table_alloc(
   SPIDER_ALTER_TABLE *alter_table
 ) {
   DBUG_ENTER("spider_free_trx_alter_table_alloc");
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  my_hash_delete_with_hash_value(&trx->trx_alter_table_hash,
-    alter_table->table_name_hash_value, (uchar*) alter_table);
-#else
   my_hash_delete(&trx->trx_alter_table_hash, (uchar*) alter_table);
-#endif
   if (alter_table->tmp_char)
     spider_free(trx, alter_table->tmp_char, MYF(0));
   spider_free(trx, alter_table, MYF(0));
@@ -587,11 +587,9 @@ int spider_create_trx_alter_table(
   alter_table->table_name = tmp_name;
   memcpy(alter_table->table_name, share->table_name, share->table_name_length);
   alter_table->table_name_length = share->table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   DBUG_PRINT("info",("spider table_name_hash_value=%u",
     share->table_name_hash_value));
   alter_table->table_name_hash_value = share->table_name_hash_value;
-#endif
   alter_table->tmp_priority = share->priority;
   alter_table->link_count = share->link_count;
   alter_table->all_link_count = share->all_link_count;
@@ -802,12 +800,7 @@ int spider_create_trx_alter_table(
     share_alter->tmp_link_statuses_length;
 
   old_elements = trx->trx_alter_table_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  if (my_hash_insert_with_hash_value(&trx->trx_alter_table_hash,
-    alter_table->table_name_hash_value, (uchar*) alter_table))
-#else
   if (my_hash_insert(&trx->trx_alter_table_hash, (uchar*) alter_table))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
@@ -825,205 +818,6 @@ error:
   spider_free(trx, alter_table, MYF(0));
 error_alloc_alter_table:
   DBUG_RETURN(error_num);
-}
-
-bool spider_cmp_trx_alter_table(
-  SPIDER_ALTER_TABLE *cmp1,
-  SPIDER_ALTER_TABLE *cmp2
-) {
-  int roop_count;
-  DBUG_ENTER("spider_cmp_trx_alter_table");
-  if (
-    cmp1->tmp_priority != cmp2->tmp_priority ||
-    cmp1->link_count != cmp2->link_count ||
-    cmp1->all_link_count != cmp2->all_link_count
-  )
-    DBUG_RETURN(TRUE);
-
-  for (roop_count = 0; roop_count < (int) cmp1->all_link_count; roop_count++)
-  {
-    if (
-      (
-        cmp1->tmp_server_names[roop_count] !=
-          cmp2->tmp_server_names[roop_count] &&
-        (
-          !cmp1->tmp_server_names[roop_count] ||
-          !cmp2->tmp_server_names[roop_count] ||
-          strcmp(cmp1->tmp_server_names[roop_count],
-            cmp2->tmp_server_names[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_table_names[roop_count] !=
-          cmp2->tmp_tgt_table_names[roop_count] &&
-        (
-          !cmp1->tmp_tgt_table_names[roop_count] ||
-          !cmp2->tmp_tgt_table_names[roop_count] ||
-          strcmp(cmp1->tmp_tgt_table_names[roop_count],
-            cmp2->tmp_tgt_table_names[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_dbs[roop_count] !=
-          cmp2->tmp_tgt_dbs[roop_count] &&
-        (
-          !cmp1->tmp_tgt_dbs[roop_count] ||
-          !cmp2->tmp_tgt_dbs[roop_count] ||
-          strcmp(cmp1->tmp_tgt_dbs[roop_count],
-            cmp2->tmp_tgt_dbs[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_hosts[roop_count] !=
-          cmp2->tmp_tgt_hosts[roop_count] &&
-        (
-          !cmp1->tmp_tgt_hosts[roop_count] ||
-          !cmp2->tmp_tgt_hosts[roop_count] ||
-          strcmp(cmp1->tmp_tgt_hosts[roop_count],
-            cmp2->tmp_tgt_hosts[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_usernames[roop_count] !=
-          cmp2->tmp_tgt_usernames[roop_count] &&
-        (
-          !cmp1->tmp_tgt_usernames[roop_count] ||
-          !cmp2->tmp_tgt_usernames[roop_count] ||
-          strcmp(cmp1->tmp_tgt_usernames[roop_count],
-            cmp2->tmp_tgt_usernames[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_passwords[roop_count] !=
-          cmp2->tmp_tgt_passwords[roop_count] &&
-        (
-          !cmp1->tmp_tgt_passwords[roop_count] ||
-          !cmp2->tmp_tgt_passwords[roop_count] ||
-          strcmp(cmp1->tmp_tgt_passwords[roop_count],
-            cmp2->tmp_tgt_passwords[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_sockets[roop_count] !=
-          cmp2->tmp_tgt_sockets[roop_count] &&
-        (
-          !cmp1->tmp_tgt_sockets[roop_count] ||
-          !cmp2->tmp_tgt_sockets[roop_count] ||
-          strcmp(cmp1->tmp_tgt_sockets[roop_count],
-            cmp2->tmp_tgt_sockets[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_wrappers[roop_count] !=
-          cmp2->tmp_tgt_wrappers[roop_count] &&
-        (
-          !cmp1->tmp_tgt_wrappers[roop_count] ||
-          !cmp2->tmp_tgt_wrappers[roop_count] ||
-          strcmp(cmp1->tmp_tgt_wrappers[roop_count],
-            cmp2->tmp_tgt_wrappers[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_cas[roop_count] !=
-          cmp2->tmp_tgt_ssl_cas[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_cas[roop_count] ||
-          !cmp2->tmp_tgt_ssl_cas[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_cas[roop_count],
-            cmp2->tmp_tgt_ssl_cas[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_capaths[roop_count] !=
-          cmp2->tmp_tgt_ssl_capaths[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_capaths[roop_count] ||
-          !cmp2->tmp_tgt_ssl_capaths[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_capaths[roop_count],
-            cmp2->tmp_tgt_ssl_capaths[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_certs[roop_count] !=
-          cmp2->tmp_tgt_ssl_certs[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_certs[roop_count] ||
-          !cmp2->tmp_tgt_ssl_certs[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_certs[roop_count],
-            cmp2->tmp_tgt_ssl_certs[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_ciphers[roop_count] !=
-          cmp2->tmp_tgt_ssl_ciphers[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_ciphers[roop_count] ||
-          !cmp2->tmp_tgt_ssl_ciphers[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_ciphers[roop_count],
-            cmp2->tmp_tgt_ssl_ciphers[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_ssl_keys[roop_count] !=
-          cmp2->tmp_tgt_ssl_keys[roop_count] &&
-        (
-          !cmp1->tmp_tgt_ssl_keys[roop_count] ||
-          !cmp2->tmp_tgt_ssl_keys[roop_count] ||
-          strcmp(cmp1->tmp_tgt_ssl_keys[roop_count],
-            cmp2->tmp_tgt_ssl_keys[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_default_files[roop_count] !=
-          cmp2->tmp_tgt_default_files[roop_count] &&
-        (
-          !cmp1->tmp_tgt_default_files[roop_count] ||
-          !cmp2->tmp_tgt_default_files[roop_count] ||
-          strcmp(cmp1->tmp_tgt_default_files[roop_count],
-            cmp2->tmp_tgt_default_files[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_default_groups[roop_count] !=
-          cmp2->tmp_tgt_default_groups[roop_count] &&
-        (
-          !cmp1->tmp_tgt_default_groups[roop_count] ||
-          !cmp2->tmp_tgt_default_groups[roop_count] ||
-          strcmp(cmp1->tmp_tgt_default_groups[roop_count],
-            cmp2->tmp_tgt_default_groups[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_tgt_dsns[roop_count] !=
-          cmp2->tmp_tgt_dsns[roop_count] &&
-        (
-          !cmp1->tmp_tgt_dsns[roop_count] ||
-          !cmp2->tmp_tgt_dsns[roop_count] ||
-          strcmp(cmp1->tmp_tgt_dsns[roop_count],
-            cmp2->tmp_tgt_dsns[roop_count])
-        )
-      ) ||
-      (
-        cmp1->tmp_static_link_ids[roop_count] !=
-          cmp2->tmp_static_link_ids[roop_count] &&
-        (
-          !cmp1->tmp_static_link_ids[roop_count] ||
-          !cmp2->tmp_static_link_ids[roop_count] ||
-          strcmp(cmp1->tmp_static_link_ids[roop_count],
-            cmp2->tmp_static_link_ids[roop_count])
-        )
-      ) ||
-      cmp1->tmp_tgt_ports[roop_count] != cmp2->tmp_tgt_ports[roop_count] ||
-      cmp1->tmp_tgt_ssl_vscs[roop_count] !=
-        cmp2->tmp_tgt_ssl_vscs[roop_count] ||
-      cmp1->tmp_monitoring_binlog_pos_at_failing[roop_count] !=
-        cmp2->tmp_monitoring_binlog_pos_at_failing[roop_count] ||
-      cmp1->tmp_link_statuses[roop_count] !=
-        cmp2->tmp_link_statuses[roop_count]
-    )
-      DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
 }
 
 int spider_free_trx_alloc(
@@ -1092,6 +886,7 @@ int spider_free_trx_alloc(
   DBUG_RETURN(0);
 }
 
+/* Get or create a trx associated with the given THD. */
 SPIDER_TRX *spider_get_trx(
   THD *thd,
   bool regist_allocated_thds,
@@ -1133,11 +928,9 @@ SPIDER_TRX *spider_get_trx(
         goto error_init_udf_table_mutex;
     }
 
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_conn_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_conn_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_conn_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0, spider_conn_get_key, 0,
+                     0))
       goto error_init_hash;
     spider_alloc_calc_mem_init(trx->trx_conn_hash, SPD_MID_GET_TRX_2);
     spider_alloc_calc_mem(
@@ -1146,11 +939,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_conn_hash.array.max_element *
       trx->trx_conn_hash.array.size_of_element);
 
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_another_conn_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_conn_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_another_conn_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0, spider_conn_get_key, 0,
+                     0))
       goto error_init_another_hash;
     spider_alloc_calc_mem_init(trx->trx_another_conn_hash, SPD_MID_GET_TRX_3);
     spider_alloc_calc_mem(
@@ -1159,13 +950,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_another_conn_hash.array.max_element *
       trx->trx_another_conn_hash.array.size_of_element);
 
-
-
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_alter_tbl_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0,
+                     spider_alter_tbl_get_key, 0, 0))
       goto error_init_alter_hash;
     spider_alloc_calc_mem_init(trx->trx_alter_table_hash, SPD_MID_GET_TRX_8);
     spider_alloc_calc_mem(
@@ -1174,11 +961,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_alter_table_hash.array.max_element *
       trx->trx_alter_table_hash.array.size_of_element);
 
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_ha_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_trx_ha_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_ha_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0, spider_trx_ha_get_key,
+                     0, 0))
       goto error_init_trx_ha_hash;
     spider_alloc_calc_mem_init(trx->trx_ha_hash, SPD_MID_GET_TRX_9);
     spider_alloc_calc_mem(
@@ -1188,13 +973,11 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_ha_hash.array.size_of_element);
 
     trx->thd = (THD*) thd;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     if (thd)
       trx->thd_hash_value = my_calc_hash(&spider_allocated_thds,
         (uchar*) thd, sizeof(THD *));
     else
       trx->thd_hash_value = 0;
-#endif
     pthread_mutex_lock(&spider_thread_id_mutex);
     trx->spider_thread_id = spider_thread_id;
     ++spider_thread_id;
@@ -1281,12 +1064,7 @@ SPIDER_TRX *spider_get_trx(
       {
         pthread_mutex_lock(&spider_allocated_thds_mutex);
         uint old_elements = spider_allocated_thds.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-        if (my_hash_insert_with_hash_value(&spider_allocated_thds,
-          trx->thd_hash_value, (uchar*) thd))
-#else
         if (my_hash_insert(&spider_allocated_thds, (uchar*) thd))
-#endif
         {
           pthread_mutex_unlock(&spider_allocated_thds_mutex);
           goto error_allocated_thds_insert;
@@ -1392,12 +1170,7 @@ int spider_free_trx(
     {
       if (need_lock)
         pthread_mutex_lock(&spider_allocated_thds_mutex);
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-      my_hash_delete_with_hash_value(&spider_allocated_thds,
-        trx->thd_hash_value, (uchar*) trx->thd);
-#else
       my_hash_delete(&spider_allocated_thds, (uchar*) trx->thd);
-#endif
       if (need_lock)
         pthread_mutex_unlock(&spider_allocated_thds_mutex);
     }
@@ -1525,12 +1298,10 @@ static int spider_xa_lock(
   DBUG_ENTER("spider_xa_lock");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
 #ifdef XID_CACHE_IS_SPLITTED
   uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
 #endif
 #endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
@@ -1547,7 +1318,6 @@ static int spider_xa_lock(
 #else
   pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 #ifdef XID_CACHE_IS_SPLITTED
   if (my_hash_search_using_hash_value(&spd_db_att_xid_cache[idx], hash_value,
     xid_state->xid.key(), xid_state->xid.key_length()))
@@ -1555,25 +1325,11 @@ static int spider_xa_lock(
   if (my_hash_search_using_hash_value(spd_db_att_xid_cache, hash_value,
     xid_state->xid.key(), xid_state->xid.key_length()))
 #endif
-#else
-  if (my_hash_search(spd_db_att_xid_cache,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#endif
   {
     error_num = ER_SPIDER_XA_LOCKED_NUM;
     goto error;
   }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-#ifdef XID_CACHE_IS_SPLITTED
-  if (my_hash_insert_with_hash_value(&spd_db_att_xid_cache[idx], hash_value,
-    (uchar*)xid_state))
-#else
-  if (my_hash_insert_with_hash_value(spd_db_att_xid_cache, hash_value,
-    (uchar*)xid_state))
-#endif
-#else
   if (my_hash_insert(spd_db_att_xid_cache, (uchar*)xid_state))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
@@ -1608,13 +1364,6 @@ static int spider_xa_unlock(
   DBUG_ENTER("spider_xa_unlock");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
-#if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
-  my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
-    (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
-#ifdef XID_CACHE_IS_SPLITTED
-  uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
-#endif
 #endif
   old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
@@ -1625,17 +1374,7 @@ static int spider_xa_unlock(
 #else
   pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #endif
-#if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
-#ifdef XID_CACHE_IS_SPLITTED
-  my_hash_delete_with_hash_value(&spd_db_att_xid_cache[idx],
-    hash_value, (uchar *)xid_state);
-#else
-  my_hash_delete_with_hash_value(spd_db_att_xid_cache,
-    hash_value, (uchar *)xid_state);
-#endif
-#else
   my_hash_delete(spd_db_att_xid_cache, (uchar *)xid_state);
-#endif
 #ifdef XID_CACHE_IS_SPLITTED
   pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
 #else
@@ -2739,13 +2478,11 @@ int spider_internal_xa_commit_by_xid(
       goto error;
     }
 
-    if (
-      !(conn = spider_get_conn(
-        &tmp_share, 0, tmp_share.conn_keys[0], trx, NULL, FALSE, FALSE,
-        SPIDER_CONN_KIND_MYSQL, &error_num)) &&
-      (force_commit == 0 ||
-        (force_commit == 1 && error_num != ER_XAER_NOTA))
-    ) {
+    if (!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
+                                NULL, FALSE, FALSE, &error_num)) &&
+        (force_commit == 0 ||
+         (force_commit == 1 && error_num != ER_XAER_NOTA)))
+    {
       spider_sys_index_end(table_xa_member);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
@@ -2832,6 +2569,7 @@ int spider_internal_xa_rollback_by_xid(
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
+  /* This share has only one link */
   SPIDER_SHARE tmp_share;
   char *tmp_connect_info[SPIDER_TMP_SHARE_CHAR_PTR_COUNT];
   uint tmp_connect_info_length[SPIDER_TMP_SHARE_UINT_COUNT];
@@ -2968,13 +2706,11 @@ int spider_internal_xa_rollback_by_xid(
       goto error;
     }
 
-    if (
-      !(conn = spider_get_conn(
-        &tmp_share, 0, tmp_share.conn_keys[0], trx, NULL, FALSE, FALSE,
-        SPIDER_CONN_KIND_MYSQL, &error_num)) &&
-      (force_commit == 0 ||
-        (force_commit == 1 && error_num != ER_XAER_NOTA))
-    ) {
+    if (!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
+                                NULL, FALSE, FALSE, &error_num)) &&
+        (force_commit == 0 ||
+         (force_commit == 1 && error_num != ER_XAER_NOTA)))
+    {
       spider_sys_index_end(table_xa_member);
       spider_free_tmp_share_alloc(&tmp_share);
       free_root(&mem_root, MYF(0));
@@ -3155,11 +2891,6 @@ int spider_commit(
   if (!(trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_PRINT("info",("spider trx->bulk_access_conn_first=%p",
-    trx->bulk_access_conn_first));
-  trx->bulk_access_conn_first = NULL;
-#endif
 
   /*
     We do (almost) nothing if the following two conditions are both met:
@@ -3253,11 +2984,6 @@ int spider_rollback(
   if (!(trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_PRINT("info",("spider trx->bulk_access_conn_first=%p",
-    trx->bulk_access_conn_first));
-  trx->bulk_access_conn_first = NULL;
-#endif
 
   /* In case the rollback happens due to failure of LOCK TABLE, we
   need to clear the list of tables to lock. */
@@ -3267,6 +2993,12 @@ int spider_rollback(
     conn->db_conn->reset_lock_table_hash();
   }
 
+  /*
+    We do (almost) nothing if the following two conditions are both met:
+
+    * This is just the end of a statement, not an explicit rollback.
+    * The autocommit is OFF or we are in an explicit transaction.
+  */
   if (all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
   {
     if (trx->trx_start)
@@ -3482,18 +3214,162 @@ int spider_end_trx(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Report a table error.
+
+  The error_msg requires two format params, db name and table name.
+*/
+static int spider_report_table_error(ha_spider *spider,
+                                     int error_num, const char *error_msg)
+{
+  TABLE *table = spider->get_table();
+  TABLE_SHARE *table_share = table->s;
+  char *db = (char *) my_alloca(
+    table_share->db.length + 1 + table_share->table_name.length + 1);
+  if (!db)
+  {
+    my_error(HA_ERR_OUT_OF_MEM, MYF(0));
+    return HA_ERR_OUT_OF_MEM;
+  }
+  char *table_name = db + table_share->db.length + 1;
+  memcpy(db, table_share->db.str, table_share->db.length);
+  db[table_share->db.length] = '\0';
+  memcpy(table_name, table_share->table_name.str,
+    table_share->table_name.length);
+  table_name[table_share->table_name.length] = '\0';
+  my_printf_error(error_num, error_msg, MYF(0), db, table_name);
+  my_afree(db);
+  return error_num;
+}
+
+/* Only called from spider_check_trx_and_get_conn. */
+static int spider_trx_update(THD *thd, ha_spider *spider, SPIDER_TRX *trx)
+{
+  int search_link_idx, roop_count;
+  SPIDER_SHARE *share = spider->share;
+  DBUG_ENTER("spider_trx_update");
+  DBUG_PRINT("info", ("spider next trx"));
+  spider->trx_conn_adjustment = trx->trx_conn_adjustment;
+  if (
+    spider->spider_thread_id != trx->spider_thread_id ||
+    spider->search_link_query_id != thd->query_id
+  ) {
+    search_link_idx = spider_conn_first_link_idx(thd,
+      share->link_statuses, share->access_balances, spider->conn_link_idx,
+      share->link_count, SPIDER_LINK_STATUS_OK);
+    if (search_link_idx == -1)
+      DBUG_RETURN(spider_report_table_error(spider,
+                                            ER_SPIDER_ALL_LINKS_FAILED_NUM,
+                                            ER_SPIDER_ALL_LINKS_FAILED_STR));
+    else if (search_link_idx == -2)
+    {
+      my_error(HA_ERR_OUT_OF_MEM, MYF(0));
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    spider->search_link_idx = search_link_idx;
+    spider->search_link_query_id = thd->query_id;
+  }
+  spider->spider_thread_id = trx->spider_thread_id;
+
+  for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
+  {
+    if (!spider->handler_opened(roop_count))
+      spider->conns[roop_count] = NULL;
+  }
+  DBUG_RETURN(0);
+}
+
+/*
+  Only called from spider_check_trx_and_get_conn
+
+  TODO: this function comes from a refactoring, and the from_if param
+  is true iff the call is from the "if" branch, for lack of a better
+  name. This needs to be further understood and explained or removed
+  accordingly.
+*/
+static int spider_trx_get_conn(ha_spider *spider, SPIDER_TRX *trx,
+                               bool from_if)
+{
+  int roop_count, error_num;
+  bool search_link_idx_is_checked = FALSE;
+  SPIDER_CONN *conn;
+  SPIDER_SHARE *share = spider->share;
+  DBUG_ENTER("spider_trx_get_conn");
+  for (
+    roop_count = spider_conn_link_idx_next(share->link_statuses,
+      spider->conn_link_idx, -1, share->link_count,
+      SPIDER_LINK_STATUS_RECOVERY);
+    roop_count < (int) share->link_count;
+    roop_count = spider_conn_link_idx_next(share->link_statuses,
+      spider->conn_link_idx, roop_count, share->link_count,
+      SPIDER_LINK_STATUS_RECOVERY)
+  ) {
+    if (roop_count == spider->search_link_idx)
+      search_link_idx_is_checked = TRUE;
+    if ((conn= spider->conns[roop_count]))
+    {
+      /* TODO: do we need the check for !from_if here? */
+      if (!from_if)
+        conn->error_mode&= spider->error_mode;
+      if (conn->queued_connect)
+        conn->queued_connect_share= share;
+    }
+    else if (!(conn =
+               spider_get_conn(share, roop_count,
+                               spider->conn_keys[roop_count], trx,
+                               spider, FALSE, TRUE,
+                               &error_num)))
+    {
+      if (
+        share->monitoring_kind[roop_count] &&
+        spider->need_mons[roop_count]
+      ) {
+        error_num = spider_ping_table_mon_from_table(
+          trx,
+          trx->thd,
+          share,
+          roop_count,
+          (uint32) share->monitoring_sid[roop_count],
+          share->table_name,
+          share->table_name_length,
+          spider->conn_link_idx[roop_count],
+          NULL,
+          0,
+          share->monitoring_kind[roop_count],
+          share->monitoring_limit[roop_count],
+          share->monitoring_flag[roop_count],
+          TRUE
+        );
+      }
+      DBUG_PRINT("info",("spider get conn error"));
+      /*
+        Flag for another update (trx->spider_thread_id is at least
+        1, causing the next check spider->spider_thread_id !=
+        trx->spider_thread_id to return true).
+
+        TODO: do we need the check for from_if here?
+        */
+      if (from_if)
+        spider->spider_thread_id = 0;
+      DBUG_RETURN(error_num);
+    }
+    else
+      conn->error_mode &= spider->error_mode;
+  }
+  if (!search_link_idx_is_checked)
+    DBUG_RETURN(spider_report_table_error(spider,
+                                          ER_SPIDER_LINK_MON_JUST_NG_NUM,
+                                          ER_SPIDER_LINK_MON_JUST_NG_STR));
+  DBUG_RETURN(0);
+}
+
 int spider_check_trx_and_get_conn(
   THD *thd,
-  ha_spider *spider,
-  bool use_conn_kind
+  ha_spider *spider
 ) {
-  int error_num, roop_count, search_link_idx;
+  int error_num;
   SPIDER_TRX *trx;
   SPIDER_SHARE *share = spider->share;
-  SPIDER_CONN *conn;
-  char first_byte, first_byte_bak;
-  int semi_table_lock_conn = spider_param_semi_table_lock_connection(thd,
-    share->semi_table_lock_conn);
   DBUG_ENTER("spider_check_trx_and_get_conn");
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
@@ -3508,234 +3384,21 @@ int spider_check_trx_and_get_conn(
     if (!trx_ha || trx_ha->wait_for_reusing)
       spider_trx_set_link_idx_for_all(spider);
 
-
-    if (semi_table_lock_conn)
-      first_byte = '0' +
-        spider_param_semi_table_lock(thd, share->semi_table_lock);
-    else
-      first_byte = '0';
-    DBUG_PRINT("info",("spider semi_table_lock_conn = %d",
-      semi_table_lock_conn));
-    DBUG_PRINT("info",("spider semi_table_lock = %d",
-      spider_param_semi_table_lock(thd, share->semi_table_lock)));
-    DBUG_PRINT("info",("spider first_byte = %d", first_byte));
     if (
       !trx_ha ||
       trx_ha->wait_for_reusing ||
       trx->spider_thread_id != spider->spider_thread_id ||
       trx->trx_conn_adjustment != spider->trx_conn_adjustment ||
-      first_byte != *spider->conn_keys[0] ||
       share->link_statuses[spider->conn_link_idx[spider->search_link_idx]] ==
         SPIDER_LINK_STATUS_NG
     ) {
-      DBUG_PRINT("info",(first_byte != *spider->conn_keys[0] ?
-        "spider change conn type" : trx != spider->wide_handler->trx ?
-        "spider change thd" : "spider next trx"));
-      spider->wide_handler->trx = trx;
-      spider->trx_conn_adjustment = trx->trx_conn_adjustment;
-      if (
-        spider->spider_thread_id != trx->spider_thread_id ||
-        spider->search_link_query_id != thd->query_id
-      ) {
-        search_link_idx = spider_conn_first_link_idx(thd,
-          share->link_statuses, share->access_balances, spider->conn_link_idx,
-          share->link_count, SPIDER_LINK_STATUS_OK);
-        if (search_link_idx == -1)
-        {
-          TABLE *table = spider->get_table();
-          TABLE_SHARE *table_share = table->s;
-          char *db = (char *) my_alloca(
-            table_share->db.length + 1 + table_share->table_name.length + 1);
-          if (!db)
-          {
-            my_error(HA_ERR_OUT_OF_MEM, MYF(0));
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          }
-          char *table_name = db + table_share->db.length + 1;
-          memcpy(db, table_share->db.str, table_share->db.length);
-          db[table_share->db.length] = '\0';
-          memcpy(table_name, table_share->table_name.str,
-            table_share->table_name.length);
-          table_name[table_share->table_name.length] = '\0';
-          my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
-            ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-          my_afree(db);
-          DBUG_RETURN(ER_SPIDER_ALL_LINKS_FAILED_NUM);
-        } else if (search_link_idx == -2)
-        {
-          my_error(HA_ERR_OUT_OF_MEM, MYF(0));
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        spider->search_link_idx = search_link_idx;
-        spider->search_link_query_id = thd->query_id;
-      }
-      spider->spider_thread_id = trx->spider_thread_id;
-
-      first_byte_bak = *spider->conn_keys[0];
-      *spider->conn_keys[0] = first_byte;
-      for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
-      {
-        if (!spider->handler_opened(roop_count, SPIDER_CONN_KIND_MYSQL))
-          spider->conns[roop_count] = NULL;
-      }
-      bool search_link_idx_is_checked = FALSE;
-      for (
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_count < (int) share->link_count;
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, roop_count, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY)
-      ) {
-        uint tgt_conn_kind = (use_conn_kind ? spider->conn_kind[roop_count] :
-          SPIDER_CONN_KIND_MYSQL);
-        if (roop_count == spider->search_link_idx)
-          search_link_idx_is_checked = TRUE;
-        if (
-            tgt_conn_kind == SPIDER_CONN_KIND_MYSQL &&
-              !spider->conns[roop_count]
-        ) {
-          *spider->conn_keys[roop_count] = first_byte;
-          if (
-            !(conn =
-              spider_get_conn(share, roop_count,
-                spider->conn_keys[roop_count], trx,
-                spider, FALSE, TRUE,
-                use_conn_kind ? spider->conn_kind[roop_count] :
-                  SPIDER_CONN_KIND_MYSQL,
-                &error_num))
-          ) {
-            if (
-              share->monitoring_kind[roop_count] &&
-              spider->need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                trx,
-                trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                spider->conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-            }
-            DBUG_PRINT("info",("spider get conn error"));
-            *spider->conn_keys[0] = first_byte_bak;
-            spider->spider_thread_id = 0;
-            DBUG_RETURN(error_num);
-          }
-          conn->error_mode &= spider->error_mode;
-        }
-      }
-      if (!search_link_idx_is_checked)
-      {
-        TABLE *table = spider->get_table();
-        TABLE_SHARE *table_share = table->s;
-        char *db = (char *) my_alloca(
-          table_share->db.length + 1 + table_share->table_name.length + 1);
-        if (!db)
-        {
-          my_error(HA_ERR_OUT_OF_MEM, MYF(0));
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        char *table_name = db + table_share->db.length + 1;
-        memcpy(db, table_share->db.str, table_share->db.length);
-        db[table_share->db.length] = '\0';
-        memcpy(table_name, table_share->table_name.str,
-          table_share->table_name.length);
-        table_name[table_share->table_name.length] = '\0';
-        my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
-          ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
-        my_afree(db);
-        DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
-      }
-    } else {
-      DBUG_PRINT("info",("spider link_status = %ld",
-        share->link_statuses[spider->conn_link_idx[spider->search_link_idx]]));
-      bool search_link_idx_is_checked = FALSE;
-      for (
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_count < (int) share->link_count;
-        roop_count = spider_conn_link_idx_next(share->link_statuses,
-          spider->conn_link_idx, roop_count, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY)
-      ) {
-        if (roop_count == spider->search_link_idx)
-          search_link_idx_is_checked = TRUE;
-        conn = spider->conns[roop_count];
-
-        if (!conn)
-        {
-          DBUG_PRINT("info",("spider get conn %d", roop_count));
-          if (
-            !(conn =
-              spider_get_conn(share, roop_count,
-                spider->conn_keys[roop_count], trx,
-                spider, FALSE, TRUE,
-                use_conn_kind ? spider->conn_kind[roop_count] :
-                  SPIDER_CONN_KIND_MYSQL,
-                &error_num))
-          ) {
-            if (
-              share->monitoring_kind[roop_count] &&
-              spider->need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                trx,
-                trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                spider->conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-            }
-            DBUG_PRINT("info",("spider get conn error"));
-            DBUG_RETURN(error_num);
-          }
-        }
-        conn->error_mode &= spider->error_mode;
-      }
-      if (!search_link_idx_is_checked)
-      {
-        TABLE *table = spider->get_table();
-        TABLE_SHARE *table_share = table->s;
-        char *db = (char *) my_alloca(
-          table_share->db.length + 1 + table_share->table_name.length + 1);
-        if (!db)
-        {
-          my_error(HA_ERR_OUT_OF_MEM, MYF(0));
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        }
-        char *table_name = db + table_share->db.length + 1;
-        memcpy(db, table_share->db.str, table_share->db.length);
-        db[table_share->db.length] = '\0';
-        memcpy(table_name, table_share->table_name.str,
-          table_share->table_name.length);
-        table_name[table_share->table_name.length] = '\0';
-        my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
-          ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
-        my_afree(db);
-        DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
-      }
+      if ((error_num= spider_trx_update(thd, spider, trx)))
+        DBUG_RETURN(error_num);
+      if ((error_num= spider_trx_get_conn(spider, trx, true)))
+        DBUG_RETURN(error_num);
     }
+    else if ((error_num= spider_trx_get_conn(spider, trx, false)))
+      DBUG_RETURN(error_num);
     spider->set_first_link_idx();
     DBUG_RETURN(spider_create_trx_ha(trx, spider, trx_ha));
   }
@@ -3767,6 +3430,13 @@ void spider_free_tmp_thd(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Check the info of a given SPIDER_TRX_HA with spider->share. If it
+  does not match or if the given SPIDER_TRX_HA is NULL, then create a
+  new one from spider and spider->share, and add the new SPIDER_TRX_HA
+  to trx->trx_ha_hash. On mismatch and non-NULL trx_ha, then it will
+  be removed from the hash and freed before the creation of a new one.
+*/
 int spider_create_trx_ha(
   SPIDER_TRX *trx,
   ha_spider *spider,
@@ -3789,12 +3459,7 @@ int spider_create_trx_ha(
   ) {
     DBUG_PRINT("info",("spider need recreate"));
     need_create = TRUE;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&trx->trx_ha_hash,
-      share->table_name_hash_value, (uchar*) trx_ha);
-#else
     my_hash_delete(&trx->trx_ha_hash, (uchar*) trx_ha);
-#endif
     spider_free(trx, trx_ha, MYF(0));
   } else {
     DBUG_PRINT("info",("spider use this"));
@@ -3817,7 +3482,6 @@ int spider_create_trx_ha(
     memcpy(trx_ha->table_name, share->table_name, share->table_name_length);
     trx_ha->table_name[share->table_name_length] = '\0';
     trx_ha->table_name_length = share->table_name_length;
-    trx_ha->trx = trx;
     trx_ha->share = share;
     trx_ha->link_count = share->link_count;
     trx_ha->link_bitmap_size = share->link_bitmap_size;
@@ -3825,12 +3489,7 @@ int spider_create_trx_ha(
     trx_ha->conn_can_fo = conn_can_fo;
     trx_ha->wait_for_reusing = FALSE;
     uint old_elements = trx->trx_ha_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(&trx->trx_ha_hash,
-      share->table_name_hash_value, (uchar*) trx_ha))
-#else
     if (my_hash_insert(&trx->trx_ha_hash, (uchar*) trx_ha))
-#endif
     {
       spider_free(trx, trx_ha, MYF(0));
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3857,20 +3516,29 @@ SPIDER_TRX_HA *spider_check_trx_ha(
   SPIDER_TRX_HA *trx_ha;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_check_trx_ha");
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  /*
+    Check for mismatch in trx_ha->share, link_count and
+    link_bitmap_size, which is an indication of a share that has been
+    freed. Delete the trx_ha and return NULL on mismatch.
+  */
   if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search_using_hash_value(
     &trx->trx_ha_hash, share->table_name_hash_value,
     (uchar*) share->table_name, share->table_name_length)))
-#else
-  if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search(&trx->trx_ha_hash,
-    (uchar*) share->table_name, share->table_name_length)))
-#endif
   {
-    memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
-      sizeof(uint) * share->link_count);
-    memcpy(spider->conn_can_fo, trx_ha->conn_can_fo,
-      sizeof(uint) * share->link_bitmap_size);
-    DBUG_RETURN(trx_ha);
+    if (trx_ha->share == share && trx_ha->link_count == share->link_count &&
+        trx_ha->link_bitmap_size == share->link_bitmap_size)
+    {
+      memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
+             sizeof(uint) * share->link_count);
+      memcpy(spider->conn_can_fo, trx_ha->conn_can_fo,
+             sizeof(uint) * share->link_bitmap_size);
+      DBUG_RETURN(trx_ha);
+    }
+    else
+    {
+      my_hash_delete(&trx->trx_ha_hash, (uchar*) trx_ha);
+      spider_free(trx, trx_ha, MYF(0));
+    }
   }
   DBUG_RETURN(NULL);
 }
@@ -3912,6 +3580,15 @@ void spider_reuse_trx_ha(
   DBUG_VOID_RETURN;
 }
 
+/**
+  Sets link indices for load balancing read connections
+
+  Assuming `spider->share->link_count` is the number of active servers
+  to use, this function updates `spider->conn_link_idx` with the first
+  server in the same "modulus group" whose link status is not
+  `SPIDER_LINK_STATUS_NG`, or if one cannot be found, use the
+  `link_idx`th server
+*/
 void spider_trx_set_link_idx_for_all(
   ha_spider *spider
 ) {
@@ -3980,34 +3657,3 @@ int spider_trx_check_link_idx_failed(
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-void spider_trx_add_bulk_access_conn(
-  SPIDER_TRX *trx,
-  SPIDER_CONN *conn
-) {
-  DBUG_ENTER("spider_trx_add_bulk_access_conn");
-  DBUG_PRINT("info",("spider trx=%p", trx));
-  DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider conn->bulk_access_requests=%u",
-    conn->bulk_access_requests));
-  DBUG_PRINT("info",("spider conn->bulk_access_sended=%u",
-    conn->bulk_access_sended));
-  DBUG_PRINT("info",("spider trx->bulk_access_conn_first=%p",
-    trx->bulk_access_conn_first));
-  if (!conn->bulk_access_requests && !conn->bulk_access_sended)
-  {
-    if (!trx->bulk_access_conn_first)
-    {
-      trx->bulk_access_conn_first = conn;
-    } else {
-      trx->bulk_access_conn_last->bulk_access_next = conn;
-    }
-    trx->bulk_access_conn_last = conn;
-    conn->bulk_access_next = NULL;
-  }
-  conn->bulk_access_requests++;
-  DBUG_PRINT("info",("spider conn->bulk_access_requests=%u",
-    conn->bulk_access_requests));
-  DBUG_VOID_RETURN;
-}
-#endif

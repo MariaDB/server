@@ -16,13 +16,13 @@ create definer=definer@localhost view mysqltest3.v3is as select schema_name from
 create definer=definer@localhost view mysqltest3.v3ps as select user from performance_schema.users where current_connections>0 order by user;
 create definer=definer@localhost view mysqltest3.v3nt as select 1;
 create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -32,7 +32,7 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER
 
 USE `mysqltest2`;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v2` AS SELECT
  1 AS `a` */;
 SET character_set_client = @saved_cs_client;
@@ -41,27 +41,27 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER
 
 USE `mysqltest3`;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3` AS SELECT
  1 AS `a` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3i` AS SELECT
  1 AS `a` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3is` AS SELECT
  1 AS `schema_name` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3nt` AS SELECT
  1 AS `1` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v3ps` AS SELECT
  1 AS `user` */;
 SET character_set_client = @saved_cs_client;
@@ -236,9 +236,9 @@ create view v1 as select * from (select * from t1) dt;
 lock table v1 read;
 disconnect con1;
 connection default;
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `v1` AS SELECT
  1 AS `id` */;
 SET character_set_client = @saved_cs_client;

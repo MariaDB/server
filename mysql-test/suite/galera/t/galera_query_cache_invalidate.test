@@ -22,14 +22,15 @@
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 
 --connection node_2
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node\\.");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 --connection node_4
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node\\.");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 
 --connection node_3
 
---replace_result $NODE_MYPORT_1 NODE_MYPORT_1
---eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_1, master_use_gtid=current_pos;
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1, master_use_gtid=current_pos;
+--enable_query_log
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
 

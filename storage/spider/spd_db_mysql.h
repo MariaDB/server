@@ -145,7 +145,6 @@ protected:
     spider_fields *fields
   );
 public:
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
     Item_sum *item_sum,
     ha_spider *spider,
@@ -155,12 +154,10 @@ public:
     bool use_fields,
     spider_fields *fields
   ) override;
-#endif
   int append_escaped_util(
     spider_string *to,
     String *from
   ) override;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_tables_top_down_check(
     TABLE_LIST *table_list,
     TABLE_LIST **used_table_list,
@@ -190,7 +187,6 @@ public:
   int append_having(
     spider_string *str
   ) override;
-#endif
   bool append_charset_name_before_string() override;
 };
 
@@ -298,7 +294,7 @@ public:
   bool has_result() override;
   void free_result() override;
   SPIDER_DB_ROW *current_row() override;
-  SPIDER_DB_ROW *fetch_row() override;
+  SPIDER_DB_ROW *fetch_row(MY_BITMAP *) override;
   SPIDER_DB_ROW *fetch_row_from_result_buffer(
     spider_db_result_buffer *spider_res_buf
   ) override;
@@ -318,11 +314,9 @@ public:
     int mode,
     ha_rows &records
   ) override;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int fetch_table_checksum(
     ha_spider *spider
   ) override;
-#endif
   int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -622,9 +616,7 @@ public:
   spider_string      *db_names_str;
   /* fixme: this field looks useless */
   spider_string      *db_table_str;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *db_table_str_hash_value;
-#endif
   uint               table_nm_max_length;
   uint               db_nm_max_length;
   spider_string      *column_name_str;
@@ -671,9 +663,7 @@ public:
     spider_string *str
   ) override;
 #endif
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   bool checksum_support() override;
-#endif
 protected:
   int create_table_names_str();
   void free_table_names_str();
@@ -860,7 +850,6 @@ public:
   int append_update_set(
     spider_string *str
   );
-  #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_part() override;
   int append_direct_update_set(
     spider_string *str
@@ -879,7 +868,6 @@ public:
     const char *alias,
     uint alias_length
   );
-  #endif
   int append_select_part(
     ulong sql_type
   ) override;
@@ -1076,7 +1064,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_sum_select_part(
     ulong sql_type,
     const char *alias,
@@ -1087,14 +1074,12 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   void set_order_pos(
     ulong sql_type
   ) override;
   void set_order_to_pos(
     ulong sql_type
   ) override;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_group_by_part(
     const char *alias,
     uint alias_length,
@@ -1105,7 +1090,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,
@@ -1362,13 +1346,11 @@ public:
   int reset_sql(
     ulong sql_type
   ) override;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
   ) override;
-#endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1406,11 +1388,9 @@ public:
   int show_records(
     int link_idx
   ) override;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int checksum_table(
     int link_idx
   ) override;
-#endif
   int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id
@@ -1489,7 +1469,6 @@ public:
     int link_idx,
     ulong sql_type
   ) override;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
@@ -1514,7 +1493,8 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields,
-    ulong sql_type
+    ulong sql_type,
+    int n_aux=0
   ) override;
   int append_list_item_select(
     List<Item> *select,
@@ -1522,7 +1502,8 @@ public:
     const char *alias,
     uint alias_length,
     bool use_fields,
-    spider_fields *fields
+    spider_fields *fields,
+    int n_aux
   );
   int append_group_by_part(
     ORDER *order,
@@ -1556,8 +1537,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -1568,7 +1547,6 @@ public:
     longlong select_limit,
     longlong offset_limit
   ) override;
-#endif
 };
 
 class spider_mysql_handler: public spider_mbase_handler

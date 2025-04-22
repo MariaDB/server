@@ -288,7 +288,10 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 
 SHOW CREATE TABLE tmp1;
 
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 SELECT @a, @a = 123.456789;
+--enable_cursor_protocol
 
 DROP TEMPORARY TABLE tmp1;
 DROP PROCEDURE p1;

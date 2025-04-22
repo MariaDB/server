@@ -842,6 +842,8 @@ my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
   const char *strend;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
     return MY_REPERTOIRE_UNICODE30;
+  if (!str) // Avoid UBSAN nullptr-with-offset
+    return MY_REPERTOIRE_ASCII;
   for (strend= str + length; str < strend; str++)
   {
     if (((uchar) *str) > 0x7F)

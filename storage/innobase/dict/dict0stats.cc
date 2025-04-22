@@ -34,6 +34,9 @@ Created Jan 06, 2010 Vasil Dimov
 #include <mysql_com.h>
 #include "btr0btr.h"
 #include "sync0sync.h"
+#ifdef WITH_WSREP
+#include <mysql/service_wsrep.h>
+#endif
 
 #include <algorithm>
 #include <map>
@@ -423,6 +426,8 @@ dict_stats_table_clone_create(
 	UT_LIST_INIT(t->freed_indexes, &dict_index_t::indexes);
 #endif /* BTR_CUR_HASH_ADAPT */
 
+	t->stats_error_printed = table->stats_error_printed;
+
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
@@ -479,6 +484,7 @@ dict_stats_table_clone_create(
 
 		idx->stat_defrag_n_page_split = 0;
 		idx->stat_defrag_n_pages_freed = 0;
+		idx->stats_error_printed = index->stats_error_printed;
 	}
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
@@ -2670,7 +2676,8 @@ dict_stats_fetch_table_stats_step(
 			ut_a(len == 8);
 
 			table->stat_clustered_index_size
-				= std::max<ulint>(mach_read_from_8(data), 1);
+				= std::max<ulint>(
+				      (ulint) mach_read_from_8(data), 1);
 			break;
 		}
 
@@ -2688,7 +2695,7 @@ dict_stats_fetch_table_stats_step(
 			}
 			table->stat_sum_of_other_index_sizes
 				= std::max<ulint>(
-				    mach_read_from_8(data),
+				    (ulint) mach_read_from_8(data),
 				    UT_LIST_GET_LEN(table->indexes) - 1);
 
 			break;
@@ -2876,13 +2883,13 @@ dict_stats_fetch_index_stats_step(
 	if (stat_name_len == 4 /* strlen("size") */
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
 		index->stat_index_size
-			= std::max<ulint>(stat_value, 1);
+			= std::max<ulint>((ulint) stat_value, 1);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_leaf_pages") */
 		   && strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   == 0) {
 		index->stat_n_leaf_pages
-			= std::max<ulint>(stat_value, 1);
+			= std::max<ulint>((ulint) stat_value, 1);
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_page_split") */
 		   && strncasecmp("n_page_split", stat_name, stat_name_len)
@@ -3351,7 +3358,11 @@ dict_stats_update(
 			if (srv_read_only_mode) {
 				goto transient;
 			}
-
+#ifdef WITH_WSREP
+			if (wsrep_thd_skip_locking(current_thd)) {
+				goto transient;
+			}
+#endif
 			if (dict_stats_auto_recalc_is_enabled(table)) {
 				return(dict_stats_update(
 						table,

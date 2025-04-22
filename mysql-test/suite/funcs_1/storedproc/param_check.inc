@@ -32,12 +32,16 @@
  
 eval UPDATE t1_aux SET f1 = NULL;
 # Enforce that all user variables have the same data type and initial value.
+--disable_cursor_protocol
 SELECT f1,f1,f1,f1 INTO @v1_tab,@v1_proc,@v2_proc,@v1_func FROM t1_aux;
+--enable_cursor_protocol
 
 --disable_warnings
 eval UPDATE t1_aux SET f1 = $test_value;
 --enable_warnings
+--disable_cursor_protocol
 SELECT f1 INTO @v1_tab FROM t1_aux;
+--enable_cursor_protocol
 --disable_warnings
 eval CALL sproc_1($test_value, @v1_proc);
 eval SET @v1_func = func_1($test_value);

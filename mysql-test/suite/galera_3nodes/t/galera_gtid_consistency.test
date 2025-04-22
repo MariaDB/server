@@ -2,7 +2,6 @@
 --source include/big_test.inc
 --source include/force_restart.inc
 
-
 #
 # Testing gtid consistency in 3 node cluster when nodes drop
 # and join back to cluster.
@@ -13,6 +12,13 @@
 # from the bootstrap node (node_1), and use it
 #
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 set wsrep_sync_wait=0;
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
@@ -98,10 +104,10 @@ show variables like '%gtid_binlog_pos%';
 # while node 2 is absent
 #
 --connection node_1
-CALL insert_row('node1', 500);
+CALL insert_row('node1', 100);
 
 --connection node_3
-CALL insert_row('node3', 500);
+CALL insert_row('node3', 100);
 
 CREATE TABLE t2(i int primary key) engine=innodb;
 
@@ -225,11 +231,18 @@ show variables like '%gtid_binlog_pos%';
 # bootstap cluster in order node1 - node2 - node3
 # send some inserts and DDL after each node started
 #
---sleep 5
+
 --echo # Bootstrap from node_1
 --connection node_1
 --let $restart_parameters = --wsrep_new_cluster
 --source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
 
 show variables like 'wsrep_gtid_domain_id';
 show variables like '%gtid_binlog_pos%';
@@ -242,6 +255,13 @@ ANALYZE TABLE t2;
 --let $restart_parameters =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
 
 #
 # connection node_1b may not be functional anymore, after node was
@@ -264,6 +284,14 @@ ALTER TABLE t2 ADD COLUMN (k int);
 --let $restart_parameters =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
 --source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+
 
 --connection node_1c
 --echo # wait until all nodes are back in cluster
@@ -315,12 +343,12 @@ SELECT COUNT(*) FROM t1;
 # cleanups
 #
 --connection node_2
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 call mtr.add_suppression("Sending JOIN failed: ");
 call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST");
 call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 --connection node_3
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 call mtr.add_suppression("Sending JOIN failed: ");
 call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST");
 call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
@@ -335,11 +363,15 @@ DROP TABLE t2;
 DROP TABLE t3;
 
 --connection node_3
---let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't3'
 --source include/wait_condition.inc
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't3'
 --source include/wait_condition.inc
+
+# Restore original auto_increment_offset values.
+--let $galera_cluster_size=3
+--source ../galera/include/auto_increment_offset_restore.inc
 
 --disconnect node_3
 --disconnect node_2b

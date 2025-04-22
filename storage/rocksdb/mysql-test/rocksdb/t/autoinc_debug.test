@@ -67,7 +67,9 @@ commit;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
+--disable_cursor_protocol
 select max(i) into @row_max from t;
+--enable_cursor_protocol
 select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
 
 --echo # After engine prepare
@@ -83,7 +85,9 @@ commit;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
+--disable_cursor_protocol
 select max(i) into @row_max from t;
+--enable_cursor_protocol
 select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
 
 --echo # After binlog
@@ -99,7 +103,9 @@ commit;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
+--disable_cursor_protocol
 select max(i) into @row_max from t;
+--enable_cursor_protocol
 select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
 
 --echo # After everything
@@ -115,7 +121,9 @@ commit;
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
+--disable_cursor_protocol
 select max(i) into @row_max from t;
+--enable_cursor_protocol
 select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
 
 drop table t;

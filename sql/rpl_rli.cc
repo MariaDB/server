@@ -2518,6 +2518,23 @@ rpl_group_info::unmark_start_commit()
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
+  /*
+    Assert that we have not already wrongly completed this GCO and signalled
+    the next one to start, only to now unmark and make the signal invalid.
+    This is to catch problems like MDEV-34696.
+
+    The error inject rpl_parallel_simulate_temp_err_xid is used to test this
+    precise situation, that we handle it gracefully if it somehow occurs in a
+    release build. So disable the assert in this case.
+  */
+#ifndef DBUG_OFF
+  bool allow_unmark_after_complete= false;
+  DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
+                  allow_unmark_after_complete= true;);
+  DBUG_ASSERT(!gco->next_gco ||
+              gco->next_gco->wait_count > e->count_committing_event_groups ||
+              allow_unmark_after_complete);
+#endif
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
 }

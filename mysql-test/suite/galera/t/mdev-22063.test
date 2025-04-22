@@ -97,7 +97,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t8;
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 8 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't_'
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t8;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t7;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_1000 FROM t1;
@@ -107,7 +107,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
 SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
 
 --connection node_1
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
@@ -145,7 +145,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t8;
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 8 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't_'
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t8;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t7;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_1000 FROM t1;
@@ -155,7 +155,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
 SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
 
 --connection node_1
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;

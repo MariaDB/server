@@ -183,7 +183,7 @@ void Item_row::bring_value()
 }
 
 
-Item* Item_row::build_clone(THD *thd)
+Item* Item_row::do_build_clone(THD *thd) const
 {
   Item **copy_args= static_cast<Item**>
     (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));

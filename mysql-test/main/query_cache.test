@@ -2,6 +2,8 @@
 -- source include/long_test.inc
 -- source include/no_valgrind_without_big.inc
 -- source include/no_view_protocol.inc
+-- source include/have_partition.inc
+-- source include/have_innodb.inc
 
 --disable_ps2_protocol
 set @save_query_cache_size=@@query_cache_size;
@@ -21,6 +23,7 @@ SET LOCAL query_cache_type= ON;
 
 # Reset query cache variables.
 
+--disable_cursor_protocol
 flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
@@ -1802,6 +1805,7 @@ SELECT foo( LAST_INSERT_ID() ) from t1;
 show status like "Qcache_queries_in_cache";
 DROP FUNCTION foo;
 drop table t1;
+--enable_cursor_protocol
 
 --echo #
 --echo # MDEV-33861: main.query_cache fails with embedded after
@@ -1843,6 +1847,26 @@ drop table t1;
 --disable_warnings
 set global Query_cache_size=18446744073709547520;
 --enable_warnings
+
+--echo #
+--echo # MDEV-34075 corruption when query cache cannot allocate block
+--echo #
+set global query_cache_type=1;
+create table t1 (c1 smallint null, c2 binary (25) not null, c3 tinyint(4) null, c4 binary (15) not null primary key, c5 smallint not null unique key,c6 decimal(10,8) not null default 3.141592) engine=innodb;
+set global query_cache_size=81920;
+--error ER_BAD_FIELD_ERROR
+select * from t1 where b=1 and c=1;
+set session query_cache_type=1;
+drop table t1;
+create table t1 (c1 int not null, c2 char(5)) engine=innodb partition by linear key(c1) partitions 99;
+select * from t1 where c1 <='1998-12-29 00:00:00' order by c1,c2;
+--error ER_BAD_FIELD_ERROR
+select group_concat(a separator '###') as names from t1 having left(names, 1)='j';
+select * from t1;
+select count(*) from t1;
+--error ER_BAD_FIELD_ERROR
+select G.a, c.a from t1 c, t1 G;
+drop table t1;
 
 --echo #
 --echo # End of 10.5 tests

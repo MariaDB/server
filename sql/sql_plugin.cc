@@ -103,16 +103,16 @@ const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { STRING_WITH_LEN("FUNCTION") }
 };
 
-extern int initialize_schema_table(st_plugin_int *plugin);
-extern int finalize_schema_table(st_plugin_int *plugin);
+extern int initialize_schema_table(void *plugin);
+extern int finalize_schema_table(void *plugin);
 
-extern int initialize_audit_plugin(st_plugin_int *plugin);
-extern int finalize_audit_plugin(st_plugin_int *plugin);
+extern int initialize_audit_plugin(void *plugin);
+extern int finalize_audit_plugin(void *plugin);
 
-extern int initialize_encryption_plugin(st_plugin_int *plugin);
-extern int finalize_encryption_plugin(st_plugin_int *plugin);
+extern int initialize_encryption_plugin(void *plugin);
+extern int finalize_encryption_plugin(void *plugin);
 
-extern int initialize_data_type_plugin(st_plugin_int *plugin);
+extern int initialize_data_type_plugin(void *plugin);
 
 /*
   The number of elements in both plugin_type_initialize and
@@ -1446,8 +1446,9 @@ static int plugin_do_initialize(struct st_plugin_int *plugin, uint &state)
   mysql_mutex_assert_not_owner(&LOCK_plugin);
   plugin_type_init init= plugin_type_initialize[plugin->plugin->type];
   if (!init)
-    init= (plugin_type_init) plugin->plugin->init;
+    init= plugin->plugin->init;
   if (init)
+  {
     if (int ret= init(plugin))
     {
       /* Plugin init failed and did not requested a retry */
@@ -1455,6 +1456,7 @@ static int plugin_do_initialize(struct st_plugin_int *plugin, uint &state)
         print_init_failed_error(plugin);
       DBUG_RETURN(ret);
     }
+  }
   state= PLUGIN_IS_READY; // plugin->init() succeeded
 
   if (plugin->plugin->status_vars)
@@ -1513,25 +1515,23 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 }
 
 
-extern "C" uchar *get_plugin_hash_key(const uchar *, size_t *, my_bool);
-extern "C" uchar *get_bookmark_hash_key(const uchar *, size_t *, my_bool);
+extern "C" const uchar *get_plugin_hash_key(const void *, size_t *, my_bool);
+extern "C" const uchar *get_bookmark_hash_key(const void *, size_t *, my_bool);
 
 
-uchar *get_plugin_hash_key(const uchar *buff, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+const uchar *get_plugin_hash_key(const void *buff, size_t *length, my_bool)
 {
-  struct st_plugin_int *plugin= (st_plugin_int *)buff;
-  *length= (uint)plugin->name.length;
-  return((uchar *)plugin->name.str);
+  auto plugin= static_cast<const st_plugin_int *>(buff);
+  *length= plugin->name.length;
+  return reinterpret_cast<const uchar *>(plugin->name.str);
 }
 
 
-uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+const uchar *get_bookmark_hash_key(const void *buff, size_t *length, my_bool)
 {
-  struct st_bookmark *var= (st_bookmark *)buff;
+  auto var= static_cast<const st_bookmark *>(buff);
   *length= var->name_len + 1;
-  return (uchar*) var->key;
+  return reinterpret_cast<const uchar *>(var->key);
 }
 
 static inline void convert_dash_to_underscore(char *str, size_t len)
@@ -1887,7 +1887,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   if (global_system_variables.log_warnings >= 9)
     sql_print_information("Initializing installed plugins");
 
-  new_thd->thread_stack= (char*) &tables;
+  new_thd->thread_stack= (void*) &tables;       // Big stack
   new_thd->store_globals();
   new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
@@ -3186,14 +3186,14 @@ void sync_dynamic_session_variables(THD* thd, bool global_lock)
   If required, will sync with global variables if the requested variable
   has not yet been allocated in the current thread.
 */
-static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
+static void *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
 {
   DBUG_ENTER("intern_sys_var_ptr");
   DBUG_ASSERT(offset >= 0);
   DBUG_ASSERT((uint)offset <= global_system_variables.dynamic_variables_head);
 
   if (!thd)
-    DBUG_RETURN((uchar*) global_system_variables.dynamic_variables_ptr + offset);
+    DBUG_RETURN(global_system_variables.dynamic_variables_ptr + offset);
 
   /*
     dynamic_variables_head points to the largest valid offset
@@ -3205,7 +3205,7 @@ static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
     sync_dynamic_session_variables(thd, global_lock);
     mysql_prlock_unlock(&LOCK_system_variables_hash);
   }
-  DBUG_RETURN((uchar*)thd->variables.dynamic_variables_ptr + offset);
+  DBUG_RETURN(thd->variables.dynamic_variables_ptr + offset);
 }
 
 
@@ -3219,42 +3219,47 @@ static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
 
 static char *mysql_sys_var_char(THD* thd, int offset)
 {
-  return (char *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<char*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static int *mysql_sys_var_int(THD* thd, int offset)
 {
-  return (int *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<int*>(intern_sys_var_ptr(thd, offset, true));
+}
+
+static unsigned int *mysql_sys_var_uint(THD* thd, int offset)
+{
+  return static_cast<unsigned int*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static long *mysql_sys_var_long(THD* thd, int offset)
 {
-  return (long *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<long*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static unsigned long *mysql_sys_var_ulong(THD* thd, int offset)
 {
-  return (unsigned long *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<unsigned long*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static long long *mysql_sys_var_longlong(THD* thd, int offset)
 {
-  return (long long *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<long long*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static unsigned long long *mysql_sys_var_ulonglong(THD* thd, int offset)
 {
-  return (unsigned long long *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<unsigned long long*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static char **mysql_sys_var_str(THD* thd, int offset)
 {
-  return (char **) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<char**>(intern_sys_var_ptr(thd, offset, true));
 }
 
 static double *mysql_sys_var_double(THD* thd, int offset)
 {
-  return (double *) intern_sys_var_ptr(thd, offset, true);
+  return static_cast<double*>(intern_sys_var_ptr(thd, offset, true));
 }
 
 void plugin_thdvar_init(THD *thd)
@@ -3515,7 +3520,7 @@ uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
     if (type == OPT_GLOBAL)
       thd= NULL;
 
-    return intern_sys_var_ptr(thd, *(int*) (plugin_var+1), false);
+    return (uchar*) intern_sys_var_ptr(thd, *(int*) (plugin_var+1), false);
   }
   return *(uchar**) (plugin_var+1);
 }
@@ -3524,8 +3529,8 @@ uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
 bool sys_var_pluginvar::session_is_default(THD *thd)
 {
   uchar *value= plugin_var->flags & PLUGIN_VAR_THDLOCAL
-                ? intern_sys_var_ptr(thd, *(int*) (plugin_var+1), true)
-                : *(uchar**) (plugin_var+1);
+                ? static_cast<uchar*>(intern_sys_var_ptr(thd, *(int*) (plugin_var+1), true))
+                : *reinterpret_cast<uchar**>(plugin_var+1);
 
     real_value_ptr(thd, OPT_SESSION);
 
@@ -3767,27 +3772,27 @@ void plugin_opt_set_limits(struct my_option *options,
     break;
   case PLUGIN_VAR_ENUM | PLUGIN_VAR_THDLOCAL:
     options->var_type= GET_ENUM;
-    options->typelib= ((thdvar_enum_t*) opt)->typelib;
-    options->def_value= ((thdvar_enum_t*) opt)->def_val;
+    options->typelib= reinterpret_cast<const thdvar_enum_t*>(opt)->typelib;
+    options->def_value= reinterpret_cast<const thdvar_enum_t*>(opt)->def_val;
     options->min_value= options->block_size= 0;
     options->max_value= options->typelib->count - 1;
     break;
   case PLUGIN_VAR_SET | PLUGIN_VAR_THDLOCAL:
     options->var_type= GET_SET;
-    options->typelib= ((thdvar_set_t*) opt)->typelib;
-    options->def_value= ((thdvar_set_t*) opt)->def_val;
+    options->typelib= reinterpret_cast<const thdvar_set_t*>(opt)->typelib;
+    options->def_value= reinterpret_cast<const thdvar_set_t*>(opt)->def_val;
     options->min_value= options->block_size= 0;
     options->max_value= (1ULL << options->typelib->count) - 1;
     break;
   case PLUGIN_VAR_BOOL | PLUGIN_VAR_THDLOCAL:
     options->var_type= GET_BOOL;
-    options->def_value= ((thdvar_bool_t*) opt)->def_val;
+    options->def_value= reinterpret_cast<const thdvar_bool_t*>(opt)->def_val;
     options->typelib= &bool_typelib;
     break;
   case PLUGIN_VAR_STR | PLUGIN_VAR_THDLOCAL:
     options->var_type= ((opt->flags & PLUGIN_VAR_MEMALLOC) ?
                         GET_STR_ALLOC : GET_STR);
-    options->def_value= (intptr) ((thdvar_str_t*) opt)->def_val;
+    options->def_value= reinterpret_cast<intptr_t>(reinterpret_cast<const thdvar_str_t*>(opt)->def_val);
     break;
   default:
     DBUG_ASSERT(0);
@@ -3826,7 +3831,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   size_t plugin_name_len= strlen(plugin_name);
   size_t optnamelen;
   const int max_comment_len= 255;
-  char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
+  char *comment= static_cast<char*>(alloc_root(mem_root, max_comment_len + 1));
   char *optname;
 
   int index= 0, UNINIT_VAR(offset);
@@ -3838,7 +3843,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
 
   DBUG_ENTER("construct_options");
 
-  plugin_name_ptr= (char*) alloc_root(mem_root, plugin_name_len + 1);
+  plugin_name_ptr= static_cast<char*>(alloc_root(mem_root, plugin_name_len + 1));
   safe_strcpy(plugin_name_ptr, plugin_name_len + 1, plugin_name);
   my_casedn_str(&my_charset_latin1, plugin_name_ptr);
   convert_underscore_to_dash(plugin_name_ptr, plugin_name_len);
@@ -3897,18 +3902,27 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
       continue;
     if (!(register_var(plugin_name_ptr, opt->name, opt->flags)))
       continue;
-    switch (opt->flags & PLUGIN_VAR_TYPEMASK) {
+    switch (opt->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_UNSIGNED)) {
     case PLUGIN_VAR_BOOL:
       ((thdvar_bool_t *) opt)->resolve= mysql_sys_var_char;
       break;
     case PLUGIN_VAR_INT:
       ((thdvar_int_t *) opt)->resolve= mysql_sys_var_int;
       break;
+    case PLUGIN_VAR_INT | PLUGIN_VAR_UNSIGNED:
+      ((thdvar_uint_t *) opt)->resolve= mysql_sys_var_uint;
+      break;
     case PLUGIN_VAR_LONG:
       ((thdvar_long_t *) opt)->resolve= mysql_sys_var_long;
       break;
+    case PLUGIN_VAR_LONG | PLUGIN_VAR_UNSIGNED:
+      ((thdvar_ulong_t *) opt)->resolve= mysql_sys_var_ulong;
+      break;
     case PLUGIN_VAR_LONGLONG:
       ((thdvar_longlong_t *) opt)->resolve= mysql_sys_var_longlong;
+      break;
+    case PLUGIN_VAR_LONGLONG | PLUGIN_VAR_UNSIGNED:
+      ((thdvar_ulonglong_t *) opt)->resolve= mysql_sys_var_ulonglong;
       break;
     case PLUGIN_VAR_STR:
       ((thdvar_str_t *) opt)->resolve= mysql_sys_var_str;

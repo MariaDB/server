@@ -58,7 +58,7 @@ BEGIN
 log(0, 'Session ' || connection_id() || ' ' || current_user || ' started');
 END;
 $$
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 -- MariaDB dump DUMPVERSION  Distrib DISTVERSION, for OS
 --
 -- Host: localhost    Database: db1_mdev17429

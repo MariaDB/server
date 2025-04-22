@@ -9,14 +9,17 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
+--connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6
 --connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5
-
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+
 --connection node_4
 
---replace_result $NODE_MYPORT_1 NODE_MYPORT_1
+--disable_query_log
 --eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_1, master_use_gtid=current_pos;
+--enable_query_log
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
 
@@ -42,7 +45,6 @@ SELECT COUNT(*) = 1 FROM t1;
 
 SELECT COUNT(*) = 1 FROM t1;
 
---connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6
 --connection node_6
 
 SELECT COUNT(*) = 1 FROM t1;
@@ -81,23 +83,46 @@ SELECT COUNT(*) = 3 FROM information_schema.columns WHERE table_name ='t1';
 #
 
 --connection node_2
-
---let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
-OPTIMIZE TABLE t1;
+--let $wsrep_last_committed_before_2 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
 --connection node_1
+--let $wsrep_last_committed_before_1 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
---let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--connection node_3
+--let $wsrep_last_committed_before_3 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_4
+--let $wsrep_last_committed_before_4 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_5
+--let $wsrep_last_committed_before_5 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_6
+--let $wsrep_last_committed_before_6 = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_2
+OPTIMIZE TABLE t1;
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before_2 + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before_1 + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before_3 + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
 --connection node_4
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before_4 + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
 
---let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--connection node_5
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before_5 + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
 --connection node_6
-
---let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before_6 + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
 #
@@ -115,6 +140,7 @@ RESET SLAVE;
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
+--source include/wait_until_ready.inc
 SET GLOBAL GTID_SLAVE_POS="";
 
 --connection node_1
@@ -122,35 +148,56 @@ SET GLOBAL GTID_SLAVE_POS="";
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
+--source include/wait_until_ready.inc
 
 --connection node_2
 
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+--source include/wait_until_ready.inc
 
 --connection node_3
 
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+--source include/wait_until_ready.inc
 
 --connection node_5
 
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+--source include/wait_until_ready.inc
 
 --connection node_6
 
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
+--source include/wait_until_ready.inc
 
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+connection node_1;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+
+connection node_2;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+
+connection node_3;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+
+connection node_4;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+
+connection node_5;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+
+connection node_6;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");

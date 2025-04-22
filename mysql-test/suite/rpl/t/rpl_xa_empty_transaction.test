@@ -190,11 +190,13 @@ create table db1.t1 (a int) engine=innodb;
 --connection server_3
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
 
 --connection server_2
 --source include/stop_slave.inc
 SET @@GLOBAL.replicate_ignore_db= "";
 SET @@GLOBAL.replicate_do_db= "db2";
+change master to master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
 --connection server_1
@@ -256,10 +258,12 @@ XA PREPARE "x2";
 --connection server_2
 --source include/stop_slave.inc
 SET @@GLOBAL.replicate_do_db= "db2";
+change master to master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
 --connection server_1
 XA COMMIT "x2";
+--source include/save_master_gtid.inc
 
 --connection server_2
 --source include/sync_with_master_gtid.inc

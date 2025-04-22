@@ -8,3 +8,11 @@ ERROR 28000: Access denied for user 'USER'@'localhost'
 replace mysql.global_priv select * from global_priv_backup;
 flush privileges;
 drop table global_priv_backup;
+#
+# MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+#
+CREATE USER foo;
+GRANT EXECUTE ON * TO foo IDENTIFIED WITH unix_socket AS PASSWORD('bar');
+ERROR HY000: SET PASSWORD is not applicable for users authenticating via unix_socket plugin
+DROP USER foo;
+# End of 10.5 tests

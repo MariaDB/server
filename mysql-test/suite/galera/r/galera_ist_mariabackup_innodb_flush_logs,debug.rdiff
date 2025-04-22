@@ -1,5 +1,5 @@
---- r/galera_ist_mariabackup_innodb_flush_logs.result	2021-04-10 14:21:52.661886653 +0300
-+++ r/galera_ist_mariabackup_innodb_flush_logs,debug.reject	2021-04-10 14:49:56.740062774 +0300
+--- r/galera_ist_mariabackup_innodb_flush_logs.result
++++ r/galera_ist_mariabackup_innodb_flush_logs,debug.reject
 @@ -172,3 +172,187 @@
  1
  DROP TABLE t1;

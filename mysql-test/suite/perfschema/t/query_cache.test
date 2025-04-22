@@ -23,13 +23,17 @@ reset query cache;
 flush status;
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 select * from t1;
+--enable_cursor_protocol
 
 show global status like "Qcache_queries_in_cache";
 show global status like "Qcache_inserts";
 show global status like "Qcache_hits";
 
+--disable_cursor_protocol
 select * from t1;
+--enable_cursor_protocol
 
 show global status like "Qcache_queries_in_cache";
 show global status like "Qcache_inserts";

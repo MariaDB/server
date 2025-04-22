@@ -29,7 +29,9 @@ set @t0= now(6);
 if ($MTR_COMBINATION_TRX_ID)
 {
 --disable_query_log
+--disable_cursor_protocol
   select sys_trx_start from t1 limit 1 into @x0;
+--enable_cursor_protocol
 --enable_query_log
 }
 
@@ -37,12 +39,16 @@ delete from t1 where x = 3;
 delete from t1 where x > 7;
 
 insert into t1(x, y) values(3, 33);
+--disable_cursor_protocol
 select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
+--enable_cursor_protocol
 if ($MTR_COMBINATION_TRX_ID)
 {
 --disable_query_log
   set @x1= @t1;
+--disable_cursor_protocol
   select trt_commit_ts(@x1) into @t1;
+--enable_cursor_protocol
 --enable_query_log
 }
 
@@ -118,12 +124,14 @@ delete from t1;
 insert into t1 values (3);
 delete from t1;
 
+--disable_cursor_protocol
 select row_start into @start1 from t1 for system_time all where x = 1;
 select row_end into @end1 from t1 for system_time all where x = 1;
 select row_start into @start2 from t1 for system_time all where x = 2;
 select row_end into @end2 from t1 for system_time all where x = 2;
 select row_start into @start3 from t1 for system_time all where x = 3;
 select row_end into @end3 from t1 for system_time all where x = 3;
+--enable_cursor_protocol
 
 select x as ASOF_x from t1 for system_time as of @start2;
 select x as ASOF_x from t1 for system_time as of @end2;
@@ -254,7 +262,9 @@ create or replace table t1 (
 insert into t1 values (1);
 set @ts= now(6);
 delete from t1;
+--disable_cursor_protocol
 select sys_trx_start from t1 for system_time all into @trx_start;
+--enable_cursor_protocol
 
 --echo ## ensure @trx_start is much lower than unix timestamp
 select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
@@ -382,8 +392,10 @@ eval create or replace table t1 (
 ) with system versioning;
 insert into t1 values (1);
 delete from t1;
+--disable_cursor_protocol
 select row_start from t1 for system_time all into @t1;
 select row_end from t1 for system_time all into @t2;
+--enable_cursor_protocol
 --disable_query_log
 if($MTR_COMBINATION_TRX_ID) {
   set @t1= trt_begin_ts(@t1);

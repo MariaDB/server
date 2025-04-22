@@ -1,0 +1,20 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t1 (c1 TIME) ENGINE=Spider PARTITION BY HASH(EXTRACT(HOUR_SECOND FROM c1));
+CREATE TABLE t2 (c1 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c1 INT,c2 INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t1"';
+INSERT INTO t2 SELECT * FROM t3;
+ERROR 21S01: Column count doesn't match value count at row 1
+SELECT * FROM t3;
+ERROR HY000: Unable to connect to foreign data source: localhost
+ALTER TABLE t1 CHANGE COLUMN c1 d1 INT;
+ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed
+DROP TABLE t1,t2,t3;
+drop server srv;
+for master_1
+for child2
+for child3

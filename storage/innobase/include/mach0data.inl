@@ -38,7 +38,7 @@ mach_write_to_1(
 	byte*	b,	/*!< in: pointer to byte where to store */
 	ulint	n)	/*!< in: ulint integer to be stored, >= 0, < 256 */
 {
-#ifndef HAVE_valgrind
+#if !defined HAVE_valgrind || __has_feature(memory_sanitizer)
 	ut_ad((n & ~0xFFUL) == 0);
 #endif
 
@@ -57,7 +57,7 @@ mach_write_to_2(
 	byte*	b,	/*!< in: pointer to two bytes where to store */
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
-#ifndef HAVE_valgrind
+#if !defined HAVE_valgrind || __has_feature(memory_sanitizer)
 	ut_ad((n & ~0xFFFFUL) == 0);
 #endif
 

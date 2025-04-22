@@ -297,16 +297,8 @@ uint Alter_info::check_vcol_field(Item_field *item) const
 
 
 Alter_table_ctx::Alter_table_ctx()
-  : implicit_default_value_error_field(NULL),
-    error_if_not_empty(false),
-    tables_opened(0),
-    db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
-    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
-    fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL), modified_primary_key(false)
-#ifdef DBUG_ASSERT_EXISTS
-    , tmp_table(false)
-#endif
+  : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
+    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str)
 {
 }
 
@@ -319,14 +311,8 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  uint tables_opened_arg,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
-  : implicit_default_value_error_field(NULL), error_if_not_empty(false),
-    tables_opened(tables_opened_arg),
-    new_db(*new_db_arg), new_name(*new_name_arg),
-    fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL), modified_primary_key(false)
-#ifdef DBUG_ASSERT_EXISTS
-    , tmp_table(false)
-#endif
+  : tables_opened(tables_opened_arg),
+    new_db(*new_db_arg), new_name(*new_name_arg)
 {
   /*
     Assign members db, table_name, new_db and new_name
@@ -536,7 +522,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) &&
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {

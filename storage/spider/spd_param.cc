@@ -37,7 +37,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -109,7 +108,6 @@ extern volatile ulonglong spider_mon_table_cache_version_req;
       MYSQL_SYSVAR_NAME(param_name).def_val;                            \
   }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 static int spider_direct_update(THD *thd, SHOW_VAR *var, void *,
                                 system_status_var *, enum_var_type)
 {
@@ -133,7 +131,6 @@ static int spider_direct_delete(THD *thd, SHOW_VAR *var, void *,
     var->value = (char *) &trx->direct_delete_count;
   DBUG_RETURN(error_num);
 }
-#endif
 
 static int spider_direct_order_limit(THD *thd, SHOW_VAR *var, void *,
                                      system_status_var *, enum_var_type)
@@ -178,14 +175,12 @@ struct st_mysql_show_var spider_status_variables[] =
     (char *) &spider_mon_table_cache_version, SHOW_LONGLONG},
   {"Spider_mon_table_cache_version_req",
     (char *) &spider_mon_table_cache_version_req, SHOW_LONGLONG},
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
   {"Spider_direct_update", (char *) &spider_direct_update, SHOW_SIMPLE_FUNC},
   {"Spider_direct_delete", (char *) &spider_direct_delete, SHOW_SIMPLE_FUNC},
 #else
   {"Spider_direct_update", (char *) &spider_direct_update, SHOW_FUNC},
   {"Spider_direct_delete", (char *) &spider_direct_delete, SHOW_FUNC},
-#endif
 #endif
 #ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
   {"Spider_direct_order_limit",
@@ -1808,7 +1803,7 @@ static MYSQL_THDVAR_INT(
   "Connect retry count", /* comment */
   NULL, /* check */
   NULL, /* update */
-  1000, /* def */
+  2, /* def */
   0, /* min */
   2147483647, /* max */
   0 /* blk */
@@ -2038,28 +2033,6 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, read_only_mode)
 
-#ifdef HA_CAN_BULK_ACCESS
-static int spider_bulk_access_free;
-/*
- -1 :fallback to default
-  0 :in reset
-  1 :in close
- */
-static MYSQL_SYSVAR_INT(
-  bulk_access_free,
-  spider_bulk_access_free,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Free mode of bulk access resources",
-  NULL,
-  NULL,
-  0,
-  -1,
-  1,
-  0
-);
-
-SPIDER_SYSVAR_OVERRIDE_VALUE_FUN(int, bulk_access_free)
-#endif
 
 /*
  -1 :fallback to default
@@ -2662,9 +2635,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(skip_parallel_search),
   MYSQL_SYSVAR(direct_order_limit),
   MYSQL_SYSVAR(read_only_mode),
-#ifdef HA_CAN_BULK_ACCESS
-  MYSQL_SYSVAR(bulk_access_free),
-#endif
   MYSQL_SYSVAR(udf_ds_use_real_table),
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(index_hint_pushdown),

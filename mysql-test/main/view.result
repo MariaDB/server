@@ -1503,8 +1503,6 @@ execute stmt1 using @a;
 set @a= 301;
 execute stmt1 using @a;
 deallocate prepare stmt1;
-insert into v3(a) select sum(302);
-insert into v3(a) select sum(303) over ();
 select * from v3;
 a	b
 100	0
@@ -1523,14 +1521,6 @@ a	b
 301	10
 301	1000
 301	2000
-302	0
-302	10
-302	1000
-302	2000
-303	0
-303	10
-303	1000
-303	2000
 drop view v3;
 drop tables t1,t2;
 create table t1(f1 int);
@@ -6970,3 +6960,45 @@ DROP VIEW v1;
 DROP VIEW v2;
 DROP TABLE t;
 # End of 10.4 tests
+#
+# MDEV-29537: Creation of view with UNION and SELECT ... FOR UPDATE
+# in definition is failed with error
+#
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE;
+SELECT * FROM v1;
+1
+1
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1` from `t1` union select 1 AS `1` from DUAL  where 1 group by 1 having 1 order by 1 for update	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE);
+SELECT * FROM v1;
+1
+1
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1` from `t1` union (select 1 AS `1` from DUAL  where 1 group by 1 having 1 for update)	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-35090: (Item_func_current_user) Assertion
+# `typeid(*copy) == typeid(*this)' failed in
+# Item_func_or_sum::do_build_clone
+#
+CREATE VIEW v AS SELECT 1;
+SELECT * FROM v WHERE UpdateXML('<user>N/A</user>','/a',CURRENT_USER());
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '<user>N/A</user>'
+DROP VIEW v;
+# End of 10.5 tests

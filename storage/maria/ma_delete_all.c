@@ -103,9 +103,17 @@ int maria_delete_all_rows(MARIA_HA *info)
 #endif
 
   if (_ma_flush_table_files(info, MARIA_FLUSH_DATA|MARIA_FLUSH_INDEX,
-                            FLUSH_IGNORE_CHANGED, FLUSH_IGNORE_CHANGED) ||
-      mysql_file_chsize(info->dfile.file, 0, 0, MYF(MY_WME)) ||
-      mysql_file_chsize(share->kfile.file, share->base.keystart, 0, MYF(MY_WME)))
+                            FLUSH_IGNORE_CHANGED, FLUSH_IGNORE_CHANGED))
+    goto err;
+  /*
+    Avoid truncate of internal temporary tables as this can have a big
+    performance overhead when called by mysql_handle_single_derived()
+    tables in MariaDB as part of split materialization.
+  */
+  if (!share->internal_table &&
+      (mysql_file_chsize(info->dfile.file, 0, 0, MYF(MY_WME)) ||
+       mysql_file_chsize(share->kfile.file, share->base.keystart, 0,
+                         MYF(MY_WME))))
     goto err;
 
   if (_ma_initialize_data_file(share, info->dfile.file))

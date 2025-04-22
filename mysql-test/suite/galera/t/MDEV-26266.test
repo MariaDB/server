@@ -1,0 +1,36 @@
+#
+# MDEV-26266 - Assertion
+#    state() == s_preparing ||
+#      (is_xa() && state() == s_replaying) ||
+#      (ret && (state() == s_must_abort ||
+#               state() == s_must_replay ||
+#               state() == s_cert_failed ||
+#               state() == s_aborted))
+# failed.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/force_restart.inc
+
+SET SESSION query_prealloc_size=8192;
+SET max_session_mem_used=50000;
+CREATE TABLE t1 (c1 INT NOT NULL) ENGINE=InnoDB ;
+--error ER_OPTION_PREVENTS_STATEMENT
+UPDATE t1 SET c1='1';
+SET wsrep_trx_fragment_size=1;
+SET SESSION AUTOCOMMIT=0;
+INSERT INTO t1 VALUES (1);
+SET @inserted_value=REPEAT ('z', 257);
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB ;
+--error ER_OPTION_PREVENTS_STATEMENT
+SELECT * FROM t1 WHERE c1='two';
+UPDATE t1 SET c1='2';
+--error ER_OPTION_PREVENTS_STATEMENT
+INSERT INTO t2 VALUES (2);
+INSERT INTO t2 VALUES (3);
+INSERT INTO t2 VALUES (4);
+INSERT INTO t2 VALUES (5);
+--error ER_LOCK_DEADLOCK
+CREATE VIEW v1 AS SELECT c1 FROM t1 WHERE c1 IN (SELECT a FROM t2) GROUP BY c1;
+DROP TABLE t1,t2;

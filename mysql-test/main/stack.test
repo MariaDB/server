@@ -1,0 +1,62 @@
+--echo # Checking stack usage
+
+--echo #
+--echo # basic tests
+--echo #
+
+select variable_value > 0 from information_schema.session_status where variable_name="stack_usage";
+
+
+--echo #
+--echo # Ensure stack usage is same for each iteration when using WITH recursive
+--echo #
+
+create table t1
+WITH recursive Fibonacci(PrevN, N, Stack) AS
+(
+     SELECT 0, 1, 0
+     UNION ALL
+     SELECT N, PrevN + N, (select variable_value from information_schema.session_status where variable_name="stack_usage")
+     FROM Fibonacci
+     WHERE N < 100000
+)
+SELECT PrevN as N, Stack FROM Fibonacci;
+
+select (select stack from t1 where n=2) = (select stack from t1 where N=75025) as c;
+DROP table t1;
+
+--echo #
+--echo # Check stack with recursion
+--echo #
+
+set @@max_sp_recursion_depth=20;
+delimiter $$;
+create or replace procedure recursion(x int, max int, OUT res int)
+begin
+  select variable_value into res from information_schema.session_status where variable_name="stack_usage";
+  if (x < max) then
+    call recursion(x+1, max, res);
+  end if;
+end;
+$$
+
+call recursion(0,2,@s1);
+call recursion(0,3,@s2);
+call recursion(0,4,@s3);
+$$
+
+delimiter ;$$
+
+
+select @s1 > 0 && @s2 > 0 && @s3 > 0;
+if (`select @s2-@s1 <> @s3 - @s2`)
+{
+  echo "Wrong result";
+  select @s1 ,@s2, @s3, @s2-@s1, @s3-@s2;
+}
+
+drop procedure recursion;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

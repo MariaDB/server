@@ -928,7 +928,7 @@ inline void table_case_convert(char * name, uint length)
     files_charset_info->casedn(name, length, name, length);
 }
 
-extern void set_server_version(char *buf, size_t size);
+extern char *set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()
 void set_current_thd(THD *thd);

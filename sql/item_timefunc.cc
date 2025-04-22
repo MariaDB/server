@@ -2585,7 +2585,8 @@ Sql_mode_dependency Item_time_typecast::value_depends_on_sql_mode() const
 
 bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd)) & ~TIME_TIME_ONLY;
+  date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd))
+                    & ~TIME_TIME_ONLY & ~TIME_INTERVAL_DAY;
   // Force truncation
   Date *d= new(ltime) Date(thd, args[0], Date::Options(date_conv_mode_t(tmp)));
   return (null_value= !d->is_valid_date());
@@ -2594,7 +2595,8 @@ bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 
 bool Item_datetime_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd)) & ~TIME_TIME_ONLY;
+  date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd))
+                    & ~TIME_TIME_ONLY & ~TIME_INTERVAL_DAY;
   // Force rounding if the current sql_mode says so
   Datetime::Options opt(date_conv_mode_t(tmp), thd);
   Datetime *dt= new(ltime) Datetime(thd, args[0], opt,

@@ -162,7 +162,7 @@ static void wsrep_rollback_high_priority(THD *thd, THD *rollbacker)
 {
   WSREP_DEBUG("Rollbacker aborting SR applier thd (%llu %lu)",
               thd->thread_id, thd->real_id);
-  char* orig_thread_stack= thd->thread_stack;
+  void* orig_thread_stack= thd->thread_stack;
   thd->thread_stack= rollbacker->thread_stack;
   DBUG_ASSERT(thd->wsrep_cs().mode() == Wsrep_client_state::m_high_priority);
   /* Must be streaming and must have been removed from the
@@ -193,7 +193,7 @@ static void wsrep_rollback_local(THD *thd, THD *rollbacker)
 {
   WSREP_DEBUG("Rollbacker aborting local thd (%llu %lu)",
               thd->thread_id, thd->real_id);
-  char* orig_thread_stack= thd->thread_stack;
+  void* orig_thread_stack= thd->thread_stack;
   thd->thread_stack= rollbacker->thread_stack;
   if (thd->wsrep_trx().is_streaming())
   {
@@ -496,7 +496,7 @@ void wsrep_backup_kill_for_commit(THD *thd)
 
 void wsrep_restore_kill_after_commit(THD *thd)
 {
-  DBUG_ASSERT(WSREP(thd));
+  DBUG_ASSERT(wsrep_is_active(thd));
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   thd->killed= thd->wsrep_abort_by_kill;
   my_free(thd->killed_err);

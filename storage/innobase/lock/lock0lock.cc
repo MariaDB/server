@@ -608,14 +608,13 @@ lock_rec_get_insert_intention(
 	return(lock->type_mode & LOCK_INSERT_INTENTION);
 }
 
-#ifdef UNIV_DEBUG
-#ifdef WITH_WSREP
+#if defined UNIV_DEBUG && defined WITH_WSREP
 /** Check if both conflicting lock transaction and other transaction
 requesting record lock are brute force (BF). If they are check is
 this BF-BF wait correct and if not report BF wait and assert.
 
-@param[in]	lock_rec	other waiting record lock
-@param[in]	trx		trx requesting conflicting record lock
+@param lock  other waiting lock
+@param trx   transaction requesting conflicting lock
 */
 static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 {
@@ -682,8 +681,7 @@ static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 	/* BF-BF wait is a bug */
 	ut_error;
 }
-#endif /* WITH_WSREP */
-#endif /* UNIV_DEBUG */
+#endif
 
 /*********************************************************************//**
 Checks if a lock request for a new lock has to wait for request lock2.
@@ -4382,80 +4380,6 @@ static void lock_rec_unlock_supremum(lock_t *lock)
   trx_mutex_exit(lock->trx);
 }
 
-/** Release non-exclusive locks on XA PREPARE,
-and release possible other transactions waiting because of these locks. */
-void lock_release_on_prepare(trx_t *trx)
-{
-  trx->set_skip_lock_inheritance();
-
-  ulint count= 0;
-  lock_mutex_enter();
-  ut_ad(!trx_mutex_own(trx));
-
-  for (lock_t *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock; )
-  {
-    ut_ad(lock->trx == trx);
-
-    if (lock_get_type_low(lock) == LOCK_REC)
-    {
-      ut_ad(!lock->index->table->is_temporary());
-      if ((lock->type_mode & (LOCK_MODE_MASK | LOCK_GAP)) != LOCK_X)
-        lock_rec_dequeue_from_page(lock);
-      else if (lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM))
-        lock_rec_unlock_supremum(lock);
-      else
-      {
-        ut_ad(trx->dict_operation ||
-              lock->index->table->id >= DICT_HDR_FIRST_ID);
-        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
-              /* Insert-intention lock is valid for supremum for isolation
-              level > TRX_ISO_READ_COMMITTED */
-              lock_get_mode(lock) == LOCK_X ||
-              !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
-retain_lock:
-        lock= UT_LIST_GET_PREV(trx_locks, lock);
-        continue;
-      }
-    }
-    else
-    {
-      ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
-      ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
-      ut_ad(!table->is_temporary());
-
-      switch (lock_get_mode(lock)) {
-      case LOCK_IS:
-      case LOCK_S:
-        lock_table_dequeue(lock);
-        break;
-      case LOCK_IX:
-      case LOCK_X:
-        ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
-        /* fall through */
-      default:
-        goto retain_lock;
-      }
-    }
-
-    if (++count == LOCK_RELEASE_INTERVAL)
-    {
-      lock_mutex_exit();
-      count= 0;
-      lock_mutex_enter();
-    }
-
-    lock= UT_LIST_GET_LAST(trx->lock.trx_locks);
-  }
-
-  lock_mutex_exit();
-
-}
-
-/* True if a lock mode is S or X */
-#define IS_LOCK_S_OR_X(lock) \
-	(lock_get_mode(lock) == LOCK_S \
-	 || lock_get_mode(lock) == LOCK_X)
-
 /*********************************************************************//**
 Removes table locks of the transaction on a table to be dropped. */
 static
@@ -4501,6 +4425,81 @@ lock_trx_table_locks_remove(
 	/* Lock must exist in the vector. */
 	ut_error;
 }
+
+/** Release non-exclusive locks on XA PREPARE,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_prepare(trx_t *trx)
+{
+  trx->set_skip_lock_inheritance();
+
+  ulint count= 0;
+  lock_mutex_enter();
+  ut_ad(!trx_mutex_own(trx));
+
+  for (lock_t *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock; )
+  {
+    ut_ad(lock->trx == trx);
+
+    if (lock_get_type_low(lock) == LOCK_REC)
+    {
+      ut_ad(!lock->index->table->is_temporary());
+      if ((lock->type_mode & (LOCK_MODE_MASK | LOCK_GAP)) != LOCK_X)
+        lock_rec_dequeue_from_page(lock);
+      else if (lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM))
+        lock_rec_unlock_supremum(lock);
+      else
+      {
+        ut_ad(trx->dict_operation ||
+              lock->index->table->id >= DICT_HDR_FIRST_ID);
+        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+              /* Insert-intention lock is valid for supremum for isolation
+              level > TRX_ISO_READ_COMMITTED */
+              lock_get_mode(lock) == LOCK_X ||
+              !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
+retain_lock:
+        lock= UT_LIST_GET_PREV(trx_locks, lock);
+        continue;
+      }
+    }
+    else
+    {
+      ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
+      ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
+      ut_ad(!table->is_temporary());
+
+      switch (lock_get_mode(lock)) {
+      case LOCK_IS:
+      case LOCK_S:
+        lock_table_dequeue(lock);
+        lock_trx_table_locks_remove(lock);
+        break;
+      case LOCK_IX:
+      case LOCK_X:
+        ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
+        /* fall through */
+      default:
+        goto retain_lock;
+      }
+    }
+
+    if (++count == LOCK_RELEASE_INTERVAL)
+    {
+      lock_mutex_exit();
+      count= 0;
+      lock_mutex_enter();
+    }
+
+    lock= UT_LIST_GET_LAST(trx->lock.trx_locks);
+  }
+
+  lock_mutex_exit();
+
+}
+
+/* True if a lock mode is S or X */
+#define IS_LOCK_S_OR_X(lock) \
+	(lock_get_mode(lock) == LOCK_S \
+	 || lock_get_mode(lock) == LOCK_X)
 
 /*===================== VALIDATION AND DEBUGGING ====================*/
 

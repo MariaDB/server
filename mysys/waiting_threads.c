@@ -449,7 +449,7 @@ void wt_init()
                sizeof_WT_RESOURCE_ID, 0, 0);
   reshash.alloc.constructor= wt_resource_create;
   reshash.alloc.destructor= wt_resource_destroy;
-  reshash.initializer= (lf_hash_initializer) wt_resource_init;
+  reshash.initializer= wt_resource_init;
 
   bzero(wt_wait_stats, sizeof(wt_wait_stats));
   bzero(wt_cycle_stats, sizeof(wt_cycle_stats));

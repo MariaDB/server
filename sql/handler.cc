@@ -311,7 +311,9 @@ Storage_engine_name::resolve_storage_engine_with_error(THD *thd,
   }
 
   *ha= NULL;
-  if (thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
+  if ((thd_sql_command(thd) != SQLCOM_CREATE_TABLE &&
+       thd_sql_command(thd) != SQLCOM_ALTER_TABLE) ||
+      thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
   {
     my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), m_storage_engine_name.str);
     return true;
@@ -551,13 +553,6 @@ static void update_discovery_counters(handlerton *hton, int val)
     engines_with_discover+= val;
 }
 
-int ha_drop_table(THD *thd, handlerton *hton, const char *path)
-{
-  if (ha_check_if_updates_are_ignored(thd, hton, "DROP"))
-    return 0;                                   // Simulate dropped
-  return hton->drop_table(hton, path);
-}
-
 static int hton_drop_table(handlerton *hton, const char *path)
 {
   char tmp_path[FN_REFLEN];
@@ -571,8 +566,9 @@ static int hton_drop_table(handlerton *hton, const char *path)
 }
 
 
-int ha_finalize_handlerton(st_plugin_int *plugin)
+int ha_finalize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 
@@ -623,8 +619,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 }
 
 
-int ha_initialize_handlerton(st_plugin_int *plugin)
+int ha_initialize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton;
   static const char *no_exts[]= { 0 };
   int ret= 0;
@@ -671,6 +668,8 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   DBUG_EXECUTE_IF("unstable_db_type", {
                     static int i= (int) DB_TYPE_FIRST_DYNAMIC;
+                    while (installed_htons[i])
+                      i++;
                     hton->db_type= (enum legacy_db_type)++i;
                   });
 
@@ -1663,7 +1662,7 @@ int ha_commit_trans(THD *thd, bool all)
       thd->m_transaction_psi= NULL;
     }
 #ifdef WITH_WSREP
-    if (wsrep_is_active(thd) && is_real_trans && !error)
+    if (WSREP(thd) && wsrep_is_active(thd) && is_real_trans && !error)
       wsrep_commit_empty(thd, all);
 #endif /* WITH_WSREP */
 
@@ -2161,9 +2160,14 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-        WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
-                   thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
-                   thd->query());
+        if (WSREP(thd))
+        {
+          WSREP_WARN("handlerton rollback failed, thd %lld %lld "
+                     "conf %d wsrep_err %s SQL %s",
+                     thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
+                     wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                     wsrep_thd_query(thd));
+        }
 #endif /* WITH_WSREP */
       }
       status_var_increment(thd->status_var.ha_rollback_count);
@@ -2175,11 +2179,12 @@ int ha_rollback_trans(THD *thd, bool all)
   }
 
 #ifdef WITH_WSREP
-  if (thd->is_error())
+  if (WSREP(thd) && thd->is_error())
   {
-    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
-                thd->get_stmt_da()->message(), is_real_trans);
+    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: msg %s is_real %d wsrep_err %s",
+                thd->thread_id, all ? "TRUE" : "FALSE",
+                thd->get_stmt_da()->message(), is_real_trans,
+                wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
 
   // REPLACE|INSERT INTO ... SELECT uses TOI in consistency check
@@ -2451,6 +2456,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         // recovery mode
         if (IF_WSREP((wsrep_emulate_bin_log &&
                       wsrep_is_wsrep_xid(info->list + i) &&
+                      !wsrep_is_xid_gtid_undefined(info->list + i) &&
                       x <= wsrep_limit), false) ||
             (info->commit_list ?
              my_hash_search(info->commit_list, (uchar *)&x, sizeof(x)) != 0 :
@@ -5141,27 +5147,6 @@ handler::ha_rename_table(const char *from, const char *to)
 
 
 /**
-  Drop table in the engine: public interface.
-
-  @sa handler::drop_table()
-
-  The difference between this and delete_table() is that the table is open in
-  drop_table().
-*/
-
-void
-handler::ha_drop_table(const char *name)
-{
-  DBUG_ASSERT(m_lock_type == F_UNLCK);
-  if (check_if_updates_are_ignored("DROP"))
-    return;
-
-  mark_trx_read_write();
-  drop_table(name);
-}
-
-
-/**
    Structure used during force drop table.
 */
 
@@ -5602,7 +5587,10 @@ int handler::calculate_checksum()
   for (;;)
   {
     if (thd->killed)
-      return HA_ERR_ABORTED_BY_USER;
+    {
+      error= HA_ERR_ABORTED_BY_USER;
+      break;
+    }
 
     ha_checksum row_crc= 0;
     error= ha_rnd_next(table->record[0]);
@@ -6142,15 +6130,19 @@ static int cmp_file_names(const void *a, const void *b)
   return cs->strnncoll(aa, strlen(aa), bb, strlen(bb));
 }
 
-static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names(const void *a_, const void *b_)
 {
+  auto a= static_cast<const LEX_CSTRING *const *>(a_);
+  auto b= static_cast<const LEX_CSTRING *const *>(b_);
   return my_charset_bin.strnncoll((*a)->str, (*a)->length,
                                   (*b)->str, (*b)->length);
 }
 
 #ifndef DBUG_OFF
-static int cmp_table_names_desc(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names_desc(const void *a_, const void *b_)
 {
+  auto a= static_cast<const LEX_CSTRING *const *>(a_);
+  auto b= static_cast<const LEX_CSTRING *const *>(b_);
   return -cmp_table_names(a, b);
 }
 #endif
@@ -7339,7 +7331,10 @@ int handler::ha_write_row(const uchar *buf)
                   });
 #endif /* WITH_WSREP */
   if ((error= ha_check_overlaps(NULL, buf)))
+  {
+    DEBUG_SYNC_C("ha_write_row_end");
     DBUG_RETURN(error);
+  }
 
   /*
     NOTE: this != table->file is true in 3 cases:
@@ -7360,6 +7355,7 @@ int handler::ha_write_row(const uchar *buf)
       if (table->next_number_field && buf == table->record[0])
         if (int err= update_auto_increment())
           error= err;
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
   }
@@ -7370,6 +7366,8 @@ int handler::ha_write_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
                       { error= write_row(buf); })
+  DBUG_PRINT("dml", ("INSERT: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
 
   MYSQL_INSERT_ROW_DONE(error);
   if (likely(!error))
@@ -7381,12 +7379,10 @@ int handler::ha_write_row(const uchar *buf)
       error= binlog_log_row(table, 0, buf, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-    {
-      DBUG_RETURN(error);
-    }
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION && !error)
+      error= wsrep_after_row(thd);
 #endif /* WITH_WSREP */
   }
 
@@ -7430,6 +7426,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
+  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d",
+                     dbug_format_row(table, old_data, false).c_ptr_safe(),
+                     dbug_format_row(table, new_data, false).c_ptr_safe(),
+                     error));
 
   MYSQL_UPDATE_ROW_DONE(error);
   if (likely(!error))
@@ -7509,6 +7509,8 @@ int handler::ha_delete_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, active_index, error,
     { error= delete_row(buf);})
+  DBUG_PRINT("dml", ("DELETE: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
   MYSQL_DELETE_ROW_DONE(error);
   if (likely(!error))
   {
@@ -7520,7 +7522,9 @@ int handler::ha_delete_row(const uchar *buf)
     }
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
-    if (WSREP_NNULL(thd))
+    /* For streaming replication, when removing fragments, don't call
+    wsrep_after_row() as that would initiate new streaming transaction */
+    if (WSREP_NNULL(thd) && !thd->wsrep_ignore_table)
     {
       /* for streaming replication, the following wsrep_after_row()
       may replicate a fragment, so we have to declare potential PA
@@ -8015,6 +8019,21 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 }
 
 
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned)
+{
+  int select_field_pos= alter_info->create_list.elements - select_field_count;
+  if (select_field_count && versioned &&
+      /*
+        ALTER_PARSER_ADD_COLUMN indicates system fields was created implicitly,
+        select_field_count guarantees it's not ALTER TABLE
+      */
+      alter_info->flags & ALTER_PARSER_ADD_COLUMN)
+    select_field_pos-= 2;
+  return select_field_pos;
+}
+
+
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
         const Lex_table_name &db, int select_count)
@@ -8028,6 +8047,8 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   {
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
+    uint select_field_pos= (uint) get_select_field_pos(alter_info, select_count,
+                                                       true);
     while (Create_field *f= field_it++)
     {
       /*
@@ -8038,7 +8059,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->create_list.elements - select_count)
+      if (fieldnr >= select_field_pos && f->invisible < INVISIBLE_SYSTEM)
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)

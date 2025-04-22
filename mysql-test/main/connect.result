@@ -444,3 +444,35 @@ FOUND 2 /This connection closed normally without authentication/ in mysqld.1.err
 SET GLOBAL log_warnings=default;
 SET GLOBAL connect_timeout= @save_connect_timeout;
 # End of 10.4 tests
+#
+# MDEV-33990: SHOW STATUS counts ER_CON_COUNT_ERROR as
+# Connection_errors_internal
+#
+flush status;
+show global status like 'Connection_errors%';
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	0
+Connection_errors_peer_address	0
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+show global status like 'Threads_connected';
+Variable_name	Value
+Threads_connected	1
+set @max_con.save= @@max_connections;
+set global max_connections= 10;
+# ERROR 1040
+# ERROR 1040
+show global status like 'Connection_errors%';
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	2
+Connection_errors_peer_address	0
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+set global max_connections= @max_con.save;
+#
+# End of 10.5 tests
+#

@@ -1221,7 +1221,7 @@ uint32 Type_numeric_attributes::find_max_octet_length(Item **item, uint nitems)
 {
   uint32 octet_length= 0;
   for (uint i= 0; i < nitems ; i++)
-    set_if_bigger(octet_length, item[i]->max_length);
+    set_if_bigger(octet_length, item[i]->character_octet_length());
   return octet_length;
 }
 
@@ -5844,9 +5844,9 @@ cmp_item *Type_handler_timestamp_common::make_cmp_item(THD *thd,
 
 /***************************************************************************/
 
-static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
+static int srtcmp_in(void *cs_, const void *x_, const void *y_)
 {
-  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  CHARSET_INFO *cs= static_cast<CHARSET_INFO *>(cs_);
   const String *x= static_cast<const String *>(x_);
   const String *y= static_cast<const String *>(y_);
   return cs->strnncollsp(x->ptr(), x->length(), y->ptr(), y->length());
@@ -5856,11 +5856,9 @@ in_vector *Type_handler_string_result::make_in_vector(THD *thd,
                                                       const Item_func_in *func,
                                                       uint nargs) const
 {
-  return new (thd->mem_root) in_string(thd, nargs, (qsort2_cmp) srtcmp_in,
-                                       func->compare_collation());
-
+  return new (thd->mem_root)
+      in_string(thd, nargs, srtcmp_in, func->compare_collation());
 }
-
 
 in_vector *Type_handler_int_result::make_in_vector(THD *thd,
                                                    const Item_func_in *func,
@@ -6152,7 +6150,7 @@ longlong Type_handler_timestamp_common::
 longlong Type_handler_numeric::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  return func->val_int_native();
+  return is_unsigned() ? func->val_uint_native() : func->val_int_native();
 }
 
 
@@ -9182,6 +9180,7 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
   Datetime dt(thd, item, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd));
   return
     !dt.is_valid_datetime() ||
+    dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE) ||
     TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 
@@ -9567,9 +9566,11 @@ Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
   return name0.length && !cmp(&name0, &name1);
 }
 
-int initialize_data_type_plugin(st_plugin_int *plugin)
+int initialize_data_type_plugin(void *plugin_)
 {
-  st_mariadb_data_type *data= (st_mariadb_data_type*) plugin->plugin->info;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  st_mariadb_data_type *data=
+      static_cast<st_mariadb_data_type *>(plugin->plugin->info);
   data->type_handler->set_name(Name(plugin->name));
   if (plugin->plugin->init && plugin->plugin->init(NULL))
   {

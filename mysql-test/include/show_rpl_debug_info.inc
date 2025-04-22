@@ -86,12 +86,12 @@ while ($_rpl_server)
   --echo **** SHOW BINLOG EVENTS on $CURRENT_CONNECTION ****
   let $binlog_name= query_get_value("SHOW MASTER STATUS", File, 1);
   --echo binlog_name = '$binlog_name'
-  eval SHOW BINLOG EVENTS IN '$binlog_name';
+  eval SHOW BINLOG EVENTS IN '$binlog_name' LIMIT 200;
   --echo
   --echo **** SHOW RELAYLOG EVENTS on $CURRENT_CONNECTION ****
   let $relaylog_name= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
   --echo relaylog_name = '$relaylog_name'
-  eval SHOW RELAYLOG EVENTS IN '$relaylog_name';
+  eval SHOW RELAYLOG EVENTS IN '$relaylog_name' LIMIT 200;
 
 
   --let $_rpl_is_first_server= 0

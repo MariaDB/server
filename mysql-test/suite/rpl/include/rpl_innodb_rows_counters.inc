@@ -5,6 +5,7 @@
 # Requirements: Having @[master|slave]_[system_]rows_[read|inserted|deleted|updated] counters already created
 #########################################
 
+--disable_cursor_protocol
 --connection master
 
 select variable_value into @rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
@@ -46,3 +47,4 @@ select variable_value into @system_rows_inserted from information_schema.global_
 select @system_rows_inserted - @slave_system_rows_inserted;
 
 --connection master
+--enable_cursor_protocol

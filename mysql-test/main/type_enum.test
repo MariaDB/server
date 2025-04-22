@@ -237,7 +237,10 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES (1),(2);
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT AVG(f1) FROM t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;

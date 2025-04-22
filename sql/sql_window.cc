@@ -262,9 +262,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
        For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
        - ORDER BY order_list must not be ommitted
        - the list must have a single element.
+       But it really only matters if the frame is bounded.
     */
     if (win_spec->window_frame && 
-        win_spec->window_frame->units == Window_frame::UNITS_RANGE)
+        win_spec->window_frame->units == Window_frame::UNITS_RANGE &&
+	!(win_spec->window_frame->top_bound->is_unbounded() &&
+          win_spec->window_frame->bottom_bound->is_unbounded()))
     {
       if (win_spec->order_list->elements != 1)
       {
@@ -2525,7 +2528,7 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
 }
 
 static
-void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
+bool add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
                                Item_window_func *window_func)
 {
   Window_spec *spec= window_func->window_spec;
@@ -2612,7 +2615,9 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Item *offset_func= new (thd->mem_root)
                               Item_func_minus(thd, item_sum->get_arg(1),
                                               int_item);
-      offset_func->fix_fields(thd, &offset_func);
+      if (offset_func->fix_fields(thd, &offset_func))
+        return true;
+
       fc= new Frame_positional_cursor(*top_bound,
                                       *top_bound, *bottom_bound,
                                       *offset_func, false);
@@ -2645,6 +2650,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
   }
+  return false;
 }
 
 
@@ -2672,7 +2678,7 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
    If the window functions share the same frame specification,
    those window functions will be registered to the same cursor.
 */
-void get_window_functions_required_cursors(
+bool get_window_functions_required_cursors(
     THD *thd,
     List<Item_window_func>& window_functions,
     List<Cursor_manager> *cursor_managers)
@@ -2723,7 +2729,11 @@ void get_window_functions_required_cursors(
     if (item_win_func->is_frame_prohibited() ||
         item_win_func->requires_special_cursors())
     {
-      add_special_frame_cursors(thd, cursor_manager, item_win_func);
+      if (add_special_frame_cursors(thd, cursor_manager, item_win_func))
+      {
+        delete cursor_manager;
+        return true;
+      }
       cursor_managers->push_back(cursor_manager);
       continue;
     }
@@ -2757,6 +2767,7 @@ void get_window_functions_required_cursors(
     }
     cursor_managers->push_back(cursor_manager);
   }
+  return false;
 }
 
 /**
@@ -3031,8 +3042,9 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
   it.rewind();
 
   List<Cursor_manager> cursor_managers;
-  get_window_functions_required_cursors(thd, window_functions,
-                                        &cursor_managers);
+  if (get_window_functions_required_cursors(thd, window_functions,
+                                            &cursor_managers))
+    return true;
 
   /* Go through the sorted array and compute the window function */
   bool is_error= compute_window_func(thd,

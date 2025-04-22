@@ -27,7 +27,9 @@ while ($num)
    {
    --disable_query_log
    }
+   --disable_cursor_protocol
    eval SELECT COUNT(*) <> 1 INTO @aux FROM t1 WHERE $col_to_check = $num;
+   --enable_cursor_protocol
    --enable_query_log
    let $run= `SELECT @aux`;
    if ($run)
@@ -46,7 +48,9 @@ while ($num)
    {
    --disable_query_log
    }
+   --disable_cursor_protocol
    eval SELECT COUNT(*) = 1 INTO @aux FROM t1 WHERE $col_to_check = @max_row + $num;
+   --enable_cursor_protocol
    --enable_query_log
    let $run= `SELECT @aux`;
    if ($run)
@@ -64,7 +68,9 @@ while ($num)
    {
    --disable_query_log
    }
+   --disable_cursor_protocol
    eval SELECT COUNT(*) = 1 INTO @aux FROM t1 WHERE $col_to_check = 1 - $num;
+   --enable_cursor_protocol
    --enable_query_log
    let $run= `SELECT @aux`;
    if ($run)

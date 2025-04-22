@@ -39,7 +39,10 @@ CREATE TABLE bugs (
 
 INSERT INTO bugs (id, tags) VALUES (1, "Linux MySQL groonga");
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+--enable_cursor_protocol
 
 SELECT *, MATCH (tags) AGAINST ("+MySQL" IN BOOLEAN MODE) AS score
        FROM bugs

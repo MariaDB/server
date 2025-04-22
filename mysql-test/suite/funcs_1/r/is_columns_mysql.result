@@ -163,7 +163,7 @@ def	mysql	servers	Owner	9	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_genera
 def	mysql	servers	Password	5	''	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references		NEVER	NULL
 def	mysql	servers	Port	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4)			select,insert,update,references		NEVER	NULL
 def	mysql	servers	Server_name	1	''	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)	PRI		select,insert,update,references		NEVER	NULL
-def	mysql	servers	Socket	7	''	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references		NEVER	NULL
+def	mysql	servers	Socket	7	''	NO	char	108	324	NULL	NULL	NULL	utf8	utf8_general_ci	char(108)			select,insert,update,references		NEVER	NULL
 def	mysql	servers	Username	4	''	NO	char	80	240	NULL	NULL	NULL	utf8	utf8_general_ci	char(80)			select,insert,update,references		NEVER	NULL
 def	mysql	servers	Wrapper	8	''	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references		NEVER	NULL
 def	mysql	slow_log	db	7	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select,insert,update,references		NEVER	NULL
@@ -490,7 +490,7 @@ NULL	mysql	proxies_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	servers	Username	char	80	240	utf8	utf8_general_ci	char(80)
 3.0000	mysql	servers	Password	char	64	192	utf8	utf8_general_ci	char(64)
 NULL	mysql	servers	Port	int	NULL	NULL	NULL	NULL	int(4)
-3.0000	mysql	servers	Socket	char	64	192	utf8	utf8_general_ci	char(64)
+3.0000	mysql	servers	Socket	char	108	324	utf8	utf8_general_ci	char(108)
 3.0000	mysql	servers	Wrapper	char	64	192	utf8	utf8_general_ci	char(64)
 3.0000	mysql	servers	Owner	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 NULL	mysql	slow_log	start_time	timestamp	NULL	NULL	NULL	NULL	timestamp(6)

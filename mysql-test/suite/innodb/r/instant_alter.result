@@ -552,18 +552,18 @@ ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
 SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -1486,18 +1486,18 @@ ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
 SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -2420,18 +2420,18 @@ ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
 ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
 SET GLOBAL innodb_instant_alter_column_allowed = add_last;
 ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=add_last. Try ALGORITHM=INPLACE
 ALTER TABLE t1 MODIFY a INT DEFAULT 0;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0

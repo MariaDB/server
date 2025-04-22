@@ -1646,8 +1646,8 @@ public:
     table_field= field;
     tree_key_length= field->pack_length();
 
-    tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) field,
-                     tree_key_length, max_heap_table_size, 1);
+    tree= new Unique(simple_str_key_cmp, field, tree_key_length,
+                     max_heap_table_size, 1);
   }
 
   virtual ~Count_distinct_field()
@@ -1732,13 +1732,13 @@ public:
 
 
 static
-int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2)
+int simple_ulonglong_key_cmp(void*, const void* key1, const void* key2)
 {
-  ulonglong *val1= (ulonglong *) key1;
-  ulonglong *val2= (ulonglong *) key2;
+  const ulonglong *val1= static_cast<const ulonglong *>(key1);
+  const ulonglong *val2= static_cast<const ulonglong *>(key2);
   return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1; 
 }
-  
+
 
 /* 
   The class Count_distinct_field_bit is derived from the class 
@@ -1755,8 +1755,7 @@ public:
     table_field= field;
     tree_key_length= sizeof(ulonglong);
 
-    tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
-                     (void*) &tree_key_length,
+    tree= new Unique(simple_ulonglong_key_cmp, &tree_key_length,
                      tree_key_length, max_heap_table_size, 1);
   }
 

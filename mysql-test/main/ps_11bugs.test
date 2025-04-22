@@ -217,3 +217,75 @@ SELECT LEFT("12345", @@ft_boolean_syntax);
 SET @@sort_buffer_size=DEFAULT;
 
 --echo End of 5.0 tests.
+
+
+--echo # Start of 10.5 tests
+
+--echo #
+--echo # MDEV-25593 Assertion `0' failed in Type_handler_temporal_result::Item_get_date on double EXECUTE
+--echo #
+
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+PREPARE stmt FROM 'SELECT ? AS c1';
+EXECUTE stmt USING current_timestamp;
+EXECUTE stmt USING @unknown;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT ? AS c1 FROM DUAL';
+EXECUTE stmt USING current_time;
+EXECUTE stmt USING DEFAULT;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT ? AS c1 FROM DUAL';
+EXECUTE stmt USING current_time;
+EXECUTE stmt USING IGNORE;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "SELECT DATE('') between''AND ? AS c1";
+EXECUTE stmt USING current_time;
+EXECUTE stmt USING @unknown;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT CONCAT(UNIX_TIMESTAMP(?)) AS c1';
+EXECUTE stmt USING CURRENT_TIMESTAMP;
+EXECUTE stmt USING @unknown;
+DEALLOCATE PREPARE stmt;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-35596 Assertion `type_handler()->result_type() == value.type_handler()->result_type()' failed in virtual bool Item_param::get_date(THD*, MYSQL_TIME*, date_mode_t)
+--echo #
+
+CREATE TABLE t (c TIMESTAMP);
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+INSERT INTO t (c) VALUES (now());
+EXECUTE s USING NULL;
+DROP TABLE t;
+
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+EXECUTE s USING NULL;
+DROP TABLE t;
+
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE s USING DEFAULT;
+DROP TABLE t;
+
+CREATE TABLE t (c TIMESTAMP);
+INSERT INTO t (c) VALUES ('2001-01-01 10:20:30');
+PREPARE s FROM 'DELETE FROM t WHERE c=?';
+EXECUTE s USING 1;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE s USING IGNORE;
+DROP TABLE t;
+
+--echo # End of 10.5 tests

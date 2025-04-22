@@ -41,9 +41,11 @@ eval CREATE TABLE tbl_a (
 INSERT INTO tbl_a (pkey,val) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
 --disable_query_log
 --echo SELECT pkey,val INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' FROM tbl_a ORDER BY pkey;
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval SELECT pkey,val INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' FROM tbl_a ORDER BY pkey;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --enable_query_log
 eval $COMMAND_BEFORE_LOAD_DATA;
 
@@ -56,16 +58,20 @@ TRUNCATE TABLE mysql.general_log;
 --connection master_1
 --disable_query_log
 --echo LOAD DATA $OPTION_LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' $OPTION_WORD INTO TABLE tbl_a;
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval LOAD DATA $OPTION_LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' $OPTION_WORD INTO TABLE tbl_a;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --enable_query_log
 --remove_file $MYSQLTEST_VARDIR/tmp/spider_outfile.tsv
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --echo

@@ -6,20 +6,26 @@ connection node_2;
 connection node_3;
 connection node_2;
 SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
-CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 VARCHAR(30) not null primary key) ENGINE=InnoDB;
 SET AUTOCOMMIT=OFF;
 SET SESSION wsrep_trx_fragment_size=1;
 START TRANSACTION;
-INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('primary1'),('primary2'),('primary3'),('primary4'),('primary5');
 COMMIT;
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
+connection node_1;
+connection node_2;
 # restart
 connection node_1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
+SELECT * FROM t1;
+f1
 connection node_2;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
+SELECT * FROM t1;
+f1
 DROP TABLE t1;

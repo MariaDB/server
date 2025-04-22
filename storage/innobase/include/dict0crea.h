@@ -209,16 +209,6 @@ dict_create_add_foreign_to_dictionary(
 	trx_t*			trx)	/*!< in/out: dictionary transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/********************************************************************//**
-Construct foreign key constraint defintion from data dictionary information.
-*/
-UNIV_INTERN
-char*
-dict_foreign_def_get(
-/*=================*/
-	dict_foreign_t*	foreign,/*!< in: foreign */
-	trx_t*		trx);	/*!< in: trx */
-
 /* Table create node structure */
 struct tab_node_t{
 	que_common_t	common;		/*!< node type: QUE_NODE_TABLE_CREATE */

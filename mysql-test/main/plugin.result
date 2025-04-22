@@ -216,7 +216,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `VAROPT`=33
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `varopt`=33
 drop table t1;
 SET @@SQL_MODE=@OLD_SQL_MODE;
 select 1;

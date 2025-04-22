@@ -1,5 +1,5 @@
---- r/mysql-wsrep#33.result	2021-04-10 14:36:42.663191908 +0300
-+++ r/mysql-wsrep#33,debug.reject	2021-04-10 15:43:02.420168969 +0300
+--- r/mysql-wsrep#33.result
++++ r/mysql-wsrep#33,debug.reject
 @@ -698,6 +698,190 @@
  1
  DROP TABLE t1;

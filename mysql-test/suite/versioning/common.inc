@@ -6,7 +6,9 @@ source include/have_innodb.inc;
 --disable_query_log
 
 set @@session.time_zone='+00:00';
+--disable_cursor_protocol
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
+--enable_cursor_protocol
 set @test_start=now(6);
 
 delimiter ~~;

@@ -166,6 +166,32 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 select next value for t1;
 next value for t1
 11
+$check_innodb_flags;
+is_sequence
+12288
+alter table t1 sequence=0;
+begin;
+delete from t1;
+rollback;
+$check_innodb_flags;
+is_sequence
+0
+alter table t1 sequence=1;
+$check_innodb_flags;
+is_sequence
+12288
+alter table t1 sequence=0, algorithm=copy;
+$check_innodb_flags;
+is_sequence
+0
+alter table t1 sequence=1, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: SEQUENCE. Try ALGORITHM=COPY
+alter table t1 sequence=1, algorithm=copy;
+$check_innodb_flags;
+is_sequence
+12288
+alter table t1 sequence=0, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: SEQUENCE. Try ALGORITHM=COPY
 drop sequence t1;
 #
 # ALTER TABLE
@@ -301,3 +327,78 @@ drop sequence s;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-32350 Can't selectively restore sequences using innodb tables from
+# backup
+#
+create sequence s2 engine=innodb;
+alter table s2 discard tablespace;
+SELECT NEXTVAL(s2);
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+create sequence s1 engine=innodb;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+flush tables s1 for export;
+unlock tables;
+select * from s2;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+SELECT NEXTVAL(s2);
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+alter sequence s2 restart;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+alter table s2 import tablespace;
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+SELECT NEXTVAL(s2);
+NEXTVAL(s2)
+1
+select NEXTVAL(s1);
+NEXTVAL(s1)
+1
+flush table s1,s2;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1,s2;
+#
+# MDEV-35144 CREATE TABLE ... LIKE uses current innodb_compression_default instead of the create value
+#
+set @@innodb_compression_default= off;
+create or replace sequence s engine=innodb;
+set @@innodb_compression_default= on;
+create or replace table s_import like s;
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=InnoDB SEQUENCE=1
+show create table s_import;
+Table	Create Table
+s_import	CREATE TABLE `s_import` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=InnoDB SEQUENCE=1
+alter table s_import discard tablespace;
+flush table s for export;
+UNLOCK TABLES;
+alter table s_import import tablespace;
+drop table s,s_import;
+# End of 10.5 tests

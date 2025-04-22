@@ -316,3 +316,40 @@ evalp kill $id;
 set debug_sync='now SIGNAL go3';
 drop table t1;
 set debug_sync='reset';
+
+
+--echo #
+--echo # MDEV-33285 - Assertion `m_table' failed in ha_perfschema::rnd_end on
+--echo #              CHECKSUM TABLE
+--echo #
+let $id= `select connection_id()`;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES(1);
+SET debug_sync='mysql_checksum_table_after_calculate_checksum SIGNAL parked WAIT_FOR go';
+send CHECKSUM TABLE t1;
+
+connect con1, localhost, root;
+connection con1;
+SET debug_sync='now WAIT_FOR parked';
+replace_result $id id;
+eval KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+connection default;
+error ER_QUERY_INTERRUPTED;
+reap;
+
+SET debug_sync='RESET';
+SET debug_sync='mysql_checksum_table_before_calculate_checksum SIGNAL parked WAIT_FOR go';
+send CHECKSUM TABLE t1;
+connection con1;
+SET debug_sync='now WAIT_FOR parked';
+replace_result $id id;
+eval KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+error ER_QUERY_INTERRUPTED;
+reap;
+DROP TABLE t1;
+disconnect con1;
+SET debug_sync='RESET';

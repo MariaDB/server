@@ -1137,6 +1137,14 @@ SELECT * FROM t0 WHERE GREATEST(c0, NULL);
 SELECT * FROM t0 WHERE LEAST(c0, NULL);
 DROP TABLE t0;
 
+--echo #
+--echo #   MDEV-28001 greatest/least with bigint unsigned maxium has unexpected results compared to 0
+--echo #
+
+CREATE TABLE t1 (a BIGINT UNSIGNED, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (18446744073709551615,0);
+SELECT a,b, LEAST(a,b), GREATEST(a,b) FROM t1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests

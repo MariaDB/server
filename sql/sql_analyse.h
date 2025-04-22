@@ -57,15 +57,12 @@ uint check_ulonglong(const char *str, uint length);
 bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num);
 bool test_if_number(NUM_INFO *info, const char *str, uint str_len);
 int compare_double(const double *s, const double *t);
-int compare_double2(void* cmp_arg __attribute__((unused)),
-		    const double *s, const double *t);
+int compare_double2(void *, const void *s, const void *t);
 int compare_longlong(const longlong *s, const longlong *t);
-int compare_longlong2(void* cmp_arg __attribute__((unused)),
-		      const longlong *s, const longlong *t);
+int compare_longlong2(void *, const void *s, const void *t);
 int compare_ulonglong(const ulonglong *s, const ulonglong *t);
-int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
-		       const ulonglong *s, const ulonglong *t);
-int compare_decimal2(int* len, const char *s, const char *t);
+int compare_ulonglong2(void *, const void *s, const void *t);
+int compare_decimal2(void *len, const void *s, const void *t);
 Procedure *proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 			     List<Item> &field_list);
 int free_string(void* str, TREE_FREE, void*);
@@ -98,12 +95,9 @@ public:
   friend  class analyse;
 };
 
+int collect_string(void *element, element_count count, void *info);
 
-int collect_string(String *element, element_count count,
-		   TREE_INFO *info);
-
-int sortcmp2(void* cmp_arg __attribute__((unused)),
-	     const String *a,const String *b);
+int sortcmp2(void *, const void *a, const void *b);
 
 class field_str :public field_info
 {
@@ -120,8 +114,10 @@ public:
     max_arg("",default_charset_info), sum(0),
     must_be_blob(0), was_zero_fill(0),
     was_maybe_zerofill(0), can_be_still_num(1)
-    { init_tree(&tree, 0, 0, sizeof(String), (qsort_cmp2) sortcmp2,
-		free_string, NULL, MYF(MY_THREAD_SPECIFIC)); };
+    {
+      init_tree(&tree, 0, 0, sizeof(String), sortcmp2, free_string, NULL,
+                MYF(MY_THREAD_SPECIFIC));
+    };
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -141,15 +137,14 @@ public:
   friend int collect_string(String *element, element_count count,
 			    TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_string; }
+  { return collect_string; }
   String *std(String *s __attribute__((unused)),
 	      ha_rows rows __attribute__((unused))) override
   { return (String*) 0; }
 };
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info);
+int collect_decimal(void *element, element_count count, void *info);
 
 class field_decimal :public field_info
 {
@@ -161,8 +156,8 @@ public:
   field_decimal(Item* a, analyse* b) :field_info(a,b)
   {
     bin_size= my_decimal_get_binary_size(a->max_length, a->decimals);
-    init_tree(&tree, 0, 0, bin_size, (qsort_cmp2)compare_decimal2,
-              0, (void *)&bin_size, MYF(MY_THREAD_SPECIFIC));
+    init_tree(&tree, 0, 0, bin_size, compare_decimal2, 0, (void *) &bin_size,
+              MYF(MY_THREAD_SPECIFIC));
   };
 
   void	 add() override;
@@ -173,12 +168,12 @@ public:
   friend int collect_decimal(uchar *element, element_count count,
                              TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_decimal; }
+  { return collect_decimal; }
   String *std(String *s, ha_rows rows) override;
 };
 
 
-int collect_real(double *element, element_count count, TREE_INFO *info);
+int collect_real(void *element, element_count count, void *info);
 
 class field_real: public field_info
 {
@@ -189,9 +184,10 @@ class field_real: public field_info
 public:
   field_real(Item* a, analyse* b) :field_info(a,b),
     min_arg(0), max_arg(0),  sum(0), sum_sqr(0), max_notzero_dec_len(0)
-    { init_tree(&tree, 0, 0, sizeof(double),
-		(qsort_cmp2) compare_double2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC)); }
+    {
+      init_tree(&tree, 0, 0, sizeof(double), compare_double2, NULL, NULL,
+                MYF(MY_THREAD_SPECIFIC));
+    }
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -230,11 +226,10 @@ public:
   friend int collect_real(double *element, element_count count,
 			  TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_real;}
+  { return collect_real;}
 };
 
-int collect_longlong(longlong *element, element_count count,
-		     TREE_INFO *info);
+int collect_longlong(void *element, element_count count, void *info);
 
 class field_longlong: public field_info
 {
@@ -244,9 +239,10 @@ class field_longlong: public field_info
 public:
   field_longlong(Item* a, analyse* b) :field_info(a,b), 
     min_arg(0), max_arg(0), sum(0), sum_sqr(0)
-    { init_tree(&tree, 0, 0, sizeof(longlong),
-		(qsort_cmp2) compare_longlong2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC)); }
+  {
+    init_tree(&tree, 0, 0, sizeof(longlong), compare_longlong2, NULL, NULL,
+              MYF(MY_THREAD_SPECIFIC));
+  }
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -276,11 +272,10 @@ public:
   friend int collect_longlong(longlong *element, element_count count,
 			      TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_longlong;}
+  { return collect_longlong;}
 };
 
-int collect_ulonglong(ulonglong *element, element_count count,
-		      TREE_INFO *info);
+int collect_ulonglong(void *element, element_count count, void *info);
 
 class field_ulonglong: public field_info
 {
@@ -290,9 +285,10 @@ class field_ulonglong: public field_info
 public:
   field_ulonglong(Item* a, analyse * b) :field_info(a,b),
     min_arg(0), max_arg(0), sum(0),sum_sqr(0)
-    { init_tree(&tree, 0, 0, sizeof(ulonglong),
-		(qsort_cmp2) compare_ulonglong2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC)); }
+  {
+    init_tree(&tree, 0, 0, sizeof(ulonglong), compare_ulonglong2, NULL, NULL,
+              MYF(MY_THREAD_SPECIFIC));
+  }
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
   String *get_min_arg(String *s) override { s->set(min_arg,my_thd_charset); return s; }
@@ -323,7 +319,7 @@ public:
   friend int collect_ulonglong(ulonglong *element, element_count count,
 			       TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_ulonglong; }
+  { return collect_ulonglong; }
 };
 
 

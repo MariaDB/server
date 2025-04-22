@@ -147,7 +147,7 @@ public:
     DBUG_ASSERT(!reinterpret_cast<XID_cache_element*>(ptr + LF_HASH_OVERHEAD)
 		->is_set(ACQUIRED));
   }
-  static uchar *key(const unsigned char *el, size_t *length, my_bool)
+  static const uchar *key(const void *el, size_t *length, my_bool)
   {
     const XID &xid= reinterpret_cast<const XID_cache_element*>(el)->xid;
     *length= xid.key_length();

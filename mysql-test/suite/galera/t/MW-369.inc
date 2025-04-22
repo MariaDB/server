@@ -14,7 +14,7 @@
 # node_2
 # $mw_369_child_query - will be blocked on node_1 in wsrep_apply_cb
 # node_1:
-# COMMIT;             - will be blocked on node_1 in wsrep_after_certification
+# COMMIT;             - will be blocked on node_1 in after_wsrep_before_prepare
 #
 # The $mw_369_child_query is always expected to succeed. The caller is
 # responsible for checking if the final COMMIT on connection node_1
@@ -49,14 +49,14 @@ SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
 SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 
 --connection node_1
-SET DEBUG_SYNC = "wsrep_after_certification SIGNAL after_certification_reached WAIT_FOR continue_after_certification";
+SET SESSION DEBUG_SYNC = "wsrep_before_certification SIGNAL before_certification_reached WAIT_FOR continue_before_certification";
 --send COMMIT
 
 #
 # Wait until both sync points have been reached
 #
 --connection node_1a
-SET SESSION DEBUG_SYNC = "now WAIT_FOR after_certification_reached";
+SET SESSION DEBUG_SYNC = "now WAIT_FOR before_certification_reached";
 
 #
 # both threads are now parked in sync points, signal them to continue
@@ -66,13 +66,13 @@ SET SESSION DEBUG_SYNC = "now WAIT_FOR after_certification_reached";
 --let $wait_condition_on_error_output = SELECT STATE FROM INFORMATION_SCHEMA.PROCESSLIST
 --source include/wait_condition_with_debug.inc
 
-SET DEBUG_SYNC = 'now SIGNAL continue_after_certification';
+SET SESSION DEBUG_SYNC = 'now SIGNAL continue_before_certification';
 
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%'
 --let $wait_condition_on_error_output = SELECT STATE FROM INFORMATION_SCHEMA.PROCESSLIST
 --source include/wait_condition_with_debug.inc
 
-SET DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
+SET SESSION DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
 
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%'
 --let $wait_condition_on_error_output = SELECT STATE FROM INFORMATION_SCHEMA.PROCESSLIST

@@ -1,23 +1,44 @@
 connection node_2;
 connection node_1;
-CALL mtr.add_suppression("WSREP: Stray state UUID msg:");
-CALL mtr.add_suppression("Sending JOIN failed: ");
-CALL mtr.add_suppression("WSREP: .* sending install message failed: Socket is not connected");
-CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("WSREP: Stray state UUID msg: ");
+CALL mtr.add_suppression("WSREP: .*Sending JOIN failed: ");
+CALL mtr.add_suppression("WSREP: .*sending install message failed: (Transport endpoint|Socket) is not connected");
+CALL mtr.add_suppression("WSREP: .*There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 4
 1
 connection node_1;
-CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_3;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
 INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
+connection node_1;
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
 connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
 connection node_4;
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
 SELECT VARIABLE_VALUE LIKE '%gmcast.segment = 3%' FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'wsrep_provider_options';
 VARIABLE_VALUE LIKE '%gmcast.segment = 3%'
 1
-SELECT COUNT(*) = 1 FROM t1;
-COUNT(*) = 1
-1
 DROP TABLE t1;
+connection node_1;
+call mtr.add_suppression("WSREP: read_completion_condition");
+call mtr.add_suppression("WSREP: read_handler");
+disconnect node_3;
+disconnect node_4;
+disconnect node_2;
+disconnect node_1;

@@ -190,9 +190,9 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
 */
 #define C_CREATE_SELECT(X)        ((X) > 0 ? (X) : 0)
 #define C_ORDINARY_CREATE         0
-#define C_ALTER_TABLE            -1
-#define C_ALTER_TABLE_FRM_ONLY   -2
-#define C_ASSISTED_DISCOVERY     -3
+#define C_ASSISTED_DISCOVERY     -1
+#define C_ALTER_TABLE            -2
+#define C_ALTER_TABLE_FRM_ONLY   -3
 
 int mysql_create_table_no_lock(THD *thd, Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,

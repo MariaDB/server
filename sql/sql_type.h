@@ -687,7 +687,7 @@ public:
   {
     return m_usec ?
       my_snprintf(to, nbytes, "%s%llu.%06lu",
-                  m_neg ? "-" : "", m_sec, (uint) m_usec) :
+                  m_neg ? "-" : "", m_sec, m_usec) :
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }
   void make_truncated_warning(THD *thd, const char *type_str) const;
@@ -3345,6 +3345,7 @@ public:
   { }
   virtual ~Type_all_attributes() = default;
   virtual void set_maybe_null(bool maybe_null_arg)= 0;
+  virtual uint32 character_octet_length() const { return max_length; }
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
   virtual const TYPELIB *get_typelib() const= 0;

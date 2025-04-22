@@ -16,9 +16,11 @@ select * from information_schema.columns where table_schema="performance_schema"
 
 # Count the number of NUMBER_OF_BYTES columns.
 
+--disable_cursor_protocol
 select count(*) into @count_byte_columns from information_schema.columns
    where table_schema="performance_schema" and data_type = "bigint"
    and column_name like "%number_of_bytes";
+--enable_cursor_protocol
 
 # Confirm that at least one column was found.
 
@@ -26,10 +28,12 @@ select @count_byte_columns > 0;
 
 # Confirm that all NUMBER_OF_BYTES columns are BIGINT signed.
 
+--disable_cursor_protocol
 select count(*) into @count_byte_signed from information_schema.columns
    where table_schema="performance_schema" and data_type="bigint"
    and column_name like "%number_of_bytes"
    and column_type not like "%unsigned";
+--enable_cursor_protocol
 
 select (@count_byte_columns - @count_byte_signed) = 0;
 
@@ -38,9 +42,11 @@ select (@count_byte_columns - @count_byte_signed) = 0;
 #
 # Count the number of OBJECT_INSTANCE_BEGIN columns.
 
+--disable_cursor_protocol
 select count(*) into @count_object_columns from information_schema.columns
    where table_schema="performance_schema" and data_type = "bigint"
    and column_name like "%object_instance_begin";
+--enable_cursor_protocol
 
 # Confirm that at least one column was found.
 
@@ -48,10 +54,12 @@ select @count_object_columns > 0;
 
 # Confirm that all OBJECT_INSTANCE_BEGIN columns are BIGINT unsigned.
 
+--disable_cursor_protocol
 select count(*) into @count_object_unsigned from information_schema.columns
    where table_schema="performance_schema" and data_type="bigint"
    and column_name like "%object_instance_begin"
    and column_type like "%unsigned";
+--enable_cursor_protocol
 
 select (@count_object_columns - @count_object_unsigned) = 0;
 

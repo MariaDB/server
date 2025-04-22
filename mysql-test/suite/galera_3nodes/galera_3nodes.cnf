@@ -19,10 +19,11 @@ wsrep-on=1
 #ist_port=@OPT.port
 #sst_port=@OPT.port
 wsrep_cluster_address=gcomm://
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;gcache.size=10M'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 wsrep_node_address='127.0.0.1:@mysqld.1.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
+wsrep_node_name=node1
 
 [mysqld.2]
 wsrep-on=1
@@ -30,10 +31,11 @@ wsrep-on=1
 #ist_port=@OPT.port
 #sst_port=@OPT.port
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;gcache.size=10M'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 wsrep_node_address='127.0.0.1:@mysqld.2.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
+wsrep_node_name=node2
 
 [mysqld.3]
 wsrep-on=1
@@ -41,13 +43,15 @@ wsrep-on=1
 #ist_port=@OPT.port
 #sst_port=@OPT.port
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
-wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;gcache.size=10M'
+wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
 wsrep_node_address='127.0.0.1:@mysqld.3.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.3.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.3.#sst_port'
+wsrep_node_name=node3
 
 [sst]
 sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
+transferfmt=@ENV.MTR_GALERA_TFMT
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

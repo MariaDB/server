@@ -51,6 +51,8 @@ public:
 
 int main(int args, char **argv)
 {
+  MY_INIT(argv[0]);
+
   plan(NO_PLAN);
   diag("Testing Json_writer checks");
 
@@ -123,6 +125,7 @@ int main(int args, char **argv)
 
   diag("Done");
 
+  my_end(MY_CHECK_ERROR);
   return exit_status();
 }
 

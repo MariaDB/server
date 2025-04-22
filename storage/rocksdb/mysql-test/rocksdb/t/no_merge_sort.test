@@ -21,8 +21,10 @@ while ($i < 30) {
     inc $j;
   }
 
+  --disable_cursor_protocol
   select variable_value into @s from information_schema.global_status where variable_name='Sort_merge_passes';
   eval SELECT a, b, c FROM ti_nk ORDER BY a,b,c INTO OUTFILE '$datadir/select.out';
+  --enable_cursor_protocol
   --remove_file $datadir/select.out
   select case when variable_value-@s = 0 then 'true' else 'false' end as skip_merge_sort from information_schema.global_status where variable_name='Sort_merge_passes';
   inc $i;

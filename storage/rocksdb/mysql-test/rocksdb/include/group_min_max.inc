@@ -1428,10 +1428,12 @@ INSERT INTO t1(c1,c2) VALUES
 (4,14), (4,15), (4,16), (4,17), (4,18), (4,19), (4,20),(5,5);
 ANALYZE TABLE t1;
 
+--disable_cursor_protocol
 EXPLAIN SELECT MAX(c2), c1 FROM t1 WHERE c1 = 4 GROUP BY c1;
 FLUSH STATUS;
 SELECT MAX(c2), c1 FROM t1 WHERE c1 = 4 GROUP BY c1;
 SHOW SESSION STATUS LIKE 'Handler_read%';
+--enable_cursor_protocol
 
 DROP TABLE t1;
 

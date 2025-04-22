@@ -208,6 +208,140 @@ JS
 set optimizer_trace=@trace_tmp;
 drop table t1;
 #
+# MDEV-34993: Incorrect cardinality estimation causes poor query plan
+#
+create table t1 (
+pk int,
+key1 int,
+filler char(100),
+index (key1, pk),
+primary key (pk)
+);
+insert into t1
+select
+seq, FLOOR(seq/100), 'filler'
+from
+seq_1_to_1000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set optimizer_trace=1;
+explain select * from t1
+where
+pk in (1,2,3,4,5) and
+key1 <= 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,key1	PRIMARY	4	NULL	5	Using where
+create temporary table opt_trace as
+select * from information_schema.optimizer_trace;
+# Must have a note that "multiplier is too high":
+select
+json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
+from
+opt_trace;
+JS
+[
+    [
+        {
+            "index_name": "PRIMARY",
+            "selectivity_from_index": 0.005
+        },
+        {
+            "index_name": "key1",
+            "selectivity_from_index": 0.399,
+            "selectivity_multiplier": 90.9091,
+            "note": "multiplier too high, clipping",
+            "clipped_multiplier": 2.506265664
+        }
+    ]
+]
+# Must not include 1.79...e308 as cost:
+select
+json_detailed(json_extract(trace,'$**.best_access_path')) as JS
+from
+opt_trace;
+JS
+[
+    {
+        "considered_access_paths": 
+        [
+            {
+                "access_type": "range",
+                "resulting_rows": 5,
+                "cost": 6.666533161,
+                "chosen": true
+            }
+        ],
+        "chosen_access_method": 
+        {
+            "type": "range",
+            "records": 5,
+            "cost": 6.666533161,
+            "uses_join_buffering": false
+        }
+    }
+]
+drop table opt_trace;
+# Disable the fix and try the same:
+set @@optimizer_adjust_secondary_key_costs='';
+explain select * from t1
+where
+pk in (1,2,3,4,5) and
+key1 <= 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,key1	PRIMARY	4	NULL	5	Using where
+create temporary table opt_trace as
+select * from information_schema.optimizer_trace;
+# Shows a high multiplier, without a "note":
+select
+json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
+from
+opt_trace;
+JS
+[
+    [
+        {
+            "index_name": "PRIMARY",
+            "selectivity_from_index": 0.005
+        },
+        {
+            "index_name": "key1",
+            "selectivity_from_index": 0.399,
+            "selectivity_multiplier": 90.9091
+        }
+    ]
+]
+# Includes 1.79...e308 as cost:
+select
+json_detailed(json_extract(trace,'$**.best_access_path')) as JS
+from
+opt_trace;
+JS
+[
+    {
+        "considered_access_paths": 
+        [
+            {
+                "access_type": "range",
+                "resulting_rows": 181.3636545,
+                "cost": 1.79769e308,
+                "chosen": true
+            }
+        ],
+        "chosen_access_method": 
+        {
+            "type": "range",
+            "records": 181.3636545,
+            "cost": 1.79769e308,
+            "uses_join_buffering": false
+        }
+    }
+]
+drop table opt_trace;
+set optimizer_adjust_secondary_key_costs=default;
+drop table t1;
+#
 # Clean up
 #
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;

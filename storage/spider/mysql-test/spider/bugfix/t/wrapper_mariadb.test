@@ -47,12 +47,14 @@ TRUNCATE TABLE mysql.general_log;
 
 --disable_ps2_protocol
 --connection master_1
+--disable_view_protocol
 SELECT * FROM tbl_a ORDER BY pkey;
+--enable_view_protocol
 
 --connection child2_1
-# in --ps a query is logged differently in a general log
-replace_regex /order by t0.`pkey`/order by `pkey`/;
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps2_protocol
 

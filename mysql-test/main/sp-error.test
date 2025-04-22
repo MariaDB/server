@@ -11,7 +11,9 @@ drop table if exists t1, t2;
 --disable_ps2_protocol
 # Backup the mysql.proc table
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
+--enable_cursor_protocol
 --enable_ps2_protocol
 
 # Make sure we don't have any procedures left.

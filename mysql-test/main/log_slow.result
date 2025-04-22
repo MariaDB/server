@@ -181,6 +181,47 @@ SET @@global.slow_query_log= @old_slow_query_log;
 SET SESSION slow_query_log=default;
 drop table tab_MDEV_30820, tab2;
 drop function get_zero;
-#
 # End of 10.4 tests
 #
+# MDEV-34539 Invalid "use" and "Schema" in slow query log file with multi-line schema
+#
+set global log_output='file';
+set @@log_slow_filter= 'not_using_index';
+set slow_query_log=1;
+set timestamp=1234567890;
+create database `a
+b`;
+use `a
+b`;
+select count(*) from mysql.global_priv where length(priv)>2;
+count(*)
+5
+drop database `a
+b`;
+use test;
+set global log_output= @old_log_output;
+set slow_query_log=default;
+set log_slow_filter=default;
+set timestamp=default;
+use `a
+b`;
+SET timestamp=1234567890;
+select count(*) from mysql.global_priv where length(priv)>2
+#
+# MDEV-31366 Assertion `thd->start_time' failed in bool LOGGER::slow_log_print(THD*, const char*, size_t, ulonglong)
+#
+TRUNCATE mysql.slow_log;
+SET global log_output='TABLE';
+SET timestamp=0.99;
+SET long_query_time=0.00001;
+SELECT SLEEP(0.1);
+SLEEP(0.1)
+0
+SELECT COUNT(*)>0 AS c1 FROM mysql.slow_log;
+c1
+1
+SET global log_output=default;
+SET timestamp=default;
+SET long_query_time=default;
+TRUNCATE mysql.slow_log;
+# End of 10.5 tests

@@ -63,16 +63,6 @@ public:
                                     bool packing_keys);
 
   /**
-     Function for comparing two keys.
-     @param  n Pointer to number of bytes to compare.
-     @param  a First key.
-     @param  b Second key.
-     @retval -1, 0, or 1 depending on whether the left argument is 
-             less than, equal to, or greater than the right argument.
-   */
-  typedef int (*compare_function)(size_t *n, Key_type **a, Key_type **b);
-
-  /**
     Initialize the queue.
 
     @param max_elements   The size of the queue.
@@ -81,8 +71,6 @@ public:
                   pop() will return the smallest key in the result set.
            true:  We keep the n smallest elements.
                   pop() will return the largest key in the result set.
-    @param compare        Compare function for elements, takes 3 arguments.
-                          If NULL, we use get_ptr_compare(compare_length).
     @param compare_length Length of the data (i.e. the keys) used for sorting.
     @param keymaker       Function which generates keys for elements.
     @param sort_param     Sort parameters.
@@ -93,7 +81,7 @@ public:
     We do *not* take ownership of any of the input pointer arguments.
    */
   int init(ha_rows max_elements, bool max_at_top,
-           compare_function compare, size_t compare_length,
+           size_t compare_length,
            keymaker_function keymaker, Sort_param *sort_param,
            Key_type **sort_keys);
 
@@ -148,7 +136,6 @@ private:
 template<typename Element_type, typename Key_type>
 int Bounded_queue<Element_type, Key_type>::init(ha_rows max_elements,
                                                 bool max_at_top,
-                                                compare_function compare,
                                                 size_t compare_length,
                                                 keymaker_function keymaker,
                                                 Sort_param *sort_param,
@@ -163,13 +150,10 @@ int Bounded_queue<Element_type, Key_type>::init(ha_rows max_elements,
   // init_queue() takes an uint, and also does (max_elements + 1)
   if (max_elements >= (UINT_MAX - 1))
     return 1;
-  if (compare == NULL)
-    compare=
-      reinterpret_cast<compare_function>(get_ptr_compare(compare_length));
   // We allocate space for one extra element, for replace when queue is full.
   return init_queue(&m_queue, (uint) max_elements + 1,
                     0, max_at_top,
-                    reinterpret_cast<queue_compare>(compare),
+                    get_ptr_compare(compare_length),
                     &m_compare_length, 0, 0);
 }
 

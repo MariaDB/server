@@ -4,8 +4,10 @@
 #
 --source include/galera_cluster.inc
 --source include/have_debug_sync.inc
+--source include/force_restart.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -13,30 +15,42 @@
 --source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
 
 --let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
 --write_line wait $_expect_file_name
 
-CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 VARCHAR(30) not null primary key) ENGINE=InnoDB;
 
 SET AUTOCOMMIT=OFF;
 SET SESSION wsrep_trx_fragment_size=1;
 START TRANSACTION;
 
-INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
---error 2013
+INSERT INTO t1 VALUES ('primary1'),('primary2'),('primary3'),('primary4'),('primary5');
+--error 2013,2026
 COMMIT;
 
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
 --source include/start_mysqld.inc
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT * FROM t1;
 
 --connection node_2
 --enable_reconnect
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT * FROM t1;
 
 DROP TABLE t1;
 

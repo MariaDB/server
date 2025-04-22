@@ -48,7 +48,9 @@ insert into t1 (row_start) select row_end from t1;
 set sql_mode='';
 insert into t1 (row_start, row_end) values (DEFAULT, 1);
 set sql_mode=default;
+--disable_cursor_protocol
 select @@sql_mode into @saved_mode;
+--enable_cursor_protocol
 set sql_mode= '';
 insert into t1 (x, row_start, row_end) values (3, 4, 5);
 set sql_mode= @saved_mode;

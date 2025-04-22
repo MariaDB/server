@@ -1162,7 +1162,7 @@ my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
       if (!(errmsg= ms3_server_error(s3_client)))
         errmsg= ms3_error(error);
 
-      my_printf_error(EE_READ, "Got error from move_object(%s -> %s): %d %",
+      my_printf_error(EE_READ, "Got error from move_object(%s -> %s): %d %s",
                       error_flags,
                       from_name, to_name, error, errmsg);
     }

@@ -1,0 +1,23 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE USER spider@localhost IDENTIFIED BY 'pwd';
+GRANT ALL ON test.* TO spider@localhost;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'spider',PASSWORD 'pwd');
+SET spider_internal_sql_log_off=0;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv", TABLE "t1"' PARTITION BY HASH (c) PARTITIONS 2;
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	error	Partition p0 returned error
+test.t2	check	Error	Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+test.t2	check	Error	Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+test.t2	check	error	Unknown - internal error 1227 during operation
+drop table t1, t2;
+drop server srv;
+drop user spider@localhost;
+for master_1
+for child2
+for child3

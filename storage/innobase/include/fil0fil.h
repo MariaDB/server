@@ -1060,17 +1060,12 @@ struct fil_node_t final
 		return(handle != OS_FILE_CLOSED);
 	}
 
-	/** Read the first page of a data file.
-	@return	whether the page was found valid */
-	bool read_page0();
+  /** Read the first page of a data file.
+  @return whether the page was found valid */
+  bool read_page0() noexcept;
 
-	/** Determine some file metadata when creating or reading the file.
-	@param	file	the file that is being created, or OS_FILE_CLOSED */
-	void find_metadata(os_file_t file = OS_FILE_CLOSED
-#ifndef _WIN32
-			   , struct stat* statbuf = NULL
-#endif
-			   );
+  /** Determine some file metadata when creating or reading the file. */
+  void find_metadata() noexcept;
 
   /** Close the file handle. */
   void close();

@@ -306,9 +306,9 @@ public:
 
   void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;
 public:
-  Create_field *implicit_default_value_error_field;
-  bool         error_if_not_empty;
-  uint         tables_opened;
+  Create_field *implicit_default_value_error_field= NULL;
+  bool         error_if_not_empty= false;
+  uint         tables_opened= 0;
   LEX_CSTRING  db;
   LEX_CSTRING  table_name;
   LEX_CSTRING  alias;
@@ -322,12 +322,13 @@ public:
     of table to the new version ER_FK_CANNOT_DELETE_PARENT error should be
     emitted.
   */
-  bool         fk_error_if_delete_row;
+  bool         fk_error_if_delete_row= false;
   /** Name of foreign key for the above error. */
-  const char   *fk_error_id;
+  const char   *fk_error_id= NULL;
   /** Name of table for the above error. */
-  const char   *fk_error_table;
-  bool         modified_primary_key;
+  const char   *fk_error_table= NULL;
+  bool         modified_primary_key= false;
+  bool         fast_alter_partition= false;
 
 private:
   char new_filename[FN_REFLEN + 1];
@@ -339,7 +340,7 @@ private:
 
 #ifdef DBUG_ASSERT_EXISTS
   /** Indicates that we are altering temporary table. Used only in asserts. */
-  bool tmp_table;
+  bool tmp_table= false;
 #endif
 
   Alter_table_ctx &operator=(const Alter_table_ctx &rhs); // not implemented

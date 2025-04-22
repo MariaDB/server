@@ -353,6 +353,12 @@ bool ha_sequence::check_if_incompatible_data(HA_CREATE_INFO *create_info,
   return(COMPATIBLE_DATA_YES);
 }
 
+enum_alter_inplace_result
+ha_sequence::check_if_supported_inplace_alter(TABLE *altered_table,
+                                              Alter_inplace_info *ai)
+{
+  return file->check_if_supported_inplace_alter(altered_table, ai);
+}
 
 int ha_sequence::external_lock(THD *thd, int lock_type)
 {
@@ -364,6 +370,21 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
   */
   if (!error)
     file->m_lock_type= lock_type;
+  return error;
+}
+
+int ha_sequence::discard_or_import_tablespace(my_bool discard)
+{
+  int error= file->discard_or_import_tablespace(discard);
+  if (!error && !discard)
+  {
+    /* Doing import table space. Read the imported values */
+    if (!(error= table->s->sequence->read_stored_values(table)))
+    {
+      table->s->sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
+      memcpy(table->record[1], table->s->default_values, table->s->reclength);
+    }
+  }
   return error;
 }
 

@@ -134,7 +134,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   asynchronously, we need to be sure they will be completed before starting a
   new transaction. Otherwise the new transaction might suffer a spurious kill.
 */
-static void
+void
 wait_for_pending_deadlock_kill(THD *thd, rpl_group_info *rgi)
 {
   PSI_stage_info old_stage;
@@ -831,8 +831,12 @@ do_retry:
   err= 0;
   errmsg= NULL;
 #ifdef WITH_WSREP
-  thd->wsrep_cs().reset_error();
-  WSREP_DEBUG("retrying async replication event");
+  DBUG_EXECUTE_IF("sync.wsrep_retry_event_group", {
+    const char act[]= "now "
+                      "SIGNAL sync.wsrep_retry_event_group_reached "
+                      "WAIT_FOR signal.wsrep_retry_event_group";
+    debug_sync_set_action(thd, STRING_WITH_LEN(act));
+  };);
 #endif /* WITH_WSREP */
 
   /*
@@ -981,15 +985,20 @@ do_retry:
   */
   thd->reset_killed();
 #ifdef WITH_WSREP
-  if (wsrep_before_command(thd))
+  if (WSREP(thd))
   {
-    WSREP_WARN("Parallel slave worker failed at wsrep_before_command() hook");
-    err= 1;
-    goto err;
+    /* Exec after statement hook to make sure that the failed transaction
+     * gets cleared and reset error state. */
+    if (wsrep_after_statement(thd))
+    {
+      WSREP_WARN("Parallel slave worker failed at wsrep_after_statement() hook");
+      err= 1;
+      goto err;
+    }
+    thd->wsrep_cs().reset_error();
+    wsrep_start_trx_if_not_started(thd);
+    WSREP_DEBUG("parallel slave retry, after trx start");
   }
-  wsrep_start_trx_if_not_started(thd);
-  WSREP_DEBUG("parallel slave retry, after trx start");
-
 #endif /* WITH_WSREP */
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
@@ -1195,7 +1204,6 @@ handle_rpl_parallel_thread(void *arg)
 
   my_thread_init();
   thd = new THD(next_thread_id());
-  thd->thread_stack = (char*)&thd;
   server_threads.insert(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
@@ -1450,11 +1458,23 @@ handle_rpl_parallel_thread(void *arg)
           after mark_start_commit(), we have to unmark, which has at least a
           theoretical possibility of leaving a window where it looks like all
           transactions in a GCO have started committing, while in fact one
-          will need to rollback and retry. This is not supposed to be possible
-          (since there is a deadlock, at least one transaction should be
-          blocked from reaching commit), but this seems a fragile ensurance,
-          and there were historically a number of subtle bugs in this area.
+          will need to rollback and retry.
+
+          Normally this will not happen, since the kill is there to resolve a
+          deadlock that is preventing at least one transaction from proceeding.
+          One case it can happen is with InnoDB dict stats update, which can
+          temporarily cause transactions to block each other, but locks are
+          released immediately, they don't linger until commit. There could be
+          other similar cases, there were historically a number of subtle bugs
+          in this area.
+
+          But once we start the commit, we can expect that no new lock
+          conflicts will be introduced. So by handling any lingering deadlock
+          kill at this point just before mark_start_commit(), we should be
+          robust even towards spurious deadlock kills.
         */
+        if (rgi->killed_for_retry != rpl_group_info::RETRY_KILL_NONE)
+          wait_for_pending_deadlock_kill(thd, rgi);
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");

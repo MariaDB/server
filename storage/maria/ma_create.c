@@ -31,7 +31,7 @@
 #endif
 #include <m_ctype.h>
 
-static int compare_columns(MARIA_COLUMNDEF **a, MARIA_COLUMNDEF **b);
+static int compare_columns(const void *a, const void *b);
 
 
 static ulonglong update_tot_length(ulonglong tot_length, ulonglong max_rows, uint length)
@@ -1335,9 +1335,11 @@ static inline int sign(long a)
 }
 
 
-static int compare_columns(MARIA_COLUMNDEF **a_ptr, MARIA_COLUMNDEF **b_ptr)
+static int compare_columns(const void *a_ptr_, const void *b_ptr_)
 {
-  MARIA_COLUMNDEF *a= *a_ptr, *b= *b_ptr;
+  const MARIA_COLUMNDEF *const *a_ptr= a_ptr_;
+  const MARIA_COLUMNDEF *const *b_ptr= b_ptr_;
+  const MARIA_COLUMNDEF *a= *a_ptr, *b= *b_ptr;
   enum en_fieldtype a_type, b_type;
 
   a_type= (a->type == FIELD_CHECK) ? FIELD_NORMAL : a->type;

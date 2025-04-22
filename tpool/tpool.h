@@ -27,6 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <cassert>
+
 /**
   Windows-specific native file handle struct.
   Apart from the actual handle, contains PTP_IO
@@ -202,21 +204,24 @@ protected:
   std::unique_ptr<aio> m_aio;
   virtual aio *create_native_aio(int max_io)= 0;
 
+public:
   /**
     Functions to be called at worker thread start/end
     can be used for example to set some TLS variables
   */
-  void (*m_worker_init_callback)(void);
-  void (*m_worker_destroy_callback)(void);
+  void (*m_worker_init_callback)(void)= [] {};
+  void (*m_worker_destroy_callback)(void)= [] {};
 
-public:
-  thread_pool() : m_aio(), m_worker_init_callback(), m_worker_destroy_callback()
+  thread_pool()
+      : m_aio()
   {
   }
   virtual void submit_task(task *t)= 0;
   virtual timer* create_timer(callback_func func, void *data=nullptr) = 0;
   void set_thread_callbacks(void (*init)(), void (*destroy)())
   {
+    assert(init);
+    assert(destroy);
     m_worker_init_callback= init;
     m_worker_destroy_callback= destroy;
   }

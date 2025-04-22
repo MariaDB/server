@@ -1,0 +1,65 @@
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+
+--echo
+--echo MDEV-26345 SELECT MIN on Spider table returns more rows than expected
+--echo
+
+set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# Case 1: implicit grouping: the const item is SELECTed, but its
+# results discarded when storing to the temp table
+create table t2 (a int, b int, PRIMARY KEY (a, b));
+create table t1 (a int, b int, PRIMARY KEY (a, b)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 VALUES (1,4), (1,2), (2,11);
+SELECT MIN(b), a FROM t1 WHERE a=1;
+select * from (SELECT MIN(b), a FROM t1 WHERE a=1) as v;
+SELECT MAX(b), a FROM t1 WHERE a<3;
+drop table t1, t2;
+
+# Case 2: implicit grouping: the const item is SELECTed, but its
+# results discarded when storing to the temp table
+create table t2 (a int, b int, c int, PRIMARY KEY (a, b));
+create table t1 (a int, b int, c int, PRIMARY KEY (a, b)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t2 VALUES (1,4,1), (1,2,2), (2,11,3);
+SELECT MIN(b), a, c FROM t1 WHERE a=1;
+drop table t1, t2;
+
+# Case 3: auxiliary fields should not be SELECTed
+create table t2 (a int, b int);
+create table t1 ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 VALUES (1,1), (1,1), (2,2), (2,2);
+# b is an auxiliary field item. If it was SELECTed, two rows would
+# return instead of one.
+select distinct count(a) from t1 group by b;
+drop table t1, t2;
+
+# Case 4: having should still work, despite referring to auxiliary
+# field items which are not SELECTed
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 values (1),(3),(5),(7),(9),(11),(13),(15);
+select count(c) as d from t1 having d > 5;
+drop table t1, t2;
+
+drop server srv;
+
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings

@@ -147,7 +147,7 @@ class Table_triggers_list: public Sql_alloc
     BEFORE INSERT/UPDATE triggers.
   */
   Field             **record0_field;
-  uchar              *extra_null_bitmap;
+  uchar              *extra_null_bitmap, *extra_null_bitmap_init;
   /**
     Copy of TABLE::Field array with field pointers set to TABLE::record[1]
     buffer instead of TABLE::record[0] (used for OLD values in on UPDATE
@@ -211,8 +211,8 @@ public:
   /* End of character ser context. */
 
   Table_triggers_list(TABLE *table_arg)
-    :record0_field(0), extra_null_bitmap(0), record1_field(0),
-    trigger_table(table_arg),
+    :record0_field(0), extra_null_bitmap(0), extra_null_bitmap_init(0),
+    record1_field(0), trigger_table(table_arg),
     m_has_unparseable_trigger(false), count(0)
   {
     bzero((char *) triggers, sizeof(triggers));
@@ -276,11 +276,15 @@ public:
                                             TABLE_LIST *table_list);
 
   Field **nullable_fields() { return record0_field; }
-  void reset_extra_null_bitmap()
+  void clear_extra_null_bitmap()
   {
-    size_t null_bytes= (trigger_table->s->fields -
-                        trigger_table->s->null_fields + 7)/8;
-    bzero(extra_null_bitmap, null_bytes);
+    if (size_t null_bytes= extra_null_bitmap_init - extra_null_bitmap)
+      bzero(extra_null_bitmap, null_bytes);
+  }
+  void default_extra_null_bitmap()
+  {
+    if (size_t null_bytes= extra_null_bitmap_init - extra_null_bitmap)
+      memcpy(extra_null_bitmap, extra_null_bitmap_init, null_bytes);
   }
 
   Trigger *find_trigger(const LEX_CSTRING *name, bool remove_from_list);

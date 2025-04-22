@@ -1704,7 +1704,7 @@ struct my_option xb_server_options[] =
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
   {"check-privileges", OPT_XTRA_CHECK_PRIVILEGES, "Check database user "
-   "privileges fro the backup user",
+   "privileges for the backup user",
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
@@ -2544,6 +2544,15 @@ my_bool regex_list_check_match(
 	const regex_list_t& list,
 	const char* name)
 {
+	if (list.empty()) return (FALSE);
+
+	/*
+	  regexec/pcre2_regexec is not threadsafe, also documented.
+	  Serialize access from multiple threads to compiled regexes.
+	*/
+	static std::mutex regex_match_mutex;
+	std::lock_guard<std::mutex> lock(regex_match_mutex);
+
 	regmatch_t tables_regmatch[1];
 	for (regex_list_t::const_iterator i = list.begin(), end = list.end();
 	     i != end; ++i) {
@@ -3648,6 +3657,7 @@ next_file:
 		return(-1);
 	}
 
+	MSAN_STAT_WORKAROUND(&statinfo);
 	info->size = statinfo.st_size;
 
 	if (S_ISDIR(statinfo.st_mode)) {
@@ -5507,9 +5517,22 @@ xtrabackup_apply_delta(
 					buf + FSP_HEADER_OFFSET + FSP_SIZE);
 				if (mach_read_from_4(buf
 						     + FIL_PAGE_SPACE_ID)) {
+#ifdef _WIN32
+					os_offset_t last_page =
+					  os_file_get_size(dst_file) /
+					  page_size;
+
+					/* os_file_set_size() would
+					shrink the size of the file */
+					if (last_page < n_pages &&
+					    !os_file_set_size(
+					       dst_path, dst_file,
+					       n_pages * page_size))
+#else
 					if (!os_file_set_size(
 						    dst_path, dst_file,
 						    n_pages * page_size))
+#endif /* _WIN32 */
 						goto error;
 				} else if (fil_space_t* space
 					   = fil_system.sys_space) {
@@ -6792,7 +6815,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 }
 
 static int main_low(char** argv);
-static int get_exepath(char *buf, size_t size, const char *argv0);
 
 /* ================= main =================== */
 int main(int argc, char **argv)
@@ -6803,8 +6825,8 @@ int main(int argc, char **argv)
 
 	my_getopt_prefix_matching= 0;
 
-	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
-    strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
+	if (my_get_exepath(mariabackup_exe, FN_REFLEN, argv[0]))
+		strncpy(mariabackup_exe, argv[0], FN_REFLEN-1);
 
 
 	if (argc > 1 )
@@ -7100,32 +7122,6 @@ static int main_low(char** argv)
 	return(EXIT_SUCCESS);
 }
 
-
-static int get_exepath(char *buf, size_t size, const char *argv0)
-{
-#ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
-  if (ret > 0)
-    return 0;
-#elif defined(__linux__)
-  ssize_t ret = readlink("/proc/self/exe", buf, size-1);
-  if(ret > 0)
-    return 0;
-#elif defined(__APPLE__)
-  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
-  if (ret > 0) {
-    buf[ret] = 0;
-    return 0;
-  }
-#elif defined(__FreeBSD__)
-  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
-  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
-    return 0;
-  }
-#endif
-
-  return my_realpath(buf, argv0, 0);
-}
 
 
 #if defined (__SANITIZE_ADDRESS__) && defined (__linux__)

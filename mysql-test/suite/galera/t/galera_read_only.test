@@ -47,4 +47,3 @@ DROP TABLE t2;
 SET GLOBAL read_only=FALSE;
 DROP TABLE t1;
 DROP USER foo@localhost;
-

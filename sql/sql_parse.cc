@@ -996,7 +996,6 @@ int bootstrap(MYSQL_FILE *file)
 #endif
 
   /* The following must be called before DBUG_ENTER */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->security_ctx->user= (char*) my_strdup(key_memory_MPVIO_EXT_auth_info,
@@ -2440,13 +2439,27 @@ dispatch_end:
     {
       WSREP_DEBUG("THD is killed at dispatch_end");
     }
-    wsrep_after_command_before_result(thd);
-    if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
     {
-      /* todo: Pass wsrep client state current error to override */
-      wsrep_override_error(thd, wsrep_current_error(thd),
-                           wsrep_current_error_status(thd));
-      WSREP_LOG_THD(thd, "leave");
+      DEBUG_SYNC(thd, "wsrep_at_dispatch_end_before_result");
+    }
+    if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
+    {
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
+      {
+        /* todo: Pass wsrep client state current error to override */
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        WSREP_LOG_THD(thd, "leave");
+      }
+    }
+    else
+    {
+      /* wsrep_after_command_before_result() already called elsewhere
+         or not necessary to call it */
+      assert(thd->wsrep_cs().state() == wsrep::client_state::s_none ||
+             thd->wsrep_cs().state() == wsrep::client_state::s_result);
     }
     if (WSREP(thd))
     {
@@ -4747,23 +4760,36 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
-
-        // For consistency check inserted table needs to be InnoDB
-        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        // For InnoDB we don't need to worry about anything here:
+        if (db_type != DB_TYPE_INNODB)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              HA_ERR_UNSUPPORTED,
-                              "Galera cluster does support consistency check only"
-                              " for InnoDB tables.");
-          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+          // For consistency check inserted table needs to be InnoDB
+          if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+          {
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                HA_ERR_UNSUPPORTED,
+                                "Galera cluster does support consistency check only"
+                                " for InnoDB tables.");
+            thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+          }
+          /* Only TOI allowed to !InnoDB tables */
+          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+          // For !InnoDB we start TOI if it is not yet started and hope for the best
+          if (!wsrep_toi)
+          {
+            /* Currently we support TOI for MyISAM only. */
+            if (db_type == DB_TYPE_MYISAM && wsrep_replicate_myisam)
+              WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+          }
         }
-
-        // For !InnoDB we start TOI if it is not yet started and hope for the best
-        if (!is_innodb && !wsrep_toi)
-          WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
       }
 #endif /* WITH_WSREP */
+
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -5054,17 +5080,18 @@ mysql_execute_command(THD *thd)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && !lex->tmp_table() && wsrep_thd_is_local(thd) &&
+        (!thd->is_current_stmt_binlog_format_row() ||
+         wsrep_table_list_has_non_temp_tables(thd, all_tables)))
     {
-      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
+      wsrep::key_array keys;
+      if (wsrep_append_fk_parent_table(thd, all_tables, &keys))
       {
-        if (!lex->tmp_table() &&
-           (!thd->is_current_stmt_binlog_format_row() ||
-	    !thd->find_temporary_table(table)))
-        {
-          WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
-          break;
-        }
+        goto wsrep_error_label;
+      }
+      if (wsrep_to_isolation_begin(thd, NULL, NULL, all_tables, NULL, &keys))
+      {
+        goto wsrep_error_label;
       }
     }
 #endif /* WITH_WSREP */
@@ -7305,17 +7332,8 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     DBUG_PRINT("info", ("derived: %d  view: %d", table_ref->derived != 0,
                         table_ref->view != 0));
 
-    if (table_ref->is_anonymous_derived_table())
+    if (table_ref->is_anonymous_derived_table() || table_ref->sequence)
       continue;
-
-    if (table_ref->sequence)
-    {
-      /* We want to have either SELECT or INSERT rights to sequences depending
-         on how they are accessed
-      */
-      want_access= ((table_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
-                    INSERT_ACL : SELECT_ACL);
-    }
 
     if (check_access(thd, want_access, table_ref->get_db_name().str,
                      &table_ref->grant.privilege,
@@ -7614,9 +7632,12 @@ __attribute__((optimize("-O0")))
 #endif
 check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 {
+#ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
+  DBUG_ASSERT(thd->thread_stack);
+  if ((stack_used= available_stack_size(thd->thread_stack,
+                                        my_get_stack_pointer(&stack_used))) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;
@@ -7636,6 +7657,7 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef DBUG_OFF
   max_stack_used= MY_MAX(max_stack_used, stack_used);
 #endif
+#endif /* __SANITIZE_ADDRESS__ */
   return 0;
 }
 
@@ -9584,8 +9606,27 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
 #ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+
   bool wsrep_high_priority= false;
-#endif
+#endif /* WITH_WSREP */
   uint error= kill_one_thread(thd, id, state, type
 #ifdef WITH_WSREP
                               , wsrep_high_priority
@@ -9617,6 +9658,26 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:

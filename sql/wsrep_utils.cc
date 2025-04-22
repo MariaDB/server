@@ -421,7 +421,6 @@ thd::thd (my_bool won, bool system_thread) : init(), ptr(new THD(0))
 {
   if (ptr)
   {
-    ptr->thread_stack= (char*) &ptr;
     wsrep_assign_from_threadvars(ptr);
     wsrep_store_threadvars(ptr);
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog

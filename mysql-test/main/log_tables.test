@@ -836,7 +836,9 @@ SET GLOBAL slow_query_log = @old_slow_query_log;
 --echo # Bug#21557 entries in the general query log truncated at 1000 characters.
 --echo #
 
+--disable_cursor_protocol
 select CONNECTION_ID() into @thread_id;
+--enable_cursor_protocol
 --disable_ps_protocol
 truncate table mysql.general_log;
 --enable_ps_protocol
@@ -1006,9 +1008,12 @@ INSERT INTO t1 VALUES (3,3,3);
 INSERT INTO t1 VALUES (4,4,4);
 
 --disable_ps2_protocol
+#Enable after fix MDEV-31522
+--disable_cursor_protocol
 SELECT SQL_NO_CACHE 'Bug#31700 - SCAN',f1,f2,f3,SLEEP(1.1) FROM t1 WHERE f3=4;
 SELECT SQL_NO_CACHE 'Bug#31700 - KEY', f1,f2,f3,SLEEP(1.1) FROM t1 WHERE f2=3;
 SELECT SQL_NO_CACHE 'Bug#31700 - PK',  f1,f2,f3,SLEEP(1.1) FROM t1 WHERE f1=2;
+--enable_cursor_protocol
 
 --replace_column 1 TIMESTAMP
 SELECT start_time, rows_examined, rows_sent, sql_text FROM mysql.slow_log WHERE sql_text LIKE '%Bug#31700%' ORDER BY start_time;

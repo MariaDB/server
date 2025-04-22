@@ -31,7 +31,7 @@ connect(plug_con,localhost,plug,plug_dest);
 select USER(),CURRENT_USER();
 
 --echo ## test SET PASSWORD
-#--error ER_SET_PASSWORD_AUTH_PLUGIN
+# here we set for native password plugin
 SET PASSWORD = PASSWORD('plug_dest');
 
 connection default;

@@ -65,6 +65,8 @@ public:
 
   ha_sequence(handlerton *hton, TABLE_SHARE *share);
   ~ha_sequence();
+  virtual handlerton *storage_ht() const override
+  { return file->ht; }
 
   /* virtual function that are re-implemented for sequence */
   int open(const char *name, int mode, uint test_if_locked) override;
@@ -92,6 +94,9 @@ public:
   /* For ALTER ONLINE TABLE */
   bool check_if_incompatible_data(HA_CREATE_INFO *create_info,
                                   uint table_changes) override;
+  enum_alter_inplace_result
+  check_if_supported_inplace_alter(TABLE *altered_table,
+                                   Alter_inplace_info *ai) override;
   void write_lock() { write_locked= 1;}
   void unlock() { write_locked= 0; }
   bool is_locked() { return write_locked; }
@@ -143,7 +148,7 @@ public:
   { file->unbind_psi(); }
   void rebind_psi() override
   { file->rebind_psi(); }
-
+  int discard_or_import_tablespace(my_bool discard) override;
   bool auto_repair(int error) const override
   { return file->auto_repair(error); }
   int repair(THD* thd, HA_CHECK_OPT* check_opt) override

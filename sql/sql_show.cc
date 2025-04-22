@@ -65,6 +65,7 @@
 #include "transaction.h"
 #include "opt_trace.h"
 #include "my_cpu.h"
+#include "scope.h"
 
 
 #include "lex_symbol.h"
@@ -609,14 +610,13 @@ ignore_db_dirs_init()
   @return                 a pointer to the key
 */
 
-static uchar *
-db_dirs_hash_get_key(const uchar *data, size_t *len_ret,
-                     my_bool __attribute__((unused)))
+static const uchar *db_dirs_hash_get_key(const void *data, size_t *len_ret,
+                                         my_bool)
 {
-  LEX_CSTRING *e= (LEX_CSTRING *) data;
+  auto e= static_cast<const LEX_CSTRING *>(data);
 
   *len_ret= e->length;
-  return (uchar *) e->str;
+  return reinterpret_cast<const uchar *>(e->str);
 }
 
 
@@ -1289,7 +1289,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 {
   Protocol *protocol= thd->protocol;
   char buff[2048];
-  String buffer(buff, sizeof(buff), system_charset_info);
+  String buffer(buff, sizeof(buff), &my_charset_utf8mb4_general_ci);
   List<Item> field_list;
   bool error= TRUE;
   DBUG_ENTER("mysqld_show_create");
@@ -1709,7 +1709,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   def_value->length(0);
   if (has_default)
   {
-    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
+    StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
     if (field->default_value)
     {
       field->default_value->print(&str);
@@ -1838,7 +1838,7 @@ static void add_table_options(THD *thd, TABLE *table,
     hton= table->part_info->default_engine_type;
   else
 #endif
-    hton= table->file->ht;
+    hton= table->file->storage_ht();
 
   bzero((char*) &create_info, sizeof(create_info));
   /* Allow update_create_info to update row type, page checksums and options */
@@ -2236,11 +2236,11 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       {
         packet->append(STRING_WITH_LEN(" INVISIBLE"));
       }
-      def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
+      def_value.set(def_value_buf, sizeof(def_value_buf), &my_charset_utf8mb4_general_ci);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
-        packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+        packet->append(def_value.ptr(), def_value.length(), &my_charset_utf8mb4_general_ci);
       }
 
       if (field->vers_update_unversioned())
@@ -6438,8 +6438,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   {
     Field *field;
     LEX_CSTRING tmp_string;
-    Sql_mode_save sql_mode_backup(thd);
-    thd->variables.sql_mode= sql_mode;
+    SCOPE_VALUE(thd->variables.sql_mode, sql_mode);
 
     if (sph->type() == SP_TYPE_FUNCTION)
     {
@@ -9392,7 +9391,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("NON_UNIQUE",    SLonglong(1),NOT_NULL, "Non_unique",  OPEN_FRM_ONLY),
   Column("INDEX_SCHEMA",  Name(),      NOT_NULL,                OPEN_FRM_ONLY),
   Column("INDEX_NAME",    Name(),      NOT_NULL, "Key_name",    OPEN_FRM_ONLY),
-  Column("SEQ_IN_INDEX",  SLonglong(2),NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
+  Column("SEQ_IN_INDEX",  ULong(2),    NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
   Column("COLUMN_NAME",   Name(),      NOT_NULL, "Column_name", OPEN_FRM_ONLY),
   Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FULL_TABLE),
   Column("CARDINALITY",   SLonglong(), NULLABLE, "Cardinality", OPEN_FULL_TABLE),
@@ -9939,8 +9938,9 @@ ST_SCHEMA_TABLE schema_tables[]=
 };
 
 
-int initialize_schema_table(st_plugin_int *plugin)
+int initialize_schema_table(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   ST_SCHEMA_TABLE *schema_table;
   int err;
   DBUG_ENTER("initialize_schema_table");
@@ -9985,9 +9985,10 @@ int initialize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-int finalize_schema_table(st_plugin_int *plugin)
+int finalize_schema_table(void *plugin_)
 {
-  ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  ST_SCHEMA_TABLE *schema_table= static_cast<ST_SCHEMA_TABLE *>(plugin->data);
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)

@@ -554,3 +554,57 @@ ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 
 # Cleanup
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-34033 Exchange partition with virtual columns fails
+--echo #
+# this fails when the virtual persistent column
+# references another column
+create or replace table t1(
+  id int primary key,
+  col1 int,
+  col2 boolean as (col1 is null))
+  partition by list (id) ( partition p1 values in (1)
+);
+
+create or replace table t1_working like t1;
+alter table t1_working remove partitioning;
+alter table t1 exchange partition p1 with table t1_working;
+
+# this works when the virtual persistent column
+# does not reference another column
+create or replace table t2(
+  id int primary key,
+  col1 int,
+  col2 boolean as (true))
+  partition by list (id) ( partition p1 values in (1)
+);
+
+create or replace table t2_working like t2;
+alter table t2_working remove partitioning;
+alter table t2 exchange partition p1 with table t2_working;
+
+# Cleanup
+drop tables t1, t1_working, t2, t2_working;
+
+--echo #
+--echo # MDEV-35612 EXCHANGE PARTITION does not work for tables with unique blobs
+--echo #
+create table t (a int, b text, unique (b), unique(a, b)) partition by list (a) (partition p0 values in (1,2), partition pdef default);
+create table tp (a int, b text, c int invisible, unique (b), unique(a, b));
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t exchange partition p0 with table tp;
+create or replace table tp (a int, b text, unique (b), unique(a, b));
+alter table t exchange partition p0 with table tp;
+drop table t, tp;
+
+# same for system versioning:
+create table t (a int, b int) with system versioning partition by list (a) (partition p0 values in (1,2));
+create table tp (a int, b int); # without system versioning
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t exchange partition p0 with table tp;
+create or replace table tp (a int, b int) with system versioning;
+alter table t exchange partition p0 with table tp;
+drop table t, tp;
+
+--echo # End of 10.5 tests

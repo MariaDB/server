@@ -1,0 +1,18 @@
+# restart: --ssl-cipher=TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES256-GCM-SHA384
+Variable_name	Value
+Ssl_cipher	TLS_AES_128_GCM_SHA256
+Ssl_cipher_list	TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES256-GCM-SHA384
+Variable_name	Value
+Ssl_cipher	ECDHE-RSA-AES256-GCM-SHA384
+Ssl_cipher_list	TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES256-GCM-SHA384
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
+ERROR 2026 (HY000): TLS/SSL error: ssl/tls alert handshake failure
+# restart: --ssl-cipher=ECDHE-RSA-AES256-GCM-SHA384
+Variable_name	Value
+Ssl_cipher	TLS_AES_128_GCM_SHA256
+Variable_name	Value
+Ssl_cipher	ECDHE-RSA-AES256-GCM-SHA384
+# restart: --ssl-cipher=TLS_AES_128_GCM_SHA256
+Variable_name	Value
+Ssl_cipher	TLS_AES_128_GCM_SHA256
+Ssl_cipher_list	TLS_AES_128_GCM_SHA256

@@ -93,8 +93,10 @@ let $wait_condition =
   FROM information_schema.global_status
   WHERE LOWER(variable_name) = 'innodb_buffer_pool_resize_status';
 
+--disable_cursor_protocol
 SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
 SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
+--enable_cursor_protocol
 --error ER_WRONG_VALUE_FOR_VAR
 EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size -1);
 

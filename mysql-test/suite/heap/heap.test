@@ -659,3 +659,22 @@ INSERT INTO t1 VALUES("7","GREEN", 2);
 DELETE FROM t1 WHERE ts = 1 AND color = 'GREEN';
 SELECT * from t1 WHERE ts = 1 AND color = 'GREEN';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22695 Server crashes in heap_rnext upon DELETE from a HEAP table
+--echo #
+CREATE TABLE t1 (a VARCHAR(128), b VARCHAR(32), KEY(a) USING BTREE, KEY(b) USING BTREE) ENGINE=HEAP;
+INSERT INTO t1 VALUES ('foo',NULL),('m','b'),(6,'j'),('bar','qux'),(NULL,NULL);
+DELETE FROM t1 WHERE a <=> 'm' OR b <=> NULL;
+# Cleanup
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28130 MariaDB SEGV issue at tree_search_next
+--echo #
+CREATE TABLE v(t1 INT, pk INT, KEY(t1), KEY pk using btree (pk), KEY v using btree(t1, pk)) engine=memory;
+HANDLER v OPEN;
+HANDLER v READ t1=(2) limit 3;
+HANDLER v READ pk PREV;
+HANDLER v READ pk PREV;
+drop table v;

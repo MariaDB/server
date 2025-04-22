@@ -832,7 +832,10 @@ eval set @tmp_tables_before =
   CAST(REPLACE('$q', 'Created_tmp_tables', '') AS UNSIGNED);
 --enable_query_log
 
+#Enable after fix MDEV-31548
+--disable_cursor_protocol
 SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
+--enable_cursor_protocol
 
 # this query creates one temporary table in itself, which we are not
 # interested in.
@@ -854,7 +857,10 @@ eval set @tmp_tables_before =
   CAST(REPLACE('$q', 'Created_tmp_tables', '') AS UNSIGNED);
 --enable_query_log
 
+#Enable after fix MDEV-31548
+--disable_cursor_protocol
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
+--enable_cursor_protocol
 
 --disable_query_log
 --let $q = `show status like 'Created_tmp_tables';`
@@ -1884,6 +1890,7 @@ insert into t1
 analyze table t1;
 --enable_result_log
 
+--disable_cursor_protocol
 --disable_view_protocol
 --disable_ps2_protocol
 explain
@@ -1907,6 +1914,7 @@ select b, count(*) num_cnt from t1
 show status like '%Handler_read%';
 --enable_ps2_protocol
 --enable_view_protocol
+--enable_cursor_protocol
 
 drop table t0, t1;
 

@@ -5187,4 +5187,14 @@ HAVING (SELECT MAX(b) FROM t1) = a AND a > b;
 a	b
 2	1
 DROP TABLE t1;
+#
+# MDEV-25084: Moving equality with constant right side
+#             from HAVING to WHERE
+# (fixed by the patch for MDEV-26402)
+#
+CREATE TABLE t1 (a CHAR(3)) CHARSET=sjis;
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
+f	a
+DROP TABLE t1;
 End of 10.5 tests

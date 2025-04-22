@@ -80,6 +80,10 @@ static uint n_fil_crypt_iops_allocated = 0;
 
 #define DEBUG_KEYROTATION_THROTTLING 0
 
+#ifdef UNIV_PFS_THREAD
+mysql_pfs_key_t page_encrypt_thread_key;
+#endif /* UNIV_PFS_THREAD */
+
 /** Statistics variables */
 static fil_crypt_stat_t crypt_stat;
 static ib_mutex_t crypt_stat_mutex;
@@ -1461,6 +1465,8 @@ inline bool fil_space_t::acquire_if_not_stopped()
 
 bool fil_crypt_must_default_encrypt()
 {
+  /* prevents a race condition with fil_crypt_set_rotate_key_age() */
+  ut_ad(mutex_own(&fil_system.mutex));
   return !srv_fil_crypt_rotate_key_age || !srv_encrypt_rotate;
 }
 
@@ -2143,6 +2149,10 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(fil_crypt_thread)(void*)
 {
+	my_thread_init();
+#ifdef UNIV_PFS_THREAD
+	pfs_register_thread(page_encrypt_thread_key);
+#endif /* UNIV_PFS_THREAD */
 	mutex_enter(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;
@@ -2240,6 +2250,7 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
+	my_thread_end();
 	return os_thread_exit();
 }
 
@@ -2362,6 +2373,24 @@ fil_crypt_set_rotation_iops(
 {
 	srv_n_fil_crypt_iops = val;
 	os_event_set(fil_crypt_threads_event);
+}
+
+/** Add the import tablespace to default_encrypt list
+if necessary and signal fil_crypt_threads
+@param space imported tablespace */
+void fil_crypt_add_imported_space(fil_space_t *space)
+{
+  mutex_enter(&fil_system.mutex);
+
+  if (fil_crypt_must_default_encrypt())
+  {
+    fil_system.default_encrypt_tables.push_back(*space);
+    space->is_in_default_encrypt= true;
+  }
+
+  mutex_exit(&fil_system.mutex);
+
+  os_event_set(fil_crypt_threads_event);
 }
 
 /*********************************************************************

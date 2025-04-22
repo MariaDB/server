@@ -19,7 +19,10 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::1');
 --enable_metadata
 SELECT * FROM t1;
+#check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT CAST('::' AS INET6) AS a;
+--enable_cursor_protocol
 --disable_metadata
 DROP TABLE t1;
 
@@ -1431,6 +1434,8 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a INET6);
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 SELECT
   CAST(a AS BINARY(0)),
@@ -1449,6 +1454,7 @@ SELECT
   CAST(a AS BINARY(16777216))
 FROM t1;
 --disable_metadata
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #

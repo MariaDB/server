@@ -1,0 +1,144 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo # Initialize
+--connection slave
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--echo # Setup data
+--connection master
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+# The following test proves fixes to
+#   MDEV-15393 gtid_slave_pos duplicate key errors after mysqldump restore
+#
+--echo # 1. run some replication load that adds records to gtid_slave_pos table
+--echo # 2. stop slave, remove loaded data (it will be replicated), delete from
+--echo #    gtid_slave_pos as the table is going to be restored
+--echo # 3. take dump from slave (master has an empty gtid_slave_pos)
+--echo #    with --gtid and for the default value of both
+--echo #    --dump-slave and --master-data
+--echo # and in loop for the two options do:
+--echo #   4. reset the slave state to install some initial state
+--echo #   5. restart slave server, restore the dump
+--echo #   6. check the final state which must be equal to the dump's one
+--echo #   7. start replication to see no error                => Q.E.D.
+--echo #      unless the test runs on a buggy version in which case set $FIXED to zero.
+
+# set to ZERO when run with mysqldump of buggy version
+--let $FIXED= 1
+
+--echo # 1.
+--source include/stop_slave.inc
+delete from mysql.gtid_slave_pos;
+
+--connection master
+--let $trx_number = 5
+--let $i = $trx_number
+while ($i)
+{
+  eval insert into t1 set a = $i;
+  --dec $i
+}
+--source include/save_master_gtid.inc
+
+--connection slave
+# enforce determistic SELECT * from mysql.gtid_slave_pos
+--let $old_gtid_cleanup_batch_size = `select @@GLOBAL.gtid_cleanup_batch_size`
+# the number of generated transactions on master must not exceed this value:
+--let $val= 2147483647
+--evalp SET @@global.gtid_cleanup_batch_size = $val
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+# Prior tests in a mtr batch could leave the min value of sub_id column with
+# arbtirary value. Therefore before dumping let's
+# adjust mysql.gtid_slave_pos to have sub_id growing deterministically.
+# The value of 2 is choosen.
+--disable_query_log
+  set statement sql_log_bin = 0 for update mysql.gtid_slave_pos set sub_id = sub_id - (select min(sub_id) from mysql.gtid_slave_pos) + 2;
+--enable_query_log
+select * from mysql.gtid_slave_pos;
+select @@global.gtid_slave_pos as "after initial slave got in sync";
+
+--echo # 2.
+--source include/stop_slave.inc
+
+--echo # 3. A
+# Two dumps prepared to be restored in the following loop
+--exec $MYSQL_DUMP_SLAVE --dump-slave  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_2.sql
+--source include/stop_slave.inc
+
+--exec $MYSQL_DUMP_SLAVE --master-data  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_1.sql
+
+--let $i=2
+while ($i)
+{
+  --disable_warnings
+  --source include/stop_slave.inc
+  --enable_warnings
+  --echo # 4.
+  set statement sql_log_bin=0 for delete from mysql.gtid_slave_pos;
+  # setup a new gtid/sub_id state as complication for future backup restore.
+  # After the restore the new state must be a union of the backup state
+  # and this one.
+  --eval insert into mysql.gtid_slave_pos values (99 + $i, 1, 1, 1)
+
+  --echo # 5.
+  --let $rpl_server_number= 2
+  --source include/rpl_restart_server.inc
+  --evalp SET @@global.gtid_cleanup_batch_size = $val
+  select * from mysql.gtid_slave_pos;
+  select @@global.gtid_slave_pos as "before dump restore";
+  --let $dump=dump_$i.sql
+  --exec $MYSQL_SLAVE mysql -e "source $MYSQLTEST_VARDIR/tmp/$dump"
+
+  --echo # 6.
+  select * from mysql.gtid_slave_pos;
+  select @@global.gtid_slave_pos as "after dump restore";
+
+  --echo # 7.
+  reset slave;
+  select @@global.gtid_slave_pos;
+  change master to master_use_gtid=no;
+
+  --connection master
+  eval insert into t1 select 1+max(a),$i from t1;
+  --source include/save_master_gtid.inc
+
+  --connection slave
+  if ($FIXED)
+  {
+    --source include/start_slave.inc
+    --source include/sync_with_master_gtid.inc
+  }
+  if (!$FIXED)
+  {
+    start slave;
+    --let $slave_sql_errno= 1942
+    --source include/wait_for_slave_sql_error.inc
+
+    --die
+  }
+  select * from mysql.gtid_slave_pos;
+  select @@global.gtid_slave_pos as "after slave got in sync";
+
+  --dec $i
+}
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--evalp SET @@global.gtid_cleanup_batch_size= $old_gtid_cleanup_batch_size
+--remove_files_wildcard $MYSQLTEST_VARDIR/tmp dump_*.sql
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

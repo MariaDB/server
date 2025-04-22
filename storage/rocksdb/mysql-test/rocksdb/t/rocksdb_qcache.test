@@ -11,6 +11,7 @@ set @@global.query_cache_size=1024*1024;
 
 --enable_connect_log
 
+--disable_cursor_protocol
 create table t1 (pk int primary key, c char(8)) engine=RocksDB;
 insert into t1 values (1,'new'),(2,'new');
 
@@ -35,6 +36,7 @@ show status like 'Qcache_not_cached';
 show global status like 'Qcache_hits';
 
 drop table t1;
+--enable_cursor_protocol
 
 #
 # Cleanup

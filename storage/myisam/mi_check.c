@@ -61,7 +61,7 @@ static int sort_one_index(HA_CHECK *, MI_INFO *, MI_KEYDEF *, my_off_t, File);
 static int sort_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_ft_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_get_next_record(MI_SORT_PARAM *sort_param);
-static int sort_key_cmp(MI_SORT_PARAM *sort_param, const void *a,const void *b);
+static int sort_key_cmp(void *sort_param, const void *a, const void *b);
 static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static int sort_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static my_off_t get_record_for_key(MI_INFO *, MI_KEYDEF *, uchar *);
@@ -874,7 +874,7 @@ static int chk_index(HA_CHECK *param, MI_INFO *info, MI_KEYDEF *keyinfo,
   if (keypos != endpos)
   {
     mi_check_print_error(param,"Keyblock size at page %s is not correct.  Block length: %d  key length: %d",
-                llstr(page,llbuff), used_length, (keypos - buff));
+                llstr(page,llbuff), used_length, (int) (keypos - buff));
     goto err;
   }
   my_afree((uchar*) temp_buff);
@@ -1167,7 +1167,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
 	  block_info.rec_len > (uint) info->s->max_pack_length)
       {
 	mi_check_print_error(param,
-			     "Found block with wrong recordlength: %d at %s",
+			     "Found block with wrong recordlength: %lu at %s",
 			     block_info.rec_len, llstr(start_recpos,llbuff));
 	got_error=1;
 	break;
@@ -1272,7 +1272,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
 	    (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD)))
   {
     mi_check_print_warning(param,
-			   "Record checksum is not the same as checksum stored in the index file\n");
+			   "Record checksum is not the same as checksum stored in the index file");
     error=1;
   }
   else if (!extend)
@@ -3389,7 +3389,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  {
 	    if (!searching)
 	      mi_check_print_info(param,
-				  "Deleted block with impossible length %u at %s",
+				  "Deleted block with impossible length %lu at %s",
 				  block_info.block_len,llstr(pos,llbuff));
 	    error=1;
 	  }
@@ -3429,9 +3429,9 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  {
 	    if (!searching)
 	      mi_check_print_info(param,
-				  "Found block with impossible length %u at %s; Skipped",
-				  block_info.block_len+ (uint) (block_info.filepos-pos),
-				  llstr(pos,llbuff));
+                "Found block with impossible length %lu at %s; Skipped",
+                block_info.block_len + (unsigned long) (block_info.filepos-pos),
+                llstr(pos, llbuff));
 	    if (found_record)
 	      goto try_next;
 	    searching=1;
@@ -3625,7 +3625,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  block_info.rec_len > (uint) share->max_pack_length)
       {
 	if (! searching)
-	  mi_check_print_info(param,"Found block with wrong recordlength: %d at %s\n",
+	  mi_check_print_info(param,"Found block with wrong recordlength: %ld at %s",
 			      block_info.rec_len,
 			      llstr(sort_param->pos,llbuff));
 	continue;
@@ -3805,12 +3805,14 @@ int sort_write_record(MI_SORT_PARAM *sort_param)
 
 	/* Compare two keys from _create_index_by_sort */
 
-static int sort_key_cmp(MI_SORT_PARAM *sort_param, const void *a,
-			const void *b)
+static int sort_key_cmp(void *sort_param_, const void *a_, const void *b_)
 {
+  const MI_SORT_PARAM *sort_param= sort_param_;
   uint not_used[2];
-  return (ha_key_cmp(sort_param->seg, *((uchar**) a), *((uchar**) b),
-		     USE_WHOLE_KEY, SEARCH_SAME, not_used));
+  const void *const *a= a_;
+  const void *const *b= b_;
+  return (ha_key_cmp(sort_param->seg, *a, *b,
+                    USE_WHOLE_KEY, SEARCH_SAME, not_used));
 } /* sort_key_cmp */
 
 
@@ -4133,7 +4135,7 @@ static int sort_delete_record(MI_SORT_PARAM *sort_param)
   if (info->s->options & HA_OPTION_COMPRESS_RECORD)
   {
     mi_check_print_error(param,
-			 "Recover aborted; Can't run standard recovery on compressed tables with errors in data-file. Use switch 'myisamchk --safe-recover' to fix it\n",stderr);;
+			 "Recover aborted; Can't run standard recovery on compressed tables with errors in data-file. Use switch 'myisamchk --safe-recover' to fix it");
     DBUG_RETURN(1);
   }
 
@@ -4535,7 +4537,7 @@ void update_auto_increment_key(HA_CHECK *param, MI_INFO *info,
   {
     if (!(param->testflag & T_VERY_SILENT))
       mi_check_print_info(param,
-			  "Table: %s doesn't have an auto increment key\n",
+			  "Table: %s doesn't have an auto increment key",
 			  param->isam_file_name);
     DBUG_VOID_RETURN;
   }

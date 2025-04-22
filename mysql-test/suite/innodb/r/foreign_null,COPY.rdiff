@@ -1,0 +1,18 @@
+--- foreign_null.result
++++ foreign_null,COPY.result
+@@ -139,6 +139,7 @@
+ ALTER TABLE `t#2` DROP INDEX f1;
+ SET FOREIGN_KEY_CHECKS=1;
+ ALTER TABLE `t#1` MODIFY COLUMN f2 INT;
++ERROR HY000: Error on rename of './test/#sql-alter' to './test/t@00231' (errno: 150 "Foreign key constraint is incorrectly formed")
+ DROP TABLE `t#2`, `t#1`;
+ # Drop referenced index and modify column
+ CREATE TABLE `t#1`(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
+@@ -147,6 +148,7 @@
+ ALTER TABLE `t#1` DROP INDEX f2;
+ SET FOREIGN_KEY_CHECKS=1;
+ ALTER TABLE `t#2` MODIFY COLUMN f1 INT NOT NULL;
++ERROR HY000: Error on rename of './test/#sql-alter' to './test/t@00232' (errno: 150 "Foreign key constraint is incorrectly formed")
+ DROP TABLE `t#2`, `t#1`;
+ # Self referential modifying column
+ CREATE TABLE t1(f1 INT, f2 INT, index(f2), foreign key(f1) references t1(f2) ON UPDATE CASCADE)engine=innodb;

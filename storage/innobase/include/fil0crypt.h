@@ -383,6 +383,11 @@ void
 fil_crypt_set_rotation_iops(
 	uint val);
 
+/** Add the import tablespace to default_encrypt list
+if necessary and signal fil_crypt_threads
+@param space imported tablespace */
+void fil_crypt_add_imported_space(fil_space_t *space);
+
 /*********************************************************************
 Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */

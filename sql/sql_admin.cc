@@ -875,6 +875,10 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       result_code = (table->table->file->*operator_func)(thd, check_opt);
       THD_STAGE_INFO(thd, stage_sending_data);
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      if (lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN)
+        set_part_state(&lex->alter_info, table->table->part_info, PART_NORMAL);
+#endif
     }
 
     if (compl_result_code == HA_ADMIN_OK && collect_eis)

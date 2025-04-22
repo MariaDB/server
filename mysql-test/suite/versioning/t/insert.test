@@ -52,7 +52,9 @@ drop view vt1_1;
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create or replace table t1( id bigint primary key, a int, b int) with system versioning;
 insert into t1 values(1, 1, 1);
+--disable_cursor_protocol
 select row_start, row_end from t1 into @sys_start, @sys_end;
+--enable_cursor_protocol
 select id, a, b from t1;
 insert into t1 values(2, 2, 2);
 select id, a, b, row_start > @sys_start as C, row_end = @sys_end as D from t1 where id = 2;

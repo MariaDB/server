@@ -659,6 +659,9 @@ public:
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   inline bool is_equal(const Virtual_column_info* vcol) const;
+  /* Same as is_equal() but for comparing with different table */
+  bool is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
+                            const Virtual_column_info* vcol, bool &error) const;
   inline void print(String*);
 };
 
@@ -4255,7 +4258,7 @@ private:
   void sql_type(String &str) const override
   {
     Field_varstring::sql_type(str);
-    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+    str.append(STRING_WITH_LEN(" /*M!100301 COMPRESSED*/"));
   }
   uint32 max_display_length() const override { return field_length - 1; }
   uint32 character_octet_length() const override { return field_length - 1; }
@@ -4559,6 +4562,7 @@ public:
     return get_key_image_itRAW(ptr_arg, buff, length);
   }
   void set_key_image(const uchar *buff,uint length) override;
+  Field *make_new_field(MEM_ROOT *, TABLE *new_table, bool keep_type) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -4691,7 +4695,7 @@ private:
   void sql_type(String &str) const override
   {
     Field_blob::sql_type(str);
-    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+    str.append(STRING_WITH_LEN(" /*M!100301 COMPRESSED*/"));
   }
 
   /*
@@ -5842,7 +5846,7 @@ uint pack_length_to_packflag(uint type);
 enum_field_types get_blob_type_from_length(ulong length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
-int convert_null_to_field_value_or_error(Field *field);
+int convert_null_to_field_value_or_error(Field *field, uint err);
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
                       enum_vcol_info_type type, Alter_info *alter_info= NULL);
 

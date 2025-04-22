@@ -75,9 +75,11 @@ DROP TABLE t1;
 
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
 --enable_ps2_protocol
+--enable_cursor_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -90,7 +92,9 @@ remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
 --disable_ps2_protocol
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
+--disable_cursor_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
+--enable_cursor_protocol
 --enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
@@ -1213,6 +1217,27 @@ DROP VIEW v1;
 DROP TABLE t1;
 SET NAMES utf8mb3;
 
+--echo #
+--echo # MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+--echo #
+
+CREATE TABLE t1 (c TEXT CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+--echo #
+
+SELECT CAST(CONVERT('-9223372036854775808' USING ucs2) AS SIGNED) AS c1;
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_ucs2'' collate ucs2_general_nopad_ci, _ucs2 0x00000001000500000001) as c1;
+select strcmp(_ucs2'' collate ucs2_nopad_bin, _ucs2 0x00000001000500000001) as c1;
 
 --echo #
 --echo # End of 10.5 tests

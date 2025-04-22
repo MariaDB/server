@@ -303,7 +303,9 @@ update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
+--disable_cursor_protocol
 select variable_value into @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
+--enable_cursor_protocol
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 

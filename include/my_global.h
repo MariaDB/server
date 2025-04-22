@@ -528,10 +528,9 @@ typedef int	pbool;		/* Mixed prototypes can't take char */
 typedef int	pshort;		/* Mixed prototypes can't take short int */
 typedef double	pfloat;		/* Mixed prototypes can't take float */
 #endif
-C_MODE_START
-typedef int	(*qsort_cmp)(const void *,const void *);
-typedef int	(*qsort_cmp2)(void*, const void *,const void *);
-C_MODE_END
+
+#include <my_cmp.h>
+
 #define qsort_t RETQSORTTYPE	/* Broken GCC can't handle typedef !!!! */
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
@@ -819,7 +818,6 @@ typedef long long	my_ptrdiff_t;
 #define ALIGN_PTR(A, t) ((t*) MY_ALIGN((A), sizeof(double)))
 #define ADD_TO_PTR(ptr,size,type) (type) ((uchar*) (ptr)+size)
 #define PTR_BYTE_DIFF(A,B) (my_ptrdiff_t) ((uchar*) (A) - (uchar*) (B))
-#define PREV_BITS(type,A)	((type) (((type) 1 << (A)) -1))
 
 /*
   Custom version of standard offsetof() macro which can be used to get

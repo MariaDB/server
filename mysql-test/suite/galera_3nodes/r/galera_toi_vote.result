@@ -7,8 +7,9 @@ connection node_3;
 SET SESSION wsrep_on=OFF;
 DROP SCHEMA test;
 connection node_1;
+SET SESSION lc_messages='fr_FR';
 CREATE SCHEMA test;
-ERROR HY000: Can't create database 'test'; database exists
+ERROR HY000: Ne peut créer la base 'test'; elle existe déjà
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
 connection node_2;

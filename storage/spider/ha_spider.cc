@@ -21,14 +21,11 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "key.h"
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #include "ha_partition.h"
 #include "spd_param.h"
 #include "spd_err.h"
@@ -49,21 +46,15 @@
 
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 extern HASH spider_open_tables;
-#endif
 extern pthread_mutex_t spider_lgtm_tblhnd_share_mutex;
 
 /* UTC time zone for timestamp columns */
 extern Time_zone *UTC;
 
-ha_spider::ha_spider(
-) : handler(spider_hton_ptr, NULL)
+void ha_spider::init_fields()
 {
-  DBUG_ENTER("ha_spider::ha_spider");
-  DBUG_PRINT("info",("spider this=%p", this));
-  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
-  spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
+  DBUG_ENTER("ha_spider::init_fields");
   share = NULL;
   conns = NULL;
   need_mons = NULL;
@@ -92,30 +83,13 @@ ha_spider::ha_spider(
   sql_kinds = 0;
   error_mode = 0;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   dml_inited = FALSE;
   use_pre_call = FALSE;
   use_pre_action = FALSE;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
-#ifdef HA_CAN_BULK_ACCESS
-  is_bulk_access_clone = FALSE;
-  synced_from_clone_source = FALSE;
-  bulk_access_started = FALSE;
-  bulk_access_executing = FALSE;
-  bulk_access_pre_called = FALSE;
-  bulk_access_link_first = NULL;
-/*
-  init_ha_mem_root = FALSE;
-*/
-#endif
   prev_index_rnd_init = SPD_NONE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   direct_aggregate_item_first = NULL;
-#endif
   result_link_idx = 0;
   result_list.have_sql_kind_backup = FALSE;
   result_list.sqls = NULL;
@@ -129,14 +103,26 @@ ha_spider::ha_spider(
   result_list.set_split_read = FALSE;
   result_list.insert_dup_update_pushdown = FALSE;
   result_list.tmp_pos_row_first = NULL;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   result_list.direct_aggregate = FALSE;
   result_list.snap_direct_aggregate = FALSE;
-#endif
   result_list.direct_distinct = FALSE;
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
   result_list.in_cmp_ref = FALSE;
+  result_list.skips= NULL;
+  result_list.n_aux= 0;
+  ref_length = sizeof(SPIDER_POSITION);
+  DBUG_VOID_RETURN;
+}
+
+ha_spider::ha_spider(
+) : handler(spider_hton_ptr, NULL)
+{
+  DBUG_ENTER("ha_spider::ha_spider");
+  DBUG_PRINT("info",("spider this=%p", this));
+  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
+  spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
+  init_fields();
   DBUG_VOID_RETURN;
 }
 
@@ -149,80 +135,7 @@ ha_spider::ha_spider(
   DBUG_PRINT("info",("spider this=%p", this));
   spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_2);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
-  share = NULL;
-  conns = NULL;
-  need_mons = NULL;
-  blob_buff = NULL;
-  conn_keys = NULL;
-  spider_thread_id = 0;
-  trx_conn_adjustment = 0;
-  search_link_query_id = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_handler = NULL;
-#endif
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-  multi_range_keys = NULL;
-  mrr_key_buff = NULL;
-#endif
-  append_tblnm_alias = NULL;
-  use_index_merge = FALSE;
-  is_clone = FALSE;
-  pt_clone_source_handler = NULL;
-  pt_clone_last_searcher = NULL;
-  ft_handler = NULL;
-  ft_first = NULL;
-  ft_current = NULL;
-  ft_count = 0;
-  ft_init_without_index_init = FALSE;
-  sql_kinds = 0;
-  error_mode = 0;
-  use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
-  use_fields = FALSE;
-#endif
-  dml_inited = FALSE;
-  use_pre_call = FALSE;
-  use_pre_action = FALSE;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  do_direct_update = FALSE;
-#endif
-#ifdef HA_CAN_BULK_ACCESS
-  is_bulk_access_clone = FALSE;
-  synced_from_clone_source = FALSE;
-  bulk_access_started = FALSE;
-  bulk_access_executing = FALSE;
-  bulk_access_pre_called = FALSE;
-  bulk_access_link_first = NULL;
-/*
-  init_ha_mem_root = FALSE;
-*/
-#endif
-  prev_index_rnd_init = SPD_NONE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
-  direct_aggregate_item_first = NULL;
-#endif
-  result_link_idx = 0;
-  result_list.have_sql_kind_backup = FALSE;
-  result_list.sqls = NULL;
-  result_list.insert_sqls = NULL;
-  result_list.update_sqls = NULL;
-  result_list.tmp_sqls = NULL;
-  result_list.tmp_tables_created = FALSE;
-  result_list.bgs_working = FALSE;
-  result_list.direct_order_limit = FALSE;
-  result_list.direct_limit_offset = FALSE;
-  result_list.set_split_read = FALSE;
-  result_list.insert_dup_update_pushdown = FALSE;
-  result_list.tmp_pos_row_first = NULL;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
-  result_list.direct_aggregate = FALSE;
-  result_list.snap_direct_aggregate = FALSE;
-#endif
-  result_list.direct_distinct = FALSE;
-  result_list.casual_read = NULL;
-  result_list.use_both_key = FALSE;
-  result_list.in_cmp_ref = FALSE;
-  ref_length = sizeof(SPIDER_POSITION);
+  init_fields();
   DBUG_VOID_RETURN;
 }
 
@@ -296,7 +209,6 @@ int ha_spider::open(
   DBUG_PRINT("info",("spider this=%p", this));
 
   dup_key_idx = (uint) -1;
-  conn_kinds = SPIDER_CONN_KIND_MYSQL;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   table->file->get_no_parts("", &part_num);
   if (part_num)
@@ -329,7 +241,7 @@ int ha_spider::open(
     uchar *rnd_write_bitmap;
     if (!(wide_handler = (SPIDER_WIDE_HANDLER *)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_1, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -349,7 +261,7 @@ int ha_spider::open(
           (uint) sizeof(SPIDER_PARTITION_HANDLER),
         NullS)
 #else
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_2, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -531,9 +443,6 @@ int ha_spider::open(
   } else
     wide_handler->semi_table_lock =
       spider_param_semi_table_lock(thd, share->semi_table_lock);
-#ifdef HA_CAN_BULK_ACCESS
-  external_lock_cnt = 0;
-#endif
 
   if (reset())
   {
@@ -584,6 +493,25 @@ error_wide_handler_alloc:
   DBUG_RETURN(error_num);
 }
 
+/*
+  Given a SPIDER_SHARE that will be freed, update all SPIDER_TRX_HAs
+  of spider_current_trx to point to a NULL share, which will cause the
+  removal of the SPIDER_TRX_HA in spider_check_trx_ha().
+*/
+static void spider_update_current_trx_ha_with_freed_share(SPIDER_SHARE *share)
+{
+  SPIDER_TRX *trx= spider_current_trx;
+  if (trx)
+  {
+    for (uint i = 0; i < trx->trx_ha_hash.records; i++)
+    {
+      SPIDER_TRX_HA *trx_ha = (SPIDER_TRX_HA *) my_hash_element(&trx->trx_ha_hash, i);
+      if (trx_ha->share == share)
+        trx_ha->share= NULL;
+    }
+  }
+}
+
 int ha_spider::close()
 {
   int error_num = 0, roop_count, error_num2;
@@ -605,23 +533,6 @@ int ha_spider::close()
     mrr_key_buff = NULL;
   }
 #endif
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_link_first)
-  {
-    do {
-      DBUG_PRINT("info",("spider bulk_access_link->spider=%p",
-        bulk_access_link_first->spider));
-      DBUG_PRINT("info",("spider bulk_access_link->spider->dbton_handler=%p",
-        bulk_access_link_first->spider->dbton_handler));
-      DBUG_PRINT("info",("spider ptr bulk_access_link->spider->dbton_handler="
-        "%p", &bulk_access_link_first->spider->dbton_handler));
-      bulk_access_link_current = bulk_access_link_first->next;
-      delete_bulk_access_link(bulk_access_link_first);
-      bulk_access_link_first = bulk_access_link_current;
-    } while (bulk_access_link_first);
-  }
-#endif
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   while (direct_aggregate_item_first)
   {
     direct_aggregate_item_current = direct_aggregate_item_first->next;
@@ -632,7 +543,6 @@ int ha_spider::close()
     spider_free(spider_current_trx, direct_aggregate_item_first, MYF(0));
     direct_aggregate_item_first = direct_aggregate_item_current;
   }
-#endif
   if (is_clone)
   {
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
@@ -711,6 +621,7 @@ int ha_spider::close()
     result_list.tmp_sqls = NULL;
   }
 
+  spider_update_current_trx_ha_with_freed_share(share);
   spider_free_share(share);
   is_clone = FALSE;
   pt_clone_source_handler = NULL;
@@ -727,22 +638,7 @@ int ha_spider::check_access_kind_for_connection(
   int error_num, roop_count;
   DBUG_ENTER("ha_spider::check_access_kind_for_connection");
   DBUG_PRINT("info",("spider this=%p", this));
-  conn_kinds = 0;
-  switch (wide_handler->sql_command)
-  {
-    case SQLCOM_UPDATE:
-    case SQLCOM_UPDATE_MULTI:
-    case SQLCOM_DELETE:
-    case SQLCOM_DELETE_MULTI:
-    default:
-      conn_kinds |= SPIDER_CONN_KIND_MYSQL;
-      for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
-      {
-        conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
-      }
-      break;
-  }
-  if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
+  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
   {
     DBUG_RETURN(error_num);
   }
@@ -775,52 +671,10 @@ void ha_spider::check_access_kind(
   wide_handler->sql_command = thd_sql_command(thd);
   DBUG_PRINT("info",("spider sql_command=%u", wide_handler->sql_command));
   DBUG_PRINT("info",("spider thd->query_id=%lld", thd->query_id));
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     wide_handler->update_request = FALSE;
-#else
-  if (
-    wide_handler->sql_command == SQLCOM_UPDATE ||
-    wide_handler->sql_command == SQLCOM_UPDATE_MULTI ||
-    /* for triggers */
-    wide_handler->sql_command == SQLCOM_INSERT ||
-    wide_handler->sql_command == SQLCOM_INSERT_SELECT ||
-    wide_handler->sql_command == SQLCOM_DELETE ||
-    wide_handler->sql_command == SQLCOM_DELETE_MULTI
-  )
-    wide_handler->update_request = TRUE;
-  else
-    wide_handler->update_request = FALSE;
-#endif
   DBUG_VOID_RETURN;
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::additional_lock(
-  THD *thd,
-  enum thr_lock_type lock_type
-) {
-  DBUG_ENTER("ha_spider::additional_lock");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_executing)
-  {
-    if (is_bulk_access_clone)
-    {
-      check_access_kind(thd);
-      DBUG_RETURN(check_access_kind_for_connection(thd,
-        (lock_type >= TL_WRITE_ALLOW_WRITE)));
-    } else if (bulk_access_link_exec_tgt->called)
-    {
-      bulk_access_link_exec_tgt->spider->check_access_kind(thd);
-      DBUG_RETURN(bulk_access_link_exec_tgt->spider->
-        check_access_kind_for_connection(
-          thd, (lock_type >= TL_WRITE_ALLOW_WRITE)));
-    }
-  }
-  check_access_kind(thd);
-  DBUG_RETURN(check_access_kind_for_connection(thd,
-    (lock_type >= TL_WRITE_ALLOW_WRITE)));
-}
-#endif
 
 THR_LOCK_DATA **ha_spider::store_lock(
   THD *thd,
@@ -1110,6 +964,8 @@ int ha_spider::external_lock(
     }
   }
 
+  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
+    DBUG_RETURN(error_num);
   if (!partition_handler || !partition_handler->handlers)
   {
     DBUG_RETURN(lock_tables()); /* Non-partitioned table */
@@ -1150,47 +1006,9 @@ int ha_spider::reset()
   THD *thd = ha_thd();
   SPIDER_TRX *tmp_trx, *trx_bak;
   SPIDER_CONDITION *tmp_cond;
-/*
-  char first_byte, first_byte_bak;
-*/
   backup_error_status();
   DBUG_ENTER("ha_spider::reset");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  SPIDER_BULK_ACCESS_LINK *tmp_bulk_access_link = bulk_access_link_first;
-  while (tmp_bulk_access_link)
-  {
-    DBUG_PRINT("info",("spider bulk_access_link->spider->dbton_handler=%p",
-      tmp_bulk_access_link->spider->dbton_handler));
-    DBUG_PRINT("info",("spider ptr bulk_access_link->spider->dbton_handler=%p",
-      &tmp_bulk_access_link->spider->dbton_handler));
-    if (!tmp_bulk_access_link->used)
-      break;
-    if ((error_num2 = tmp_bulk_access_link->spider->ha_reset()))
-      error_num = error_num2;
-    tmp_bulk_access_link->used = FALSE;
-    tmp_bulk_access_link = tmp_bulk_access_link->next;
-  }
-  synced_from_clone_source = FALSE;
-  bulk_access_started = FALSE;
-  bulk_access_executing = FALSE;
-  bulk_access_pre_called = FALSE;
-  if (
-    bulk_access_link_first &&
-    !spider_param_bulk_access_free(share->bulk_access_free)
-  ) {
-    do {
-      DBUG_PRINT("info",("spider bulk_access_link->spider->dbton_handler=%p",
-        bulk_access_link_first->spider->dbton_handler));
-      DBUG_PRINT("info",("spider ptr bulk_access_link->spider->dbton_handler=%p",
-        &bulk_access_link_first->spider->dbton_handler));
-      bulk_access_link_current = bulk_access_link_first->next;
-      delete_bulk_access_link(bulk_access_link_first);
-      bulk_access_link_first = bulk_access_link_current;
-    } while (bulk_access_link_first);
-  }
-#endif
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   direct_aggregate_item_current = direct_aggregate_item_first;
   while (direct_aggregate_item_current)
   {
@@ -1210,7 +1028,6 @@ int ha_spider::reset()
   }
   result_list.direct_aggregate = FALSE;
   result_list.snap_direct_aggregate = FALSE;
-#endif
   result_list.direct_distinct = FALSE;
   store_error_num = 0;
   if (wide_handler)
@@ -1243,9 +1060,7 @@ int ha_spider::reset()
       wide_handler->condition = tmp_cond;
     }
     wide_handler->cond_check = FALSE;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     wide_handler->direct_update_fields = NULL;
-#endif
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
     wide_handler->info_limit = 9223372036854775807LL;
 #endif
@@ -1279,8 +1094,6 @@ int ha_spider::reset()
         if (check_error_mode(error_num2))
           error_num = error_num2;
       }
-
-      conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
     }
     result_list.bulk_update_mode = 0;
     result_list.bulk_update_size = 0;
@@ -1306,7 +1119,6 @@ int ha_spider::reset()
   result_list.use_union = FALSE;
   result_list.use_both_key = FALSE;
   pt_clone_last_searcher = NULL;
-  conn_kinds = SPIDER_CONN_KIND_MYSQL;
   use_index_merge = FALSE;
   init_rnd_handler = FALSE;
 #ifdef HA_MRR_USE_DEFAULT_IMPL
@@ -1323,9 +1135,7 @@ int ha_spider::reset()
   ft_count = 0;
   ft_init_without_index_init = FALSE;
   sql_kinds = 0;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   prev_index_rnd_init = SPD_NONE;
   result_list.have_sql_kind_backup = FALSE;
   result_list.direct_order_limit = FALSE;
@@ -1333,28 +1143,14 @@ int ha_spider::reset()
   result_list.set_split_read = FALSE;
   result_list.insert_dup_update_pushdown = FALSE;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   error_mode = 0;
-#ifdef HA_CAN_BULK_ACCESS
-#ifndef DBUG_OFF
-  if (bulk_access_link_first)
-  {
-    DBUG_PRINT("info",("spider bulk_access_link->spider->dbton_handler=%p",
-      bulk_access_link_first->spider->dbton_handler));
-    DBUG_PRINT("info",("spider ptr bulk_access_link->spider->dbton_handler=%p",
-      &bulk_access_link_first->spider->dbton_handler));
-  }
-#endif
-#endif
   DBUG_RETURN(error_num);
 }
 
 int ha_spider::extra(
   enum ha_extra_function operation
 ) {
-  int error_num;
   DBUG_ENTER("ha_spider::extra");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider operation=%d", (int) operation));
@@ -1401,28 +1197,10 @@ int ha_spider::extra(
     case HA_EXTRA_WRITE_CANNOT_REPLACE:
       wide_handler->write_can_replace = FALSE;
       break;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     case HA_EXTRA_INSERT_WITH_UPDATE:
       wide_handler->insert_with_update = TRUE;
       break;
-#endif
-    case HA_EXTRA_ATTACH_CHILDREN:
-      DBUG_PRINT("info",("spider HA_EXTRA_ATTACH_CHILDREN"));
-      if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
-        DBUG_RETURN(error_num);
-      break;
-    case HA_EXTRA_ADD_CHILDREN_LIST:
-      DBUG_PRINT("info",("spider HA_EXTRA_ADD_CHILDREN_LIST"));
-      if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
-        DBUG_RETURN(error_num);
-      break;
-#if defined(HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN) || defined(HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF)
-#ifdef HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
-#endif
-#ifdef HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF
-    case HA_EXTRA_USE_CMP_REF:
-#endif
       DBUG_PRINT("info",("spider HA_EXTRA_STARTING_ORDERED_INDEX_SCAN"));
       if (table_share->primary_key != MAX_KEY)
       {
@@ -1450,7 +1228,6 @@ int ha_spider::extra(
         }
       }
       break;
-#endif
     default:
       break;
   }
@@ -1465,19 +1242,6 @@ int ha_spider::index_init(
   DBUG_ENTER("ha_spider::index_init");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider idx=%u", idx));
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_ASSERT(!bulk_access_started);
-  if (bulk_access_executing)
-  {
-    if (
-      !is_bulk_access_clone &&
-      bulk_access_link_exec_tgt->called
-    ) {
-      DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_index_init(
-        idx, sorted));
-    }
-  }
-#endif
   if (!dml_inited)
   {
     if (unlikely((error_num = dml_init())))
@@ -1526,16 +1290,6 @@ int ha_spider::index_init(
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::pre_index_init(
-  uint idx,
-  bool sorted
-) {
-  DBUG_ENTER("ha_spider::pre_index_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_index_init(idx, sorted));
-}
-#endif
 
 int ha_spider::index_end()
 {
@@ -1543,48 +1297,168 @@ int ha_spider::index_end()
   backup_error_status();
   DBUG_ENTER("ha_spider::index_end");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_ASSERT(!bulk_access_started);
-  if (bulk_access_executing)
-  {
-    if (
-      !is_bulk_access_clone &&
-      bulk_access_link_exec_tgt->called
-    ) {
-      error_num = bulk_access_link_exec_tgt->spider->ha_index_end();
-      if (error_num)
-        DBUG_RETURN(check_error_mode(error_num));
-      DBUG_RETURN(0);
-    }
-  }
-#endif
   active_index = MAX_KEY;
-/*
-#ifdef INFO_KIND_FORCE_LIMIT_BEGIN
-  info_limit = 9223372036854775807LL;
-#endif
-  if (
-    (error_num = drop_tmp_tables()) ||
-    (error_num = check_and_end_bulk_update(
-      SPD_BU_START_BY_INDEX_OR_RND_INIT)) ||
-    (error_num = spider_trx_check_link_idx_failed(this))
-  )
-    DBUG_RETURN(check_error_mode(error_num));
-*/
   if ((error_num = drop_tmp_tables()))
     DBUG_RETURN(check_error_mode(error_num));
   result_list.use_union = FALSE;
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::pre_index_end()
+static int spider_maybe_ping(ha_spider *spider, int link_idx, int error_num)
 {
-  DBUG_ENTER("ha_spider::pre_index_end");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_index_end());
+  if (
+    spider->share->monitoring_kind[link_idx] &&
+    spider->need_mons[link_idx]
+  ) {
+    error_num = spider_ping_table_mon_from_table(
+      spider->wide_handler->trx,
+      spider->wide_handler->trx->thd,
+      spider->share,
+      link_idx,
+      (uint32) spider->share->monitoring_sid[link_idx],
+      spider->share->table_name,
+      spider->share->table_name_length,
+      spider->conn_link_idx[link_idx],
+      NULL,
+      0,
+      spider->share->monitoring_kind[link_idx],
+      spider->share->monitoring_limit[link_idx],
+      spider->share->monitoring_flag[link_idx],
+      TRUE
+    );
+  }
+  return spider->check_error_mode_eof(error_num);
+}
+
+static int spider_maybe_ping_1(ha_spider *spider,
+                             int link_idx, int error_num)
+{
+  if (
+    spider->share->monitoring_kind[link_idx] &&
+    spider->need_mons[link_idx]
+  ) {
+    error_num = spider_ping_table_mon_from_table(
+      spider->wide_handler->trx,
+      spider->wide_handler->trx->thd,
+      spider->share,
+      link_idx,
+      (uint32) spider->share->monitoring_sid[link_idx],
+      spider->share->table_name,
+      spider->share->table_name_length,
+      spider->conn_link_idx[link_idx],
+      NULL,
+      0,
+      spider->share->monitoring_kind[link_idx],
+      spider->share->monitoring_limit[link_idx],
+      spider->share->monitoring_flag[link_idx],
+      TRUE
+    );
+  }
+  return error_num;
+}
+
+static void spider_prep_loop(ha_spider *spider, int *roop_start, int *roop_end, int *link_ok)
+{
+  int lock_mode = spider_conn_lock_mode(spider);
+  if (lock_mode)
+  {
+    /* "for update" or "lock in share mode" */
+    *link_ok = spider_conn_link_idx_next(spider->share->link_statuses,
+      spider->conn_link_idx, -1, spider->share->link_count,
+      SPIDER_LINK_STATUS_OK);
+    *roop_start = spider_conn_link_idx_next(spider->share->link_statuses,
+      spider->conn_link_idx, -1, spider->share->link_count,
+      SPIDER_LINK_STATUS_RECOVERY);
+    *roop_end = spider->share->link_count;
+  } else {
+    *link_ok = spider->search_link_idx;
+    *roop_start = spider->search_link_idx;
+    *roop_end = spider->search_link_idx + 1;
+  }
+}
+
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+/* Returns true if the caller should return *error_num */
+static bool spider_start_bg(ha_spider* spider, int roop_count, int roop_start, int link_ok, int *error_num)
+{
+  if ((*error_num = spider_check_and_init_casual_read(
+         spider->wide_handler->trx->thd, spider,
+         roop_count)))
+    return true;
+  if ((*error_num = spider_bg_conn_search(spider, roop_count, roop_start,
+                                          TRUE, FALSE, (roop_count != link_ok))))
+  {
+    if (
+      *error_num != HA_ERR_END_OF_FILE
+    ) {
+      *error_num= spider_maybe_ping(spider, roop_count, *error_num);
+      return true;
+    }
+    *error_num= spider->check_error_mode_eof(*error_num);
+    return true;
+  }
+  return false;
 }
 #endif
+
+/* Updates error_num. Returning true if the caller should return. */
+static bool spider_send_query(ha_spider *spider, TABLE *table, int link_idx, int link_ok, int *error_num)
+{
+  ulong sql_type;
+  SPIDER_CONN *conn = spider->conns[link_idx];
+  if (spider->sql_kind[link_idx] == SPIDER_SQL_KIND_SQL)
+  {
+    sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+  } else {
+    sql_type = SPIDER_SQL_TYPE_HANDLER;
+  }
+  spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
+  if ((*error_num = dbton_hdl->set_sql_for_exec(sql_type, link_idx)))
+  {
+    return true;
+  }
+  DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
+  spider_lock_before_query(conn, &spider->need_mons[link_idx]);
+  if ((*error_num = spider_db_set_names(spider, conn,
+                                        link_idx)))
+  {
+    spider_unlock_after_query(conn, 0);
+    *error_num= spider_maybe_ping(spider, link_idx, *error_num);
+    return true;
+  }
+  spider_conn_set_timeout_from_share(conn, link_idx,
+                                     spider->wide_handler->trx->thd, spider->share);
+  if (dbton_hdl->execute_sql(
+        sql_type,
+        conn,
+        spider->result_list.quick_mode,
+        &spider->need_mons[link_idx])
+  ) {
+    *error_num= spider_unlock_after_query_1(conn);
+    *error_num= (spider_maybe_ping(spider, link_idx, *error_num));
+    return true;
+  }
+  spider->connection_ids[link_idx] = conn->connection_id;
+  if (link_idx == link_ok)
+  {
+    if ((*error_num = spider_unlock_after_query_2(conn, spider, link_idx, table)))
+    {
+      if (
+        *error_num != HA_ERR_END_OF_FILE
+      ) {
+        *error_num= spider_maybe_ping(spider, link_idx, *error_num);
+        return true;
+      }
+      *error_num= spider->check_error_mode_eof(*error_num);
+      return true;
+    }
+    spider->result_link_idx = link_ok;
+  } else {
+    spider_db_discard_result(spider, link_idx, conn);
+    spider_unlock_after_query(conn, 0);
+  }
+  return false;
+}
 
 int ha_spider::index_read_map_internal(
   uchar *buf,
@@ -1592,9 +1466,8 @@ int ha_spider::index_read_map_internal(
   key_part_map keypart_map,
   enum ha_rkey_function find_flag
 ) {
-  int error_num, roop_count;
+  int error_num;
   key_range start_key;
-  SPIDER_CONN *conn;
   backup_error_status();
   DBUG_ENTER("ha_spider::index_read_map_internal");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -1603,9 +1476,7 @@ int ha_spider::index_read_map_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if (
     find_flag >= HA_READ_MBR_CONTAIN &&
     find_flag <= HA_READ_MBR_EQUAL
@@ -1626,6 +1497,7 @@ int ha_spider::index_read_map_internal(
   start_key.key = key;
   start_key.keypart_map = keypart_map;
   start_key.flag = find_flag;
+  /* Query construction */
   if ((error_num = reset_sql_sql(
     SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_HANDLER)))
     DBUG_RETURN(error_num);
@@ -1717,23 +1589,8 @@ int ha_spider::index_read_map_internal(
     }
   }
 
-  int roop_start, roop_end, lock_mode, link_ok;
-  lock_mode = spider_conn_lock_mode(this);
-  if (lock_mode)
-  {
-    /* "for update" or "lock in share mode" */
-    link_ok = spider_conn_link_idx_next(share->link_statuses,
-      conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_OK);
-    roop_start = spider_conn_link_idx_next(share->link_statuses,
-      conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY);
-    roop_end = share->link_count;
-  } else {
-    link_ok = search_link_idx;
-    roop_start = search_link_idx;
-    roop_end = search_link_idx + 1;
-  }
+  int roop_start, roop_end, roop_count, link_ok;
+  spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
   for (roop_count = roop_start; roop_count < roop_end;
     roop_count = spider_conn_link_idx_next(share->link_statuses,
       conn_link_idx, roop_count, share->link_count,
@@ -1742,183 +1599,12 @@ int ha_spider::index_read_map_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list.bgs_phase > 0)
     {
-      if ((error_num = spider_check_and_init_casual_read(
-        wide_handler->trx->thd, this,
-        roop_count)))
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
         DBUG_RETURN(error_num);
-      if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-        TRUE, FALSE, (roop_count != link_ok))))
-      {
-        if (
-          error_num != HA_ERR_END_OF_FILE &&
-          share->monitoring_kind[roop_count] &&
-          need_mons[roop_count]
-        ) {
-          error_num = spider_ping_table_mon_from_table(
-              wide_handler->trx,
-              wide_handler->trx->thd,
-              share,
-              roop_count,
-              (uint32) share->monitoring_sid[roop_count],
-              share->table_name,
-              share->table_name_length,
-              conn_link_idx[roop_count],
-              NULL,
-              0,
-              share->monitoring_kind[roop_count],
-              share->monitoring_limit[roop_count],
-              share->monitoring_flag[roop_count],
-              TRUE
-            );
-        }
-        DBUG_RETURN(check_error_mode_eof(error_num));
-      }
     } else {
 #endif
-      ulong sql_type;
-        conn = conns[roop_count];
-        if (sql_kind[roop_count] == SPIDER_SQL_KIND_SQL)
-        {
-          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
-        } else {
-          sql_type = SPIDER_SQL_TYPE_HANDLER;
-        }
-      spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      if ((error_num = dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
-      {
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
         DBUG_RETURN(error_num);
-      }
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-      if (
-        is_bulk_access_clone &&
-        !bulk_access_executing &&
-        conn_kind[roop_count] != SPIDER_CONN_KIND_MYSQL
-      ) {
-        connection_ids[roop_count] = conn->connection_id;
-        spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
-      } else {
-#endif
-        conn->need_mon = &need_mons[roop_count];
-        DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = TRUE;
-        conn->mta_conn_mutex_unlock_later = TRUE;
-        if ((error_num = spider_db_set_names(this, conn,
-          roop_count)))
-        {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        spider_conn_set_timeout_from_share(conn, roop_count,
-          wide_handler->trx->thd, share);
-        if (dbton_hdl->execute_sql(
-          sql_type,
-          conn,
-          result_list.quick_mode,
-          &need_mons[roop_count])
-        ) {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          error_num = spider_db_errorno(conn);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        connection_ids[roop_count] = conn->connection_id;
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        if (roop_count == link_ok)
-        {
-          if ((error_num = spider_db_store_result(this, roop_count, table)))
-          {
-            if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          result_link_idx = link_ok;
-        } else {
-          spider_db_discard_result(this, roop_count, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        }
-#ifdef HA_CAN_BULK_ACCESS
-      }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     }
 #endif
@@ -1934,42 +1620,13 @@ int ha_spider::pre_index_read_map(
   enum ha_rkey_function find_flag,
   bool use_parallel
 ) {
-#ifdef HA_CAN_BULK_ACCESS
-  int error_num;
-#endif
   DBUG_ENTER("ha_spider::pre_index_read_map");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_started)
-  {
-    error_num = bulk_access_link_current->spider->pre_index_read_map(key,
-      keypart_map, find_flag, TRUE);
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  } else if (
-    bulk_access_executing && !is_bulk_access_clone &&
-    bulk_access_link_exec_tgt->called
-  ) {
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->pre_index_read_map(key,
-      keypart_map, find_flag, TRUE));
-  }
-#endif
   check_pre_call(use_parallel);
   if (use_pre_call)
   {
     store_error_num =
       index_read_map_internal(NULL, key, keypart_map, find_flag);
-#ifdef HA_CAN_BULK_ACCESS
-    if (
-      !store_error_num &&
-      bulk_access_executing &&
-      is_bulk_access_clone &&
-      !bulk_access_pre_called
-    ) {
-      bulk_req_exec();
-    }
-#endif
     DBUG_RETURN(store_error_num);
   }
   DBUG_RETURN(0);
@@ -1984,59 +1641,6 @@ int ha_spider::index_read_map(
   int error_num;
   DBUG_ENTER("ha_spider::index_read_map");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_ASSERT(!bulk_access_started);
-  if (bulk_access_executing)
-  {
-    if (is_bulk_access_clone)
-    {
-      if (bulk_access_pre_called)
-      {
-        SPIDER_CONN *conn;
-        int roop_count, roop_start, roop_end, tmp_lock_mode, link_ok,
-          tmp_error_num;
-        tmp_lock_mode = spider_conn_lock_mode(this);
-        if (tmp_lock_mode)
-        {
-          /* "for update" or "lock in share mode" */
-          link_ok = spider_conn_link_idx_next(share->link_statuses,
-            conn_link_idx, -1, share->link_count,
-            SPIDER_LINK_STATUS_OK);
-          roop_start = spider_conn_link_idx_next(share->link_statuses,
-            conn_link_idx, -1, share->link_count,
-            SPIDER_LINK_STATUS_RECOVERY);
-          roop_end = share->link_count;
-        } else {
-          link_ok = search_link_idx;
-          roop_start = search_link_idx;
-          roop_end = search_link_idx + 1;
-        }
-        for (roop_count = roop_start; roop_count < roop_end;
-          roop_count = spider_conn_link_idx_next(share->link_statuses,
-            conn_link_idx, roop_count, share->link_count,
-            SPIDER_LINK_STATUS_RECOVERY)
-        ) {
-            conn = conns[roop_count];
-          if ((tmp_error_num = spider_db_bulk_store_result(this, conn,
-            roop_count, (roop_count != link_ok))))
-          {
-            store_error_num = tmp_error_num;
-          } else {
-            result_link_idx = link_ok;
-          }
-        }
-        use_pre_call = TRUE;
-        bulk_access_pre_called = FALSE;
-      } else {
-        /* do access normally */
-      }
-    } else if (bulk_access_link_exec_tgt->called)
-    {
-      DBUG_RETURN(bulk_access_link_exec_tgt->spider->index_read_map(buf, key,
-        keypart_map, find_flag));
-    }
-  }
-#endif
   if (use_pre_call)
   {
     if (store_error_num)
@@ -2066,7 +1670,6 @@ int ha_spider::index_read_last_map_internal(
 ) {
   int error_num;
   key_range start_key;
-  SPIDER_CONN *conn;
   backup_error_status();
   DBUG_ENTER("ha_spider::index_read_last_map_internal");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -2075,9 +1678,7 @@ int ha_spider::index_read_last_map_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -2179,23 +1780,8 @@ int ha_spider::index_read_last_map_internal(
     }
   }
 
-  int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-  tmp_lock_mode = spider_conn_lock_mode(this);
-  if (tmp_lock_mode)
-  {
-    /* "for update" or "lock in share mode" */
-    link_ok = spider_conn_link_idx_next(share->link_statuses,
-      conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_OK);
-    roop_start = spider_conn_link_idx_next(share->link_statuses,
-      conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY);
-    roop_end = share->link_count;
-  } else {
-    link_ok = search_link_idx;
-    roop_start = search_link_idx;
-    roop_end = search_link_idx + 1;
-  }
+  int roop_start, roop_end, roop_count, link_ok;
+  spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
   for (roop_count = roop_start; roop_count < roop_end;
     roop_count = spider_conn_link_idx_next(share->link_statuses,
       conn_link_idx, roop_count, share->link_count,
@@ -2204,180 +1790,12 @@ int ha_spider::index_read_last_map_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list.bgs_phase > 0)
     {
-      if ((error_num = spider_check_and_init_casual_read(
-        wide_handler->trx->thd, this,
-        roop_count)))
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
         DBUG_RETURN(error_num);
-      if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-        TRUE, FALSE, (roop_count != link_ok))))
-      {
-        if (
-          error_num != HA_ERR_END_OF_FILE &&
-          share->monitoring_kind[roop_count] &&
-          need_mons[roop_count]
-        ) {
-          error_num = spider_ping_table_mon_from_table(
-              wide_handler->trx,
-              wide_handler->trx->thd,
-              share,
-              roop_count,
-              (uint32) share->monitoring_sid[roop_count],
-              share->table_name,
-              share->table_name_length,
-              conn_link_idx[roop_count],
-              NULL,
-              0,
-              share->monitoring_kind[roop_count],
-              share->monitoring_limit[roop_count],
-              share->monitoring_flag[roop_count],
-              TRUE
-            );
-        }
-        DBUG_RETURN(check_error_mode_eof(error_num));
-      }
     } else {
 #endif
-      ulong sql_type;
-        conn = conns[roop_count];
-        if (sql_kind[roop_count] == SPIDER_SQL_KIND_SQL)
-        {
-          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
-        } else {
-          sql_type = SPIDER_SQL_TYPE_HANDLER;
-        }
-      spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      if ((error_num = dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
-      {
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
         DBUG_RETURN(error_num);
-      }
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-      if (is_bulk_access_clone)
-      {
-        connection_ids[roop_count] = conn->connection_id;
-        spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
-      } else {
-#endif
-        conn->need_mon = &need_mons[roop_count];
-        DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = TRUE;
-        conn->mta_conn_mutex_unlock_later = TRUE;
-        if ((error_num = spider_db_set_names(this, conn,
-          roop_count)))
-        {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        spider_conn_set_timeout_from_share(conn, roop_count,
-          wide_handler->trx->thd, share);
-        if (dbton_hdl->execute_sql(
-          sql_type,
-          conn,
-          result_list.quick_mode,
-          &need_mons[roop_count])
-        ) {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          error_num = spider_db_errorno(conn);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        connection_ids[roop_count] = conn->connection_id;
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        if (roop_count == link_ok)
-        {
-          if ((error_num = spider_db_store_result(this, roop_count, table)))
-          {
-            if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          result_link_idx = link_ok;
-        } else {
-          spider_db_discard_result(this, roop_count, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        }
-#ifdef HA_CAN_BULK_ACCESS
-      }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     }
 #endif
@@ -2440,21 +1858,6 @@ int ha_spider::index_next(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_ASSERT(!bulk_access_started);
-  if (bulk_access_executing)
-  {
-    if (
-      !is_bulk_access_clone &&
-      bulk_access_link_exec_tgt->called
-    ) {
-      error_num = bulk_access_link_exec_tgt->spider->index_next(buf);
-      if (error_num)
-        DBUG_RETURN(check_error_mode(error_num));
-      DBUG_RETURN(0);
-    }
-  }
-#endif
   if (is_clone)
   {
     DBUG_PRINT("info",("spider set pt_clone_last_searcher to %p",
@@ -2486,21 +1889,6 @@ int ha_spider::index_prev(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_ASSERT(!bulk_access_started);
-  if (bulk_access_executing)
-  {
-    if (
-      !is_bulk_access_clone &&
-      bulk_access_link_exec_tgt->called
-    ) {
-      error_num = bulk_access_link_exec_tgt->spider->index_prev(buf);
-      if (error_num)
-        DBUG_RETURN(check_error_mode(error_num));
-      DBUG_RETURN(0);
-    }
-  }
-#endif
   if (is_clone)
   {
     DBUG_PRINT("info",("spider set pt_clone_last_searcher to %p",
@@ -2524,7 +1912,6 @@ int ha_spider::index_first_internal(
   uchar *buf
 ) {
   int error_num;
-  SPIDER_CONN *conn;
   backup_error_status();
   DBUG_ENTER("ha_spider::index_first_internal");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -2533,9 +1920,7 @@ int ha_spider::index_first_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -2635,206 +2020,22 @@ int ha_spider::index_first_internal(
       }
     }
 
-    int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-    tmp_lock_mode = spider_conn_lock_mode(this);
-    if (tmp_lock_mode)
-    {
-      /* "for update" or "lock in share mode" */
-      link_ok = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_OK);
-      roop_start = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_RECOVERY);
-      roop_end = share->link_count;
-    } else {
-      link_ok = search_link_idx;
-      roop_start = search_link_idx;
-      roop_end = search_link_idx + 1;
-    }
+    int roop_start, roop_end, roop_count, link_ok;
+    spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
     for (roop_count = roop_start; roop_count < roop_end;
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         conn_link_idx, roop_count, share->link_count,
         SPIDER_LINK_STATUS_RECOVERY)
     ) {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-      if (result_list.bgs_phase > 0)
-      {
-        if ((error_num = spider_check_and_init_casual_read(
-          wide_handler->trx->thd, this,
-          roop_count)))
-          DBUG_RETURN(error_num);
-        if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-          TRUE, FALSE, (roop_count != link_ok))))
-        {
-          if (
-            error_num != HA_ERR_END_OF_FILE &&
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-      } else {
+    if (result_list.bgs_phase > 0)
+    {
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
+        DBUG_RETURN(error_num);
+    } else {
 #endif
-        ulong sql_type;
-          conn = conns[roop_count];
-          if (sql_kind[roop_count] == SPIDER_SQL_KIND_SQL)
-          {
-            sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
-          } else {
-            sql_type = SPIDER_SQL_TYPE_HANDLER;
-          }
-        spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-        if ((error_num =
-          dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
-        {
-          DBUG_RETURN(error_num);
-        }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-        if (is_bulk_access_clone)
-        {
-          connection_ids[roop_count] = conn->connection_id;
-          spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        } else {
-#endif
-          conn->need_mon = &need_mons[roop_count];
-          DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = TRUE;
-          conn->mta_conn_mutex_unlock_later = TRUE;
-          if ((error_num = spider_db_set_names(this, conn,
-            roop_count)))
-          {
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          spider_conn_set_timeout_from_share(conn, roop_count,
-            wide_handler->trx->thd, share);
-          if (dbton_hdl->execute_sql(
-            sql_type,
-            conn,
-            result_list.quick_mode,
-            &need_mons[roop_count])
-          ) {
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
-            error_num = spider_db_errorno(conn);
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          connection_ids[roop_count] = conn->connection_id;
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          if (roop_count == link_ok)
-          {
-            if ((error_num = spider_db_store_result(this, roop_count, table)))
-            {
-              if (
-                error_num != HA_ERR_END_OF_FILE &&
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
-              DBUG_RETURN(check_error_mode_eof(error_num));
-            }
-            result_link_idx = link_ok;
-          } else {
-            spider_db_discard_result(this, roop_count, conn);
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-          }
-#ifdef HA_CAN_BULK_ACCESS
-        }
-#endif
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
+        DBUG_RETURN(error_num);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       }
 #endif
@@ -2898,7 +2099,6 @@ int ha_spider::index_last_internal(
   uchar *buf
 ) {
   int error_num;
-  SPIDER_CONN *conn;
   backup_error_status();
   DBUG_ENTER("ha_spider::index_last_internal");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -2907,9 +2107,7 @@ int ha_spider::index_last_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -3009,206 +2207,22 @@ int ha_spider::index_last_internal(
       }
     }
 
-    int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-    tmp_lock_mode = spider_conn_lock_mode(this);
-    if (tmp_lock_mode)
-    {
-      /* "for update" or "lock in share mode" */
-      link_ok = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_OK);
-      roop_start = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_RECOVERY);
-      roop_end = share->link_count;
-    } else {
-      link_ok = search_link_idx;
-      roop_start = search_link_idx;
-      roop_end = search_link_idx + 1;
-    }
+    int roop_start, roop_end, roop_count, link_ok;
+    spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
     for (roop_count = roop_start; roop_count < roop_end;
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         conn_link_idx, roop_count, share->link_count,
         SPIDER_LINK_STATUS_RECOVERY)
     ) {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-      if (result_list.bgs_phase > 0)
-      {
-        if ((error_num = spider_check_and_init_casual_read(
-          wide_handler->trx->thd, this,
-          roop_count)))
-          DBUG_RETURN(error_num);
-        if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-          TRUE, FALSE, (roop_count != link_ok))))
-        {
-          if (
-            error_num != HA_ERR_END_OF_FILE &&
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-      } else {
+    if (result_list.bgs_phase > 0)
+    {
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
+        DBUG_RETURN(error_num);
+    } else {
 #endif
-        ulong sql_type;
-          conn = conns[roop_count];
-          if (sql_kind[roop_count] == SPIDER_SQL_KIND_SQL)
-          {
-            sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
-          } else {
-            sql_type = SPIDER_SQL_TYPE_HANDLER;
-          }
-        spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-        if ((error_num =
-          dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
-        {
-          DBUG_RETURN(error_num);
-        }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-        if (is_bulk_access_clone)
-        {
-          connection_ids[roop_count] = conn->connection_id;
-          spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        } else {
-#endif
-          conn->need_mon = &need_mons[roop_count];
-          DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = TRUE;
-          conn->mta_conn_mutex_unlock_later = TRUE;
-          if ((error_num = spider_db_set_names(this, conn,
-            roop_count)))
-          {
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          spider_conn_set_timeout_from_share(conn, roop_count,
-            wide_handler->trx->thd, share);
-          if (dbton_hdl->execute_sql(
-            sql_type,
-            conn,
-            result_list.quick_mode,
-            &need_mons[roop_count])
-          ) {
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
-            error_num = spider_db_errorno(conn);
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          connection_ids[roop_count] = conn->connection_id;
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          if (roop_count == link_ok)
-          {
-            if ((error_num = spider_db_store_result(this, roop_count, table)))
-            {
-              if (
-                error_num != HA_ERR_END_OF_FILE &&
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
-              DBUG_RETURN(check_error_mode_eof(error_num));
-            }
-            result_link_idx = link_ok;
-          } else {
-            spider_db_discard_result(this, roop_count, conn);
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-          }
-#ifdef HA_CAN_BULK_ACCESS
-        }
-#endif
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
+        DBUG_RETURN(error_num);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       }
 #endif
@@ -3282,22 +2296,6 @@ int ha_spider::index_next_same(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_ASSERT(!bulk_access_started);
-  if (bulk_access_executing)
-  {
-    if (
-      !is_bulk_access_clone &&
-      bulk_access_link_exec_tgt->called
-    ) {
-      error_num = bulk_access_link_exec_tgt->spider->index_next_same(buf, key,
-        keylen);
-      if (error_num)
-        DBUG_RETURN(check_error_mode(error_num));
-      DBUG_RETURN(0);
-    }
-  }
-#endif
   if (is_clone)
   {
     DBUG_PRINT("info",("spider set pt_clone_last_searcher to %p",
@@ -3325,7 +2323,6 @@ int ha_spider::read_range_first_internal(
   bool sorted
 ) {
   int error_num;
-  SPIDER_CONN *conn;
   backup_error_status();
   DBUG_ENTER("ha_spider::read_range_first_internal");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -3334,9 +2331,7 @@ int ha_spider::read_range_first_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if (
     start_key &&
     start_key->flag >= HA_READ_MBR_CONTAIN &&
@@ -3442,23 +2437,8 @@ int ha_spider::read_range_first_internal(
     }
   }
 
-  int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-  tmp_lock_mode = spider_conn_lock_mode(this);
-  if (tmp_lock_mode)
-  {
-    /* "for update" or "lock in share mode" */
-    link_ok = spider_conn_link_idx_next(share->link_statuses,
-      conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_OK);
-    roop_start = spider_conn_link_idx_next(share->link_statuses,
-      conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY);
-    roop_end = share->link_count;
-  } else {
-    link_ok = search_link_idx;
-    roop_start = search_link_idx;
-    roop_end = search_link_idx + 1;
-  }
+  int roop_start, roop_end, roop_count, link_ok;
+  spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
   for (roop_count = roop_start; roop_count < roop_end;
     roop_count = spider_conn_link_idx_next(share->link_statuses,
       conn_link_idx, roop_count, share->link_count,
@@ -3467,180 +2447,12 @@ int ha_spider::read_range_first_internal(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list.bgs_phase > 0)
     {
-      if ((error_num = spider_check_and_init_casual_read(
-        wide_handler->trx->thd, this,
-        roop_count)))
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
         DBUG_RETURN(error_num);
-      if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-        TRUE, FALSE, (roop_count != link_ok))))
-      {
-        if (
-          error_num != HA_ERR_END_OF_FILE &&
-          share->monitoring_kind[roop_count] &&
-          need_mons[roop_count]
-        ) {
-          error_num = spider_ping_table_mon_from_table(
-              wide_handler->trx,
-              wide_handler->trx->thd,
-              share,
-              roop_count,
-              (uint32) share->monitoring_sid[roop_count],
-              share->table_name,
-              share->table_name_length,
-              conn_link_idx[roop_count],
-              NULL,
-              0,
-              share->monitoring_kind[roop_count],
-              share->monitoring_limit[roop_count],
-              share->monitoring_flag[roop_count],
-              TRUE
-            );
-        }
-        DBUG_RETURN(check_error_mode_eof(error_num));
-      }
     } else {
 #endif
-      ulong sql_type;
-        conn = conns[roop_count];
-        if (sql_kind[roop_count] == SPIDER_SQL_KIND_SQL)
-        {
-          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
-        } else {
-          sql_type = SPIDER_SQL_TYPE_HANDLER;
-        }
-      spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      if ((error_num = dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
-      {
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
         DBUG_RETURN(error_num);
-      }
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-      if (is_bulk_access_clone)
-      {
-        connection_ids[roop_count] = conn->connection_id;
-        spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
-      } else {
-#endif
-        conn->need_mon = &need_mons[roop_count];
-        DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = TRUE;
-        conn->mta_conn_mutex_unlock_later = TRUE;
-        if ((error_num = spider_db_set_names(this, conn,
-          roop_count)))
-        {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        spider_conn_set_timeout_from_share(conn, roop_count,
-          wide_handler->trx->thd, share);
-        if (dbton_hdl->execute_sql(
-          sql_type,
-          conn,
-          result_list.quick_mode,
-          &need_mons[roop_count])
-        ) {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          error_num = spider_db_errorno(conn);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        connection_ids[roop_count] = conn->connection_id;
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        if (roop_count == link_ok)
-        {
-          if ((error_num = spider_db_store_result(this, roop_count, table)))
-          {
-            if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          result_link_idx = link_ok;
-        } else {
-          spider_db_discard_result(this, roop_count, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        }
-#ifdef HA_CAN_BULK_ACCESS
-      }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     }
 #endif
@@ -3922,9 +2734,7 @@ int ha_spider::read_multi_range_first_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -4058,23 +2868,8 @@ int ha_spider::read_multi_range_first_internal(
         }
       }
 
-      int roop_start, roop_end, tmp_lock_mode, link_ok;
-      tmp_lock_mode = spider_conn_lock_mode(this);
-      if (tmp_lock_mode)
-      {
-        /* "for update" or "lock in share mode" */
-        link_ok = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_OK);
-        roop_start = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_end = share->link_count;
-      } else {
-        link_ok = search_link_idx;
-        roop_start = search_link_idx;
-        roop_end = search_link_idx + 1;
-      }
+      int roop_start, roop_end, roop_count, link_ok;
+      spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
       for (roop_count = roop_start; roop_count < roop_end;
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           conn_link_idx, roop_count, share->link_count,
@@ -4091,26 +2886,9 @@ int ha_spider::read_multi_range_first_internal(
             TRUE, FALSE, (roop_count != link_ok));
           if (
             error_num &&
-            error_num != HA_ERR_END_OF_FILE &&
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
+            error_num != HA_ERR_END_OF_FILE
           ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
+            error_num= spider_maybe_ping_1(this, roop_count, error_num);
           }
         } else {
 #endif
@@ -4123,65 +2901,18 @@ int ha_spider::read_multi_range_first_internal(
               sql_type = SPIDER_SQL_TYPE_HANDLER;
             }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-          pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if ((error_num =
             dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
           {
             DBUG_RETURN(error_num);
           }
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
           DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-          if (is_bulk_access_clone)
-          {
-            connection_ids[roop_count] = conn->connection_id;
-            spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-            *range_info = (char *) mrr_cur_range.ptr;
-#else
-            *found_range_p = multi_range_curr;
-#endif
-            DBUG_RETURN(0);
-          } else {
-#endif
-            conn->need_mon = &need_mons[roop_count];
-            DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = TRUE;
-            conn->mta_conn_mutex_unlock_later = TRUE;
+            spider_lock_before_query(conn, &need_mons[roop_count]);
             if ((error_num = spider_db_set_names(this, conn,
               roop_count)))
             {
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
-              SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-              pthread_mutex_unlock(&conn->mta_conn_mutex);
-              if (
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
+              spider_unlock_after_query(conn, 0);
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
             }
             if (!error_num)
             {
@@ -4193,77 +2924,28 @@ int ha_spider::read_multi_range_first_internal(
                 result_list.quick_mode,
                 &need_mons[roop_count])
               ) {
-                DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-                DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-                conn->mta_conn_mutex_lock_already = FALSE;
-                conn->mta_conn_mutex_unlock_later = FALSE;
-                error_num = spider_db_errorno(conn);
-                if (
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
-                ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
-                }
+                error_num= spider_unlock_after_query_1(conn);
+                error_num= spider_maybe_ping_1(this, roop_count, error_num);
               }
             }
             if (!error_num)
             {
               connection_ids[roop_count] = conn->connection_id;
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
               if (roop_count == link_ok)
               {
-                error_num = spider_db_store_result(this, roop_count, table);
+                error_num = spider_unlock_after_query_2(conn, this, roop_count, table);
                 if (
                   error_num &&
-                  error_num != HA_ERR_END_OF_FILE &&
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
+                  error_num != HA_ERR_END_OF_FILE
                 ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
+                  error_num= spider_maybe_ping_1(this, roop_count, error_num);
                 }
                 result_link_idx = link_ok;
               } else {
                 spider_db_discard_result(this, roop_count, conn);
-                SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-                pthread_mutex_unlock(&conn->mta_conn_mutex);
+                spider_unlock_after_query(conn, 0);
               }
             }
-#ifdef HA_CAN_BULK_ACCESS
-          }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         }
 #endif
@@ -4808,10 +3490,8 @@ int ha_spider::read_multi_range_first_internal(
           DBUG_RETURN(error_num);
         result_list.use_union = TRUE;
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
         bool direct_aggregate_backup = result_list.direct_aggregate;
         result_list.direct_aggregate = FALSE;
-#endif
         if (result_list.direct_order_limit)
         {
           if ((error_num =
@@ -4823,9 +3503,7 @@ int ha_spider::read_multi_range_first_internal(
             NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
             DBUG_RETURN(error_num);
         }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
         result_list.direct_aggregate = direct_aggregate_backup;
-#endif
         if ((error_num = append_limit_sql_part(
           result_list.internal_offset,
           result_list.limit_num,
@@ -4835,24 +3513,8 @@ int ha_spider::read_multi_range_first_internal(
         }
       }
 
-      int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-      tmp_lock_mode = spider_conn_lock_mode(this);
-      if (tmp_lock_mode)
-      {
-        /* "for update" or "lock in share mode" */
-        link_ok = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_OK);
-        roop_start = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_end = share->link_count;
-      } else {
-        link_ok = search_link_idx;
-        roop_start = search_link_idx;
-        roop_end = search_link_idx + 1;
-      }
-
+      int roop_start, roop_end, roop_count, link_ok;
+      spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
       for (roop_count = roop_start; roop_count < roop_end;
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           conn_link_idx, roop_count, share->link_count,
@@ -4869,26 +3531,9 @@ int ha_spider::read_multi_range_first_internal(
             TRUE, FALSE, (roop_count != link_ok))))
           {
             if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
+              error_num != HA_ERR_END_OF_FILE
             ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
             }
             break;
           }
@@ -4903,66 +3548,19 @@ int ha_spider::read_multi_range_first_internal(
               sql_type = SPIDER_SQL_TYPE_HANDLER;
             }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-          pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if ((error_num =
             dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
           {
             DBUG_RETURN(error_num);
           }
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
           sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
           DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-          if (is_bulk_access_clone)
-          {
-            connection_ids[roop_count] = conn->connection_id;
-            spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-            *range_info = multi_range_keys[multi_range_hit_point];
-#else
-            *found_range_p = &multi_range_ranges[multi_range_hit_point];
-#endif
-            DBUG_RETURN(0);
-          } else {
-#endif
-            conn->need_mon = &need_mons[roop_count];
-            DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = TRUE;
-            conn->mta_conn_mutex_unlock_later = TRUE;
+            spider_lock_before_query(conn, &need_mons[roop_count]);
             if ((error_num = spider_db_set_names(this, conn,
               roop_count)))
             {
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
-              SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-              pthread_mutex_unlock(&conn->mta_conn_mutex);
-              if (
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
+              spider_unlock_after_query(conn, 0);
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
               break;
             }
             if (
@@ -4980,32 +3578,8 @@ int ha_spider::read_multi_range_first_internal(
                 -1,
                 &need_mons[roop_count])
               ) {
-                DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-                DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-                conn->mta_conn_mutex_lock_already = FALSE;
-                conn->mta_conn_mutex_unlock_later = FALSE;
-                error_num = spider_db_errorno(conn);
-                if (
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
-                ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
-                }
+                error_num= spider_unlock_after_query_1(conn);
+                error_num= spider_maybe_ping_1(this, roop_count, error_num);
                 break;
               }
               spider_db_discard_multiple_result(this, roop_count, conn);
@@ -5018,76 +3592,27 @@ int ha_spider::read_multi_range_first_internal(
               result_list.quick_mode,
               &need_mons[roop_count])
             ) {
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
-              error_num = spider_db_errorno(conn);
-              if (
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
+              error_num= spider_unlock_after_query_1(conn);
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
               break;
             }
             connection_ids[roop_count] = conn->connection_id;
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
             if (roop_count == link_ok)
             {
-              if ((error_num = spider_db_store_result(this, roop_count, table)))
+              if ((error_num = spider_unlock_after_query_2(conn, this, roop_count, table)))
               {
                 if (
-                  error_num != HA_ERR_END_OF_FILE &&
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
+                  error_num != HA_ERR_END_OF_FILE
                 ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
+                  error_num= spider_maybe_ping_1(this, roop_count, error_num);
                 }
                 break;
               }
               result_link_idx = link_ok;
             } else {
               spider_db_discard_result(this, roop_count, conn);
-              SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-              pthread_mutex_unlock(&conn->mta_conn_mutex);
+              spider_unlock_after_query(conn, 0);
             }
-#ifdef HA_CAN_BULK_ACCESS
-          }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         }
 #endif
@@ -5473,23 +3998,8 @@ int ha_spider::read_multi_range_next(
         }
       }
 
-      int roop_start, roop_end, tmp_lock_mode, link_ok;
-      tmp_lock_mode = spider_conn_lock_mode(this);
-      if (tmp_lock_mode)
-      {
-        /* "for update" or "lock in share mode" */
-        link_ok = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_OK);
-        roop_start = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_end = share->link_count;
-      } else {
-        link_ok = search_link_idx;
-        roop_start = search_link_idx;
-        roop_end = search_link_idx + 1;
-      }
+      int roop_start, roop_end, roop_count, link_ok;
+      spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
       for (roop_count = roop_start; roop_count < roop_end;
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           conn_link_idx, roop_count, share->link_count,
@@ -5506,26 +4016,9 @@ int ha_spider::read_multi_range_next(
             TRUE, FALSE, (roop_count != link_ok));
           if (
             error_num &&
-            error_num != HA_ERR_END_OF_FILE &&
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
+            error_num != HA_ERR_END_OF_FILE
           ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
+            error_num= spider_maybe_ping_1(this, roop_count, error_num);
           }
         } else {
 #endif
@@ -5538,65 +4031,18 @@ int ha_spider::read_multi_range_next(
               sql_type = SPIDER_SQL_TYPE_HANDLER;
             }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-          pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if ((error_num =
             dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
           {
             DBUG_RETURN(error_num);
           }
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
           DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-          if (is_bulk_access_clone)
-          {
-            connection_ids[roop_count] = conn->connection_id;
-            spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-            *range_info = multi_range_keys[multi_range_hit_point];
-#else
-            *found_range_p = &multi_range_ranges[multi_range_hit_point];
-#endif
-            DBUG_RETURN(0);
-          } else {
-#endif
-            conn->need_mon = &need_mons[roop_count];
-            DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = TRUE;
-            conn->mta_conn_mutex_unlock_later = TRUE;
+            spider_lock_before_query(conn, &need_mons[roop_count]);
             if ((error_num = spider_db_set_names(this, conn,
               roop_count)))
             {
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
-              SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-              pthread_mutex_unlock(&conn->mta_conn_mutex);
-              if (
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
+              spider_unlock_after_query(conn, 0);
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
             }
             if (!error_num)
             {
@@ -5608,77 +4054,28 @@ int ha_spider::read_multi_range_next(
                 result_list.quick_mode,
                 &need_mons[roop_count])
               ) {
-                DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-                DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-                conn->mta_conn_mutex_lock_already = FALSE;
-                conn->mta_conn_mutex_unlock_later = FALSE;
-                error_num = spider_db_errorno(conn);
-                if (
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
-                ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
-                }
+                error_num= spider_unlock_after_query_1(conn);
+                error_num= spider_maybe_ping_1(this, roop_count, error_num);
               }
             }
             if (!error_num)
             {
               connection_ids[roop_count] = conn->connection_id;
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
               if (roop_count == link_ok)
               {
-                error_num = spider_db_store_result(this, roop_count, table);
+                error_num = spider_unlock_after_query_2(conn, this, roop_count, table);
                 if (
                   error_num &&
-                  error_num != HA_ERR_END_OF_FILE &&
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
+                  error_num != HA_ERR_END_OF_FILE
                 ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
+                  error_num= spider_maybe_ping_1(this, roop_count, error_num);
                 }
                 result_link_idx = link_ok;
               } else {
                 spider_db_discard_result(this, roop_count, conn);
-                SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-                pthread_mutex_unlock(&conn->mta_conn_mutex);
+                spider_unlock_after_query(conn, 0);
               }
             }
-#ifdef HA_CAN_BULK_ACCESS
-          }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         }
 #endif
@@ -6223,10 +4620,8 @@ int ha_spider::read_multi_range_next(
           DBUG_RETURN(error_num);
         result_list.use_union = TRUE;
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
         bool direct_aggregate_backup = result_list.direct_aggregate;
         result_list.direct_aggregate = FALSE;
-#endif
         if (result_list.direct_order_limit)
         {
           if ((error_num =
@@ -6238,9 +4633,7 @@ int ha_spider::read_multi_range_next(
             NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
             DBUG_RETURN(error_num);
         }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
         result_list.direct_aggregate = direct_aggregate_backup;
-#endif
         if ((error_num = append_limit_sql_part(
           result_list.internal_offset,
           result_list.limit_num,
@@ -6250,23 +4643,8 @@ int ha_spider::read_multi_range_next(
         }
       }
 
-      int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-      tmp_lock_mode = spider_conn_lock_mode(this);
-      if (tmp_lock_mode)
-      {
-        /* "for update" or "lock in share mode" */
-        link_ok = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_OK);
-        roop_start = spider_conn_link_idx_next(share->link_statuses,
-          conn_link_idx, -1, share->link_count,
-          SPIDER_LINK_STATUS_RECOVERY);
-        roop_end = share->link_count;
-      } else {
-        link_ok = search_link_idx;
-        roop_start = search_link_idx;
-        roop_end = search_link_idx + 1;
-      }
+      int roop_start, roop_end, roop_count, link_ok;
+      spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
       for (roop_count = roop_start; roop_count < roop_end;
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           conn_link_idx, roop_count, share->link_count,
@@ -6283,26 +4661,9 @@ int ha_spider::read_multi_range_next(
             TRUE, FALSE, (roop_count != link_ok))))
           {
             if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
+              error_num != HA_ERR_END_OF_FILE
             ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
             }
             break;
           }
@@ -6317,66 +4678,19 @@ int ha_spider::read_multi_range_next(
               sql_type = SPIDER_SQL_TYPE_HANDLER;
             }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-          pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if ((error_num =
             dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
           {
             DBUG_RETURN(error_num);
           }
-          pthread_mutex_lock(&conn->mta_conn_mutex);
-          SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
           sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
           DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-#ifdef HA_CAN_BULK_ACCESS
-          if (is_bulk_access_clone)
-          {
-            connection_ids[roop_count] = conn->connection_id;
-            spider_trx_add_bulk_access_conn(wide_handler->trx, conn);
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-            *range_info = multi_range_keys[multi_range_hit_point];
-#else
-            *found_range_p = &multi_range_ranges[multi_range_hit_point];
-#endif
-            DBUG_RETURN(0);
-          } else {
-#endif
-            conn->need_mon = &need_mons[roop_count];
-            DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = TRUE;
-            conn->mta_conn_mutex_unlock_later = TRUE;
+            spider_lock_before_query(conn, &need_mons[roop_count]);
             if ((error_num = spider_db_set_names(this, conn,
               roop_count)))
             {
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
-              SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-              pthread_mutex_unlock(&conn->mta_conn_mutex);
-              if (
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
+              spider_unlock_after_query(conn, 0);
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
               break;
             }
             if (
@@ -6394,32 +4708,8 @@ int ha_spider::read_multi_range_next(
                 -1,
                 &need_mons[roop_count])
               ) {
-                DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-                DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-                conn->mta_conn_mutex_lock_already = FALSE;
-                conn->mta_conn_mutex_unlock_later = FALSE;
-                error_num = spider_db_errorno(conn);
-                if (
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
-                ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
-                }
+                error_num= spider_unlock_after_query_1(conn);
+                error_num= spider_maybe_ping_1(this, roop_count, error_num);
                 break;
               }
               spider_db_discard_multiple_result(this, roop_count, conn);
@@ -6432,76 +4722,27 @@ int ha_spider::read_multi_range_next(
               result_list.quick_mode,
               &need_mons[roop_count])
             ) {
-              DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-              DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-              conn->mta_conn_mutex_lock_already = FALSE;
-              conn->mta_conn_mutex_unlock_later = FALSE;
-              error_num = spider_db_errorno(conn);
-              if (
-                share->monitoring_kind[roop_count] &&
-                need_mons[roop_count]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    roop_count,
-                    (uint32) share->monitoring_sid[roop_count],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[roop_count],
-                    NULL,
-                    0,
-                    share->monitoring_kind[roop_count],
-                    share->monitoring_limit[roop_count],
-                    share->monitoring_flag[roop_count],
-                    TRUE
-                  );
-              }
+              error_num= spider_unlock_after_query_1(conn);
+              error_num= spider_maybe_ping_1(this, roop_count, error_num);
               break;
             }
             connection_ids[roop_count] = conn->connection_id;
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
             if (roop_count == link_ok)
             {
-              if ((error_num = spider_db_store_result(this, roop_count, table)))
+              if ((error_num = spider_unlock_after_query_2(conn, this, roop_count, table)))
               {
                 if (
-                  error_num != HA_ERR_END_OF_FILE &&
-                  share->monitoring_kind[roop_count] &&
-                  need_mons[roop_count]
+                  error_num != HA_ERR_END_OF_FILE
                 ) {
-                  error_num = spider_ping_table_mon_from_table(
-                      wide_handler->trx,
-                      wide_handler->trx->thd,
-                      share,
-                      roop_count,
-                      (uint32) share->monitoring_sid[roop_count],
-                      share->table_name,
-                      share->table_name_length,
-                      conn_link_idx[roop_count],
-                      NULL,
-                      0,
-                      share->monitoring_kind[roop_count],
-                      share->monitoring_limit[roop_count],
-                      share->monitoring_flag[roop_count],
-                      TRUE
-                    );
+                  error_num= spider_maybe_ping_1(this, search_link_idx, error_num);
                 }
                 break;
               }
               result_link_idx = link_ok;
             } else {
               spider_db_discard_result(this, roop_count, conn);
-              SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-              pthread_mutex_unlock(&conn->mta_conn_mutex);
+              spider_unlock_after_query(conn, 0);
             }
-#ifdef HA_CAN_BULK_ACCESS
-          }
-#endif
 #ifndef WITHOUT_SPIDER_BG_SEARCH
         }
 #endif
@@ -6641,10 +4882,6 @@ int ha_spider::rnd_init(
     }
   }
   pushed_pos = NULL;
-/*
-  if (wide_handler->external_lock_type == F_WRLCK)
-    check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
-*/
   rnd_scan_and_first = scan;
   if (
     scan &&
@@ -6738,15 +4975,6 @@ int ha_spider::rnd_init(
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::pre_rnd_init(
-  bool scan
-) {
-  DBUG_ENTER("ha_spider::pre_rnd_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_rnd_init(scan));
-}
-#endif
 
 int ha_spider::rnd_end()
 {
@@ -6770,14 +4998,6 @@ int ha_spider::rnd_end()
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::pre_rnd_end()
-{
-  DBUG_ENTER("ha_spider::pre_rnd_end");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_rnd_end());
-}
-#endif
 
 int ha_spider::rnd_next_internal(
   uchar *buf
@@ -6796,9 +5016,7 @@ int ha_spider::rnd_next_internal(
   /* do not copy table data at alter table */
   if (wide_handler->sql_command == SQLCOM_ALTER_TABLE)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
 
   if (rnd_scan_and_first)
   {
@@ -6870,14 +5088,12 @@ int ha_spider::rnd_next_internal(
           NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
     }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     else if (result_list.direct_aggregate)
     {
       if ((error_num =
         append_group_by_sql_part(NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
     }
-#endif
     result_list.desc_flg = FALSE;
     result_list.sorted = FALSE;
     result_list.key_info = NULL;
@@ -6911,194 +5127,22 @@ int ha_spider::rnd_next_internal(
       }
     }
 
-    int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-    tmp_lock_mode = spider_conn_lock_mode(this);
-    if (tmp_lock_mode)
-    {
-      /* "for update" or "lock in share mode" */
-      link_ok = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_OK);
-      roop_start = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_RECOVERY);
-      roop_end = share->link_count;
-    } else {
-      link_ok = search_link_idx;
-      roop_start = search_link_idx;
-      roop_end = search_link_idx + 1;
-    }
+    int roop_start, roop_end, roop_count, link_ok;
+    spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
     for (roop_count = roop_start; roop_count < roop_end;
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         conn_link_idx, roop_count, share->link_count,
         SPIDER_LINK_STATUS_RECOVERY)
     ) {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-      if (result_list.bgs_phase > 0)
-      {
-        if ((error_num = spider_check_and_init_casual_read(
-          wide_handler->trx->thd, this,
-          roop_count)))
-          DBUG_RETURN(error_num);
-        if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-          TRUE, FALSE, (roop_count != link_ok))))
-        {
-          if (
-            error_num != HA_ERR_END_OF_FILE &&
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-      } else {
+    if (result_list.bgs_phase > 0)
+    {
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
+        DBUG_RETURN(error_num);
+    } else {
 #endif
-        SPIDER_CONN *conn = conns[roop_count];
-        ulong sql_type;
-        if (sql_kind[roop_count] == SPIDER_SQL_KIND_SQL)
-        {
-          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
-        } else {
-          sql_type = SPIDER_SQL_TYPE_HANDLER;
-        }
-        spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-        if ((error_num =
-          dbton_hdl->set_sql_for_exec(sql_type, roop_count)))
-        {
-          DBUG_RETURN(error_num);
-        }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
-        conn->need_mon = &need_mons[roop_count];
-        DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = TRUE;
-        conn->mta_conn_mutex_unlock_later = TRUE;
-        if ((error_num = spider_db_set_names(this, conn,
-          roop_count)))
-        {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        spider_conn_set_timeout_from_share(conn, roop_count,
-          wide_handler->trx->thd, share);
-        if (dbton_hdl->execute_sql(
-          sql_type,
-          conn,
-          result_list.quick_mode,
-          &need_mons[roop_count])
-        ) {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          error_num = spider_db_errorno(conn);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        connection_ids[roop_count] = conn->connection_id;
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        if (roop_count == link_ok)
-        {
-          if ((error_num = spider_db_store_result(this, roop_count, table)))
-          {
-            if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          result_link_idx = link_ok;
-        } else {
-          spider_db_discard_result(this, roop_count, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        }
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
+        DBUG_RETURN(error_num);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       }
 #endif
@@ -7162,6 +5206,8 @@ int ha_spider::rnd_next(
       DBUG_RETURN(error_num);
     use_pre_call = FALSE;
   }
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
+    DBUG_RETURN(error_num);
   DBUG_RETURN(rnd_next_internal(buf));
 }
 
@@ -7500,14 +5546,12 @@ int ha_spider::ft_read_internal(
           SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
     }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     else if (result_list.direct_aggregate)
     {
       if ((error_num =
         append_group_by_sql_part(NULL, 0, SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
     }
-#endif
     if (sql_kinds & SPIDER_SQL_KIND_SQL)
     {
       if ((error_num = append_limit_sql_part(
@@ -7535,186 +5579,22 @@ int ha_spider::ft_read_internal(
       }
     }
 
-    int roop_start, roop_end, roop_count, tmp_lock_mode, link_ok;
-    tmp_lock_mode = spider_conn_lock_mode(this);
-    if (tmp_lock_mode)
-    {
-      /* "for update" or "lock in share mode" */
-      link_ok = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_OK);
-      roop_start = spider_conn_link_idx_next(share->link_statuses,
-        conn_link_idx, -1, share->link_count,
-        SPIDER_LINK_STATUS_RECOVERY);
-      roop_end = share->link_count;
-    } else {
-      link_ok = search_link_idx;
-      roop_start = search_link_idx;
-      roop_end = search_link_idx + 1;
-    }
+    int roop_start, roop_end, roop_count, link_ok;
+    spider_prep_loop(this, &roop_start, &roop_end, &link_ok);
     for (roop_count = roop_start; roop_count < roop_end;
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         conn_link_idx, roop_count, share->link_count,
         SPIDER_LINK_STATUS_RECOVERY)
     ) {
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-      if (result_list.bgs_phase > 0)
-      {
-        if ((error_num = spider_check_and_init_casual_read(
-          wide_handler->trx->thd, this,
-          roop_count)))
-          DBUG_RETURN(error_num);
-        if ((error_num = spider_bg_conn_search(this, roop_count, roop_start,
-          TRUE, FALSE, (roop_count != link_ok))))
-        {
-          if (
-            error_num != HA_ERR_END_OF_FILE &&
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-      } else {
+    if (result_list.bgs_phase > 0)
+    {
+      if (spider_start_bg(this, roop_count, roop_start, link_ok, &error_num))
+        DBUG_RETURN(error_num);
+    } else {
 #endif
-        uint dbton_id = share->sql_dbton_ids[roop_count];
-        spider_db_handler *dbton_hdl = dbton_handler[dbton_id];
-        SPIDER_CONN *conn = conns[roop_count];
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-        if ((error_num = dbton_hdl->set_sql_for_exec(
-          SPIDER_SQL_TYPE_SELECT_SQL, roop_count)))
-        {
-          DBUG_RETURN(error_num);
-        }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        conn->need_mon = &need_mons[roop_count];
-        DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = TRUE;
-        conn->mta_conn_mutex_unlock_later = TRUE;
-        if ((error_num = spider_db_set_names(this, conn, roop_count)))
-        {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        spider_conn_set_timeout_from_share(conn, roop_count,
-          wide_handler->trx->thd, share);
-        if (dbton_hdl->execute_sql(
-          SPIDER_SQL_TYPE_SELECT_SQL,
-          conn,
-          result_list.quick_mode,
-          &need_mons[roop_count])
-        ) {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          error_num = spider_db_errorno(conn);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode_eof(error_num));
-        }
-        connection_ids[roop_count] = conn->connection_id;
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        if (roop_count == link_ok)
-        {
-          if ((error_num = spider_db_store_result(this, roop_count, table)))
-          {
-            if (
-              error_num != HA_ERR_END_OF_FILE &&
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode_eof(error_num));
-          }
-          result_link_idx = link_ok;
-        } else {
-          spider_db_discard_result(this, roop_count, conn);
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        }
+      if (spider_send_query(this, table, roop_count, link_ok, &error_num))
+        DBUG_RETURN(error_num);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       }
 #endif
@@ -7788,17 +5668,8 @@ int ha_spider::info(
   DBUG_ENTER("ha_spider::info");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider flag=%x", flag));
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   auto_inc_temporary = FALSE;
-#endif
   wide_handler->sql_command = thd_sql_command(thd);
-/*
-  if (
-    sql_command == SQLCOM_DROP_TABLE ||
-    sql_command == SQLCOM_ALTER_TABLE ||
-    sql_command == SQLCOM_SHOW_CREATE
-  ) {
-*/
     if (flag & HA_STATUS_AUTO)
     {
       if (share->lgtm_tblhnd_share->auto_increment_value)
@@ -7806,9 +5677,7 @@ int ha_spider::info(
           share->lgtm_tblhnd_share->auto_increment_value;
       else {
         stats.auto_increment_value = 1;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
         auto_inc_temporary = TRUE;
-#endif
       }
     }
     if (
@@ -7833,9 +5702,7 @@ int ha_spider::info(
     {
       tmp_auto_increment_mode = spider_param_auto_increment_mode(thd,
         share->auto_increment_mode);
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
       info_auto_called = TRUE;
-#endif
     }
     if (!share->sts_init)
     {
@@ -7904,8 +5771,7 @@ int ha_spider::info(
             pthread_mutex_lock(&share->sts_mutex);
           if (difftime(tmp_time, share->sts_get_time) >= sts_interval)
           {
-            if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this,
-              FALSE)))
+            if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
             {
               pthread_mutex_unlock(&share->sts_mutex);
               if (!share->sts_init)
@@ -7946,27 +5812,7 @@ int ha_spider::info(
                 flag | (share->sts_init ? 0 : HA_STATUS_AUTO)))
             ) {
               pthread_mutex_unlock(&share->sts_mutex);
-              if (
-                share->monitoring_kind[search_link_idx] &&
-                need_mons[search_link_idx]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    search_link_idx,
-                    (uint32) share->monitoring_sid[search_link_idx],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[search_link_idx],
-                    NULL,
-                    0,
-                    share->monitoring_kind[search_link_idx],
-                    share->monitoring_limit[search_link_idx],
-                    share->monitoring_flag[search_link_idx],
-                    TRUE
-                  );
-              }
+              error_num= spider_maybe_ping_1(this, search_link_idx, error_num);
               if (!share->sts_init)
               {
                 if (
@@ -8083,9 +5929,7 @@ int ha_spider::info(
     }
     if (flag & HA_STATUS_AUTO)
     {
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
       auto_inc_temporary = FALSE;
-#endif
       if (share->wide_share && table->next_number_field)
       {
         ulonglong first_value, nb_reserved_values;
@@ -8235,27 +6079,7 @@ ha_rows ha_spider::records_in_range(
               share->crd_init ? 2 : 1)))
             {
               pthread_mutex_unlock(&share->crd_mutex);
-              if (
-                share->monitoring_kind[search_link_idx] &&
-                need_mons[search_link_idx]
-              ) {
-                error_num = spider_ping_table_mon_from_table(
-                    wide_handler->trx,
-                    wide_handler->trx->thd,
-                    share,
-                    search_link_idx,
-                    (uint32) share->monitoring_sid[search_link_idx],
-                    share->table_name,
-                    share->table_name_length,
-                    conn_link_idx[search_link_idx],
-                    NULL,
-                    0,
-                    share->monitoring_kind[search_link_idx],
-                    share->monitoring_limit[search_link_idx],
-                    share->monitoring_flag[search_link_idx],
-                    TRUE
-                  );
-              }
+              error_num= spider_maybe_ping_1(this, search_link_idx, error_num);
               if (!share->crd_init)
               {
                 if (
@@ -8510,7 +6334,7 @@ int ha_spider::check_crd()
   }
   if (crd_mode == 3)
     crd_mode = 1;
-  if ((error_num = spider_check_trx_and_get_conn(ha_thd(), this, FALSE)))
+  if ((error_num= spider_check_trx_and_get_conn(ha_thd(), this)))
   {
     DBUG_RETURN(check_error_mode(error_num));
   }
@@ -8543,27 +6367,7 @@ int ha_spider::check_crd()
             share->crd_init ? 2 : 1)))
           {
             pthread_mutex_unlock(&share->crd_mutex);
-            if (
-              share->monitoring_kind[search_link_idx] &&
-              need_mons[search_link_idx]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  search_link_idx,
-                  (uint32) share->monitoring_sid[search_link_idx],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[search_link_idx],
-                  NULL,
-                  0,
-                  share->monitoring_kind[search_link_idx],
-                  share->monitoring_limit[search_link_idx],
-                  share->monitoring_flag[search_link_idx],
-                  TRUE
-                );
-            }
+            error_num= spider_maybe_ping_1(this, search_link_idx, error_num);
             if (!share->crd_init)
             {
               if (
@@ -8690,7 +6494,6 @@ ha_rows ha_spider::records()
   DBUG_RETURN(table_rows);
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 int ha_spider::pre_calculate_checksum()
 {
   int error_num;
@@ -8768,7 +6571,6 @@ int ha_spider::calculate_checksum()
   }
   DBUG_RETURN(0);
 }
-#endif
 
 const char *ha_spider::table_type() const
 {
@@ -8803,8 +6605,6 @@ ulonglong ha_spider::table_flags() const
 #endif
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
     HA_CAN_TABLE_CONDITION_PUSHDOWN |
-#endif
-#ifdef HA_CAN_BULK_ACCESS
 #endif
     SPIDER_CAN_BG_SEARCH |
     SPIDER_CAN_BG_INSERT |
@@ -8929,7 +6729,6 @@ uint8 ha_spider::table_cache_type()
   DBUG_RETURN(HA_CACHE_TBL_NOCACHE);
 }
 
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
 bool ha_spider::need_info_for_auto_inc()
 {
   THD *thd = ha_thd();
@@ -8950,9 +6749,7 @@ bool ha_spider::need_info_for_auto_inc()
     )
   ));
 }
-#endif
 
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
 bool ha_spider::can_use_for_auto_inc_init()
 {
   DBUG_ENTER("ha_spider::can_use_for_auto_inc_init");
@@ -8964,7 +6761,6 @@ bool ha_spider::can_use_for_auto_inc_init()
     !auto_inc_temporary
   ));
 }
-#endif
 
 int ha_spider::update_auto_increment()
 {
@@ -9107,16 +6903,10 @@ void ha_spider::release_auto_increment()
   DBUG_VOID_RETURN;
 }
 
-#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
 void ha_spider::start_bulk_insert(
   ha_rows rows,
   uint flags
 )
-#else
-void ha_spider::start_bulk_insert(
-  ha_rows rows
-)
-#endif
 {
   DBUG_ENTER("ha_spider::start_bulk_insert");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -9159,30 +6949,6 @@ int ha_spider::write_row(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    ulonglong option_backup = 0;
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_bulk_insert(this));
-    }
-    option_backup = thd->variables.option_bits;
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
-    error_num = bulk_access_link_exec_tgt->spider->ha_write_row(buf);
-    thd->variables.option_bits = option_backup;
-    DBUG_RETURN(error_num);
-  }
-#endif
   if (!dml_inited)
   {
     if (unlikely((error_num = dml_init())))
@@ -9259,12 +7025,8 @@ int ha_spider::write_row(
       DBUG_RETURN(check_error_mode(error_num));
     if (bulk_insert)
       bulk_size =
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
         (wide_handler->insert_with_update &&
           !result_list.insert_dup_update_pushdown) ||
-#else
-        wide_handler->insert_with_update ||
-#endif
         (!direct_dup_insert && wide_handler->ignore_dup_key) ?
         0 : spider_param_bulk_size(wide_handler->trx->thd, share->bulk_size);
     else
@@ -9273,37 +7035,10 @@ int ha_spider::write_row(
   if ((error_num = spider_db_bulk_insert(this, table, &copy_info, FALSE)))
     DBUG_RETURN(check_error_mode(error_num));
 
-#ifdef HA_CAN_BULK_ACCESS
-  /* bulk access disabled case (like using partitioning) */
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_bulk_insert(this));
-  }
-#endif
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::pre_write_row(
-  uchar *buf
-) {
-  int error_num;
-  ulonglong option_backup = 0;
-  THD *thd = wide_handler->trx->thd;
-  DBUG_ENTER("ha_spider::pre_write_row");
-  DBUG_PRINT("info",("spider this=%p", this));
-  option_backup = thd->variables.option_bits;
-  thd->variables.option_bits &= ~OPTION_BIN_LOG;
-  error_num = bulk_access_link_current->spider->ha_write_row(buf);
-  bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-  bulk_access_link_current->called = TRUE;
-  thd->variables.option_bits = option_backup;
-  DBUG_RETURN(error_num);
-}
-#endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 void ha_spider::direct_update_init(
   THD *thd,
   bool hs_request
@@ -9313,7 +7048,6 @@ void ha_spider::direct_update_init(
   do_direct_update = TRUE;
   DBUG_VOID_RETURN;
 }
-#endif
 
 bool ha_spider::start_bulk_update(
 ) {
@@ -9349,19 +7083,11 @@ int ha_spider::end_bulk_update(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::bulk_update_row(
   const uchar *old_data,
   const uchar *new_data,
   ha_rows *dup_key_found
 )
-#else
-int ha_spider::bulk_update_row(
-  const uchar *old_data,
-  uchar *new_data,
-  ha_rows *dup_key_found
-)
-#endif
 {
   DBUG_ENTER("ha_spider::bulk_update_row");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -9369,17 +7095,10 @@ int ha_spider::bulk_update_row(
   DBUG_RETURN(update_row(old_data, new_data));
 }
 
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::update_row(
   const uchar *old_data,
   const uchar *new_data
 )
-#else
-int ha_spider::update_row(
-  const uchar *old_data,
-  uchar *new_data
-)
-#endif
 {
   int error_num;
   THD *thd = ha_thd();
@@ -9392,26 +7111,10 @@ int ha_spider::update_row(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing && !is_bulk_access_clone &&
-    bulk_access_link_exec_tgt->called
-  ) {
-    ulonglong option_backup = 0;
-    option_backup = thd->variables.option_bits;
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
-    error_num = bulk_access_link_exec_tgt->spider->ha_update_row(
-      old_data, new_data);
-    thd->variables.option_bits = option_backup;
-    DBUG_RETURN(error_num);
-  }
-#endif
 #ifndef SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
   ha_statistic_increment(&SSV::ha_update_count);
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if ((error_num = spider_db_update(this, table, old_data)))
     DBUG_RETURN(check_error_mode(error_num));
   if (table->found_next_number_field &&
@@ -9455,7 +7158,6 @@ int ha_spider::update_row(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 bool ha_spider::check_direct_update_sql_part(
   st_select_lex *select_lex,
   longlong select_limit,
@@ -9479,7 +7181,6 @@ bool ha_spider::check_direct_update_sql_part(
 }
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
 int ha_spider::direct_update_rows_init(
   List<Item> *update_fields,
   uint mode,
@@ -9488,15 +7189,6 @@ int ha_spider::direct_update_rows_init(
   bool sorted,
   uchar *new_data
 )
-#else
-int ha_spider::direct_update_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#endif
 {
   st_select_lex *select_lex;
   longlong select_limit;
@@ -9504,32 +7196,6 @@ int ha_spider::direct_update_rows_init(
   THD *thd = wide_handler->trx->thd;
   DBUG_ENTER("ha_spider::direct_update_rows_init");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      DBUG_PRINT("info",("spider return pre_direct_init_result %d",
-        pre_direct_init_result));
-      DBUG_RETURN(pre_direct_init_result);
-    }
-#ifdef SPIDER_MDEV_16246
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
-      update_fields, mode, ranges, range_count, sorted, new_data));
-#else
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data));
-#endif
-  }
-#endif
   if (!dml_inited)
   {
     if (unlikely((error_num = dml_init())))
@@ -9604,7 +7270,6 @@ int ha_spider::direct_update_rows_init(
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 #else
-#ifdef SPIDER_MDEV_16246
 /**
   Perform initialization for a direct update request.
 
@@ -9617,9 +7282,6 @@ int ha_spider::direct_update_rows_init(
 int ha_spider::direct_update_rows_init(
   List<Item> *update_fields
 )
-#else
-int ha_spider::direct_update_rows_init()
-#endif
 {
   st_select_lex *select_lex;
   longlong select_limit;
@@ -9651,31 +7313,6 @@ int ha_spider::direct_update_rows_init()
       }
     }
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      DBUG_PRINT("info",("spider return pre_direct_init_result %d",
-        pre_direct_init_result));
-      DBUG_RETURN(pre_direct_init_result);
-    }
-#ifdef SPIDER_MDEV_16246
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->
-      direct_update_rows_init(update_fields));
-#else
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init());
-#endif
-  }
-#endif
   if (!dml_inited)
   {
     if (unlikely(dml_init()))
@@ -9746,112 +7383,6 @@ int ha_spider::direct_update_rows_init()
 }
 #endif
 
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
-int ha_spider::pre_direct_update_rows_init(
-  List<Item> *update_fields,
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#else
-int ha_spider::pre_direct_update_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#endif
-{
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-#ifdef SPIDER_MDEV_16246
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(
-      update_fields, mode, ranges, range_count, sorted, new_data);
-#else
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data);
-#endif
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-#ifdef SPIDER_MDEV_16246
-  pre_direct_init_result = direct_update_rows_init(
-    update_fields, mode, ranges, range_count, sorted, new_data);
-#else
-  pre_direct_init_result = direct_update_rows_init(
-    mode, ranges, range_count, sorted, new_data);
-#endif
-  DBUG_RETURN(pre_direct_init_result);
-}
-#else
-#ifdef SPIDER_MDEV_16246
-/**
-  Do initialization for performing parallel direct update
-  for a handlersocket update request.
-
-  @param  update fields       Pointer to the list of fields to update.
-
-  @return >0                  Error.
-          0                   Success.
-*/
-
-int ha_spider::pre_direct_update_rows_init(
-  List<Item> *update_fields
-)
-#else
-int ha_spider::pre_direct_update_rows_init()
-#endif
-{
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-#ifdef SPIDER_MDEV_16246
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(update_fields);
-#else
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init();
-#endif
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-#ifdef SPIDER_MDEV_16246
-  pre_direct_init_result = direct_update_rows_init(update_fields);
-#else
-  pre_direct_init_result = direct_update_rows_init();
-#endif
-  DBUG_RETURN(pre_direct_init_result);
-}
-#endif
-#endif
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int ha_spider::direct_update_rows(
@@ -9873,26 +7404,6 @@ int ha_spider::direct_update_rows(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_direct_update(this, update_rows, found_rows));
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_direct_update_rows(
-      ranges, range_count, sorted, new_data, update_rows, found_rows));
-  }
-#endif
   if (
     (active_index != MAX_KEY && (error_num = index_handler_init())) ||
     (active_index == MAX_KEY && (error_num = rnd_handler_init())) ||
@@ -9901,13 +7412,6 @@ int ha_spider::direct_update_rows(
   )
     DBUG_RETURN(check_error_mode(error_num));
 
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_direct_update(this, update_rows, found_rows));
-  }
-#endif
   DBUG_RETURN(0);
 }
 #else
@@ -9926,26 +7430,6 @@ int ha_spider::direct_update_rows(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_direct_update(this, update_rows, found_rows));
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_direct_update_rows(
-      update_rows, found_rows));
-  }
-#endif
   if (
     (active_index != MAX_KEY && (error_num = index_handler_init())) ||
     (active_index == MAX_KEY && (error_num = rnd_handler_init())) ||
@@ -9953,45 +7437,10 @@ int ha_spider::direct_update_rows(
   )
     DBUG_RETURN(check_error_mode(error_num));
 
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_direct_update(this, update_rows, found_rows));
-  }
-#endif
   DBUG_RETURN(0);
 }
 #endif
 
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_update_rows(
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-) {
-  DBUG_ENTER("ha_spider::pre_direct_update_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_direct_update_rows(ranges,
-    range_count, sorted, new_data, update_rows, found_rows));
-}
-#else
-int ha_spider::pre_direct_update_rows()
-{
-  uint update_rows;
-  uint found_rows;
-  DBUG_ENTER("ha_spider::pre_direct_update_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_direct_update_rows(
-    &update_rows, &found_rows));
-}
-#endif
-#endif
-#endif
 
 bool ha_spider::start_bulk_delete(
 ) {
@@ -10025,31 +7474,15 @@ int ha_spider::delete_row(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing && !is_bulk_access_clone &&
-    bulk_access_link_exec_tgt->called
-  ) {
-    ulonglong option_backup = 0;
-    option_backup = thd->variables.option_bits;
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
-    error_num = bulk_access_link_exec_tgt->spider->ha_delete_row(buf);
-    thd->variables.option_bits = option_backup;
-    DBUG_RETURN(error_num);
-  }
-#endif
 #ifndef SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
   ha_statistic_increment(&SSV::ha_delete_count);
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   if ((error_num = spider_db_delete(this, table, buf)))
     DBUG_RETURN(check_error_mode(error_num));
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 bool ha_spider::check_direct_delete_sql_part(
   st_select_lex *select_lex,
   longlong select_limit,
@@ -10085,25 +7518,6 @@ int ha_spider::direct_delete_rows_init(
   THD *thd = wide_handler->trx->thd;
   DBUG_ENTER("ha_spider::direct_delete_rows_init");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      DBUG_RETURN(pre_direct_init_result);
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_delete_rows_init(
-      mode, ranges, range_count, sorted));
-  }
-#endif
   if (!dml_inited)
   {
     if (unlikely((error_num = dml_init())))
@@ -10178,24 +7592,6 @@ int ha_spider::direct_delete_rows_init()
   THD *thd = wide_handler->trx->thd;
   DBUG_ENTER("ha_spider::direct_delete_rows_init");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      DBUG_RETURN(pre_direct_init_result);
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_delete_rows_init());
-  }
-#endif
   if (!dml_inited)
   {
     if (unlikely(dml_init()))
@@ -10246,63 +7642,6 @@ int ha_spider::direct_delete_rows_init()
 }
 #endif
 
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_delete_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted
-) {
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_delete_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-    error_num = bulk_access_link_current->spider->
-      pre_direct_delete_rows_init(
-      mode, ranges, range_count, sorted);
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-  pre_direct_init_result = direct_delete_rows_init(
-    mode, ranges, range_count, sorted);
-  DBUG_RETURN(pre_direct_init_result);
-}
-#else
-int ha_spider::pre_direct_delete_rows_init()
-{
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_delete_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-    error_num = bulk_access_link_current->spider->
-      pre_direct_delete_rows_init();
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-  pre_direct_init_result = direct_delete_rows_init();
-  DBUG_RETURN(pre_direct_init_result);
-}
-#endif
-#endif
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int ha_spider::direct_delete_rows(
@@ -10322,26 +7661,6 @@ int ha_spider::direct_delete_rows(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_direct_update(this, delete_rows));
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_direct_delete_rows(
-      ranges, range_count, sorted, delete_rows));
-  }
-#endif
   if (
     (active_index != MAX_KEY && (error_num = index_handler_init())) ||
     (active_index == MAX_KEY && (error_num = rnd_handler_init())) ||
@@ -10350,13 +7669,6 @@ int ha_spider::direct_delete_rows(
   )
     DBUG_RETURN(check_error_mode(error_num));
 
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_direct_update(this, delete_rows));
-  }
-#endif
   DBUG_RETURN(0);
 }
 #else
@@ -10374,26 +7686,6 @@ int ha_spider::direct_delete_rows(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_direct_update(this, delete_rows));
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_direct_delete_rows(
-      delete_rows));
-  }
-#endif
   if (
     (active_index != MAX_KEY && (error_num = index_handler_init())) ||
     (active_index == MAX_KEY && (error_num = rnd_handler_init())) ||
@@ -10401,42 +7693,10 @@ int ha_spider::direct_delete_rows(
   )
     DBUG_RETURN(check_error_mode(error_num));
 
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_direct_update(this, delete_rows));
-  }
-#endif
   DBUG_RETURN(0);
 }
 #endif
 
-#ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_delete_rows(
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  ha_rows *delete_rows
-) {
-  DBUG_ENTER("ha_spider::pre_direct_delete_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_direct_delete_rows(
-    ranges, range_count, sorted, delete_rows));
-}
-#else
-int ha_spider::pre_direct_delete_rows()
-{
-  uint delete_rows;
-  DBUG_ENTER("ha_spider::pre_direct_delete_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_direct_delete_rows(
-    &delete_rows));
-}
-#endif
-#endif
-#endif
 
 int ha_spider::delete_all_rows()
 {
@@ -10461,13 +7721,11 @@ int ha_spider::truncate()
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
   wide_handler->sql_command = SQLCOM_TRUNCATE;
-  if ((error_num = spider_check_trx_and_get_conn(thd, this, FALSE)))
+  if ((error_num= spider_check_trx_and_get_conn(thd, this)))
   {
     DBUG_RETURN(error_num);
   }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
-#endif
   sql_kinds = SPIDER_SQL_KIND_SQL;
   for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
     sql_kind[roop_count] = SPIDER_SQL_KIND_SQL;
@@ -10490,59 +7748,6 @@ int ha_spider::truncate()
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-void ha_spider::bulk_req_exec()
-{
-  int need_mon;
-  SPIDER_CONN *conn = wide_handler->trx->bulk_access_conn_first;
-  DBUG_ENTER("ha_spider::bulk_req_exec");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider trx=%p", wide_handler->trx));
-  DBUG_PRINT("info",("spider first_conn=%p", conn));
-  while (conn)
-  {
-    DBUG_PRINT("info",("spider conn=%p", conn));
-    DBUG_PRINT("info",("spider conn->bulk_access_requests=%u",
-      conn->bulk_access_requests));
-    if (conn->bulk_access_requests)
-    {
-      spider_bg_conn_wait(conn);
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      conn->need_mon = &need_mon;
-      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = TRUE;
-      conn->mta_conn_mutex_unlock_later = TRUE;
-      /* currently only used for HS */
-      conn->bulk_access_error_num = 0;
-      if (spider_db_query(
-        conn,
-        NULL,
-        0,
-        -1,
-        &need_mon)
-      ) {
-        conn->bulk_access_error_num = spider_db_errorno(conn);
-      }
-/*
-      conn->bulk_access_sended += conn->bulk_access_requests;
-*/
-      conn->bulk_access_requests = 0;
-      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = FALSE;
-      conn->mta_conn_mutex_unlock_later = FALSE;
-      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      pthread_mutex_unlock(&conn->mta_conn_mutex);
-    }
-    conn = conn->bulk_access_next;
-  }
-  wide_handler->trx->bulk_access_conn_first = NULL;
-  DBUG_VOID_RETURN;
-}
-#endif
 
 double ha_spider::scan_time()
 {
@@ -10681,16 +7886,11 @@ int ha_spider::create(
   memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   tmp_share.table_name = (char*) name;
   tmp_share.table_name_length = strlen(name);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   tmp_share.table_name_hash_value = my_calc_hash(&trx->trx_alter_table_hash,
     (uchar*) tmp_share.table_name, tmp_share.table_name_length);
   tmp_share.lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     name, tmp_share.table_name_length, tmp_share.table_name_hash_value,
     FALSE, TRUE, &error_num);
-#else
-  tmp_share.lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-    name, tmp_share.table_name_length, FALSE, TRUE, &error_num);
-#endif
   if (!tmp_share.lgtm_tblhnd_share)
   {
     goto error;
@@ -10734,7 +7934,6 @@ int ha_spider::create(
     ) {
       goto error;
     }
-#ifdef SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
     if (
       thd->lex->create_info.or_replace() &&
       (error_num = spider_delete_tables(
@@ -10745,7 +7944,6 @@ int ha_spider::create(
     ) {
       goto error;
     }
-#endif
     if (
       (error_num = spider_insert_tables(table_tables, &tmp_share))
     ) {
@@ -10763,16 +7961,10 @@ int ha_spider::create(
       spider_free_trx_alter_table(trx);
       trx->query_id = thd->query_id;
     }
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     if (!(alter_table =
       (SPIDER_ALTER_TABLE*) my_hash_search_using_hash_value(
       &trx->trx_alter_table_hash, tmp_share.table_name_hash_value,
       (uchar*) tmp_share.table_name, tmp_share.table_name_length)))
-#else
-    if (!(alter_table =
-      (SPIDER_ALTER_TABLE*) my_hash_search(&trx->trx_alter_table_hash,
-      (uchar*) tmp_share.table_name, tmp_share.table_name_length)))
-#endif
     {
       if ((error_num = spider_create_trx_alter_table(trx, &tmp_share, TRUE)))
         goto error;
@@ -10855,6 +8047,8 @@ void ha_spider::update_create_info(
   DBUG_PRINT("info",("spider this=%p", this));
   if (wide_handler && wide_handler->sql_command == SQLCOM_ALTER_TABLE)
   {
+    if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &store_error_num)))
+      DBUG_VOID_RETURN;
     SPIDER_TRX *trx = wide_handler->trx;
     THD *thd = trx->thd;
     if (trx->query_id != thd->query_id)
@@ -10897,12 +8091,10 @@ int ha_spider::rename_table(
 ) {
   int error_num, roop_count, old_link_count, from_len = strlen(from),
     to_len = strlen(to), tmp_error_num;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type from_hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) from, from_len);
   my_hash_value_type to_hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) to, to_len);
-#endif
   THD *thd = ha_thd();
   uint sql_command = thd_sql_command(thd);
   SPIDER_TRX *trx;
@@ -11070,22 +8262,12 @@ int ha_spider::rename_table(
   }
 
   pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   from_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     from, from_len, from_hash_value, TRUE, FALSE, &error_num);
-#else
-  from_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-    from, from_len, TRUE, FALSE, &error_num);
-#endif
   if (from_lgtm_tblhnd_share)
   {
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
       to, to_len, to_hash_value, TRUE, TRUE, &error_num);
-#else
-    to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-      to, to_len, TRUE, TRUE, &error_num);
-#endif
     if (!to_lgtm_tblhnd_share)
     {
       pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
@@ -11111,13 +8293,8 @@ error:
     spider_close_sys_table(current_thd, table_tables,
       &open_tables_backup, need_lock);
   pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     to, to_len, to_hash_value, TRUE, FALSE, &tmp_error_num);
-#else
-  to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-    to, to_len, TRUE, FALSE, &tmp_error_num);
-#endif
   if (to_lgtm_tblhnd_share)
     spider_free_lgtm_tblhnd_share_alloc(to_lgtm_tblhnd_share, TRUE);
   pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
@@ -11165,22 +8342,14 @@ int ha_spider::delete_table(
   {
     SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
     int roop_count, old_link_count = 0, name_len = strlen(name);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
       (uchar*) name, name_len);
-#endif
     if (
       sql_command == SQLCOM_ALTER_TABLE &&
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       (alter_table =
         (SPIDER_ALTER_TABLE*) my_hash_search_using_hash_value(
         &trx->trx_alter_table_hash,
         hash_value, (uchar*) name, name_len)) &&
-#else
-      (alter_table =
-        (SPIDER_ALTER_TABLE*) my_hash_search(&trx->trx_alter_table_hash,
-        (uchar*) name, name_len)) &&
-#endif
       alter_table->now_create
     )
       DBUG_RETURN(0);
@@ -11231,13 +8400,8 @@ int ha_spider::delete_table(
     }
 
     pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
       name, name_len, hash_value, TRUE, FALSE, &error_num);
-#else
-    lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-      name, name_len, TRUE, FALSE, &error_num);
-#endif
     if (lgtm_tblhnd_share)
       spider_free_lgtm_tblhnd_share_alloc(lgtm_tblhnd_share, TRUE);
     pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
@@ -11394,12 +8558,6 @@ Field *ha_spider::field_exchange(
   Field *field
 ) {
   DBUG_ENTER("ha_spider::field_exchange");
-#ifdef HA_CAN_BULK_ACCESS
-  if (is_bulk_access_clone)
-  {
-    DBUG_RETURN(pt_clone_source_handler->field_exchange(field));
-  }
-#endif
   DBUG_PRINT("info",("spider in field=%p", field));
   DBUG_PRINT("info",("spider in field->table=%p", field->table));
   DBUG_PRINT("info",("spider table=%p", table));
@@ -11477,35 +8635,9 @@ int ha_spider::info_push(
   wide_handler->stage = SPD_HND_STAGE_INFO_PUSH;
   wide_handler->stage_executor = this;
 #endif
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-#endif
-    info_type != INFO_KIND_BULK_ACCESS_BEGIN &&
-    info_type != INFO_KIND_BULK_ACCESS_CURRENT &&
-    info_type != INFO_KIND_BULK_ACCESS_END
-  ) {
-    if (!is_bulk_access_clone)
-    {
-      if (
-        bulk_access_executing &&
-        bulk_access_link_exec_tgt->called
-      ) {
-        DBUG_RETURN(bulk_access_link_exec_tgt->spider->info_push(info_type,
-          info));
-      } else if (bulk_access_started)
-      {
-        DBUG_RETURN(bulk_access_link_current->spider->info_push(info_type,
-          info));
-      }
-    }
-  }
-#endif
 
-#if defined(HANDLER_HAS_DIRECT_UPDATE_ROWS) || defined(HA_CAN_BULK_ACCESS)
   switch (info_type)
   {
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef INFO_KIND_UPDATE_FIELDS
     case INFO_KIND_UPDATE_FIELDS:
       DBUG_PRINT("info",("spider INFO_KIND_UPDATE_FIELDS"));
@@ -11533,74 +8665,12 @@ int ha_spider::info_push(
       wide_handler->info_limit = 9223372036854775807LL;
       break;
 #endif
-#endif
-#ifdef HA_CAN_BULK_ACCESS
-    case INFO_KIND_BULK_ACCESS_BEGIN:
-      DBUG_PRINT("info",("spider INFO_KIND_BULK_ACCESS_BEGIN"));
-      if (partition_handler && partition_handler->handlers)
-      {
-        size_t roop_count;
-        ha_spider **handlers = partition_handler->handlers;
-        for (roop_count = 0; roop_count < partition_handler->no_parts;
-          ++roop_count)
-        {
-          if ((error_num = handlers[roop_count]->bulk_access_begin(info)))
-          {
-            DBUG_RETURN(error_num);
-          }
-        }
-      } else {
-        if ((error_num = bulk_access_begin(info)))
-        {
-          DBUG_RETURN(error_num);
-        }
-      }
-      break;
-    case INFO_KIND_BULK_ACCESS_CURRENT:
-      DBUG_PRINT("info",("spider INFO_KIND_BULK_ACCESS_CURRENT"));
-      if (partition_handler && partition_handler->handlers)
-      {
-        size_t roop_count;
-        ha_spider **handlers = partition_handler->handlers;
-        for (roop_count = 0; roop_count < partition_handler->no_parts;
-          ++roop_count)
-        {
-          if ((error_num = handlers[roop_count]->bulk_access_current(info)))
-          {
-            DBUG_RETURN(error_num);
-          }
-        }
-      } else {
-        if ((error_num = bulk_access_current(info)))
-        {
-          DBUG_RETURN(error_num);
-        }
-      }
-      break;
-    case INFO_KIND_BULK_ACCESS_END:
-      DBUG_PRINT("info",("spider INFO_KIND_BULK_ACCESS_END"));
-      if (partition_handler && partition_handler->handlers)
-      {
-        size_t roop_count;
-        ha_spider **handlers = partition_handler->handlers;
-        for (roop_count = 0; roop_count < partition_handler->no_parts;
-          ++roop_count)
-        {
-          handlers[roop_count]->bulk_access_end();
-        }
-      } else {
-        bulk_access_end();
-      }
-      break;
-#endif
     default:
       break;
   }
-#endif
   DBUG_RETURN(error_num);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 void ha_spider::return_record_by_parent()
 {
   DBUG_ENTER("ha_spider::return_record_by_parent");
@@ -11608,7 +8678,6 @@ void ha_spider::return_record_by_parent()
   spider_db_refetch_for_item_sum_funcs(this);
   DBUG_VOID_RETURN;
 }
-#endif
 
 TABLE *ha_spider::get_table()
 {
@@ -12172,7 +9241,7 @@ int ha_spider::check_ha_range_eof()
 
 int ha_spider::drop_tmp_tables()
 {
-  int error_num = 0, tmp_error_num, need_mon;
+  int error_num = 0, need_mon;
   DBUG_ENTER("ha_spider::drop_tmp_tables");
   DBUG_PRINT("info",("spider this=%p", this));
   if (result_list.tmp_tables_created)
@@ -12201,51 +9270,19 @@ int ha_spider::drop_tmp_tables()
         uint dbton_id = share->sql_dbton_ids[roop_count];
         spider_db_handler *dbton_hdl = dbton_handler[dbton_id];
         SPIDER_CONN *conn = conns[roop_count];
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if ((error_num = dbton_hdl->set_sql_for_exec(
           SPIDER_SQL_TYPE_TMP_SQL, roop_count)))
         {
           DBUG_RETURN(error_num);
         }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
-        SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        conn->need_mon = &need_mon;
-        DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = TRUE;
-        conn->mta_conn_mutex_unlock_later = TRUE;
-        if ((tmp_error_num = spider_db_set_names(this, conn, roop_count)))
+        spider_lock_before_query(conn, &need_mon);
+        /* todo: double check the logic here w.r.t. tmp_error_num vs error_num */
+        if ((error_num = spider_db_set_names(this, conn, roop_count)))
         {
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            tmp_error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          error_num = tmp_error_num;
+          spider_unlock_after_query(conn, 0);
+          error_num= spider_maybe_ping_1(this, roop_count, error_num);
         }
-        if (!tmp_error_num)
+        if (!error_num)
         {
           spider_conn_set_timeout_from_share(conn, roop_count,
             wide_handler->trx->thd, share);
@@ -12255,40 +9292,10 @@ int ha_spider::drop_tmp_tables()
             -1,
             &need_mons[roop_count])
           ) {
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
-            tmp_error_num = spider_db_errorno(conn);
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              tmp_error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            error_num = tmp_error_num;
+            error_num= spider_unlock_after_query_1(conn);
+            error_num= spider_maybe_ping_1(this, roop_count, error_num);
           } else {
-            DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-            DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-            conn->mta_conn_mutex_lock_already = FALSE;
-            conn->mta_conn_mutex_unlock_later = FALSE;
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
+            spider_unlock_after_query(conn, 0);
           }
         }
         spider_clear_bit(result_list.tmp_table_created, roop_count);
@@ -12300,13 +9307,11 @@ int ha_spider::drop_tmp_tables()
 }
 
 bool ha_spider::handler_opened(
-  int link_idx,
-  uint tgt_conn_kind
+  int link_idx
 ) {
   DBUG_ENTER("ha_spider::handler_opened");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
-  DBUG_PRINT("info",("spider tgt_conn_kind=%u", tgt_conn_kind));
   if (
       spider_bit_is_set(m_handler_opened, link_idx)
   ) {
@@ -12327,8 +9332,7 @@ void ha_spider::set_handler_opened(
 }
 
 void ha_spider::clear_handler_opened(
-  int link_idx,
-  uint tgt_conn_kind
+  int link_idx
 ) {
   DBUG_ENTER("ha_spider::clear_handler_opened");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -12340,37 +9344,16 @@ int ha_spider::close_opened_handler(
   int link_idx,
   bool release_conn
 ) {
-  int error_num = 0, error_num2;
+  int error_num = 0;
   DBUG_ENTER("ha_spider::close_opened_handler");
   DBUG_PRINT("info",("spider this=%p", this));
 
   if (spider_bit_is_set(m_handler_opened, link_idx))
   {
-    if ((error_num2 = spider_db_close_handler(this,
-      conns[link_idx], link_idx, SPIDER_CONN_KIND_MYSQL))
+    if ((error_num = spider_db_close_handler(this,
+      conns[link_idx], link_idx))
     ) {
-      if (
-        share->monitoring_kind[link_idx] &&
-        need_mons[link_idx]
-      ) {
-        error_num2 = spider_ping_table_mon_from_table(
-          wide_handler->trx,
-          wide_handler->trx->thd,
-          share,
-          link_idx,
-          (uint32) share->monitoring_sid[link_idx],
-          share->table_name,
-          share->table_name_length,
-          conn_link_idx[link_idx],
-          NULL,
-          0,
-          share->monitoring_kind[link_idx],
-          share->monitoring_limit[link_idx],
-          share->monitoring_flag[link_idx],
-          TRUE
-        );
-      }
-      error_num = error_num2;
+        error_num= spider_maybe_ping_1(this, link_idx, error_num);
     }
     spider_clear_bit(m_handler_opened, link_idx);
     if (release_conn && !conns[link_idx]->join_trx)
@@ -12405,9 +9388,7 @@ int ha_spider::index_handler_init()
       roop_end = search_link_idx + 1;
     }
     sql_kinds = 0;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     direct_update_kinds = 0;
-#endif
     for (roop_count = roop_start; roop_count < roop_end;
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         conn_link_idx, roop_count, share->link_count,
@@ -12421,28 +9402,7 @@ int ha_spider::index_handler_init()
             conns[roop_count]
           , roop_count))
         ) {
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(error_num);
+          DBUG_RETURN(spider_maybe_ping_1(this, roop_count, error_num));
         }
         set_handler_opened(roop_count);
       }
@@ -12493,9 +9453,7 @@ int ha_spider::rnd_handler_init()
       roop_end = search_link_idx + 1;
     }
     sql_kinds = 0;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     direct_update_kinds = 0;
-#endif
     for (roop_count = roop_start; roop_count < roop_end;
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         conn_link_idx, roop_count, share->link_count,
@@ -12509,30 +9467,12 @@ int ha_spider::rnd_handler_init()
             conns[roop_count]
           , roop_count))
         ) {
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(error_num);
+          DBUG_RETURN(spider_maybe_ping_1(this, roop_count, error_num));
         }
         set_handler_opened(roop_count);
+        spider_db_handler *dbton_hdl=
+          dbton_handler[share->sql_dbton_ids[conn_link_idx[roop_count]]];
+        dbton_hdl->first_link_idx= roop_count;
       }
     }
     if (sql_kinds & SPIDER_SQL_KIND_HANDLER)
@@ -12684,11 +9624,7 @@ void ha_spider::check_pre_call(
     ) ||
     (
       (skip_parallel_search & 2) &&
-#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
       lex->sql_cache == LEX::SQL_NO_CACHE //  for mysqldump
-#else
-      select_lex && select_lex->sql_cache == SELECT_LEX::SQL_NO_CACHE //  for mysqldump
-#endif
     )
   ) {
     use_pre_call = FALSE;
@@ -12718,7 +9654,6 @@ void ha_spider::check_pre_call(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 void ha_spider::check_insert_dup_update_pushdown()
 {
   THD *thd = wide_handler->trx->thd;
@@ -12737,149 +9672,7 @@ void ha_spider::check_insert_dup_update_pushdown()
   }
   DBUG_VOID_RETURN;
 }
-#endif
 
-#ifdef HA_CAN_BULK_ACCESS
-SPIDER_BULK_ACCESS_LINK *ha_spider::create_bulk_access_link()
-{
-  uchar *ref;
-  ha_spider *spider;
-  SPIDER_BULK_ACCESS_LINK *bulk_access_link;
-  DBUG_ENTER("ha_spider::create_bulk_access_link");
-  DBUG_PRINT("info",("spider this=%p", this));
-/*
-  if (!init_ha_mem_root)
-  {
-    SPD_INIT_ALLOC_ROOT(&ha_mem_root, sizeof(ha_spider) * 16,
-      sizeof(ha_spider) * 16, MYF(MY_WME));
-    init_ha_mem_root = TRUE;
-  }
-*/
-  if (!(bulk_access_link = (SPIDER_BULK_ACCESS_LINK *)
-    spider_bulk_malloc(spider_current_trx,  SPD_MID_HA_SPIDER_CREATE_BULK_ACCESS_LINK_1, MYF(MY_WME),
-    &bulk_access_link, (uint) (sizeof(SPIDER_BULK_ACCESS_LINK)),
-    &ref, (uint) (ALIGN_SIZE(ref_length) * 2),
-    NullS))
-  ) {
-    goto error_bulk_malloc;
-  }
-  SPD_INIT_ALLOC_ROOT(&bulk_access_link->mem_root, sizeof(ha_spider), 0,
-    MYF(MY_WME));
-/*
-  if (!(spider = new ha_spider(spider_hton_ptr, table_share)))
-  if (!(spider = (ha_spider *) spider_create_handler(
-    spider_hton_ptr, table_share, &ha_mem_root)))
-*/
-  if (!(spider = (ha_spider *) spider_create_handler(
-    spider_hton_ptr, table_share, &bulk_access_link->mem_root)))
-  {
-    goto error_new_spider;
-  }
-  DBUG_PRINT("info",("spider spider=%p", spider));
-  bulk_access_link->spider = spider;
-  spider->ref = ref;
-  bulk_access_link->next = NULL;
-  spider->is_clone = TRUE;
-  spider->is_bulk_access_clone = TRUE;
-  spider->pt_clone_source_handler = this;
-  if (spider->ha_open(table, share->table_name, table->db_stat,
-    HA_OPEN_IGNORE_IF_LOCKED))
-  {
-    goto error_ha_open;
-  }
-  DBUG_RETURN(bulk_access_link);
-
-error_ha_open:
-  delete spider;
-error_new_spider:
-  free_root(&bulk_access_link->mem_root, MYF(0));
-  spider_free(spider_current_trx, bulk_access_link, MYF(0));
-error_bulk_malloc:
-  DBUG_RETURN(NULL);
-}
-
-void ha_spider::delete_bulk_access_link(
-  SPIDER_BULK_ACCESS_LINK *bulk_access_link
-) {
-  ha_spider *spider = bulk_access_link->spider;
-  DBUG_ENTER("ha_spider::delete_bulk_access_link");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider spider=%p", spider));
-  DBUG_PRINT("info",("spider bulk_access_link->spider->dbton_handler=%p",
-    spider->dbton_handler));
-  DBUG_PRINT("info",("spider ptr bulk_access_link->spider->dbton_handler=%p",
-    &spider->dbton_handler));
-  spider->close();
-  delete spider;
-  free_root(&bulk_access_link->mem_root, MYF(0));
-  spider_free(spider_current_trx, bulk_access_link, MYF(0));
-  DBUG_VOID_RETURN;
-}
-
-int ha_spider::sync_from_clone_source(
-  ha_spider *spider
-) {
-  int error_num;
-  DBUG_ENTER("ha_spider::sync_from_clone_source");
-  sync_from_clone_source_base(spider);
-  if (!synced_from_clone_source)
-  {
-    DBUG_PRINT("info",("spider synced from clone source all"));
-    wide_handler->trx = spider->wide_handler->trx;
-    sql_command = spider->sql_command;
-    wide_handler->external_lock_type =
-      spider->wide_handler->external_lock_type;
-    selupd_lock_mode = spider->selupd_lock_mode;
-    update_request = spider->update_request;
-    lock_mode = spider->lock_mode;
-    high_priority = spider->high_priority;
-    low_priority = spider->low_priority;
-    memcpy(conns, spider->conns,
-      sizeof(SPIDER_CONN *) * share->link_count);
-    spider_thread_id = spider->spider_thread_id;
-    trx_conn_adjustment = spider->trx_conn_adjustment;
-    search_link_idx = spider->search_link_idx;
-    external_lock_cnt = spider->external_lock_cnt;
-    uint roop_count, dbton_id;
-    spider_db_handler *dbton_hdl, *dbton_hdl2;
-    for (roop_count = 0; roop_count < share->use_dbton_count; roop_count++)
-    {
-      dbton_id = share->use_dbton_ids[roop_count];
-      dbton_hdl = dbton_handler[dbton_id];
-      dbton_hdl2 = spider->dbton_handler[dbton_id];
-      dbton_hdl->sync_from_clone_source(dbton_hdl2);
-    }
-    synced_from_clone_source = TRUE;
-  } else if (external_lock_cnt != spider->external_lock_cnt)
-  {
-    DBUG_PRINT("info",("spider synced from clone source"));
-    sql_command = spider->sql_command;
-    wide_handler->external_lock_type =
-      spider->wide_handler->external_lock_type;
-    selupd_lock_mode = spider->selupd_lock_mode;
-    update_request = spider->update_request;
-    lock_mode = spider->lock_mode;
-    high_priority = spider->high_priority;
-    low_priority = spider->low_priority;
-
-    if ((error_num = spider_check_trx_and_get_conn(
-      spider->wide_handler->trx->thd,
-      this, TRUE)))
-    {
-      DBUG_RETURN(error_num);
-    }
-    external_lock_cnt = spider->external_lock_cnt;
-  }
-
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-#endif
-  DBUG_PRINT("info",("spider bulk_access_link->spider->dbton_handler=%p",
-    dbton_handler));
-  DBUG_PRINT("info",("spider ptr bulk_access_link->spider->dbton_handler=%p",
-    &dbton_handler));
-  DBUG_RETURN(0);
-}
-#endif
 
 void ha_spider::sync_from_clone_source_base(
   ha_spider *spider
@@ -12898,6 +9691,15 @@ void ha_spider::sync_from_clone_source_base(
   DBUG_VOID_RETURN;
 }
 
+/*
+  Set the initial values for each dbton_handler's first_link_idx and
+  strict_group_by.
+
+  First, reset first_link_idx to -1.
+  Then, for each active remote server, if the corresponding
+  dbton_handler has not been set yet (first_link_idx == -1), set its
+  first_link_idx to be the index of the connection.
+*/
 void ha_spider::set_first_link_idx()
 {
   int roop_count, all_link_idx;
@@ -12937,6 +9739,16 @@ void ha_spider::set_first_link_idx()
   DBUG_VOID_RETURN;
 }
 
+/*
+  Reset the initial values for each dbton_handler's first_link_idx to
+  -1.
+
+  Also, set the search_link_idx'th active server's first_link_idx to
+  search_link_idx.
+
+  search_link_idx is commonly randomly set using
+  spider_conn_first_link_idx - see the commentary of that function.
+*/
 void ha_spider::reset_first_link_idx()
 {
   int all_link_idx;
@@ -13136,7 +9948,6 @@ int ha_spider::append_update_set_sql_part()
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int ha_spider::append_direct_update_set_sql_part()
 {
   int error_num;
@@ -13157,9 +9968,7 @@ int ha_spider::append_direct_update_set_sql_part()
   DBUG_RETURN(0);
 }
 
-#endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int ha_spider::append_dup_update_pushdown_sql_part(
   const char *alias,
   uint alias_length
@@ -13225,7 +10034,6 @@ int ha_spider::check_update_columns_sql_part()
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int ha_spider::append_delete_sql_part()
 {
@@ -13634,7 +10442,6 @@ int ha_spider::append_condition_sql_part(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int ha_spider::append_sum_select_sql_part(
   ulong sql_type,
   const char *alias,
@@ -13658,7 +10465,6 @@ int ha_spider::append_sum_select_sql_part(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int ha_spider::append_match_select_sql_part(
   ulong sql_type,
@@ -13716,7 +10522,6 @@ void ha_spider::set_order_to_pos_sql(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int ha_spider::append_group_by_sql_part(
   const char *alias,
   uint alias_length,
@@ -13740,7 +10545,6 @@ int ha_spider::append_group_by_sql_part(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int ha_spider::append_key_order_for_merge_with_alias_sql_part(
   const char *alias,
@@ -13751,7 +10555,6 @@ int ha_spider::append_key_order_for_merge_with_alias_sql_part(
   uint roop_count, dbton_id;
   spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::append_key_order_for_merge_with_alias_sql_part");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (result_list.direct_aggregate)
   {
     st_select_lex *select_lex = spider_get_select_lex(this);
@@ -13762,7 +10565,6 @@ int ha_spider::append_key_order_for_merge_with_alias_sql_part(
       DBUG_RETURN(0);
     }
   }
-#endif
   for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];
@@ -13812,7 +10614,6 @@ int ha_spider::append_key_order_with_alias_sql_part(
   uint roop_count, dbton_id;
   spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::append_key_order_with_alias_sql_part");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (result_list.direct_aggregate)
   {
     st_select_lex *select_lex = spider_get_select_lex(this);
@@ -13823,7 +10624,6 @@ int ha_spider::append_key_order_with_alias_sql_part(
       DBUG_RETURN(0);
     }
   }
-#endif
   for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];
@@ -14736,8 +11536,9 @@ int ha_spider::append_lock_tables_list()
   DBUG_PRINT("info",("spider lock_table_type=%u",
     wide_handler->lock_table_type));
 
-  if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this,
-    FALSE)))
+  if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
+    DBUG_RETURN(error_num);
+  if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
   {
     DBUG_RETURN(error_num);
   }
@@ -14831,28 +11632,7 @@ int ha_spider::lock_tables()
               conns[roop_count],
               roop_count)))
         ) {
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
-          DBUG_RETURN(check_error_mode(error_num));
+          DBUG_RETURN(spider_maybe_ping(this, roop_count, error_num));
         }
         reset_first_link_idx();
       }
@@ -14862,29 +11642,8 @@ int ha_spider::lock_tables()
           conns[roop_count]->db_conn->have_lock_table_list() &&
           (error_num = spider_db_lock_tables(this, roop_count))
         ) {
-          if (
-            share->monitoring_kind[roop_count] &&
-            need_mons[roop_count]
-          ) {
-            error_num = spider_ping_table_mon_from_table(
-                wide_handler->trx,
-                wide_handler->trx->thd,
-                share,
-                roop_count,
-                (uint32) share->monitoring_sid[roop_count],
-                share->table_name,
-                share->table_name_length,
-                conn_link_idx[roop_count],
-                NULL,
-                0,
-                share->monitoring_kind[roop_count],
-                share->monitoring_limit[roop_count],
-                share->monitoring_flag[roop_count],
-                TRUE
-              );
-          }
           conns[roop_count]->table_lock = 0;
-          DBUG_RETURN(check_error_mode(error_num));
+          DBUG_RETURN(spider_maybe_ping(this, roop_count, error_num));
         }
         if (conns[roop_count]->table_lock == 2)
           conns[roop_count]->table_lock = 1;
@@ -14898,28 +11657,7 @@ int ha_spider::lock_tables()
             conns[roop_count]->disable_reconnect = FALSE;
           if ((error_num = spider_db_unlock_tables(this, roop_count)))
           {
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  wide_handler->trx,
-                  wide_handler->trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode(error_num));
+            DBUG_RETURN(spider_maybe_ping(this, roop_count, error_num));
           }
         }
       }
@@ -14969,28 +11707,7 @@ int ha_spider::dml_init()
             conns[roop_count],
             roop_count)))
       ) {
-        if (
-          share->monitoring_kind[roop_count] &&
-          need_mons[roop_count]
-        ) {
-          error_num = spider_ping_table_mon_from_table(
-              trx,
-              trx->thd,
-              share,
-              roop_count,
-              (uint32) share->monitoring_sid[roop_count],
-              share->table_name,
-              share->table_name_length,
-              conn_link_idx[roop_count],
-              NULL,
-              0,
-              share->monitoring_kind[roop_count],
-              share->monitoring_limit[roop_count],
-              share->monitoring_flag[roop_count],
-              TRUE
-            );
-        }
-        DBUG_RETURN(check_error_mode(error_num));
+        DBUG_RETURN(spider_maybe_ping(this, roop_count, error_num));
       }
       reset_first_link_idx();
       if (
@@ -15007,129 +11724,17 @@ int ha_spider::dml_init()
           if ((error_num = spider_check_and_set_trx_isolation(
             conns[roop_count], &need_mons[roop_count])))
           {
-            if (
-              share->monitoring_kind[roop_count] &&
-              need_mons[roop_count]
-            ) {
-              error_num = spider_ping_table_mon_from_table(
-                  trx,
-                  trx->thd,
-                  share,
-                  roop_count,
-                  (uint32) share->monitoring_sid[roop_count],
-                  share->table_name,
-                  share->table_name_length,
-                  conn_link_idx[roop_count],
-                  NULL,
-                  0,
-                  share->monitoring_kind[roop_count],
-                  share->monitoring_limit[roop_count],
-                  share->monitoring_flag[roop_count],
-                  TRUE
-                );
-            }
-            DBUG_RETURN(check_error_mode(error_num));
+            DBUG_RETURN(spider_maybe_ping(this, roop_count, error_num));
           }
         }
         conns[roop_count]->semi_trx_isolation = -1;
       }
     }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   if (wide_handler->insert_with_update)
   {
     check_insert_dup_update_pushdown();
   }
-#endif
   dml_inited = TRUE;
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int ha_spider::bulk_access_begin(
-  void *info
-) {
-  DBUG_ENTER("ha_spider::bulk_access_begin");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-    if (!bulk_access_link_current->next)
-    {
-      if (!(bulk_access_link_current->next = create_bulk_access_link()))
-      {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-      bulk_access_link_current->next->sequence_num =
-        bulk_access_link_current->sequence_num + 1;
-    }
-    bulk_access_link_current = bulk_access_link_current->next;
-  } else {
-    if (!bulk_access_link_first)
-    {
-      if (!(bulk_access_link_first = create_bulk_access_link()))
-      {
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-      bulk_access_link_first->sequence_num = 0;
-    }
-    bulk_access_link_current = bulk_access_link_first;
-    bulk_access_started = TRUE;
-    bulk_access_executing = FALSE;
-  }
-  bulk_access_link_current->spider->
-    check_access_kind(wide_handler->trx->thd);
-  if (
-    (error_num = bulk_access_link_current->spider->
-      sync_from_clone_source(this)) ||
-    (error_num = bulk_access_link_current->spider->
-      check_access_kind_for_connection(wide_handler->trx->thd,
-        (lock_type >= TL_WRITE_ALLOW_WRITE)))
-  ) {
-    DBUG_RETURN(error_num);
-  }
-  bulk_access_link_current->spider->bulk_access_executing = FALSE;
-  bulk_access_link_current->spider->bulk_access_pre_called = FALSE;
-  bulk_access_link_current->used = TRUE;
-  bulk_access_link_current->called = FALSE;
-  *((void **) info) = bulk_access_link_current;
-  DBUG_RETURN(0);
-}
-
-int ha_spider::bulk_access_current(
-  void *info
-) {
-  DBUG_ENTER("ha_spider::bulk_access_current");
-  DBUG_PRINT("info",("spider this=%p", this));
-  bulk_access_executing = TRUE;
-  bulk_access_link_exec_tgt = (SPIDER_BULK_ACCESS_LINK *) info;
-  if (bulk_access_link_exec_tgt->spider->pt_clone_source_handler != this)
-  {
-    DBUG_PRINT("info",("spider this=%p", this));
-    DBUG_PRINT("info",("spider pt_clone_source_handler=%p",
-      bulk_access_link_exec_tgt->spider->pt_clone_source_handler));
-    /* partitioned */
-    uint sequence_num = bulk_access_link_exec_tgt->sequence_num;
-    for (
-      bulk_access_link_exec_tgt = bulk_access_link_first;
-      bulk_access_link_exec_tgt;
-      bulk_access_link_exec_tgt = bulk_access_link_exec_tgt->next
-    ) {
-      if (bulk_access_link_exec_tgt->sequence_num >= sequence_num)
-      {
-        DBUG_ASSERT(
-          bulk_access_link_exec_tgt->sequence_num == sequence_num);
-        break;
-      }
-    }
-  }
-  bulk_access_link_exec_tgt->spider->bulk_access_executing = TRUE;
-  DBUG_RETURN(0);
-}
-
-void ha_spider::bulk_access_end()
-{
-  DBUG_ENTER("ha_spider::bulk_access_end");
-  DBUG_PRINT("info",("spider this=%p", this));
-  bulk_access_started = FALSE;
-  DBUG_VOID_RETURN;
-}
-#endif

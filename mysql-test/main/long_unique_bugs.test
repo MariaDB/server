@@ -12,9 +12,11 @@ insert into t1 () values
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),();
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'load.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, unique (e));
 load data infile 'load.data' into table tmp;
 delete from tmp;
@@ -226,9 +228,11 @@ drop table t1;
 --echo #
 CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
 INSERT INTO t1 VALUES ('A');
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --error ER_DUP_ENTRY
 LOAD DATA INFILE 'load.data'  INTO TABLE t1;
 select * from t1;
@@ -242,9 +246,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES ('f'), ('o'), ('o');
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
 SELECT * FROM t1;
@@ -509,9 +515,11 @@ drop table t2;
 --echo #
 create table t1 (pk int primary key, f blob, unique(f)) engine=innodb;
 insert t1 values (1, null);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 't1.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 load data infile 't1.data' replace into table t1;
 select * from t1;
 drop table t1;
@@ -696,6 +704,41 @@ insert into t1 values (1);
 alter table t1 enable keys;
 --error ER_DUP_ENTRY
 insert into t1 values (2);
+drop table t1;
+
+--echo #
+--echo # MDEV-25654 Unexpected ER_CRASHED_ON_USAGE and Assertion `limit >= trx_id' failed in purge_node_t::skip
+--echo #
+create table t1 (a int, unique using hash (a)) engine=innodb
+partition by range(a) (
+  partition p1 values less than (2),
+  partition p2 values less than (101)
+);
+insert into t1 select seq from seq_1_to_100;
+
+alter table t1 add partition (partition p3 values less than (maxvalue));
+alter table t1 force;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-33658 cannot add a foreign key on a table with a long UNIQUE
+--echo # multi-column index, that contains a foreign key as a prefix.
+--echo #
+create table a (id int primary key) engine = innodb;
+create table b (id int,
+                long_text varchar(1000),
+                constraint unique_b unique key (id, long_text)
+                ) engine=innodb default charset utf8mb4;
+
+alter table b add constraint b_fk_id foreign key (id) references a (id);
+show create table b;
+drop table b;
+drop table a;
+
+--echo # veirfy that duplicate has unique is detected
+create table t1 (a blob unique);
+alter table t1 add constraint constraint_1 unique (a);
 drop table t1;
 
 --echo # End of 10.5 tests

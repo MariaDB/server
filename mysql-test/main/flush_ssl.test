@@ -23,7 +23,9 @@ let $restart_parameters=--ssl-key=$ssl_key --ssl-cert=$ssl_cert;
 --source include/start_mysqld.inc
 
 connect  ssl_con,localhost,root,,,,,SSL;
+--disable_cursor_protocol
 SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
+--enable_cursor_protocol
 let $ssl_not_after=`SELECT @ssl_not_after`;
 
 remove_file $ssl_cert;

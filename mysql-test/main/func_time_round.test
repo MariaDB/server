@@ -181,7 +181,10 @@ SELECT YEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 
+#check after fix MDEV-31555
+--disable_cursor_protocol
 SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
+--enable_cursor_protocol
 SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_varchar ORDER BY id;
 
@@ -219,7 +222,10 @@ SELECT DAYNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT MONTHNAME(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT YEARWEEK(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 
+#check after fix MDEV-31555
+--disable_cursor_protocol
 SELECT LAST_DAY(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
+--enable_cursor_protocol
 SELECT TO_DAYS(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT DAYOFYEAR(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;
 SELECT DAYOFMONTH(a), CAST(a AS DATE), a FROM t1_datetime_in_decimal ORDER BY id;

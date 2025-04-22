@@ -1,0 +1,255 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+--disable_ps2_protocol
+#
+# Case 1: Separate transactions from few connections
+#
+--connection node_1
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_1
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+COMMIT;
+
+--connection node_2
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+COMMIT;
+
+--connection node_2a
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+COMMIT;
+
+--connection node_1a
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+COMMIT;
+
+--connection node_2
+SELECT LASTVAL(s);
+--connection node_1
+SELECT LASTVAL(s);
+--connection node_2a
+SELECT LASTVAL(s);
+--connection node_1a
+SELECT LASTVAL(s);
+
+--connection node_1
+SELECT * FROM t1;
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE s;
+
+#
+# Case 2: All rollback
+#
+--connection node_1
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+
+--connection node_1
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+ROLLBACK;
+
+--connection node_2
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+ROLLBACK;
+
+--connection node_2a
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+ROLLBACK;
+
+--connection node_1a
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+ROLLBACK;
+
+--connection node_2
+SELECT LASTVAL(s);
+--connection node_1
+SELECT LASTVAL(s);
+--connection node_2a
+SELECT LASTVAL(s);
+--connection node_1a
+SELECT LASTVAL(s);
+
+--connection node_1
+SELECT * FROM t1;
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE s;
+#
+# Case 3: Mixed transactions
+#
+--connection node_1
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY DEFAULT NEXTVAL(s), f2 INT) ENGINE=InnoDB;
+
+--connection node_1
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+--connection node_1a
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+--connection node_2a
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+--connection node_2
+BEGIN;
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+INSERT INTO t1(f2) values (1);
+
+--connection node_1
+COMMIT;
+--connection node_1a
+ROLLBACK;
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+--connection node_2a
+--error ER_LOCK_DEADLOCK
+ROLLBACK;
+
+--connection node_2
+SELECT LASTVAL(s);
+--connection node_1
+SELECT LASTVAL(s);
+--connection node_2a
+SELECT LASTVAL(s);
+--connection node_1a
+SELECT LASTVAL(s);
+
+--connection node_1
+SELECT * FROM t1;
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+DROP SEQUENCE s;

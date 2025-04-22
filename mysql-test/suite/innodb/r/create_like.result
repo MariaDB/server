@@ -1,0 +1,21 @@
+#
+# MDEV-35144 CREATE TABLE ... LIKE uses current innodb_compression_default instead of the create value
+#
+set innodb_compression_default= off;
+create table t1 (a int, b blob) engine=innodb;
+set innodb_compression_default= on;
+create table s_import like t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` blob DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show create table s_import;
+Table	Create Table
+s_import	CREATE TABLE `s_import` (
+  `a` int(11) DEFAULT NULL,
+  `b` blob DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1,s_import;
+# End of 10.5 tests

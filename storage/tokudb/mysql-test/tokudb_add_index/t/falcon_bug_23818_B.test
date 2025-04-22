@@ -19,9 +19,11 @@ set @a = 5510;
 let $k = 200;
 while ($k)
 {
+    --disable_cursor_protocol
     SELECT @a + 1 into @a;
     SELECT rand(@a) * DEGREES(@a) into @b;
     SELECT FLOOR(MOD(@b,255)) into @c;
+    --enable_cursor_protocol
     SELECT @a, @b, @c;
     UPDATE t1 SET a = a + 1;
     UPDATE t1 SET b = repeat(hex(@c), rand(@c) * 550);

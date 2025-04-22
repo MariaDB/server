@@ -1215,6 +1215,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
       !select_lex->item_list.head()->with_sum_func() &&
+      !select_lex->item_list.head()->with_window_func &&
       /*
 	We can't change name of Item_field or Item_ref, because it will
 	prevent its correct resolving, but we should save name of
@@ -3186,6 +3187,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   set_exists_transformed();
 
   first_select->select_limit= NULL;
+  first_select->explicit_limit= FALSE;
   if (!(in_subs= new (thd->mem_root) Item_in_subselect(thd, left_exp,
                                                          first_select)))
   {
@@ -3752,7 +3754,7 @@ void subselect_single_select_engine::cleanup()
   DBUG_ENTER("subselect_single_select_engine::cleanup");
   prepared= executed= 0;
   join= 0;
-  result->cleanup();
+  result->reset_for_next_ps_execution();
   select_lex->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
   DBUG_VOID_RETURN;
 }
@@ -3762,7 +3764,7 @@ void subselect_union_engine::cleanup()
 {
   DBUG_ENTER("subselect_union_engine::cleanup");
   unit->reinit_exec_mechanism();
-  result->cleanup();
+  result->reset_for_next_ps_execution();
   unit->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
     sl->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
@@ -4972,12 +4974,18 @@ subselect_hash_sj_engine::get_strategy_using_data()
 
 void
 subselect_hash_sj_engine::choose_partial_match_strategy(
-  bool has_non_null_key, bool has_covering_null_row,
+  uint field_count, bool has_non_null_key, bool has_covering_null_row,
   MY_BITMAP *partial_match_key_parts_arg)
 {
   ulonglong pm_buff_size;
 
   DBUG_ASSERT(strategy == PARTIAL_MATCH);
+  if (field_count == 1)
+  {
+    strategy= SINGLE_COLUMN_MATCH;
+    return;
+  }
+
   /*
     Choose according to global optimizer switch. If only one of the switches is
     'ON', then the remaining strategy is the only possible one. The only cases
@@ -5413,7 +5421,8 @@ void subselect_hash_sj_engine::cleanup()
     related engines are created and chosen for each execution.
   */
   item->get_IN_subquery()->engine= materialize_engine;
-  if (lookup_engine_type == TABLE_SCAN_ENGINE ||
+  if (lookup_engine_type == SINGLE_COLUMN_ENGINE ||
+      lookup_engine_type == TABLE_SCAN_ENGINE ||
       lookup_engine_type == ROWID_MERGE_ENGINE)
   {
     subselect_engine *inner_lookup_engine;
@@ -5428,7 +5437,7 @@ void subselect_hash_sj_engine::cleanup()
   }
   DBUG_ASSERT(lookup_engine->engine_type() == UNIQUESUBQUERY_ENGINE);
   lookup_engine->cleanup();
-  result->cleanup(); /* Resets the temp table as well. */
+  result->reset_for_next_ps_execution(); /* Resets the temp table as well. */
   DBUG_ASSERT(tmp_table);
   free_tmp_table(thd, tmp_table);
   tmp_table= NULL;
@@ -5739,8 +5748,9 @@ int subselect_hash_sj_engine::exec()
       item_in->null_value= 1;
       item_in->make_const();
       item_in->set_first_execution();
-      thd->lex->current_select= save_select;
-      DBUG_RETURN(FALSE);
+      res= 0;
+      strategy= CONST_RETURN_NULL;
+      goto err;
     }
 
     if (has_covering_null_row)
@@ -5754,11 +5764,26 @@ int subselect_hash_sj_engine::exec()
       count_pm_keys= count_partial_match_columns - count_null_only_columns +
                      (nn_key_parts ? 1 : 0);
 
-    choose_partial_match_strategy(MY_TEST(nn_key_parts),
+    choose_partial_match_strategy(field_count, MY_TEST(nn_key_parts),
                                   has_covering_null_row,
                                   &partial_match_key_parts);
-    DBUG_ASSERT(strategy == PARTIAL_MATCH_MERGE ||
+    DBUG_ASSERT(strategy == SINGLE_COLUMN_MATCH ||
+                strategy == PARTIAL_MATCH_MERGE ||
                 strategy == PARTIAL_MATCH_SCAN);
+    if (strategy == SINGLE_COLUMN_MATCH)
+    {
+      if (!(pm_engine= new subselect_single_column_match_engine(
+              (subselect_uniquesubquery_engine*) lookup_engine, tmp_table,
+              item, result, semi_join_conds->argument_list(),
+              has_covering_null_row, has_covering_null_columns,
+              count_columns_with_nulls)) ||
+          pm_engine->prepare(thd))
+      {
+        /* This is an irrecoverable error. */
+        res= 1;
+        goto err;
+      }
+    }
     if (strategy == PARTIAL_MATCH_MERGE)
     {
       pm_engine=
@@ -5785,7 +5810,6 @@ int subselect_hash_sj_engine::exec()
         strategy= PARTIAL_MATCH_SCAN;
       }
     }
-
     if (strategy == PARTIAL_MATCH_SCAN)
     {
       if (!(pm_engine=
@@ -5805,12 +5829,12 @@ int subselect_hash_sj_engine::exec()
     }
   }
 
-  item_in->get_materialization_tracker()->report_exec_strategy(strategy);
   if (pm_engine)
     lookup_engine= pm_engine;
   item_in->change_engine(lookup_engine);
 
 err:
+  item_in->get_materialization_tracker()->report_exec_strategy(strategy);
   thd->lex->current_select= save_select;
   DBUG_RETURN(res);
 }
@@ -6016,7 +6040,7 @@ bool Ordered_key::alloc_keys_buffers()
 */
 
 int
-Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
+Ordered_key::cmp_keys_by_row_data(const ha_rows a, const ha_rows b) const
 {
   uchar *rowid_a, *rowid_b;
   int error;
@@ -6058,10 +6082,12 @@ Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 }
 
 
-int
-Ordered_key::cmp_keys_by_row_data_and_rownum(Ordered_key *key,
-                                             rownum_t* a, rownum_t* b)
+int Ordered_key::cmp_keys_by_row_data_and_rownum(void *key_, const void *a_,
+                                                 const void *b_)
 {
+  Ordered_key *key= static_cast<Ordered_key *>(key_);
+  const rownum_t *a= static_cast<const rownum_t *>(a_);
+  const rownum_t *b= static_cast<const rownum_t *>(b_);
   /* The result of comparing the two keys according to their row data. */
   int cmp_row_res= key->cmp_keys_by_row_data(*a, *b);
   if (cmp_row_res)
@@ -6075,7 +6101,7 @@ bool Ordered_key::sort_keys()
   if (tbl->file->ha_rnd_init_with_error(0))
     return TRUE;
   my_qsort2(key_buff, (size_t) key_buff_elements, sizeof(rownum_t),
-            (qsort2_cmp) &cmp_keys_by_row_data_and_rownum, (void*) this);
+            &cmp_keys_by_row_data_and_rownum, (void *) this);
   /* Invalidate the current row position. */
   cur_key_idx= HA_POS_ERROR;
   tbl->file->ha_rnd_end();
@@ -6091,7 +6117,7 @@ bool Ordered_key::sort_keys()
   @retval  0  if only NULLs
 */
 
-double Ordered_key::null_selectivity()
+inline double Ordered_key::null_selectivity() const
 {
   /* We should not be processing empty tables. */
   DBUG_ASSERT(tbl->file->stats.records);
@@ -6223,7 +6249,7 @@ bool Ordered_key::next_same()
 }
 
 
-void Ordered_key::print(String *str)
+void Ordered_key::print(String *str) const
 {
   uint i;
   str->append("{idx=");
@@ -6582,10 +6608,11 @@ void subselect_rowid_merge_engine::cleanup()
   @retval -1  if k1 is more selective than k2
 */
 
-int
-subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
-                                                           Ordered_key **k2)
+int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *k1_,
+                                                               const void *k2_)
 {
+  auto k1= static_cast<const Ordered_key *const *>(k1_);
+  auto k2= static_cast<const Ordered_key *const *>(k2_);
   double k1_sel= (*k1)->null_selectivity();
   double k2_sel= (*k2)->null_selectivity();
   if (k1_sel < k2_sel)
@@ -6599,12 +6626,14 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 /*
 */
 
-int
-subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *arg,
-                                                     uchar *k1, uchar *k2)
+int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *,
+                                                         const void *k1_,
+                                                         const void *k2_)
 {
-  rownum_t r1= ((Ordered_key*) k1)->current();
-  rownum_t r2= ((Ordered_key*) k2)->current();
+  auto k1= static_cast<const Ordered_key *>(k1_);
+  auto k2= static_cast<const Ordered_key *>(k2_);
+  rownum_t r1= k1->current();
+  rownum_t r2= k2->current();
 
   return (r1 < r2) ? -1 : (r1 > r2) ? 1 : 0;
 }
@@ -6974,6 +7003,44 @@ end:
 
 void subselect_table_scan_engine::cleanup()
 {
+}
+
+
+subselect_single_column_match_engine::subselect_single_column_match_engine(
+  subselect_uniquesubquery_engine *engine_arg,
+  TABLE *tmp_table_arg,
+  Item_subselect *item_arg,
+  select_result_interceptor *result_arg,
+  List<Item> *equi_join_conds_arg,
+  bool has_covering_null_row_arg,
+  bool has_covering_null_columns_arg,
+  uint count_columns_with_nulls_arg)
+  :subselect_partial_match_engine(engine_arg, tmp_table_arg, item_arg,
+                                  result_arg, equi_join_conds_arg,
+                                  has_covering_null_row_arg,
+                                  has_covering_null_columns_arg,
+                                  count_columns_with_nulls_arg)
+{}
+
+
+bool subselect_single_column_match_engine::partial_match()
+{
+  /*
+    We get here if:
+    - there is only one column in the materialized table;
+    - its current value of left_expr is NULL (otherwise we would have hit
+         the earlier "index lookup" branch at subselect_partial_match::exec());
+    - the materialized table does not have NULL values (for a similar reason);
+    - the materialized table is not empty.
+    The case when materialization produced no rows (empty table) is handled at
+    subselect_hash_sj_engine::exec(), the result of IN predicate is always
+    FALSE in that case.
+    After all those preconditions met, the result of the partial match is TRUE.
+  */
+  DBUG_ASSERT(item->get_IN_subquery()->left_expr_has_null() &&
+              !has_covering_null_row &&
+              tmp_table->file->stats.records > 0);
+  return true;
 }
 
 

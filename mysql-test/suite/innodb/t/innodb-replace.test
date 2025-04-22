@@ -20,3 +20,67 @@ select * from t1;
 drop table t1;
 
 # End of 4.1 tests
+
+--echo #
+--echo #  MDEV-35115 Inconsistent Replace behaviour when multiple
+--echo #               unique index exist
+--echo #
+let $get_handler_status_counts= SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN ('HANDLER_DELETE','HANDLER_WRITE','HANDLER_READ_KEY','HANDLER_UPDATE');
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $algorithm=`select regexp_replace('$MTR_COMBINATIONS', 'innodb,\|,innodb', '')`;
+
+CREATE TABLE t1 (c1 NUMERIC UNSIGNED NOT NULL,
+                 c2 INT3 UNIQUE,
+                 c3 BIT(2) PRIMARY KEY)ENGINE=InnoDB;
+
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+eval ALTER TABLE t1 ADD UNIQUE INDEX(c1),ALGORITHM=$algorithm;
+INSERT INTO t1 (c1,c2,c3) VALUES (0,0,b'01');
+INSERT INTO t1 (c1,c2,c3) VALUES (1,1,b'10');
+
+FLUSH STATUS;
+
+--disable_ps2_protocol
+eval $get_handler_status_counts;
+--enable_ps2_protocol
+
+# INPLACE algorithm appends the index, so unique index
+# reordering happened between innodb and .frm file. This
+# lead to deletion of 2 existing rows for the replace statement
+
+# COPY algorithm does table rebuild everytime. No reordering
+# happened in this case. This lead to 1 deletion of record
+# and 1 update on the existing record
+REPLACE INTO t1 (c1,c2,c3) VALUES (0,1,b'11');
+
+--disable_ps2_protocol
+eval $get_handler_status_counts;
+--enable_ps2_protocol
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (f1 INT NOT NULL PRIMARY KEY,
+                 f2 INT, f3 INT, f4 INT,
+                 UNIQUE INDEX i1(f2))ENGINE=InnoDB;
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+eval ALTER TABLE t1 ADD INDEX i3(f4),ALGORITHM=$algorithm;
+
+replace_result ,ALGORITHM=COPY '' ,ALGORITHM=INPLACE '';
+eval ALTER TABLE t1 ADD UNIQUE INDEX i2(f3),ALGORITHM=$algorithm;
+
+INSERT INTO t1 VALUES (0,0,0,0);
+INSERT INTO t1 VALUES (1,1,1,1);
+
+FLUSH STATUS;
+--disable_ps2_protocol
+eval $get_handler_status_counts;
+--enable_ps2_protocol
+
+REPLACE INTO t1 VALUES (0,0,1,1);
+
+--disable_ps2_protocol
+eval $get_handler_status_counts;
+--enable_ps2_protocol
+
+DROP TABLE t1;

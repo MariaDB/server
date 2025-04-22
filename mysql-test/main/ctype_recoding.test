@@ -74,13 +74,12 @@ SHOW TABLES IN РЕЯР;
 SET CHARACTER SET koi8r;
 DROP DATABASE тест;
 
-# Enable view protocol after fix MDEV-27944
---disable_view_protocol
+--disable_service_connection
 SET NAMES koi8r;
 SELECT hex('тест');
 SET character_set_connection=cp1251;
 SELECT hex('тест');
---enable_view_protocol
+--enable_service_connection
 USE test;
 
 # Bug#4417

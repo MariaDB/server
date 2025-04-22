@@ -3,6 +3,7 @@ connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_1;
 SET DEBUG_SYNC = 'wsrep_create_table_as_select WAIT_FOR continue';
 CREATE table t1 as SELECT SLEEP(0.1);;
@@ -17,14 +18,30 @@ connection node_1b;
 SET SESSION debug_sync = 'now WAIT_FOR sync.wsrep_apply_cb_reached';
 # Signal first CTAS to continue and wait until CTAS has executed
 SET DEBUG_SYNC= 'now SIGNAL continue';
+connection node_2b;
+# Wait first CTAS to replicate
+SELECT * FROM t1;
+SLEEP(0.2)
+0
+connection node_1b;
 SET GLOBAL debug_dbug= '';
 SET DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
 connection node_2a;
 connection node_1b;
 SET DEBUG_SYNC= 'RESET';
 connection node_2;
+SELECT * FROM t1;
+SLEEP(0.2)
+0
 connection node_1;
+SELECT * FROM t1;
+SLEEP(0.2)
+0
 DROP TABLE t1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_2a;
+disconnect node_2b;
 disconnect node_2;
 disconnect node_1;
 # End of test

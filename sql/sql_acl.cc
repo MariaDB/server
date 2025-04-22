@@ -54,6 +54,7 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
+#include "scope.h"
 
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
@@ -78,7 +79,7 @@ const char *safe_vio_type_name(Vio *vio)
   return vio_type_name(vio_type(vio), &unused);
 }
 
-#include "sql_acl_getsort.ic"
+#include "sql_acl_getsort.inl"
 
 static LEX_CSTRING native_password_plugin_name= {
   STRING_WITH_LEN("mysql_native_password")
@@ -538,18 +539,20 @@ public:
 };
 
 
-static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)))
+static const uchar *acl_entry_get_key(const void *entry_, size_t *length,
+                                      my_bool)
 {
+  auto entry= static_cast<const acl_entry *>(entry_);
   *length=(uint) entry->length;
-  return (uchar*) entry->key;
+  return reinterpret_cast<const uchar *>(entry->key);
 }
 
-static uchar* acl_role_get_key(ACL_ROLE *entry, size_t *length,
-                               my_bool not_used __attribute__((unused)))
+static const uchar *acl_role_get_key(const void *entry_, size_t *length,
+                                     my_bool)
 {
+  auto entry= static_cast<const ACL_ROLE *>(entry_);
   *length=(uint) entry->user.length;
-  return (uchar*) entry->user.str;
+  return reinterpret_cast<const uchar *>(entry->user.str);
 }
 
 struct ROLE_GRANT_PAIR : public Sql_alloc
@@ -564,11 +567,12 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
             const char *rolename, bool with_admin_option);
 };
 
-static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
-                                  my_bool not_used __attribute__((unused)))
+static const uchar *acl_role_map_get_key(const void *entry_, size_t *length,
+                                         my_bool)
 {
+  auto entry= static_cast<const ROLE_GRANT_PAIR *>(entry_);
   *length=(uint) entry->hashkey.length;
-  return (uchar*) entry->hashkey.str;
+  return reinterpret_cast<const uchar *>(entry->hashkey.str);
 }
 
 bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
@@ -657,7 +661,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0U, 50U);
-typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
@@ -675,10 +678,10 @@ static DYNAMIC_ARRAY acl_wild_hosts;
 static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
+static int acl_compare(const void *a, const void *b);
+static int acl_user_compare(const void *a, const void *b);
 static void rebuild_acl_users();
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
+static int acl_db_compare(const void *a, const void *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
 static void rebuild_check_host(void);
@@ -695,9 +698,9 @@ static bool add_role_user_mapping(const char *uname, const char *hname, const ch
 static bool get_YN_as_bool(Field *field);
 
 #define ROLE_CYCLE_FOUND 2
-static int traverse_role_graph_up(ACL_ROLE *, void *,
-                                  int (*) (ACL_ROLE *, void *),
-                                  int (*) (ACL_ROLE *, ACL_ROLE *, void *));
+static int
+traverse_role_graph_up(ACL_ROLE *, void *, int (*)(ACL_USER_BASE *, void *),
+                       int (*)(ACL_USER_BASE *, ACL_ROLE *, void *));
 
 static int traverse_role_graph_down(ACL_USER_BASE *, void *,
                              int (*) (ACL_USER_BASE *, void *),
@@ -2203,13 +2206,15 @@ static bool is_invalid_role_name(const char *str)
 }
 
 
-static void free_acl_user(ACL_USER *user)
+static void free_acl_user(void *user_)
 {
+  ACL_USER *user= static_cast<ACL_USER *>(user_);
   delete_dynamic(&(user->role_grants));
 }
 
-static void free_acl_role(ACL_ROLE *role)
+static void free_acl_role(void *role_)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(role_);
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
 }
@@ -2312,11 +2317,10 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  // check for SET PASSWORD
   if (!plugin)
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_PLUGIN_IS_NOT_LOADED,
-                        ER_THD(thd, ER_PLUGIN_IS_NOT_LOADED), plugin_name);
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), plugin_name);
     return ER_PLUGIN_IS_NOT_LOADED;
   }
 
@@ -2370,6 +2374,21 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   res= 0;
 end:
+  switch(res)
+  {
+    case ER_OUTOFMEMORY:        // should be reported by my_malloc
+    case ER_NOT_VALID_PASSWORD: // should be reported by plugin
+    case ER_PASSWD_LENGTH:      // should be reported by plugin
+      DBUG_ASSERT(thd->is_error());
+      /* fall through*/
+    case 0:
+      break;
+    case ER_SET_PASSWORD_AUTH_PLUGIN:
+      my_error(res, MYF(0), plugin_name);
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
   if (unlock_plugin)
     plugin_unlock(thd, plugin);
   return res;
@@ -2468,10 +2487,9 @@ bool acl_init(bool dont_read_acl_tables)
   bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0, 0,
-                           (my_hash_get_key) acl_entry_get_key,
-                           (my_hash_free_key) my_free,
-                           &my_charset_utf8mb3_bin);
+  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0,
+                                      0, acl_entry_get_key, my_free,
+                                      &my_charset_utf8mb3_bin);
 
   /*
     cache built-in native authentication plugins,
@@ -2495,7 +2513,6 @@ bool acl_init(bool dont_read_acl_tables)
   */
   if (!(thd=new THD(0)))
     DBUG_RETURN(1); /* purecov: inspected */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   /*
     It is safe to call acl_reload() since acl_* arrays and hashes which
@@ -2536,10 +2553,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 {
   READ_RECORD read_record_info;
   char tmp_name[SAFE_NAME_LEN+1];
-  Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
 
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   grant_version++; /* Privileges updated */
 
@@ -2832,7 +2848,7 @@ void acl_free(bool end)
   my_hash_free(&acl_roles);
   free_root(&acl_memroot,MYF(0));
   delete_dynamic(&acl_hosts);
-  delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
+  delete_dynamic_with_callback(&acl_users, free_acl_user);
   acl_dbs.free_memory();
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
@@ -2912,12 +2928,11 @@ bool acl_reload(THD *thd)
   my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
   my_init_dynamic_array(key_memory_acl_mem, &acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
-  my_hash_init2(key_memory_acl_mem, &acl_roles,50, &my_charset_utf8mb3_bin,
-                0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
-                (void (*)(void *))free_acl_role, 0);
+  my_hash_init2(key_memory_acl_mem, &acl_roles, 50, &my_charset_utf8mb3_bin, 0,
+                0, 0, acl_role_get_key, 0, free_acl_role, 0);
   my_hash_init2(key_memory_acl_mem, &acl_roles_mappings, 50,
-                &my_charset_utf8mb3_bin, 0, 0, 0, (my_hash_get_key)
-                acl_role_map_get_key, 0, 0, 0);
+                &my_charset_utf8mb3_bin, 0, 0, 0, acl_role_map_get_key, 0, 0,
+                0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
@@ -2941,7 +2956,7 @@ bool acl_reload(THD *thd)
     my_hash_free(&old_acl_roles);
     free_root(&old_mem,MYF(0));
     delete_dynamic(&old_acl_hosts);
-    delete_dynamic_with_callback(&old_acl_users, (FREE_FUNC) free_acl_user);
+    delete_dynamic_with_callback(&old_acl_users, free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     my_hash_free(&old_acl_roles_mappings);
   }
@@ -2991,8 +3006,10 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field)
 }
 
 
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
+static int acl_compare(const void *a_, const void *b_)
 {
+  const ACL_ACCESS *a= static_cast<const ACL_ACCESS *>(a_);
+  const ACL_ACCESS *b= static_cast<const ACL_ACCESS *>(b_);
   if (a->sort > b->sort)
     return -1;
   if (a->sort < b->sort)
@@ -3000,8 +3017,11 @@ static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
   return 0;
 }
 
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
+static int acl_user_compare(const void *a_, const void *b_)
 {
+  const ACL_USER *a= static_cast<const ACL_USER *>(a_);
+  const ACL_USER *b= static_cast<const ACL_USER *>(b_);
+
   int res= strcmp(a->user.str, b->user.str);
   if (res)
     return res;
@@ -3020,8 +3040,10 @@ static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
   return -strcmp(a->host.hostname, b->host.hostname);
 }
 
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b)
+static int acl_db_compare(const void *a_, const void *b_)
 {
+  const ACL_DB *a= static_cast<const ACL_DB *>(a_);
+  const ACL_DB *b= static_cast<const ACL_DB *>(b_);
   int res= strcmp(a->user, b->user);
   if (res)
     return res;
@@ -3323,7 +3345,7 @@ end:
   switch (result)
   {
     case ER_INVALID_CURRENT_USER:
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
       break;
     case ER_INVALID_ROLE:
       /* Role doesn't exist at all */
@@ -3410,11 +3432,11 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   return 0;
 }
 
-static uchar* check_get_key(ACL_USER *buff, size_t *length,
-                            my_bool not_used __attribute__((unused)))
+static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
 {
+  auto buff= static_cast<const ACL_USER *>(buff_);
   *length=buff->hostname_length;
-  return (uchar*) buff->host.hostname;
+  return reinterpret_cast<const uchar *>(buff->host.hostname);
 }
 
 
@@ -3726,9 +3748,9 @@ static void init_check_host(void)
   (void) my_init_dynamic_array(key_memory_acl_mem, &acl_wild_hosts,
                                sizeof(struct acl_host_and_ip),
                                acl_users.elements, 1, MYF(0));
-  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,system_charset_info,
-                      acl_users.elements, 0, 0,
-                      (my_hash_get_key) check_get_key, 0, 0);
+  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,
+                      system_charset_info, acl_users.elements, 0, 0,
+                      check_get_key, 0, 0);
   if (!allow_all_hosts)
   {
     for (uint i=0 ; i < acl_users.elements ; i++)
@@ -3926,7 +3948,8 @@ bool acl_check_host(const char *host, const char *ip)
     return 0;
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
+  if (allow_all_hosts ||
+      (host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
       (ip && my_hash_search(&acl_check_hosts,(uchar*) ip, strlen(ip))))
   {
     mysql_mutex_unlock(&acl_cache->lock);
@@ -5323,11 +5346,12 @@ public:
 };
 
 
-static uchar* get_key_column(GRANT_COLUMN *buff, size_t *length,
-			    my_bool not_used __attribute__((unused)))
+static const uchar *get_key_column(const void *buff_, size_t *length, my_bool)
 {
+  auto buff=
+      static_cast<const GRANT_COLUMN *>(buff_);
   *length=buff->key_length;
-  return (uchar*) buff->column;
+  return reinterpret_cast<const uchar *>(buff->column);
 }
 
 class GRANT_NAME :public Sql_alloc
@@ -5371,7 +5395,7 @@ public:
   void init_hash()
   {
     my_hash_init2(key_memory_acl_memex, &hash_columns, 4, system_charset_info,
-                  0, 0, 0, (my_hash_get_key) get_key_column, 0, 0, 0);
+                  0, 0, 0, get_key_column, 0, 0, 0);
   }
 };
 
@@ -5554,16 +5578,17 @@ GRANT_TABLE::~GRANT_TABLE()
 }
 
 
-static uchar* get_grant_table(GRANT_NAME *buff, size_t *length,
-			     my_bool not_used __attribute__((unused)))
+static const uchar *get_grant_table(const void *buff_, size_t *length, my_bool)
 {
+  auto buff= static_cast<const GRANT_NAME *>(buff_);
   *length=buff->key_length;
-  return (uchar*) buff->hash_key;
+  return reinterpret_cast<const uchar *>(buff->hash_key);
 }
 
 
-static void free_grant_table(GRANT_TABLE *grant_table)
+static void free_grant_table(void *grant_table_)
 {
+  GRANT_TABLE *grant_table= static_cast<GRANT_TABLE *>(grant_table_);
   grant_table->~GRANT_TABLE();
 }
 
@@ -6198,19 +6223,20 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
 }
 
 
-static int init_role_for_merging(ACL_ROLE *role, void *context)
+static int init_role_for_merging(ACL_USER_BASE *role_, void *context)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(role_);
   role->counter= 0;
   return 0;
 }
 
-static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+static int count_subgraph_nodes(ACL_USER_BASE *, ACL_ROLE *grantee, void *context)
 {
   grantee->counter++;
   return 0;
 }
 
-static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+static int merge_role_privileges(ACL_USER_BASE *, ACL_ROLE *, void *);
 static bool merge_one_role_privileges(ACL_ROLE *grantee, PRIVS_TO_MERGE what);
 
 /**
@@ -6450,13 +6476,11 @@ end:
 */
 
 static int traverse_role_graph_up(ACL_ROLE *role, void *context,
-       int (*on_node) (ACL_ROLE *role, void *context),
-       int (*on_edge) (ACL_ROLE *current, ACL_ROLE *neighbour, void *context))
+       int (*on_node) (ACL_USER_BASE *role, void *context),
+       int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
-  return traverse_role_graph_impl(role, context,
-                    my_offsetof(ACL_ROLE, parent_grantee),
-                    (int (*)(ACL_USER_BASE *, void *))on_node,
-                    (int (*)(ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
+  return traverse_role_graph_impl(
+      role, context, my_offsetof(ACL_ROLE, parent_grantee), on_node, on_edge);
 }
 
 /**
@@ -6487,10 +6511,11 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   entries using the role hash. We put all these "interesting"
   entries in a (suposedly small) dynamic array and them use it for merging.
 */
-static uchar* role_key(const ACL_ROLE *role, size_t *klen, my_bool)
+static const uchar *role_key(const void *role_, size_t *klen, my_bool)
 {
+  auto role= static_cast<const ACL_ROLE *>(role_);
   *klen= role->user.length;
-  return (uchar*) role->user.str;
+  return reinterpret_cast<const uchar *>(role->user.str);
 }
 typedef Hash_set<ACL_ROLE> role_hash_t;
 
@@ -6509,8 +6534,10 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
   return old != grantee->access;
 }
 
-static int db_name_sort(const int *db1, const int *db2)
+static int db_name_sort(const void *db1_, const void *db2_)
 {
+  auto db1= static_cast<const int *>(db1_);
+  auto db2= static_cast<const int *>(db2_);
   return strcmp(acl_dbs.at(*db1).db, acl_dbs.at(*db2).db);
 }
 
@@ -6663,8 +6690,10 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   return update_flags;
 }
 
-static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
+static int table_name_sort(const void *tbl1_, const void *tbl2_)
 {
+  auto tbl1= static_cast<const GRANT_TABLE *const *>(tbl1_);
+  auto tbl2= static_cast<const GRANT_TABLE *const *>(tbl2_);
   int res = strcmp((*tbl1)->db, (*tbl2)->db);
   if (res) return res;
   return strcmp((*tbl1)->tname, (*tbl2)->tname);
@@ -6865,8 +6894,10 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   return update_flags;
 }
 
-static int routine_name_sort(GRANT_NAME * const *r1, GRANT_NAME * const *r2)
+static int routine_name_sort(const void *r1_,  const void *r2_)
 {
+  auto r1= static_cast<const GRANT_NAME *const *>(r1_);
+  auto r2= static_cast<const GRANT_NAME *const *>(r2_);
   int res= strcmp((*r1)->db, (*r2)->db);
   if (res) return res;
   return strcmp((*r1)->tname, (*r2)->tname);
@@ -6989,7 +7020,7 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 /**
   update privileges of the 'grantee' from all roles, granted to it
 */
-static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
+static int merge_role_privileges(ACL_USER_BASE *,
                                  ACL_ROLE *grantee, void *context)
 {
   PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
@@ -7928,7 +7959,6 @@ bool grant_init()
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);				/* purecov: deadcode */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   return_val=  grant_reload(thd);
   delete thd;
@@ -7964,20 +7994,16 @@ static bool grant_load(THD *thd,
   Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   (void) my_hash_init(key_memory_acl_memex, &column_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, (my_hash_free_key) free_grant_table, 0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table,
+                      free_grant_table, 0);
   (void) my_hash_init(key_memory_acl_memex, &proc_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &func_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &package_spec_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &package_body_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   init_sql_alloc(key_memory_acl_mem, &grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables_priv.table();
@@ -8278,19 +8304,13 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     /*
       If sequence is used as part of NEXT VALUE, PREVIOUS VALUE or SELECT,
-      we need to modify the requested access rights depending on how the
-      sequence is used.
+      the privilege will be checked in ::fix_fields().
+      Direct SELECT of a sequence table doesn't set t_ref->sequence, so
+      privileges will be checked normally, as for any table.
     */
     if (t_ref->sequence &&
         !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
-    {
-      /*
-        We want to have either SELECT or INSERT rights to sequences depending
-        on how they are accessed
-      */
-      orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
-                         INSERT_ACL : SELECT_ACL);
-    }
+      continue;
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
@@ -10192,6 +10212,10 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   int result= 0;
   int error;
   TABLE *table= grant_table.table();
+  DBUG_ENTER("handle_grant_table");
+  if (!table)
+    DBUG_RETURN(0);
+
   Field *host_field= table->field[0];
   Field *user_field= table->field[which_table == USER_TABLE ||
                                   which_table == PROXIES_PRIV_TABLE ? 1 : 2];
@@ -10201,7 +10225,6 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   const char *user;
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
-  DBUG_ENTER("handle_grant_table");
 
   if (which_table == ROLES_MAPPING_TABLE)
   {
@@ -12100,9 +12123,9 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
   while ((user= it++))
   {
     if (opt_skip_name_resolve && hostname_requires_resolving(user->host.str))
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_HOSTNAME_WONT_WORK,
-                          ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_WARN_HOSTNAME_WONT_WORK,
+                   ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
   }
 }
 
@@ -12915,6 +12938,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (is_invalid_role_name(user->user.str))
       return 0;
 
+    if (!initialized)
+      return dup;
+
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
     if (find_acl_role(dup->user.str))
@@ -13280,7 +13306,7 @@ static bool secure_auth(THD *thd)
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT,
+    general_log_print(thd, COM_CONNECT, "%s",
                       ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
@@ -13353,7 +13379,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -13443,7 +13469,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       !ignore_max_password_errors(mpvio->acl_user))
   {
     my_error(ER_USER_IS_BLOCKED, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
       ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
     DBUG_RETURN(1);
   }
@@ -13458,7 +13484,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(my_strcasecmp(system_charset_info,
       mpvio->acl_user->auth->plugin.str, old_password_plugin_name.str));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -15004,5 +15030,3 @@ extern "C" void maria_update_hostname(
   *ip_mask= h.ip_mask;
 #endif
 }
-
-

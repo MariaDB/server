@@ -2752,7 +2752,8 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
+        if (bound_parts == PREV_BITS(key_part_map,
+                                     keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else

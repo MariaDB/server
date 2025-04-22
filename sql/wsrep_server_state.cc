@@ -18,6 +18,8 @@
 #include "wsrep_server_state.h"
 #include "wsrep_binlog.h" /* init/deinit group commit */
 
+#include "my_stacktrace.h" /* my_safe_printf_stderr() */
+
 mysql_mutex_t LOCK_wsrep_server_state;
 mysql_cond_t  COND_wsrep_server_state;
 
@@ -80,5 +82,26 @@ void Wsrep_server_state::destroy()
     m_instance= 0;
     mysql_mutex_destroy(&LOCK_wsrep_server_state);
     mysql_cond_destroy(&COND_wsrep_server_state);
+  }
+}
+
+void Wsrep_server_state::handle_fatal_signal()
+{
+  if (m_instance && m_instance->is_provider_loaded())
+  {
+    /* Galera background threads are still running and the logging may be
+       relatively verbose in case of networking error. Silence all wsrep
+       logging before shutting down networking to avoid garbling signal
+       handler output. */
+    my_safe_printf_stderr("WSREP: Suppressing further logging\n");
+    wsrep_suppress_error_logging();
+
+    /* Shut down all communication with other nodes to fail silently. */
+    my_safe_printf_stderr("WSREP: Shutting down network communications\n");
+    if (m_instance->provider().set_node_isolation(
+          wsrep::provider::node_isolation::isolated)) {
+      my_safe_printf_stderr("WSREP: Galera library does not support node isolation\n");
+    }
+    my_safe_printf_stderr("\n");
   }
 }

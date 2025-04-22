@@ -162,7 +162,7 @@ static bool row_build_spatial_index_key(
 
 write_mbr:
 	if (dlen <= GEO_DATA_HEADER_SIZE) {
-		for (uint i = 0; i < SPDIMS; i += 2) {
+		for (uint i = 0; i < 2 * SPDIMS; i += 2) {
 			tmp_mbr[i] = DBL_MAX;
 			tmp_mbr[i + 1] = -DBL_MAX;
 		}
@@ -250,6 +250,14 @@ row_build_index_entry_low(
 			dict_col_copy_type(f.col, &dfield->type);
 			if (f.col->is_nullable()) {
 				dfield_set_null(dfield);
+				if (f.col->mtype == DATA_BINARY
+				    && !dict_table_is_comp(index->table)) {
+					/* In case of redundant row format,
+					if the non-fixed dropped column
+					is null then set the length of the
+					field data type as 0 */
+					dfield->type.len= 0;
+				}
 			} else {
 				dfield_set_data(dfield, field_ref_zero,
 						f.fixed_len);

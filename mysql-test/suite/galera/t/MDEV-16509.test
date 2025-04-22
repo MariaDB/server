@@ -58,6 +58,12 @@ SET DEBUG_SYNC = "now SIGNAL after_group_continue";
 
 --connection node_1
 --reap
+--let $wait_condition = SELECT COUNT(*) = 1 FROM test.t1;
+--source include/wait_condition.inc
+SELECT * from t1;
+
+--connection ctrl
+SET DEBUG_SYNC = "RESET";
 
 #
 # Scenario 2: Verify that two INSERTs from two different connections
@@ -136,6 +142,10 @@ SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
 
 --connection ctrl
 SET DEBUG_SYNC = "RESET";
+
+--let $wait_condition = SELECT COUNT(*) = 3 FROM test.t1;
+--source include/wait_condition.inc
+SELECT * from t1;
 
 DROP TABLE t1;
 

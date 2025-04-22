@@ -76,6 +76,8 @@ SET GLOBAL query_cache_size = 0;
 SET GLOBAL query_cache_size = 131072;
 SET GLOBAL query_cache_type = ON;
 
+--disable_cursor_protocol
+
 --echo '#---------------------FN_DYNVARS_132_01----------------------#'
 #
 #Check if results are cacheing on default value #
@@ -167,6 +169,8 @@ SHOW STATUS LIKE 'Qcache_not_cached';
 --echo 0 Expected
 SHOW STATUS LIKE 'Qcache_queries_in_cache';
 --echo 1 Expected
+
+--enable_cursor_protocol
 
 #
 # Cleanup

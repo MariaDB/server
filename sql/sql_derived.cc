@@ -1557,6 +1557,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (sl != first_sl)
     {
       DBUG_ASSERT(sl->item_list.elements == first_sl->item_list.elements);
+      sl->save_item_list_names(thd);
       List_iterator_fast<Item> it(sl->item_list);
       List_iterator_fast<Item> nm_it(unit->types);
       while (Item *item= it++)

@@ -60,7 +60,7 @@ reset master;
 set global wsrep_on=ON;
 
 --connection node_2
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
 
 --source include/galera_end.inc
 --echo # End of test

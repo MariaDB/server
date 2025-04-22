@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -250,6 +249,7 @@ int spider_udf_get_copy_tgt_tables(
   char table_key[MAX_KEY_LENGTH];
   SPIDER_COPY_TABLE_CONN *table_conn = NULL, *src_table_conn_prev = NULL,
     *dst_table_conn_prev = NULL;
+  /* This share has only one link. */
   SPIDER_SHARE *tmp_share;
   char **tmp_connect_info;
   uint *tmp_connect_info_length;
@@ -501,11 +501,10 @@ int spider_udf_get_copy_tgt_conns(
     while (table_conn)
     {
       share = table_conn->share;
-      if (
-        !(table_conn->conn = spider_get_conn(
-          share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
-          SPIDER_CONN_KIND_MYSQL, &error_num))
-      ) {
+      if (!(table_conn->conn=
+                spider_get_conn(share, 0, share->conn_keys[0], trx, NULL,
+                                FALSE, FALSE, &error_num)))
+      {
         my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), share->server_names[0]);
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
       }
@@ -714,8 +713,8 @@ int spider_udf_bg_copy_exec_sql(
 long long spider_copy_tables_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num, roop_count, all_link_cnt = 0, use_table_charset;
   SPIDER_COPY_TABLES *copy_tables = NULL;

@@ -8975,5 +8975,11 @@ CAST(_latin1 0x61FF62 AS INT)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'aÿb'
 #
+# MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+#
+SELECT CAST(CONVERT('-9223372036854775808' USING latin1) AS SIGNED) AS c1;
+c1
+-9223372036854775808
+#
 # End of 10.5 tests
 #

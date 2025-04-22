@@ -1436,3 +1436,18 @@ let $coll_pad='ujis_bin';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_ujis'' collate ujis_japanese_nopad_ci, _ujis 0x0001050001) as c1;
+select strcmp(_ujis'' collate ujis_nopad_bin, _ujis 0x0001050001) as c1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

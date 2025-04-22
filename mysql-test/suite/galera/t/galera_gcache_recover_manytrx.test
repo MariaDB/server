@@ -5,6 +5,7 @@
 
 --source include/galera_cluster.inc
 --source include/big_test.inc
+--source include/have_innodb.inc
 --source include/have_log_bin.inc
 
 SET SESSION wsrep_sync_wait = 0;
@@ -141,31 +142,31 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/kill_galera.inc
 
 --connection node_1_insert_simple
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1_insert_multi
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1_insert_transaction
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1_update_simple
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1_insert_1k
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1_insert_1m
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1_insert_10m
---error 2013
+--error 2013, 2026
 --reap
 
 --connection node_1

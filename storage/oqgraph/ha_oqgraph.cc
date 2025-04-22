@@ -318,7 +318,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
     {
       DBUG_PRINT( "oq-debug", ("Allowing integer no more!"));
       badColumn = true;
-      push_warning_printf( current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Integer latch is not supported for new tables.", i);
+      push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Integer latch is not supported for new tables.");
     } else
     /* Check Column Type */
     if ((*field)->type() != skel[i].coltype) {

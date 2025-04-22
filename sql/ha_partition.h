@@ -277,8 +277,8 @@ typedef struct st_partition_part_key_multi_range_hld
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
 
-extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
-extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
+extern "C" int cmp_key_part_id(void *key_p, const void *ref1, const void *ref2);
+extern "C" int cmp_key_rowid_part_id(void *ptr, const void *ref1, const void *ref2);
 
 class ha_partition :public handler
 {
@@ -446,9 +446,7 @@ private:
   /** Sorted array of partition ids in descending order of number of rows. */
   uint32 *m_part_ids_sorted_by_num_of_records;
   /* Compare function for my_qsort2, for reversed order. */
-  static int compare_number_of_records(ha_partition *me,
-                                       const uint32 *a,
-                                       const uint32 *b);
+  static int compare_number_of_records(void *me, const void *a, const void *b);
   /** keep track of partitions to call ha_reset */
   MY_BITMAP m_partitions_to_reset;
   /** partitions that returned HA_ERR_KEY_NOT_FOUND. */
@@ -483,6 +481,11 @@ public:
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
   }
+  Compare_keys compare_key_parts(
+    const Field &old_field,
+    const Column_definition &new_field,
+    const KEY_PART_INFO &old_part,
+    const KEY_PART_INFO &new_part) const override;
 
   void return_record_by_parent() override;
 
@@ -1464,7 +1467,7 @@ public:
 
     virtual int get_foreign_key_list(THD *thd,
     List<FOREIGN_KEY_INFO> *f_key_list)
-    virtual uint referenced_by_foreign_key()
+    bool referenced_by_foreign_key() const noexcept override
   */
     bool can_switch_engines() override;
   /*
@@ -1635,8 +1638,9 @@ public:
   int notify_tabledef_changed(LEX_CSTRING *db, LEX_CSTRING *table,
                               LEX_CUSTRING *frm, LEX_CUSTRING *version);
 
-  friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
-  friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
+  friend int cmp_key_rowid_part_id(void *ptr, const void *ref1,
+                                   const void *ref2);
+  friend int cmp_key_part_id(void *key_p, const void *ref1, const void *ref2);
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_field) const override;

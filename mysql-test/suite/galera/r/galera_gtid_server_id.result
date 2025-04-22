@@ -5,7 +5,7 @@ select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;
 @@gtid_domain_id	@@server_id	@@wsrep_gtid_domain_id	@@wsrep_gtid_mode
 0	11	1	1
 connection node_2;
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node\\.");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;
 @@gtid_domain_id	@@server_id	@@wsrep_gtid_domain_id	@@wsrep_gtid_mode
 0	12	1	1

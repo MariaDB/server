@@ -1,0 +1,35 @@
+for master_1
+for child2
+for child3
+SET SESSION spider_same_server_link=1;
+SET sql_mode='';
+set @old_table_open_cache=@@global.table_open_cache;
+set global table_open_cache=10;
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+CREATE TABLE t3 (c INT) ENGINE=InnoDB;
+CREATE TABLE ta (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t5 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t6 (c INT KEY) ENGINE=InnoDB PARTITION BY RANGE (c) (PARTITION p VALUES LESS THAN (5));
+CREATE TABLE t7 (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t8 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+SELECT * FROM t8;
+ERROR HY000: Remote table 'test.t' is not found
+CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB SELECT * FROM t7;
+ERROR HY000: Remote table 'test.t' is not found
+CALL foo;
+ERROR 42000: PROCEDURE test.foo does not exist
+CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB;
+SELECT * FROM t7 JOIN t6 ON tc=t0.c;
+ERROR 42S22: Unknown column 'tc' in 'on clause'
+SHOW TABLE STATUS;
+drop table ta, t8, t7, t6, t5, t3, t2, t1;
+drop table t7;
+drop server srv;
+set global table_open_cache=@old_table_open_cache;
+for master_1
+for child2
+for child3

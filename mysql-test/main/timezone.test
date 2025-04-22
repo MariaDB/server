@@ -1,19 +1,14 @@
 #
 # Test of SYSTEM time zone handling ( for my_system_gmt_sec()).
-# This script must be run with TZ=MET
+# This script must have zonedata for CET
+-- require include/have_cet_timezone.require
 
--- require include/have_met_timezone.require
 disable_query_log;
 select FROM_UNIXTIME(24*3600);
 enable_query_log;
 
-# Initialization
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 # The following is because of daylight saving time
---replace_result MEST MET
+--replace_result MEST CET MET CET CEST CET
 show variables like "system_time_zone";
 
 #

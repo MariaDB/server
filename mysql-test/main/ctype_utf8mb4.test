@@ -1798,12 +1798,15 @@ CREATE TABLE t1 (
   s4 LONGTEXT CHARACTER SET utf8mb4
 );
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SET NAMES utf8mb4, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8mb4;
 SELECT *, HEX(s1) FROM t1;
+--enable_cursor_protocol
 --disable_metadata
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
@@ -1953,7 +1956,9 @@ DROP TABLE t1;
 
 SET NAMES utf8mb4;
 SELECT COLUMN_JSON(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+--disable_cursor_protocol
 SELECT COLUMN_LIST(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1));
+--enable_cursor_protocol
 SELECT COLUMN_GET(COLUMN_CREATE(_utf8mb4 0xF09F988E, 1), _utf8mb4 0xF09F988E
 as int);
 
@@ -2061,6 +2066,99 @@ SELECT 1 COLLATE utf8mb4_general_ci;
 SELECT 1 COLLATE utf8mb4_bin;
 --error ER_COLLATION_CHARSET_MISMATCH
 SELECT 1 COLLATE latin1_swedish_ci;
+
+--echo #
+--echo # MDEV-34376 Wrong data types when mixing an utf8 *TEXT column and a short binary
+--echo #
+
+CREATE TABLE t1 (
+  c_tinytext tinytext,
+  c_text text,
+  c_mediumtext mediumtext,
+  c_longtext longtext
+) CHARACTER SET utf8mb4;
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM v1;
+
+--echo # Using table fields
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_tinytext,   CAST('binary data' AS BINARY)) AS mix_tinytext_binary,
+  COALESCE(c_text,       CAST('binary data' AS BINARY)) AS mix_text_binary,
+  COALESCE(c_mediumtext, CAST('binary data' AS BINARY)) AS mix_mediumtext_binary,
+  COALESCE(c_longtext, CAST('binary data' AS BINARY)) AS mix_longtext_binary
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  c_tinytext   AS mix_tinytext_binary,
+  c_text       AS mix_text_binary,
+  c_mediumtext AS mix_mediumtext_binary,
+  c_longtext   AS mix_longtext_binary
+FROM t1
+UNION SELECT
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+
+--echo # Using view fields
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_tinytext,   CAST('binary data' AS BINARY)) AS mix_tinytext_binary,
+  COALESCE(c_text,       CAST('binary data' AS BINARY)) AS mix_text_binary,
+  COALESCE(c_mediumtext, CAST('binary data' AS BINARY)) AS mix_mediumtext_binary,
+  COALESCE(c_longtext, CAST('binary data' AS BINARY)) AS mix_longtext_binary
+FROM v1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  c_tinytext   AS mix_tinytext_binary,
+  c_text       AS mix_text_binary,
+  c_mediumtext AS mix_mediumtext_binary,
+  c_longtext   AS mix_longtext_binary
+FROM v1
+UNION SELECT
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+
+--echo # Using view on view fields
+
+CREATE TABLE t2 AS SELECT
+  COALESCE(c_tinytext,   CAST('binary data' AS BINARY)) AS mix_tinytext_binary,
+  COALESCE(c_text,       CAST('binary data' AS BINARY)) AS mix_text_binary,
+  COALESCE(c_mediumtext, CAST('binary data' AS BINARY)) AS mix_mediumtext_binary,
+  COALESCE(c_longtext, CAST('binary data' AS BINARY)) AS mix_longtext_binary
+FROM v2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  c_tinytext   AS mix_tinytext_binary,
+  c_text       AS mix_text_binary,
+  c_mediumtext AS mix_mediumtext_binary,
+  c_longtext   AS mix_longtext_binary
+FROM v2
+UNION SELECT
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY),
+  CAST('binary data' AS BINARY);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP VIEW v2, v1;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests

@@ -101,15 +101,9 @@ dict_table_is_partition(const dict_table_t* table)
 	return (strstr(table->name.m_name, "#p#")
 		|| strstr(table->name.m_name, "#P#"));
 }
-/********************************************************************//**
-Return the end of table name where we have removed dbname and '/'.
-@return table name */
-const char*
-dict_remove_db_name(
-/*================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+#define dict_remove_db_name(name) \
+	(table_name_t{const_cast<char*>(name)}.dbend() + 1)
 
 /** Operation to perform when opening a table */
 enum dict_table_op_t {
@@ -577,15 +571,15 @@ dict_print_info_on_foreign_keys(
 	trx_t*		trx,	/*!< in: transaction */
 	dict_table_t*	table);	/*!< in: table */
 
-/**********************************************************************//**
-Outputs info on a foreign key of a table in a format suitable for
-CREATE TABLE. */
+/** Output info on a foreign key of a table in a format suitable for
+CREATE TABLE.
+@param trx          transaction
+@param foreign      constraint
+@param add_newline  whether to add a newline */
 std::string
-dict_print_info_on_foreign_key_in_create_format(
-/*============================================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	ibool		add_newline);	/*!< in: whether to add a newline */
+dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
+                                                const dict_foreign_t *foreign,
+                                                bool add_newline);
 
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,

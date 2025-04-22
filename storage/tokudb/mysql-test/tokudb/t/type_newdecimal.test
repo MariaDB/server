@@ -611,7 +611,10 @@ select round(99999999999999999.999,3);
 select round(-99999999999999999.999,3);
 #-- should return -100000000000000000.000
 #
+#enable after fix MDEV-31729
+--disable_cursor_protocol
 select truncate(99999999999999999999999999999999999999,49);
+--enable_cursor_protocol
 #-- should return 99999999999999999999999999999999999999.000
 #
 select truncate(99.999999999999999999999999999999999999,49);
@@ -1268,6 +1271,8 @@ let $nine_81=
 999999999999999999999999999999999999999999999999999999999999999999999999999999999;
 
 eval SELECT substring(('M') FROM ($nine_81)) AS foo;
+#enable after fix MDEV-31729
+--disable_cursor_protocol
 eval SELECT min($nine_81) AS foo;
 eval SELECT multipolygonfromtext(('4294967294.1'),($nine_81)) AS foo;
 eval SELECT convert(($nine_81), decimal(30,30)) AS foo;
@@ -1279,6 +1284,7 @@ eval SELECT date_sub(($nine_81),
                      day_minute)
 AS foo;
 eval SELECT truncate($nine_81, 28) AS foo;
+--enable_cursor_protocol
 
 --echo End of 5.0 tests
 

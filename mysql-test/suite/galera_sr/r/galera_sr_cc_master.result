@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-CALL mtr.add_suppression("WSREP: discarding established.*");
+CALL mtr.add_suppression("WSREP: discarding established");
 connection node_1;
 connection node_2;
 connection node_2;
@@ -27,7 +27,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = DEFAULT;
 connection node_2;
 INSERT INTO t1 VALUES (6);
-ERROR HY000: Lost connection to MySQL server during query
+Got one of the listed errors
 connection node_1;
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0

@@ -29,23 +29,28 @@ INSERT INTO t2 VALUES (1);
 --let $galera_connection_name = node_2a
 --let $galera_server_number = 2
 --source include/galera_connect.inc
+
 --connection node_2a
 --sleep 1
 SET SESSION wsrep_sync_wait=0;
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%committing%';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%Waiting for table metadata lock%';
-SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM t2;
+SELECT COUNT(*) AS EXPECT_1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE '%committing%' OR STATE LIKE 'Commit' OR STATE LIKE 'Waiting for certification');
+SELECT COUNT(*) AS EXPECT_1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting to execute in isolation%');
+
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t2;
 
 --connection node_2
 UNLOCK TABLES;
 
 --connection node_2a
 --eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig;
-SELECT COUNT(*) = 1 FROM t1;
-SELECT COUNT(*) = 1 FROM t2;
-SELECT COUNT(*) = 2  FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%committed%';
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+SELECT COUNT(*) AS EXPECT_1 FROM t2;
+SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE LIKE '%committed%' OR STATE LIKE 'Waiting for certification');
 
+--disable_query_log
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
+--enable_query_log
+
 DROP TABLE t1;
 DROP TABLE t2;

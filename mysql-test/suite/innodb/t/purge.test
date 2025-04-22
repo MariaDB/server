@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
+--source include/have_sequence.inc
 
 SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
@@ -110,8 +111,34 @@ CREATE INDEX ndx_n ON t12963823 (n(500));
 CREATE INDEX ndx_o ON t12963823 (o(500));
 CREATE INDEX ndx_p ON t12963823 (p(500));
 SHOW CREATE TABLE t12963823;
-# We need to activate the purge thread before DROP TABLE.
 
+DELIMITER $$;
+--error ER_TOO_MANY_KEY_PARTS
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(c',
+                                       GROUP_CONCAT(seq SEPARATOR
+                                       ' INT DEFAULT 0, c'),
+                                       ' INT DEFAULT 0, PRIMARY KEY(c',
+                                       GROUP_CONCAT(seq SEPARATOR ', c'),
+                                       ')) ENGINE=InnoDB;') FROM seq_1_to_33);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(c',
+                                       GROUP_CONCAT(seq SEPARATOR
+                                       ' INT DEFAULT 0, c'),
+                                       ' INT DEFAULT 0, PRIMARY KEY(c',
+                                       GROUP_CONCAT(seq SEPARATOR ', c'),
+                                       ')) ENGINE=InnoDB;') FROM seq_1_to_32);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1() VALUES();
+
+# We need to activate the purge thread before DROP TABLE.
 -- source include/wait_all_purged.inc
+DROP TABLE t1;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge, t12637786, t12963823;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

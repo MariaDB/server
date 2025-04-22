@@ -45,7 +45,7 @@ uint	mysys_usage_id= 0;              /* Incremented for each my_init() */
 
 ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
-static ulong atoi_octal(const char *str)
+static mode_t atoi_octal(const char *str)
 {
   long int tmp;
   while (*str && my_isspace(&my_charset_latin1, *str))
@@ -53,7 +53,7 @@ static ulong atoi_octal(const char *str)
   str2int(str,
 	  (*str == '0' ? 8 : 10),       /* Octalt or decimalt */
 	  0, INT_MAX, &tmp);
-  return (ulong) tmp;
+  return (mode_t) tmp;
 }
 
 MYSQL_FILE *mysql_stdin= NULL;
@@ -82,10 +82,10 @@ my_bool my_init(void)
 
   /* Default creation of new files */
   if ((str= getenv("UMASK")) != 0)
-    my_umask= (int) (atoi_octal(str) | 0600);
+    my_umask= atoi_octal(str) | 0600;
   /* Default creation of new dir's */
   if ((str= getenv("UMASK_DIR")) != 0)
-    my_umask_dir= (int) (atoi_octal(str) | 0700);
+    my_umask_dir= atoi_octal(str) | 0700;
 
   init_glob_errs();
 

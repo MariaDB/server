@@ -719,7 +719,7 @@ ca	cb
 utf8_general_ci	utf8_general_ci
 
 ---> Dump of mysqltest1
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -796,7 +796,7 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ---> Dumping mysqltest1 to ddl_i18n_utf8sp.mysqltest1.sql
 
 ---> Dump of mysqltest2
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -1725,19 +1725,19 @@ utf8_general_ci	utf8_general_ci	koi8r_general_ci	utf8_general_ci	utf8_general_ci
 DELETE FROM mysqltest2.log|
 
 ---> Dump of mysqltest1
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `log` (
   `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -1805,19 +1805,19 @@ ALTER DATABASE `mysqltest1` CHARACTER SET cp866 COLLATE cp866_general_ci ;
 ---> Dumping mysqltest1 to ddl_i18n_utf8triggers.mysqltest1.sql
 
 ---> Dump of mysqltest2
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
 USE `mysqltest2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `log` (
   `msg` varchar(255) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
@@ -2489,7 +2489,7 @@ COLLATION(    'текст') AS c4,
 END	ONE TIME	1970-01-02 00:00:00	NULL	NULL		NULL	NULL	DISABLED	PRESERVE	CREATED	LAST_ALTERED	NULL		1	utf8	utf8_general_ci	utf8_unicode_ci
 
 ---> Dump of mysqltest1
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 
@@ -2557,7 +2557,7 @@ DELIMITER ;
 ---> Dumping mysqltest1 to ddl_i18n_utf8events.mysqltest1.sql
 
 ---> Dump of mysqltest2
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET cp866 COLLATE cp866_general_ci */;
 

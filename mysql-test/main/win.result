@@ -1247,14 +1247,9 @@ insert into t1 values (1,1,'foo');
 insert into t1 values (2,2,'bar');
 select
 count(*) over (order by a,b
-range between unbounded preceding and current row) as count
+range between 1 preceding and current row) as count
 from t1;
 ERROR HY000: RANGE-type frame requires ORDER BY clause with single sort key
-select
-count(*) over (order by c
-range between unbounded preceding and current row) as count
-from t1;
-ERROR HY000: Numeric datatype is required for RANGE-type frame
 select
 count(*) over (order by a
 range between 'abcd' preceding and current row) as count
@@ -1276,6 +1271,56 @@ count(*) over (order by a
 rows between current row and 3.14 following) as count
 from t1;
 ERROR HY000: Integer is required for ROWS-type frame
+#
+# MDEV-19052 Range-type window frame supports only numeric datatype
+#
+select
+count(*) over (order by c
+range between unbounded preceding and current row) as r
+from t1;
+r
+1
+2
+select
+count(*) over (order by c
+range between current row and unbounded following) as r
+from t1;
+r
+2
+1
+select
+count(*) over (order by c
+range between unbounded preceding and unbounded following) as r
+from t1;
+r
+2
+2
+create table t2 (a int, b varchar(5));
+insert into t2 values (1,'a'), (2, 'b'), (3, 'c');
+select sum(a) over (order by b range between unbounded preceding and current row) as r from t2;
+r
+1
+3
+6
+insert into t1 values (3,3,'goo');
+insert into t1 values (3,1,'har');
+insert into t1 values (1,4,'har');
+select a, b, sum(b) over (order by a, b desc range between unbounded preceding and current row) as r from t1;
+a	b	r
+1	4	4
+1	1	5
+2	2	7
+3	3	10
+3	1	11
+select a, b, sum(b) over (order by a desc, b range between unbounded preceding and current row) as r from t1;
+a	b	r
+3	1	1
+3	3	4
+2	2	6
+1	1	7
+1	4	11
+drop table t2;
+delete from t1 where a >= 3 or b = 4;
 #
 # EXCLUDE clause is parsed but not supported
 #
@@ -4555,5 +4600,28 @@ w2_total	w1_total	u
 200	150	2
 200	200	2
 DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-35869: degenerated subquery with window function
+#
+CREATE TABLE t1 (a int DEFAULT 10);
+INSERT INTO t1 VALUES (7), (2), (3);
+SELECT * FROM t1 WHERE (SELECT AVG(3)) > 2;
+a
+7
+2
+3
+SELECT * FROM t1 WHERE (SELECT AVG(3) OVER ()) > 2;
+a
+7
+2
+3
+INSERT INTO t1 VALUES((SELECT avg(4) OVER ()));
+SELECT * FROM t1;
+a
+7
+2
+3
+4
 DROP TABLE t1;
 # End of 10.5 tests

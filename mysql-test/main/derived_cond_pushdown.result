@@ -18557,3 +18557,600 @@ valdouble	valint1
 5	3289988
 DROP TABLE t1,t2;
 # End of 10.4 tests
+# MDEV-34506 2nd execution name resolution problem with pushdown into
+#   unions
+#
+#  Statements affected by this bug need all the following to be true
+#  1) a derived table table or view whose specification contains a set
+#       operation at the top level.
+#  2) a grouping operator (group by/having) operating on a column alias
+#       other than in the first select of the union/intersect
+#  3) an outer condition that will be pushed into all selects in this
+#      union/intersect, either into the where or having clause
+#
+#  When pushing a condition into all selects of a unit with more than one
+#  select, pushdown_cond_for_derived() renames items so we can re-use the
+#  condition being pushed.
+#  These names need to be saved and reset for correct name resolution on
+#  second execution of prepared statements.
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(1,2,2),(4,5,6);
+insert into t1 values (17,8,9),(11,11,12);
+create table t2 (c4 int, c5 int, c6 int);
+insert into t2 values (7,8,9),(10,11,12);
+prepare stmt from 'select * from
+(
+select c1,  sum(c3) as s from t1 group by c1
+union
+select c4 as c, sum(c6) as u from t2 group by c
+) dt
+where c1 > 6';
+execute stmt;
+c1	s
+11	12
+17	9
+7	9
+10	12
+execute stmt;
+c1	s
+11	12
+17	9
+7	9
+10	12
+prepare stmt from 'explain format=json select * from
+(
+select c1,  sum(c3) as s from t1 group by c1
+union
+select c4 as c, sum(c6) as u from t2 group by c
+) dt
+where c1 > 6';
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "dt.c1 > 6",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "filesort": {
+                    "sort_key": "t1.c1",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 5,
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 > 6"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "filesort": {
+                    "sort_key": "t2.c4",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100,
+                        "attached_condition": "t2.c4 > 6"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "dt.c1 > 6",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "filesort": {
+                    "sort_key": "t1.c1",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 5,
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 > 6"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "filesort": {
+                    "sort_key": "t2.c4",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100,
+                        "attached_condition": "t2.c4 > 6"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+prepare stmt from 'select * from
+(
+select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+union
+select c4, c5, sum(c6) as u from t2 group by c4, c5 having u > 3
+) dt
+where c2 > 5';
+execute stmt;
+c1	c2	s
+11	11	12
+17	8	9
+7	8	9
+10	11	12
+execute stmt;
+c1	c2	s
+11	11	12
+17	8	9
+7	8	9
+10	11	12
+prepare stmt from 'explain format=json select * from
+(
+select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+union
+select c4, c5, sum(c6) as u from t2 group by c4, c5 having u > 3
+) dt
+where c2 > 5';
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "dt.c2 > 5",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "s > 2",
+                  "filesort": {
+                    "sort_key": "t1.c1, t1.c2",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 5,
+                        "filtered": 100,
+                        "attached_condition": "t1.c2 > 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "having_condition": "s > 3",
+                  "filesort": {
+                    "sort_key": "t2.c4, t2.c5",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100,
+                        "attached_condition": "t2.c5 > 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "dt.c2 > 5",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "s > 2",
+                  "filesort": {
+                    "sort_key": "t1.c1, t1.c2",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 5,
+                        "filtered": 100,
+                        "attached_condition": "t1.c2 > 5"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "having_condition": "s > 3",
+                  "filesort": {
+                    "sort_key": "t2.c4, t2.c5",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100,
+                        "attached_condition": "t2.c5 > 5"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+prepare stmt from 'select *
+from
+(
+select c1, c2, max(c3) as max_c, avg(c3) as avg_c
+from t1
+group by c1,c2
+having max_c < 7
+union
+select c4, c5, max(c6) as u, avg(c6) as w
+from t2
+group by c4, c5
+having u < 10
+) dt,
+t2
+where dt.max_c > 6 and t2.c6 > dt.c1';
+execute stmt;
+c1	c2	max_c	avg_c	c4	c5	c6
+7	8	9	9.0000	7	8	9
+7	8	9	9.0000	10	11	12
+execute stmt;
+c1	c2	max_c	avg_c	c4	c5	c6
+7	8	9	9.0000	7	8	9
+7	8	9	9.0000	10	11	12
+prepare stmt from 'explain format=json select *
+from
+(
+select c1, c2, max(c3) as max_c, avg(c3) as avg_c
+from t1
+group by c1,c2
+having max_c < 7
+union
+select c4, c5, max(c6) as u, avg(c6) as w
+from t2
+group by c4, c5
+having u < 10
+) dt,
+t2
+where dt.max_c > 6 and t2.c6 > dt.c1';
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 7,
+        "filtered": 100,
+        "attached_condition": "dt.max_c > 6"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "173",
+      "join_type": "BNL",
+      "attached_condition": "t2.c6 > dt.c1",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "max_c < 7 and max_c > 6",
+                  "filesort": {
+                    "sort_key": "t1.c1, t1.c2",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 5,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "having_condition": "max_c < 10 and max_c > 6",
+                  "filesort": {
+                    "sort_key": "t2.c4, t2.c5",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 7,
+        "filtered": 100,
+        "attached_condition": "dt.max_c > 6"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "173",
+      "join_type": "BNL",
+      "attached_condition": "t2.c6 > dt.c1",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "max_c < 7 and max_c > 6",
+                  "filesort": {
+                    "sort_key": "t1.c1, t1.c2",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 5,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "having_condition": "max_c < 10 and max_c > 6",
+                  "filesort": {
+                    "sort_key": "t2.c4, t2.c5",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 2,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1, t2;
+#
+# MDEV-35276: Assertion failure in find_producing_item upon a query
+# from a view
+#
+# Note: for all followng queries with DEFAULT(f) hishdown is
+# prohibited
+CREATE VIEW v AS select 0 AS f;
+SELECT * FROM v WHERE f = DEFAULT(f);
+f
+0
+CREATE TABLE t1 (c int DEFAULT 0);
+insert into t1 values (0), (1);
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	c
+0	0
+0	1
+ALTER TABLE t1 ALTER c SET DEFAULT 1;
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	c
+drop table t1;
+create table t1 (a int, c int DEFAULT a);
+insert into t1 values (0, -1), (1, -2);
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	a	c
+0	0	-1
+DROP VIEW v;
+DROP TABLE t1;
+#
+# MDEV-32395: update_depend_map_for_order: SEGV at
+#             /mariadb-11.3.0/sql/sql_select.cc:16583
+#
+create table t1 (c1 int);
+insert into t1 values (1), (2);
+create table t2 (c2 int);
+insert into t2 values (1), (2);
+create table t3 (c3 int);
+insert into t3 values (1), (2);
+set statement optimizer_switch='condition_pushdown_for_derived=off,condition_pushdown_for_subquery=off,condition_pushdown_from_having=off' for
+select t1.c1 as a from t2, t1 where t1.c1=t2.c2
+order by (select c3 from t3 group by a having a=2);
+a
+1
+2
+drop table t1, t2, t3;
+# Test case 2
+CREATE TABLE t1 ( x BOOLEAN NOT NULL );
+INSERT INTO t1 ( x ) VALUES ( 1 ) ;
+UPDATE t1 SET x = 1 WHERE x = 1 ;
+INSERT INTO t1 ( x ) VALUES ( 1 ) , ( x IN ( SELECT x FROM ( SELECT ( SELECT EXISTS ( SELECT * FROM ( SELECT DISTINCT ( - CASE WHEN x = 1 THEN 1 ELSE x + 1 END >= x IS NOT NULL = 1 AND x = 1 ) OR x = x OR x = 'x' FROM t1 AS x GROUP BY x ) AS x WHERE 1 / x GROUP BY x HAVING ( 1 = 1 AND x = 1 ) ) FROM t1 GROUP BY EXISTS ( SELECT 1 ) ) FROM t1 UNION SELECT x FROM t1 ) AS x ) ) ;
+DROP TABLE t1;
+# Test case 3
+CREATE TABLE t0 ( c6 INT , c21 INT ) ;
+INSERT INTO t0 VALUES ( 55 , -95 ) , ( 9 , 90 ) ;
+ALTER TABLE t0 ADD COLUMN c37 INT AFTER c6 ;
+INSERT INTO t0 VALUES ( ) , ( ) ;
+SELECT t0 . c6 AS c42 FROM ( SELECT t0 . c6 = TRIM( TRAILING FROM 96 ) SOUNDS LIKE CONVERT ( t0 . c6 , UNSIGNED ) >> PI ( ) AS c49 FROM t0 ) AS t1 JOIN t0 ON RTRIM ( - RAND ( -66 ) BETWEEN FIND_IN_SET ( 20 , UNHEX ( -80 ) IS NULL OR IF ( 85 , -83 , -113 ) ) AND -125 ) / EXP ( c21 ) = t1 . c49 ORDER BY c42 , ( c42 + ( SELECT c21 AS c61 FROM t0 WHERE t0 . c37 >= -19.601384 = RAND ( ) / TRIM( t0 . c21 FROM 'C@rG3D(#9*17(a.,rV' ) = -106 GROUP BY c21 , c42 HAVING c42 = -73 LIMIT 1 ) ) ;
+c42
+9
+9
+55
+55
+drop table t0;
+#
+# MDEV-32329 pushdown from having into where: Server crashes at sub_select
+#
+WITH RECURSIVE cte AS ( SELECT 1 as x UNION SELECT x FROM cte)
+SELECT ( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+FROM cte
+GROUP BY 1 ;
+( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+1
+# Test case 2
+WITH
+cte1 AS ( SELECT 1 as x UNION SELECT 1),
+cte2 AS ( SELECT 1 as x UNION SELECT 1)
+SELECT
+( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+FROM cte2
+GROUP BY 1 ;
+( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+1
+create table t1 (f int);
+create view v1 as select f, count(*) c from t1 group by f;
+#
+# MDEV-25012 Server crash in find_field_in_tables, Assertion `name' failed in find_field_in_table_ref
+#
+select * from v1 where export_set(1, default(f), 'x', aes_decrypt('secret', f));
+f	c
+show warnings;
+Level	Code	Message
+drop view v1;
+drop table t1;
+create table t(c3 longtext) ;
+with cte1 as
+(
+select default(c3) as a
+from t group by 1
+)
+select * from cte1
+where cte1.a >= 1;
+a
+drop table t;
+# End of 10.5 tests

@@ -1,4 +1,4 @@
-/* Copyright 2018-2024 Codership Oy <info@codership.com>
+/* Copyright 2018-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -82,11 +82,12 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
     case SQLCOM_REVOKE:
       return "REVOKE";
     case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-        return "SET PASSWORD";
+      return "SET OPTION";
       /* fallthrough */
     default:
+    {
       return (thd->query() ? thd->query() : "NULL");
+    }
   }
   return "NULL";
 }
@@ -186,42 +187,29 @@ extern "C" my_bool wsrep_thd_is_SR(const THD *thd)
   return thd && thd->wsrep_cs().transaction().is_streaming();
 }
 
-extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
+extern "C" void wsrep_handle_SR_rollback(THD *bf_thd __attribute__((unused)),
                                          THD *victim_thd)
 {
+  /*
+    We should always be in victim_thd context, either client session is
+    rolling back or rollbacker thread should be in control.
+  */
   DBUG_ASSERT(victim_thd);
+  DBUG_ASSERT(current_thd == victim_thd);
   DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
-  if (!victim_thd || !wsrep_on(bf_thd)) return;
 
-  wsrep_thd_LOCK(victim_thd);
+  /* Defensive measure to avoid crash in production. */
+  if (!victim_thd) return;
 
-  WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
+  WSREP_DEBUG("Handle SR rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),
               wsrep_thd_transaction_state_str(victim_thd));
 
-  /* Note: do not store/reset globals before wsrep_bf_abort() call
-     to avoid losing BF thd context. */
-  if (!(bf_thd && bf_thd != victim_thd))
-  {
-    DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
-  }
-  if (bf_thd)
-  {
-    wsrep_bf_abort(bf_thd, victim_thd);
-  }
-  else
-  {
-    wsrep_thd_self_abort(victim_thd);
-  }
+  DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
 
-  wsrep_thd_UNLOCK(victim_thd);
-
-  if (bf_thd)
-  {
-    wsrep_store_threadvars(bf_thd);
-  }
+  wsrep_thd_self_abort(victim_thd);
 }
 
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,

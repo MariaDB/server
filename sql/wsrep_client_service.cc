@@ -306,6 +306,12 @@ enum wsrep::provider::status Wsrep_client_service::replay()
     replayer_service.replay_status(ret);
   }
 
+  // In Galera we allow only InnoDB sequences, thus
+  // sequence table updates are in writeset.
+  // Binlog cache needs reset so that binlog_close
+  // does not write cache to binlog file yet.
+  binlog_reset_cache(m_thd);
+
   replayer_thd->main_security_ctx = old_ctx;
   delete replayer_thd;
   DBUG_RETURN(ret);

@@ -5,14 +5,14 @@
 --source include/galera_cluster.inc
 --source include/force_restart.inc
 
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connection node_1
 SET GLOBAL auto_increment_offset=1;
 --connection node_2
 SET GLOBAL auto_increment_offset=2;
-
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
 
 ##
 ## Verify the correct operation of the auto-increment when the binlog

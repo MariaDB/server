@@ -469,6 +469,7 @@ extern ulong srv_buf_dump_status_frequency;
 
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;
+extern mysql_pfs_key_t	page_encrypt_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	thread_pool_thread_key;
 

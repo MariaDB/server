@@ -1,4 +1,3 @@
-INCLUDE (CheckCSourceRuns)
 INCLUDE (ExternalProject)
 
 SET(WITH_PCRE "auto" CACHE STRING
@@ -6,7 +5,8 @@ SET(WITH_PCRE "auto" CACHE STRING
 
 MACRO(BUNDLE_PCRE2)
   SET(dir "${CMAKE_BINARY_DIR}/extra/pcre2")
-  SET(PCRE_INCLUDES ${dir}/src/pcre2-build ${dir}/src/pcre2/src)
+  SET(PCRE_INCLUDE_DIRS ${dir}/src/pcre2-build ${dir}/src/pcre2/src)
+  MESSAGE(STATUS "Will download and bundle pcre2")
   SET(byproducts)
   FOREACH(lib pcre2-posix pcre2-8)
     ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
@@ -51,11 +51,18 @@ MACRO(BUNDLE_PCRE2)
     ENDIF()
   ENDFOREACH()
 
+  IF(CMAKE_MSVC_RUNTIME_LIBRARY)
+    SET(CMAKE_MSVC_RUNTIME_LIBRARY_ARG
+      "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}")
+  ELSE()
+    SET(CMAKE_MSVC_RUNTIME_LIBRARY_ARG)
+  ENDIF()
+
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.43/pcre2-10.43.zip"
-    URL_MD5 b58f050f2fdd6f2ca5774a2975377a85
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.zip"
+    URL_MD5 873da56c6469ec207ca5c5ae9688b83a
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"
@@ -69,6 +76,7 @@ MACRO(BUNDLE_PCRE2)
       "-DCMAKE_C_FLAGS_RELEASE=${pcre2_flags_RELEASE}"
       "-DCMAKE_C_FLAGS_MINSIZEREL=${pcre2_flags_MINSIZEREL}"
       "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+      ${CMAKE_MSVC_RUNTIME_LIBRARY_ARG}
       ${stdlibs}
       ${byproducts}
   )
@@ -76,18 +84,23 @@ SET_TARGET_PROPERTIES(pcre2 PROPERTIES EXCLUDE_FROM_ALL TRUE)
 ENDMACRO()
 
 MACRO (CHECK_PCRE)
-  IF(WITH_PCRE STREQUAL "system" OR WITH_PCRE STREQUAL "auto")
-    CHECK_LIBRARY_EXISTS(pcre2-8 pcre2_match_8 "" HAVE_PCRE2)
-  ENDIF()
-  IF(NOT HAVE_PCRE2 OR WITH_PCRE STREQUAL "bundled")
-    IF (WITH_PCRE STREQUAL "system")
-      MESSAGE(FATAL_ERROR "system pcre2-8 library is not found or unusable")
+  IF (NOT TARGET pcre2 AND NOT PCRE_FOUND)
+    IF(WITH_PCRE STREQUAL "system" OR WITH_PCRE STREQUAL "auto")
+      FIND_PACKAGE(PkgConfig QUIET)
+      PKG_CHECK_MODULES(PCRE libpcre2-8)
+      # in case pkg-config or libpcre2-8.pc is not installed:
+      CHECK_LIBRARY_EXISTS(pcre2-8 pcre2_match_8 "${PCRE_LIBRARY_DIRS}" HAVE_PCRE2_MATCH_8)
     ENDIF()
-    BUNDLE_PCRE2()
-  ELSE()
-    CHECK_LIBRARY_EXISTS(pcre2-posix PCRE2regcomp "" NEEDS_PCRE2_DEBIAN_HACK)
-    IF(NEEDS_PCRE2_DEBIAN_HACK)
-      SET(PCRE2_DEBIAN_HACK "-Dregcomp=PCRE2regcomp -Dregexec=PCRE2regexec -Dregerror=PCRE2regerror -Dregfree=PCRE2regfree")
+    IF(NOT HAVE_PCRE2_MATCH_8 OR WITH_PCRE STREQUAL "bundled")
+      IF (WITH_PCRE STREQUAL "system")
+        MESSAGE(FATAL_ERROR "system pcre2-8 library is not found or unusable")
+      ENDIF()
+      BUNDLE_PCRE2()
+    ELSE()
+      CHECK_LIBRARY_EXISTS(pcre2-posix PCRE2regcomp "${PCRE_LIBRARY_DIRS}" NEEDS_PCRE2_DEBIAN_HACK)
+      IF(NEEDS_PCRE2_DEBIAN_HACK)
+        SET(PCRE2_DEBIAN_HACK "-Dregcomp=PCRE2regcomp -Dregexec=PCRE2regexec -Dregerror=PCRE2regerror -Dregfree=PCRE2regfree")
+      ENDIF()
     ENDIF()
   ENDIF()
 ENDMACRO()

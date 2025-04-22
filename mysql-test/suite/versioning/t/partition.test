@@ -995,6 +995,7 @@ create or replace table t1 (
 
 insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'load.data' from t1;
 --enable_ps2_protocol
@@ -1003,6 +1004,7 @@ load data infile 'load.data' replace into table t1;
 load data infile 'load.data' replace into table t1;
 --error ER_RECORD_FILE_FULL
 load data infile 'load.data' replace into table t1;
+--enable_cursor_protocol
 
 # Cleanup
 --let $datadir= `select @@datadir`
@@ -1339,9 +1341,11 @@ partition by system_time limit 100 (
   partition pn current);
 
 insert into t1 select seq from seq_0_to_49;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select x into outfile 'MDEV-20077.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 load data infile 'MDEV-20077.data' replace into table t1 (x);
 load data infile 'MDEV-20077.data' replace into table t1 (x);
@@ -1558,6 +1562,22 @@ alter table t partition by system_time partitions 3;
 drop table t;
 --error WARN_VERS_PARAMETERS
 create table t (a int) with system versioning partition by system_time partitions 3;
+
+--echo #
+--echo # MDEV-36115 InnoDB: assertion: node->pcur->rel_pos == BTR_PCUR_ON
+--echo #            in row_update_for_mysql
+--echo #
+create table t (a int key) engine=innodb
+with system versioning
+partition by key() partitions 3;
+
+start transaction;
+insert into t values (1),(2),(3),(4),(5),(6),(7),(8);
+set timestamp=+1;
+delete from t;
+insert into t values (1),(2);
+DELETE from t;
+drop table t;
 
 --echo #
 --echo # End of 10.5 tests

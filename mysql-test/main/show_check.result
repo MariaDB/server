@@ -66,7 +66,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	information_schema	STATISTICS	STATISTICS	TABLE_NAME	Table	253	64	2	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	NON_UNIQUE	Non_unique	8	1	1	N	36865	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_NAME	Key_name	253	64	7	N	4097	0	8
-def	information_schema	STATISTICS	STATISTICS	SEQ_IN_INDEX	Seq_in_index	8	2	1	N	36865	0	63
+def	information_schema	STATISTICS	STATISTICS	SEQ_IN_INDEX	Seq_in_index	3	2	1	N	36897	0	63
 def	information_schema	STATISTICS	STATISTICS	COLUMN_NAME	Column_name	253	64	1	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	COLLATION	Collation	253	1	1	Y	4096	0	8
 def	information_schema	STATISTICS	STATISTICS	CARDINALITY	Cardinality	8	21	1	Y	36864	0	63
@@ -650,7 +650,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	information_schema	STATISTICS	STATISTICS	TABLE_NAME	Table	253	64	2	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	NON_UNIQUE	Non_unique	8	1	1	N	36865	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_NAME	Key_name	253	64	7	N	4097	0	63
-def	information_schema	STATISTICS	STATISTICS	SEQ_IN_INDEX	Seq_in_index	8	2	1	N	36865	0	63
+def	information_schema	STATISTICS	STATISTICS	SEQ_IN_INDEX	Seq_in_index	3	2	1	N	36897	0	63
 def	information_schema	STATISTICS	STATISTICS	COLUMN_NAME	Column_name	253	64	6	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	COLLATION	Collation	253	1	1	Y	4096	0	63
 def	information_schema	STATISTICS	STATISTICS	CARDINALITY	Cardinality	8	21	1	Y	36864	0	63
@@ -920,7 +920,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	information_schema	STATISTICS	STATISTICS	TABLE_NAME	Table	253	192	2	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	NON_UNIQUE	Non_unique	8	1	1	N	36865	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_NAME	Key_name	253	192	7	N	4097	0	33
-def	information_schema	STATISTICS	STATISTICS	SEQ_IN_INDEX	Seq_in_index	8	2	1	N	36865	0	63
+def	information_schema	STATISTICS	STATISTICS	SEQ_IN_INDEX	Seq_in_index	3	2	1	N	36897	0	63
 def	information_schema	STATISTICS	STATISTICS	COLUMN_NAME	Column_name	253	192	1	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	COLLATION	Collation	253	3	1	Y	4096	0	33
 def	information_schema	STATISTICS	STATISTICS	CARDINALITY	Cardinality	8	21	1	Y	36864	0	63

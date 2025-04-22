@@ -16,10 +16,9 @@ if ($stop_position)
 --exec $MYSQL_BINLOG -F --print-table-metadata $_stop_position_opt $binlog_file > $output_file
 
 
---let SEARCH_PATTERN= # (?:Columns\(| {8}).*
+--let SEARCH_PATTERN= (?m-s:# (?:Columns\(| {8}).*)
 --let SEARCH_FILE= $output_file
 --let SEARCH_OUTPUT=matches
---let SEARCH_TYPE="_gm_"
 --source include/search_pattern_in_file.inc
 
 if ($print_primary_key)

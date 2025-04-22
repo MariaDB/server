@@ -1,0 +1,45 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE src (c INT, d DATE, PRIMARY KEY(c));
+INSERT INTO src VALUES (42, '2024-08-27'), (73, '2024-07-12');
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+SET spider_same_server_link=1;
+CREATE TABLE dst (c INT, d DATE, PRIMARY KEY(c)) ENGINE=INNODB;
+INSERT INTO dst VALUES (555, '1999-12-12');
+CREATE TABLE t (c INT, d DATE, PRIMARY KEY(c)) ENGINE=SPIDER
+COMMENT='table "src dst", srv "s_2_1 s_1"';
+SELECT spider_copy_tables('t', '0', '1');
+spider_copy_tables('t', '0', '1')
+1
+SELECT * FROM dst;
+c	d
+42	2024-08-27
+73	2024-07-12
+555	1999-12-12
+connection child2_1;
+DROP TABLE src;
+DROP DATABASE auto_test_remote;
+connection master_1;
+DROP TABLE t;
+SELECT * FROM dst;
+c	d
+42	2024-08-27
+73	2024-07-12
+555	1999-12-12
+DROP TABLE dst;
+DROP DATABASE auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

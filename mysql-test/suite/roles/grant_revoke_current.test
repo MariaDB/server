@@ -1,5 +1,8 @@
 --source include/not_embedded.inc
+
+--disable_cursor_protocol
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+--enable_cursor_protocol
 
 --error ER_MALFORMED_DEFINER
 grant select on *.* to current_role;
