@@ -1945,9 +1945,12 @@ eval explain format=json $q1 union all $q2 order by a2;
 --error ER_DUP_FIELDNAME
 eval select * from ($q1 union $q2) d2;
 eval select *, o4 from ($q1 union $q2) d2 (o1, o2, o3, o4) where o2=o3+1;
+# Enale after fix MDEV-36664
+--disable_view_protocol
 eval select * from ($q1 union $q2 order by a2) d2 (o1, o2, o3, o4);
 eval select *, o4 from ($q1 union all $q2) d2 (o1, o2, o3, o4) where o2=o3+1;
 eval select * from ($q1 union all $q2 order by a2) d2 (o1, o2, o3, o4);
+--enable_view_protocol
 
 --echo # different query result set operations (union etc)
 
