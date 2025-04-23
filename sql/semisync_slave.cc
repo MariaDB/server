@@ -172,6 +172,31 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
   mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
 
+  /*
+    XXX: copied from connect_to_master, this function should not
+    change the slave status, so we cannot use connect_to_master
+    directly
+    
+    TODO: make this part a seperate function to eliminate duplication
+  */
+#ifdef HAVE_OPENSSL
+  if (mi->ssl)
+  {
+    mysql_ssl_set(kill_mysql,
+                  mi->ssl_key[0]?mi->ssl_key:0,
+                  mi->ssl_cert[0]?mi->ssl_cert:0,
+                  mi->ssl_ca[0]?mi->ssl_ca:0,
+                  mi->ssl_capath[0]?mi->ssl_capath:0,
+                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
+    mysql_options(kill_mysql, MYSQL_OPT_SSL_CRL,
+                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
+    mysql_options(kill_mysql, MYSQL_OPT_SSL_CRLPATH,
+                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
+    mysql_options(kill_mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &mi->ssl_verify_server_cert);
+  }
+#endif
+
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
             mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));
   if (DBUG_IF("semisync_slave_failed_kill") || ret)

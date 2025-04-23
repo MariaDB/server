@@ -1,0 +1,67 @@
+# MDEV-36663 Semi-sync Replica Can't Kill Dump Thread When Using SSL
+--source include/have_binlog_format_mixed.inc # format-agnostic
+--source include/have_ssl_communication.inc
+
+--echo # Create a user for replication that requires SSL encryption
+CREATE USER replssl@localhost;
+GRANT REPLICATION SLAVE on *.* to replssl@localhost REQUIRE SSL;
+
+--echo # Set up Semi-Sync with SSL
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+--let $orig_master_enabled=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+
+--connection slave
+--let $orig_slave_enabled=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval CHANGE MASTER TO
+  master_user='replssl',
+  master_password='',
+  master_ssl=1,
+  master_ssl_ca='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+
+--source include/start_slave.inc
+
+--connection master
+# Make sure Semi-Sync is active
+--let $status_var= Rpl_semi_sync_master_status
+--let $status_var_value= ON
+--source include/wait_for_status_var.inc
+
+--sync_slave_with_master
+--connection master
+
+--echo # Control State
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Disconnect the slave and wait until the master's dump thread is gone
+--connection slave
+STOP SLAVE;
+--connection master
+
+# MDEV-36663: The dump thread didn't go away.
+# This wait timed out and `Rpl_semi_sync_master_clients` remained 1. 
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.PROCESSLIST WHERE COMMAND = 'Binlog Dump'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Cleanup
+DROP USER replssl@localhost;
+--eval SET @@GLOBAL.rpl_semi_sync_master_enabled= $orig_master_enabled
+
+--connection slave
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= $orig_slave_enabled
+CHANGE MASTER TO
+  master_user='root',
+  master_ssl=0,
+  master_ssl_ca='',
+  master_ssl_cert='',
+  master_ssl_key='';
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
