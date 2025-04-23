@@ -8984,7 +8984,9 @@ opt_optimizer_hint:
           opt_hint_comment
           {
             YYLIP->hint_comment= false;
-            if (!($$= Lex->parse_optimizer_hints($2)) && thd->is_error())
+            std::pair<bool, Optimizer_hint_parser_output *> parse_res=
+              Lex->parse_optimizer_hints($2);
+            if (!($$= parse_res.second) && parse_res.first)
               MYSQL_YYABORT;
           }
         ;
