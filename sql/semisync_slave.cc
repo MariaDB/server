@@ -141,7 +141,7 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
   };);
 #endif
-    kill_connection(mi->mysql);
+    kill_connection(mi);
   }
 
   set_slave_enabled(0);
@@ -158,8 +158,9 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
 }
 
 
-void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
+void Repl_semi_sync_slave::kill_connection(Master_info *mi)
 {
+  MYSQL *mysql= mi->mysql;
   if (!mysql)
     return;
 
@@ -171,6 +172,20 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &m_kill_conn_timeout);
   mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
   mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
+
+#ifdef HAVE_OPENSSL
+  if (mi->ssl)
+  {
+    mysql_ssl_set(kill_mysql, mi->ssl_key, mi->ssl_cert, mi->ssl_ca,
+                  mi->ssl_capath, mi->ssl_cipher);
+    mysql_options(kill_mysql, MYSQL_OPT_SSL_CRL, mi->ssl_crl);
+    mysql_options(kill_mysql, MYSQL_OPT_SSL_CRLPATH, mi->ssl_crlpath);
+    mysql_options(kill_mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &mi->ssl_verify_server_cert);
+  }
+  else
+#endif
+    kill_mysql->options.use_ssl= 0;
 
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
             mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));
