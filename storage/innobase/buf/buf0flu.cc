@@ -1212,6 +1212,21 @@ static void buf_flush_discard_page(buf_page_t *bpage) noexcept
   buf_LRU_free_page(bpage, true);
 }
 
+/** Adjust to_withdraw during buf_pool_t::shrink() */
+ATTRIBUTE_COLD static size_t buf_flush_LRU_to_withdraw(size_t to_withdraw,
+                                                       const buf_page_t &bpage)
+  noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  if (!buf_pool.is_shrinking())
+    return 0;
+  const size_t size{buf_pool.size_in_bytes_requested};
+  if (buf_pool.will_be_withdrawn(bpage.frame, size) ||
+      buf_pool.will_be_withdrawn(bpage.zip.data, size))
+    to_withdraw--;
+  return to_withdraw;
+}
+
 /** Flush dirty blocks from the end buf_pool.LRU,
 and move clean blocks to buf_pool.free.
 @param max         maximum number of blocks to flush
@@ -1222,7 +1237,9 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 {
   size_t scanned= 0;
   mysql_mutex_assert_owner(&buf_pool.mutex);
-  size_t free_limit{buf_pool.LRU_scan_depth + to_withdraw};
+  size_t free_limit{buf_pool.LRU_scan_depth};
+  if (UNIV_UNLIKELY(to_withdraw > free_limit))
+    to_withdraw= free_limit;
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
@@ -1246,6 +1263,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
        bpage &&
        ((UT_LIST_GET_LEN(buf_pool.LRU) > buf_lru_min_len &&
          UT_LIST_GET_LEN(buf_pool.free) < free_limit) ||
+        to_withdraw ||
         recv_recovery_is_on());
        ++scanned, bpage= buf_pool.lru_hp.get())
   {
@@ -1261,6 +1279,8 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       if (state != buf_page_t::FREED &&
           (state >= buf_page_t::READ_FIX || (~buf_page_t::LRU_MASK & state)))
         continue;
+      if (UNIV_UNLIKELY(to_withdraw != 0))
+        to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
       buf_LRU_free_page(bpage, true);
       ++n->evicted;
       if (UNIV_LIKELY(scanned & 31))
@@ -1332,23 +1352,32 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         continue;
       }
 
+      if (state < buf_page_t::UNFIXED)
+        goto flush;
+
       if (n->flushed >= max && !recv_recovery_is_on())
       {
         bpage->lock.u_unlock(true);
         break;
       }
 
-      if (neighbors && space->is_rotational() &&
+      if (neighbors && space->is_rotational() && UNIV_LIKELY(!to_withdraw) &&
           /* Skip neighbourhood flush from LRU list if we haven't yet reached
           half of the free page target. */
           UT_LIST_GET_LEN(buf_pool.free) * 2 >= free_limit)
         n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
                                              neighbors == 1,
                                              n->flushed, max);
-      else if (bpage->flush(space))
-        ++n->flushed;
       else
-        continue;
+      {
+      flush:
+        if (UNIV_UNLIKELY(to_withdraw != 0))
+          to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
+        if (bpage->flush(space))
+          ++n->flushed;
+        else
+          continue;
+      }
 
       goto reacquire_mutex;
     }

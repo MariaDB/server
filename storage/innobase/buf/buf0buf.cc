@@ -1696,8 +1696,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         continue;
       }
 
-      if (UNIV_LIKELY_NULL(b->zip.data) &&
-          will_be_withdrawn(b->zip.data, size))
+      if (UNIV_UNLIKELY(will_be_withdrawn(b->zip.data, size)))
       {
         block= buf_buddy_shrink(b, block);
         ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) == id.page_no());

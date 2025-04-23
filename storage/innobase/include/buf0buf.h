@@ -1288,7 +1288,7 @@ public:
   bool will_be_withdrawn(const byte *ptr, size_t size) const noexcept
   {
     const char *p= reinterpret_cast<const char*>(ptr);
-    ut_ad(p >= memory);
+    ut_ad(!p || p >= memory);
     ut_ad(p < memory + size_in_bytes_max);
     return p >= memory + size;
   }
