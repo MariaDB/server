@@ -1985,5 +1985,21 @@ DROP TABLE t1;
 set optimizer_switch = DEFAULT;
 set join_cache_level = DEFAULT;
 #
-# End of 11.7 tests
+# MDEV-36675 Optimizer hints parser catches irrelevant `thd->is_error()`
+#              set by multi-RENAME TABLE
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (0);
+RENAME TABLE t1 TO t2, t3 TO t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SHOW CREATE TRIGGER t1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t1` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
+RENAME TABLE t1 TO t2;
+SHOW CREATE TRIGGER t1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t2` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
+DROP TABLE t2;
+#
+# End of 12.0 tests
 #

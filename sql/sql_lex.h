@@ -5001,7 +5001,7 @@ public:
     return nullptr;
   }
 
-  Optimizer_hint_parser_output *
+  std::pair<bool, Optimizer_hint_parser_output *>
     parse_optimizer_hints(const Lex_comment_st &hint);
 };
 

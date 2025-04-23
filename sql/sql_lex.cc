@@ -12932,22 +12932,22 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
 /*
   Parse optimizer hints and return as Hint_list allocated on thd->mem_root.
 
-  The caller should check both return value and thd->is_error()
+  The caller should check both parts of the return value
   to know what happened, as follows:
 
-  Return value   thd->is_error()  Meaning
+  Retval.first   Retval.second    Meaning
   ------------   ---------------  -------
-  rc != nullptr  false            the hints were parsed without errors
-  rc != nullptr  true             not possible
-  rc == nullptr  false            no hints, empty hints, hint parse error
-  rc == nullptr  true             fatal error, such as EOM
+  false          != nullptr       the hints were parsed without errors
+  true           != nullptr       impossible combination
+  false          == nullptr       no hints, empty hints, hint parse error
+  true           == nullptr       fatal error, such as EOM
 */
-Optimizer_hint_parser_output *
+std::pair<bool, Optimizer_hint_parser_output *>
 LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 {
   DBUG_ASSERT(!hints_str.str || hints_str.length >= 5);
   if (!hints_str.str)
-    return nullptr; // There were no a hint comment
+    return {false, nullptr}; // There were no a hint comment
 
   //  Instantiate the query hint parser.
   //  Remove the leading '/*+' and trailing '*/'
@@ -12965,17 +12965,17 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
       The SQL error should be in DA already.
     */
     DBUG_ASSERT(thd->is_error());
-    return nullptr; // Continue, the caller will test thd->is_error()
+    return {true, nullptr}; // Set the flag of fatal error
   }
 
   if (!hints) // Hint parsing failed with a syntax error
   {
     p.push_warning_syntax_error(thd, hints_str.lineno);
-    return nullptr; // Continue and ignore hints.
+    return {false, nullptr}; // Continue and ignore hints.
   }
 
   // Hints were not empty and were parsed without errors
-  return new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints));
+  return {false, new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints))};
 }
 
 
