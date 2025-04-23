@@ -38,9 +38,13 @@ Clone Plugin: Client Interface
 #include <atomic>
 #include <thread>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
+#include <chrono>
 
 /* Namespace for all clone data types */
-namespace myclone {
+namespace myclone
+{
 
 using Clock = std::chrono::steady_clock;
 using Time_Point = std::chrono::time_point<Clock>;
@@ -49,7 +53,8 @@ using Time_Msec = std::chrono::milliseconds;
 using Time_Sec = std::chrono::seconds;
 using Time_Min = std::chrono::minutes;
 
-struct Thread_Info {
+struct Thread_Info
+{
   /** Default constructor */
   Thread_Info() = default;
 
@@ -117,7 +122,8 @@ using Thread_Vector = std::vector<Thread_Info>;
 const size_t STAT_HISTORY_SIZE = 16;
 
 /** Auto tuning information for threads. */
-struct Thread_Tune_Auto {
+struct Thread_Tune_Auto
+{
   /** Auto tuning state */
   enum class State { INIT, ACTIVE, DONE };
 
@@ -161,7 +167,8 @@ struct Thread_Tune_Auto {
 };
 
 /** Client data transfer statistics. */
-class Client_Stat {
+class Client_Stat
+{
  public:
   /** Update statistics data.
   @param[in]	reset		reset all previous history
@@ -283,8 +290,48 @@ class Client_Stat {
   Thread_Tune_Auto m_tune;
 };
 
+class Exec_State
+{
+ public:
+  /** Wait till current state is greater or equal to passed state. It is used
+  by worker threads before starting work for certain execution state. The
+  state is set by master. Attach to the current state.
+  @param state state to wait for on input, attached state on output
+  @return error code. */
+  int begin_worker(Sub_Command &state);
+
+  /** Detach worker from current execution state.
+  @param state state to detach from, must match the current execution state
+  @return error code. */
+  int end_worker(Sub_Command state);
+
+  /** Wait for all workers to finish current state and set the new state. It is
+  used by master to drive state transition.
+  @param thd THD to check for interrupt
+  @param state state to set.
+  @return error code. */
+  int switch_state(THD *thd, Sub_Command next_state);
+
+ private:
+  /** Protects the state and counters. */
+  std::mutex m_mutex;
+
+  /** Condition variable for workers to wait for a state to begin. */
+  std::condition_variable m_wait_state;
+
+  /** Condition variable for master to wait for workers to finish state. */
+  std::condition_variable m_wait_count;
+
+  /** Current execution state. Protected by m_mutex. */
+  Sub_Command m_cur_state= SUBCOM_NONE;
+
+  /** Worker count within a state. Protected by m_mutex. */
+  uint32_t m_count_workers[static_cast<size_t>(SUBCOM_MAX) + 1]= {0};
+};
+
 /* Shared client information for multi threaded clone */
-struct Client_Share {
+struct Client_Share
+{
   /** Construct clone client share. Initialize storage handle.
   @param[in]	host	remote host IP address
   @param[in]	port	remote server port
@@ -301,7 +348,8 @@ struct Client_Share {
         m_data_dir(dir),
         m_ssl_mode(mode),
         m_max_concurrency(clone_max_concurrency),
-        m_protocol_version(CLONE_PROTOCOL_VERSION) {
+        m_protocol_version(CLONE_PROTOCOL_VERSION)
+  {
     m_storage_vec.reserve(MAX_CLONE_STORAGE_ENGINE);
     m_threads.resize(m_max_concurrency);
     assert(m_max_concurrency > 0);
@@ -340,12 +388,17 @@ struct Client_Share {
 
   /** Data transfer statistics. */
   Client_Stat m_stat;
+
+  /** Execution State. */
+  Exec_State m_state;
 };
 
 /** Auxiliary connection to send ACK */
-struct Client_Aux {
+struct Client_Aux
+{
   /** Initialize members */
-  void reset() {
+  void reset()
+  {
     m_buffer = nullptr;
     m_buf_len = 0;
     m_cur_index = 0;
@@ -368,7 +421,8 @@ struct Client_Aux {
   int m_error;
 };
 
-struct Remote_Parameters {
+struct Remote_Parameters
+{
   /** Remote plugins */
   String_Keys m_plugins;
 
@@ -387,7 +441,8 @@ struct Remote_Parameters {
 
 /** For Remote Clone, "Clone Client" is created at recipient. It receives data
 over network from remote "Clone Server" and applies to Storage Engines. */
-class Client {
+class Client
+{
  public:
   /** Construct clone client. Initialize external handle.
   @param[in,out]	thd		server thread handle
@@ -540,9 +595,10 @@ class Client {
 
   /** Execute RPC clone command on remote server
   @param[in]	com	RPC command ID
+  @param[in]	sub	Sub command ID
   @param[in]	use_aux	use auxiliary connection
   @return error if not successful */
-  int remote_command(Command_RPC com, bool use_aux);
+  int remote_command(Command_RPC com, Sub_Command sub, bool use_aux);
 
   /** Begin state in PFS table.
   @return error code. */
@@ -587,6 +643,23 @@ class Client {
   @return	error code */
   int connect_remote(bool is_restart, bool use_aux);
 
+  /** Execute clone moving through all execution states.
+  @param mesg_buf information message buffer
+  @param buf_len buffer length
+  @return error code */
+  int execute(char *mesg_buf, size_t buf_len);
+
+  /** Begin a clone execution state.
+  @param thd THD to check for interrupt
+  @param sub_state execution state
+  @return error code */
+  int exec_begin_state(THD *thd, Sub_Command &sub_state);
+
+  /* End clone execution state.
+  @param sub_state execution state
+  @return error code */
+  int exec_end_state(Sub_Command sub_state);
+
   /** Initialize storage engine and command buffer.
   @param[in]	mode	initialization mode
   @param[out]	cmd_len	serialized command length
@@ -595,13 +668,20 @@ class Client {
 
   /** Prepare command buffer for remote RPC
   @param[in]	com	RPC command ID
+  @param[in]	sub	Sub command ID
   @param[out]	buf_len	command buffer length
   @return error if allocation fails */
-  int prepare_command_buffer(Command_RPC com, size_t &buf_len);
+  int prepare_command_buffer(Command_RPC com, Sub_Command sub,
+                             size_t &buf_len);
 
   /** Serialize the buffer for COM_INIT
   @param[out]	buf_len	length of serialized buffer */
   int serialize_init_cmd(size_t &buf_len);
+
+  /** Serialize the buffer for COM_EXEC
+  @param[in]	sub	Sub command ID
+  @param[out]	buf_len	length of serialized buffer */
+  int serialize_exec_cmd(Sub_Command sub, size_t &buf_len);
 
   /** Serialize the buffer for COM_ACK
   @param[out]	buf_len	length of serialized buffer */
@@ -788,7 +868,8 @@ class Client {
 };
 
 /** Clone client interface to handle callback from Storage Engine */
-class Client_Cbk : public Ha_clone_cbk {
+class Client_Cbk : public Ha_clone_cbk
+{
  public:
   /** Construct Callback. Set clone client object.
   @param[in]	clone	clone client object */
