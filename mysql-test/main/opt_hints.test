@@ -1021,6 +1021,24 @@ SELECT
 DROP TABLE t1;
 set optimizer_switch = DEFAULT;
 set join_cache_level = DEFAULT;
+
 --echo #
---echo # End of 11.7 tests
+--echo # MDEV-36675 Optimizer hints parser catches irrelevant `thd->is_error()`
+--echo #              set by multi-RENAME TABLE
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (0);
+--error ER_NO_SUCH_TABLE
+RENAME TABLE t1 TO t2, t3 TO t4;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1;
+RENAME TABLE t1 TO t2;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1;
+DROP TABLE t2;
+
+--echo #
+--echo # End of 12.0 tests
 --echo #
