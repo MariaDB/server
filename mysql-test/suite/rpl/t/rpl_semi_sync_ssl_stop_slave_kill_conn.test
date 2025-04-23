@@ -1,0 +1,88 @@
+#
+#
+# References:
+#   MDEV-:
+#
+
+# Test is format independent, just one format combination
+--source include/have_binlog_format_row.inc
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--echo #
+--echo # Setup SSL
+# create a user for replication that requires ssl encryption
+--connection master
+create user replssl@localhost;
+grant replication slave on *.* to replssl@localhost require ssl;
+
+--connection slave
+# Set slave to use SSL for connection to master
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval change master to
+  master_user='replssl',
+  master_password='',
+  master_ssl=1,
+  master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+--source include/start_slave.inc
+
+--echo #
+--echo # Replicate some transactions to ensure connection is ok
+--connection master
+create table t1 (a int);
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # -------------- START FROM JIMMY
+
+--connection master
+
+--disable_cursor_protocol
+select id into @binlog_dump_tid from information_schema.processlist where command LIKE 'Binlog Dump';
+--enable_cursor_protocol
+
+select state from information_schema.processlist where id = @binlog_dump_tid;
+show status like 'Rpl_semi_sync_master_clients';
+
+--echo # Disconnect the slave and wait until the master's dump thread is gone
+--connection slave
+stop slave;
+--connection master
+
+--let $wait_condition= select count(*)=0 from information_schema.processlist where id = @binlog_dump_tid
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+--echo # -------------- END FROM JIMMY
+--echo #
+
+
+--echo #
+--echo # Cleanup
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+CHANGE MASTER TO
+ master_user = 'root',
+ master_ssl = 0,
+ master_ssl_ca = '',
+ master_ssl_cert = '',
+ master_ssl_key = '';
+
+--connection master
+drop user replssl@localhost;
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_ssl_stop_slave_kill_conn.test
