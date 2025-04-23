@@ -141,7 +141,7 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
   };);
 #endif
-    kill_connection(mi->mysql);
+    kill_connection(mi);
   }
 
   set_slave_enabled(0);
@@ -158,8 +158,9 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
 }
 
 
-void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
+void Repl_semi_sync_slave::kill_connection(Master_info *mi)
 {
+  MYSQL *mysql= mi->mysql;
   if (!mysql)
     return;
 
@@ -168,34 +169,9 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   size_t kill_buffer_length;
 
   kill_mysql = mysql_init(kill_mysql);
-  mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &m_kill_conn_timeout);
-  mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
-  mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
 
-  /*
-    XXX: copied from connect_to_master, this function should not
-    change the slave status, so we cannot use connect_to_master
-    directly
-    
-    TODO: make this part a seperate function to eliminate duplication
-  */
-#ifdef HAVE_OPENSSL
-  if (mi->ssl)
-  {
-    mysql_ssl_set(kill_mysql,
-                  mi->ssl_key[0]?mi->ssl_key:0,
-                  mi->ssl_cert[0]?mi->ssl_cert:0,
-                  mi->ssl_ca[0]?mi->ssl_ca:0,
-                  mi->ssl_capath[0]?mi->ssl_capath:0,
-                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
-    mysql_options(kill_mysql, MYSQL_OPT_SSL_CRL,
-                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
-    mysql_options(kill_mysql, MYSQL_OPT_SSL_CRLPATH,
-                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
-    mysql_options(kill_mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->ssl_verify_server_cert);
-  }
-#endif
+  setup_mysql_connection_for_master(kill_mysql, mi, m_kill_conn_timeout);
+  mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
 
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
             mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));

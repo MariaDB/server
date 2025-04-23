@@ -231,7 +231,7 @@ class Master_info : public Slave_reporting_capability
   char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
   char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
   char ssl_crl[FN_REFLEN], ssl_crlpath[FN_REFLEN];
-  bool ssl_verify_server_cert;
+  my_bool ssl_verify_server_cert;
 
   my_off_t master_log_pos;
   File fd; // we keep the file open, so we need to remember the file pointer
@@ -486,6 +486,17 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
 void free_key_master_info(Master_info *mi);
 uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
+
+/*
+  Sets up the basic options for a MYSQL connection, mysql, to connect to the
+  primary server described by the Master_info parameter, mi. The timeout must
+  be passed explicitly, as different types of connections created by the slave
+  will use different values.
+
+  Assumes mysql_init() has already been called on the mysql connection object.
+*/
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout);
 
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

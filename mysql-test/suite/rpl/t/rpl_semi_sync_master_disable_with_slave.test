@@ -50,7 +50,6 @@ SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
 STOP SLAVE;
 # Starting with MDEV-13073,
 # Semi-Sync STOP SLAVE also terminates its dump thread on the master.
-# See also: MDEV-36663 Semi-sync Replica Can't Kill Dump Thread When Using SSL
 --connection master
 
 # MDEV-36359: The disconnection would crash the master and leave the wait with
