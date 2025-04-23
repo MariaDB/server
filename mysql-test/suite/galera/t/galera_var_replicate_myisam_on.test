@@ -23,6 +23,11 @@ INSERT INTO t1 VALUES (2), (3);
 INSERT INTO t1 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_5 FROM t1;
 
 DROP TABLE t1;
@@ -38,6 +43,13 @@ REPLACE INTO t1 VALUES (1, 'klm'), (2,'xyz');
 REPLACE INTO t1 SELECT 3, 'yyy' FROM DUAL;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_3 FROM t1;
 SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
 SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
@@ -51,6 +63,9 @@ SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
 UPDATE t1 SET f2 = 'zzz' WHERE f2 = 'yyy';
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'zzz';
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'zzz';
 
 #
@@ -61,6 +76,9 @@ SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'zzz';
 DELETE FROM t1 WHERE f2 = 'zzz';
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'zzz';
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_0 FROM t1 WHERE f2 = 'zzz';
 
 #
@@ -71,6 +89,9 @@ SELECT COUNT(*) AS EXPECT_0 FROM t1 WHERE f2 = 'zzz';
 TRUNCATE TABLE t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_0 FROM t1;
 DROP TABLE t1;
 
@@ -88,6 +109,15 @@ INSERT INTO t2 VALUES (1);
 COMMIT;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t2;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_1 FROM t1;
 SELECT COUNT(*) AS EXPECT_1 FROM t2;
 
@@ -102,6 +132,11 @@ INSERT INTO t2 VALUES (2);
 ROLLBACK;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t2;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) AS EXPECT_2 FROM t1;
 SELECT COUNT(*) AS EXPECT_1 FROM t2;
 
@@ -120,7 +155,13 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 
 --connection node_2
-# The MyISAM update is replicated immediately, so a duplicate key error happens even before the COMMIT
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+# The MyISAM update is replicated when executed, so a duplicate key error happens even before the COMMIT
 --error ER_DUP_ENTRY
 INSERT INTO t1 VALUES (1);
 
@@ -149,6 +190,10 @@ EXECUTE rep;
 SELECT * FROM t1 ORDER BY id;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 11 FROM t1;
+--source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY id;
 
 DROP TABLE t1;
@@ -175,6 +220,10 @@ CALL proc();
 SELECT * FROM t1 ORDER BY id;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 11 FROM t1;
+--source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY id;
 
 DROP PROCEDURE proc;
@@ -198,6 +247,13 @@ SELECT * FROM t1 ORDER BY id;
 SELECT * FROM t2 ORDER BY id;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 10 FROM t1;
+--source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY id;
 SELECT * FROM t2 ORDER BY id;
 DROP TRIGGER tr1;
@@ -208,8 +264,14 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (a INT, b INT, UNIQUE(a)) ENGINE=MyISAM;
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=1;
 INSERT INTO t1  (a,b) VALUES (10,20);
+SELECT * from t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
 SELECT * from t1;
 --connection node_1
 DROP TABLE t1;
