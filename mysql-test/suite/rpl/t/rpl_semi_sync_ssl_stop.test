@@ -88,7 +88,7 @@ DROP TABLE t1;
 SET @@GLOBAL.rpl_semi_sync_slave_enabled= @orig_slave_enabled;
 CHANGE MASTER TO
   master_user='root',
-  master_ssl=0,
+  master_ssl=1,
   master_ssl_ca='',
   master_ssl_cert='',
   master_ssl_key='';

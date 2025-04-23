@@ -21,11 +21,8 @@
 #include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
-<<<<<<< HEAD
 #include "sql_acl.h"
-=======
 #include <sql_common.h>
->>>>>>> 3b3a5efbcf0 (MDEV-36663 Semi-sync Replica Can't Kill Dump Thread When Using SSL)
 
 #ifdef HAVE_REPLICATION
 
@@ -2091,20 +2088,16 @@ void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
 #ifdef HAVE_OPENSSL
   if (mi->ssl)
   {
-    mysql_ssl_set(mysql,
-                  mi->ssl_key[0]?mi->ssl_key:0,
-                  mi->ssl_cert[0]?mi->ssl_cert:0,
-                  mi->ssl_ca[0]?mi->ssl_ca:0,
-                  mi->ssl_capath[0]?mi->ssl_capath:0,
-                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL,
-                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH,
-                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
+    mysql_ssl_set(mysql, mi->ssl_key, mi->ssl_cert, mi->ssl_ca, mi->ssl_capath,
+                  mi->ssl_cipher);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->ssl_crl);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->ssl_crlpath);
     mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                   &mi->ssl_verify_server_cert);
   }
+  else
 #endif
+    mysql->options.use_ssl= 0;
 
   /*
     If server's default charset is not supported (like utf16, utf32) as client

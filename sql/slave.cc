@@ -7282,52 +7282,10 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   if (opt_slave_compressed_protocol)
     client_flag|= CLIENT_COMPRESS;                /* We will use compression */
 
-<<<<<<< HEAD
-  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
-
-#ifdef HAVE_OPENSSL
-  if (mi->ssl)
-  {
-    mysql_ssl_set(mysql, mi->ssl_key, mi->ssl_cert, mi->ssl_ca, mi->ssl_capath,
-                  mi->ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->ssl_crlpath);
-    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->ssl_verify_server_cert);
-  }
-  else
-#endif
-    mysql->options.use_ssl= 0;
-
-  /*
-    If server's default charset is not supported (like utf16, utf32) as client
-    charset, then set client charset to 'latin1' (default client charset).
-  */
-  if (is_supported_parser_charset(default_charset_info))
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
-  else
-  {
-    sql_print_information("'%s' can not be used as client character set. "
-                          "'%s' will be used as default client character set "
-                          "while connecting to master.",
-                          default_charset_info->cs_name.str,
-                          default_client_charset_info->cs_name.str);
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
-                  default_client_charset_info->cs_name.str);
-  }
-
-  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
-  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
-
-=======
   setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                 (char*) &my_true);
 
->>>>>>> 3b3a5efbcf0 (MDEV-36663 Semi-sync Replica Can't Kill Dump Thread When Using SSL)
   /* we disallow empty users */
   if (mi->user[0] == 0)
   {
