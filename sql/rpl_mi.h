@@ -489,5 +489,16 @@ void free_key_master_info(Master_info *mi);
 uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
 
+/*
+  Sets up the basic options for a MYSQL connection, mysql, to connect to the
+  primary server described by the Master_info parameter, mi. The timeout must
+  be passed explicitly, as different types of connections created by the slave
+  will use different values.
+
+  Assumes mysql_init() has already been called on the mysql connection object.
+*/
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout);
+
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */
