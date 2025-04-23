@@ -124,10 +124,12 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
 @param[in,out]	thd		server thread handle
 @param[in]	clone_loc_vec	vector of locators for SEs
 @param[in]	task_vec	vector of task identifiers
+@param[in]	clone_stage	clone execution stage
 @param[in]	clone_cbk	clone callback
 @return error code */
 int hton_clone_copy(THD *thd, Storage_Vector &clone_loc_vec,
-                    Task_Vector &task_vec, Ha_clone_cbk *clone_cbk);
+                    Task_Vector &task_vec, Ha_clone_stage clone_stage,
+                    Ha_clone_cbk *clone_cbk);
 
 /** Clone end for all storage engines supporting clone
 @param[in,out]	thd		server thread handle

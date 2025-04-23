@@ -1271,6 +1271,27 @@ enum Ha_clone_mode {
   HA_CLONE_MODE_MAX
 };
 
+enum Ha_clone_stage {
+  /* Concurrent clone with DDL and DML. */
+  HA_CLONE_STAGE_CONCURRENT,
+
+  /* New Non-Transactional DMLs blocked. */
+  HA_CLONE_STAGE_NT_DML_BLOCKED,
+
+  /* All existing Non-Transactional DMLs finished. */
+  HA_CLONE_STAGE_NT_DML_FINISHED,
+
+  /* All DDL blocked. For Server owned metadata files (FRM)
+  and SE's needing DDL to be blocked.  */
+  HA_CLONE_STAGE_DDL_BLOCKED,
+
+  /* Commit blocked. For consistent SE snapshot with binary log. */
+  HA_CLONE_STAGE_SNAPSHOT,
+
+  /* Clone any archived data at the end. Doesn't need to block anything. */
+  HA_CLONE_STAGE_END
+};
+
 /** Clone operation types. */
 enum Ha_clone_type : size_t {
   /** Caller must block all write operation to the SE. */
@@ -1522,7 +1543,6 @@ class Ha_clone_cbk {
 using clone_capability_t = void (*)(Ha_clone_flagset &flags);
 
 /** Begin copy from source database
-@param[in]      hton    handlerton for SE
 @param[in]      thd     server thread handle
 @param[in,out]  loc     locator
 @param[in,out]  loc_len locator length
@@ -1530,23 +1550,23 @@ using clone_capability_t = void (*)(Ha_clone_flagset &flags);
 @param[in]      type    clone type
 @param[in]      mode    mode for starting clone
 @return error code */
-using clone_begin_t = int (*)(handlerton *hton, THD *thd, const uchar *&loc,
-                              uint &loc_len, uint &task_id, Ha_clone_type type,
+using clone_begin_t = int (*)(THD *thd, const uchar *&loc, uint &loc_len,
+                              uint &task_id, Ha_clone_type type,
                               Ha_clone_mode mode);
 
 /** Copy data from source database in chunks via callback
-@param[in]      hton    handlerton for SE
 @param[in]      thd     server thread handle
 @param[in]      loc     locator
 @param[in]      loc_len locator length in bytes
 @param[in]      task_id task identifier
+@param[in]      stage   Clone execution Stage
 @param[in]      cbk     callback interface for sending data
 @return error code */
-using clone_copy_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
-                             uint loc_len, uint task_id, Ha_clone_cbk *cbk);
+using clone_copy_t = int (*)(THD *thd, const uchar *loc, uint loc_len,
+                             uint task_id, Ha_clone_stage stage,
+                             Ha_clone_cbk *cbk);
 
 /** Acknowledge data transfer to source database
-@param[in]      hton    handlerton for SE
 @param[in]      thd     server thread handle
 @param[in]      loc     locator
 @param[in]      loc_len locator length in bytes
@@ -1554,23 +1574,20 @@ using clone_copy_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
 @param[in]      in_err  inform any error occurred
 @param[in]      cbk     callback interface
 @return error code */
-using clone_ack_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
-                            uint loc_len, uint task_id, int in_err,
-                            Ha_clone_cbk *cbk);
+using clone_ack_t = int (*)(THD *thd, const uchar *loc, uint loc_len,
+                            uint task_id, int in_err, Ha_clone_cbk *cbk);
 
 /** End copy from source database
-@param[in]      hton    handlerton for SE
 @param[in]      thd     server thread handle
 @param[in]      loc     locator
 @param[in]	loc_len	locator length in bytes
 @param[in]      task_id task identifier
 @param[in]      in_err  error code when ending after error
 @return error code */
-using clone_end_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
-                            uint loc_len, uint task_id, int in_err);
+using clone_end_t = int (*)(THD *thd, const uchar *loc, uint loc_len,
+                            uint task_id, int in_err);
 
 /** Begin apply to destination database
-@param[in]      hton            handlerton for SE
 @param[in]      thd             server thread handle
 @param[in,out]  loc             locator
 @param[in,out]  loc_len         locator length
@@ -1578,13 +1595,11 @@ using clone_end_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
 @param[in]      mode            mode for starting clone
 @param[in]      data_dir        target data directory
 @return error code */
-using clone_apply_begin_t = int (*)(handlerton *hton, THD *thd,
-                                    const uchar *&loc, uint &loc_len,
+using clone_apply_begin_t = int (*)(THD *thd, const uchar *&loc, uint &loc_len,
                                     uint &task_id, Ha_clone_mode mode,
                                     const char *data_dir);
 
 /** Apply data to destination database in chunks via callback
-@param[in]      hton    handlerton for SE
 @param[in]      thd     server thread handle
 @param[in]      loc     locator
 @param[in]	loc_len	locator length in bytes
@@ -1592,20 +1607,18 @@ using clone_apply_begin_t = int (*)(handlerton *hton, THD *thd,
 @param[in]      in_err  inform any error occurred
 @param[in]      cbk     callback interface for receiving data
 @return error code */
-using clone_apply_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
-                              uint loc_len, uint task_id, int in_err,
-                              Ha_clone_cbk *cbk);
+using clone_apply_t = int (*)(THD *thd, const uchar *loc, uint loc_len,
+                              uint task_id, int in_err, Ha_clone_cbk *cbk);
 
 /** End apply to destination database
-@param[in]      hton    handlerton for SE
 @param[in]      thd     server thread handle
 @param[in]      loc     locator
 @param[in]	loc_len	locator length in bytes
 @param[in]      task_id task identifier
 @param[in]      in_err  error code when ending after error
 @return error code */
-using clone_apply_end_t = int (*)(handlerton *hton, THD *thd, const uchar *loc,
-                                  uint loc_len, uint task_id, int in_err);
+using clone_apply_end_t = int (*)(THD *thd, const uchar *loc, uint loc_len,
+                                  uint task_id, int in_err);
 
 struct clone_interface_t {
   /* Get clone capabilities of an SE */

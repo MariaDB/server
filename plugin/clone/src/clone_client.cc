@@ -831,7 +831,7 @@ int Exec_State::switch_state(THD *thd, Sub_Command next_state)
       break;
     }
   }
-  Sub_Command new_state= err ? SUBCOM_EXEC_END : next_state;
+  Sub_Command new_state= err ? SUBCOM_MAX : next_state;
   m_cur_state= new_state;
   lock.unlock();
 
@@ -871,17 +871,17 @@ int Client::execute(char *mesg_buf, size_t buf_len)
     /* We might have attached to a different state. */
     cur_st= static_cast<uchar>(sub_state);
 
-    assert(cur_st <= end_st);
-    if (cur_st >= end_st)
+    if (cur_st > end_st)
       break;
+    assert(cur_st <= end_st);
 
-    if (!err)
+    if (!err && !skip_state(sub_state))
+    {
       err= remote_command(COM_EXECUTE, sub_state, false);
-
-    snprintf(mesg_buf, buf_len, "Command COM_EXECUTE: %s",
-             sub_command_str(sub_state));
-    log_error(get_thd(), true, err, &mesg_buf[0]);
-
+      snprintf(mesg_buf, buf_len, "Command COM_EXECUTE: %s",
+               sub_command_str(sub_state));
+      log_error(get_thd(), true, err, &mesg_buf[0]);
+    }
     exec_end_state(sub_state);
     /* In case of any error, jump to the final state. */
     cur_st= err ? end_st : cur_st + 1;
@@ -1905,12 +1905,12 @@ int Client::set_descriptor(const uchar *buffer, size_t length)
 
   clone_callback->set_data_desc(buffer, length);
   clone_callback->clear_flags();
+  clone_callback->set_hton(loc->m_hton);
 
   /* Apply using descriptor */
   assert(loc_index < m_tasks.size());
-  err= hton->clone_interface.clone_apply(loc->m_hton, get_thd(), loc->m_loc,
-                                         loc->m_loc_len, m_tasks[loc_index], 0,
-                                         clone_callback);
+  err= hton->clone_interface.clone_apply(get_thd(), loc->m_loc, loc->m_loc_len,
+                                         m_tasks[loc_index], 0, clone_callback);
 
   delete clone_callback;
 

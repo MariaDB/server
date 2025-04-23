@@ -660,6 +660,15 @@ class Client
   @return error code */
   int exec_end_state(Sub_Command sub_state);
 
+  /** Check if the state should skipped. Currently only master thread needs to
+  take the snapshot.
+  @param sub_state execution state
+  @return true if the state needs to be skipped */
+  bool skip_state(Sub_Command sub_state) const
+  {
+    return (!is_master() && sub_state == SUBCOM_EXEC_SNAPSHOT);
+  }
+
   /** Initialize storage engine and command buffer.
   @param[in]	mode	initialization mode
   @param[out]	cmd_len	serialized command length

@@ -377,7 +377,7 @@ static int get_ddl_timeout(THD *thd)
   return timeout;
 }
 
-int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
+int innodb_clone_begin(THD *thd, const byte *&loc, uint &loc_len,
                        uint &task_id, Ha_clone_type type, Ha_clone_mode mode)
 {
   /* Check if reference locator is valid */
@@ -532,17 +532,15 @@ int innodb_clone_begin(handlerton *, THD *thd, const byte *&loc, uint &loc_len,
   return 0;
 }
 
-int innodb_clone_copy(handlerton *hton, THD *thd, const byte *loc, uint loc_len,
-                      uint task_id, Ha_clone_cbk *cbk)
+int innodb_clone_copy(THD *thd, const byte *loc, uint loc_len, uint task_id,
+                      Ha_clone_stage stage, Ha_clone_cbk *cbk)
 {
-  cbk->set_hton(hton);
-
   /* Get clone handle by locator index. */
   auto clone_hdl= clone_sys->get_clone_by_index(loc, loc_len);
 
   auto err= clone_hdl->check_error(thd);
 
-  if (err != 0)
+  if (err != 0 || stage != HA_CLONE_STAGE_CONCURRENT)
     return err;
 
   /* Start data copy. */
@@ -552,11 +550,9 @@ int innodb_clone_copy(handlerton *hton, THD *thd, const byte *loc, uint loc_len,
   return err;
 }
 
-int innodb_clone_ack(handlerton *hton, THD *thd, const byte *loc, uint loc_len,
+int innodb_clone_ack(THD *thd, const byte *loc, uint loc_len,
                      uint task_id, int in_err, Ha_clone_cbk *cbk)
 {
-  cbk->set_hton(hton);
-
   /* Check if reference locator is valid */
   if (loc != nullptr && !clone_validate_locator(loc, loc_len))
   {
@@ -623,7 +619,7 @@ static Clone_Min get_donor_timeout(THD *thd)
   return Clone_Min(timeout);
 }
 
-int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
+int innodb_clone_end(THD *thd, const byte *loc, uint loc_len,
                      uint task_id, int in_err)
 {
   /* Acquire clone system mutex which would automatically get released
@@ -771,7 +767,7 @@ int innodb_clone_end(handlerton *, THD *thd, const byte *loc, uint loc_len,
   return 0;
 }
 
-int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
+int innodb_clone_apply_begin(THD *thd, const byte *&loc,
                              uint &loc_len, uint &task_id, Ha_clone_mode mode,
                              const char *data_dir)
 {
@@ -943,7 +939,7 @@ int innodb_clone_apply_begin(handlerton *, THD *thd, const byte *&loc,
   return 0;
 }
 
-int innodb_clone_apply(handlerton *hton, THD *thd, const byte *loc,
+int innodb_clone_apply(THD *thd, const byte *loc,
                        uint loc_len, uint task_id, int in_err,
                        Ha_clone_cbk *cbk)
 {
@@ -963,7 +959,6 @@ int innodb_clone_apply(handlerton *hton, THD *thd, const byte *loc,
     return 0;
   }
 
-  cbk->set_hton(hton);
   auto err= clone_hdl->check_error(thd);
   if (err != 0)
     return err;
@@ -975,10 +970,10 @@ int innodb_clone_apply(handlerton *hton, THD *thd, const byte *loc,
   return err;
 }
 
-int innodb_clone_apply_end(handlerton *hton, THD *thd, const byte *loc,
+int innodb_clone_apply_end(THD *thd, const byte *loc,
                            uint loc_len, uint task_id, int in_err)
 {
-  auto err= innodb_clone_end(hton, thd, loc, loc_len, task_id, in_err);
+  auto err= innodb_clone_end(thd, loc, loc_len, task_id, in_err);
   return err;
 }
 
