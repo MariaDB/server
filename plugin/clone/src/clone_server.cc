@@ -196,6 +196,42 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
   return (err);
 }
 
+int Server::execute_phase(Sub_Command sub_cmd)
+{
+  int err= 0;
+  switch (sub_cmd)
+  {
+    case SUBCOM_EXEC_CONCURRENT:
+    {
+      Server_Cbk clone_callback(this);
+      err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks,
+                           &clone_callback);
+      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_CONCURRENT");
+      break;
+    }
+    case SUBCOM_EXEC_BLOCK_NT_DML:
+      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_BLOCK_NT_DML");
+      break;
+    case SUBCOM_EXEC_BLOCK_DDL:
+      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_BLOCK_DDL");
+      break;
+    case SUBCOM_EXEC_SNAPSHOT:
+      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_SNAPSHOT");
+      break;
+    case SUBCOM_EXEC_END:
+      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_END");
+      break;
+    case SUBCOM_MAX:
+    case SUBCOM_NONE:
+    default:
+      err= ER_CLONE_PROTOCOL;
+      my_error(err, MYF(0), "Wrong Clone RPC: Invalid Execution Request");
+      log_error(get_thd(), false, err, "COM_EXECUTE");
+      break;
+  }
+  return err;
+}
+
 int Server::parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
                                  bool &done) {
   int err = 0;
@@ -226,19 +262,20 @@ int Server::parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
 
     case COM_EXECUTE: {
       if (!m_storage_initialized) {
-        /* purecov: begin deadcode */
         err = ER_CLONE_PROTOCOL;
         my_error(err, MYF(0), "Wrong Clone RPC: Execute request before Init");
-        log_error(get_thd(), false, err, "COM_EXECUTE : Storage ninitialized");
+        log_error(get_thd(), false, err, "COM_EXECUTE : Storage initialized");
         break;
-        /* purecov: end */
       }
 
-      Server_Cbk clone_callback(this);
+      Sub_Command sub_cmd= SUBCOM_NONE;
+      err= deserialize_exec_buffer(com_buf, com_len, sub_cmd);
 
-      err = hton_clone_copy(get_thd(), get_storage_vector(), m_tasks,
-                            &clone_callback);
-      log_error(get_thd(), false, err, "COM_EXECUTE: Storage Execute");
+      if (err != 0)
+        log_error(get_thd(), false, err, "COM_EXECUTE: Storage Execute");
+      else
+        err= execute_phase(sub_cmd);
+
       break;
     }
     case COM_ACK: {
@@ -281,6 +318,18 @@ int Server::parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
       /* purecov: end */
   }
   return (err);
+}
+
+int Server::deserialize_exec_buffer(const uchar *exec_buf, size_t exec_len,
+                                    Sub_Command &sub_cmd)
+{
+  if (exec_len == 0)
+  {
+    my_error(ER_CLONE_PROTOCOL, MYF(0), "Wrong Clone RPC: EXEC Sub Command length");
+    return ER_CLONE_PROTOCOL;
+  }
+  sub_cmd= static_cast<Sub_Command>(*exec_buf);
+  return 0;
 }
 
 int Server::deserialize_ack_buffer(const uchar *ack_buf, size_t ack_len,

@@ -175,6 +175,11 @@ class Server {
   int parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
                            bool &done);
 
+  /** Run one specific execution phase.
+  @param[in]  sub_cmd  Sub command ID
+  @return error code */
+  int execute_phase(Sub_Command sub_cmd);
+
   /** Deserialize COM_INIT command buffer to extract version and locators
   @param[in]	init_buf	INIT command buffer
   @param[in]	init_len	buffer length
@@ -190,6 +195,14 @@ class Server {
   @return error code */
   int deserialize_ack_buffer(const uchar *ack_buf, size_t ack_len,
                              Ha_clone_cbk *cbk, int &err_code, Locator *loc);
+
+  /** Deserialize COM_EXECUTE command buffer to extract execution phase
+  @param[in]	exec_buf	Execute command buffer
+  @param[in]	exec_len	buffer length
+  @param[out]	sub_cmd		Execution sub command
+  @return error code */
+  int deserialize_exec_buffer(const uchar *exec_buf, size_t exec_len,
+                              Sub_Command &sub_cmd);
 
   /** Send back the locators
   @return error code */

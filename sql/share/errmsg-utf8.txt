@@ -12405,9 +12405,9 @@ ER_CLONE_DONOR_TRACE
 ER_CLONE_PROTOCOL_TRACE
   eng "Clone received unexpected response from donor : %.512s."
 ER_CLONE_CLIENT_TRACE
-  eng "Client: %.512s."
+  eng "Clone Client: %.512s."
 ER_CLONE_SERVER_TRACE
-  eng "Server: %.512s."
+  eng "Clone Server: %.512s."
 ER_CLONE_SHUTDOWN_TRACE
   eng "Clone shutting down server as RESTART failed. Please start server to complete clone operation."
 ER_PATH_IN_DATADIR

@@ -152,6 +152,31 @@ typedef enum Type_Cmmand_RPC : uchar {
   COM_MAX
 } Command_RPC;
 
+/** Clone protocol COM_EXECUTE sub-commands. Please bump the protocol version
+before adding new command. */
+typedef enum Type_Sub_Command : uchar {
+  /** No Sub command */
+  SUBCOM_NONE = 0,
+
+  /** Execution concurrent to DML and DDL. */
+  SUBCOM_EXEC_CONCURRENT = 1,
+
+  /** Execution blocking non-transactional DML. */
+  SUBCOM_EXEC_BLOCK_NT_DML,
+
+  /** Execution blocking DDL. */
+  SUBCOM_EXEC_BLOCK_DDL,
+
+  /** Execution synchronized snapshot including binary log position and GTID */
+  SUBCOM_EXEC_SNAPSHOT,
+
+  /** Execution at end after snapshot is taken. */
+  SUBCOM_EXEC_END,
+
+  /** Limit value for clone sub command */
+  SUBCOM_MAX
+} Sub_Command;
+
 /** Clone protocol response. Please bump the protocol version before adding
 new response. */
 typedef enum Type_Command_Response : uchar {
