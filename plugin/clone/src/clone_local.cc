@@ -168,8 +168,8 @@ int Local::clone_exec() {
   clone_callback->set_client_buffer_size(buffer_size);
 
   /* Copy data from source and apply to destination. */
-  error = hton_clone_copy(thd, server_vector, server_tasks, clone_callback);
-
+  error = hton_clone_copy(thd, server_vector, server_tasks,
+                          HA_CLONE_STAGE_CONCURRENT, clone_callback);
   delete clone_callback;
 
   /* Wait for concurrent tasks to finish */
@@ -245,7 +245,7 @@ int Local_Callback::apply_ack() {
   auto server_loc = server->get_locator(get_loc_index(), loc_len);
 
   /* Use master task ID = 0 */
-  auto error = hton->clone_interface.clone_ack(hton, thd, server_loc, loc_len,
+  auto error = hton->clone_interface.clone_ack(thd, server_loc, loc_len,
                                                0, 0, this);
 
   return (error);
@@ -278,7 +278,7 @@ int Local_Callback::apply_data() {
   assert(!m_apply_data);
   m_apply_data = true;
 
-  auto error = hton->clone_interface.clone_apply(hton, thd, client_loc, loc_len,
+  auto error = hton->clone_interface.clone_apply(thd, client_loc, loc_len,
                                                  task_id, 0, this);
 
   m_apply_data = false;

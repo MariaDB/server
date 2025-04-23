@@ -199,27 +199,34 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
 int Server::execute_phase(Sub_Command sub_cmd)
 {
   int err= 0;
+  Ha_clone_stage exec_stage= HA_CLONE_STAGE_END;
+  const char* log_mesg= "NONE";
+
   switch (sub_cmd)
   {
     case SUBCOM_EXEC_CONCURRENT:
-    {
-      Server_Cbk clone_callback(this);
-      err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks,
-                           &clone_callback);
-      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_CONCURRENT");
+      exec_stage= HA_CLONE_STAGE_CONCURRENT;
+      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_CONCURRENT";
       break;
-    }
     case SUBCOM_EXEC_BLOCK_NT_DML:
-      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_BLOCK_NT_DML");
+      /* TODO: Block Non Transactional DMLs. */
+      exec_stage= HA_CLONE_STAGE_NT_DML_BLOCKED;
+      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_NT_DML";
       break;
     case SUBCOM_EXEC_BLOCK_DDL:
-      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_BLOCK_DDL");
+      /* TODO: Block all DDLs. */
+      exec_stage= HA_CLONE_STAGE_DDL_BLOCKED;
+      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_DDL";
       break;
     case SUBCOM_EXEC_SNAPSHOT:
-      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_SNAPSHOT");
+      /* TODO: Block All Commit. */
+      assert(m_is_master);
+      exec_stage= HA_CLONE_STAGE_SNAPSHOT;
+      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_SNAPSHOT";
       break;
     case SUBCOM_EXEC_END:
-      log_error(get_thd(), false, err, "COM_EXECUTE: SUBCOM_EXEC_END");
+      exec_stage= HA_CLONE_STAGE_END;
+      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_END";
       break;
     case SUBCOM_MAX:
     case SUBCOM_NONE:
@@ -227,8 +234,26 @@ int Server::execute_phase(Sub_Command sub_cmd)
       err= ER_CLONE_PROTOCOL;
       my_error(err, MYF(0), "Wrong Clone RPC: Invalid Execution Request");
       log_error(get_thd(), false, err, "COM_EXECUTE");
-      break;
+      return err;
   }
+  Server_Cbk clone_callback(this);
+  err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks, exec_stage,
+                       &clone_callback);
+  if (sub_cmd == SUBCOM_EXEC_BLOCK_NT_DML && err == 0)
+  {
+    /* TODO: Wait for all existing Non Transactional DMLs. */
+    err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks,
+                         HA_CLONE_STAGE_NT_DML_FINISHED, &clone_callback);
+  }
+
+  if (sub_cmd == SUBCOM_EXEC_SNAPSHOT)
+  {
+    /* TODO: Get Binary log file: position and GTID set. */
+    /* TODO: Allow Commits and Release all Locks. */
+    /* TODO: Send back Binary log file: position and GTID set. */
+  }
+
+  log_error(get_thd(), false, err, log_mesg);
   return err;
 }
 
@@ -290,8 +315,9 @@ int Server::parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
 
       if (err == 0) {
         auto hton = loc.m_hton;
+        clone_callback.set_hton(hton);
 
-        err = hton->clone_interface.clone_ack(hton, get_thd(), loc.m_loc,
+        err = hton->clone_interface.clone_ack(get_thd(), loc.m_loc,
                                               loc.m_loc_len, 0, err_code,
                                               &clone_callback);
       }

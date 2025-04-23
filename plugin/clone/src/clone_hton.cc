@@ -74,7 +74,7 @@ static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
     assert(clone_arg->m_mode == HA_CLONE_MODE_START);
 
     clone_arg->m_err = hton->clone_interface.clone_begin(
-        hton, thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_type,
+        thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_type,
         clone_arg->m_mode);
 
     clone_arg->m_loc_vec->push_back(loc);
@@ -129,7 +129,7 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
     }
 #endif
     auto err = loc_iter.m_hton->clone_interface.clone_begin(
-        loc_iter.m_hton, thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
+        thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
         clone_type, clone_mode);
 
     if (err != 0) {
@@ -143,16 +143,18 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
 }
 
 int hton_clone_copy(THD *thd, Storage_Vector &clone_loc_vec,
-                    Task_Vector &task_vec, Ha_clone_cbk *clone_cbk) {
+                    Task_Vector &task_vec, Ha_clone_stage clone_stage,
+                    Ha_clone_cbk *clone_cbk) {
   uint index = 0;
 
   for (auto &loc_iter : clone_loc_vec) {
     assert(index < task_vec.size());
     clone_cbk->set_loc_index(index);
+    clone_cbk->set_hton(loc_iter.m_hton);
 
     auto err = loc_iter.m_hton->clone_interface.clone_copy(
-        loc_iter.m_hton, thd, loc_iter.m_loc, loc_iter.m_loc_len,
-        task_vec[index], clone_cbk);
+        thd, loc_iter.m_loc, loc_iter.m_loc_len,
+        task_vec[index], clone_stage, clone_cbk);
 
     if (err != 0) {
       return (err);
@@ -170,7 +172,7 @@ int hton_clone_end(THD *thd, Storage_Vector &clone_loc_vec,
   for (auto &loc_iter : clone_loc_vec) {
     assert(index < task_vec.size());
     auto err = loc_iter.m_hton->clone_interface.clone_end(
-        loc_iter.m_hton, thd, loc_iter.m_loc, loc_iter.m_loc_len,
+        thd, loc_iter.m_loc, loc_iter.m_loc_len,
         task_vec[index], in_err);
 
     if (err != 0) {
@@ -199,7 +201,7 @@ static my_bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg
     assert(clone_arg->m_mode == HA_CLONE_MODE_VERSION);
 
     clone_arg->m_err = hton->clone_interface.clone_apply_begin(
-        hton, thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_mode,
+        thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_mode,
         clone_arg->m_data_dir);
 
     clone_arg->m_loc_vec->push_back(loc);
@@ -258,7 +260,7 @@ int hton_clone_apply_begin(THD *thd, const char *clone_data_dir,
     }
 #endif
     auto err = loc_iter.m_hton->clone_interface.clone_apply_begin(
-        loc_iter.m_hton, thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
+        thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
         clone_mode, clone_data_dir);
 
     if (err != 0) {
@@ -284,7 +286,7 @@ int hton_clone_apply_error(THD *thd, Storage_Vector &clone_loc_vec,
   for (auto &loc_iter : clone_loc_vec) {
     assert(index < task_vec.size());
     auto err = loc_iter.m_hton->clone_interface.clone_apply(
-        loc_iter.m_hton, thd, loc_iter.m_loc, loc_iter.m_loc_len,
+        thd, loc_iter.m_loc, loc_iter.m_loc_len,
         task_vec[index], in_err, nullptr);
 
     if (err != 0) {
@@ -308,7 +310,7 @@ int hton_clone_apply_end(THD *thd, Storage_Vector &clone_loc_vec,
       task_id = task_vec[index];
     }
     auto err = loc_iter.m_hton->clone_interface.clone_apply_end(
-        loc_iter.m_hton, thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
+        thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
         in_err);
 
     if (err != 0) {
