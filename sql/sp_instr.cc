@@ -679,11 +679,16 @@ bool sp_lex_instr::setup_table_fields_for_trigger(
   re-parsing.
 
   @param sphead  The stored program.
+  @param[out] new_memroot_allocated  true in case a new memory root for
+                                     re-parsing was created, else false meaning
+                                     that already allocated memory root is
+                                     reused
 
   @return false on success, true on error (OOM)
 */
 
-bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead)
+bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead,
+                                               bool *new_memroot_allocated)
 {
   if (!m_mem_root_for_reparsing)
   {
@@ -728,6 +733,8 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead)
 
     if (!m_mem_root_for_reparsing)
       return true;
+
+    *new_memroot_allocated= true;
   }
   else
   {
@@ -738,6 +745,7 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead)
       statement.
     */
     free_root(m_mem_root_for_reparsing, MYF(0));
+    *new_memroot_allocated= false;
   }
 
   init_sql_alloc(key_memory_sp_head_main_root, m_mem_root_for_reparsing,
@@ -804,7 +812,8 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   /*
     First, set up a men_root for the statement is going to re-compile.
   */
-  if (setup_memroot_for_reparsing(sp))
+  bool mem_root_allocated;
+  if (setup_memroot_for_reparsing(sp, &mem_root_allocated))
     return nullptr;
 
   /*
@@ -859,8 +868,22 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       data member. So, for the sp_instr_cpush instruction by the time we reach
       this block cursor_lex->free_list is already empty.
     */
-    cleanup_items(cursor_lex->free_list);
+    if (mem_root_allocated)
+      /*
+        If the new memory root for re-parsing has been just created,
+        then delete every item from the free item list of sp_lex_cursor.
+        In case the memory root for re-parsing is re-used from previous
+        re-parsing of failed instruction, don't do anything since all memory
+        allocated for items were already released on calling free_root
+        inside the method sp_lex_instr::setup_memroot_for_reparsing
+      */
+      cursor_lex->free_items();
+
+    /* Nullify free_list to don't have a dangling pointer */
+    cursor_lex->free_list= nullptr;
+
     cursor_free_list= &cursor_lex->free_list;
+    cursor_lex->mem_root= m_mem_root_for_reparsing;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
     /*
       Adjust mem_root of the cursor's Query_arena to point the just created

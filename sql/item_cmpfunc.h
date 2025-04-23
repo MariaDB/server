@@ -1044,6 +1044,23 @@ public:
 
 class Item_func_between :public Item_func_opt_neg
 {
+  /*
+    If the types of the arguments to BETWEEN permit, then:
+
+    WHERE const1 BETWEEN expr2 AND field1
+      can be optimized as if it was just:
+    WHERE const1 <= field1
+
+    as expr2 could be an arbitrary expression.  More generally,
+    this optimization is permitted if aggregation for comparison
+    for three expressions (const1,const2,field1) and for two
+    expressions (const1,field1) return the same type handler.
+
+    @param [IN] field_item - This is a field from the right side
+                             of the BETWEEN operator.
+   */
+  bool can_optimize_range_const(Item_field *field_item) const;
+
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
@@ -2993,9 +3010,18 @@ public:
       TODO:
       We could still replace "expr1" to "const" in "expr1 LIKE expr2"
       in case of a "PAD SPACE" collation, but only if "expr2" has '%'
-      at the end.         
+      at the end.
     */
-    return compare_collation() == &my_charset_bin ? COND_TRUE : COND_OK;
+    if (compare_collation() == &my_charset_bin)
+    {
+      /*
+        'foo' NOT LIKE 'foo' is false,
+        'foo' LIKE 'foo' is true.
+      */
+      return negated? COND_FALSE : COND_TRUE;
+    }
+
+    return COND_OK;
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)

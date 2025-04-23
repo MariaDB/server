@@ -5493,8 +5493,8 @@ public:
 
   my_bool do_log_bin;
 
-  Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
-    Protocol_text(thd_arg, prealloc),
+  Protocol_local(THD *thd_arg, THD *new_thd_arg) :
+    Protocol_text(thd_arg),
     cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
     new_thd(new_thd_arg), do_log_bin(FALSE)
   {}
@@ -6310,7 +6310,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   else
     new_thd= NULL;
 
-  p= new Protocol_local(thd_orig, new_thd, 0);
+  p= new Protocol_local(thd_orig, new_thd);
   if (new_thd)
     new_thd->protocol= p;
   else

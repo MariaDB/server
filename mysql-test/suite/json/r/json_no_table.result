@@ -2886,7 +2886,7 @@ json_unquote(json_compact('["a", "b", "c"]'))
 ["a", "b", "c"]
 select charset(json_unquote('"abc"'));
 charset(json_unquote('"abc"'))
-utf8mb3
+utf8mb4
 select json_quote(convert(X'e68891' using utf8));
 json_quote(convert(X'e68891' using utf8))
 "我"
@@ -3633,7 +3633,7 @@ JSON_UNQUOTE("String"),
 COERCIBILITY(JSON_UNQUOTE("String")),
 COLLATION(JSON_UNQUOTE("String"));
 JSON_UNQUOTE("String")	COERCIBILITY(JSON_UNQUOTE("String"))	COLLATION(JSON_UNQUOTE("String"))
-String	4	utf8mb3_general_ci
+String	4	utf8mb4_bin
 #
 # End of 11.4 tests
 #

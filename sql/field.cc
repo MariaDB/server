@@ -2729,7 +2729,7 @@ bool Field_null::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
   return (new_field.type_handler() == type_handler() &&
-          !compare_collations(new_field.charset, field_charset()) &&
+          new_field.charset->eq_collation(field_charset()) &&
           new_field.length == max_display_length());
 }
 
@@ -7576,7 +7576,7 @@ bool Field_string::is_equal(const Column_definition &new_field) const
   DBUG_ASSERT(!compression_method());
   return (new_field.type_handler() == type_handler() &&
           new_field.char_length == char_length() &&
-          !compare_collations(new_field.charset, field_charset()) &&
+          new_field.charset->eq_collation(field_charset()) &&
           new_field.length == max_display_length());
 }
 
@@ -7600,7 +7600,7 @@ Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
 {
   return (!cmp_is_done_using_type_handler_of_this(cond, item) ?
           Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
-          compare_collations(charset(), cond->compare_collation()) ?
+          !charset()->eq_collation(cond->compare_collation()) ?
           Data_type_compatibility::INCOMPATIBLE_COLLATION :
           Data_type_compatibility::OK);
 }
@@ -7612,7 +7612,7 @@ Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
 {
   return (!cmp_is_done_using_type_handler_of_this(cond, item) ?
           Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
-          (compare_collations(charset(), cond->compare_collation()) &&
+          (!charset()->eq_collation(cond->compare_collation()) &&
            !(cond->compare_collation()->state & MY_CS_BINSORT) &&
            !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
           Data_type_compatibility::INCOMPATIBLE_COLLATION :
@@ -8552,7 +8552,7 @@ bool Field_varstring::is_equal(const Column_definition &new_field) const
           new_field.length == field_length &&
           new_field.char_length == char_length() &&
           !new_field.compression_method() == !compression_method() &&
-          !compare_collations(new_field.charset, field_charset()));
+          new_field.charset->eq_collation(field_charset()));
 }
 
 
@@ -8820,7 +8820,7 @@ uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg) const
 */
 int Field_blob::copy_value(Field_blob *from)
 {
-  DBUG_ASSERT(!compare_collations(field_charset(), from->charset()));
+  DBUG_ASSERT(field_charset()->eq_collation(from->charset()));
   DBUG_ASSERT(!compression_method() == !from->compression_method());
   int rc= 0;
   uint32 length= from->get_length();
@@ -9354,7 +9354,7 @@ bool Field_blob::is_equal(const Column_definition &new_field) const
   return (new_field.type_handler() == type_handler() &&
           !new_field.compression_method() == !compression_method() &&
           new_field.pack_length == pack_length() &&
-          !compare_collations(new_field.charset, field_charset()));
+          new_field.charset->eq_collation(field_charset()));
 }
 
 
@@ -9851,7 +9851,7 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
     type, charset and have the same underlying length.
   */
   if (new_field.type_handler() != type_handler() ||
-      compare_collations(new_field.charset, field_charset()) ||
+      !new_field.charset->eq_collation(field_charset()) ||
       new_field.pack_length != pack_length())
     return false;
 
@@ -9958,7 +9958,7 @@ Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
   case REAL_RESULT:
     return Data_type_compatibility::OK;
   case STRING_RESULT:
-    return (!compare_collations(charset(), cond->compare_collation()) ?
+    return (charset()->eq_collation(cond->compare_collation()) ?
             Data_type_compatibility::OK :
             Data_type_compatibility::INCOMPATIBLE_COLLATION);
   case ROW_RESULT:

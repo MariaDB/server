@@ -2306,8 +2306,20 @@ os_file_rename_func(
 	ut_ad(exists);
 #endif /* UNIV_DEBUG */
 
-	if (MoveFileEx(oldpath, newpath, MOVEFILE_REPLACE_EXISTING)) {
-		return(true);
+	for (int retry= 50;; retry--){
+		if (MoveFileEx(oldpath, newpath, MOVEFILE_REPLACE_EXISTING))
+			return true;
+
+		if (!retry)
+			break;
+
+		if (GetLastError() != ERROR_SHARING_VIOLATION)
+			break;
+
+		// oldpath was opened by someone else (antivirus?)
+		//without FILE_SHARE_DELETE flag. Retry operation
+
+		Sleep(10);
 	}
 
 	os_file_handle_rename_error(oldpath, newpath);

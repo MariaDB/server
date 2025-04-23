@@ -2157,7 +2157,9 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
   error= copy_partitions(copied, deleted);
   for (i= 0; i < part_count; i++)
-    m_added_file[i]->extra(HA_EXTRA_END_ALTER_COPY);
+    m_added_file[i]->extra(error
+                           ? HA_EXTRA_ABORT_ALTER_COPY
+                           : HA_EXTRA_END_ALTER_COPY);
   if (unlikely(error))
   {
     /*
@@ -9510,6 +9512,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_ABORT_ALTER_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {

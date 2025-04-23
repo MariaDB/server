@@ -343,53 +343,6 @@ ENDIF()
 
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
-# If we want to build build MariaDB-shared-compat,
-# extract compat libraries from MariaDB-shared-5.3 rpm
-FILE(GLOB compat53 RELATIVE ${CMAKE_SOURCE_DIR}
-    "${CMAKE_SOURCE_DIR}/../MariaDB-shared-5.3.*.rpm")
-FILE(GLOB compat101 RELATIVE ${CMAKE_SOURCE_DIR}
-    "${CMAKE_SOURCE_DIR}/../MariaDB-shared-10.1.*.rpm")
-IF(compat53 AND compat101)
-  FOREACH(compat_rpm "${compat53}" "${compat101}")
-    MESSAGE(STATUS "Using ${compat_rpm} to build MariaDB-compat")
-    INSTALL(CODE "EXECUTE_PROCESS(
-                   COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
-                   COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
-                   WORKING_DIRECTORY \$ENV{DESTDIR})
-                  EXECUTE_PROCESS(
-                   COMMAND chmod -R a+rX .
-                   WORKING_DIRECTORY \$ENV{DESTDIR})"
-                   COMPONENT Compat)
-  ENDFOREACH()
-
-  EXECUTE_PROCESS(
-    COMMAND rpm -q --provides -p "${CMAKE_SOURCE_DIR}/${compat101}"
-    ERROR_QUIET
-    OUTPUT_VARIABLE compat_provides)
-  EXECUTE_PROCESS(
-    COMMAND rpm -q --obsoletes -p "${CMAKE_SOURCE_DIR}/${compat101}"
-    ERROR_QUIET
-    OUTPUT_VARIABLE compat_obsoletes)
-
-  STRING(REPLACE "\n" " " compat_provides "${compat_provides}")
-  STRING(REPLACE "\n" " " compat_obsoletes "${compat_obsoletes}")
-  STRING(REGEX REPLACE "[^ ]+\\([^ ]+ *" "" compat_obsoletes "${compat_obsoletes}")
-  SETA(CPACK_RPM_compat_PACKAGE_PROVIDES "${compat_provides}")
-  SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES "${compat_obsoletes}")
-
-  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} Compat)
-
-  # RHEL6/CentOS6 install Postfix by default, and it requires
-  # libmysqlclient.so.16 that pulls in mysql-libs-5.1.x
-  # And the latter conflicts with our rpms.
-  # Make sure that for these distributions all our rpms require
-  # MariaDB-compat, that will replace mysql-libs-5.1
-  IF(RPM MATCHES "(rhel|centos)[67]")
-    SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
-    SET(CPACK_RPM_compat_PACKAGE_CONFLICTS "mariadb-libs < 1:10.1.0")
-  ENDIF()
-ENDIF()
-
 ################
 IF(CMAKE_VERSION VERSION_GREATER "3.9.99")
 

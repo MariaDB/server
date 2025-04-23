@@ -366,7 +366,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   ha_rows       dup_key_found;
   bool          need_sort= TRUE;
   bool          reverse= FALSE;
-  ha_rows	updated, updated_or_same, found;
+  ha_rows	updated_or_same;
   key_map	old_covering_keys;
   TABLE		*table;
   SQL_SELECT	*select= NULL;
@@ -1584,7 +1584,7 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
       if (multi_update_check_table_access(thd, tbl, tables_for_update,
                                           &updated))
       {
-        tbl->hide_view_error(thd);
+        tbl->replace_view_error_with_generic(thd);
         return true;
       }
     }
@@ -3222,6 +3222,13 @@ bool Sql_cmd_update::execute_inner(THD *thd)
 
   if (result)
   {
+    /* In single table case, this->updated set by update_single_table */
+    if (res && multitable)
+    {
+      found= ((multi_update*)get_result())->num_found();
+      updated= ((multi_update*)get_result())->num_updated();
+    }
+
     res= false;
     delete result;
   }

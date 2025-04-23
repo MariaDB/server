@@ -15,8 +15,8 @@ CREATE TEMPORARY TABLE tmp_a (
 pkey int NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE2
-SELECT spider_direct_sql('SELECT 22', 'tmp_a', 'srv "s_2_1", database "test", password "pass,1234", user "tu"');
-spider_direct_sql('SELECT 22', 'tmp_a', 'srv "s_2_1", database "test", password "pass,1234", user "tu"')
+SELECT spider_direct_sql('SELECT 22', 'tmp_a', 'srv "s_2_1", database "test", password "pass,1234", user "tu"') as exp;
+exp
 1
 SELECT pkey FROM tmp_a;
 pkey

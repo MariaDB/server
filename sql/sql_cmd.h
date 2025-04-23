@@ -228,6 +228,11 @@ public:
   */
   virtual bool is_dml() const { return false; }
 
+  virtual void get_dml_stat (ha_rows &found, ha_rows &changed)
+  {
+    found= changed= 0;
+  }
+
   /**
     @brief Unprepare prepared statement for the command
     @param thd global context of the processed statement

@@ -1946,6 +1946,79 @@ null_date:
   return 0;
 }
 
+
+/* A class to print TO_CHAR(date_time, format) */
+class Date_time_format_oracle
+{
+  // m_fm is true if "FM" was found in the format string odd number of times
+  bool m_fm;
+public:
+  Date_time_format_oracle()
+   :m_fm(false)
+  { }
+
+  /*
+    Append a numeric value to a String.
+    If m_fm is false, then left-pad the numeric value with '0'.
+
+    @param val       - the numeric value to be appended to str
+    @param size      - the maximum number of digits possible in val
+    @param [OUT] str - the result String (val will be appended to it)
+
+    @retval false    - on success
+    @retval true     - on error (e.g. EOM)
+  */
+  bool append_val(int val, uint size, String *str) const
+  {
+    if (m_fm)
+      return str->append_longlong(val);
+    return str->append_zerofill(val, size);
+  }
+
+  /*
+    Append a LEX_CSTRING value to a String.
+    If m_fm is false, then right-pad the appended value with spaces.
+
+    @param ls              - the LEX_CSTRING to be append to str
+    @param max_char_length - the maximum possible length of ls, in characters
+    @param [OUT] str       - the result String (ls will be appended to it)
+
+    @retval false          - on success
+    @retval true           - on error (e.g. EOM)
+ */
+  bool append_lex_cstring(const LEX_CSTRING ls, uint max_char_length,
+                          String *str) const
+  {
+    // Locale data uses utf8mb3
+    static constexpr CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci;
+    str->append(ls.str, ls.length, cs);
+    if (!m_fm)
+    {
+      size_t char_length= cs->numchars(ls.str, ls.str + ls.length);
+      if (char_length < max_char_length)
+        return str->fill(str->length() + max_char_length - char_length, ' ');
+    }
+    return false;
+  }
+
+  /*
+    Print a date/time value to a String according to the given format
+    @param fmt_array - the format array
+    @param l_time    - the date/time value
+    @param locale    - the locale to use for textual components
+                       (MONTH and DAY)
+    @param [OUT] str - the string to print into.
+
+    @retval false    - on success
+    @retval true     - on error (e.g. EOM)
+  */
+  bool format(const uint16 *fmt_array,
+              const MYSQL_TIME *l_time,
+              const MY_LOCALE *locale,
+              String *str);
+};
+
+
 /*
   Oracle has many formatting models, we list all but only part of them
   are implemented, because some models depend on oracle functions
@@ -2122,7 +2195,8 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
     /*
       Oracle datetime format support text in double quotation marks like
       'YYYY"abc"MM"xyz"DD', When this happens, store the text and quotation
-      marks, and use the text as a separator in make_date_time_oracle.
+      marks, and use the text as a separator in
+      Date_time_format_oracle::format().
 
       NOTE: the quotation mark is not print in return value. for example:
       select TO_CHAR(sysdate, 'YYYY"abc"MM"xyzDD"') will return 2021abc01xyz11
@@ -2403,6 +2477,17 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
       tmp_fmt--;
       break;
 
+    case 'F':
+      if (ptr + 1 == end)
+        goto error;
+      if (my_toupper(system_charset_info, ptr[1]) == 'M')
+      {
+        *tmp_fmt= FMT_FM;
+        ptr+= 1;
+        continue;
+      }
+      goto error;
+
     default:
       offset= parse_special(cfmt, ptr, end, tmp_fmt);
       if (!offset)
@@ -2425,16 +2510,10 @@ error:
 }
 
 
-static inline bool append_val(int val, int size, String *str)
-{
-  return str->append_zerofill(val, size);
-}
-
-
-static bool make_date_time_oracle(const uint16 *fmt_array,
-                                  const MYSQL_TIME *l_time,
-                                  const MY_LOCALE *locale,
-                                  String *str)
+bool Date_time_format_oracle::format(const uint16 *fmt_array,
+                                     const MYSQL_TIME *l_time,
+                                     const MY_LOCALE *locale,
+                                     String *str)
 {
   bool quotation_flag= false;
   const uint16 *ptr= fmt_array;
@@ -2542,16 +2621,8 @@ static bool make_date_time_oracle(const uint16 *fmt_array,
         }
         else
         {
-          const char *month_name= (locale->month_names->
-                                   type_names[l_time->month-1]);
-          size_t month_byte_len= strlen(month_name);
-          size_t month_char_len;
-          str->append(month_name, month_byte_len, system_charset_info);
-          month_char_len= my_numchars_mb(&my_charset_utf8mb3_general_ci,
-                                         month_name, month_name +
-                                         month_byte_len);
-          if (str->fill(str->length() + locale->max_month_name_length -
-                        month_char_len, ' '))
+          if (append_lex_cstring(locale->month_name(l_time->month - 1),
+                                 locale->max_month_name_length, str))
             goto err_exit;
         }
       }
@@ -2582,17 +2653,10 @@ static bool make_date_time_oracle(const uint16 *fmt_array,
           str->append("00", 2, system_charset_info);
         else
         {
-          const char *day_name;
-          size_t day_byte_len, day_char_len;
           weekday=calc_weekday(calc_daynr(l_time->year,l_time->month,
                                           l_time->day), 0);
-          day_name= locale->day_names->type_names[weekday];
-          day_byte_len= strlen(day_name);
-          str->append(day_name, day_byte_len, system_charset_info);
-          day_char_len= my_numchars_mb(&my_charset_utf8mb3_general_ci,
-                                       day_name, day_name + day_byte_len);
-          if (str->fill(str->length() + locale->max_day_name_length -
-                        day_char_len, ' '))
+          if (append_lex_cstring(locale->day_name(weekday),
+                                 locale->max_day_name_length, str))
             goto err_exit;
         }
       }
@@ -2618,6 +2682,10 @@ static bool make_date_time_oracle(const uint16 *fmt_array,
     case FMT_SS:
       if (append_val(l_time->second, 2, str))
         goto err_exit;
+      break;
+
+    case FMT_FM:
+      m_fm= !m_fm;
       break;
 
     default:
@@ -2727,7 +2795,7 @@ String *Item_func_tochar::val_str(String* str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time_oracle(fmt_array, &l_time, lc, str))
+  if (!Date_time_format_oracle().format(fmt_array, &l_time, lc, str))
     return str;
 
 null_date:
