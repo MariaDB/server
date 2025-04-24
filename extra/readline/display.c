@@ -1931,12 +1931,7 @@ rl_message (va_alist)
   format = va_arg (args, char *);
 #endif
 
-#if defined (HAVE_VSNPRINTF)
   vsnprintf (msg_buf, sizeof (msg_buf) - 1, format, args);
-#else
-  vsprintf (msg_buf, format, args);
-  msg_buf[sizeof(msg_buf) - 1] = '\0';	/* overflow? */
-#endif
   va_end (args);
 
   if (saved_local_prompt == 0)
