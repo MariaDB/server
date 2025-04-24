@@ -228,6 +228,7 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
+#include "opt_hints.h"
 #include "opt_trace.h"
 #include "optimizer_defaults.h"
 
@@ -273,7 +274,7 @@ class SplM_opt_info : public Sql_alloc
 public:
   /* The join for the select specifying T */
   JOIN *join;
-  /* The map of tables from 'join' whose columns can be used for partitioning */  
+  /* The map of tables from 'join' whose columns can be used for partitioning */
   table_map tables_usable_for_splitting;
   /* Info about the fields of the joined tables usable for splitting */
   SplM_field_info *spl_fields;
@@ -292,6 +293,8 @@ public:
   /* Cardinality of T when nothing is pushed */
   double unsplit_card;
   double last_refills;
+  /* True when SPLIT_MATERIALIZED hint present and forces this split. */
+  bool hint_forced_split{false};
 
   SplM_plan_info *find_plan(TABLE *table, uint key, uint parts);
 };
@@ -299,8 +302,8 @@ public:
 
 void TABLE::set_spl_opt_info(SplM_opt_info *spl_info)
 {
-  if (spl_info)
-    spl_info->join->spl_opt_info= spl_info;
+  DBUG_ASSERT(spl_info);
+  spl_info->join->spl_opt_info= spl_info;
   spl_opt_info= spl_info;
 }
 
@@ -320,6 +323,40 @@ double TABLE::get_materialization_cost()
 }
 
 
+/**
+  Returns true if split materialization is permitted for the
+  derived table passed in argument 'derived'.
+
+  @param thd     The connection state for the current thread.
+  @param derived The candidate derived table for split materialization.
+  @param hint    [OUT] One of the values from the hint_state enumeration
+                 found in opt_hints.h
+  @return true   if split materialization allowed, either by hint
+                 or by optimizer option.  The hint takes precedence.
+ */
+
+static bool is_split_materialized_allowed(THD *thd,
+                                          const TABLE_LIST *derived,
+                                          hint_state *hint)
+{
+  if (!derived)
+  {
+    *hint= hint_state::DISABLED;  // there is no derived table to hint on
+    return false;
+  }
+
+  *hint= hint_table_state(thd,
+                          derived,
+                          SPLIT_MATERIALIZED_HINT_ENUM);
+
+  const bool opt_flag= optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_MATERIALIZED);
+  const bool allow_split= (*hint == hint_state::ENABLED ||
+                           (*hint == hint_state::NOT_PRESENT && opt_flag));
+
+  return allow_split;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
@@ -330,7 +367,8 @@ struct SplM_field_ext_info: public SplM_field_info
 
 /**
   @brief
-    Check whether this join is one for potentially splittable materialized table
+    Check whether this join is one for potentially splittable materialized
+    table
 
   @details
     The function checks whether this join is for select that specifies
@@ -339,7 +377,8 @@ struct SplM_field_ext_info: public SplM_field_info
     of the TABLE structure for T.
 
     The function returns a positive answer if the following holds:
-    1. the optimizer switch 'split_materialized' is set 'on'
+    1. The is_split_materialized_allowed() function indicates that split
+       materialization is permitted for the derived table.
     2. the select owning this join specifies a materialized derived/view/cte T
     3. this is the only select in the specification of T
     4. condition pushdown is not prohibited into T
@@ -355,7 +394,7 @@ struct SplM_field_ext_info: public SplM_field_info
     9. There are defined some keys usable for ref access of fields from C
        with available statistics.
     10. The select doesn't use WITH ROLLUP (This limitation can probably be
-       lifted)
+        lifted)
 
   @retval
     true   if the answer is positive
@@ -367,8 +406,10 @@ bool JOIN::check_for_splittable_materialized()
   ORDER *partition_list= 0;
   st_select_lex_unit *unit= select_lex->master_unit();
   TABLE_LIST *derived= unit->derived;
-  if (!(optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_MATERIALIZED)) ||  // !(1)
-      !(derived && derived->is_materialized_derived()) ||             // !(2)
+
+  hint_state hint;
+  if (!is_split_materialized_allowed(thd, derived, &hint) ||          // !(1)
+      !derived->is_materialized_derived() ||                          // !(2)
       (unit->first_select()->next_select()) ||                        // !(3)
       (derived->prohibit_cond_pushdown) ||                            // !(4)
       (derived->is_recursive_with_table()) ||                         // !(5)
@@ -519,6 +560,7 @@ bool JOIN::check_for_splittable_materialized()
   spl_opt_info->tables_usable_for_splitting= 0;
   spl_opt_info->spl_field_cnt= spl_field_cnt;
   spl_opt_info->spl_fields= spl_field;
+  spl_opt_info->hint_forced_split= (hint == hint_state::ENABLED);
 
   {
     Json_writer_array trace_range(thd, "split_candidates");
@@ -1130,8 +1172,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       spl_plan->cost= (join->best_positions[join->table_count-1].read_time +
                        oper_cost);
 
-      chosen= (refills * spl_plan->cost + COST_EPS <
-               spl_opt_info->unsplit_cost);
+      chosen= ((refills * spl_plan->cost + COST_EPS <
+                spl_opt_info->unsplit_cost) || spl_opt_info->hint_forced_split);
 
       if (unlikely(thd->trace_started()))
       {
@@ -1149,6 +1191,9 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
           add("refills", refills).
           add("total_splitting_cost", refills * spl_plan->cost).
           add("chosen", chosen);
+
+        if (spl_opt_info->hint_forced_split)
+          find_trace.add("forced_by_hint", true);
       }
       memcpy((char *) spl_plan->best_positions,
              (char *) join->best_positions,
@@ -1160,8 +1205,11 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     else
     {
       trace_obj.add("cached_plan_found", 1);
-      chosen= (refills * spl_plan->cost + COST_EPS <
-               spl_opt_info->unsplit_cost);
+      if (spl_opt_info->hint_forced_split)
+        trace_obj.add("forced_by_hint", true);
+
+      chosen= ((refills * spl_plan->cost + COST_EPS <
+                spl_opt_info->unsplit_cost) || spl_opt_info->hint_forced_split);
       already_printed= 0;
     }
   }
