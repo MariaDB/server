@@ -228,7 +228,7 @@ inline void setup_fpu()
 #endif
 
 #ifdef HAVE_FESETROUND
-    /* Set FPU rounding mode to "round-to-nearest" */
+  /* Set FPU rounding mode to "round-to-nearest" */
   fesetround(FE_TONEAREST);
 #endif /* HAVE_FESETROUND */
 

@@ -1521,7 +1521,7 @@ const char* my_default_csname()
   }
   snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
   csname = my_os_charset_to_mysql_charset(cpbuf);
-#elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
+#elif defined(HAVE_NL_LANGINFO)
   if (setlocale(LC_CTYPE, "") && (csname = nl_langinfo(CODESET)))
     csname = my_os_charset_to_mysql_charset(csname);
 #endif
