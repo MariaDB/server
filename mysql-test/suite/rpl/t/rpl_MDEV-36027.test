@@ -1,0 +1,42 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+
+create table ti_pk (a int primary key) engine=innodb;
+create table ta (a int) engine=aria;
+delimiter |;
+create function f_ia(arg int)
+returns integer
+begin
+  insert into ti_pk set a=1;
+  insert into ta set a=1;
+  insert into ti_pk set a=arg;
+  return 1;
+end |
+delimiter ;|
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--error ER_DUP_ENTRY
+set statement binlog_format = ROW for create table t_y (a int) engine=aria select f_ia(1 /* err in Innodb after Aria stmt is done */) as a;
+--error ER_NO_SUCH_TABLE
+select * from t_y;
+
+--echo # correct execution: `ta` is modified and its new record is binlogged
+--source include/show_binlog_events.inc
+select * from ta;
+select * from ti_pk;
+
+--sync_slave_with_master
+--let  $diff_tables=master:ta,slave:ta
+--source include/diff_tables.inc
+
+# Cleanup
+--connection master
+drop function f_ia;
+drop table ti_pk, ta;
+
+--echo End of the tests
+--source include/rpl_end.inc

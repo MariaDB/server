@@ -1,0 +1,35 @@
+include/master-slave.inc
+[connection master]
+create table ti_pk (a int primary key) engine=innodb;
+create table ta (a int) engine=aria;
+create function f_ia(arg int)
+returns integer
+begin
+insert into ti_pk set a=1;
+insert into ta set a=1;
+insert into ti_pk set a=arg;
+return 1;
+end |
+set statement binlog_format = ROW for create table t_y (a int) engine=aria select f_ia(1 /* err in Innodb after Aria stmt is done */) as a;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t_y;
+ERROR 42S02: Table 'test.t_y' doesn't exist
+# correct execution: `ta` is modified and its new record is binlogged
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Table_map	#	#	table_id: # (test.ta)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+select * from ta;
+a
+1
+select * from ti_pk;
+a
+connection slave;
+include/diff_tables.inc [master:ta,slave:ta]
+connection master;
+drop function f_ia;
+drop table ti_pk, ta;
+End of the tests
+include/rpl_end.inc
