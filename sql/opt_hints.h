@@ -659,6 +659,14 @@ public:
 };
 
 
+enum class hint_state
+{
+  NOT_PRESENT,  // Hint is not specified
+  ENABLED,      // Hint is specified as enabled
+  DISABLED      // Hint is specified as disabled
+};
+
+
 /**
   Returns key hint value if hint is specified, returns
   optimizer switch value if hint is not specified.
@@ -705,6 +713,14 @@ bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
 */
 bool hint_table_state(const THD *thd, const TABLE *table,
                       opt_hints_enum type_arg, bool fallback_value);
+
+
+/*
+  Similar to above but returns hint_state enum
+*/
+hint_state hint_table_state(const THD *thd,
+                            const TABLE_LIST *table_list,
+                            opt_hints_enum type_arg);
 
 #ifndef DBUG_OFF
 const char *dbug_print_hints(Opt_hints_qb *hint);
