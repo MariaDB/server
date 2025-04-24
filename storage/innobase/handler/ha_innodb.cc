@@ -15939,7 +15939,7 @@ ha_innobase::extra(
 		}
 
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert &= TRX_DDL_BULK;
+		trx->bulk_insert &= TRX_DML_BULK;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
 			/* During copy_data_between_tables(), InnoDB only
