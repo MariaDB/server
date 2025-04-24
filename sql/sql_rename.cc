@@ -40,11 +40,22 @@ struct TABLE_PAIR
   TABLE_LIST *from, *to;
 };
 
+enum Result_code : int
+{
+  SUCCESS= 0,
+  SPECIFIED_ERROR= 1, // I.e., Prepared_error of Rename_result must be issued
+  IGNORABLE_ERROR= 2,
+  UNSPECIFIED_ERROR= 3
+};
 
-static bool rename_tables(THD *thd, TABLE_LIST *table_list,
-                          DDL_LOG_STATE *ddl_log_state,
-                          bool skip_error, bool if_exits,
-                          bool *force_if_exists);
+using Rename_result= std::pair<Result_code, Prepared_error>;
+
+static Rename_result rename_tables(THD *thd, TABLE_LIST *table_list,
+                                   DDL_LOG_STATE *ddl_log_state,
+                                   bool skip_error, bool if_exits,
+                                   bool *force_if_exists);
+
+
 
 /*
   Every two entries in the table_list form a pair of original name and
@@ -54,12 +65,13 @@ static bool rename_tables(THD *thd, TABLE_LIST *table_list,
 bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
                           bool if_exists)
 {
-  bool error= 1;
   bool binlog_error= 0, force_if_exists;
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
   DDL_LOG_STATE ddl_log_state;
+  Rename_result result;
+  result.first= SUCCESS;
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -155,17 +167,16 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
                        0))
     goto err;
 
-  error=0;
   bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /*
     An exclusive lock on table names is satisfactory to ensure
     no other thread accesses this table.
   */
-  error= rename_tables(thd, table_list, &ddl_log_state,
-                       0, if_exists, &force_if_exists);
+  result= rename_tables(thd, table_list, &ddl_log_state,
+                        0, if_exists, &force_if_exists);
 
-  if (likely(!silent && !error))
+  if (likely(!silent && result.first == SUCCESS))
   {
     ulonglong save_option_bits= thd->variables.option_bits;
     if (force_if_exists && ! if_exists)
@@ -183,7 +194,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
     binlog_error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
     if (binlog_error)
-      error= 1;
+      result.first= UNSPECIFIED_ERROR;
     thd->binlog_xid= 0;
     thd->variables.option_bits= save_option_bits;
     debug_crash_here("ddl_log_rename_after_binlog");
@@ -192,7 +203,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
       my_ok(thd);
   }
 
-  if (likely(!error))
+  if (likely(result.first == SUCCESS))
   {
     query_cache_invalidate3(thd, table_list, 0);
     ddl_log_complete(&ddl_log_state);
@@ -201,14 +212,21 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   {
     /* Revert the renames of normal tables with the help of the ddl log */
     ddl_log_revert(thd, &ddl_log_state);
+
+    /*
+      After finishing of the DDL reversion process print the error
+      that caused the renaming failure
+    */
+    if (result.first == SPECIFIED_ERROR)
+      my_error_issue(&result.second);
   }
 
 err:
-  DBUG_RETURN(error || binlog_error);
+  DBUG_RETURN(result.first || binlog_error);
 }
 
 
-static bool
+static Rename_result
 do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 {
   LEX_CSTRING *new_alias;
@@ -219,12 +237,16 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 
   if (thd->find_temporary_table(new_table, THD::TMP_TABLE_ANY))
   {
-    my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias->str);
-    DBUG_RETURN(1);                     // This can't be skipped
+    DBUG_RETURN(Rename_result(
+        SPECIFIED_ERROR, my_error_prepare(ER_TABLE_EXISTS_ERROR, MYF(0),
+                                new_alias->str)));
   }
 
-  DBUG_RETURN(thd->rename_temporary_table(ren_table->table,
-                                          &new_table->db, new_alias));
+  Rename_result res(SUCCESS, Prepared_error{});
+  if (thd->rename_temporary_table(ren_table->table,
+                                  &new_table->db, new_alias))
+    res.first= UNSPECIFIED_ERROR;
+  DBUG_RETURN(res);
 }
 
 
@@ -252,13 +274,13 @@ struct rename_param
   @param new_table_alias   The new table/view alias
   @param if_exists         If not set, give an error if the table does not
                            exists. If set, just give a warning in this case.
-  @return
-  @retval 0   ok
-  @retval >0  Error (from table doesn't exists or to table exists)
-  @retval <0  Can't do rename, but no error
+
+  @return Rename_result object.
+          res.first indicates status of the operation (SUCCESS, ERROR etc)
+          res.second contains prepared error structure for printing
 */
 
-static int
+static Rename_result
 check_rename(THD *thd, rename_param *param,
              const TABLE_LIST *ren_table,
              const Lex_ident_db &new_db,
@@ -268,7 +290,6 @@ check_rename(THD *thd, rename_param *param,
 {
   DBUG_ENTER("check_rename");
   DBUG_PRINT("enter", ("if_exists: %d", (int) if_exists));
-
 
   if (lower_case_table_names == 2)
   {
@@ -286,9 +307,16 @@ check_rename(THD *thd, rename_param *param,
                        &param->old_version, &param->from_table_hton) ||
       !param->from_table_hton)
   {
-    my_error(ER_NO_SUCH_TABLE, MYF(if_exists ? ME_NOTE : 0),
-             ren_table->db.str, param->old_alias.str);
-    DBUG_RETURN(if_exists ? -1 : 1);
+    if (if_exists)
+    {
+      // Push a note (warning)
+      my_error(ER_NO_SUCH_TABLE, MYF(ME_NOTE), ren_table->db.str,
+               param->old_alias.str);
+    }
+    DBUG_RETURN(Rename_result(
+      (if_exists ? IGNORABLE_ERROR : SPECIFIED_ERROR),
+      my_error_prepare(ER_NO_SUCH_TABLE, MYF(if_exists ? ME_NOTE : 0),
+                       ren_table->db.str, param->old_alias.str)));
   }
 
   if (param->from_table_hton != view_pseudo_hton &&
@@ -300,15 +328,16 @@ check_rename(THD *thd, rename_param *param,
      */
     tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
     quick_rm_table(thd, 0, &ren_table->db, &param->old_alias, QRMT_FRM);
-    DBUG_RETURN(-1);
+    DBUG_RETURN(Rename_result(IGNORABLE_ERROR, Prepared_error{}));
   }
 
   if (ha_table_exists(thd, &new_db, &param->new_alias))
   {
-    my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
-    DBUG_RETURN(1);                     // This can't be skipped
+    DBUG_RETURN(Rename_result(
+      SPECIFIED_ERROR,
+      my_error_prepare(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str)));
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(Rename_result(SUCCESS, Prepared_error{}));
 }
 
 
@@ -481,18 +510,24 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
     the name taken from list element+1. Note that the table_list may be
     empty.
 
-  RETURN
-    0         Ok
-    1         error
-              All tables are reverted to their original names
+  NOTE
+    Possible errors are not printed immediately because my_error() sets
+    `thd->is_error()` flag which may harm the DDL reversion (for atomic DDL).
+     Instead, the prepared error is returned in the Rename_result and can be
+     issued after the sequence of atomic DDLs is reverted
+
+  RETURN  Rename_result object.
+          res.first indicates status of the operation (SUCCESS, ERROR etc)
+          res.second contains prepared error structure for printing
 */
 
-static bool
+static Rename_result
 rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
               bool skip_error, bool if_exists, bool *force_if_exists)
 {
   TABLE_LIST *ren_table, *new_table;
   List<TABLE_PAIR> tmp_tables;
+  Rename_result rename_res(SUCCESS, Prepared_error());
   DBUG_ENTER("rename_tables");
 
   *force_if_exists= 0;
@@ -500,7 +535,6 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
   for (ren_table= table_list; ren_table; ren_table= new_table->next_local)
   {
     new_table= ren_table->next_local;
-
     if (is_temporary_table(ren_table))
     {
       /*
@@ -515,34 +549,42 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
       pair->from= ren_table;
       pair->to=   new_table;
 
-      if (do_rename_temporary(thd, ren_table, new_table))
+      rename_res= do_rename_temporary(thd, ren_table, new_table);
+      if (rename_res.first != SUCCESS)
         goto revert_rename;
     }
     else
     {
-      int error;
       rename_param param;
-      error= check_rename(thd, &param, ren_table, new_table->db,
+      rename_res= check_rename(thd, &param, ren_table, new_table->db,
                           new_table->table_name,
                           new_table->alias, (skip_error || if_exists));
-      if (error < 0)
-        continue;                               // Ignore rename (if exists)
-      if (error > 0)
+      if (rename_res.first == IGNORABLE_ERROR)
+      {
+        // Ignore rename (if exists)
+        rename_res.first= SUCCESS;
+        rename_res.second= Prepared_error();
+        continue;
+      }
+      if (rename_res.first == SPECIFIED_ERROR ||
+          rename_res.first == UNSPECIFIED_ERROR)
         goto revert_rename;
 
       if (do_rename(thd, &param, ddl_log_state,
                     ren_table, &new_table->db,
                     skip_error, force_if_exists))
+      {
+        rename_res.first= UNSPECIFIED_ERROR;
         goto revert_rename;
+      }
     }
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(rename_res);
 
 revert_rename:
   /* Revert temporary tables. Normal tables are reverted in the caller */
   List_iterator_fast<TABLE_PAIR> it(tmp_tables);
   while (TABLE_PAIR *pair= it++)
     do_rename_temporary(thd, pair->to, pair->from);
-
-  DBUG_RETURN(1);
+  DBUG_RETURN(rename_res);
 }

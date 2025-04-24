@@ -18,6 +18,7 @@
 #include <m_string.h>
 #include <stdarg.h>
 #include <m_ctype.h>
+#include <my_sys.h>
 
 /* Max length of a error message. Should be kept in sync with MYSQL_ERRMSG_SIZE. */
 #define ERRMSGSIZE      (512)
@@ -93,6 +94,62 @@ const char *my_get_err_msg(uint nr)
   return format;
 }
 
+/**
+   Internal method used to format and prepare the error structure.
+   Called by my_error_prepare() and my_error().
+ */
+static struct Prepared_error my_error_format(uint nr, myf MyFlags, va_list args)
+{
+  const char *format;
+  struct Prepared_error error;
+  error.code= nr;
+  error.flags= MyFlags;
+
+  if (!(format = my_get_err_msg(nr)))
+    (void) my_snprintf(error.message, sizeof(error.message),
+                       "Unknown error %d", nr);
+  else
+  {
+    (void) my_vsnprintf_ex(&my_charset_utf8mb3_general_ci,
+                           error.message, sizeof(error.message), format, args);
+  }
+  return error;
+}
+
+/**
+  Prepare the error message for deferred printing with my_error_issue()
+
+  @param nr        error number
+  @param MyFlags   Flags
+  @param ...       variable list matching that error format string
+
+  @retval error    prepared structure containg error code, formatted message
+                   and flags
+*/
+
+struct Prepared_error my_error_prepare(uint nr, myf MyFlags, ...)
+{
+  struct Prepared_error error;
+  va_list args;
+
+  va_start(args,MyFlags);
+  error= my_error_format(nr, MyFlags, args);
+  va_end(args);
+
+  return error;
+}
+
+
+/**
+   Print a previously prepared error (see my_error_prepare())
+
+ * @param error        error structure prepared for deferred printing@retval
+ */
+void my_error_issue(struct Prepared_error* error)
+{
+  (*error_handler_hook)(error->code, error->message, error->flags);
+}
+
 
 /**
   Fill in and print a previously registered error message.
@@ -107,21 +164,14 @@ const char *my_get_err_msg(uint nr)
 
 void my_error(uint nr, myf MyFlags, ...)
 {
-  const char *format;
+  struct Prepared_error error;
   va_list args;
-  char ebuff[ERRMSGSIZE];
   DBUG_ENTER("my_error");
   DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d", nr, MyFlags, errno));
-  if (!(format = my_get_err_msg(nr)))
-    (void) my_snprintf(ebuff, sizeof(ebuff), "Unknown error %d", nr);
-  else
-  {
-    va_start(args,MyFlags);
-    (void) my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, ebuff,
-                           sizeof(ebuff), format, args);
-    va_end(args);
-  }
-  (*error_handler_hook)(nr, ebuff, MyFlags);
+  va_start(args,MyFlags);
+  error= my_error_format(nr, MyFlags, args);
+  my_error_issue(&error);
+  va_end(args);
   DBUG_VOID_RETURN;
 }
 

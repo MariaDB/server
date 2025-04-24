@@ -166,3 +166,21 @@ drop table t2;
 rename table if exists t1 to t2;
 alter table if exists t2 rename to t1;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-36484 Atomic DDL: Assertion `!param->got_error' failed upon
+--echo #             unsuccessful multi-RENAME TABLE
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (0);
+--error ER_NO_SUCH_TABLE
+RENAME TABLE t1 TO t2, t3 TO t4;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1;
+RENAME TABLE t1 TO t2;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1;
+DROP TABLE t2;

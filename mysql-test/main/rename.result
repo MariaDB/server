@@ -175,3 +175,19 @@ drop table t2;
 rename table if exists t1 to t2;
 alter table if exists t2 rename to t1;
 drop table t1;
+#
+# MDEV-36484 Atomic DDL: Assertion `!param->got_error' failed upon
+#             unsuccessful multi-RENAME TABLE
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (0);
+RENAME TABLE t1 TO t2, t3 TO t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SHOW CREATE TRIGGER t1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t1` FOR EACH ROW INSERT INTO t1 VALUES (0)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+RENAME TABLE t1 TO t2;
+SHOW CREATE TRIGGER t1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t2` FOR EACH ROW INSERT INTO t1 VALUES (0)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+DROP TABLE t2;
