@@ -11779,10 +11779,8 @@ void sql_perror(const char *message)
   {
     sql_print_error("%s", message);
   }
-#elif defined(HAVE_STRERROR)
+#else
   sql_print_error("%s: %s",message, strerror(errno));
-#else 
-  perror(message);
 #endif
 }
 

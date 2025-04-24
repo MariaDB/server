@@ -110,7 +110,6 @@ int2str(register long int val, register char *dst, register int radix,
   new_val= uval / (ulong) radix;
   *--p = dig_vec[(uchar) (uval- (ulong) new_val*(ulong) radix)];
   val = new_val;
-#ifdef HAVE_LDIV
   while (val != 0)
   {
     ldiv_t res;
@@ -118,14 +117,6 @@ int2str(register long int val, register char *dst, register int radix,
     *--p = dig_vec[res.rem];
     val= res.quot;
   }
-#else
-  while (val != 0)
-  {
-    new_val=val/radix;
-    *--p = dig_vec[(uchar) (val-new_val*radix)];
-    val= new_val;
-  }
-#endif
   while ((*dst++ = *p++) != 0) ;
   return dst-1;
 }

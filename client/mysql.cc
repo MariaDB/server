@@ -3032,9 +3032,7 @@ static void initialize_readline ()
   /* Allow conditional parsing of the ~/.inputrc file. */
   rl_readline_name= (char *) "mysql";
   rl_terminal_name= getenv("TERM");
-#ifdef HAVE_SETLOCALE
   setlocale(LC_ALL,"");
-#endif
 
   /* Tell the completer that we want a crack first. */
 #if defined(USE_NEW_READLINE_INTERFACE)
