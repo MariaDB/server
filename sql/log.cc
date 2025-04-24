@@ -558,28 +558,6 @@ private:
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
 
-
-/*
-  Remove all row event from all binlog caches and clear all caches.
-  This is only called from CREATE .. SELECT, in which case it safe to delete
-  also events from the statement cache.
-*/
-
-void THD::binlog_remove_rows_events()
-{
-  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
-  DBUG_ENTER("THD::binlog_remove_rows_events");
-
-  if (!cache_mngr ||
-      (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open()))
-    DBUG_VOID_RETURN;
-
-  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->stmt_cache);
-  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->trx_cache);
-  cache_mngr->reset(1,1);
-  DBUG_VOID_RETURN;
-}
-
 /**
   The function handles the first phase of two-phase binlogged ALTER.
   On master binlogs START ALTER when that is configured to do so.
