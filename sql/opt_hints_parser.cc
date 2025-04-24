@@ -134,11 +134,15 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
   case 18:
     if ("MAX_EXECUTION_TIME"_Lex_ident_column.streq(str))
       return TokenID::keyword_MAX_EXECUTION_TIME;
+    if ("SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
+      return TokenID::keyword_SPLIT_MATERIALIZED;
     break;
 
   case 21:
     if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
+    if ("NO_SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_SPLIT_MATERIALIZED;
     break;
 
   case 26:
@@ -342,21 +346,29 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     hint_state= false;
     break;
   case TokenID::keyword_DERIVED_CONDITION_PUSHDOWN:
-     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
-     hint_state= true;
-     break;
+    hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+    hint_state= true;
+    break;
   case TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN:
-     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
-     hint_state= false;
-     break;
+    hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+    hint_state= false;
+    break;
   case TokenID::keyword_MERGE:
-     hint_type= MERGE_HINT_ENUM;
-     hint_state= true;
-     break;
+    hint_type= MERGE_HINT_ENUM;
+    hint_state= true;
+    break;
   case TokenID::keyword_NO_MERGE:
-     hint_type= MERGE_HINT_ENUM;
-     hint_state= false;
-     break;
+    hint_type= MERGE_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_SPLIT_MATERIALIZED:
+    hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_SPLIT_MATERIALIZED:
+    hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= false;
+    break;
   default:
     DBUG_ASSERT(0);
     return true;
