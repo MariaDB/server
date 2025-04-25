@@ -108,6 +108,9 @@ const uint CLONE_MIN_BLOCK = 1024 * 1024;
 /** Minimum network packet. Safe margin for meta information */
 const uint CLONE_MIN_NET_BLOCK = 2 * CLONE_MIN_BLOCK;
 
+/** Initialize clone interfaces for clone SE. */
+void init_clone_storage_engine();
+
 /* Namespace for all clone data types */
 namespace myclone {
 
@@ -164,6 +167,9 @@ typedef enum Type_Sub_Command : uchar {
   /** Execution blocking non-transactional DML. */
   SUBCOM_EXEC_BLOCK_NT_DML,
 
+  /** Execution waiting for all non-transactional DML. */
+  SUBCOM_EXEC_FINISH_NT_DML,
+
   /** Execution blocking DDL. */
   SUBCOM_EXEC_BLOCK_DDL,
 
@@ -203,6 +209,10 @@ typedef enum Type_Command_Response : uchar {
 
   /** Additional configuration : introduced in version 0x0102 */
   COM_RES_CONFIG_V3,
+
+  /** Mater has taken appropriate locks for current stage.
+  Workers can now enter. */
+  COM_RES_LOCKED,
 
   /** End of response data */
   COM_RES_COMPLETE = 99,
@@ -357,7 +367,17 @@ struct Data_Link {
 @return error code */
 int validate_local_params(THD *thd);
 
+/** Log error to server error log.
+@param level log level
+@param error error code
+@param string error message */
 void LogPluginErr(enum loglevel level, int error, const char* string);
+
+/** Command name for a execution sub-command.
+@param sub_com sub command
+@return string describing the command. */
+const char *sub_command_str(Sub_Command sub_com);
+
 }  // namespace myclone
 
 #endif /* CLONE_H */

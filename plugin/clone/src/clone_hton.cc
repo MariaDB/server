@@ -28,6 +28,7 @@ Clone Plugin: Interface with SE handlerton
 */
 
 #include "clone_hton.h"
+extern struct handlerton clone_storage_engine;
 
 /* Namespace for all clone data types */
 namespace myclone {
@@ -55,6 +56,40 @@ struct Hton {
   const char *m_data_dir;
 };
 
+size_t Locator::serialize(uchar *buffer)
+{
+  *buffer= static_cast<uchar>(m_hton->db_type);
+  ++buffer;
+
+  int4store(buffer, m_loc_len);
+  buffer+= 4;
+
+  memcpy(buffer, m_loc, m_loc_len);
+
+  return serlialized_length();
+}
+
+size_t Locator::deserialize(THD *thd, const uchar *buffer)
+{
+  auto db_type = static_cast<enum legacy_db_type>(*buffer);
+  ++buffer;
+
+  if (!m_hton)
+  {
+    /* Should not lock plugin for auxiliary threads */
+    assert(thd);
+    m_hton= (db_type == DB_TYPE_UNKNOWN) ?
+        &clone_storage_engine : ha_resolve_by_legacy_type(thd, db_type);
+  }
+  assert(m_hton->db_type == db_type);
+
+  m_loc_len= uint4korr(buffer);
+  buffer+= 4;
+
+  m_loc= (m_loc_len == 0) ? nullptr : buffer;
+
+  return serlialized_length();
+}
 }  // namespace myclone
 
 /** Begin clone operation for current storage engine plugin
@@ -63,9 +98,9 @@ struct Hton {
 @param[in]	arg	clone parameters
 @return true if failure */
 static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
-  auto clone_arg = static_cast<myclone::Hton *>(arg);
+  auto clone_arg= static_cast<myclone::Hton *>(arg);
 
-  auto hton = plugin_data(plugin, handlerton*);
+  auto hton= plugin ? plugin_data(plugin, handlerton*) : &clone_storage_engine;
 
   if (hton->clone_interface.clone_begin != nullptr) {
     myclone::Locator loc = {hton, nullptr, 0};
@@ -73,7 +108,7 @@ static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
 
     assert(clone_arg->m_mode == HA_CLONE_MODE_START);
 
-    clone_arg->m_err = hton->clone_interface.clone_begin(
+    clone_arg->m_err= hton->clone_interface.clone_begin(
         thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_type,
         clone_arg->m_mode);
 
@@ -84,7 +119,6 @@ static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
       return TRUE;
     }
   }
-
   return FALSE;
 }
 
@@ -106,6 +140,10 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
 
     plugin_foreach(thd, run_hton_clone_begin, MYSQL_STORAGE_ENGINE_PLUGIN,
                    &clone_args);
+
+    /* Begin Clone SE handlerton. */
+    if (!clone_args.m_err)
+      run_hton_clone_begin(thd, nullptr, &clone_args);
 
     return (clone_args.m_err);
   }
@@ -192,7 +230,7 @@ int hton_clone_end(THD *thd, Storage_Vector &clone_loc_vec,
 static my_bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg) {
   auto clone_arg = static_cast<myclone::Hton *>(arg);
 
-  auto hton = plugin_data(plugin, handlerton*);
+  auto hton= plugin ? plugin_data(plugin, handlerton*) : &clone_storage_engine;
 
   if (hton->clone_interface.clone_apply_begin != nullptr) {
     myclone::Locator loc = {hton, nullptr, 0};
@@ -235,6 +273,10 @@ int hton_clone_apply_begin(THD *thd, const char *clone_data_dir,
 
     plugin_foreach(thd, run_hton_clone_apply_begin, MYSQL_STORAGE_ENGINE_PLUGIN,
                    &clone_args);
+
+    /* Begin Clone SE handlerton. */
+    if (!clone_args.m_err)
+      run_hton_clone_apply_begin(thd, nullptr, &clone_args);
 
     return (clone_args.m_err);
   }

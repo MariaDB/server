@@ -745,32 +745,35 @@ uint32_t Client::limit_workers(uint32_t num_workers)
   return num_workers;
 }
 
-static const char *sub_command_str(Sub_Command sub_com)
+const char *sub_command_str(Sub_Command sub_com)
 {
   const char *ret= "";
   switch(sub_com)
   {
     case SUBCOM_NONE:
-      ret= "SUBCOM_NONE";
+      ret= "COM_EXECUTE: SUBCOM_NONE";
       break;
     case SUBCOM_EXEC_CONCURRENT:
-      ret= "SUBCOM_EXEC_CONCURRENT";
+      ret= "COM_EXECUTE: SUBCOM_EXEC_CONCURRENT";
       break;
     case SUBCOM_EXEC_BLOCK_NT_DML:
-      ret= "SUBCOM_EXEC_BLOCK_NT_DML";
+      ret= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_NT_DML";
+      break;
+    case SUBCOM_EXEC_FINISH_NT_DML:
+      ret= "COM_EXECUTE: SUBCOM_EXEC_FINISH_NT_DML";
       break;
     case SUBCOM_EXEC_BLOCK_DDL:
-      ret= "SUBCOM_EXEC_BLOCK_DDL";
+      ret= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_DDL";
       break;
     case SUBCOM_EXEC_SNAPSHOT:
-      ret= "SUBCOM_EXEC_SNAPSHOT";
+      ret= "COM_EXECUTE: SUBCOM_EXEC_SNAPSHOT";
       break;
     case SUBCOM_EXEC_END:
-      return "SUBCOM_EXEC_END";
+      return "COM_EXECUTE: SUBCOM_EXEC_END";
       break;
     case SUBCOM_MAX:
       assert(false);
-      ret= "SUBCOM_MAX";
+      ret= "COM_EXECUTE: SUBCOM_MAX";
       break;
   }
   return ret;
@@ -781,6 +784,7 @@ int Exec_State::begin_worker(Sub_Command &state)
   std::unique_lock lock(m_mutex);
   auto cond_fn= [&]
   {
+    state= std::max(state, m_next_state);
     return (m_cur_state >= state);
   };
 
@@ -831,12 +835,43 @@ int Exec_State::switch_state(THD *thd, Sub_Command next_state)
       break;
     }
   }
-  Sub_Command new_state= err ? SUBCOM_MAX : next_state;
-  m_cur_state= new_state;
-  lock.unlock();
 
-  m_wait_state.notify_all();
+  if (err || next_state == SUBCOM_MAX)
+  {
+    m_next_state= SUBCOM_MAX;
+    m_cur_state= SUBCOM_MAX;
+    lock.unlock();
+    m_wait_state.notify_all();
+  }
+  else
+    /* The current state would be set later after appropriate locks are
+    acquired handled by COM_RES_LOCKED. */
+    m_next_state= next_state;
+
   return err;
+}
+
+bool Exec_State::update_current_state(Sub_Command sub_state)
+{
+  bool success= true;
+  std::unique_lock lock(m_mutex);
+
+  assert(m_cur_state <= m_next_state);
+  assert(sub_state == m_next_state);
+
+  if (sub_state != m_next_state)
+  {
+    m_next_state= SUBCOM_MAX;
+    m_cur_state= SUBCOM_MAX;
+    success= false;
+  }
+  else if (m_cur_state != m_next_state)
+  {
+    m_cur_state= m_next_state;
+    lock.unlock();
+    m_wait_state.notify_all();
+  }
+  return success;
 }
 
 int Client::exec_begin_state(THD *thd, Sub_Command &sub_state)
@@ -850,14 +885,16 @@ int Client::exec_begin_state(THD *thd, Sub_Command &sub_state)
 
 int Client::exec_end_state(Sub_Command sub_state)
 {
-  if (is_master())
-    return 0;
-
   auto &exec_state= m_share->m_state;
+  if (is_master())
+  {
+    exec_state.update_current_state(sub_state);
+    return 0;
+  }
   return exec_state.end_worker(sub_state);
 }
 
-int Client::execute(char *mesg_buf, size_t buf_len)
+int Client::execute(std::function<int(Sub_Command)> cbk)
 {
   int err= 0;
   auto cur_st= static_cast<uchar>(SUBCOM_EXEC_CONCURRENT);
@@ -876,15 +913,12 @@ int Client::execute(char *mesg_buf, size_t buf_len)
     assert(cur_st <= end_st);
 
     if (!err && !skip_state(sub_state))
-    {
-      err= remote_command(COM_EXECUTE, sub_state, false);
-      snprintf(mesg_buf, buf_len, "Command COM_EXECUTE: %s",
-               sub_command_str(sub_state));
-      log_error(get_thd(), true, err, &mesg_buf[0]);
-    }
+      err= cbk(sub_state);
+
     exec_end_state(sub_state);
     /* In case of any error, jump to the final state. */
-    cur_st= err ? end_st : cur_st + 1;
+    if (err) cur_st= end_st;
+    ++cur_st;
   }
   return err;
 }
@@ -965,7 +999,16 @@ int Client::clone()
         auto func= std::bind(clone_client, _1, _2);
         spawn_workers(to_spawn, func);
       }
-      err= execute(&info_mesg[0], MESG_SZ);
+      auto exec_callback= [&](Sub_Command sub_state)
+      {
+        int err= remote_command(COM_EXECUTE, sub_state, false);
+        snprintf(info_mesg, MESG_SZ, "Command COM_EXECUTE: %s",
+                 sub_command_str(sub_state));
+        log_error(get_thd(), true, err, &info_mesg[0]);
+        return err;
+      };
+
+      err= execute(exec_callback);
 
       /* For network error master would attempt
       to restart clone. */
@@ -1749,6 +1792,11 @@ int Client::handle_response(const uchar *packet, size_t length, int in_err,
         err= set_locators(packet, length);
       break;
 
+    case COM_RES_LOCKED:
+      assert(is_master());
+      err= set_locked(packet, length);
+      break;
+
     case COM_RES_DATA_DESC:
       /* Skip processing data in case of an error till last */
       if (in_err == 0)
@@ -1780,6 +1828,30 @@ int Client::handle_response(const uchar *packet, size_t length, int in_err,
   return err;
 }
 
+int Client::set_locked(const uchar *buffer, size_t length)
+{
+  if (length < 1)
+  {
+    int err= ER_CLONE_PROTOCOL;
+    my_error(err, MYF(0), "Wrong Clone RPC response length for COM_RES_LOCKED");
+    return err;
+  }
+
+  if (!is_master() || static_cast<uchar>(SUBCOM_MAX) <= *buffer)
+  {
+  err_exec_state:
+    int err= ER_CLONE_PROTOCOL;
+    my_error(err, MYF(0), "Invalid execution state for COM_RES_LOCKED");
+    return err;
+  }
+
+  auto exec_state= static_cast<Sub_Command>(*buffer);
+  if (!m_share->m_state.update_current_state(exec_state))
+    goto err_exec_state;
+
+  return 0;
+}
+
 int Client::set_locators(const uchar *buffer, size_t length)
 {
   bool init_failed= false;
@@ -1806,7 +1878,8 @@ int Client::set_locators(const uchar *buffer, size_t length)
     auto serialized_length= loc.deserialize(get_thd(), buffer);
     buffer+= serialized_length;
 
-    if (length < serialized_length || loc.m_loc_len == 0)
+    if (length < serialized_length ||
+        (loc.m_loc_len == 0 && loc.m_hton->db_type != DB_TYPE_UNKNOWN))
     {
       init_failed= true;
       break;

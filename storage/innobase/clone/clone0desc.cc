@@ -764,7 +764,6 @@ bool Clone_Desc_File_MetaData::deserialize(const byte *desc_file,
 
   /* Get file encryption information */
   /* TODO: Encryption metadata transfer: Set file encryption type */
-  ut_ad(!m_file_meta.m_transfer_encryption_key);
 
   /* Get file renamed attribute */
   m_file_meta.m_renamed =

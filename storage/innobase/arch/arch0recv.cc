@@ -269,9 +269,12 @@ bool Arch_Page_Sys::Recovery::scan_for_groups()
   if (!exists || type != OS_FILE_TYPE_DIR)
     return false;
 
-  auto read_directory_fn= [&](const char *, const char *file_path)
+  auto read_directory_fn= [&](const char *file_path, const char *file_name)
   {
-    read_group_dirs(file_path);
+    char path[MAX_ARCH_PAGE_FILE_NAME_LEN];
+    snprintf(path, sizeof(path), "%s%c%s", file_path, OS_PATH_SEPARATOR,
+             file_name);
+    read_group_dirs(path);
   };
   os_file_scan_directory(m_arch_dir_name.c_str(), read_directory_fn, false);
 
@@ -285,7 +288,6 @@ bool Arch_Page_Sys::Recovery::scan_for_groups()
     {
       read_group_files(dir_path, file_path);
     };
-    /* TODO: Implement Dir_Walker::walk(recursive=true). */
     os_file_scan_directory(it->first.c_str(), read_files_fn, false);
   }
   ut_d(print());
@@ -429,12 +431,14 @@ dberr_t Arch_Page_Sys::Recovery::recover()
 
     if (err != DB_SUCCESS)
     {
+      group->disable(LSN_MAX);
       UT_DELETE(group);
       break;
     }
 
     if (group_info.m_num_files == 0)
     {
+      group->disable(LSN_MAX);
       UT_DELETE(group);
       continue;
     }
