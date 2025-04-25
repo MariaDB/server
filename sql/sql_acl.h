@@ -89,12 +89,6 @@ bool check_change_password(THD *thd, LEX_USER *user);
 bool change_password(THD *thd, LEX_USER *user);
 
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
-int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
-                       List <LEX_COLUMN> &column_list, privilege_t rights,
-                       bool revoke);
-bool mysql_routine_grant(THD *thd, TABLE_LIST *table, const Sp_handler *sph,
-                         List <LEX_USER> &user_list, privilege_t rights,
-                         bool revoke, bool write_to_binlog);
 bool grant_init();
 void grant_free(void);
 bool grant_reload(THD *thd);
