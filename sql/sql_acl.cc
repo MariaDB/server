@@ -2508,8 +2508,7 @@ static bool fix_user_plugin_ptr(ACL_USER::AUTH *auth)
 {
   if (native_password_plugin_name.streq(auth->plugin))
     auth->plugin= native_password_plugin_name;
-  else
-  if (old_password_plugin_name.streq(auth->plugin))
+  else if (old_password_plugin_name.streq(auth->plugin))
     auth->plugin= old_password_plugin_name;
   else
     return true;
