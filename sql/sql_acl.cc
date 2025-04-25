@@ -7310,10 +7310,10 @@ static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, THD *thd)
     TRUE  error
 */
 
-int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
-		      List <LEX_USER> &user_list,
-		      List <LEX_COLUMN> &columns, privilege_t rights,
-		      bool revoke_grant)
+static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
+                             List <LEX_USER> &user_list,
+                             List <LEX_COLUMN> &columns, privilege_t rights,
+                             bool revoke_grant)
 {
   privilege_t column_priv(NO_ACL);
   int result, res;
@@ -7575,10 +7575,10 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     @retval TRUE An error occurred.
 */
 
-bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
-                         const Sp_handler *sph,
-			 List <LEX_USER> &user_list, privilege_t rights,
-			 bool revoke_grant, bool write_to_binlog)
+static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
+                                const Sp_handler *sph,
+                                List <LEX_USER> &user_list, privilege_t rights,
+                                bool revoke_grant, bool write_to_binlog)
 {
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
