@@ -47,10 +47,7 @@ bool delete_precheck(THD *thd, TABLE_LIST *tables);
 bool insert_precheck(THD *thd, TABLE_LIST *tables);
 bool create_table_precheck(THD *thd, TABLE_LIST *tables,
                            TABLE_LIST *create_table);
-bool check_fk_parent_table_access(THD *thd,
-                                  HA_CREATE_INFO *create_info,
-                                  Alter_info *alter_info,
-                                  const LEX_CSTRING &create_db);
+
 
 bool parse_sql(THD *thd, Parser_state *parser_state,
                Object_creation_ctx *creation_ctx, bool do_pfs_digest=false);
@@ -146,48 +143,6 @@ inline bool check_identifier_name(LEX_CSTRING *str)
   return check_identifier_name(str, NAME_CHAR_LEN, 0, "");
 }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables);
-bool check_single_table_access(THD *thd, privilege_t privilege,
-                               TABLE_LIST *tables, bool no_errors);
-bool check_routine_access(THD *thd, privilege_t want_access,
-                          const LEX_CSTRING *db,
-                          const LEX_CSTRING *name,
-                          const Sp_handler *sph, bool no_errors);
-bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table);
-bool check_some_routine_access(THD *thd, const char *db, const char *name,
-                               const Sp_handler *sph);
-bool check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
-                        bool any_combination_of_privileges_will_do,
-                        uint number,
-                        bool no_errors);
-#else
-inline bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables)
-{ return false; }
-inline bool check_single_table_access(THD *thd, privilege_t privilege,
-                                      TABLE_LIST *tables, bool no_errors)
-{ return false; }
-inline bool check_routine_access(THD *thd, privilege_t want_access,
-                                 const LEX_CSTRING *db,
-                                 const LEX_CSTRING *name,
-                                 const Sp_handler *sph, bool no_errors)
-{ return false; }
-inline bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
-{
-  table->grant.privilege= want_access;
-  return false;
-}
-inline bool check_some_routine_access(THD *thd, const char *db,
-                                      const char *name,
-                                      const Sp_handler *sph)
-{ return false; }
-inline bool
-check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
-                   bool any_combination_of_privileges_will_do,
-                   uint number,
-                   bool no_errors)
-{ return false; }
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
 
 /*
