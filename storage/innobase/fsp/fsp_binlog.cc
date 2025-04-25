@@ -1023,6 +1023,7 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
 {
   uint64_t file_no= page->file_no;
   uint32_t page_no= page->page_no;
+  ut_ad(page->latched);
   if (page_offset + len >= ibb_page_size - BINLOG_PAGE_DATA_END)
     page->complete= true;
   if (page->flushed_clean)
@@ -1736,18 +1737,19 @@ read_more_data:
     if (0)
       static_assert(BINLOG_PAGE_DATA == 0,
                     "Replace static_assert with code from above comment");
-    else if (s.in_page_offset >= ibb_page_size - (BINLOG_PAGE_DATA_END + 3) ||
+
+    /* Check for end-of-file. */
+    if (cur_end_offset == ~(uint64_t)0 ||
+        (s.page_no << ibb_page_size_shift) + s.in_page_offset >= cur_end_offset)
+      return sofar;
+
+    if (s.in_page_offset >= ibb_page_size - (BINLOG_PAGE_DATA_END + 3) ||
              page_ptr[s.in_page_offset] == FSP_BINLOG_TYPE_FILLER)
     {
       ut_ad(s.in_page_offset >= ibb_page_size - BINLOG_PAGE_DATA_END ||
             page_ptr[s.in_page_offset] == FSP_BINLOG_TYPE_FILLER);
       goto go_next_page;
     }
-
-    /* Check for end-of-file. */
-    if (cur_end_offset == ~(uint64_t)0 ||
-        (s.page_no << ibb_page_size_shift) + s.in_page_offset >= cur_end_offset)
-      return sofar;
 
     type= page_ptr[s.in_page_offset];
     if (type == 0)
@@ -1853,7 +1855,8 @@ skip_chunk:
     s.skip_current= false;
   }
 
-  if (s.in_page_offset >= ibb_page_size - (BINLOG_PAGE_DATA_END + 3))
+  if (s.in_page_offset >= ibb_page_size - (BINLOG_PAGE_DATA_END + 3) &&
+      (s.page_no << ibb_page_size_shift) + s.in_page_offset < cur_end_offset)
   {
 go_next_page:
     /* End of page reached, move to the next page. */

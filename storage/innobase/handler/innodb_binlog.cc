@@ -29,6 +29,7 @@ InnoDB implementation of binlog.
 #include "log0log.h"
 #include "small_vector.h"
 
+#include "mysys_err.h"
 #include "rpl_gtid_base.h"
 #include "handler.h"
 #include "log.h"
@@ -237,9 +238,6 @@ class ha_innodb_binlog_reader : public handler_binlog_reader {
   /* Used to read the header of the commit record. */
   byte rd_buf[5*COMPR_INT_MAX64];
 private:
-  int read_from_file(uint64_t end_offset, uchar *buf, uint32_t len);
-  int read_from_page(uchar *page_ptr, uint64_t end_offset,
-                     uchar *buf, uint32_t len);
   int read_data(uchar *buf, uint32_t len);
 
 public:
@@ -539,17 +537,15 @@ static int read_gtid_state_from_page(rpl_binlog_state_base *state,
     1  File found (but may be empty according to out_empty).
 */
 int
-binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
-  noexcept
+get_binlog_header(const char *binlog_path, byte *page_buf,
+                  lsn_t &out_lsn, bool &out_empty) noexcept
 {
-  char full_path[OS_FILE_MAX_PATH];
   binlog_header_data header;
 
   out_empty= true;
   out_lsn= 0;
 
-  binlog_name_make(full_path, file_no, binlog_dir);
-  File fh= my_open(full_path, O_RDONLY | O_BINARY, MYF(0));
+  File fh= my_open(binlog_path, O_RDONLY | O_BINARY, MYF(0));
   if (fh < (File)0)
     return (my_errno == ENOENT ? 0 : -1);
   size_t read= my_pread(fh, page_buf, ibb_page_size, 0, MYF(0));
@@ -576,6 +572,16 @@ binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
     out_lsn= header.start_lsn;
   }
   return 1;
+}
+
+
+int
+binlog_recovery::get_header(uint64_t file_no, lsn_t &out_lsn, bool &out_empty)
+  noexcept
+{
+  char full_path[OS_FILE_MAX_PATH];
+  binlog_name_make(full_path, file_no, binlog_dir);
+  return get_binlog_header(full_path, page_buf, out_lsn, out_empty);
 }
 
 
@@ -836,9 +842,24 @@ binlog_recovery::open_cur_file() noexcept
   if (cur_file_fh >= (File)0)
     my_close(cur_file_fh, MYF(0));
   binlog_name_make(full_path, cur_file_no, binlog_dir);
-  cur_file_fh= my_open(full_path, O_RDWR | O_BINARY, MYF(MY_WME));
+  cur_file_fh= my_open(full_path, O_RDWR | O_BINARY, MYF(0));
   if (cur_file_fh < (File)0)
-    return true;
+  {
+    /*
+      If we are on page 0 and the binlog file does not exist, then we should
+      create it (and recover its content).
+      Otherwise, it is an error, we cannot recover it as we are missing the
+      start of it.
+    */
+    if (my_errno != ENOENT ||
+        cur_page_no != 0 ||
+        (cur_file_fh= my_open(full_path, O_RDWR | O_CREAT | O_TRUNC |
+                              O_BINARY, MYF(0))) < (File)0)
+    {
+      my_error(EE_FILENOTFOUND, MYF(MY_WME), full_path, my_errno);
+      return true;
+    }
+  }
   cur_phys_size= (uint64_t)my_seek(cur_file_fh, 0, MY_SEEK_END, MYF(0));
   return false;
 }
@@ -934,13 +955,12 @@ binlog_recovery::close_file() noexcept
 bool
 binlog_recovery::next_file() noexcept
 {
-  if (flush_page())
+  if (cur_page_offset && flush_page())
     return true;
   if (close_file())
     return true;
   ++cur_file_no;
   cur_page_no= 0;
-  cur_page_offset= 0;
   return false;
 }
 
@@ -948,7 +968,7 @@ binlog_recovery::next_file() noexcept
 bool
 binlog_recovery::next_page() noexcept
 {
-  if (flush_page())
+  if (cur_page_offset && flush_page())
     return true;
   ++cur_page_no;
   return false;
@@ -1022,7 +1042,8 @@ binlog_recovery::apply_redo(bool space_id, uint32_t page_no, uint16_t offset,
   /* Test for moving to the next page. */
   else if (page_no != cur_page_no)
   {
-    if (cur_page_offset < ibb_page_size - BINLOG_PAGE_DATA_END &&
+    if (cur_page_offset > BINLOG_PAGE_DATA &&
+        cur_page_offset < ibb_page_size - BINLOG_PAGE_DATA_END &&
         !srv_force_recovery)
     {
       sql_print_error("InnoDB: Missing recovery record in file_no=%"
@@ -1114,7 +1135,7 @@ binlog_recovery::update_page_from_record(uint16_t offset,
   Check if this is an InnoDB binlog file name.
   Return the index/file_no if so.
 */
-static bool
+bool
 is_binlog_name(const char *name, uint64_t *out_idx)
 {
   const size_t base_len= sizeof(BINLOG_NAME_BASE) - 1;  // Length without '\0' terminator
@@ -1263,7 +1284,15 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
   }
 
   start_binlog_prealloc_thread();
-  binlog_sync_initial();
+  if (res < 0)
+  {
+    /*
+      We are creating binlogs anew from scratch.
+      Write and fsync the initial file-header, so that recovery will know where
+      to start in case of a crash.
+    */
+    binlog_sync_initial();
+  }
 
   return false;
 }
@@ -1463,13 +1492,26 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
     ut_a(p <= page_end);
   }
 
-  *out_page_no= p_0 - 1;
-  *out_pos_in_page= (uint32_t)(p - page_buf);
-
-  if (*out_pos_in_page >= page_size - BINLOG_PAGE_DATA_END)
-    ret= fsp_binlog_open(file_name, fh, file_no, file_size, p_0, nullptr);
+  /*
+    Normalize the position, so that we store (page_no+1, BINLOG_PAGE_DATA)
+    and not (page_no, page_size - BINLOG_PAGE_DATA_END).
+  */
+  byte *partial_page;
+  if (p == page_end)
+  {
+    *out_page_no= p_0;
+    *out_pos_in_page= BINLOG_PAGE_DATA;
+    partial_page= nullptr;
+  }
   else
-    ret= fsp_binlog_open(file_name, fh, file_no, file_size, p_0 - 1, page_buf);
+  {
+    *out_page_no= p_0 - 1;
+    *out_pos_in_page= (uint32_t)(p - page_buf);
+    partial_page= page_buf;
+  }
+
+  ret= fsp_binlog_open(file_name, fh, file_no, file_size,
+                       *out_page_no, partial_page);
   uint64_t pos= (*out_page_no << page_size_shift) | *out_pos_in_page;
   binlog_cur_written_offset[idx].store(pos, std::memory_order_relaxed);
   binlog_cur_end_offset[idx].store(pos, std::memory_order_relaxed);
