@@ -708,6 +708,8 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
 static int acl_compare(const void *a, const void *b);
 static int acl_user_compare(const void *a, const void *b);
 static void rebuild_acl_users();
+static privilege_t acl_get(const char *host, const char *ip, const char *user,
+                           const char *db, bool db_is_pattern);
 static int acl_db_compare(const void *a, const void *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
@@ -3794,8 +3796,9 @@ static void acl_insert_db(const char *user, const char *host, const char *db,
   acl_cache is not used if db_is_pattern is set.
 */
 
-privilege_t acl_get(const char *host, const char *ip,
-                    const char *user, const char *db, my_bool db_is_pattern)
+static privilege_t acl_get(const char *host, const char *ip,
+                           const char *user, const char *db,
+                           bool db_is_pattern)
 {
   privilege_t host_access(ALL_KNOWN_ACL), db_access(NO_ACL);
   uint i;
@@ -3884,6 +3887,7 @@ exit:
   DBUG_PRINT("exit", ("access: 0x%llx", (longlong) (db_access & host_access)));
   DBUG_RETURN(db_access & host_access);
 }
+
 
 /*
   Check if there is access for the host/user, role, public on the database

@@ -5590,7 +5590,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, 0))
+        acl_get_all3(sctx, db_name->str, false))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
