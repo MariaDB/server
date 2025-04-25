@@ -1,0 +1,4 @@
+!include my.cnf
+
+[mysqld]
+loose_innodb_log_file_size=96M

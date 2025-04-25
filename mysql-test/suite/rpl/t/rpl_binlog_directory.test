@@ -24,6 +24,7 @@ INSERT INTO t1 VALUES (1, 10);
 --mkdir $master_datadir/binlog_dir
 --copy_file $master_datadir/master-bin.000001 $master_datadir/binlog_dir/master-bin.000001
 --copy_file $master_datadir/master-bin.000001.idx $master_datadir/binlog_dir/master-bin.000001.idx
+--move_file $master_datadir/master-bin.state $master_datadir/binlog_dir/master-bin.state
 --let $rpl_server_parameters= --binlog-directory=binlog_dir
 --source include/rpl_start_server.inc
 
@@ -31,6 +32,7 @@ INSERT INTO t1 VALUES (2, 11);
 
 # Move master back to using the standard binlog directory.
 --source include/rpl_stop_server.inc
+--move_file $master_datadir/binlog_dir/master-bin.state $master_datadir/master-bin.state
 --let $rpl_server_parameters=
 --source include/rpl_start_server.inc
 
