@@ -391,6 +391,7 @@ static int plugin_clone_init(MYSQL_PLUGIN plugin_info [[maybe_unused]])
   clone_stmt_server_key = clone_stmts[2].m_key;
 #endif
 
+  init_clone_storage_engine();
   return (0);
 }
 

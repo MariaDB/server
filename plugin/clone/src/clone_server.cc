@@ -196,64 +196,62 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
   return (err);
 }
 
-int Server::execute_phase(Sub_Command sub_cmd)
+int Server::get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
+                               bool lock)
 {
   int err= 0;
-  Ha_clone_stage exec_stage= HA_CLONE_STAGE_END;
-  const char* log_mesg= "NONE";
-
   switch (sub_cmd)
   {
     case SUBCOM_EXEC_CONCURRENT:
-      exec_stage= HA_CLONE_STAGE_CONCURRENT;
-      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_CONCURRENT";
+      if (lock)
+        /* TODO: master: Block concurrent Backup. */
+        err= 0;
+      stage= HA_CLONE_STAGE_CONCURRENT;
       break;
     case SUBCOM_EXEC_BLOCK_NT_DML:
-      /* TODO: Block Non Transactional DMLs. */
-      exec_stage= HA_CLONE_STAGE_NT_DML_BLOCKED;
-      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_NT_DML";
+      /* TODO: master: Block Non Transactional DMLs. */
+      stage= HA_CLONE_STAGE_NT_DML_BLOCKED;
+      break;
+    case SUBCOM_EXEC_FINISH_NT_DML:
+      /* TODO: master: Wait for all existing Non Transactional DMLs. */
+      stage= HA_CLONE_STAGE_NT_DML_FINISHED;
       break;
     case SUBCOM_EXEC_BLOCK_DDL:
-      /* TODO: Block all DDLs. */
-      exec_stage= HA_CLONE_STAGE_DDL_BLOCKED;
-      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_DDL";
+      /* TODO: master: Block all DDLs. */
+      stage= HA_CLONE_STAGE_DDL_BLOCKED;
       break;
     case SUBCOM_EXEC_SNAPSHOT:
-      /* TODO: Block All Commit. */
-      assert(m_is_master);
-      exec_stage= HA_CLONE_STAGE_SNAPSHOT;
-      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_SNAPSHOT";
+      /* TODO: master: Block All Commit. */
+      assert(lock);
+      stage= HA_CLONE_STAGE_SNAPSHOT;
       break;
     case SUBCOM_EXEC_END:
-      exec_stage= HA_CLONE_STAGE_END;
-      log_mesg= "COM_EXECUTE: SUBCOM_EXEC_END";
+      stage= HA_CLONE_STAGE_END;
       break;
     case SUBCOM_MAX:
     case SUBCOM_NONE:
-    default:
       err= ER_CLONE_PROTOCOL;
       my_error(err, MYF(0), "Wrong Clone RPC: Invalid Execution Request");
       log_error(get_thd(), false, err, "COM_EXECUTE");
-      return err;
   }
-  Server_Cbk clone_callback(this);
-  err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks, exec_stage,
-                       &clone_callback);
-  if (sub_cmd == SUBCOM_EXEC_BLOCK_NT_DML && err == 0)
-  {
-    /* TODO: Wait for all existing Non Transactional DMLs. */
-    err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks,
-                         HA_CLONE_STAGE_NT_DML_FINISHED, &clone_callback);
-  }
+  return err;
+}
 
-  if (sub_cmd == SUBCOM_EXEC_SNAPSHOT)
-  {
-    /* TODO: Get Binary log file: position and GTID set. */
-    /* TODO: Allow Commits and Release all Locks. */
-    /* TODO: Send back Binary log file: position and GTID set. */
-  }
+int Server::execute_phase(Sub_Command sub_cmd)
+{
+  Ha_clone_stage exec_stage= HA_CLONE_STAGE_END;
+  int err= get_stage_and_lock(sub_cmd, exec_stage, m_is_master);
 
-  log_error(get_thd(), false, err, log_mesg);
+  if (!err && m_is_master)
+    err= send_locked(sub_cmd);
+
+  if (!err)
+  {
+    Server_Cbk clone_callback(this);
+    err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks, exec_stage,
+                         &clone_callback);
+  }
+  log_error(get_thd(), false, err, sub_command_str(sub_cmd));
   return err;
 }
 
@@ -296,7 +294,7 @@ int Server::parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
       Sub_Command sub_cmd= SUBCOM_NONE;
       err= deserialize_exec_buffer(com_buf, com_len, sub_cmd);
 
-      if (err != 0)
+      if (err)
         log_error(get_thd(), false, err, "COM_EXECUTE: Storage Execute");
       else
         err= execute_phase(sub_cmd);
@@ -349,7 +347,7 @@ int Server::parse_command_buffer(uchar command, uchar *com_buf, size_t com_len,
 int Server::deserialize_exec_buffer(const uchar *exec_buf, size_t exec_len,
                                     Sub_Command &sub_cmd)
 {
-  if (exec_len == 0)
+  if (exec_len < 1 || static_cast<uchar>(SUBCOM_MAX) <= *exec_buf)
   {
     my_error(ER_CLONE_PROTOCOL, MYF(0), "Wrong Clone RPC: EXEC Sub Command length");
     return ER_CLONE_PROTOCOL;
@@ -607,6 +605,34 @@ int Server::send_configs(Command_Response rcmd) {
       break;
     }
   }
+  return err;
+}
+
+int Server::send_locked(Sub_Command sub_cmd)
+{
+  assert(m_is_master);
+  size_t buf_len= 0;
+
+  /* Add length for response type */
+  ++buf_len;
+
+  /* Add length for sub command */
+  ++buf_len;
+
+  auto err= m_res_buff.allocate(buf_len);
+  if (err != 0)
+    return err;
+  auto buf_ptr= m_res_buff.m_buffer;
+
+  /* Store response command */
+  *buf_ptr = static_cast<uchar>(COM_RES_LOCKED);
+  ++buf_ptr;
+
+  /* Store response command */
+  *buf_ptr = static_cast<uchar>(sub_cmd);
+  ++buf_ptr;
+
+  err= clone_send_response(get_thd(), false, m_res_buff.m_buffer, buf_len);
   return err;
 }
 

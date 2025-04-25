@@ -43,7 +43,8 @@ namespace myclone {
 struct Locator {
   /** Get buffer length for serilized locator.
   @return serialized length */
-  size_t serlialized_length() const {
+  size_t serlialized_length() const
+  {
     /* Add one byte for SE type */
     return (1 + sizeof(m_loc_len) + m_loc_len);
   }
@@ -51,44 +52,14 @@ struct Locator {
   /** Serialize the structure
   @param[in,out]	buffer	allocated buffer for serialized data
   @return serialized length */
-  size_t serialize(uchar *buffer) {
-    *buffer = static_cast<uchar>(m_hton->db_type);
-    ++buffer;
-
-    int4store(buffer, m_loc_len);
-    buffer += 4;
-
-    memcpy(buffer, m_loc, m_loc_len);
-
-    return (serlialized_length());
-  }
+  size_t serialize(uchar *buffer);
 
   /** Deserialize the buffer to structure. The structure elements
   point within the buffer and the buffer should not be freed while
   using the structure.
   @param[in,out]	buffer	serialized locator buffer
   @return serialized length */
-  size_t deserialize(THD *thd, const uchar *buffer) {
-    auto db_type = static_cast<enum legacy_db_type>(*buffer);
-    ++buffer;
-
-    if (m_hton == nullptr) {
-      /* Should not lock plugin for auxiliary threads */
-      assert(thd != nullptr);
-
-      m_hton = ha_resolve_by_legacy_type(thd, db_type);
-
-    } else {
-      assert(m_hton->db_type == db_type);
-    }
-
-    m_loc_len = uint4korr(buffer);
-    buffer += 4;
-
-    m_loc = (m_loc_len == 0) ? nullptr : buffer;
-
-    return (serlialized_length());
-  }
+  size_t deserialize(THD *thd, const uchar *buffer);
 
   /** SE handlerton for the locator */
   handlerton *m_hton;

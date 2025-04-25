@@ -36,11 +36,12 @@ Clone Plugin: Client Interface
 
 #include <array>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <functional>
+#include <mutex>
 #include <thread>
 #include <vector>
-#include <mutex>
-#include <condition_variable>
-#include <chrono>
 
 /* Namespace for all clone data types */
 namespace myclone
@@ -312,6 +313,11 @@ class Exec_State
   @return error code. */
   int switch_state(THD *thd, Sub_Command next_state);
 
+  /** Update current state. Called after acquiring locks for a state.
+  @param sub_state execution state
+  @return true if successful */
+  bool update_current_state(Sub_Command sub_state);
+
  private:
   /** Protects the state and counters. */
   std::mutex m_mutex;
@@ -324,6 +330,9 @@ class Exec_State
 
   /** Current execution state. Protected by m_mutex. */
   Sub_Command m_cur_state= SUBCOM_NONE;
+
+  /** Next execution state. Protected by m_mutex. */
+  Sub_Command m_next_state= SUBCOM_NONE;
 
   /** Worker count within a state. Protected by m_mutex. */
   uint32_t m_count_workers[static_cast<size_t>(SUBCOM_MAX) + 1]= {0};
@@ -593,6 +602,11 @@ class Client
   @return error code */
   int clone();
 
+  /** Execute clone moving through all execution states.
+  @param cbk callback function for executing one state
+  @return error code */
+  int execute(std::function<int(Sub_Command)> cbk);
+
   /** Execute RPC clone command on remote server
   @param[in]	com	RPC command ID
   @param[in]	sub	Sub command ID
@@ -642,12 +656,6 @@ class Client
   @param[in]	use_aux		establish auxiliary connection
   @return	error code */
   int connect_remote(bool is_restart, bool use_aux);
-
-  /** Execute clone moving through all execution states.
-  @param mesg_buf information message buffer
-  @param buf_len buffer length
-  @return error code */
-  int execute(char *mesg_buf, size_t buf_len);
 
   /** Begin a clone execution state.
   @param thd THD to check for interrupt
@@ -783,6 +791,12 @@ class Client
   @param[in]	length	length of serialized data
   @return error code */
   int set_locators(const uchar *buffer, size_t length);
+
+  /** Allow workers to proceed as locks are already acquired
+  @param[in] buffer serialized execution state
+  @param[in] length length of serialized data
+  @return error code */
+  int set_locked(const uchar *buffer, size_t length);
 
   /** Apply descriptor returned by remote server
   @param[in]	buffer	serialized data descriptor

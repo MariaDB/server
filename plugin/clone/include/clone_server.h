@@ -94,6 +94,14 @@ class Server {
   @return error code */
   int clone();
 
+  /** Get clone execution stage and acquire appropriate lock if requested.
+  @param[in] sub_cmd sub command for execution
+  @param[out] stage execution stage
+  @param[in] lock true if needs to lock. Only master task should ask for lock.
+  @return error code */
+  int get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
+                         bool lock);
+
   /** Send descriptor data to remote client
   @param[in,out]	hton		SE handlerton
   @param[in]	secure		validate secure connection
@@ -207,6 +215,11 @@ class Server {
   /** Send back the locators
   @return error code */
   int send_locators();
+
+  /** Send information the locks are taken for current state
+  @param[in] sub_cmd current execution state
+  @return error code */
+  int send_locked(Sub_Command sub_cmd);
 
   /** Send mysql server parameters
   @return error code */

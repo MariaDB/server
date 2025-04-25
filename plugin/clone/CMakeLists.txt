@@ -32,5 +32,6 @@ MYSQL_ADD_PLUGIN(clone
   src/clone_local.cc
   src/clone_os.cc
   src/clone_hton.cc
+  src/clone_se.cc
   MODULE_ONLY RECOMPILE_FOR_EMBEDDED
   MODULE_OUTPUT_NAME "mariadb_clone")

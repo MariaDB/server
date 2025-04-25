@@ -150,10 +150,7 @@ int Local::clone_exec() {
 
   } else {
     /* Begin clone apply to destination. For auxiliary threads,
-    use server storage locator with current copy state.
-    1. Auxiliary threads don't overwrite the locator in apply begin
-    2. Auxiliary threads must wait for apply state to reach
-    copy state */
+    use server storage locator with current copy state. */
     error = hton_clone_apply_begin(thd, dir_name, server_vector, client_tasks,
                                    begin_mode);
     if (error != 0) {
@@ -162,15 +159,33 @@ int Local::clone_exec() {
     }
   }
 
-  Ha_clone_cbk *clone_callback = new Local_Callback(this);
+  auto exec_callback= [&](Sub_Command sub_state)
+  {
+    Ha_clone_stage exec_stage= HA_CLONE_STAGE_END;
+    int error= m_clone_server->get_stage_and_lock(sub_state, exec_stage,
+                                                  is_master);
+    if (is_master)
+    {
+      auto share= m_clone_client.get_share();
+      share->m_state.update_current_state(error ? SUBCOM_MAX : sub_state);
+    }
+    if (!error)
+    {
+      Ha_clone_cbk *clone_callback = new Local_Callback(this);
 
-  auto buffer_size = m_clone_client.limit_buffer(clone_buffer_size);
-  clone_callback->set_client_buffer_size(buffer_size);
+      auto buffer_size= m_clone_client.limit_buffer(clone_buffer_size);
+      clone_callback->set_client_buffer_size(buffer_size);
 
-  /* Copy data from source and apply to destination. */
-  error = hton_clone_copy(thd, server_vector, server_tasks,
-                          HA_CLONE_STAGE_CONCURRENT, clone_callback);
-  delete clone_callback;
+      /* Copy data from source and apply to destination. */
+      error= hton_clone_copy(thd, server_vector, server_tasks, exec_stage,
+                             clone_callback);
+      delete clone_callback;
+      log_error(thd, true, error, sub_command_str(sub_state));
+    }
+    return error;
+  };
+
+  error= m_clone_client.execute(exec_callback);
 
   /* Wait for concurrent tasks to finish */
   m_clone_client.wait_for_workers();
