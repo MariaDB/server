@@ -90,6 +90,7 @@ MULTIPOINT(3 0)	55
 NULL	55
 NULL	55
 NULL	55
+# remove disable_view_protocol after fixing MDEV-36695
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(grouping_condition)
 OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
 grouping_condition;
@@ -200,6 +201,7 @@ GEOMETRYCOLLECTION(MULTIPOINT(6 0),GEOMETRYCOLLECTION EMPTY)
 GEOMETRYCOLLECTION(GEOMETRYCOLLECTION EMPTY,GEOMETRYCOLLECTION EMPTY)
 # with DISTINCT this result is expected to be:
 # MP, GC, MLS, GC, MPpoly, GC, GC, GC, GC with only one EMPTY GC
+# remove disable_view_protocol after fixing MDEV-36695
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT geo) OVER( ORDER BY running_number ROWS BETWEEN 1
 PRECEDING AND CURRENT ROW)) AS geocollect FROM simple_table;
 geocollect
