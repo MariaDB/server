@@ -1454,7 +1454,8 @@ enum options_xtrabackup
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
   OPT_INNODB_FORCE_RECOVERY,
   OPT_INNODB_CHECKPOINT,
-  OPT_ARIA_LOG_DIR_PATH
+  OPT_ARIA_LOG_DIR_PATH,
+  OPT_BINLOG_DIRECTORY
 };
 
 struct my_option xb_client_options[]= {
@@ -2119,6 +2120,12 @@ struct my_option xb_server_options[] =
      (G_PTR *) &xtrabackup_help, (G_PTR *) &xtrabackup_help, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
+    {"binlog-directory", OPT_BINLOG_DIRECTORY,
+   "Directory containing binlog files, if different from datadir."
+   "Has effect only if server is using --binlog-storage-engine=innodb",
+   &opt_binlog_directory, &opt_binlog_directory,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
+
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -2433,6 +2440,10 @@ xb_get_one_option(const struct my_option *opt,
     if (my_handle_options_init_variables)
       fprintf(stderr, "Obsolete option: %s. Ignored\n", opt->name);
     break;
+  case OPT_BINLOG_DIRECTORY:
+
+    ADD_PRINT_PARAM_OPT(opt_binlog_directory);
+    break;
 #define MYSQL_CLIENT
 #include "sslopt-case.h"
 #undef MYSQL_CLIENT
@@ -2598,6 +2609,10 @@ static bool innodb_init_param()
 
 	if (!srv_undo_dir || !xtrabackup_backup) {
 		srv_undo_dir = (char*) ".";
+	}
+
+	if (!opt_binlog_directory || !xtrabackup_backup) {
+		opt_binlog_directory = (char *) ".";
 	}
 
 	compile_time_assert(SRV_FORCE_IGNORE_CORRUPT == 1);
@@ -5410,6 +5425,17 @@ class BackupStages {
 					dbug_emulate_ddl_on_intermediate_table_thread,
 					nullptr);
 			);
+
+			// Copy InnoDB binlog files.
+			if (!m_common_backup.copy_engine_binlogs(opt_binlog_directory,
+                                                                 recv_sys.lsn)) {
+				msg("Error on copy InnoDB binlog files");
+				return false;
+			}
+			if (!m_common_backup.wait_for_finish()) {
+				msg("InnoDB binlog file backup process is finished with error");
+				return false;
+			}
 
 			backup_finish(backup_datasinks.m_data);
 			return true;
