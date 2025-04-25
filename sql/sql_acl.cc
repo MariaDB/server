@@ -9377,37 +9377,53 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
   }
 }
 
-static const char *command_array[]=
+static const LEX_CSTRING privilege_str_repr[]=
 {
-  "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD",
-  "SHUTDOWN", "PROCESS","FILE", "GRANT", "REFERENCES", "INDEX",
-  "ALTER", "SHOW DATABASES", "SUPER", "CREATE TEMPORARY TABLES",
-  "LOCK TABLES", "EXECUTE", "REPLICATION SLAVE", "BINLOG MONITOR",
-  "CREATE VIEW", "SHOW VIEW", "CREATE ROUTINE", "ALTER ROUTINE",
-  "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
-  "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
-  "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY", "SLAVE MONITOR", "SHOW CREATE ROUTINE"
+  {STRING_WITH_LEN("SELECT")},
+  {STRING_WITH_LEN("INSERT")},
+  {STRING_WITH_LEN("UPDATE")},
+  {STRING_WITH_LEN("DELETE")},
+  {STRING_WITH_LEN("CREATE")},
+  {STRING_WITH_LEN("DROP")},
+  {STRING_WITH_LEN("RELOAD")},
+  {STRING_WITH_LEN("SHUTDOWN")},
+  {STRING_WITH_LEN("PROCESS")},
+  {STRING_WITH_LEN("FILE")},
+  {STRING_WITH_LEN("GRANT")},
+  {STRING_WITH_LEN("REFERENCES")},
+  {STRING_WITH_LEN("INDEX")},
+  {STRING_WITH_LEN("ALTER")},
+  {STRING_WITH_LEN("SHOW DATABASES")},
+  {STRING_WITH_LEN("SUPER")},
+  {STRING_WITH_LEN("CREATE TEMPORARY TABLES")},
+  {STRING_WITH_LEN("LOCK TABLES")},
+  {STRING_WITH_LEN("EXECUTE")},
+  {STRING_WITH_LEN("REPLICATION SLAVE")},
+  {STRING_WITH_LEN("BINLOG MONITOR")},
+  {STRING_WITH_LEN("CREATE VIEW")},
+  {STRING_WITH_LEN("SHOW VIEW")},
+  {STRING_WITH_LEN("CREATE ROUTINE")},
+  {STRING_WITH_LEN("ALTER ROUTINE")},
+  {STRING_WITH_LEN("CREATE USER")},
+  {STRING_WITH_LEN("EVENT")},
+  {STRING_WITH_LEN("TRIGGER")},
+  {STRING_WITH_LEN("CREATE TABLESPACE")},
+  {STRING_WITH_LEN("DELETE HISTORY")},
+  {STRING_WITH_LEN("SET USER")},
+  {STRING_WITH_LEN("FEDERATED ADMIN")},
+  {STRING_WITH_LEN("CONNECTION ADMIN")},
+  {STRING_WITH_LEN("READ_ONLY ADMIN")},
+  {STRING_WITH_LEN("REPLICATION SLAVE ADMIN")},
+  {STRING_WITH_LEN("REPLICATION MASTER ADMIN")},
+  {STRING_WITH_LEN("BINLOG ADMIN")},
+  {STRING_WITH_LEN("BINLOG REPLAY")},
+  {STRING_WITH_LEN("SLAVE MONITOR")},
+  {STRING_WITH_LEN("SHOW CREATE ROUTINE")}
 };
 
-static uint command_lengths[]=
-{
-  6, 6, 6, 6, 6, 4, 6,
-  8, 7, 4, 5, 10, 5,
-  5, 14, 5, 23,
-  11, 7, 17, 14,
-  11, 9, 14, 13,
-  11, 5, 7, 17, 14,
-  8, 15, 16, 15,
-  23, 24, 12,
-  13, 13, 19
-};
 
-
-static_assert(array_elements(command_array) == PRIVILEGE_T_MAX_BIT + 1,
-              "The definition of command_array does not match privilege_t");
-static_assert(array_elements(command_lengths) == PRIVILEGE_T_MAX_BIT + 1,
-              "The definition of command_lengths does not match privilege_t");
+static_assert(array_elements(privilege_str_repr) == PRIVILEGE_T_MAX_BIT + 1,
+              "The definition of privilege_str_repr does not match privilege_t");
 
 
 static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
@@ -9456,6 +9472,7 @@ static void append_auto_expiration_policy(ACL_USER *acl_user, String *r) {
       r->append(STRING_WITH_LEN(" DAY"));
     }
 }
+
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
@@ -9894,7 +9911,7 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
         if (found)
           global.append(STRING_WITH_LEN(", "));
         found=1;
-        global.append(command_array[counter],command_lengths[counter]);
+        global.append(privilege_str_repr[counter]);
       }
     }
   }
@@ -9993,7 +10010,7 @@ static bool show_database_privileges(THD *thd, const char *username,
               if (found)
                 db.append(STRING_WITH_LEN(", "));
               found = 1;
-              db.append(command_array[cnt],command_lengths[cnt]);
+              db.append(privilege_str_repr[cnt]);
             }
           }
         }
@@ -10015,6 +10032,7 @@ static bool show_database_privileges(THD *thd, const char *username,
   return FALSE;
 
 }
+
 
 static bool show_table_and_column_privileges(THD *thd, const char *username,
                                              const char *hostname,
@@ -10081,7 +10099,7 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
               if (found)
                 global.append(STRING_WITH_LEN(", "));
               found= 1;
-              global.append(command_array[counter],command_lengths[counter]);
+              global.append(privilege_str_repr[counter]);
 
               if (grant_table->cols)
               {
@@ -10108,8 +10126,7 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
                       if (table_access & j)
                       {
                         global.append(STRING_WITH_LEN(", "));
-                        global.append(command_array[counter],
-                                      command_lengths[counter]);
+                        global.append(privilege_str_repr[counter]);
                       }
                       global.append(STRING_WITH_LEN(" ("));
                     }
@@ -10144,11 +10161,12 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
     }
   }
   return FALSE;
-
 }
 
-static int show_routine_grants(THD* thd, const char *username,
-                               const char *hostname, const Sp_handler *sph,
+
+static int show_routine_grants(THD* thd,
+                               const char *username, const char *hostname,
+                               const Sp_handler *sph,
                                char *buff, int buffsize)
 {
   uint counter, index;
@@ -10204,7 +10222,7 @@ static int show_routine_grants(THD* thd, const char *username,
 	      if (found)
 		global.append(STRING_WITH_LEN(", "));
 	      found= 1;
-	      global.append(command_array[counter],command_lengths[counter]);
+	      global.append(privilege_str_repr[counter]);
 	    }
 	  }
 	}
@@ -10238,7 +10256,7 @@ static int show_routine_grants(THD* thd, const char *username,
   Make a clear-text version of the requested privilege.
 */
 
-void get_privilege_desc(char *to, uint max_length, privilege_t access_arg)
+void get_privilege_desc(char *to, size_t max_length, privilege_t access_arg)
 {
   uint pos;
   char *start=to;
@@ -10246,19 +10264,19 @@ void get_privilege_desc(char *to, uint max_length, privilege_t access_arg)
 
   if (ulonglong access= access_arg)
   {
-    max_length--;				// Reserve place for end-zero
+    max_length--;                               // Reserve place for end-zero
     for (pos=0 ; access ; pos++, access>>=1)
     {
       if ((access & 1) &&
-	  command_lengths[pos] + (uint) (to-start) < max_length)
+          privilege_str_repr[pos].length + ((to - start)) < max_length)
       {
-	to= strmov(to, command_array[pos]);
+        to= strmov(to, privilege_str_repr[pos].str);
         *to++= ',';
         *to++= ' ';
       }
     }
     to--;                                       // Remove end ' '
-    to--;					// Remove end ','
+    to--;                                       // Remove end ','
   }
   *to=0;
 }
@@ -12739,7 +12757,7 @@ int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
 static bool update_schema_privilege(THD *thd, TABLE *table, const char *buff,
                                     const char* db, const char* t_name,
                                     const char* column, uint col_length,
-                                    const char *priv, uint priv_length,
+                                    const LEX_CSTRING &priv_str_repr,
                                     const char* is_grantable)
 {
   int i= 2;
@@ -12748,12 +12766,12 @@ static bool update_schema_privilege(THD *thd, TABLE *table, const char *buff,
   table->field[0]->store(buff, (uint) strlen(buff), cs);
   table->field[1]->store(STRING_WITH_LEN("def"), cs);
   if (db)
-    table->field[i++]->store(db, (uint) strlen(db), cs);
+    table->field[i++]->store(db, strlen(db), cs);
   if (t_name)
-    table->field[i++]->store(t_name, (uint) strlen(t_name), cs);
+    table->field[i++]->store(t_name, strlen(t_name), cs);
   if (column)
     table->field[i++]->store(column, col_length, cs);
-  table->field[i++]->store(priv, priv_length, cs);
+  table->field[i++]->store(priv_str_repr, cs);
   table->field[i]->store(is_grantable, strlen(is_grantable), cs);
   return schema_table_store_record(thd, table);
 }
@@ -12810,7 +12828,7 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
     if (!(want_access & ~GRANT_ACL))
     {
       if (update_schema_privilege(thd, table, grantee, 0, 0, 0, 0,
-                                  STRING_WITH_LEN("USAGE"), is_grantable))
+                                  {STRING_WITH_LEN("USAGE")}, is_grantable))
       {
         error= 1;
         goto err;
@@ -12826,8 +12844,8 @@ int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         if (test_access & j)
         {
           if (update_schema_privilege(thd, table, grantee, 0, 0, 0, 0,
-                                      command_array[priv_id],
-                                      command_lengths[priv_id], is_grantable))
+                                      privilege_str_repr[priv_id],
+                                      is_grantable))
           {
             error= 1;
             goto err;
@@ -12884,8 +12902,8 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
       Grantee_str grantee(user, host);
       if (!(want_access & ~GRANT_ACL))
       {
-        if (update_schema_privilege(thd, table, grantee, acl_db->db, 0, 0,
-                                    0, STRING_WITH_LEN("USAGE"), is_grantable))
+        if (update_schema_privilege(thd, table, grantee, acl_db->db, 0, 0, 0,
+                                    {STRING_WITH_LEN("USAGE")}, is_grantable))
         {
           error= 1;
           goto err;
@@ -12901,7 +12919,7 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
           {
             if (update_schema_privilege(thd, table,
                                         grantee, acl_db->db, 0, 0, 0,
-                                        command_array[cnt], command_lengths[cnt],
+                                        privilege_str_repr[cnt],
                                         is_grantable))
             {
               error= 1;
@@ -12965,7 +12983,7 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
         if (update_schema_privilege(thd, table,
                                     grantee, grant_table->db,
                                     grant_table->tname, 0, 0,
-                                    STRING_WITH_LEN("USAGE"), is_grantable))
+                                    {STRING_WITH_LEN("USAGE")}, is_grantable))
         {
           error= 1;
           goto err;
@@ -12982,8 +13000,7 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
             if (update_schema_privilege(thd, table,
                                         grantee, grant_table->db,
                                         grant_table->tname, 0, 0,
-                                        command_array[cnt],
-                                        command_lengths[cnt], is_grantable))
+                                        privilege_str_repr[cnt], is_grantable))
             {
               error= 1;
               goto err;
@@ -13060,8 +13077,8 @@ int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
                                             grant_table->tname,
                                             grant_column->column,
                                             grant_column->key_length,
-                                            command_array[cnt],
-                                            command_lengths[cnt], is_grantable))
+                                            privilege_str_repr[cnt],
+                                            is_grantable))
                 {
                   error= 1;
                   goto err;
