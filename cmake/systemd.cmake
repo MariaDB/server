@@ -57,15 +57,6 @@ MACRO(CHECK_SYSTEMD)
 # ProtectSystem=full prevents it
 ReadWritePaths=-${MYSQL_DATADIR}\n")
         ENDIF()
-	# systemd version 245 (Ubuntu 20.04) and less cannot
-        # handle ambient capbilities on non-root processes
-	# 247 (Debian 11) is a version afterwards that is known to work.
-        IF(LIBSYSTEMD_VERSION VERSION_GREATER_EQUAL 247)
-          SET(SYSTEMD_AMBIENT_CAPABILITIES
-"# CAP_IPC_LOCK To allow --memlock to be used as non-root user
-AmbientCapabilities=CAP_IPC_LOCK
-")
-        ENDIF()
 
         MESSAGE_ONCE(systemd "Systemd features enabled")
       ELSE()
