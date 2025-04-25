@@ -401,15 +401,16 @@ public:
 };
 
 
-class Sql_cmd_grant_object: public Sql_cmd_grant, public Grant_privilege
+class Sql_cmd_grant_object: public Sql_cmd_grant
 {
 protected:
+  Grant_privilege &m_gp;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool grant_stage0_exact_object(THD *thd, TABLE_LIST *table);
 #endif
 public:
-  Sql_cmd_grant_object(enum_sql_command command, const Grant_privilege &grant)
-   :Sql_cmd_grant(command), Grant_privilege(grant)
+  Sql_cmd_grant_object(enum_sql_command command, Grant_privilege &grant)
+   :Sql_cmd_grant(command), m_gp(grant)
   { }
 };
 
@@ -421,7 +422,7 @@ class Sql_cmd_grant_table: public Sql_cmd_grant_object
   bool execute_exact_table(THD *thd, TABLE_LIST *table);
 #endif
 public:
-  Sql_cmd_grant_table(enum_sql_command command, const Grant_privilege &grant)
+  Sql_cmd_grant_table(enum_sql_command command, Grant_privilege &grant)
    :Sql_cmd_grant_object(command, grant)
   { }
   bool execute(THD *thd) override;
@@ -433,7 +434,7 @@ class Sql_cmd_grant_sp: public Sql_cmd_grant_object
 {
   const Sp_handler &m_sph;
 public:
-  Sql_cmd_grant_sp(enum_sql_command command, const Grant_privilege &grant,
+  Sql_cmd_grant_sp(enum_sql_command command, Grant_privilege &grant,
                    const Sp_handler &sph)
    :Sql_cmd_grant_object(command, grant),
     m_sph(sph)

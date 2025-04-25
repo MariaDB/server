@@ -3136,9 +3136,10 @@ public:
 class Lex_grant_privilege: public Grant_privilege, public Sql_alloc
 {
 public:
-  Lex_grant_privilege() {}
-  Lex_grant_privilege(privilege_t grant, bool all_privileges= false)
-   :Grant_privilege(grant, all_privileges)
+  Lex_grant_privilege()
+    :Grant_privilege(NO_ACL) {}
+  Lex_grant_privilege(privilege_t privileges)
+   :Grant_privilege(privileges)
   { }
 };
 
