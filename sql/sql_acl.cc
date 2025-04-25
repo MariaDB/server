@@ -7628,9 +7628,9 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     /* Create user if needed */
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
         replace_user_table(thd, tables.user_table(), Str,
-			   NO_ACL, revoke_grant, create_new_users,
+                           NO_ACL, revoke_grant, create_new_users,
                            !is_public(Str) && (thd->variables.sql_mode &
-                                     MODE_NO_AUTO_CREATE_USER)))
+                                               MODE_NO_AUTO_CREATE_USER)))
     {
       result= TRUE;
       continue;
@@ -11270,7 +11270,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, 0, 1, 0))
+                           NO_ACL, false,
+                           true, false))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -11576,8 +11577,9 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   {
     LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
     if (!lex_user ||
-        replace_user_table(thd, tables.user_table(), lex_user, NO_ACL,
-                           false, false, true))
+        replace_user_table(thd, tables.user_table(), lex_user,
+                           NO_ACL, false,
+                           false, true))
     {
       thd->clear_error();
       append_user(thd, &wrong_users, tmp_lex_user);
@@ -11705,7 +11707,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     }
 
     if (replace_user_table(thd, tables.user_table(), lex_user,
-                           ALL_KNOWN_ACL, 1, 0, 0))
+                           ALL_KNOWN_ACL, true,
+                           false, false))
     {
       result= -1;
       continue;
