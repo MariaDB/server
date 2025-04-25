@@ -178,7 +178,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *user);
 bool mysql_show_create_user(THD *thd, LEX_USER *user);
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond);
-void get_privilege_desc(char *to, uint max_length, privilege_t access);
+void get_privilege_desc(char *to, size_t max_length, privilege_t access);
 void get_mqh(const char *user, const char *host, USER_CONN *uc);
 bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
