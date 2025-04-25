@@ -1859,6 +1859,15 @@ class Type_handler_assoc_array: public Type_handler_composite
 {
 public:
   bool has_methods() const override { return true; }
+  bool is_complex() const override
+  {
+    /*
+      Have an assoc array variable generate an sp_instr_destruct_variable
+      instruction in the end of the DECLARE/BEGIN/END block declaring
+      the variable.
+    */
+    return true;
+  }
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const override;
   bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
@@ -1992,14 +2001,13 @@ const Type_handler *Type_handler_assoc_array::type_handler_for_comparison() cons
 bool Type_handler_assoc_array::Spvar_definition_with_complex_data_types(
                                                  Spvar_definition *def) const
 {
-  if (def->is_assoc_array())
-  {
-    auto &value_def= *(++(def->row_field_definitions())->begin());
-
-    return value_def.type_handler()->
-      Spvar_definition_with_complex_data_types(def);
-  }
-  return false;
+  /*
+    No needs to check the "TABLE OF" and "INDEX BY" data types.
+    An assoc array variable in any cases use memory resources which need
+    to be freed when a routine execution leaves the DECLARE/BEGIN/END block
+    declaring this variable.
+  */
+  return true;
 }
 
 
@@ -2178,7 +2186,7 @@ bool Type_handler_assoc_array::finalize_for_set(Item_field *item) const
 
 
 static const Named_type_handler<Type_handler_assoc_array>
-               type_handler_assoc_array_internal("associative array");
+               type_handler_assoc_array_internal("associative_array");
 
 const Type_handler_composite &type_handler_assoc_array=
   type_handler_assoc_array_internal;

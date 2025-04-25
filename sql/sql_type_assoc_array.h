@@ -62,6 +62,16 @@ public:
   Item **element_addr_by_key(THD *thd, String *key) override;
   bool delete_all_elements() override;
   bool delete_element_by_key(String *key) override;
+  void expr_event_handler(THD *thd, expr_event_t event) override
+  {
+    if ((bool) (event & expr_event_t::DESTRUCT_ANY))
+    {
+      delete_all_elements();
+      set_null();
+      return;
+    }
+    DBUG_ASSERT(0);
+  }
 
   CHARSET_INFO *key_charset() const;
 

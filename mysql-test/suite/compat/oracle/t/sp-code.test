@@ -1145,5 +1145,48 @@ DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
 
+--echo #
+--echo # Make sure assoc array variables generate sp_instr_destruct_variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  TYPE table_of_int_t IS TABLE OF INT INDEX BY INT;
+BEGIN
+  SELECT '>block#0' AS comment;
+  DECLARE
+    assoc_of_record_0 table_of_peson_t;
+    assoc_of_scalar_0 table_of_int_t;
+  BEGIN
+    SELECT '>block#1' AS comment;
+    DECLARE
+      assoc_of_record_1 table_of_peson_t;
+      assoc_of_scalar_1 table_of_int_t;
+    BEGIN
+      SELECT '>block#2' AS comment;
+      DECLARE
+        assoc_of_record_2 table_of_peson_t;
+        assoc_of_scalar_2 table_of_int_t;
+      BEGIN
+        SELECT '>block#3' AS comment;
+        NULL;
+        SELECT '<block#3' AS comment;
+      END;
+      SELECT '<block#2' AS comment;
+    END;
+    SELECT '<block#1' AS comment;
+  END;
+  SELECT '<block#0' AS comment;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
 
 --echo # End of 11.8 tests
