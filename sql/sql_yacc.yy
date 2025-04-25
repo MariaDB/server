@@ -17914,8 +17914,9 @@ grant_privileges:
           object_privilege_list
         | ALL opt_privileges
           { 
-            if (!($$= new (thd->mem_root) Lex_grant_privilege(GLOBAL_ACLS, true)))
+            if (!($$= new (thd->mem_root) Lex_grant_privilege()))
               MYSQL_YYABORT;
+            $$->set_all_privileges();
           }
         ;
 
