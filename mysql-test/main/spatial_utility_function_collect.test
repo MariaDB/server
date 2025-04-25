@@ -81,9 +81,14 @@ CURRENT ROW)) c FROM table_simple_aggregation;
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(running_number)
 OVER()  FROM table_simple_aggregation GROUP BY running_number;
 --sorted_result
+
+--echo # remove disable_view_protocol after fixing MDEV-36695
+--disable_view_protocol
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT location)) AS geo, SUM(grouping_condition)
 OVER(), grouping_condition FROM table_simple_aggregation GROUP BY
 grouping_condition;
+--enable_view_protocol
+
 --sorted_result
 SELECT ST_ASTEXT(ST_COLLECT(location)) AS geo, SUM(grouping_condition) OVER(),
 grouping_condition FROM table_simple_aggregation GROUP BY grouping_condition;
@@ -171,8 +176,12 @@ SELECT ST_ASTEXT(ST_COLLECT(geo) OVER( ORDER BY running_number ROWS BETWEEN 1
 PRECEDING AND CURRENT ROW)) AS geocollect  FROM simple_table;
 --echo # with DISTINCT this result is expected to be:
 --echo # MP, GC, MLS, GC, MPpoly, GC, GC, GC, GC with only one EMPTY GC
+
+--echo # remove disable_view_protocol after fixing MDEV-36695
+--disable_view_protocol
 SELECT ST_ASTEXT(ST_COLLECT(DISTINCT geo) OVER( ORDER BY running_number ROWS BETWEEN 1
 PRECEDING AND CURRENT ROW)) AS geocollect FROM simple_table;
+--enable_view_protocol
 
 --echo # Exercising the "copy" constructor
 SELECT ST_ASTEXT(ST_COLLECT(geo)) FROM simple_table GROUP BY geo WITH ROLLUP;
