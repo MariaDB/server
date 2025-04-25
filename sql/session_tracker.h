@@ -483,6 +483,7 @@ class Session_tracker
   {
   public:
     void mark_as_changed(THD *thd) {}
+    void mark_all_as_changed(THD *thd) {}
     void mark_as_changed(THD *thd, const sys_var *var) {}
   };
 public:
