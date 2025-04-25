@@ -12390,6 +12390,10 @@ static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
     thd->variables.max_statement_time=
       (ulonglong) (thd->variables.max_statement_time_double * 1e6 + 0.1);
   }
+
+  thd->session_tracker.sysvars.mark_all_as_changed(thd);
+  thd->session_tracker.current_schema.mark_as_changed(thd);
+  thd->session_tracker.state_change.mark_as_changed(thd);
   return 0;
 }
 

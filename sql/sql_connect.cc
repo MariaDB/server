@@ -1153,7 +1153,6 @@ static bool login_connection(THD *thd)
   my_net_set_write_timeout(net, connect_timeout);
 
   error= check_connection(thd);
-  thd->session_tracker.sysvars.mark_all_as_changed(thd);
   thd->protocol->end_statement();
 
   if (unlikely(error))

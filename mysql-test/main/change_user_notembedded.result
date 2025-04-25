@@ -7,4 +7,20 @@ ERROR 08S01: Unknown command
 ERROR 08S01: Unknown command
 disconnect test;
 connection default;
-that's all
+# End of 10.0 tests
+#
+# MDEV-36405 Session tracking does not report changes from COM_CHANGE_USER
+#
+change_user
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- autocommit: ON
+-- character_set_client: latin1
+-- character_set_connection: latin1
+-- character_set_results: latin1
+-- redirect_url: 
+-- time_zone: SYSTEM
+
+-- Tracker : SESSION_TRACK_SCHEMA
+-- test
+
+# End of 12.0 tests

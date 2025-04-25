@@ -4669,7 +4669,11 @@ void do_change_user(struct st_command *command)
     handle_error(command, mysql_errno(mysql), mysql_error(mysql),
 		 mysql_sqlstate(mysql), &ds_res);
   else
+  {
+    if (display_session_track_info)
+      append_session_track_info(&ds_res, mysql);
     handle_no_error(command);
+  }
 
   dynstr_free(&ds_user);
   dynstr_free(&ds_passwd);

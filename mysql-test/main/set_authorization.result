@@ -133,4 +133,19 @@ show global status like 'access_denied_errors';
 Variable_name	Value
 Access_denied_errors	2
 drop user u1;
-# End of 11.8 tests
+#
+# MDEV-36405 Session tracking does not report changes from COM_CHANGE_USER
+#
+set session authorization root@localhost;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- autocommit: ON
+-- character_set_client: utf8mb4
+-- character_set_connection: utf8mb4
+-- character_set_results: utf8mb4
+-- redirect_url: 
+-- time_zone: SYSTEM
+
+-- Tracker : SESSION_TRACK_SCHEMA
+-- 
+
+# End of 12.0 tests

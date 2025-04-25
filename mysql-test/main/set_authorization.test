@@ -136,4 +136,11 @@ connection default;
 show global status like 'access_denied_errors';
 drop user u1;
 
---echo # End of 11.8 tests
+--echo #
+--echo # MDEV-36405 Session tracking does not report changes from COM_CHANGE_USER
+--echo #
+enable_session_track_info;
+set session authorization root@localhost;
+disable_session_track_info;
+
+--echo # End of 12.0 tests
