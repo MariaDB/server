@@ -48,6 +48,9 @@ public:
     m_def= def;
   }
 
+  Item_field *make_item_field_spvar(THD *thd,
+                                    const Spvar_definition &def) override;
+
   Field *create_element_field(THD *thd);
   bool init_element_field(THD *thd);
 

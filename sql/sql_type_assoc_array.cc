@@ -1230,23 +1230,17 @@ bool Field_assoc_array::init_element_field(THD *thd)
 }
 
 
-Item_field_assoc_array *
-Spvar_definition::make_item_field_assoc_array(THD *thd,
-                                              Field *field)
+Item_field *
+Field_assoc_array::make_item_field_spvar(THD *thd,
+                                         const Spvar_definition &def)
 {
-  DBUG_ASSERT(field);
-
-  Field_assoc_array *field_assoc_array= dynamic_cast<Field_assoc_array*>(field);
-  if (!field_assoc_array)
-    return nullptr;
-
-  auto item= new (thd->mem_root) Item_field_assoc_array(thd, field);
+  auto item= new (thd->mem_root) Item_field_assoc_array(thd, this);
   if (!item)
     return nullptr;
 
-  item->set_array_def(thd, m_row_field_definitions);
+  item->set_array_def(thd, def.row_field_definitions());
 
-  if (field_assoc_array->init_element_field(thd))
+  if (init_element_field(thd))
     return nullptr;
 
   return item;

@@ -74,6 +74,25 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
 }
 
 
+Item_field *Field_row::make_item_field_spvar(THD *thd,
+                                             const Spvar_definition &def)
+{
+  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, this);
+  if (!item)
+    return nullptr;
+
+  if (row_create_fields(thd, def))
+    return nullptr;
+
+  // virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
+  if (virtual_tmp_table() &&
+      item->add_array_of_item_field(thd, *virtual_tmp_table()))
+    return nullptr;
+
+  return item;
+}
+
+
 bool Type_handler_row::Spvar_definition_with_complex_data_types(
                                                  Spvar_definition *def) const
 {

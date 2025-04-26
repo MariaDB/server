@@ -26,7 +26,6 @@
 #include "sql_base.h"                       // open_tables_only_view_structure
 #include "sql_acl.h"                        // SELECT_ACL
 #include "sql_parse.h"                      // check_table_access
-#include "sql_type_assoc_array.h"
 
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
@@ -403,25 +402,6 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
-Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
-                                                      Field_row *field)
-{
-  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-  if (!item)
-    return nullptr;
-
-  if (field->row_create_fields(thd, *this))
-    return nullptr;
-
-  // field->virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
-  if (field->virtual_tmp_table() &&
-      item->add_array_of_item_field(thd, *field->virtual_tmp_table()))
-    return nullptr;
-
-  return item;
-}
-
-
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -439,20 +419,8 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-
-    if (def->is_assoc_array())
-    {
-      if (!(m_var_items[idx]= def->make_item_field_assoc_array(thd, field)))
-        return true;
-    }
-    else
-    {
-      Field_row *field_row= dynamic_cast<Field_row*>(field);
-      if (!(m_var_items[idx]= field_row ?
-                              def->make_item_field_row(thd, field_row) :
-                              new (thd->mem_root) Item_field(thd, field)))
-        return true;
-    }
+    if (!(m_var_items[idx]= field->make_item_field_spvar(thd, *def)))
+      return true;
   }
   return false;
 }
