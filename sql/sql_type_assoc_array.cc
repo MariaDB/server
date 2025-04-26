@@ -25,6 +25,7 @@
 #include "sql_select.h" // Virtual_tmp_table
 #include "sp_rcontext.h"
 #include "sp_head.h"
+#include "sp_type_def.h"
 
 
 /*
@@ -1885,6 +1886,59 @@ public:
     MY_ASSERT_UNREACHABLE();
     return nullptr;
   }
+
+protected:
+  static bool lex_ident_col_eq(Lex_ident_column *a, Lex_ident_column *b)
+  {
+    return a->streq(*b);
+  }
+
+  bool sp_check_assoc_array_args(const sp_type_def &def, List<Item> &args) const
+  {
+    List<Lex_ident_column> names;
+
+    List_iterator<Item> it(args);
+    for (Item *item= it++; item; item= it++)
+    {
+      /*
+        Make sure all value have keys:
+          assoc_array_type('key1'=>'val1', 'key2'=>'val2') -- correct
+          assoc_array_type('val1'        , 'val2'        ) -- wrong
+      */
+      if (unlikely(!item->is_explicit_name()))
+      {
+        my_error(ER_NEED_NAMED_ASSOCIATION, MYF(0), def.get_name());
+        return true;
+      }
+
+      /*
+        Make sure keys are unique in:
+          assoc_array_type('key1'=>'val1', 'key2'=>'val2')
+      */
+      if (unlikely(names.add_unique(&item->name, lex_ident_col_eq)))
+      {
+        my_error(ER_DUP_UNKNOWN_IN_INDEX, MYF(0), item->name.str);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+public:
+  // assoc_array_var:= assoc_array_type('key1'=>'val1', 'key2'=>'val2')
+  Item *make_typedef_constructor_item(THD *thd, const sp_type_def &def,
+                                      List<Item> *args) const override
+  {
+    if (unlikely(args == NULL))
+      return new (thd->mem_root) Item_assoc_array(thd, def.get_name());
+
+    if (unlikely(sp_check_assoc_array_args(def, *args)))
+      return nullptr;
+
+    return new (thd->mem_root) Item_assoc_array(thd, def.get_name(), *args);
+  }
+
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override
   {
     MY_ASSERT_UNREACHABLE();

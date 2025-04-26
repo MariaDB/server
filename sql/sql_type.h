@@ -99,6 +99,7 @@ class ST_FIELD_INFO;
 class Type_collection;
 class Create_func;
 class Type_handler_composite;
+class sp_type_def;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -4555,6 +4556,9 @@ public:
   {
     return NULL;
   }
+  virtual Item *make_typedef_constructor_item(THD *thd,
+                                              const sp_type_def &def,
+                                              List<Item> *arg_list) const;
 
   /**
      normalize_cond() replaces

@@ -26,6 +26,7 @@
 #include "log.h"
 #include "tztime.h"
 #include <mysql/plugin_data_type.h>
+#include "sp_type_def.h"
 
 
 const DTCollation &DTCollation_numeric::singleton()
@@ -9726,4 +9727,27 @@ int initialize_data_type_plugin(void *plugin_)
     return 1;
   }
   return 0;
+}
+
+
+Item *Type_handler::make_typedef_constructor_item(THD *thd,
+                                                  const sp_type_def &def,
+                                                  List<Item> *arg_list) const
+{
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), def.get_name().str);
+  return nullptr;
+}
+
+
+Item *Type_handler_row::make_typedef_constructor_item(THD *thd,
+                                                      const sp_type_def &def,
+                                                      List<Item> *args) const
+{
+  if (unlikely(args == nullptr))
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), def.get_name().str);
+    return nullptr;
+  }
+
+  return new (thd->mem_root) Item_row(thd, *args);
 }

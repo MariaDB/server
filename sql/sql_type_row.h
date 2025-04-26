@@ -43,6 +43,8 @@ public:
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
     override;
+  Item *make_typedef_constructor_item(THD *thd, const sp_type_def &def,
+                                      List<Item> *arg_list) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;

@@ -11015,7 +11015,7 @@ function_call_generic:
             const Type_handler *h;
             Create_func *builder;
             Item *item= NULL;
-            sp_type_def *composite= NULL;
+            const sp_type_def *tdef= NULL;
             sp_variable *spv= NULL;
             bool allow_field_accessor= false;
             const Lex_ident_sys ident(thd, &$1);
@@ -11046,9 +11046,9 @@ function_call_generic:
               // Found a constructor with a proper argument count
             }
             else if (Lex->spcont &&
-                    (composite= Lex->spcont->find_data_type(&ident, false)))
+                    (tdef= Lex->spcont->find_data_type(&ident, false)))
             {
-              item= Lex->create_composite_constructor(thd, composite, $4);
+              item= tdef->make_constructor_item(thd, $4);
             }
             else if (Lex->spcont &&
                     (spv= Lex->spcont->find_variable(&ident, false)) &&

@@ -6897,36 +6897,6 @@ bool LEX::sp_variable_declarations_rec_finalize(THD *thd, int nvars,
 }
 
 
-static bool lex_ident_col_eq(Lex_ident_column *a, Lex_ident_column *b)
-{
-  return a->streq(*b);
-}
-
-bool LEX::sp_check_assoc_array_args(const LEX_CSTRING& type_name,
-                                 List<Item> &list)
-{
-  List<Lex_ident_column> names;
-
-  List_iterator<Item> it(list);
-  for (Item *item= it++; item; item= it++)
-  {
-    if (unlikely(!item->is_explicit_name()))
-    {
-      my_error(ER_NEED_NAMED_ASSOCIATION, MYF(0), type_name.str);
-      return true;
-    }
-
-    if (unlikely(names.add_unique(&item->name, lex_ident_col_eq)))
-    {
-      my_error(ER_DUP_UNKNOWN_IN_INDEX, MYF(0), item->name.str);
-      return true;
-    }
-  }
-
-  return false;
-}
-
-
 /*
   Make instructions for:
     var('key')         := expr;
@@ -8803,41 +8773,6 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
 #endif
   safe_to_cache_query=0;
   return item;
-}
-
-
-Item *LEX::create_composite_constructor(THD *thd,
-                                        sp_type_def *composite,
-                                        List<Item> *arg_list)
-{
-  DBUG_ASSERT(composite && composite->type_handler()->to_composite());
-
-  if (composite->type_handler() == &type_handler_row)
-  {
-    if (unlikely(arg_list == nullptr))
-    {
-      my_error(ER_WRONG_ARGUMENTS, MYF(0), composite->get_name().str);
-      return nullptr;
-    }
-
-    return new (thd->mem_root) Item_row(thd, *arg_list);
-  }
-
-  if (composite->type_handler() == &type_handler_assoc_array)
-  {
-    if (unlikely(arg_list == NULL))
-      return new (thd->mem_root) Item_assoc_array(thd, composite->get_name());
-
-    if (unlikely(sp_check_assoc_array_args(composite->get_name(), *arg_list)))
-      return nullptr;
-
-    return new (thd->mem_root) Item_assoc_array(thd,
-                                                composite->get_name(),
-                                                *arg_list);
-  }
-
-  my_error(ER_WRONG_ARGUMENTS, MYF(0), composite->get_name().str);
-  return nullptr;
 }
 
 

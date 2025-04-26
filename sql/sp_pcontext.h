@@ -21,6 +21,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
+#include "sp_type_def.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -338,69 +339,6 @@ public:
   sp_handler(enum_type _type)
    :Sql_alloc(),
     type(_type)
-  { }
-};
-
-
-///////////////////////////////////////////////////////////////////////////
-/// This class represents a type definition in a stored program.
-
-class sp_type_def : public Sql_alloc,
-                    public Type_handler_hybrid_field_type
-{
-protected:
-  /// Name of the type.
-  Lex_ident_column m_name;
-
-public:
-  sp_type_def(const Lex_ident_column &name_arg, const Type_handler *th)
-   :Sql_alloc(),
-    Type_handler_hybrid_field_type(th),
-    m_name(name_arg)
-  { }
-
-  bool eq_name(const LEX_CSTRING *str) const
-  {
-    return m_name.streq(*str);
-  }
-
-  const Lex_ident_column &get_name() const
-  {
-    return m_name;
-  }
-};
-
-
-/// This class represents 'DECLARE RECORD' statement.
-
-class sp_type_def_record : public sp_type_def
-{
-public:
-  Row_definition_list *field;
-
-public:
-  sp_type_def_record(const Lex_ident_column &name_arg,
-                     Row_definition_list *prmfield)
-   :sp_type_def(name_arg, &type_handler_row),
-    field(prmfield)
-  { }
-};
-
-/// This class represents 'DECLARE TYPE .. TABLE OF' statement.
-
-class sp_type_def_assoc_array : public sp_type_def
-{
-public:
-  Spvar_definition *key_def;
-  Spvar_definition *value_def;
-
-public:
-  sp_type_def_assoc_array(const Lex_ident_column &name_arg,
-                          Spvar_definition *key_def_arg,
-                          Spvar_definition *value_def_arg)
-   :sp_type_def(name_arg, &type_handler_assoc_array),
-    key_def(key_def_arg),
-    value_def(value_def_arg)
   { }
 };
 

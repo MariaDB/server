@@ -3914,8 +3914,6 @@ public:
                                      List<Item> *params,
                                      const Lex_ident_sys_st &field_name,
                                      Item *item, const LEX_CSTRING &expr_str);
-  bool sp_check_assoc_array_args(const LEX_CSTRING& type_name,
-                                 List<Item> &list);
   Item *sp_get_assoc_array_key(THD *thd, Item_splocal* array,
                                List<Item> *args, bool is_first);
   Item *sp_get_assoc_array_next_or_prior(THD *thd, Item_splocal* array,
@@ -4154,10 +4152,6 @@ public:
 
     return nullptr;
   }
-
-  Item *create_composite_constructor(THD *thd,
-                                     sp_type_def *composite,
-                                     List<Item> *item_list);
 
   Item_splocal *
   create_item_spvar_assoc_array_element(THD *thd,
