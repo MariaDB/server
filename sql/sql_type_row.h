@@ -31,6 +31,7 @@ public:
   virtual ~Type_handler_row() = default;
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const override;
+  bool has_null_predicate() const override { return false; }
   bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
                                                        const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
