@@ -28,7 +28,6 @@ public:
 
   // For associative arrays
   /// Returns the number of columns for the elements of the array
-  virtual uint cols_for_elements() const { return 0; }
   virtual uint rows() const { return 1; }
   virtual bool get_key(String *key, bool is_first) { return true; }
   virtual bool get_next_key(const String *curr_key, String *next_key)

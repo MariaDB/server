@@ -3560,6 +3560,46 @@ uint Type_handler_blob_common::calc_key_length(const Column_definition &def) con
 }
 
 /*************************************************************************/
+
+// SELECT 1 INTO spvar;
+my_var *Type_handler::make_outvar(THD *thd,
+                                  const Lex_ident_sys_st &name,
+                                  const sp_rcontext_addr &addr,
+                                  sp_head *sphead,
+                                  bool validate_only) const
+{
+  if (validate_only) // e.g. EXPLAIN SELECT
+    return nullptr;
+  return new (thd->mem_root) my_var_sp(name, addr, this, sphead);
+}
+
+
+// SELECT 1 INTO spvar.field;
+my_var *Type_handler::make_outvar_field(THD *thd,
+                                        const Lex_ident_sys_st &name,
+                                        const sp_rcontext_addr &addr,
+                                        const Lex_ident_sys_st &field,
+                                        sp_head *sphead,
+                                        bool validate_only) const
+{
+  my_printf_error(ER_UNKNOWN_ERROR,
+                  "'%s' is not a row variable", MYF(0), name.str);
+  return nullptr;
+}
+
+
+// SELECT 1 INTO spvar(arg);
+my_var *Type_handler::make_outvar_lvalue_function(THD *thd,
+                                                  const Lex_ident_sys_st &name,
+                                                  Item *arg, sp_head *sphead,
+                                                  const sp_rcontext_addr &addr,
+                                                  bool validate_only) const
+{
+  my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), name.str);
+  return nullptr;
+}
+
+/*************************************************************************/
 Field *Type_handler::make_and_init_table_field(MEM_ROOT *root,
                                                const LEX_CSTRING *name,
                                                const Record_addr &addr,

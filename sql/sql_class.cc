@@ -4092,26 +4092,12 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   if (var_list.elements == 1 &&
       (mvsp= var_list.head()->get_my_var_sp()))
   {
-    Item *item= mvsp->get_rcontext(thd->spcont)->get_variable(mvsp->offset);
-    auto composite_item= dynamic_cast<Item_composite_base *>(item);
-    if (mvsp->type_handler() == &type_handler_row)
-    {
-      // SELECT INTO row_type_sp_variable
-      if (item->cols() != list.elements)
-        goto error;
+    bool assign_as_row= false;
+    if (mvsp->check_assignability(thd, list, &assign_as_row))
+      goto error;
+    if (assign_as_row)
       m_var_sp_row= mvsp;
-      return 0;
-    }
-    else if (mvsp->type_handler() == &type_handler_assoc_array &&
-             composite_item->cols_for_elements() != 0)
-    {
-      // SELECT INTO assoc_array_sp_variable
-      if (composite_item->cols_for_elements() != list.elements)
-        goto error;
-      
-      m_var_sp_assoc_array= mvsp;
-      return 0;
-    }
+    return 0;
   }
 
   // SELECT INTO variable list
@@ -4589,13 +4575,7 @@ sp_rcontext *my_var_sp::get_rcontext(sp_rcontext *local_ctx) const
 
 bool my_var_sp::set(THD *thd, Item *item)
 {
-  return get_rcontext(thd->spcont)->set_variable(thd, offset, &item);
-}
-
-bool my_var_sp_row_field::set(THD *thd, Item *item)
-{
-  return get_rcontext(thd->spcont)->
-           set_variable_row_field(thd, offset, m_field_offset, &item);
+  return get_rcontext(thd->spcont)->set_variable(thd, offset(), &item);
 }
 
 
@@ -4608,17 +4588,6 @@ sp_rcontext *THD::get_rcontext(const sp_rcontext_addr &addr)
 Item_field *THD::get_variable(const sp_rcontext_addr &addr)
 {
   return get_rcontext(addr)->get_variable(addr.offset());
-}
-
-
-bool my_var_sp_assoc_array_element::set(THD *thd, Item *item)
-{
-  LEX_CSTRING key;
-  if (type_handler_assoc_array.key_to_lex_cstring(thd, &m_key, name, key))
-    return true;
-
-  return get_rcontext(thd->spcont)->
-            set_variable_composite_by_name(thd, offset, key, &item);
 }
 
 
@@ -4649,14 +4618,7 @@ int select_dumpvar::send_data(List<Item> &items)
   }
   if (m_var_sp_row)
   {
-    if (m_var_sp_row->get_rcontext(thd->spcont)->
-      set_variable_row(thd, m_var_sp_row->offset, items))
-      DBUG_RETURN(1);
-  }
-  else if (m_var_sp_assoc_array)
-  {
-    Item_row *item_row= new (thd->mem_root) Item_row(thd, items);  
-    if (var_list.begin()->set(thd, item_row))
+    if (m_var_sp_row->set_row(thd, items))
       DBUG_RETURN(1);
   }
   else if (send_data_to_var_list(items))

@@ -100,6 +100,8 @@ class Type_collection;
 class Create_func;
 class Type_handler_composite;
 class sp_type_def;
+class sp_head;
+class my_var;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -4387,6 +4389,39 @@ public:
                             const Bit_addr &bit,
                             const Column_definition_attributes *attr,
                             uint32 flags) const= 0;
+  /*
+    Make a my_var to handle:
+      SELECT 1 INTO spvar;
+    @param thd           - Current thd
+    @param name          - The variable name
+    @param addr          - The variable run-time address
+    @param sphead        - The sphead containing the variable
+    @param validate_only - Do not make my_var, only raise an SQL error
+                           if the variable is not used correctly.
+                           This is needed for EXPLAIN SELECT statements.
+    @returns             - A pointer to a new my_var instance.
+                           nullptr if "validate_only" was passed.
+                           nullptr if the variable is not used correcly
+                           (an SQL error is raised in this case).
+  */
+  virtual my_var *make_outvar(THD *thd,
+                              const Lex_ident_sys_st &name,
+                              const sp_rcontext_addr &addr,
+                              sp_head *sphead,
+                              bool validate_only) const;
+  // SELECT 1 INTO spvar.field;
+  virtual my_var *make_outvar_field(THD *thd,
+                                    const Lex_ident_sys_st &name,
+                                    const sp_rcontext_addr &addr,
+                                    const Lex_ident_sys_st &field,
+                                    sp_head *sphead,
+                                    bool validate_only) const;
+  // SELECT 1 INTO spvar(arg);
+  virtual my_var *make_outvar_lvalue_function(THD *thd,
+                                              const Lex_ident_sys_st &name,
+                                              Item *arg, sp_head *sphead,
+                                              const sp_rcontext_addr &addr,
+                                              bool validate_only) const;
   virtual void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const;

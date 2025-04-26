@@ -1399,24 +1399,12 @@ bool Item_field_assoc_array::set_array_def(THD *thd,
 {
   DBUG_ASSERT(field);
 
-  m_def= def;
   Field_assoc_array *field_assoc_array= dynamic_cast<Field_assoc_array*>(field);
   if (!field_assoc_array)
     return true;
 
   field_assoc_array->set_array_def(def);
   return false;
-}
-
-
-uint Item_field_assoc_array::cols_for_elements() const
-{
-  auto &value_def= *(++m_def->begin());
-  if (value_def.is_row())
-  {
-    return value_def.row_field_definitions()->elements;
-  }
-  return 0;
 }
 
 
@@ -1847,6 +1835,56 @@ bool Item_splocal_assoc_array_element_field::append_for_log(THD *thd,
 }
 
 
+class my_var_sp_assoc_array_element: public my_var_sp
+{
+  Item *m_key;
+public:
+  my_var_sp_assoc_array_element(const Lex_ident_sys_st &varname, Item *key,
+                                const sp_rcontext_addr &addr, sp_head *s)
+   :my_var_sp(varname, addr,
+              &type_handler_assoc_array, s),
+    m_key(key)
+  { }
+
+  bool check_assignability(THD *thd, const List<Item> &select_list,
+                           bool *assign_as_row) const override
+  {
+    Item_field *item= thd->get_variable(*this);
+    const Field_assoc_array *field=
+      dynamic_cast<const Field_assoc_array*>(item->field);
+    DBUG_ASSERT(field);
+    DBUG_ASSERT(field->get_array_def());
+    DBUG_ASSERT(field->get_array_def()->elements == 2);
+    const Row_definition_list *def= field->get_array_def();
+    List_iterator<Spvar_definition> it(*const_cast<Row_definition_list*>(def));
+    it++; // Skip the INDEX BY definition
+    const Spvar_definition &table_of= *(it++); // The TABLE OF definition
+    /*
+      Check select_list compatibility depending on whether the assoc element
+      is a ROW or a scalar data type.
+    */
+    return (*assign_as_row= table_of.row_field_definitions() != nullptr) ?
+           table_of.row_field_definitions()->elements != select_list.elements :
+           select_list.elements != 1;
+  }
+
+  bool set(THD *thd, Item *item) override
+  {
+    LEX_CSTRING key;
+    if (type_handler_assoc_array.key_to_lex_cstring(thd, &m_key, name, key))
+      return true;
+
+    return get_rcontext(thd->spcont)->
+              set_variable_composite_by_name(thd, offset(), key, &item);
+  }
+  bool set_row(THD *thd, List<Item> &select_list) override
+  {
+    Item_row *item_row= new (thd->mem_root) Item_row(thd, select_list);
+    return set(thd, item_row);
+  }
+};
+
+
 /*
   Special handler associative arrays
 */
@@ -1920,6 +1958,17 @@ protected:
   }
 
 public:
+  // SELECT 1 INTO spvar(arg);
+  my_var *make_outvar_lvalue_function(THD *thd, const Lex_ident_sys_st &name,
+                                      Item *arg, sp_head *sphead,
+                                      const sp_rcontext_addr &addr,
+                                      bool validate_only) const override
+  {
+    if (validate_only)
+      return nullptr; // e.g. EXPLAIN SELECT .. INTO spvar_assoc_array('key');
+    return new (thd->mem_root) my_var_sp_assoc_array_element(name, arg, addr,
+                                                             sphead);
+  }
   // assoc_array_var:= assoc_array_type('key1'=>'val1', 'key2'=>'val2')
   Item *make_typedef_constructor_item(THD *thd, const sp_type_def &def,
                                       List<Item> *args) const override

@@ -48,6 +48,11 @@ public:
     m_def= def;
   }
 
+  const Row_definition_list *get_array_def() const
+  {
+    return m_def;
+  }
+
   Item_field *make_item_field_spvar(THD *thd,
                                     const Spvar_definition &def) override;
 
@@ -93,10 +98,8 @@ protected:
 class Item_field_assoc_array: public Item_field, public Item_composite_base
 {
 public:
-  Row_definition_list *m_def;
   Item_field_assoc_array(THD *thd, Field *field)
-   :Item_field(thd, field),
-    m_def(NULL)
+   :Item_field(thd, field)
   { }
 
   Item *do_get_copy(THD *thd) const override
@@ -106,8 +109,6 @@ public:
   { return &type_handler_assoc_array; }
 
   bool set_array_def(THD *thd, Row_definition_list *def);
-
-  uint cols_for_elements() const override;
 
   uint rows() const override
   {

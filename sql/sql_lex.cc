@@ -8832,64 +8832,79 @@ LEX::create_item_spvar_assoc_array_element(THD *thd,
 }
 
 
-my_var *LEX::create_outvar(THD *thd, const LEX_CSTRING *name)
+my_var *LEX::create_outvar(THD *thd, const Lex_ident_sys_st &name)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if (likely((spv= find_variable(name, &rh))))
-    return result ? new (thd->mem_root)
-                    my_var_sp(rh, name, spv->offset,
-                              spv->type_handler(), sphead) :
-                    NULL /* EXPLAIN */;
-  my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
-  return NULL;
+  if (unlikely(!(spv= find_variable(&name, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return NULL;
+  }
+  const sp_rcontext_addr addr(rh, spv->offset);
+  my_var *var= spv->type_handler()->make_outvar(thd, name, addr,
+                                                sphead, !result);
+  DBUG_ASSERT(var || thd->is_error() || !result);
+  return var;
 }
 
 
 my_var *LEX::create_outvar(THD *thd,
-                           const LEX_CSTRING *a,
-                           const LEX_CSTRING *b)
+                           const Lex_ident_sys_st &a,
+                           const Lex_ident_sys_st &b)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *t;
-  if (unlikely(!(t= find_variable(a, &rh))))
+  if (unlikely(!(t= find_variable(&a, &rh))))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
     return NULL;
   }
-  uint row_field_offset;
-  if (!t->find_row_field(a, b, &row_field_offset))
-    return NULL;
-  return result ?
-    new (thd->mem_root) my_var_sp_row_field(rh, a, b, t->offset,
-                                            row_field_offset, sphead) :
-    NULL /* EXPLAIN */;
+  const sp_rcontext_addr addr(rh, t->offset);
+  my_var *var= t->type_handler()->make_outvar_field(thd, a, addr, b,
+                                                    sphead, !result);
+  DBUG_ASSERT(var || thd->is_error() || !result);
+  return var;
 }
 
-my_var *LEX::create_outvar(THD *thd,
-                           const LEX_CSTRING *name,
-                           Item *key)
+
+/*
+  In a statement like:
+      SELECT val INTO spvar(key); -- where spvar is e.g. an assoc array
+  validate the expression spvar(key) and optionally create a my_var instance.
+
+  @param thd    - Current thd
+  @param name   - The SP variable name
+  @key          - The argument (e.g. an assoc array key value)
+
+  @returns      - The pointer to a new my_var created or nullptr.
+                  * nullptr if spvar(key) is not a correct lvalue expression.
+                  * nullptr if LEX::result is NULL.
+                  * nullptr if EOM happened (e.g. during "new").
+                  * A pointer to a new my_var instance if
+                    LEX::result is not NULL and the lvalue expression
+                    spvar(key) is correct.
+*/
+my_var *LEX::create_outvar_lvalue_function(THD *thd,
+                                           const Lex_ident_sys_st &name,
+                                           Item *key)
 {
   DBUG_ASSERT(key);
 
   const Sp_rcontext_handler *rh;
   sp_variable *t;
-  if (unlikely(!(t= find_variable(name, &rh))))
+  if (unlikely(!(t= find_variable(&name, &rh))))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
     return NULL;
   }
 
-  if (unlikely(!t->field_def.is_assoc_array()))
-  {
-    my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), name->str);
-    return NULL;
-  }
-
-  return result ?
-    new (thd->mem_root) my_var_sp_assoc_array_element(rh, name, key, t->offset,
-                                                      sphead) :
-    NULL /* EXPLAIN */;
+  const sp_rcontext_addr addr(rh, t->offset);
+  my_var *var= t->type_handler()->make_outvar_lvalue_function(thd, name, key,
+                                                              sphead, addr,
+                                                              !result);
+  DBUG_ASSERT(var || thd->is_error() || !result);
+  return var;
 }
 
 

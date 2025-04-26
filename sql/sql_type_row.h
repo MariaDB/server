@@ -41,6 +41,19 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
+  // SELECT 1,2,3 INTO spvar_row;
+  my_var *make_outvar(THD *thd,
+                      const Lex_ident_sys_st &name,
+                      const sp_rcontext_addr &addr,
+                      sp_head *sphead,
+                      bool validate_only) const override;
+  // SELECT 1 INTO spvar_row.field;
+  virtual my_var *make_outvar_field(THD *thd,
+                                    const Lex_ident_sys_st &name,
+                                    const sp_rcontext_addr &addr,
+                                    const Lex_ident_sys_st &field,
+                                    sp_head *sphead,
+                                    bool validate_only) const override;
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const
     override;

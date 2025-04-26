@@ -1270,6 +1270,29 @@ END;
 $$
 ERROR HY000: Illegal parameter data types int and associative_array for operation '='
 #
+# SELECT .. INTO spvar_assoc_array
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1 INTO marks;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1,2 INTO marks;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+#
 # SELECT INTO ASSOC ARRAY scalar element
 #
 CREATE TABLE t1 (a INT);
@@ -1360,6 +1383,13 @@ DECLARE
 id INTEGER;
 BEGIN
 SELECT * FROM t1 WHERE a = 3 INTO id('Nuau');
+END;
+$$
+ERROR HY000: Key specifier used with variable 'id' are only allowed for associative array data types
+DECLARE
+id INTEGER;
+BEGIN
+EXPLAIN SELECT * FROM t1 WHERE a = 3 INTO id('Nuau');
 END;
 $$
 ERROR HY000: Key specifier used with variable 'id' are only allowed for associative array data types

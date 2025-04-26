@@ -21,6 +21,7 @@
 #include "item.h"
 #include "sql_select.h"
 #include "field.h"
+#include "sp_rcontext.h"
 #include "sp_type_def.h"
 
 
@@ -71,6 +72,98 @@ const Type_collection *Type_handler_row::type_collection() const
 const Type_handler *Type_handler_row::type_handler_for_comparison() const
 {
   return &type_handler_row;
+}
+
+
+class my_var_sp_row: public my_var_sp
+{
+public:
+  my_var_sp_row(const Lex_ident_sys_st &name, const sp_rcontext_addr &addr,
+                sp_head *s)
+   :my_var_sp(name, addr, &type_handler_row, s)
+  { }
+  bool check_assignability(THD *thd, const List<Item> &select_list,
+                           bool *assign_as_row) const override
+  {
+    Item_field *item= get_rcontext(thd->spcont)->get_variable(offset());
+    const Field_row *field= dynamic_cast<const Field_row*>(item->field);
+    DBUG_ASSERT(field);
+    *assign_as_row= true;
+    return !field ||
+           select_list.elements != field->virtual_tmp_table()->s->fields;
+  }
+  bool set_row(THD *thd, List<Item> &select_list) override
+  {
+    return get_rcontext(thd->spcont)->set_variable_row(thd, offset(),
+                                                       select_list);
+  }
+};
+
+
+/*
+  This class handles fields of a ROW SP variable when it's used as a OUT
+  parameter in a stored procedure.
+*/
+class my_var_sp_row_field: public my_var_sp
+{
+  uint m_field_offset;
+public:
+  my_var_sp_row_field(const Lex_ident_sys_st &varname,
+                      const sp_rcontext_addr &varaddr,
+                      uint field_idx, sp_head *s)
+   :my_var_sp(varname, varaddr,
+              &type_handler_double/*Not really used*/, s),
+    m_field_offset(field_idx)
+  { }
+  bool check_assignability(THD *thd, const List<Item> &select_list,
+                           bool *assign_as_row) const override
+  {
+    *assign_as_row= false;
+    return select_list.elements == 1;
+  }
+  bool set(THD *thd, Item *item) override
+  {
+    return get_rcontext(thd->spcont)->
+             set_variable_row_field(thd, offset(), m_field_offset, &item);
+  }
+};
+
+
+my_var *Type_handler_row::make_outvar(THD *thd,
+                                      const Lex_ident_sys_st &name,
+                                      const sp_rcontext_addr &addr,
+                                      sp_head *sphead,
+                                      bool validate_only) const
+{
+  if (validate_only) // e.g. EXPLAIN SELECT .. INTO spvar_row;
+    return nullptr;
+  return new (thd->mem_root) my_var_sp_row(name, addr, sphead);
+}
+
+
+my_var *Type_handler_row::make_outvar_field(THD *thd,
+                                            const Lex_ident_sys_st &name,
+                                            const sp_rcontext_addr &addr,
+                                            const Lex_ident_sys_st &field,
+                                            sp_head *sphead,
+                                            bool validate_only) const
+{
+  const Sp_rcontext_handler *rh;
+  sp_variable *t= thd->lex->find_variable(&name, &rh);
+  DBUG_ASSERT(t);
+  DBUG_ASSERT(t->type_handler() == this);
+
+  uint row_field_offset;
+  if (!t->find_row_field(&name, &field, &row_field_offset))
+  {
+    DBUG_ASSERT(0);
+    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0), name.str, field.str);
+    return NULL;
+  }
+  if (validate_only) // e.g. EXPLAIN SELECT .. INTO spvar_row.field;
+    return nullptr;
+  return new (thd->mem_root) my_var_sp_row_field(name, addr, row_field_offset,
+                                                 sphead);
 }
 
 

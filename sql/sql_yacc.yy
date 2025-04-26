@@ -13439,18 +13439,20 @@ select_outvar:
           }
         | ident_or_text
           {
-            if (unlikely(!($$= Lex->create_outvar(thd, &$1)) && Lex->result))
+            const Lex_ident_sys name(thd, &$1);
+            if (unlikely(!($$= Lex->create_outvar(thd, name)) && Lex->result))
               MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3)) && Lex->result))
+            if (unlikely(!($$= Lex->create_outvar(thd, $1, $3)) && Lex->result))
               MYSQL_YYABORT;
           }
         | ident '(' expr ')'
           {
-            if (unlikely(!($$= Lex->create_outvar(thd, &$1, $3)) &&
-                           Lex->result))
+            if (unlikely(!($$= Lex->create_outvar_lvalue_function(thd, $1,
+                                                                  $3)) &&
+                         Lex->result))
               MYSQL_YYABORT;
           }
         ;

@@ -4263,7 +4263,7 @@ public:
                                       List<Item> *args,
                                       const Lex_ident_cli_st &query_fragment);
 
-  my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
+  my_var *create_outvar(THD *thd, const Lex_ident_sys_st &name);
 
   /*
     Create a my_var instance for a ROW field variable that was used
@@ -4273,12 +4273,11 @@ public:
       @param field_name - the variable field name
   */
   my_var *create_outvar(THD *thd,
-                        const LEX_CSTRING *var_name,
-                        const LEX_CSTRING *field_name);
+                        const Lex_ident_sys_st &var_name,
+                        const Lex_ident_sys_st &field_name);
 
-  my_var *create_outvar(THD *thd,
-                        const LEX_CSTRING *name,
-                        Item *key);
+  my_var *create_outvar_lvalue_function(THD *thd, const Lex_ident_sys_st &name,
+                                        Item *arg);
 
   bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
