@@ -19,6 +19,139 @@
 #include "sql_base.h"
 #include "sql_parse.h"      // check_stack_overrun
 
+/*
+  Support for Oracle's outer join syntax.
+
+  == Contents ==
+
+  1. Basic syntax
+  1.1 Multiple outer join operators
+  2. Implementation
+  2.1 Parser
+  2.2 Building the hypergraph
+  2.3 From hypergraph to outer join structure
+  2.4 Building the TABLE_LIST structure
+
+  == 1. Basic syntax ==
+
+  Oracle's outer join syntax is like this:
+
+    set sql_mode='oracle';
+    select * from t1, t2 where t1.col=t2.col(+)
+
+  The (+) is the "outer join operator". It specifies that table t2 is outer-
+  joined (aka is INNER) and the predicate containing the (+) is the outer
+  join's ON expression. This makes the above query to be the same as:
+
+    t1.col left join t2 on t1.col=t2.col
+
+  === 1.1 Multiple outer join operators ===
+
+  The WHERE condition may have multiple "outer join operators" that specify
+  multiple outer join operations.
+  Outer Join predicates must be located in the WHERE's top-level predicates
+  that are connected with AND.
+
+  Following Oracle, we have a rule that
+   - A predicate may reference only one outer-joined (aka "INNER") table.
+   - Also it may reference zero, one or more "OUTER" tables.
+
+  This way, predicates in the WHERE describe the edges of a hyper-graph
+  denoting outer join relationships:
+
+     {outer_tbl1, ..., outer_tblN} -> inner_tbl
+
+  One can use this graph and write an equivalent query using LEFT JOIN syntax.
+
+  When doing that, one can have a choice which table to join first.
+  For example
+
+    select *
+    from t1,t2
+    where t1.col=t2.col(+) and t1.col=t3.col(+)
+
+  denotes a graph
+     t1 -> t2
+     t1 -> t3
+
+  which gives the query:
+
+    select *
+    from (t1 left join t2 on t2.col=t1.col) left join t3 on t1.col=t3.col
+
+  or
+
+    select *
+    from (t1 left join t3 on t3.col=t1.col) left join t2 on t1.col=t2.col
+
+  We try to maintain the order the tables were listed in the original query's
+  FROM clause.
+
+  It is also possible to chain the join operations:
+
+    select *
+    from t1,t2,t3
+    where cond1(t1.col, t2.col(+)) and cond2(t2.col, t3.col(+))
+
+  is converted into
+
+    select * from
+      t1
+      left join t2 on cond1(t1.col, t2.col)
+      left join t3 on cond2(t2.col, t3.col)
+
+  Note that it is
+     (t1 left join t2) left join t3
+  and not
+     t1 left join (t2 left join t3)
+
+  == 2. Implementation ==
+  == 2.1 Parser ==
+  The parser recognizes the "(+)" operator.
+  After the parser, Item objects that have one more (+) operators in them have
+  (item->with_flags() & ORA_JOIN) set.
+
+  == 2.2 Building the hypergraph ==
+
+  At Name resolution phase, we convert (+) operators into LEFT JOIN data
+  structures (that is, a tree of TABLE_LIST objects).
+  This is done in setup_oracle_join().
+
+  First, we analyze the WHERE clause and build an array of table_pos entries.
+  Each entry describes a table and contains lists to describe the incoming
+  and outgoing edges.
+
+  == 2.3 From hypergraph to outer joins ==
+  Then, we do an analog of topological sorting: build a linked list of
+  table_pos entries (connected via table_pos::{next,prev}) that goes in the
+  order that is
+    1. Required by use of LEFT JOIN syntax: outer tables before inner.
+    2. (after satisfying #1) follows the order the tables were listed in the
+      original FROM clause.
+
+  == 2.4 Building the TABLE_LIST structure ==
+  Then, we walk through the table_pos objects via {table_pos::next} edges and
+  create a parse data structure.
+  For a chain of t1-t2-t3-t4-t5 we would create:
+
+     (
+         (
+             (
+                 t1
+                 [left] join t2 on cond2
+             )
+             [left] join t3 on cond3
+         )
+         [left] join t4 on cond4
+     )
+     [left] join t5 on cond5
+
+  The () brackets are nested join operation. Some of these are redundant, this
+  is not a problem because simplify_joins() will remove them.
+
+  TODO: what about brackets? Is the operations tree really always left-deep?
+*/
+
 /**
   Structure to collect oracle outer join relations and order tables
 */
