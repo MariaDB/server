@@ -290,6 +290,10 @@ static bool process_outer_relations(THD* thd,
 /**
   Check presence of directional cycles (starting from "tab" with beginning
   of check in "beggining")  in case we have non-directional cycle
+
+  @brief
+    Recusively check if table "beginning" is reachable from table "tab" across
+    the tab->inner_side pointers.
 */
 
 static bool check_directed_cycle(THD* thd, table_pos *tab,
@@ -323,7 +327,11 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
 
 
 /**
-  Process outer relation of the table just added to the order list
+  Process inner relation of the table just added to the order list
+
+  @param  tab        Table for which to process
+  param   processed  Counter.
+  @param  n_tables   Total number of tables in the join
 */
 
 static bool process_inner_relations(THD* thd,
@@ -336,12 +344,12 @@ static bool process_inner_relations(THD* thd,
     // process this "sub-graph"
     List_iterator_fast<table_pos> it(tab->inner_side);
     table_pos *t;
-    while((t= it++))
+    while ((t= it++))
     {
       if (t->processed)
       {
         /*
-          it is case of "non-cyclic" loop (or just processed alreay
+          it is case of "non-cyclic" loop (or just processed already
           branch)
            for example:
 
@@ -391,7 +399,7 @@ static bool process_inner_relations(THD* thd,
 /*
   Put "tab" between "first_in_this_subgraph" and "last_in_the_subgraph".
 
-  Used to process OUTER tables of "last_in_the_subgraph" nserted as
+  Used to process OUTER tables of "last_in_the_subgraph" inserted as
   INNER table of "first_in_this_subgraph".
 */
 
@@ -417,6 +425,7 @@ static bool put_between(THD *thd,
 
   return FALSE;
 }
+
 
 static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
@@ -576,7 +585,8 @@ static void dbug_print_table(TABLE_LIST *t)
 
 /**
   @brief
-    Process Oracle outer join (+) in WHERE
+    Convert Oracle's outer join (+) operators into regular outer join
+    structures
 
   @param conds  INOUT  The WHERE condition
 
@@ -601,7 +611,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   table_pos *t= tab;
   TABLE_LIST *table= tables;
   uint i= 0;
-  // Setup the original order
+  // Setup the original table order
   for (;table; i++, t++, table= table->next_local)
   {
     DBUG_ASSERT(i < n_tables);

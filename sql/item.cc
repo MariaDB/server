@@ -10115,21 +10115,22 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
 /*
   We're processing an expression with a (+) operator somewhere.
   We encounter reference to 'table.column' (with the(+) or not).
-  Add table to theorecle outer join structure we're building
+  Add table to the oracle outer join structure we're building
 */
 
-bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
-                                           TABLE_LIST *table)
+bool Item_ident::ora_join_add_table_ref(ora_join_processor_param *arg,
+                                        TABLE_LIST *table)
 {
   DBUG_ASSERT(fixed());
   TABLE_LIST *err_table= NULL;
 
   if (with_ora_join())
   {
-    // INNER table
+    // This an item with (+) operator, the referred table is INNER.
     if (arg->inner == NULL)
     {
       arg->inner= table;
+      // Make sure this table is not also in the list of OUTER tables.
       List_iterator_fast<TABLE_LIST> it(arg->outer);
       TABLE_LIST *t;
       while ((t= it++))
@@ -10196,16 +10197,16 @@ err:
 bool Item_field::ora_join_processor(void *arg)
 {
   DBUG_ASSERT(cached_table);
-  return Item_ident::ora_join_processor_helper((ora_join_processor_param *)arg,
-                                               cached_table);
+  return Item_ident::ora_join_add_table_ref((ora_join_processor_param *)arg,
+                                            cached_table);
 }
 
 
 bool Item_direct_view_ref::ora_join_processor(void *arg)
 {
   DBUG_ASSERT(view);
-  return Item_ident::ora_join_processor_helper((ora_join_processor_param *)arg,
-                                               view);
+  return Item_ident::ora_join_add_table_ref((ora_join_processor_param *)arg,
+                                            view);
 }
 
 

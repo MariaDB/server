@@ -3697,8 +3697,8 @@ public:
   */
   bool collect_outer_ref_processor(void *arg) override;
 
-  bool ora_join_processor_helper(ora_join_processor_param *arg,
-                                 TABLE_LIST *table);
+  bool ora_join_add_table_ref(ora_join_processor_param *arg,
+                              TABLE_LIST *table);
 
   friend bool insert_fields(THD *thd, Name_resolution_context *context,
                             const LEX_CSTRING &db_name,
