@@ -387,7 +387,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state);
   Returns negative integer in the case of an error,
   the length of the result otherwise.
 */
-int json_unescape(CHARSET_INFO *json_cs,
+int __attribute__((warn_unused_result)) json_unescape(CHARSET_INFO *json_cs,
                   const uchar *json_str, const uchar *json_end,
                   CHARSET_INFO *res_cs,
                   uchar *res, uchar *res_end);
@@ -401,7 +401,8 @@ int json_unescape(CHARSET_INFO *json_cs,
     JSON_ERROR_OUT_OF_SPACE    Not enough space in the provided buffer
     JSON_ERROR_ILLEGAL_SYMBOL  Source symbol cannot be represented in JSON
 */
-int json_escape(CHARSET_INFO *str_cs, const uchar *str, const uchar *str_end,
+int  __attribute__((warn_unused_result)) json_escape(CHARSET_INFO *str_cs,
+		const uchar *str, const uchar *str_end,
                 CHARSET_INFO *json_cs, uchar *json, uchar *json_end);
 
 

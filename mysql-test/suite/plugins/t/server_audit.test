@@ -20,6 +20,10 @@ set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
+
+--replace_regex /[1-9][0-9][0-9]+/FN_LEN/
+set global server_audit_file_path=REPEAT(REPEAT('new_file_name', 50), 50);
+
 set global server_audit_logging=on;
 
 --error ER_WRONG_VALUE_FOR_VAR

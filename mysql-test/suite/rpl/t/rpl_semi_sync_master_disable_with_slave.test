@@ -1,0 +1,68 @@
+# MDEV-36359: Master crashes when reverting to async after Semi-Sync disabled.
+#
+# Assert behavior of turning Semi-Sync off on
+# the master when still connected to a slave
+
+--source include/have_binlog_format_mixed.inc # format-agnostic
+
+--echo # Set up Semi-Sync with rpl_semi_sync_master_wait_no_slave=0
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--let $orig_master_enabled=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+--let $orig_wait_no_slave=`SELECT @@GLOBAL.rpl_semi_sync_master_wait_no_slave`
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+
+--connection slave
+--let $orig_slave_enabled=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+--source include/start_slave.inc
+
+--connection master
+# Make sure Semi-Sync is active
+--let $status_var= Rpl_semi_sync_master_status
+--let $status_var_value= ON
+--source include/wait_for_status_var.inc
+
+--sync_slave_with_master
+--connection master
+
+--disable_cursor_protocol
+SELECT ID INTO @binlog_dump_tid
+  FROM information_schema.PROCESSLIST WHERE COMMAND = 'Binlog Dump';
+--enable_cursor_protocol
+
+--echo # Control State
+SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Disable Semi-Sync while the dump thread is still connected to its slave
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
+--let $status_var_value= OFF
+--source include/wait_for_status_var.inc
+
+SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Disconnect the slave and wait until the master's dump thread is gone
+--connection slave
+STOP SLAVE;
+# Starting with MDEV-13073,
+# Semi-Sync STOP SLAVE also terminates its dump thread on the master.
+--connection master
+
+# MDEV-36359: The disconnection would crash the master and leave the wait with
+# error 2013 'Lost connection to server during query'
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Cleanup
+--eval SET @@GLOBAL.rpl_semi_sync_master_enabled= $orig_master_enabled
+--eval SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= $orig_wait_no_slave
+--connection slave
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled= $orig_slave_enabled
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

@@ -12,7 +12,10 @@ CREATE TABLE t1 (c INT) ENGINE=MyISAM;
 CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t1"';
 insert into t2 values (456), (123);
 SELECT * FROM t2 ORDER BY CAST(c AS char(60));
+# extra warnings with view protocol
+--disable_view_protocol
 SELECT * FROM t2 ORDER BY CAST(c AS INET6);
+--enable_view_protocol
 SELECT * FROM t2 GROUP BY CAST(c AS char(60));
 SELECT * FROM t2 GROUP BY CAST(c AS INET6);
 # Cleanup

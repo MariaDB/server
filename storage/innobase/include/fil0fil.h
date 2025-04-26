@@ -319,7 +319,7 @@ struct fil_space_t final
   /** fil_system.spaces chain node */
   fil_space_t *hash= nullptr;
   /** log_sys.get_lsn() of the most recent fil_names_write_if_was_clean().
-  Reset to 0 by fil_names_clear(). Protected by log_sys.mutex.
+  Reset to 0 by fil_names_clear(). Protected by log_sys.latch_have_wr().
   If and only if this is nonzero, the tablespace will be in named_spaces. */
   lsn_t max_lsn= 0;
   /** base node for the chain of data files; multiple entries are
@@ -390,7 +390,7 @@ private:
   bool being_imported= false;
 
   /** Whether any corrupton of this tablespace has been reported */
-  mutable std::atomic_flag is_corrupted{false};
+  mutable std::atomic_flag is_corrupted= ATOMIC_FLAG_INIT;
 
 public:
   /** mutex to protect freed_ranges and last_freed_lsn */
@@ -1536,7 +1536,10 @@ extern fil_system_t	fil_system;
 
 inline void fil_space_t::reacquire() noexcept
 {
-  ut_d(uint32_t n=) n_pending.fetch_add(1, std::memory_order_relaxed);
+#ifdef SAFE_MUTEX
+  uint32_t n=
+#endif
+  n_pending.fetch_add(1, std::memory_order_relaxed);
 #ifdef SAFE_MUTEX
   if (mysql_mutex_is_owner(&fil_system.mutex)) return;
   ut_ad(n & PENDING);

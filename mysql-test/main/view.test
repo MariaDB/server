@@ -866,33 +866,21 @@ create table t3 (col1 datetime not null);
 create view v1 as select * from t1;
 create view v2 as select * from v1;
 create view v3 as select v2.col1 from v2,t2 where v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into t1 values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from t1));
--- error ER_UPDATE_TABLE_USED
 insert into t1 values ((select max(col1) from t1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from t1));
--- error ER_UPDATE_TABLE_USED
 insert into v2 values ((select max(col1) from v2));
--- error ER_VIEW_PREVENT_UPDATE
 insert into t1 values ((select max(col1) from v2));
--- error ER_UPDATE_TABLE_USED
 insert into v2 values ((select max(col1) from v2));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v3 (col1) values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v3 (col1) values ((select max(col1) from t1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v3 (col1) values ((select max(col1) from v2));
 # check with TZ tables in list
--- error ER_VIEW_PREVENT_UPDATE
-insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2));
+--error ER_WARN_DATA_OUT_OF_RANGE
+insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2 LIMIT 1));
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 -- error ER_BAD_NULL_ERROR
 insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
@@ -1212,9 +1200,19 @@ create view v3 as select * from t1 where 20 < (select (s1) from v2);
 -- error ER_NON_INSERTABLE_TABLE
 insert into v3 values (30);
 create view v4 as select * from v2 where 20 < (select (s1) from t1);
--- error ER_NON_INSERTABLE_TABLE
+select * from t1;
 insert into v4 values (30);
-drop view v4, v3, v2, v1;
+select * from t1;
+create view v5 as select * from v2 where s1 < (select min(s1) from t1) WITH CHECK OPTION;
+--echo # can't insert only less then minimum
+--error ER_VIEW_CHECK_FAILED
+insert into v5 values (40);
+--echo # allow insert the new minimum
+insert into v5 values (10);
+--echo # always emply view (can't be something less than minimum)
+select * from v5;
+select * from t1;
+drop view v5, v4, v3, v2, v1;
 drop table t1;
 
 #

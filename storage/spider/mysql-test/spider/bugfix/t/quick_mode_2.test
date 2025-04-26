@@ -83,13 +83,17 @@ TRUNCATE TABLE mysql.general_log;
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 
 --connection child2_1
+--disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --connection child2_2
+--disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_2_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_2_SELECT_TABLES;
 
 --connection master_1
@@ -108,13 +112,17 @@ TRUNCATE TABLE mysql.general_log;
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 
 --connection child2_1
+--disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --connection child2_2
+--disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_2_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_2_SELECT_TABLES;
 
 --connection master_1
@@ -133,13 +141,17 @@ TRUNCATE TABLE mysql.general_log;
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 
 --connection child2_1
+--disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --connection child2_2
+--disable_view_protocol
 --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
 eval $CHILD2_2_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_2_SELECT_TABLES;
 --enable_ps2_protocol
 

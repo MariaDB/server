@@ -203,6 +203,9 @@ id	b
 3	200
 4	5
 connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+10
 SELECT * FROM t1 ORDER BY id;
 id	b
 1	1
@@ -228,6 +231,9 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (a INT, b INT, UNIQUE(a)) ENGINE=MyISAM;
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=1;
 INSERT INTO t1  (a,b) VALUES (10,20);
+SELECT * from t1;
+a	b
+1	20
 connection node_2;
 SELECT * from t1;
 a	b

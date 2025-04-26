@@ -621,6 +621,16 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	}
 
 	dict_index_t* index = dict_table_get_first_index(this);
+	if (instant) {
+		instant->field_map= static_cast<field_map_element_t*>(
+			mem_heap_dup(heap, instant->field_map,
+				     (index->n_fields -
+				      index->first_user_field()) *
+					sizeof *instant->field_map));
+		instant= static_cast<dict_instant_t*>(
+			mem_heap_dup(heap, instant, sizeof *instant));
+	}
+
 	bool metadata_changed;
 	{
 		const dict_index_t& i = *dict_table_get_first_index(&table);
@@ -5530,6 +5540,12 @@ static bool innodb_insert_sys_columns(
 
 		return false;
 	}
+
+	DBUG_EXECUTE_IF("instant_insert_fail",
+			my_error(ER_INTERNAL_ERROR, MYF(0),
+				 "InnoDB: Insert into SYS_COLUMNS failed");
+			mem_heap_free(info->heap);
+			return true;);
 
 	if (DB_SUCCESS != que_eval_sql(
 		    info,

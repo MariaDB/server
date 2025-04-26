@@ -124,8 +124,8 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   else if (cmp == 0
            && rli->group_master_log_pos < qev->future_event_master_log_pos)
     rli->group_master_log_pos= qev->future_event_master_log_pos;
-  mysql_mutex_unlock(&rli->data_lock);
   mysql_cond_broadcast(&rli->data_cond);
+  mysql_mutex_unlock(&rli->data_lock);
 }
 
 

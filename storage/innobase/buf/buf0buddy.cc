@@ -385,7 +385,7 @@ static void *buf_buddy_alloc_from(void *buf, ulint i)
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 	ut_ad(i <= BUF_BUDDY_SIZES);
 	ut_ad(!ut_align_offset(buf, srv_page_size));
-	ut_ad(!buf_pool.contains_zip(buf, srv_page_size));
+	ut_ad(!buf_pool.contains_zip(buf, srv_page_size_shift));
 
 	/* Add the unused parts of the block to the free lists. */
 	for (ulint j = BUF_BUDDY_SIZES, offs = srv_page_size; j-- > i; ) {

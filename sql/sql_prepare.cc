@@ -1316,6 +1316,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
+  bool cache_results= FALSE;
   DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
@@ -1348,7 +1349,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
                              update_values, duplic, ignore,
-                             &unused_conds, FALSE))
+                             &unused_conds, FALSE,
+                             &cache_results))
       goto error;
 
     value_count= values->elements;

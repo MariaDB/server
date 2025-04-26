@@ -3,7 +3,7 @@ the following:
 
 - Add # before --exec echo "restart" ...
 - Force $e (engine), $c (crash point) and $r (crash position) to the values
-  where things goes wrong. See comments in alter_table.test for how to do this.
+  where things goes wrong. See comments in alter_table.inc for how to do this.
 - start mariadbd in a debugger
 
 run the following in the debugger

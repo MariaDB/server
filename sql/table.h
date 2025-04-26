@@ -2269,7 +2269,7 @@ struct vers_select_conds_t
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
             Vers_history_point _end= Vers_history_point(),
-            Lex_ident          _name= "SYSTEM_TIME")
+            Lex_ident          _name= { STRING_WITH_LEN("SYSTEM_TIME") })
   {
     type= _type;
     orig_type= _type;
@@ -2284,7 +2284,7 @@ struct vers_select_conds_t
   void set_all()
   {
     type= SYSTEM_TIME_ALL;
-    name= "SYSTEM_TIME";
+    name= { STRING_WITH_LEN("SYSTEM_TIME") };
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -2655,7 +2655,7 @@ struct TABLE_LIST
   List<TABLE_LIST> *view_tables;
   /* most upper view this table belongs to */
   TABLE_LIST	*belong_to_view;
-  /* A derived table this table belongs to */
+  /* A merged derived table this table belongs to */
   TABLE_LIST    *belong_to_derived;
   /*
     The view directly referencing this table
@@ -2912,7 +2912,7 @@ struct TABLE_LIST
   bool check_single_table(TABLE_LIST **table, table_map map,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);
-  void hide_view_error(THD *thd);
+  void replace_view_error_with_generic(THD *thd);
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
@@ -3159,6 +3159,8 @@ private:
   /** See comments for set_table_ref_id() */
   ulonglong m_table_ref_version;
 };
+
+#define ERROR_TABLE  ((TABLE_LIST*) 0x1)
 
 class Item;
 
@@ -3468,9 +3470,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
-
-bool check_column_name(const char *name);
-bool check_period_name(const char *name);
+bool check_column_name(const Lex_ident &name);
 bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
