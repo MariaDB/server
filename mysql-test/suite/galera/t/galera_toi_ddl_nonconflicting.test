@@ -1,43 +1,81 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
 #
 # In this test, we simultaneously send two non-conflicting ALTER TABLE statements
 #
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
+--connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 INTEGER);
+INSERT INTO t1(f2) SELECT seq FROM seq_1_to_1000;
 
---connection node_2
+--connection node_2a
+SET SESSION wsrep_sync_wait=0;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
 --source include/wait_condition.inc
---send ALTER TABLE t1 ADD COLUMN f3 INTEGER; INSERT INTO t1 (f1, f2) VALUES (DEFAULT, 123);
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
+--source include/wait_condition.inc
 
+--connection node_1a
+--echo # Block the applier on node_1 and issue a ddl from node_2
+SET SESSION wsrep_sync_wait=0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+--echo # DDL 1
+--send ALTER TABLE t1 ADD COLUMN f3 INTEGER; INSERT INTO t1 VALUES (NULL, 10000, 10000);
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--echo # This will block on acquiring total order isolation
 --connection node_1
+--echo # DDL 2
 --send CREATE UNIQUE INDEX i1 ON t1(f2);
+
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'acquiring total order%' or STATE LIKE 'Waiting for table metadata%'
+--source include/wait_condition.inc
+
+--echo # Signal DDL 1
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
 
 --connection node_2
 --reap
-INSERT INTO t1 (f1, f2) VALUES (DEFAULT, 234);
-
---let $wait_condition = SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
---source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
---source include/wait_condition.inc
-
-SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
-SELECT COUNT(*) = 2 FROM t1;
 
 --connection node_1
 --reap
 
+--connection node_2
 --let $wait_condition = SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
-SELECT COUNT(*) = 2 FROM t1;
+SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) AS EXPECT_1001 FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) AS EXPECT_1001 FROM t1;
 
 DROP TABLE t1;

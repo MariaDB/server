@@ -12,7 +12,6 @@ connection node_1;
 connection node_4;
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 connection node_2;
-connection node_1;
 expected_error
 1
 connection node_2;

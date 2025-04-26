@@ -419,7 +419,6 @@ create table t2 (a int) ENGINE=MyISAM;
 create table t3 (b int);
 insert into t2 values (1);
 insert into t3 values (1),(2);
--- error ER_UPDATE_TABLE_USED
 INSERT INTO t1 (x) VALUES ((SELECT x FROM t1));
 -- error ER_SUBQUERY_NO_1_ROW
 INSERT INTO t1 (x) VALUES ((SELECT b FROM t3));
@@ -454,7 +453,7 @@ create table t3 (a int);
 insert into t2 values (1);
 insert into t3 values (1),(2);
 select * from t1;
--- error ER_UPDATE_TABLE_USED
+-- error ER_BAD_NULL_ERROR
 replace into t1 (x, y) VALUES ((SELECT x FROM t1), (SELECT a+1 FROM t2));
 -- error ER_SUBQUERY_NO_1_ROW
 replace into t1 (x, y) VALUES ((SELECT a FROM t3), (SELECT a+1 FROM t2));
@@ -494,10 +493,13 @@ EXPLAIN EXTENDED SELECT * FROM t2 WHERE id IN (SELECT 1 UNION SELECT 3);
 --disable_prepare_warnings
 SELECT * FROM t2 WHERE id IN (SELECT 5 UNION SELECT 3);
 SELECT * FROM t2 WHERE id IN (SELECT 5 UNION SELECT 2);
--- error ER_UPDATE_TABLE_USED
+-- error ER_SUBQUERY_NO_1_ROW
 INSERT INTO t2 VALUES ((SELECT * FROM t2));
--- error ER_UPDATE_TABLE_USED
+-- error ER_SUBQUERY_NO_1_ROW
 INSERT INTO t2 VALUES ((SELECT id FROM t2));
+select * from t2;
+INSERT INTO t2 VALUES ((SELECT count(*) FROM t2));
+INSERT INTO t2 VALUES ((SELECT max(id) FROM t2));
 SELECT * FROM t2;
 CREATE TABLE t1 (id int(11) default NULL, KEY id (id)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 values (1),(1);

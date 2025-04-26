@@ -2343,7 +2343,8 @@ multi_update::initialize_tables(JOIN *join)
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
                error_if_full_join(join)))
     DBUG_RETURN(1);
-  if (join->implicit_grouping)
+  if (join->implicit_grouping ||
+      join->select_lex->have_window_funcs())
   {
     my_error(ER_INVALID_GROUP_FUNC_USE, MYF(0));
     DBUG_RETURN(1);
