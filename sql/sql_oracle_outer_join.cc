@@ -787,7 +787,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
   {
     // changes are permanent
     Query_arena_stmt on_stmt_arena(thd);
-    TABLE_LIST *prev_tabe= list->table;
+    TABLE_LIST *prev_table= list->table;
     TABLE_LIST *nest_table_lists;
     NESTED_JOIN *nested_joins;
     if (!(nest_table_lists=
@@ -796,7 +796,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
                                    ALIGN_SIZE(sizeof(NESTED_JOIN)) *
                                      (n_tables - 1))))
     {
-       DBUG_RETURN(TRUE); // EOM
+      DBUG_RETURN(TRUE); // EOM
     }
     nested_joins= (NESTED_JOIN *)(((char*)nest_table_lists) +
                                   ALIGN_SIZE(sizeof(TABLE_LIST)) *
@@ -813,7 +813,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
     DBUG_ASSERT(list->table->outer_join == 0);
     uint i;
     table_pos *curr;
-    for(i=0, curr= list->next; curr; i++, curr= curr->next)
+    for (i=0, curr= list->next; curr; i++, curr= curr->next)
     {
       DBUG_ASSERT(i <= n_tables - 2);
       TABLE_LIST *next_embedding= ((i < n_tables - 2) ?
@@ -842,7 +842,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
       }
 
       // add real table
-      prev_tabe->next_local= curr->table;
+      prev_table->next_local= curr->table;
       nested_joins[i].join_list.push_front(curr->table);
       DBUG_ASSERT(curr->table->embedding == NULL);
       curr->table->embedding= nest_table_lists + i;
@@ -861,19 +861,19 @@ bool setup_oracle_join(THD *thd, COND **conds,
       else
       {
         DBUG_ASSERT(i == n_tables - 2);
-        // all tables should be there becaouse query was without JOIN
-        // operatirs except oracle ones
+        // all tables should be there because query was without JOIN
+        // operators except oracle ones
         DBUG_ASSERT(select_join_list->elements == n_tables);
         select_join_list->empty();
         select_join_list->push_front(nest_table_lists + i);
         nest_table_lists[i].join_list= select_join_list;
       }
 
-      prev_tabe= curr->table;
+      prev_table= curr->table;
     }
-    prev_tabe->next_local= NULL;
+    prev_table->next_local= NULL;
     select_table_list.first= new_from;
-    select_table_list.next= &prev_tabe->next_local;
+    select_table_list.next= &prev_table->next_local;
   }
   // make conds looks nice;
   {
