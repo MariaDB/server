@@ -7147,3 +7147,27 @@ void Subq_materialization_tracker::report_partial_merge_keys(
   for (uint i= 0; i < merge_keys_count; i++)
     partial_match_array_sizes[i]= merge_keys[i]->get_key_buff_elements();
 }
+
+
+/*
+  Check if somewhere inside this subselect we read the table. This means a
+  full read "(SELECT ... FROM tbl)", outside reference to tbl.column does not
+  count
+*/
+
+bool
+Item_subselect::subselect_table_finder_processor(void *arg)
+{
+  subselect_table_finder_param *param= (subselect_table_finder_param *)arg;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    TABLE_LIST *dup;
+    if ((dup= sl->find_table(param->thd, &param->find->db,
+                             &param->find->table_name)))
+    {
+      param->dup= dup;
+      return TRUE;
+    }
+  }
+  return FALSE;
+};

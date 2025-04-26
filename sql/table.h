@@ -3078,6 +3078,8 @@ private:
   ulonglong m_table_ref_version;
 };
 
+#define ERROR_TABLE  ((TABLE_LIST*) 0x1)
+
 class Item;
 
 /*

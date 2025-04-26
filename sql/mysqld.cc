@@ -8876,15 +8876,22 @@ char *set_server_version(char *buf, size_t size)
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
   const char *is_valgrind=
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_valgrind
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
+  const char *is_asan=
+#ifdef __SANITIZE_ADDRESS__
+    !strstr(MYSQL_SERVER_SUFFIX_STR, "-asan") ? "-asan" :
+#endif
+    "";
+
   return strxnmov(buf, size - 1,
                   MYSQL_SERVER_VERSION,
                   MYSQL_SERVER_SUFFIX_STR,
                   IF_EMBEDDED("-embedded", ""),
                   is_valgrind,
+                  is_asan,
                   is_debug ? "-debug" : "",
                   is_log ? "-log" : "",
                   NullS);
