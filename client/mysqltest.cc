@@ -6818,7 +6818,7 @@ int read_line()
   my_bool have_slash= FALSE;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
-        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT} state= R_LINE_START;
+        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT, R_HINT} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
   *p= 0;
@@ -6875,8 +6875,10 @@ int read_line()
         p--;
     }
 
+    bool drop_last_char= false;
     switch(state) {
     case R_NORMAL:
+    case R_HINT:
       if (end_of_query(c))
       {
 	*p= 0;
@@ -6910,16 +6912,29 @@ int read_line()
         state= R_CSTYLE_COMMENT;
         break;
       }
+      else if (c == '/' && last_char == '*') // Closing sequence `*/`
+      {
+        state= R_NORMAL;
+        // The hint is finished, and we don't want to interpret the current slash
+        // as an opener for a next hint or a C-style comment like it can happen
+        // for a statement like `SELECT /*+ BNL(t1) */* FROM t1` where there is
+        //no space between `*/` and `*`. So discard the current slash
+        drop_last_char= true;
+      }
       have_slash= is_escape_char(c, last_quote);
       break;
 
     case R_CSTYLE_COMMENT:
-      if (c == '!')
-        // Got the hint introducer '/*!'. Switch to normal processing of
-        // next following characters
-        state= R_NORMAL;
+      if (c == '!' || c == '+')
+      {
+        // Got hint introducer '/*!' or '/*+'
+        state= R_HINT;
+      }
       else if (c == '/' && last_char == '*')
+      {
         state= R_NORMAL;
+        drop_last_char= true; // See comment for `drop_last_char` above
+      }
       break;
 
     case R_COMMENT:
@@ -6999,7 +7014,15 @@ int read_line()
 
     }
 
-    last_char= c;
+    if (!drop_last_char)
+    {
+      last_char= c;
+    }
+    else
+    {
+      last_char= 0;
+      drop_last_char= false;
+    }
 
     if (!skip_char)
     {
