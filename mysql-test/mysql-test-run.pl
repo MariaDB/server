@@ -1141,6 +1141,9 @@ sub command_line_setup {
   my $opt_usage;
   my $opt_list_options;
 
+  $opt_testcase_timeout="$opt_testcase_timeout by default";
+  $opt_suite_timeout= "$opt_suite_timeout by default";
+
   # Read the command line options
   # Note: Keep list in sync with usage at end of this file
   Getopt::Long::Configure("pass_through");
@@ -1429,10 +1432,10 @@ sub command_line_setup {
     }
   }
 
-  if ( @opt_cases )
+  if ( @opt_cases && ! $opt_big_test)
   {
     # Run big tests if explicitly specified on command line
-    $opt_big_test= 1;
+    $opt_big_test= "0, but true";
   }
 
   # --------------------------------------------------------------------------
@@ -1598,10 +1601,14 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Big test and staging_run flags
   # --------------------------------------------------------------------------
-   if ( $opt_big_test )
-   {
-     $ENV{'BIG_TEST'}= 1;
-   }
+  if ( $opt_big_test )
+  {
+    $ENV{'BIG_TEST'}= 1;
+  }
+  if ($opt_big_test > 0) { # explicitly specified --big
+    $opt_testcase_timeout*=5 unless $opt_testcase_timeout =~ /^\d+$/;
+    $opt_suite_timeout*=5 unless $opt_suite_timeout =~ /^\d+$/;
+  }
   $ENV{'STAGING_RUN'}= $opt_staging_run;
 
   # --------------------------------------------------------------------------
