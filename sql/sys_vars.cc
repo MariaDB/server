@@ -4191,8 +4191,9 @@ const char *get_ssl_passphrase()
   if (p)
   {
     p++;
-    while (*p)
-      *p++= 0;
+    char *end= opt_ssl_passphrase + strlen(opt_ssl_passphrase);
+    if (p < end)
+      memset(p, 0, size_t(end - p));
   }
   return saved_ssl_passphrase.c_str();
 }
