@@ -10143,6 +10143,7 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
     }
     else
     {
+      // Cannot have two INNER tables, like t1.col=t2.col(+) + t3.col(+)
       if (arg->inner != table)
       {
         err_table= arg->inner;
@@ -10152,9 +10153,11 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
   }
   else
   {
-    // OUTER table
+    // No (+) operator, this is an outer table.
     List_iterator_fast<TABLE_LIST> it(arg->outer);
     TABLE_LIST *t;
+
+    // Check if this table is already in the list of outer tables
     while ((t= it++))
     {
       if (t == table)
@@ -10162,6 +10165,7 @@ bool Item_ident::ora_join_processor_helper(ora_join_processor_param *arg,
     }
     if (t == NULL)
     {
+      // Check that this table is also used as INNER by this condition
       if (table == arg->inner)
       {
         err_table= arg->inner;
