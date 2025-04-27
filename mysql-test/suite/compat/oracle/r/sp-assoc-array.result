@@ -168,6 +168,44 @@ BEGIN
 NULL;
 END' at line 3
 #
+# Wrong use: assoc_array_var.x(1)
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks.x(1):= 10;
+SELECT marks(1);  
+END;
+$$
+ERROR HY000: Key specifier used with variable 'marks' are only allowed for associative array data types
+#
+# Wrong use: assoc_array_var.x.y(1)
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks.x.y(1):= 10;
+SELECT marks(1);  
+END;
+$$
+ERROR HY000: Key specifier used with variable 'marks' are only allowed for associative array data types
+#
+# Wrong use: assoc_array_var.x.y.z(1)
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks.x.y.z(1):= 10;
+SELECT marks(1);  
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'marks.x.y.z(1):= 10;
+SELECT marks(1);  
+END' at line 5
+#
 # Initialization with empty elements
 #
 DECLARE

@@ -162,6 +162,58 @@ END;
 $$
 DELIMITER ;$$
 
+
+--echo #
+--echo # Wrong use: assoc_array_var.x(1)
+--echo #
+
+DELIMITER $$;
+--error ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks.x(1):= 10;
+  SELECT marks(1);  
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Wrong use: assoc_array_var.x.y(1)
+--echo #
+
+DELIMITER $$;
+--error ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks.x.y(1):= 10;
+  SELECT marks(1);  
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Wrong use: assoc_array_var.x.y.z(1)
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks.x.y.z(1):= 10;
+  SELECT marks(1);  
+END;
+$$
+DELIMITER ;$$
+
+
 --echo #
 --echo # Initialization with empty elements
 --echo #

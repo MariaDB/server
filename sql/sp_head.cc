@@ -3868,55 +3868,6 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
 }
 
 
-/**
-  Similar to set_local_variable(), but for ASSOC ARRAY variable fields.
-*/
-
-bool
-sp_head::set_local_variable_assoc_array(THD *thd, sp_pcontext *spcont,
-                                        const Sp_rcontext_handler *rh,
-                                        sp_variable *spv, Item* key,
-                                        Item *val, LEX *lex,
-                                        const LEX_CSTRING &value_query)
-{
-  if (!(val= adjust_assignment_source(thd, val, NULL)))
-    return true;
-
-  const sp_rcontext_addr addr(rh, spv->offset);
-  auto *sp_set=
-    new (thd->mem_root) sp_instr_set_composite_field_by_name(instructions(),
-                                                             spcont, addr,
-                                                             key, val,
-                                                             lex, true,
-                                                             value_query);
-  return sp_set == NULL || add_instr(sp_set);
-}
-
-
-bool
-sp_head::set_local_variable_assoc_array_field(THD *thd, sp_pcontext *spcont,
-                                              const Sp_rcontext_handler *rh,
-                                              sp_variable *spv, Item* key,
-                                              const LEX_CSTRING &field_name,
-                                              Item *val, LEX *lex,
-                                              const LEX_CSTRING &value_query)
-{
-  if (!(val= adjust_assignment_source(thd, val, NULL)))
-    return true;
-
-  const sp_rcontext_addr addr(rh, spv->offset);
-  auto *sp_set=
-    new (thd->mem_root) sp_instr_set_composite_field_by_key(instructions(),
-                                                            spcont, addr,
-                                                            spv->name,
-                                                            key, field_name,
-                                                            val,
-                                                            lex, true,
-                                                            value_query);
-  return sp_set == NULL || add_instr(sp_set);
-}
-
-
 bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
                               sp_pcontext *param_spcont,
                               List<sp_assignment_lex> *parameters)

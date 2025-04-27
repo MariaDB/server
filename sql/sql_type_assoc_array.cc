@@ -25,6 +25,7 @@
 #include "sql_select.h" // Virtual_tmp_table
 #include "sp_rcontext.h"
 #include "sp_head.h"
+#include "sp_instr.h"
 #include "sp_type_def.h"
 
 
@@ -2021,6 +2022,14 @@ public:
                                             const Lex_ident_sys &member,
                                             const Lex_ident_cli_st &name_cli)
                                                           const override;
+  sp_instr *create_instr_set_assign_functor(THD *thd, LEX *lex,
+                                            const Qualified_ident &ident,
+                                            const sp_rcontext_addr &addr,
+                                            List<Item> *params,
+                                            const Lex_ident_sys_st &field_name,
+                                            Item *item,
+                                            const LEX_CSTRING &expr_str)
+                                                         const override;
   virtual
   Item *create_item_method(THD *thd,
                            const Lex_ident_sys &ca,
@@ -2181,6 +2190,56 @@ Type_handler_assoc_array::create_item_functor(THD *thd,
                                        &type_handler_null,
                                        pos.pos(), pos.length());
 }
+
+
+/*
+  Make instructions for:
+    assoc_array('key')         := expr;
+    assoc_array('key').member  := expr;
+*/
+
+sp_instr *
+Type_handler_assoc_array::
+  create_instr_set_assign_functor(THD *thd,
+                                  LEX *lex,
+                                  const Qualified_ident &ident,
+                                  const sp_rcontext_addr &addr,
+                                  List<Item> *args,
+                                  const Lex_ident_sys_st &member,
+                                  Item *expr,
+                                  const LEX_CSTRING &expr_str) const
+{
+  using set_element=        sp_instr_set_composite_field_by_name;
+  using set_element_member= sp_instr_set_composite_field_by_key;
+
+  if (!ident.part(1).is_null())
+  {
+    my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), ident.part(0).str);
+    return nullptr;
+  }
+
+  if (!args || args->elements != 1 || !args->head())
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY KEY",
+             ErrConvDQName(thd->lex->sphead).ptr(),
+             1, args ? args->elements : 0);
+    return nullptr;
+  }
+
+  DBUG_ASSERT(args->head());
+
+  if (member.is_null())
+    return new (thd->mem_root) set_element(lex->sphead->instructions(),
+                                           lex->spcont, addr, args->head(),
+                                           expr, lex, true, expr_str);
+
+  return new (thd->mem_root) set_element_member(lex->sphead->instructions(),
+                                                lex->spcont, addr,
+                                                args->head(),
+                                                member,
+                                                expr, lex, true, expr_str);
+}
+
 
 Item *Type_handler_assoc_array::create_item_method(THD *thd,
                                                    const Lex_ident_sys &a,

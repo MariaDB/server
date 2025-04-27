@@ -441,17 +441,6 @@ public:
                                             const LEX_CSTRING *field_name,
                                             Item *val, LEX *lex,
                                             const LEX_CSTRING &value_query);
-  bool set_local_variable_assoc_array(THD *thd, sp_pcontext *spcont,
-                                      const Sp_rcontext_handler *rh,
-                                      sp_variable *spv, Item* key,
-                                      Item *val, LEX *lex,
-                                      const LEX_CSTRING &value_query);
-  bool set_local_variable_assoc_array_field(THD *thd, sp_pcontext *spcont,
-                                            const Sp_rcontext_handler *rh,
-                                            sp_variable *spv, Item* key,
-                                            const LEX_CSTRING &field_name,
-                                            Item *val, LEX *lex,
-                                            const LEX_CSTRING &value_query);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
   bool check_standalone_routine_end_name(const sp_name *end_name) const;
   bool check_group_aggregate_instructions_function() const;

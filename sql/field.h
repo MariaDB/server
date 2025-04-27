@@ -5834,11 +5834,6 @@ public:
     m_row_field_definitions= list;
   }
 
-  uint is_assoc_array() const
-  {
-    return m_row_field_definitions != NULL &&
-           type_handler() == &type_handler_assoc_array;
-  }
   Row_definition_list *assoc_array_definition() const
   {
     return m_row_field_definitions;

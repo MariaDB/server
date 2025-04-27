@@ -1322,9 +1322,7 @@ sp_instr_set_composite_field_by_name::print(String *str)
   sp_variable *var= m_ctx->find_variable(m_offset);
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   DBUG_ASSERT(var);
-  DBUG_ASSERT(var->field_def.is_table_rowtype_ref() ||
-              var->field_def.is_cursor_rowtype_ref() ||
-              var->field_def.is_assoc_array());
+  DBUG_ASSERT(dynamic_cast<const Type_handler_composite*>(var->type_handler()));
 
   str->append(STRING_WITH_LEN("set "));
   str->append(prefix);
@@ -1375,7 +1373,6 @@ sp_instr_set_composite_field_by_key::exec_core(THD *thd, uint *nextp)
     return true;
 
   int res= get_rcontext(thd)->set_variable_composite_field_by_key(thd,
-                                                                  m_var_name,
                                                                   m_offset,
                                                                   key,
                                                                   m_field_name,
@@ -1391,7 +1388,7 @@ sp_instr_set_composite_field_by_key::print(String *str)
   sp_variable *var= m_ctx->find_variable(m_offset);
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   DBUG_ASSERT(var);
-  DBUG_ASSERT(var->field_def.is_assoc_array());
+  DBUG_ASSERT(dynamic_cast<const Type_handler_composite*>(var->type_handler()));
 
   str->append(STRING_WITH_LEN("set "));
   str->append(prefix);

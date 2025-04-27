@@ -710,7 +710,6 @@ int sp_rcontext::set_variable_composite_by_name(THD *thd, Item_field *composite,
 
 int
 sp_rcontext::set_variable_composite_field_by_key(THD *thd,
-                                                 const LEX_CSTRING &var_name,
                                                  uint var_idx,
                                                  const LEX_CSTRING &elem_name,
                                                  const LEX_CSTRING &field_name,

@@ -35,6 +35,7 @@ C_MODE_START
 C_MODE_END
 
 class Field;
+class Qualified_ident;
 class Column_definition;
 class Column_definition_attributes;
 class Key_part_spec;
@@ -102,6 +103,7 @@ class Create_func;
 class Type_handler_composite;
 class sp_type_def;
 class sp_head;
+class sp_instr;
 class my_var;
 
 #define my_charset_numeric      my_charset_latin1
@@ -4658,6 +4660,23 @@ public:
                                             const Lex_ident_sys &b,
                                             const Lex_ident_cli_st &name)
                                                                     const
+  {
+    DBUG_ASSERT(0); // Should have checked has_functors().
+    return nullptr;
+  }
+  /*
+    Generate instructions for:
+      spvar(args)        := expr; -- e.g. spvar_assoc_array('key')      := 10;
+      spvar(args).member := expr; -- e.g. spvar_assoc_array('key').field:= 10;
+  */
+  virtual
+  sp_instr *create_instr_set_assign_functor(THD *thd, LEX *lex,
+                                            const Qualified_ident &ident,
+                                            const sp_rcontext_addr &addr,
+                                            List<Item> *args,
+                                            const Lex_ident_sys_st &member,
+                                            Item *item,
+                                            const LEX_CSTRING &expr_str) const
   {
     DBUG_ASSERT(0); // Should have checked has_functors().
     return nullptr;

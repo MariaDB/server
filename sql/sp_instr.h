@@ -817,14 +817,12 @@ class sp_instr_set_composite_field_by_key : public sp_instr_set
   using SELF= sp_instr_set_composite_field_by_key;
   sp_instr_set_composite_field_by_key(const SELF &);
   void operator=(SELF &);
-  const LEX_CSTRING m_var_name;
   Item* m_key;
   const LEX_CSTRING m_field_name;
 
 public:
   sp_instr_set_composite_field_by_key(uint ip, sp_pcontext *ctx,
                                       const sp_rcontext_addr &addr,
-                                      const LEX_CSTRING &var_name,
                                       Item* key,
                                       const LEX_CSTRING &field_name,
                                       Item *val,
@@ -834,7 +832,6 @@ public:
                    addr.rcontext_handler(),
                    addr.offset(), val, lex,
                    lex_resp, value_query),
-      m_var_name(var_name),
       m_key(key),
       m_field_name(field_name)
   {}

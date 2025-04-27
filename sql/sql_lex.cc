@@ -6903,7 +6903,7 @@ bool LEX::sp_variable_declarations_rec_finalize(THD *thd, int nvars,
 */
 bool LEX::sp_set_assign_lvalue_function(THD *thd,
                                         const Qualified_ident *ident,
-                                        List<Item> *params,
+                                        List<Item> *args,
                                         const Lex_ident_sys_st &field_name,
                                         Item *item, const LEX_CSTRING &expr_str)
 {
@@ -6914,32 +6914,20 @@ bool LEX::sp_set_assign_lvalue_function(THD *thd,
   const Sp_rcontext_handler *rh;
 
   sp_variable *spv= find_variable(&ident->part(0), &ctx, &rh);
-  if (!spv->field_def.is_assoc_array())
+  if (!spv->type_handler()->has_functors())
   {
     my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), ident->part(0).str);
     return true;
   }
 
-  if (!params || params->elements != 1)
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY KEY",
-             ErrConvDQName(sphead).ptr(), 1, params ? params->elements : 0);
-    return true;
-  }
+  const sp_rcontext_addr addr(rh, spv->offset);
+  item= sphead->adjust_assignment_source(thd, item, nullptr);
 
-  Item *key= List_iterator<Item>(*params)++;
-  DBUG_ASSERT(key);
-
-  return field_name.is_null() ?
-         sphead->set_local_variable_assoc_array(thd, ctx,
-                                                rh, spv, key,
-                                                item, this,
-                                                expr_str) :
-         sphead->set_local_variable_assoc_array_field(thd, ctx,
-                                                      rh, spv, key,
-                                                      field_name,
-                                                      item, this,
-                                                      expr_str);
+  sp_instr *i= spv->type_handler()->
+                     create_instr_set_assign_functor(thd, this, *ident, addr,
+                                                     args, field_name,
+                                                     item, expr_str);
+  return !i || sphead->add_instr(i);
 }
 
 
@@ -8974,14 +8962,14 @@ Item *LEX::create_item_ident(THD *thd,
        spv->field_def.is_table_rowtype_ref() ||
        spv->field_def.is_cursor_rowtype_ref())
       return create_item_spvar_row_field(thd, rh, &a, &b, spv, start, end);
-    if (spv->field_def.is_assoc_array())
+    if (spv->type_handler()->has_methods())
     {
       const Lex_ident_sys sys_a(thd, ca), sys_b(thd, cb);
       const Lex_ident_cli query_fragment(start, end - start);
       if (sys_a.is_null() || sys_b.is_null())
         return nullptr; // EOM
-      return type_handler_assoc_array.create_item_method(thd, sys_a, sys_b,
-                                                         NULL, query_fragment);
+      return spv->type_handler()->create_item_method(thd, sys_a, sys_b,
+                                                     NULL, query_fragment);
     }
   }
 
