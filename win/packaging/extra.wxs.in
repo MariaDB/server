@@ -43,14 +43,15 @@
     <Property Id="SKIPNETWORKING" Secure="yes"/>
     <!-- Whether to keep default (unauthenticated) user. Default is no-->
     <Property Id="DEFAULTUSER" Secure="yes"/>
-    <!-- Set server character set to UTF8 -->
-    <Property Id="UTF8" Secure="yes"/>
     <!-- Whether to data on uninstall (default yes, after asking user consent) -->
     <Property Id="CLEANUPDATA" Secure="yes" Value="1"/>
     <!-- Force per machine installation -->
     <Property Id="ALLUSERS" Secure="yes" Value="1"/>
     <!-- Disable advertised shortcuts weirdness -->
     <Property Id="DISABLEADVTSHORTCUTS" Secure="yes" Value="1"/>
+
+    <!-- Activate feedback plugin-->
+    <Property Id="FEEDBACK" Secure="yes"/>
 
     <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
     <Property Id="STDCONFIG" Secure="yes" Value="1"/>
@@ -227,9 +228,14 @@
           <Condition Action="disable">NOT ModifyRootPassword</Condition>
         </Control>
 
-        <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="154" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
-          <Text>{\Font1}Use UTF8 as default server's character set</Text>
+        <Control Id="CheckBoxFeedback" Type="CheckBox" X="8" Y="150" Width="350" Height="18" Property="FEEDBACK" CheckBoxValue="1" TabSkip="no">
+          <Text>{\Font1}Enable the Feedback plugin and submit anonymous usage information</Text>
         </Control>
+
+        <Control Id="LinkFeedbackPlugin" Type="Hyperlink" X="23" Y="167" Width="350" Height="18" TabSkip="yes">
+          <Text>Collected statistics can be viewed at <![CDATA[<a href="https://mariadb.org/feedback-plugin">https://mariadb.org/feedback-plugin</a>]]></Text>
+        </Control>
+
         <Control Type="Text" Id="Text11" Width="67" Height="17" X="8" Y="190" Text="{\Font1}Data directory" />
         <Control Type="PathEdit" Id="TxtDir" Width="175" Height="18" X="80" Y="190" Property="DATADIR">
         </Control>
@@ -456,19 +462,18 @@
             Key="innodb_buffer_pool_size"
             Value="[BUFFERPOOLSIZE]M" />
       </Component>
-
-      <Component Id="C.utf8" Guid="*" Directory="DATADIR">
-        <Condition>UTF8</Condition>
+      <Component Id="C.feedback" Guid="*" Directory="DATADIR">
+        <Condition>FEEDBACK</Condition>
         <RegistryValue Root='HKLM'
            Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
-           Name='UTF8' Value='1' Type='string' KeyPath='yes'/>
-        <IniFile Id="Ini6"
+           Name='FEEDBACK' Value='1' Type='string' KeyPath='yes'/>
+        <IniFile Id="Ini5"
             Action="createLine"
             Directory="DATADIR"
             Section="mysqld"
             Name="my.ini"
-            Key="character-set-server"
-            Value="utf8mb4" />
+            Key="feedback"
+            Value="ON" />
       </Component>
 
       <!-- Shortcuts in program menu (mysql client etc) -->
