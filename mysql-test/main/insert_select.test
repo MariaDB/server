@@ -591,6 +591,61 @@ SELECT * FROM t1;
 DROP VIEW v1;
 DROP TABLE t1;
 
+#
+# MDEV-32086: condition pushdown into two mergeable derived tables,
+#             one containing the other, when they are forced to be
+#             materialized in INSERT
+#
+create table t1 (pk int, id int);
+insert into t1 values (2,2), (3,3), (4,4);
+
+let $q=
+insert into t1
+  select 1,10
+  from
+  (
+    select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+  ) dt
+  where dt.id=3;
+
+eval $q;
+select * from t1;
+
+eval explain $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+select * from t1;
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+eval create procedure p() $q;
+call p();
+select * from t1;
+call p();
+select * from t1;
+drop procedure p;
+
+drop table t1;
+
 --echo #
---echo # End of 10.5 test
+--echo # MDEV-33139: Crash of INSERT SELECT when preparing structures for
+--echo # split optimization
 --echo #
+
+CREATE TABLE v0 ( v1 INT UNIQUE ) ;
+INSERT INTO v0 ( v1 ) VALUES
+  ( ( SELECT 1
+      FROM
+        ( SELECT v1
+          FROM v0 GROUP BY v1 ) AS v6 NATURAL JOIN
+               v0 AS v2 NATURAL JOIN
+               v0 AS v4 NATURAL JOIN
+               v0 AS v3 NATURAL JOIN
+               ( SELECT v1 FROM v0 ) AS v7 ) ) ;
+DROP TABLE v0;
+
+--echo # End of 10.5 tests

@@ -694,7 +694,6 @@ not_compressed:
     {
       static_assert(FIL_PAGE_FCRC32_CHECKSUM == 4, "alignment");
       mach_write_to_4(tmp + len - 4, my_crc32c(0, tmp, len - 4));
-      ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
     }
 
     d= tmp;
@@ -854,6 +853,8 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
     if (!space->is_temporary() && !space->is_being_imported() &&
         lsn > log_sys.get_flushed_lsn())
       log_write_up_to(lsn, true);
+    ut_ad(space->is_temporary() || !space->full_crc32() ||
+          !buf_page_is_corrupted(true, write_frame, space->flags));
     space->io(IORequest{type, this, slot}, physical_offset(), size,
               write_frame, this);
   }
@@ -1209,6 +1210,21 @@ static void buf_flush_discard_page(buf_page_t *bpage) noexcept
   buf_LRU_free_page(bpage, true);
 }
 
+/** Adjust to_withdraw during buf_pool_t::shrink() */
+ATTRIBUTE_COLD static size_t buf_flush_LRU_to_withdraw(size_t to_withdraw,
+                                                       const buf_page_t &bpage)
+  noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  if (!buf_pool.is_shrinking())
+    return 0;
+  const size_t size{buf_pool.size_in_bytes_requested};
+  if (buf_pool.will_be_withdrawn(bpage.frame, size) ||
+      buf_pool.will_be_withdrawn(bpage.zip.data, size))
+    to_withdraw--;
+  return to_withdraw;
+}
+
 /** Flush dirty blocks from the end buf_pool.LRU,
 and move clean blocks to buf_pool.free.
 @param max         maximum number of blocks to flush
@@ -1219,7 +1235,9 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 {
   size_t scanned= 0;
   mysql_mutex_assert_owner(&buf_pool.mutex);
-  size_t free_limit{buf_pool.LRU_scan_depth + to_withdraw};
+  size_t free_limit{buf_pool.LRU_scan_depth};
+  if (UNIV_UNLIKELY(to_withdraw > free_limit))
+    to_withdraw= free_limit;
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
@@ -1229,7 +1247,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 
   /* BUF_LRU_MIN_LEN (256) is too high value for low buffer pool(BP) size. For
   example, for BP size lower than 80M and 16 K page size, the limit is more than
-  5% of total BP and for lowest BP 5M, it is 80% of the BP. Non-data objects
+  5% of total BP and for lowest BP 6M, it is 80% of the BP. Non-data objects
   like explicit locks could occupy part of the BP pool reducing the pages
   available for LRU. If LRU reaches minimum limit and if no free pages are
   available, server would hang with page cleaner not able to free any more
@@ -1243,6 +1261,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
        bpage &&
        ((UT_LIST_GET_LEN(buf_pool.LRU) > buf_lru_min_len &&
          UT_LIST_GET_LEN(buf_pool.free) < free_limit) ||
+        to_withdraw ||
         recv_recovery_is_on());
        ++scanned, bpage= buf_pool.lru_hp.get())
   {
@@ -1258,6 +1277,8 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       if (state != buf_page_t::FREED &&
           (state >= buf_page_t::READ_FIX || (~buf_page_t::LRU_MASK & state)))
         continue;
+      if (UNIV_UNLIKELY(to_withdraw != 0))
+        to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
       buf_LRU_free_page(bpage, true);
       ++n->evicted;
       if (UNIV_LIKELY(scanned & 31))
@@ -1329,23 +1350,32 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         continue;
       }
 
+      if (state < buf_page_t::UNFIXED)
+        goto flush;
+
       if (n->flushed >= max && !recv_recovery_is_on())
       {
         bpage->lock.u_unlock(true);
         break;
       }
 
-      if (neighbors && space->is_rotational() &&
+      if (neighbors && space->is_rotational() && UNIV_LIKELY(!to_withdraw) &&
           /* Skip neighbourhood flush from LRU list if we haven't yet reached
           half of the free page target. */
           UT_LIST_GET_LEN(buf_pool.free) * 2 >= free_limit)
         n->flushed+= buf_flush_try_neighbors(space, page_id, bpage,
                                              neighbors == 1,
                                              n->flushed, max);
-      else if (bpage->flush(space))
-        ++n->flushed;
       else
-        continue;
+      {
+      flush:
+        if (UNIV_UNLIKELY(to_withdraw != 0))
+          to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
+        if (bpage->flush(space))
+          ++n->flushed;
+        else
+          continue;
+      }
 
       goto reacquire_mutex;
     }
@@ -1743,7 +1773,7 @@ static ulint buf_flush_LRU(ulint max_n) noexcept
     pthread_cond_broadcast(&buf_pool.done_free);
   }
   else if (!pages && !buf_pool.try_LRU_scan)
-    /* For example, with the minimum innodb_buffer_pool_size=5M and
+    /* For example, with the minimum innodb_buffer_pool_size=6M and
     the default innodb_page_size=16k there are only a little over 316
     pages in the buffer pool. The buffer pool can easily be exhausted
     by a workload of some dozen concurrent connections. The system could
@@ -1771,8 +1801,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(end_lsn >= next_checkpoint_lsn);
-  ut_ad(end_lsn <= get_lsn());
-  ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= get_lsn() ||
+  ut_d(const lsn_t current_lsn{get_lsn()});
+  ut_ad(end_lsn <= current_lsn);
+  ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= current_lsn ||
         srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
 
   DBUG_PRINT("ib_log",
@@ -1901,7 +1932,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
         ut_ad(!is_opened());
         my_munmap(buf, file_size);
         buf= resize_buf;
-        set_buf_free(START_OFFSET + (get_lsn() - resizing));
+        buf_size= unsigned(std::min<uint64_t>(resize_target - START_OFFSET,
+                                              buf_size_max));
       }
       else
 #endif
@@ -2030,9 +2062,9 @@ static bool log_checkpoint() noexcept
 }
 
 /** Make a checkpoint. */
-ATTRIBUTE_COLD void log_make_checkpoint()
+ATTRIBUTE_COLD void log_make_checkpoint() noexcept
 {
-  buf_flush_wait_flushed(log_sys.get_lsn(std::memory_order_acquire));
+  buf_flush_wait_flushed(log_get_lsn());
   while (!log_checkpoint());
 }
 
@@ -2040,8 +2072,6 @@ ATTRIBUTE_COLD void log_make_checkpoint()
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 static void buf_flush_wait(lsn_t lsn) noexcept
 {
-  ut_ad(lsn <= log_sys.get_lsn());
-
   lsn_t oldest_lsn;
 
   while ((oldest_lsn= buf_pool.get_oldest_modification(lsn)) < lsn)
@@ -2243,13 +2273,13 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
-/** Check if the adpative flushing threshold is recommended based on
+/** Check if the adaptive flushing threshold is recommended based on
 redo log capacity filled threshold.
 @param oldest_lsn     buf_pool.get_oldest_modification()
 @return true if adaptive flushing is recommended. */
 static bool af_needed_for_redo(lsn_t oldest_lsn) noexcept
 {
-  lsn_t age= (log_sys.get_lsn() - oldest_lsn);
+  lsn_t age= log_sys.get_lsn_approx() - oldest_lsn;
   lsn_t af_lwm= static_cast<lsn_t>(srv_adaptive_flushing_lwm *
     static_cast<double>(log_sys.log_capacity) / 100);
 
@@ -2309,7 +2339,7 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	lsn_t			lsn_rate;
 	ulint			n_pages = 0;
 
-	const lsn_t cur_lsn = log_sys.get_lsn();
+	const lsn_t cur_lsn = log_sys.get_lsn_approx();
 	ut_ad(oldest_lsn <= cur_lsn);
 	ulint pct_for_lsn = af_get_pct_for_lsn(cur_lsn - oldest_lsn);
 	time_t curr_time = time(nullptr);
@@ -2782,7 +2812,7 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool() noexcept
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync_batch(lsn_t lsn) noexcept
 {
-  lsn= std::max(lsn, log_sys.get_lsn());
+  lsn= std::max(lsn, log_get_lsn());
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   buf_flush_wait(lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -2801,20 +2831,26 @@ void buf_flush_sync() noexcept
 
   thd_wait_begin(nullptr, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  for (;;)
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+
+  for (lsn_t lsn= log_sys.get_lsn();;)
   {
-    const lsn_t lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_flush_wait(lsn);
     /* Wait for the page cleaner to be idle (for log resizing at startup) */
     while (buf_flush_sync_lsn)
       my_cond_wait(&buf_pool.done_flush_list,
                    &buf_pool.flush_list_mutex.m_mutex);
-    if (lsn == log_sys.get_lsn())
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    lsn_t new_lsn= log_sys.get_lsn();
+    if (lsn == new_lsn)
       break;
+    lsn= new_lsn;
   }
 
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  log_sys.latch.wr_unlock();
   tpool::tpool_wait_end();
   thd_wait_end(nullptr);
 }
@@ -2834,7 +2870,7 @@ ATTRIBUTE_COLD void buf_pool_t::print_flush_info() const noexcept
     "-------------------",
     lru_size, free_size, dirty_size, dirty_pct);
 
-  lsn_t lsn= log_sys.get_lsn();
+  lsn_t lsn= log_get_lsn();
   lsn_t clsn= log_sys.last_checkpoint_lsn;
   sql_print_information("InnoDB: LSN flush parameters\n"
     "-------------------\n"

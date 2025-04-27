@@ -57,6 +57,7 @@
 */
 
 #include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "sql_insert.h"
 #include "sql_update.h"                         // compare_record
@@ -738,6 +739,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
   unsigned char *readbuff= NULL;
+  List<List_item> insert_values_cache;
+  bool cache_insert_values= FALSE;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -795,7 +798,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
                                  update_fields, update_values, duplic, ignore,
-                                 &unused_conds, FALSE)))
+                                 &unused_conds, FALSE, &cache_insert_values)))
   {
     retval= thd->is_error();
     if (res < 0)
@@ -1045,8 +1048,41 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   if (returning)
     fix_rownum_pointers(thd, thd->lex->returning(), &info.accepted_rows);
 
+  if (cache_insert_values)
+  {
+    insert_values_cache.empty();
+    while ((values= its++))
+    {
+      List<Item> *caches= new (thd->mem_root) List_item;
+      List_iterator_fast<Item> iv(*values);
+      Item *item;
+      if (caches == 0)
+      {
+        error= 1;
+        goto values_loop_end;
+      }
+      caches->empty();
+      while((item= iv++))
+      {
+        Item_cache *cache= item->get_cache(thd);
+        if (!cache)
+        {
+          error= 1;
+          goto values_loop_end;
+        }
+        cache->setup(thd, item);
+        caches->push_back(cache);
+      }
+      insert_values_cache.push_back(caches);
+    }
+    its.rewind();
+  }
+
   do
   {
+    List_iterator_fast<List_item> itc(insert_values_cache);
+    List_iterator_fast<List_item> *itr;
+
     DBUG_PRINT("info", ("iteration %llu", iteration));
     if (iteration && bulk_parameters_set(thd))
     {
@@ -1054,7 +1090,24 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       goto values_loop_end;
     }
 
-    while ((values= its++))
+    if (cache_insert_values)
+    {
+      List_item *caches;
+      while ((caches= itc++))
+      {
+        List_iterator_fast<Item> ic(*caches);
+        Item_cache *cache;
+        while((cache= (Item_cache*) ic++))
+        {
+          cache->cache_value();
+        }
+      }
+      itc.rewind();
+      itr= &itc;
+    }
+    else
+      itr= &its;
+    while ((values= (*itr)++))
     {
       bool trg_skip_row= false;
 
@@ -1161,7 +1214,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         break;
       info.accepted_rows++;
     }
-    its.rewind();
+    itr->rewind();
     iteration++;
 
     /*
@@ -1685,6 +1738,7 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
     table_list          Global/local table list
     where               Where clause (for insert ... select)
     select_insert       TRUE if INSERT ... SELECT statement
+    cache_insert_values insert's VALUES(...) has to be pre-computed
 
   TODO (in far future)
     In cases of:
@@ -1707,7 +1761,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &update_fields, List<Item> &update_values,
                          enum_duplicates duplic, bool ignore,
                          COND **where,
-                         bool select_insert)
+                         bool select_insert, bool * const cache_insert_values)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
@@ -1811,6 +1865,15 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
       thd->vers_insert_history(row_start); // check privileges
   }
 
+  /*
+    Check if we read from the same table we're inserting into.
+    Queries like INSERT INTO t1 VALUES ((SELECT ... FROM t1...)) have
+    to pre-compute the VALUES part.
+    Reading from the same table in the RETURNING clause is not allowed.
+
+    INSERT...SELECT detects this case in select_insert::prepare and also
+    uses buffering to handle it correcly.
+  */
   if (!select_insert)
   {
     Item *fake_conds= 0;
@@ -1818,10 +1881,30 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     if ((duplicate= unique_table(thd, table_list, table_list->next_global,
                                  CHECK_DUP_ALLOW_DIFFERENT_ALIAS)))
     {
-      update_non_unique_table_error(table_list, "INSERT", duplicate);
-      DBUG_RETURN(1);
+      /*
+        This is INSERT INTO ... VALUES (...) and it must pre-compute the
+        values to be inserted.
+      */
+      (*cache_insert_values)= true;
     }
+    else
+      (*cache_insert_values)= false;
+
     select_lex->fix_prepare_information(thd, &fake_conds, &fake_conds);
+
+    if ((*cache_insert_values) && thd->lex->has_returning())
+    {
+      // Check if the table we're inserting into is also in RETURNING clause
+      TABLE_LIST *dup=
+         unique_table_in_insert_returning_subselect(thd, table_list,
+                                                    thd->lex->returning());
+      if (dup)
+      {
+        if (dup != ERROR_TABLE)
+          update_non_unique_table_error(table_list, "INSERT", duplicate);
+        DBUG_RETURN(1);
+      }
+    }
   }
   /*
     Only call prepare_for_posistion() if we are not performing a DELAYED
@@ -3974,6 +4057,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   int res;
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
+  bool cache_insert_values= false;
   DBUG_ENTER("mysql_insert_select_prepare");
 
   /*
@@ -3984,7 +4068,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if ((res= mysql_prepare_insert(thd, lex->query_tables, lex->field_list, 0,
                                  lex->update_list, lex->value_list,
                                  lex->duplicates, lex->ignore,
-                                 &select_lex->where, TRUE)))
+                                 &select_lex->where, TRUE, &cache_insert_values)))
     DBUG_RETURN(res);
 
   /*
@@ -4397,7 +4481,11 @@ bool select_insert::store_values(List<Item> &values, bool *trg_skip_row)
 bool select_insert::prepare_eof()
 {
   int error;
-  bool const trans_table= table->file->has_transactions_and_rollback();
+  // make sure any ROW format pending event is logged in the same binlog cache
+  bool const trans_table= (thd->is_current_stmt_binlog_format_row() &&
+                           table->file->row_logging) ?
+    table->file->row_logging_has_trans :
+    table->file->has_transactions_and_rollback();
   bool changed;
   bool binary_logged= 0;
   killed_state killed_status= thd->killed;
@@ -4572,7 +4660,7 @@ void select_insert::abort_result_set()
       table->file->ha_rnd_end();
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-
+    table->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
     /*
       If at least one row has been inserted/modified and will stay in
       the table (the table doesn't have transactions) we must write to
@@ -4618,7 +4706,8 @@ void select_insert::abort_result_set()
 	  query_cache_invalidate3(thd, table, 1);
     }
     DBUG_ASSERT(transactional_table || !changed ||
-		thd->transaction->stmt.modified_non_trans_table);
+		(thd->transaction->stmt.modified_non_trans_table ||
+                 thd->transaction->all.modified_non_trans_table));
 
     table->s->table_creation_was_logged|= binary_logged;
     table->file->ha_release_auto_increment();
@@ -5312,9 +5401,14 @@ bool select_create::send_eof()
     /* Remember xid's for the case of row based logging */
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
     ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-    trans_commit_stmt(thd);
-    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
-      trans_commit_implicit(thd);
+    if (trans_commit_stmt(thd) ||
+	(!(thd->variables.option_bits & OPTION_GTID_BEGIN) &&
+	 trans_commit_implicit(thd)))
+    {
+        abort_result_set();
+        DBUG_RETURN(true);
+    }
+
     thd->binlog_xid= 0;
 
 #ifdef WITH_WSREP
@@ -5432,6 +5526,13 @@ void select_create::abort_result_set()
   thd->transaction->stmt.modified_non_trans_table= FALSE;
   thd->variables.option_bits= save_option_bits;
 
+  /*
+    In the error case, we remove any partially created table. So clear any
+    incident event generates due to cache error, as it no longer relevant.
+  */
+  binlog_clear_incident(thd);
+
+  bool drop_table_was_logged= false;
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -5479,6 +5580,7 @@ void select_create::abort_result_set()
                          create_info->db_type == partition_hton,
                          &create_info->tabledef_version,
                          tmp_table);
+          drop_table_was_logged= true;
           debug_crash_here("ddl_log_create_after_binlog");
           thd->binlog_xid= 0;
         }
@@ -5503,8 +5605,21 @@ void select_create::abort_result_set()
 
   if (create_info->table_was_deleted)
   {
-    /* Unlock locked table that was dropped by CREATE. */
-    (void) trans_rollback_stmt(thd);
+    if (drop_table_was_logged)
+    {
+      /* for DROP binlogging the error status has to be canceled first */
+      Diagnostics_area new_stmt_da(thd->query_id, false, true);
+      Diagnostics_area *old_stmt_da= thd->get_stmt_da();
+
+      thd->set_stmt_da(&new_stmt_da);
+      (void) trans_rollback_stmt(thd);
+      thd->set_stmt_da(old_stmt_da);
+    }
+    else
+    {
+      /* Unlock locked table that was dropped by CREATE. */
+      (void) trans_rollback_stmt(thd);
+    }
     thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
   }
 

@@ -4149,10 +4149,6 @@ int ha_spider::rnd_init(
     }
   }
   pushed_pos = NULL;
-/*
-  if (wide_handler->external_lock_type == F_WRLCK)
-    check_and_start_bulk_update(SPD_BU_START_BY_INDEX_OR_RND_INIT);
-*/
   rnd_scan_and_first = scan;
   if (
     scan &&

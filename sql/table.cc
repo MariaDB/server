@@ -5444,9 +5444,10 @@ bool Lex_ident_db::check_name_with_error(const LEX_CSTRING &str)
 }
 
 
-bool check_column_name(const char *name)
+bool check_column_name(const Lex_cstring &ident)
 {
   // name length in symbols
+  const char *name= ident.str, *end= ident.str + ident.length;
   size_t name_length= 0;
   bool last_char_is_space= TRUE;
 
@@ -5456,9 +5457,7 @@ bool check_column_name(const char *name)
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (system_charset_info->use_mb())
     {
-      int len=my_ismbchar(system_charset_info, name, 
-                          name+system_charset_info->mbmaxlen);
-      if (len)
+      if (int len= my_ismbchar(system_charset_info, name,  end))
       {
         name += len;
         name_length++;
@@ -5475,12 +5474,6 @@ bool check_column_name(const char *name)
   }
   /* Error if empty or too long column name */
   return last_char_is_space || (name_length > NAME_CHAR_LEN);
-}
-
-
-bool check_period_name(const char *name)
-{
-  return check_column_name(name);
 }
 
 
@@ -6492,9 +6485,9 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   @pre This method can be called only if there is an error.
 */
 
-void TABLE_LIST::hide_view_error(THD *thd)
+void TABLE_LIST::replace_view_error_with_generic(THD *thd)
 {
-  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error()) || thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());

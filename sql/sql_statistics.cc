@@ -3141,7 +3141,7 @@ read_statistics_for_table(THD *thd, TABLE *table,
             double avg_frequency= pk_read_stats->get_avg_frequency(j-1);
             set_if_smaller(avg_frequency, 1);
             double val= (pk_read_stats->get_avg_frequency(j) /
-                         avg_frequency);
+                         avg_frequency > 0 ? avg_frequency : 1);
 	    index_statistics->set_avg_frequency (l, val);
           }
         }

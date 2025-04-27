@@ -1,0 +1,100 @@
+#
+#   This test verifies that semi-sync setups configured to use SSL can kill
+# the replication connection when the IO thread is stopped (e.g. from
+# STOP SLAVE). The way it should happen, is that the IO thread creates a new
+# connection to the primary which issues KILL on the connection id of the
+# replication connection. MDEV-36663 reported an issue where this new
+# kill-oriented connection could not connect to a primary when it requires
+# connections to use SSL.
+#
+#   This test sets up a semi-sync SSL master-slave topology, and stops the
+# slave IO thread. It then validates that the connection was killed by using
+# the wait_condition.inc utility to wait for the binlog dump thread to die,
+# and also validates that the status variable Rpl_semi_sync_master_clients
+# reports as 0.
+#
+# References:
+#   MDEV-36663: Semi-sync Replica Can't Kill Dump Thread When Using SSL
+#
+--source include/have_binlog_format_mixed.inc # format-agnostic
+--source include/have_ssl_communication.inc
+
+--echo # Skip starting the slave because we manually start with SSL later
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--echo #
+--echo # Setup
+--connection master
+CREATE USER replssl@localhost;
+GRANT REPLICATION SLAVE on *.* to replssl@localhost REQUIRE SSL;
+
+set @orig_master_enabled= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+
+--connection slave
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval CHANGE MASTER TO
+  master_user='replssl',
+  master_password='',
+  master_ssl=1,
+  master_ssl_ca='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+
+set @orig_slave_enabled= @@GLOBAL.rpl_semi_sync_slave_enabled;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+
+--source include/start_slave.inc
+
+--connection master
+--echo # Verify Semi-Sync is active
+--let $status_var= Rpl_semi_sync_master_status
+--let $status_var_value= ON
+--source include/wait_for_status_var.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+
+--echo # Create some table so slave can be seen as up-to-date and working
+--connection master
+CREATE TABLE t1 (a INT);
+--sync_slave_with_master
+
+--echo # Disconnect the slave and wait until the master's dump thread is gone
+--connection slave
+STOP SLAVE;
+--connection master
+
+--echo # MDEV-36663: Verifying dump thread connection is killed..
+# Prior to MDEV-36663 fixes, this would time out and
+# Rpl_semi_sync_master_clients would remain 1.
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.PROCESSLIST WHERE COMMAND = 'Binlog Dump'
+--source include/wait_condition.inc
+
+--let $n_master_clients= query_get_value(SHOW STATUS LIKE 'Rpl_semi_sync_master_clients', Value, 1)
+if ($n_master_clients)
+{
+  --echo # Rpl_semi_sync_master_clients: $n_master_clients
+  --die Semi-sync dump thread connection not killed
+}
+--echo # ..done
+
+--echo # Cleanup
+--connection master
+SET @@GLOBAL.rpl_semi_sync_master_enabled= @orig_master_enabled;
+DROP USER replssl@localhost;
+DROP TABLE t1;
+
+--connection slave
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @orig_slave_enabled;
+CHANGE MASTER TO
+  master_user='root',
+  master_ssl=1,
+  master_ssl_ca='',
+  master_ssl_cert='',
+  master_ssl_key='';
+
+--connection slave
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_ssl_stop.inc

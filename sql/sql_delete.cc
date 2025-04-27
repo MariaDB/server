@@ -336,7 +336,6 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   SQL_SELECT *select= 0;
   SORT_INFO *file_sort= 0;
   READ_RECORD info;
-  ha_rows deleted= 0;
   bool reverse= FALSE;
   bool binlog_is_row;
   killed_state killed_status= NOT_KILLED;
@@ -454,6 +453,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   has_triggers= table->triggers && table->triggers->has_delete_triggers();
   transactional_table= table->file->has_transactions_and_rollback();
+  deleted= 0;
 
   if (!returning && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
@@ -1035,7 +1035,7 @@ cleanup:
       result->send_eof();
     else
       my_ok(thd, deleted);
-    DBUG_PRINT("info",("%ld records deleted",(long) deleted));
+    DBUG_PRINT("info", ("%ld records deleted", (long) deleted));
   }
   delete file_sort;
   if (optimize_subqueries && select_lex->optimize_unflattened_subqueries(false))
@@ -2103,6 +2103,9 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
 
   if (result)
   {
+    /* In single table case, this->deleted set by delete_from_single_table */
+    if (res && multitable)
+      deleted= ((multi_delete*)get_result())->num_deleted();
     res= false;
     delete result;
   }

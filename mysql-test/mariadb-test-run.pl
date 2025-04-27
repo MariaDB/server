@@ -130,6 +130,8 @@ our $path_language;
 our $path_current_testlog;
 our $path_testlog;
 
+our $opt_open_files_limit;
+
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
@@ -1279,6 +1281,7 @@ sub command_line_setup {
 	     'list-options'             => \$opt_list_options,
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
+             'open-files-limit=i',      => \$opt_open_files_limit,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -5779,6 +5782,7 @@ sub start_mysqltest ($) {
      append        => 1,
      error         => $path_current_testlog,
      verbose       => $opt_verbose,
+     open_files_limit => $opt_open_files_limit,
     );
   mtr_verbose("Started $proc");
   return $proc;
@@ -6077,6 +6081,8 @@ Misc options
   timediff              With --timestamp, also print time passed since
                         *previous* test started
   max-connections=N     Max number of open connection to server in mysqltest
+  open-files-limit=N    Max number of open files allowed for any of the children
+                        of my_safe_process. Default is 1024.
   report-times          Report how much time has been spent on different
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to

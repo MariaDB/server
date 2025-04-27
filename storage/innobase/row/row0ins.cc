@@ -2770,16 +2770,16 @@ err_exit:
 		    && !index->table->has_spatial_index()) {
 
 			ut_ad(!index->table->skip_alter_undo);
-			trx->bulk_insert = true;
+			trx->bulk_insert = TRX_DML_BULK;
 			err = lock_table(index->table, NULL, LOCK_X, thr);
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
-				trx->bulk_insert = false;
+				trx->bulk_insert = TRX_NO_BULK;
 				goto err_exit;
 			}
 			if (index->table->n_rec_locks) {
 avoid_bulk:
-				trx->bulk_insert = false;
+				trx->bulk_insert = TRX_NO_BULK;
 				goto row_level_insert;
 			}
 #ifdef WITH_WSREP
@@ -2836,7 +2836,7 @@ avoid_bulk:
 			bulk buffer and doesn't check for constraint
 			validity of foreign key relationship. */
 			trx_start_if_not_started(trx, true);
-			trx->bulk_insert = true;
+			trx->bulk_insert = TRX_DDL_BULK;
 			auto m = trx->mod_tables.emplace(index->table, 0);
 			m.first->second.start_bulk_insert(index->table, true);
 			err = m.first->second.bulk_insert_buffered(

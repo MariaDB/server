@@ -141,7 +141,7 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
   };);
 #endif
-    kill_connection(mi->mysql);
+    kill_connection(mi);
   }
 
   set_slave_enabled(0);
@@ -158,8 +158,9 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
 }
 
 
-void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
+void Repl_semi_sync_slave::kill_connection(Master_info *mi)
 {
+  MYSQL *mysql= mi->mysql;
   if (!mysql)
     return;
 
@@ -168,8 +169,8 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   size_t kill_buffer_length;
 
   kill_mysql = mysql_init(kill_mysql);
-  mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &m_kill_conn_timeout);
-  mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
+
+  setup_mysql_connection_for_master(kill_mysql, mi, m_kill_conn_timeout);
   mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
 
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,

@@ -2183,8 +2183,6 @@ struct Vers_parse_info: public Table_period_info
   }
 
 protected:
-  bool is_start(const LEX_CSTRING &name) const;
-  bool is_end(const LEX_CSTRING &name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
@@ -5837,6 +5835,6 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
                          bool versioned);
 
 #ifndef DBUG_OFF
-const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names= true);
+String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
 #endif /* HANDLER_INCLUDED */

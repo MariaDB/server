@@ -2726,7 +2726,7 @@ struct TABLE_LIST
   List<TABLE_LIST> *view_tables;
   /* most upper view this table belongs to */
   TABLE_LIST	*belong_to_view;
-  /* A derived table this table belongs to */
+  /* A merged derived table this table belongs to */
   TABLE_LIST    *belong_to_derived;
   /*
     The view directly referencing this table
@@ -2983,7 +2983,7 @@ struct TABLE_LIST
   bool check_single_table(TABLE_LIST **table, table_map map,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);
-  void hide_view_error(THD *thd);
+  void replace_view_error_with_generic(THD *thd);
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
@@ -3230,6 +3230,8 @@ private:
   /** See comments for set_table_ref_id() */
   ulonglong m_table_ref_version;
 };
+
+#define ERROR_TABLE  ((TABLE_LIST*) 0x1)
 
 class Item;
 
@@ -3539,9 +3541,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
-
-bool check_column_name(const char *name);
-bool check_period_name(const char *name);
+bool check_column_name(const Lex_cstring &name);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
 

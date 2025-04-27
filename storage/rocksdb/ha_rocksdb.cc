@@ -1584,7 +1584,7 @@ static MYSQL_SYSVAR_BOOL(
     "BlockBasedTableOptions::no_block_cache for RocksDB", nullptr, nullptr,
     rocksdb_tbl_options->no_block_cache);
 
-static MYSQL_SYSVAR_SIZE_T(block_size, rocksdb_tbl_options->block_size,
+static MYSQL_SYSVAR_UINT64_T(block_size, rocksdb_tbl_options->block_size,
                           PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                           "BlockBasedTableOptions::block_size for RocksDB",
                           nullptr, nullptr, rocksdb_tbl_options->block_size,
@@ -3966,7 +3966,7 @@ static int rocksdb_commit_by_xid(XID *const xid) {
   DBUG_ASSERT(xid != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
-  rocksdb::StopWatchNano timer(rocksdb::Env::Default(), true);
+  rocksdb::StopWatchNano timer(rocksdb::SystemClock::Default().get(), true);
 
   const auto name = rdb_xid_to_string(*xid);
   DBUG_ASSERT(!name.empty());
@@ -4158,7 +4158,7 @@ static int rocksdb_commit(THD* thd, bool commit_tx)
   DBUG_ASSERT(thd != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
-  rocksdb::StopWatchNano timer(rocksdb::Env::Default(), true);
+  rocksdb::StopWatchNano timer(rocksdb::SystemClock::Default().get(), true);
 
   /* note: h->external_lock(F_UNLCK) is called after this function is called) */
   Rdb_transaction *tx = get_tx_from_thd(thd);
@@ -4702,8 +4702,7 @@ static bool rocksdb_show_status(handlerton *const hton, THD *const thd,
 
         if (tf_name.find("BlockBasedTable") != std::string::npos) {
           const rocksdb::BlockBasedTableOptions *const bbt_opt =
-              reinterpret_cast<rocksdb::BlockBasedTableOptions *>(
-                  table_factory->GetOptions());
+                  table_factory->GetOptions<rocksdb::BlockBasedTableOptions>();
 
           if (bbt_opt != nullptr) {
             if (bbt_opt->block_cache.get() != nullptr) {
