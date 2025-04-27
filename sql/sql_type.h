@@ -79,6 +79,7 @@ class Item_func_mul;
 class Item_func_div;
 class Item_func_mod;
 class Item_type_holder;
+class Item_splocal;
 class cmp_item;
 class in_vector;
 class Type_handler_data;
@@ -4196,6 +4197,11 @@ public:
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
   virtual bool has_methods() const { return false; }
+  /*
+    If an SP variable supports:  spvar(expr_list).
+    For example, assoc arrays support: spvar_assoc_array('key')
+  */
+  virtual bool has_functors() const { return false; }
   virtual bool has_null_predicate() const { return true; }
   virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const;
@@ -4640,6 +4646,22 @@ public:
     return nullptr;
   }
   virtual Item_copy *create_item_copy(THD *thd, Item *item) const;
+  /*
+    Create an Item for an expression of this kind:
+      SELECT spvar(args);       -- e.g. spvar_assoc_array('key')
+      SELECT spvar(args).field; -- e.g. spvar_assoc_array('key').field
+  */
+  virtual Item_splocal *create_item_functor(THD *thd,
+                                            const Lex_ident_sys &a,
+                                            const sp_rcontext_addr &addr,
+                                            List<Item> *item_list,
+                                            const Lex_ident_sys &b,
+                                            const Lex_ident_cli_st &name)
+                                                                    const
+  {
+    DBUG_ASSERT(0); // Should have checked has_functors().
+    return nullptr;
+  }
   virtual Item *create_item_method(THD *thd,
                                    const Lex_ident_sys &ca,
                                    const Lex_ident_sys &cb,
@@ -4647,6 +4669,7 @@ public:
                                    const Lex_ident_cli_st &query_fragment)
                                                                     const
   {
+    DBUG_ASSERT(0); // Should have checked has_methods().
     return nullptr;
   }
 

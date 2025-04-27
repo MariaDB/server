@@ -41,7 +41,6 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
-#include "sql_type_assoc_array.h"
 
 void LEX::parse_error(uint err_number)
 {
@@ -8776,53 +8775,35 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
 }
 
 
+/*
+  Generate an Item for expressions of these types:
+  1.  varname(args)
+  2.  varname(args).member
+
+  @param thd       - Current thd
+  @param name      - The variable name. It's known to be an existing variable.
+  @param args      - The list of arguments
+  @param member    - The member name. If member.is_null() then it's
+                     an expression of the type #1, otherwise of the type #2.
+  @param name_cli  - The query fragment for the entire expression,
+                     starting from 'ident' and ending after ')' or 'field'.
+*/
 Item_splocal *
-LEX::create_item_spvar_assoc_array_element(THD *thd,
-                                           const Lex_ident_sys &ca,
-                                           List<Item> *item_list,
-                                           const Lex_ident_sys &cb,
-                                           const Lex_ident_cli_st &name_cli)
+LEX::create_item_functor(THD *thd,
+                         const Lex_ident_sys &varname, List<Item> *args,
+                         const Lex_ident_sys &member,
+                         const Lex_ident_cli_st &name_cli)
 {
-  DBUG_ASSERT(!ca.is_null());
-  sp_variable *spv;
-  Item_splocal *item= nullptr;
-
-  if (!item_list || item_list->elements != 1)
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT",
-             ErrConvDQName(sphead).ptr(),
-             1, !item_list ? 0 : item_list->elements);
-    return NULL;
-  }
-
+  DBUG_ASSERT(!varname.is_null());
   const Sp_rcontext_handler *rh;
-  if (unlikely(!(spv= find_variable(&ca, &rh))))
-  {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), ca.str);
-    return NULL;
-  }
-
-  Item_args args(thd, *item_list);
-  Item *key= args.arguments()[0];
-
-  Query_fragment pos(thd, sphead, name_cli.pos(), name_cli.end());
-  if (!cb.is_null())
-  {
-    item= new (thd->mem_root)
-      Item_splocal_assoc_array_element_field(thd,
-                                             sp_rcontext_addr(rh, spv->offset),
-                                             ca, key,
-                                             cb, &type_handler_null,
-                                             pos.pos(), pos.length());
-  }
-  else
-  {
-    item= new (thd->mem_root)
-      Item_splocal_assoc_array_element(thd, sp_rcontext_addr(rh, spv->offset),
-                                       ca, key, &type_handler_null,
-                                       pos.pos(), pos.length());
-  }
-
+  sp_variable *spv= find_variable(&varname, &rh);
+  DBUG_ASSERT(spv);
+  DBUG_ASSERT(spv->type_handler()->has_functors());
+  const sp_rcontext_addr addr(rh, spv->offset);
+  Item_splocal *item= spv->type_handler()->create_item_functor(thd, varname,
+                                                               addr, args,
+                                                               member,
+                                                               name_cli);
 #ifdef DBUG_ASSERT_EXISTS
   if (item)
     item->m_sp= sphead;

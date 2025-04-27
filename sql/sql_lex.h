@@ -4153,12 +4153,16 @@ public:
     return nullptr;
   }
 
-  Item_splocal *
-  create_item_spvar_assoc_array_element(THD *thd,
-                                        const Lex_ident_sys &ca,
-                                        List<Item> *item_list,
-                                        const Lex_ident_sys &cb,
-                                        const Lex_ident_cli_st &query_fragment);
+  /*
+    Create items of this kind:
+      SELECT name(args);        -- e.g. spvar_assoc_array('key')
+      SELECT name(args).member; -- e.g. spvar_assoc_array('key').member
+  */
+  Item_splocal *create_item_functor(THD *thd,
+                                    const Lex_ident_sys &name,
+                                    List<Item> *args,
+                                    const Lex_ident_sys &member,
+                                    const Lex_ident_cli_st &query_fragment);
 
   /*
     Create an item for "NEXT VALUE FOR sequence_name"

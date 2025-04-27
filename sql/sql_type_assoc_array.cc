@@ -1892,6 +1892,7 @@ class Type_handler_assoc_array: public Type_handler_composite
 {
 public:
   bool has_methods() const override { return true; }
+  bool has_functors() const override { return true; }
   bool is_complex() const override
   {
     /*
@@ -2013,6 +2014,13 @@ public:
 
   String *print_item_value(THD *thd, Item *item, String *str) const override;
 
+  virtual Item_splocal *create_item_functor(THD *thd,
+                                            const Lex_ident_sys &varname,
+                                            const sp_rcontext_addr &addr,
+                                            List<Item> *args,
+                                            const Lex_ident_sys &member,
+                                            const Lex_ident_cli_st &name_cli)
+                                                          const override;
   virtual
   Item *create_item_method(THD *thd,
                            const Lex_ident_sys &ca,
@@ -2141,6 +2149,38 @@ String *Type_handler_assoc_array::
   return str;
 }
 
+
+Item_splocal *
+Type_handler_assoc_array::create_item_functor(THD *thd,
+                                              const Lex_ident_sys &varname,
+                                              const sp_rcontext_addr &addr,
+                                              List<Item> *args,
+                                              const Lex_ident_sys &member,
+                                              const Lex_ident_cli_st &name_cli)
+                                                                          const
+{
+  if (!args || args->elements != 1 || !args->head())
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT",
+             ErrConvDQName(thd->lex->sphead).ptr(),
+             1, !args ? 0 : args->elements);
+    return NULL;
+  }
+
+  Query_fragment pos(thd, thd->lex->sphead, name_cli.pos(), name_cli.end());
+  if (!member.is_null())
+  {
+    return new (thd->mem_root)
+      Item_splocal_assoc_array_element_field(thd, addr, varname, args->head(),
+                                             member, &type_handler_null,
+                                             pos.pos(), pos.length());
+  }
+
+  return new (thd->mem_root)
+      Item_splocal_assoc_array_element(thd, addr, varname, args->head(),
+                                       &type_handler_null,
+                                       pos.pos(), pos.length());
+}
 
 Item *Type_handler_assoc_array::create_item_method(THD *thd,
                                                    const Lex_ident_sys &a,

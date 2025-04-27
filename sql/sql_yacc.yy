@@ -11052,17 +11052,14 @@ function_call_generic:
             }
             else if (Lex->spcont &&
                     (spv= Lex->spcont->find_variable(&ident, false)) &&
-                    spv->field_def.is_assoc_array())
+                    spv->type_handler()->has_functors())
             {
               const char *end= $6.str ? $6.end() : $5.end();
               const Lex_ident_cli name_cli($1.pos(), end - $1.pos());
               auto ident2= $6.str ? Lex_ident_sys(thd, &$6) : Lex_ident_sys();
               if (($6.str && ident2.is_null()) ||
-                  !(item= Lex->create_item_spvar_assoc_array_element(thd,
-                                                                     ident,
-                                                                     $4,
-                                                                     ident2,
-                                                                     name_cli)))
+                  !(item= Lex->create_item_functor(thd, ident, $4,
+                                                   ident2, name_cli)))
                 MYSQL_YYABORT;
               item->set_name(thd, $1.pos(), end - $1.pos(), thd->charset());
 
