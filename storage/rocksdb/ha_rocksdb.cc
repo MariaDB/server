@@ -1250,7 +1250,7 @@ static MYSQL_SYSVAR_UINT(
     "Statistics Level for RocksDB. Default is 0 (kExceptHistogramOrTimers)",
     nullptr, rocksdb_set_rocksdb_stats_level,
     /* default */ (uint)rocksdb::StatsLevel::kExceptHistogramOrTimers,
-    /* min */ (uint)rocksdb::StatsLevel::kExceptHistogramOrTimers,
+    /* min */ (uint)rocksdb::StatsLevel::kDisableAll,
     /* max */ (uint)rocksdb::StatsLevel::kAll, 0);
 
 static MYSQL_SYSVAR_SIZE_T(compaction_readahead_size,
