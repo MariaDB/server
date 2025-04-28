@@ -56,10 +56,12 @@
 #include <string.h>
 #include <errno.h>
 
+#define SAFE_PROCESS_NAME_LEN 32
+
 int verbose= 0;
 int terminated= 0;
 pid_t child_pid= -1;
-char safe_process_name[32]= {0};
+char safe_process_name[SAFE_PROCESS_NAME_LEN]= {0};
 
 
 static void message(const char* fmt, ...)
@@ -236,7 +238,8 @@ int main(int argc, char* const argv[] )
   sigaction(SIGCHLD, &sa,NULL);
   sigaction(SIGABRT, &sa_abort,NULL);
 
-  sprintf(safe_process_name, "safe_process[%ld]", (long) own_pid);
+  snprintf(safe_process_name, SAFE_PROCESS_NAME_LEN,
+           "safe_process[%ld]", (long) own_pid);
 
   message("Started");
 

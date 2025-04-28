@@ -148,7 +148,7 @@ xb_mysql_connect()
 	char mysql_port_str[std::numeric_limits<int>::digits10 + 3];
 	const char *user= opt_user ? opt_user : get_os_user();
 
-	sprintf(mysql_port_str, "%d", opt_port);
+	snprintf(mysql_port_str, sizeof(mysql_port_str), "%d", opt_port);
 
 	if (connection == NULL) {
 		msg("Failed to init MySQL struct: %s.",
