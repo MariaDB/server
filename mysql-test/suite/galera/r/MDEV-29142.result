@@ -42,4 +42,8 @@ connection node_2;
 call mtr.add_suppression("WSREP: Failed to open table mysql\\.wsrep_streaming_log for writing");
 call mtr.add_suppression("WSREP: Failed to open SR table for write");
 call mtr.add_suppression("WSREP: Failed to recover SR transactions from schema: wsrep_on : 0");
+connection node_1;
+call mtr.add_suppression("WSREP: Cert position .* less than last committed.*");
+connection node_2;
+call mtr.add_suppression("WSREP: Cert position .* less than last committed.*");
 DROP TABLE IF EXISTS t1;

@@ -53,15 +53,25 @@ SET SESSION wsrep_sync_wait = 0;
 --let $start_mysqld_params =--wsrep-new-cluster
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --source include/start_mysqld.inc
+--source include/wait_until_ready.inc
 
 --connection node_2
 --let $start_mysqld_params =
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
+--source include/wait_until_ready.inc
 
 call mtr.add_suppression("WSREP: Failed to open table mysql\\.wsrep_streaming_log for writing");
 call mtr.add_suppression("WSREP: Failed to open SR table for write");
 call mtr.add_suppression("WSREP: Failed to recover SR transactions from schema: wsrep_on : 0");
+
+--connection node_1
+#
+# after the membership change on a newly synced node, then this is just a warning
+#
+call mtr.add_suppression("WSREP: Cert position .* less than last committed.*");
+--connection node_2
+call mtr.add_suppression("WSREP: Cert position .* less than last committed.*");
 
 #
 # Cleanup
