@@ -4460,6 +4460,7 @@ restart:
             goto error;
 
           error= FALSE;
+          std::this_thread::yield();
           goto restart;
         }
         goto error;
@@ -4522,6 +4523,7 @@ restart:
               goto error;
 
             error= FALSE;
+            std::this_thread::yield();
             goto restart;
           }
           /*

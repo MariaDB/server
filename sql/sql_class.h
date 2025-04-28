@@ -20,6 +20,7 @@
 /* Classes in mysql */
 
 #include <atomic>
+#include <thread>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
