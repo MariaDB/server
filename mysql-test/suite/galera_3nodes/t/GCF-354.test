@@ -92,6 +92,8 @@ CALL mtr.add_suppression("Slave SQL: Error 'Unknown database 'test'' on query\\.
 CALL mtr.add_suppression("Query apply failed");
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("WSREP: Cert position .* less than last committed.*");
+CALL mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 
 --connection node_3
 --let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
@@ -101,5 +103,7 @@ CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query\
 CALL mtr.add_suppression("Query apply failed");
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("WSREP: Cert position .* less than last committed.*");
+CALL mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 
 --source ../galera/include/auto_increment_offset_restore.inc
