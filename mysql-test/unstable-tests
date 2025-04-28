@@ -856,3 +856,7 @@ wsrep.pool_of_threads : MDEV-17345 - WSREP has not yet prepared node for applica
 #-----------------------------------------------------------------------
 
 wsrep_info.plugin : MDEV-22470 - WSREP: no nodes coming from prim view, prim not possible
+
+#-----------------------------------------------------------------------
+
+mysql_migration.mysql_migration : Expect to fail as this test highlights incompatibilities between MySQL and MariaDB
