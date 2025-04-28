@@ -326,3 +326,22 @@ intersect all
 select * from t3 where a < 5;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-25158 Segfault on INTERSECT ALL with UNION in Oracle mode
+--echo #
+create table t3 (x int);
+create table u3 (x int);
+create table i3 (x int);
+explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+set sql_mode= 'oracle';
+explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+select * from t3 union select * from u3 intersect select * from i3;
+SELECT * from t3 union select * from u3 intersect all select * from i3;
+insert into t3 values (0);
+insert into i3 values (0);
+Select * from t3 union select * from u3 intersect select * from i3;
+SELECT * FROM t3 UNION SELECT * FROM u3 INTERSECT ALL SELECT * FROM i3;
+set sql_mode= default;
+drop tables t3, u3, i3;
+
