@@ -7509,77 +7509,75 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       clause (if present), mark them as common fields, and add a new
       equi-join condition to the ON clause.
     */
-    if (nj_col_2)
-    {
-      /*
-        Create non-fixed fully qualified field and let fix_fields to
-        resolve it.
-      */
-      Item *item_1=   nj_col_1->create_item(thd);
-      Item *item_2=   nj_col_2->create_item(thd);
-      Item_ident *item_ident_1, *item_ident_2;
-      Item_func_eq *eq_cond;
 
-      if (!item_1 || !item_2)
-        goto err;                               // out of memory
+    /*
+      Create non-fixed fully qualified field and let fix_fields to
+      resolve it.
+    */
+    Item *item_1=   nj_col_1->create_item(thd);
+    Item *item_2=   nj_col_2->create_item(thd);
+    Item_ident *item_ident_1, *item_ident_2;
+    Item_func_eq *eq_cond;
 
-      /*
-        The following assert checks that the two created items are of
-        type Item_ident.
-      */
-      DBUG_ASSERT(!thd->lex->current_select->no_wrap_view_item);
-      /*
-        In the case of no_wrap_view_item == 0, the created items must be
-        of sub-classes of Item_ident.
-      */
-      DBUG_ASSERT(item_1->type() == Item::FIELD_ITEM ||
-                  item_1->type() == Item::REF_ITEM);
-      DBUG_ASSERT(item_2->type() == Item::FIELD_ITEM ||
-                  item_2->type() == Item::REF_ITEM);
+    if (!item_1 || !item_2)
+      goto err;                               // out of memory
 
-      /*
-        We need to cast item_1,2 to Item_ident, because we need to hook name
-        resolution contexts specific to each item.
-      */
-      item_ident_1= (Item_ident*) item_1;
-      item_ident_2= (Item_ident*) item_2;
-      /*
-        Create and hook special name resolution contexts to each item in the
-        new join condition . We need this to both speed-up subsequent name
-        resolution of these items, and to enable proper name resolution of
-        the items during the execute phase of PS.
-      */
-      if (set_new_item_local_context(thd, item_ident_1, nj_col_1->table_ref) ||
-          set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
-        goto err;
+    /*
+      The following assert checks that the two created items are of
+      type Item_ident.
+    */
+    DBUG_ASSERT(!thd->lex->current_select->no_wrap_view_item);
+    /*
+      In the case of no_wrap_view_item == 0, the created items must be
+      of sub-classes of Item_ident.
+    */
+    DBUG_ASSERT(item_1->type() == Item::FIELD_ITEM ||
+                item_1->type() == Item::REF_ITEM);
+    DBUG_ASSERT(item_2->type() == Item::FIELD_ITEM ||
+                item_2->type() == Item::REF_ITEM);
 
-      if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
-        goto err;                               /* Out of memory. */
+    /*
+      We need to cast item_1,2 to Item_ident, because we need to hook name
+      resolution contexts specific to each item.
+    */
+    item_ident_1= (Item_ident*) item_1;
+    item_ident_2= (Item_ident*) item_2;
+    /*
+      Create and hook special name resolution contexts to each item in the
+      new join condition . We need this to both speed-up subsequent name
+      resolution of these items, and to enable proper name resolution of
+      the items during the execute phase of PS.
+    */
+    if (set_new_item_local_context(thd, item_ident_1, nj_col_1->table_ref) ||
+        set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
+      goto err;
 
-      /*
-        Add the new equi-join condition to the ON clause. Notice that
-        fix_fields() is applied to all ON conditions in setup_conds()
-        so we don't do it here.
-      */
-      add_join_on(thd, (table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
-                        table_ref_1 : table_ref_2),
-                  eq_cond);
+    if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
+      goto err;                               /* Out of memory. */
 
-      nj_col_1->is_common= nj_col_2->is_common= TRUE;
-      DBUG_PRINT ("info", ("%s.%s and %s.%s are common", 
-                           nj_col_1->safe_table_name().str,
-                           nj_col_1->name().str,
-                           nj_col_2->safe_table_name().str,
-                           nj_col_2->name().str));
+    /*
+      Add the new equi-join condition to the ON clause. Notice that
+      fix_fields() is applied to all ON conditions in setup_conds()
+      so we don't do it here.
+    */
+    add_join_on(thd, (table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
+                      table_ref_1 : table_ref_2),
+                eq_cond);
 
-      if (field_1)
-        update_field_dependencies(thd, field_1, field_1->table);
-      if (field_2)
-        update_field_dependencies(thd, field_2, field_2->table);
+    nj_col_1->is_common= nj_col_2->is_common= TRUE;
+    DBUG_PRINT ("info", ("%s.%s and %s.%s are common",
+                         nj_col_1->safe_table_name().str,
+                         nj_col_1->name().str,
+                         nj_col_2->safe_table_name().str,
+                         nj_col_2->name().str));
 
-      if (using_fields != NULL)
-        ++(*found_using_fields);
-    }
+    if (field_1)
+      update_field_dependencies(thd, field_1, field_1->table);
+    if (field_2)
+      update_field_dependencies(thd, field_2, field_2->table);
+
+    if (using_fields != NULL)
+      ++(*found_using_fields);
   }
   if (leaf_1)
     leaf_1->is_join_columns_complete= TRUE;
