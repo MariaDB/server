@@ -6613,7 +6613,7 @@ bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 
 bool LEX::sf_return_fill_definition_row(Row_definition_list *def)
 {
-  sphead->m_return_field_def.set_row_field_definitions(def);
+  sphead->m_return_field_def.set_row_field_definitions(&type_handler_row, def);
   return sphead->fill_spvar_definition(thd, &sphead->m_return_field_def) ||
          sphead->row_fill_field_definitions(thd, def);
 }
@@ -6820,7 +6820,7 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
     if (fields)
     {
       DBUG_ASSERT(ref.type_handler() == &type_handler_row);
-      spvar->field_def.set_row_field_definitions(fields);
+      spvar->field_def.set_row_field_definitions(&type_handler_row, fields);
     }
     spvar->field_def.field_name= spvar->name;
   }
@@ -6954,7 +6954,7 @@ LEX::sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
       if (sphead->row_fill_field_definitions(thd, sprec->field))
         return true;
 
-      value_def->set_row_field_definitions(sprec->field);
+      value_def->set_row_field_definitions(&type_handler_row, sprec->field);
     }
   }
 
@@ -6971,7 +6971,8 @@ LEX::sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
   for (uint i= 0 ; i < (uint) nvars ; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-    spvar->field_def.set_assoc_array_definition(aa_def);
+    spvar->field_def.set_row_field_definitions(&type_handler_assoc_array,
+                                               aa_def);
     if (sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name))
       return true;
   }
@@ -7008,7 +7009,7 @@ bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
   for (uint i= 0 ; i < (uint) nvars ; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-    spvar->field_def.set_row_field_definitions(row);
+    spvar->field_def.set_row_field_definitions(&type_handler_row, row);
     if (sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name))
       return true;
   }

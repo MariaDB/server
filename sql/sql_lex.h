@@ -3914,16 +3914,6 @@ public:
                                      List<Item> *params,
                                      const Lex_ident_sys_st &field_name,
                                      Item *item, const LEX_CSTRING &expr_str);
-  Item *sp_get_assoc_array_key(THD *thd, Item_splocal* array,
-                               List<Item> *args, bool is_first);
-  Item *sp_get_assoc_array_next_or_prior(THD *thd, Item_splocal* array,
-                                         List<Item> *args, bool is_next);
-  Item *sp_get_assoc_array_count(THD *thd, Item_splocal* array,
-                                 List<Item> *args);
-  Item *sp_get_assoc_array_exists(THD *thd, Item_splocal* array,
-                                  List<Item> *args);
-  Item *sp_get_assoc_array_delete(THD *thd, Item_splocal* array,
-                                  List<Item> *args);
   bool sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
                                                      Spvar_definition *key_def,
                                                      Spvar_definition *val_def,

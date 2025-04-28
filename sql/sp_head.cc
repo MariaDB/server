@@ -3982,7 +3982,7 @@ bool sp_head::spvar_fill_row(THD *thd,
                              sp_variable *spvar,
                              Row_definition_list *defs)
 {
-  spvar->field_def.set_row_field_definitions(defs);
+  spvar->field_def.set_row_field_definitions(&type_handler_row, defs);
   spvar->field_def.field_name= spvar->name;
   if (fill_spvar_definition(thd, &spvar->field_def))
     return true;

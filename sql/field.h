@@ -5827,22 +5827,12 @@ public:
   {
     return m_row_field_definitions;
   }
-  void set_row_field_definitions(Row_definition_list *list)
+  void set_row_field_definitions(const Type_handler *th,
+                                 Row_definition_list *list)
   {
     DBUG_ASSERT(list);
-    set_handler(&type_handler_row);
+    set_handler(th);
     m_row_field_definitions= list;
-  }
-
-  Row_definition_list *assoc_array_definition() const
-  {
-    return m_row_field_definitions;
-  }
-  void set_assoc_array_definition(Row_definition_list *assoc_array_def)
-  {
-    DBUG_ASSERT(assoc_array_def);
-    set_handler(&type_handler_assoc_array);
-    m_row_field_definitions= assoc_array_def;
   }
 
 };
