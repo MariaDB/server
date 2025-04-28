@@ -11819,6 +11819,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           {
             trace_const_cond.add("evaluated", "false")
                             .add("cause", "expensive cond");
+            join->exec_const_cond= const_cond;
           }
           else
           {
@@ -11827,16 +11828,19 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               Json_writer_array a(thd, "computing_condition");
               const_cond_result= const_cond->val_int() != 0;
             }
+            /*
+              Once we evaluated const_cond, we can mark all applicable items
+              in the tree as constant to avoid their re-evaluation
+            */
+            const_cond->walk(&Item::make_const_processor, false, nullptr);
             if (!const_cond_result)
             {
               DBUG_PRINT("info",("Found impossible WHERE condition"));
               trace_const_cond.add("evaluated", "true")
                               .add("found", "impossible where");
-              join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
           }
-          join->exec_const_cond= const_cond;
         }
 
         if (join->table_count != join->const_tables)

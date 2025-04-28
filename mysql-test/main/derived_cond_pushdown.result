@@ -15546,7 +15546,6 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
@@ -16730,7 +16729,6 @@ EXPLAIN
         "lateral": 1,
         "query_block": {
           "select_id": 3,
-          "const_condition": "1",
           "outer_ref_condition": "t4.c is not null",
           "table": {
             "table_name": "t3",

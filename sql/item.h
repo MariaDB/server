@@ -2217,6 +2217,8 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  /* Mark all applicable items in the tree as constant */
+  virtual bool make_const_processor(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   /*
