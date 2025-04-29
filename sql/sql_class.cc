@@ -3119,7 +3119,7 @@ struct Item_change_record: public ilink
 
 
 /*
-  Register an item tree tree transformation, performed by the query
+  Register an item tree transformation, performed by the query
   optimizer. We need a pointer to runtime_memroot because it may be !=
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */
@@ -6978,7 +6978,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       table= tbl->table;
       share= table->s;
       flags= table->file->ha_table_flags();
-      if (!share->table_creation_was_logged)
+      if (!share->using_binlog())
       {
         /*
           This is a temporary table which was not logged in the binary log.
@@ -8057,6 +8057,18 @@ void THD::issue_unsafe_warnings()
 /**
   Log the current query.
 
+  @param qtype      Query type
+  @param query_arg  Query to be logged
+  @param query_len  Query length
+  @param is_trans   If table is transactional. This is need to know in which
+                    cache the table changes has been logged
+  @param direct     Set if the query should be done directly to binary
+                    log instead of to the binary log cache.
+  suppress_use      Don't write 'use database' to the binary log. Used with
+                    statements like DROP DATABASE.
+  errcode           The error code if the statement failed.
+
+
   The query will be logged in either row format or statement format
   depending on the value of @c current_stmt_binlog_format_row field and
   the value of the @c qtype parameter.
@@ -8202,6 +8214,9 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
         row logged binlog may not have been reset in the case of locked tables
       */
       reset_binlog_for_next_statement();
+
+      /* Temp tables changes are logged as a statement */
+      tmp_table_binlog_handled= 1;
 
       DBUG_RETURN(error >= 0 ? error : 1);
     }

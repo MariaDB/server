@@ -35,9 +35,18 @@ public:
   };
 
   Gis_read_stream(CHARSET_INFO *charset, const char *buffer, int size)
-    :m_cur(buffer), m_limit(buffer + size), m_err_msg(NULL), m_charset(charset)
+    : m_wkt(buffer)
+    , m_cur(buffer)
+    , m_limit(buffer + size)
+    , m_err_msg(NULL)
+    , m_charset(charset)
   {}
-  Gis_read_stream(): m_cur(NullS), m_limit(NullS), m_err_msg(NullS)
+
+  Gis_read_stream()
+    : m_wkt(NullS)
+    , m_cur(NullS)
+    , m_limit(NullS)
+    , m_err_msg(NullS)
   {}
   ~Gis_read_stream()
   {
@@ -82,7 +91,13 @@ public:
     return err_msg;
   }
 
+  const char *get_wkt() const
+  {
+    return m_wkt;
+  }
+
 protected:
+  const char *const m_wkt;
   const char *m_cur;
   const char *m_limit;
   char *m_err_msg;

@@ -1,0 +1,31 @@
+#
+# MDEV-36563 Assertion `!mysql_bin_log.is_open()' failed in
+# THD::mark_tmp_table_as_free_for_reuse upon REPAIR
+#
+CREATE TEMPORARY TABLE t1 (c INT);
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (c INT) engine=innodb;
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+DROP TABLE t1;
+set sql_mode='strict_all_tables';
+SET @@session.binlog_format=statement;
+CREATE TEMPORARY TABLE t1(a CHAR(3));
+insert into t1 values ("a"),("abcd"),("b");
+ERROR 22001: Data too long for column 'a' at row 2
+select * from t1;
+a
+a
+drop table t1;
+set sql_mode=default;
+CREATE TABLE t1 (c CHAR(3));
+INSERT INTO t1 VALUES ("a"),("a");
+CREATE TEMPORARY TABLE t2 (c CHAR(1) primary key);
+INSERT INTO t2 (c) VALUES ('b');
+INSERT INTO t2 (c) VALUES ('b');
+ERROR 23000: Duplicate entry 'b' for key 'PRIMARY'
+drop table t1,t2;

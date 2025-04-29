@@ -30,6 +30,8 @@
 #include "sp.h"
 #include "sql_parse.h"
 #include "sp_head.h"
+#include "item_sum.h"
+#include "sql_type_geom.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -3520,6 +3522,45 @@ String *Item_sum_udf_str::val_str(String *str)
 #endif /* HAVE_DLOPEN */
 
 
+bool
+Item_sum_str::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+
+  if (init_sum_func_check(thd))
+    return TRUE;
+
+  set_maybe_null();
+
+  /*
+    Fix fields for select list and ORDER clause
+  */
+
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
+      return TRUE;
+    /* We should ignore FIELD's in arguments to sum functions */
+    with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
+	if (args[i]->check_type_can_return_str(
+                 func_name_cstring()))
+      return true;
+  }
+
+  if (fix_fields_impl(thd, ref))
+      return TRUE;
+
+  if (check_sum_func(thd, ref))
+    return TRUE;
+
+  if (arg_count)
+    memcpy (orig_args, args, sizeof (Item *) * arg_count);
+
+  base_flags|= item_base_t::FIXED;
+  return FALSE;
+}
+
+
 /*****************************************************************************
  GROUP_CONCAT function
 
@@ -3899,7 +3940,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        const SQL_I_List<ORDER> &order_list,
                        String *separator_arg, bool limit_clause,
                        Item *row_limit_arg, Item *offset_limit_arg)
-  :Item_sum(thd), tmp_table_param(0), separator(separator_arg), tree(0),
+  :Item_sum_str(thd), tmp_table_param(0), separator(separator_arg), tree(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
    arg_count_order(order_list.elements),
@@ -3950,8 +3991,6 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
 
   /* orig_args is only used for print() */
   orig_args= (Item**) (order + arg_count_order);
-  if (arg_count)
-    memcpy(orig_args, args, sizeof(Item*) * arg_count);
   if (limit_clause)
   {
     row_limit= row_limit_arg;
@@ -3962,7 +4001,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
 
 Item_func_group_concat::Item_func_group_concat(THD *thd,
                                                Item_func_group_concat *item)
-  :Item_sum(thd, item),
+  :Item_sum_str(thd, item),
   tmp_table_param(item->tmp_table_param),
   separator(item->separator),
   tree(item->tree),
@@ -4231,31 +4270,8 @@ bool Item_func_group_concat::add(bool exclude_nulls)
 
 
 bool
-Item_func_group_concat::fix_fields(THD *thd, Item **ref)
+Item_func_group_concat::fix_fields_impl(THD *thd, Item **ref)
 {
-  uint i;                       /* for loop variable */
-  DBUG_ASSERT(fixed() == 0);
-
-  if (init_sum_func_check(thd))
-    return TRUE;
-
-  set_maybe_null();
-
-  /*
-    Fix fields for select list and ORDER clause
-  */
-
-  for (i=0 ; i < arg_count ; i++)
-  {
-    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
-      return TRUE;
-    /* We should ignore FIELD's in arguments to sum functions */
-    with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
-    if (args[i]->check_type_can_return_str(
-                   Item_func_group_concat::func_name_cstring()))
-      return true;
-  }
-
   /* skip charset aggregation for order columns */
   if (agg_arg_charsets_for_string_result(collation,
                                          args, arg_count - arg_count_order))
@@ -4295,10 +4311,6 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     separator= new_separator;
   }
 
-  if (check_sum_func(thd, ref))
-    return TRUE;
-
-  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 
@@ -4546,6 +4558,8 @@ uint Item_func_group_concat::get_null_bytes()
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
+  /* orig_args is not filled with valid values until fix_fields() */
+  Item **pargs= fixed() ? orig_args : args;
   str->append(func_name_cstring());
   if (distinct)
     str->append(STRING_WITH_LEN("distinct "));
@@ -4553,7 +4567,7 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
   {
     if (i)
       str->append(',');
-    orig_args[i]->print(str, query_type);
+    pargs[i]->print(str, query_type);
   }
   if (arg_count_order)
   {
@@ -4562,10 +4576,10 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
     {
       if (i)
         str->append(',');
-      orig_args[i + arg_count_field]->print(str, query_type);
+      pargs[i + arg_count_field]->print(str, query_type);
       if (order[i]->direction == ORDER::ORDER_ASC)
         str->append(STRING_WITH_LEN(" ASC"));
-     else
+      else
         str->append(STRING_WITH_LEN(" DESC"));
     }
   }
@@ -4594,5 +4608,193 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
 Item_func_group_concat::~Item_func_group_concat()
 {
   if (!original && unique_filter)
-    delete unique_filter;    
+    delete unique_filter;
+}
+
+
+void Item_func_collect::clear() {
+  has_cached_result= false;
+  cached_result.free();
+  geometries.delete_elements();
+}
+
+
+void Item_func_collect::cleanup() {
+  List_iterator<String> geometries_iterator(geometries);
+  geometries.delete_elements();
+  Item_sum_str::cleanup();
+}
+
+
+bool Item_func_collect::add() {
+  String *wkb= args[0]->val_str(&value);
+  uint current_geometry_srid;
+  has_cached_result= false;
+
+  if (tmp_arg[0]->null_value)
+    return 0;
+
+  if(is_distinct && list_contains_element(wkb))
+    return 0;
+
+  current_geometry_srid= uint4korr(wkb->ptr());
+  if (geometries.is_empty())
+    srid= current_geometry_srid;
+  else if(srid != current_geometry_srid)
+    my_error(ER_GIS_DIFFERENT_SRIDS_AGGREGATION, MYF(0), func_name(), srid,
+             current_geometry_srid);
+
+  String* buffer= new String(wkb->length());
+  buffer->copy(*wkb);
+  geometries.push_back(buffer);
+  return 0;
+}
+
+
+void Item_func_collect::remove() {
+  String *wkb= args[0]->val_str(&value);
+  has_cached_result= false;
+
+  if (args[0]->null_value) return;
+
+  List_iterator<String> geometries_iterator(geometries);
+  String* temp_geometry;
+  while ((temp_geometry= geometries_iterator++))
+  {
+    String temp(temp_geometry->ptr(), temp_geometry->length(), &my_charset_bin);
+
+    if (!wkb->eq(&temp, &my_charset_bin))
+      continue;
+
+    temp_geometry->free();
+    delete temp_geometry;
+    geometries_iterator.remove();
+    break;
+  }
+
+  return;
+}
+
+
+bool Item_func_collect::list_contains_element(String *wkb) {
+  List_iterator<String> geometries_iterator(geometries);
+  String* temp_geometry;
+  while ((temp_geometry= geometries_iterator++))
+  {
+    String temp(temp_geometry->ptr(), temp_geometry->length(), &my_charset_bin);
+
+    if (wkb->eq(&temp, &my_charset_bin))
+      return true;
+  }
+
+  return false;
+}
+
+
+Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par) :
+  Item_sum_str(thd, item_par),
+  mem_root(thd->mem_root),
+  is_distinct(is_distinct),
+  group_collect_max_len(thd->variables.group_concat_max_len)
+{
+  quick_group= false;
+}
+
+
+Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item) :
+  Item_sum_str(thd, item),
+  mem_root(thd->mem_root),
+  is_distinct(is_distinct),
+  group_collect_max_len(thd->variables.group_concat_max_len)
+{
+  quick_group= false;
+}
+
+
+String *Item_func_collect::val_str(String *str)
+{
+  Geometry_buffer buffer;
+  int type= Geometry::wkbType::wkb_last;
+  const int initial_type= Geometry::wkbType::wkb_last;
+  Geometry *geometry;
+  String content;
+
+  content.free();
+  str->free();
+
+  if (has_cached_result)
+  {
+    str->append(cached_result.ptr(), cached_result.length());
+    return str;
+  }
+
+  null_value= 1;
+  if (geometries.is_empty())
+    return NULL;
+
+  if (content.reserve(WKB_HEADER_SIZE + SRID_SIZE) ||
+      str->reserve(WKB_HEADER_SIZE + SRID_SIZE))
+    return NULL;
+
+  List_iterator<String> geometries_iterator(geometries);
+  String* temp_geometry;
+  while ((temp_geometry= geometries_iterator++))
+  {
+    if(!(geometry = Geometry::construct(&buffer, temp_geometry->ptr(),
+                                         temp_geometry->length())))
+      return NULL;
+
+    if (content.length() > group_collect_max_len)
+    {
+      THD *thd= current_thd;
+      report_cut_value_error(thd, 1, func_name());
+      return NULL;
+    }
+
+    if (type == initial_type)
+    {
+      type= geometry->get_class_info()->m_type_id;
+      content.append(temp_geometry->ptr() + SRID_SIZE,
+                     temp_geometry->length() - SRID_SIZE);
+      continue;
+    }
+
+    if (type != geometry->get_class_info()->m_type_id)
+      type= Geometry::wkbType::wkb_geometrycollection;
+
+    content.append(temp_geometry->ptr() + SRID_SIZE,
+                   temp_geometry->length() - SRID_SIZE);
+  }
+
+  str->q_append((uint32) srid);
+  str->q_append((char) Geometry::wkb_ndr);
+  str->q_append(type <= 3 ?
+                (uint32) type + 3 : (uint32) Geometry::wkb_geometrycollection);
+  str->q_append((uint32) geometries.size());
+  str->append(content.ptr(), content.length());
+
+  null_value= 0;
+  has_cached_result= true;
+  cached_result.free();
+  cached_result.append(str->ptr(), str->length());
+  return str;
+}
+
+
+Item *Item_func_collect::copy_or_same(THD *thd)
+{
+  return new (thd->mem_root) Item_func_collect(thd, is_distinct, this);
+}
+
+
+const Type_handler *Item_func_collect::type_handler() const
+{
+  return &type_handler_geometry;
+}
+
+
+bool Item_func_collect::fix_fields_impl(THD *thd,Item **)
+{
+  max_length= UINT_MAX32;
+  return FALSE;
 }

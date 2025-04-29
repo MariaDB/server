@@ -2,6 +2,14 @@
 --source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
 
+#
+# Note that this test may fail with an error from check-mysqld_1
+# where it complains that INNODB_LOG_FILE_BUFFERING changed from
+# OFF to ON.
+# This error happens if the disk used for storing the innodb log
+# files gets full
+#
+
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 SET GLOBAL innodb_log_file_size=4194304;

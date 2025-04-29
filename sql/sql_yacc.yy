@@ -1187,7 +1187,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  XA_SYM
 %token  <kwd>  XML_SYM
 %token  <kwd>  YEAR_SYM                      /* SQL-2003-R */
-
+%token  <kwd>   ST_COLLECT_SYM
 /* A dummy token to force the priority of table_ref production in a join. */
 %left   CONDITIONLESS_JOIN
 %left   JOIN_SYM INNER_SYM STRAIGHT_JOIN CROSS LEFT RIGHT ON_SYM USING
@@ -11308,6 +11308,12 @@ sum_expr:
             sel->in_sum_expr--;
 
             $$= new (thd->mem_root) Item_func_json_objectagg(thd, $4, $6);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | ST_COLLECT_SYM '(' opt_distinct in_sum_expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_collect(thd, $3, $4);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }

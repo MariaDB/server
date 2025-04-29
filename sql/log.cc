@@ -3784,7 +3784,6 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
 
-  /* Fix correct mutex order to catch violations quicker (MDEV-35197). */
   mysql_mutex_record_order(&LOCK_log, &LOCK_global_system_variables);
 }
 

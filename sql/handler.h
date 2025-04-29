@@ -2336,8 +2336,7 @@ struct Table_scope_and_contents_source_st:
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info,
                     const Lex_ident_table &table_name,
-                    const Lex_ident_db &db,
-                    int select_count= 0);
+                    const Lex_ident_db &db);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   void vers_check_native();
@@ -2346,8 +2345,7 @@ struct Table_scope_and_contents_source_st:
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
                                 const Lex_ident_table &table_name,
-                                const Lex_ident_db &db,
-                                int select_count= 0);
+                                const Lex_ident_db &db);
 };
 
 
@@ -2361,12 +2359,14 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
 {
   /* TODO: remove after MDEV-20865 */
   Alter_info *alter_info;
+  bool repair;
 
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
     alter_info= NULL;
+    repair= 0;
   }
   ulong table_options_with_row_type()
   {
@@ -5589,6 +5589,7 @@ bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 extern const LEX_CSTRING ha_row_type[];
 extern MYSQL_PLUGIN_IMPORT const char *tx_isolation_names[];
 extern MYSQL_PLUGIN_IMPORT const char *binlog_format_names[];
+extern MYSQL_PLUGIN_IMPORT const char *binlog_formats_create_tmp_names[];
 extern TYPELIB tx_isolation_typelib;
 extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;
@@ -5851,8 +5852,7 @@ inline void Cost_estimate::reset(handler *file)
   avg_io_cost= file->DISK_READ_COST * file->DISK_READ_RATIO;
 }
 
-int get_select_field_pos(Alter_info *alter_info, int select_field_count,
-                         bool versioned);
+int get_select_field_pos(Alter_info *alter_info, bool versioned);
 
 #ifndef DBUG_OFF
 const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names= true);

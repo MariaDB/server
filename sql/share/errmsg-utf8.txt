@@ -12303,3 +12303,11 @@ ER_TOO_MANY_OPEN_CURSORS
         eng "Too many open cursors; max %u cursors allowed"
 ER_INCOMPATIBLE_EVENT_FLAG
         eng "Event flag '%s' in the condition expression is not compatible with the trigger event type '%s'"
+ER_NOT_IMPLEMENTED_FOR_GEOGRAPHIC_SRS
+        eng "%s has not been implemented for geographic spatial reference systems."
+ER_LONGITUDE_OUT_OF_RANGE
+        eng "Longitude %f is out of range in function %s. It must be within (-180.000000, 180.000000]."
+ER_LATITUDE_OUT_OF_RANGE
+        eng "Latitude %f is out of range in function %s. It must be within [-90.000000, 90.000000]."
+ER_GIS_DIFFERENT_SRIDS_AGGREGATION
+        eng "Arguments to function %s contains geometries with different SRIDs: %d and %d. All geometries must have the same SRID."

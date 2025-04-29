@@ -2894,7 +2894,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
 
   if (param->testflag & T_SAFE_REPAIR)
   {
-    /* Don't repair if we loosed more than one row */
+    /* Don't repair if we lost more than one row */
     if (sort_info.new_info->s->state.state.records+1 < start_records)
     {
       share->state.state.records= start_records;

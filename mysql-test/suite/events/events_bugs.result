@@ -694,13 +694,13 @@ SET GLOBAL READ_ONLY = 1;
 connect u1_con,localhost,mysqltest_u1,,events_test;
 
 CREATE EVENT e1 ON SCHEDULE AT '2038-01-01 00:00:00' DO SET @a = 1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 
 ALTER EVENT e1 COMMENT 'comment';
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 
 DROP EVENT e1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 
 connect root_con,localhost,root,,events_test;
 
