@@ -764,7 +764,7 @@ b	CREATE TABLE `b` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table b;
 drop table a;
-# veirfy that duplicate has unique is detected
+# verify that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 Warnings:

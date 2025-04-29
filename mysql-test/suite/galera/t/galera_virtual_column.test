@@ -1,5 +1,5 @@
 #
-# This test is for testing virtual columnm support in galera cluster
+# This test is for testing virtual column support in galera cluster
 #
 --source include/galera_cluster.inc
 --source include/have_innodb.inc

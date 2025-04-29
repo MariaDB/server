@@ -731,7 +731,7 @@ create or replace sequence t1 as bigint maxvalue -1 increment by -1;
 show create sequence t1;
 show create table t1;
 --disable_ps_protocol
-#signed, ulonglong_max: turncating to longlong_max-1
+#signed, ulonglong_max: truncating to longlong_max-1
 create or replace sequence t1 as bigint maxvalue 18446744073709551615;
 show create sequence t1;
 show create table t1;

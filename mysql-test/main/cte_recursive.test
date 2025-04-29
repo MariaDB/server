@@ -3645,7 +3645,7 @@ select * from cte;
 # one non-recursive CTEs with name x uses table t1, the second CTE x is
 # recursive and is in the scope of the first one, but does not use it;
 # CTE cte uses only the second CTE with name x;
-# the query has two refeences to cte_e
+# the query has two references to cte_e
 # before fix of this bug: infinite sequence of recursive calls
 
 with
@@ -3678,7 +3678,7 @@ cte_e as
 select s1.*, s2.*  from cte_e as s1, cte_e as s2;
 
 
-# check : with base table x all queries abobe that returned error
+# check : with base table x all queries above that returned error
 # message ER_NO_SUCH_TABLE now return proper result sets
 
 with

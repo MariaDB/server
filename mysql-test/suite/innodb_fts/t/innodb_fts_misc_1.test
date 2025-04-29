@@ -618,11 +618,11 @@ SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("вред*" IN BOOLEAN MODE) ORDER BY 
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("+γυαλιὰ +tutorial" IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("+tutorial +(Мога τίποτα)" IN BOOLEAN MODE);
 
-# Innodb:error - no result returned (update result of query once fixed) (innodb limit , does not understand character boundry for japanses like charcter set)
+# Innodb:error - no result returned (update result of query once fixed) (innodb limit, does not understand character boundary for japanese-like character set)
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("あさきゆめみじ　ゑひもせず");
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("ちりぬる" WITH QUERY EXPANSION);
 
-# Innodb:error - no result returned (update result of query once fixed) (innodb limit , does not understand character boundry for japanses like charcter set)
+# Innodb:error - no result returned (update result of query once fixed) (innodb limit, does not understand character boundary for japanese-like character set)
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("+あさきゆめみじ　+ゑひもせず" IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("うゐのおく*" IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("+Sævör +úlpan" IN BOOLEAN MODE);
@@ -651,7 +651,7 @@ ALTER TABLE t1 DROP INDEX idx;
 # Create the FTS index again
 CREATE FULLTEXT INDEX idx on t1 (a,b);
 
-# Innodb:error - no result returned (update result of query once fixed) (innodb limit , does not understand character boundry for japanses like charcter set)
+# Innodb:error - no result returned (update result of query once fixed) (innodb limit, does not understand character boundary for japanese-like character set)
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("あさきゆめみじ ゑひもせず");
 # Update fails because where condition do not succeed which is incorrect (update result of query once fixed)
 UPDATE t1 SET a = "Pchnąć w tę łódź jeża" , b = "lub osiem skrzyń fig" WHERE MATCH(a,b) AGAINST ("あさきゆめみじ ゑひもせず");

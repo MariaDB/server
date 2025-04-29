@@ -301,7 +301,7 @@ sub new {
 
       # Check that the file exists relative to path of first config file
       if (! -f $include_file_name){
-	# Try to include file relativ to current dir
+	# Try to include file relative to current dir
 	$include_file_name= $1;
       }
       croak "The include file '$include_file_name' does not exist"

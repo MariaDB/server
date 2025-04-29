@@ -56,7 +56,7 @@ EOF
 --exec $MYSQL_TEST --ssl-cipher=AES256-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using a list of ciphers
 --exec $MYSQL_TEST --ssl-cipher=UNKNOWN-CIPHER:AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
-# Test to connect using a specifi cipher
+# Test to connect using a specific cipher
 --exec $MYSQL_TEST --ssl-cipher=AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using an unknown cipher
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/

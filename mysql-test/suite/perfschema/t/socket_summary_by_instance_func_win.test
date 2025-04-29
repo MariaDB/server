@@ -1159,7 +1159,7 @@ t2.COUNT_MISC                - t1.COUNT_MISC                = 0;
 --source ../include/socket_check1.inc
 
 --echo # 4.5 Check the differences caused by Connects
---echo #     Attention: Succesful Connects run an additional "DO 1".
+--echo #     Attention: Successful Connects run an additional "DO 1".
 --echo # 4.5.1 Connects do not charge anything into READ or WRITE counters
 --echo #       of the instance with EVENT_NAME NOT LIKE ('%client_connection%').
 --echo #       This mean all these counters must be 0.

@@ -113,7 +113,7 @@ while ($p_trx)
 
 
 --let $p_trx=$ro_cases
-# With diconnect
+# With disconnect
 while ($p_trx)
 {
 --connection master
@@ -285,7 +285,7 @@ create table tm (a int) engine=myisam;
   --disconnect master_$xid
   --source include/wait_until_disconnected.inc
 
-# With diconnect
+# With disconnect
 --connection master
   --source rpl_create_xa_prepared.inc
   --disconnect master_$xid

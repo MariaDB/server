@@ -23,7 +23,7 @@ CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd
 # pattern should not be found
 NOT FOUND /pwd_123/ in server_audit.log
 # pattern should not be found
-# cleaunup
+# cleanup
 DROP SERVER s1;
 DROP USER u1;
 DROP USER u2;

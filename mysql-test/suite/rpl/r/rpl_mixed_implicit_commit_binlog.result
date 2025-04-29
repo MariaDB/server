@@ -11,7 +11,7 @@ CREATE TABLE nt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = MyIsam;
 INSERT INTO tt_1(ddl_case) VALUES(0);
 INSERT INTO tt_2(ddl_case) VALUES(0);
 #########################################################################
-#                          CHECK IMPLICT COMMIT
+#                          CHECK IMPLICIT COMMIT
 #########################################################################
 SET AUTOCOMMIT= 0;
 INSERT INTO tt_1(ddl_case) VALUES (43);

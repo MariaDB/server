@@ -842,7 +842,7 @@ pk	a	b	bit_or
 12	2	2048	2048
 drop table t2;
 #
-# Try RANGE PRECEDING|FOLLWING n
+# Try RANGE PRECEDING|FOLLOWING n
 #
 create table t1 (
 part_id int,

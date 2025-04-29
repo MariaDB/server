@@ -199,7 +199,7 @@ show variables like '%gtid_binlog_pos%';
 
 
 ###########################################
-#  scenario: restart full custer
+#  scenario: restart full cluster
 ##########################################
 
 
@@ -228,7 +228,7 @@ show variables like '%gtid_binlog_pos%';
 --source include/shutdown_mysqld.inc
 
 #
-# bootstap cluster in order node1 - node2 - node3
+# bootstrap cluster in order node1 - node2 - node3
 # send some inserts and DDL after each node started
 #
 

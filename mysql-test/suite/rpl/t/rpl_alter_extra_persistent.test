@@ -46,7 +46,7 @@ select * from t1 order by a;
 --sync_slave_with_master
 select * from t1 order by a;
 
---echo #DELETE quert
+--echo #DELETE query
 --connection master
 delete from t1 where a > 2 and a < 4;
 select * from t1 order by a;

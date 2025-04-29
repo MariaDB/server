@@ -632,7 +632,7 @@ drop function mysqltestbug36570_f1;
 --echo # drop the routine. Verify that this attempt 
 --echo # blocks and waits for INSERT to complete. Commit and 
 --echo # reap the chain of events. Master and slave must contain
---echo # identical data. Statements in the binrary log must be
+--echo # identical data. Statements in the binary log must be
 --echo # consistent with data in the table.
 --echo #
 connection default;

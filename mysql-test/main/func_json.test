@@ -3053,7 +3053,7 @@ SET @object_schema= '{
 SELECT JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":20, "S_":"abc", "some_prop1":[1,2,3]}');
 SELECT JSON_SCHEMA_VALID(@object_schema, '{"key1":"val1", "key2": 10, "I_int":[1,2,3], "S_":[1,2,3], "some_prop1":[1,2,3]}');
 
---echo # Remvoing additionalProperties to check that validation falls back on unevaluatedProperties
+--echo # Removing additionalProperties to check that validation falls back on unevaluatedProperties
 
 SET @object_schema= '{
                        "type":"object",

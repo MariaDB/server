@@ -21,7 +21,7 @@
 #    4 - INSERT value 33 on master. It will be held on slave by other worker
 #        thread due to debug simulation.
 #    5 - INSERT value 34 on master.
-#    6 - On slave, enusre that INSERT 34 has reached a state where it waits for
+#    6 - On slave, ensure that INSERT 34 has reached a state where it waits for
 #        its prior transactions to commit.
 #    7 - Commit the local INSERT 32 on slave server so that first worker will
 #        error out.

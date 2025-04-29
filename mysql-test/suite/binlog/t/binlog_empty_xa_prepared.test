@@ -7,7 +7,7 @@
 RESET MASTER; # clear binlogs
 # MDEV-22420 DDL on temporary object is prohibited when XA is in prepare state
 
-# Temporary sequnce may not be created within a transaction
+# Temporary sequence may not be created within a transaction
 CREATE TEMPORARY SEQUENCE seq_1;
 
 XA START '3';

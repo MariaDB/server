@@ -319,7 +319,7 @@ drop table t1, t2;
 
 --echo #
 --echo # MWL#89: test introduced after Sergey Petrunia's review - test that
---echo # keyparts wihtout index prefix are used with the IN-EXISTS strategy.
+--echo # keyparts without index prefix are used with the IN-EXISTS strategy.
 --echo # 
 
 create table t1 (c1 int);

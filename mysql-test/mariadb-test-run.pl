@@ -2854,7 +2854,7 @@ sub mysql_server_start($) {
 
   # If wsrep is on, we need to wait until the first
   # server starts and bootstraps the cluster before
-  # starting other servers. The bootsrap server in the
+  # starting other servers. The bootstrap server in the
   # configuration should always be the first which has
   # wsrep_on=ON
   if (wsrep_on($mysqld) && wsrep_is_bootstrap_server($mysqld))
@@ -3253,7 +3253,7 @@ sub mysql_install_db {
     mtr_tofile($bootstrap_sql_file,
          "CREATE DATABASE mtr CHARSET=utf8mb4;\n");
 
-    # Add help tables and data for warning detection and supression
+    # Add help tables and data for warning detection and suppression
     mtr_tofile($bootstrap_sql_file,
                sql_to_bootstrap(mtr_grab_file("include/mtr_warnings.sql")));
 
@@ -3420,12 +3420,12 @@ sub do_before_run_mysqltest($)
 
 
 #
-# Check all server for sideffects
+# Check all server for side effects
 #
 # RETURN VALUE
 #  0 ok
 #  1 Check failed
-#  >1 Fatal errro
+#  >1 Fatal error
 
 sub check_testcase($$)
 {
@@ -3963,7 +3963,7 @@ sub run_testcase ($$) {
     }
 
     # Set up things for catalogs
-    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # The values of MARIADB_TOPDIR and MARIADB_DATADIR should
     # be taken from the values used by the default (first)
     # connection that is used by mariadb-test.
     my ($mysqld, @servers);
@@ -4424,7 +4424,7 @@ sub extract_warning_lines ($$) {
   my ($error_log, $append) = @_;
 
   # Open the servers .err log file and read all lines
-  # belonging to current tets into @lines
+  # belonging to current test into @lines
   my $Ferr = IO::File->new($error_log)
     or return [];
   my $last_pos= $last_warning_position->{$error_log}{seek_pos};

@@ -2148,7 +2148,7 @@ reap;
 select * from t1;
 --reap
 
-# 4. Non-query stmt betwen send and reap allowed
+# 4. Non-query stmt between send and reap is allowed
 
 --send select * from t1;
 --sleep 0.05

@@ -724,7 +724,7 @@ show create table b;
 drop table b;
 drop table a;
 
---echo # veirfy that duplicate has unique is detected
+--echo # verify that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 drop table t1;

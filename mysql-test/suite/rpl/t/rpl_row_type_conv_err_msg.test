@@ -42,7 +42,7 @@
 #
 
 --source include/have_binlog_format_row.inc
-# Inorder to grep a specific error pattern in error log a fresh error log
+# In order to grep a specific error pattern in error log a fresh error log
 # needs to be generated.
 --source include/force_restart.inc
 --source include/master-slave.inc

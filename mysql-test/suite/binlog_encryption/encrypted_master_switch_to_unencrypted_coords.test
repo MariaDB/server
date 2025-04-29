@@ -131,7 +131,7 @@ start slave;
 --sync_with_master
 
 --connection server_1
-# Now save the current position and make slave to try to syncrhonize.
+# Now save the current position and make slave to try to synchronize.
 # It shouldn't work, the slave IO thread is expected to abort with an error
 --save_master_pos
 

@@ -813,7 +813,7 @@ explain partitions select * from t7 where a > 91;
 # misc intervals
 explain partitions select * from t7 where a > 11 and a < 29;
 
-# LIST(monontonic_func) partitioning
+# LIST(monotonic_func) partitioning
 create table t8 (a date not null) partition by RANGE(YEAR(a)) (
   partition p0 values less than (1980),
   partition p1 values less than (1990),

@@ -4,7 +4,7 @@ connection slave;
 use database;
 connection master;
 #
-# Check replication of parititioned S3 tables
+# Check replication of partitioned S3 tables
 #
 CREATE TABLE t1 (
 c1 INT DEFAULT NULL
@@ -116,7 +116,7 @@ connection slave;
 connection master;
 #
 # Check altering partitioned table to S3 and back
-# Checks also rename partitoned table and drop partition
+# Checks also rename partitioned table and drop partition
 #
 CREATE TABLE t2 (
 c1 int primary key,

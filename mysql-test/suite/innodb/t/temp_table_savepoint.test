@@ -7,7 +7,7 @@
 # Sceanrio covered in single testcase :                            #
 # - Tables with row format(redundant,dynamic,compact)              #
 # - Table with primary,composite,prefix,secondary index            #
-# - Insert/delete/update with transactioons                        #
+# - Insert/delete/update with transactions                         #
 # - Transaction with commit,rollback,savepoint statements          #
 # - Concurrency by execution of two clients creating tables with   #
 #    same names                                                    #
@@ -21,7 +21,7 @@
 ####################################################################
 
 # Create procedure to perform
-# 1. Create temp table with row types , index , sufficent data types
+# 1. Create temp table with row types , index , sufficient data types
 # 2. Perform DML with transaction
 delimiter |;
 create procedure populate_tables()

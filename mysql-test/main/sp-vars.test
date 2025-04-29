@@ -1373,7 +1373,7 @@ DROP PROCEDURE p1;
 
 #
 # Bug #27415 Text Variables in stored procedures
-# If the SP varible was also referenced on the right side
+# If the SP variable was also referenced on the right side
 # the result was corrupted.
 #
 DELIMITER |;

@@ -74,7 +74,7 @@ drop table t1;
 #
 
 create temporary table t1(a int not null primary key, b int, key(b)) engine=innodb;
-# remove echos and uncomment the commented when MDEV-8569 is fixed
+# remove echoes and uncomment the commented when MDEV-8569 is fixed
 --echo create temporary table t2(a int, foreign key(a) references t1(a)) engine=innodb;
 --echo ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 --echo show warnings;

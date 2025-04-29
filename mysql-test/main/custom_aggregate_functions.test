@@ -478,7 +478,7 @@ select val, id, c from (select f1(sal) as c from t2) as t1, t2;
 --sorted_result
 select f1(sal),f1(val), f1(id), f1(sal) from t2;
 
-#string type, also more than one areguments
+#string type, also more than one argument
 --sorted_result
 select f4(sal, val) from t1;
 

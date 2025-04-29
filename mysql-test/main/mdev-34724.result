@@ -235,7 +235,7 @@ BEGIN
 INSERT INTO t2 VALUES (OLD.a, NEW.a);
 END
 $
-# The following statement UPDATE doens't modify the row (1)
+# The following statement UPDATE doesn't modify the row (1)
 # since this row is explicitly ignored by implementation of
 # trigger t1_bu, therefore the trigger t1_au is not fired
 # for this row and the row (1, 11) not inserted into the table t2

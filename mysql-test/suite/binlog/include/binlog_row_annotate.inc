@@ -25,7 +25,7 @@
 #     - are generated;
 #     - are generated only once for "multi-table-maps" rbr queries;
 #     - are not generated when the corresponding queries are filtered away;
-#     - are generated when the corresponding queries are filtered away partialy
+#     - are generated when the corresponding queries are filtered away partially
 #       (e.g. in case of multi-delete).
 # *** Annotate_rows events are printed by mysqlbinlog started without
 #     --skip-annotate-row-events options both in remote and local cases.

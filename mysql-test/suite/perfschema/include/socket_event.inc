@@ -217,7 +217,7 @@ if($is_connect)
       --source include/wait_condition.inc
       if (!$success)
       {
-         --echo # Error: The entry of the disconnectd connection with processlist_db
+         --echo # Error: The entry of the disconnected connection with processlist_db
          --echo #        IN ('mysqltest','mysqlsupertest') did not disappear
          SELECT *
          $part;

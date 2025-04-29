@@ -64,7 +64,7 @@ CALL sys.table_exists('test', 'ab`c', @tbl_type);
 SELECT @tbl_type;
 @tbl_type
 TEMPORARY
-# We cannot send quoted identifer to the procedure, no table will be found
+# We cannot send quoted identifier to the procedure, no table will be found
 CALL sys.table_exists('test', '`ab``c`', @tbl_type);
 SELECT @tbl_type;
 @tbl_type

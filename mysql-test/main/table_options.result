@@ -12,7 +12,7 @@ t1	CREATE TABLE `t1` (
   KEY `akey` (`a`) `dff`=vvv
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey1`='1v1'
 drop table t1;
-#reassiginig options in the same line
+#reassigning options in the same line
 create table t1 (a int fkey=vvv, key akey (a) dff=vvv) tkey1=1v1 TKEY1=DEFAULT tkey1=1v2 tkey2=2v1;
 Warnings:
 Warning	1911	Unknown option 'fkey'

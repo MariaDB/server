@@ -128,7 +128,7 @@ if (!-f $testsuitedir.'r/init_'.$engine_lower.'.result') {
 }
 add_engine_help() if ($missing); 
 
-# bilding test command line
+# building test command line
 $cmd="MTR_VERSION=1 " .
     "perl ./mysql-test-run.pl " .
     "--comment=stress_tx_rr_".$opt_engine." " .

@@ -16,7 +16,7 @@ let $engine= myisam;
 reset master;
 create database test_rotate_db;
 use test_rotate_db;
---echo #currrent engine=$engine
+--echo #current engine=$engine
 # Create a new table
 --replace_column 2 #
 show binary logs;

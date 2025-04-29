@@ -238,7 +238,7 @@ SELECT * FROM t1 WHERE a IN(1,2) AND b=5;
 DROP TABLE t1;
 
 #
-# Test problem with range optimzer and sub ranges
+# Test problem with range optimizer and sub ranges
 #
 
 CREATE TABLE t1 (a int, b int, c int, INDEX (c,a,b));
@@ -2372,7 +2372,7 @@ eval $q;
 let $q=
 SELECT * FROM t1
   WHERE t1.subset_id IN (SELECT max(t2.id) FROM t2 group by t2.col);
---echo # non-mergable subquery
+--echo # non-mergeable subquery
 --echo # expected for t1: range access and rows = 4 (not 1000)
 eval explain $q;
 eval $q;

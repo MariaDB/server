@@ -128,7 +128,7 @@ select * from test.ghost;
 
 drop table test.ghost;
 
-# Shoud return nothing
+# Should return nothing
 select * from performance_schema.file_instances
   where file_name like "%ghost%";
 

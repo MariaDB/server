@@ -566,7 +566,7 @@ sync_slave_with_master;
 
 ###############################
 # BUG#22177 CURRENT_TIMESTAMP #
-# Sould work with ^           #
+# Should work with ^          #
 ###############################
 --echo *** BUG 22177 Start ***
 --echo *** Create t13 on slave  ***

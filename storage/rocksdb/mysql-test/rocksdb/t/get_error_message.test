@@ -1,6 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
---source include/not_windows.inc # Data directory option not availablr
+--source include/not_windows.inc # Data directory option not available
 
 #
 # Create tables with partitions and try to generate an error while creating

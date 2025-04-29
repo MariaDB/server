@@ -117,7 +117,7 @@ DROP TABLE t1;
 
 
 #
-# Test that we allow only well-formed UTF8 identitiers
+# Test that we allow only well-formed UTF8 identifiers
 #
 SET NAMES binary;
 --error 1300
@@ -128,7 +128,7 @@ CREATE TABLE `goodплохо` (a int);
 
 
 #
-# Test that we produce a warnign when conversion loses data.
+# Test that we produce a warning when conversion loses data.
 #
 set names latin1;
 create table t1 (a char(10) character set koi8r, b text character set koi8r);
@@ -150,7 +150,7 @@ insert into t1 values (_koi8r'вася');
 select * from t1 where a=_koi8r'вася';
 # this is possible, because we have a function with constant arguments:
 select * from t1 where a=concat(_koi8r'вася');
-# this is not posible, cannot convert _latin1'вася' into cp1251:
+# this is not possible, cannot convert _latin1'вася' into cp1251:
 --error 1267
 select * from t1 where a=_latin1'вася';
 drop table t1;

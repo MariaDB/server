@@ -21,7 +21,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR first_del_row_search_mvcc_finished';
 # after trx_1 DELETE commits. ib_after_row_insert will be executed
 # after the trx_2 INSERT is woken up. The trx_1 DELETE will wait for
 # first_del_cont signal before commit, and this signal will be sent later.
-# So it's safe to use two signals in a row here, it's guaranted the first
+# So it's safe to use two signals in a row here, it's guaranteed the first
 # signal will be received before the second signal is sent.
 SET DEBUG_SYNC = 'lock_wait_start SIGNAL first_ins_locked';
 SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR first_ins_cont';
@@ -29,7 +29,7 @@ SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR fir
 
 --connect(con_del_2,localhost,root,,)
 # After MDEV-30225 is fixed, the following DELETE creates next-key lock for
-# unqique search for RR, and the above INSERT kills it as deadlock victim.
+# unique search for RR, and the above INSERT kills it as deadlock victim.
 # But it still requests not-gap lock for RC.
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';

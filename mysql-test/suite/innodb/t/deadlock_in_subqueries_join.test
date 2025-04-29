@@ -19,7 +19,7 @@ CREATE TABLE t2 (
 
 INSERT INTO t2 VALUES (2, NULL);
 
-# The following table is to increase tansaction weight on deadlock resolution
+# The following table is to increase transaction weight on deadlock resolution
 CREATE TABLE t3 (c int) engine = InnoDB;
 INSERT INTO t3 VALUES (10), (20), (30), (40), (50);
 

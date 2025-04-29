@@ -21,7 +21,7 @@ CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
 
 # Make sure autocommit retrying does not kick in as this will mask the error we expect to get
 SET SESSION wsrep_retry_autocommit = 0;
-# Attemp to insert 1M rows
+# Attempt to insert 1M rows
 --send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
 
 --connection node_1a

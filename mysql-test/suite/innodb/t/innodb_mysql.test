@@ -301,7 +301,7 @@ BEGIN
 END||
 delimiter ;||
 
---echo ** DELETE is prevented by foreign key constrains but errors are silenced.
+--echo ** DELETE is prevented by foreign key constraints but errors are silenced.
 --echo ** The AFTER trigger isn't fired.
 DELETE IGNORE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
 --echo ** Tables are modified by best effort:

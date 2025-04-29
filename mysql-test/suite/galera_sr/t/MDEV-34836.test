@@ -33,7 +33,7 @@ CREATE TABLE child (id INT AUTO_INCREMENT PRIMARY KEY, parent_id INT, CONSTRAINT
     FOREIGN KEY (parent_id) REFERENCES parent (id)) ENGINE=InnoDB;
 
 --connection node_2
-# Start SR transaction and make it lock both parent and child tales.
+# Start SR transaction and make it lock both parent and child tables.
 SET SESSION wsrep_trx_fragment_size = 1;
 START TRANSACTION;
 INSERT INTO child (parent_id) VALUES (1),(2),(3);
