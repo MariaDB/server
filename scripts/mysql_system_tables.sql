@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS help_topic ( help_topic_id int unsigned not null, nam
 CREATE TABLE IF NOT EXISTS help_category ( help_category_id smallint unsigned not null, name  char(64) not null, parent_category_id smallint unsigned null, url text not null, primary key (help_category_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='help categories';
 
 
-CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='keyword-topic relation';
+CREATE TABLE IF NOT EXISTS help_relation ( help_topic_id int unsigned not null, help_keyword_id  int unsigned not null, primary key (help_keyword_id, help_topic_id), key (help_topic_id) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='keyword-topic relation';
 
 
 CREATE TABLE IF NOT EXISTS help_keyword (   help_keyword_id  int unsigned not null, name char(64) not null, primary key (help_keyword_id), unique index (name) ) engine=Aria transactional=0 CHARACTER SET utf8 comment='help keywords';

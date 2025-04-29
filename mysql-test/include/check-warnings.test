@@ -30,7 +30,7 @@ create temporary table error_log (
   suspicious int default 1,
   file_name varchar(255),
   line varchar(1024) default null
-) engine=myisam;
+);
 
 # Get the name of servers error log
 let $log_error= $MTR_LOG_ERROR;
