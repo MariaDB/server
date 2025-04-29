@@ -3973,6 +3973,11 @@ public:
                                                  const LEX_CSTRING &name,
                                                  Item *def,
                                                  const LEX_CSTRING &expr_str);
+protected:
+  bool sp_variable_declarations_copy_type_finalize_internal(THD *thd, int nvars,
+                                                   const Column_definition &ref,
+                                                   Row_definition_list *fields);
+public:
   bool sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
                                                    const Column_definition &ref,
                                                    Row_definition_list *fields,
@@ -4265,7 +4270,7 @@ public:
   Item *make_item_func_call_native_or_parse_error(THD *thd,
                                                   Lex_ident_cli_st &name,
                                                   List<Item> *args);
-  my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
+  my_var *create_outvar(THD *thd, const Lex_ident_sys_st &name);
 
   /*
     Create a my_var instance for a ROW field variable that was used
@@ -4275,8 +4280,8 @@ public:
       @param field_name - the variable field name
   */
   my_var *create_outvar(THD *thd,
-                        const LEX_CSTRING *var_name,
-                        const LEX_CSTRING *field_name);
+                        const Lex_ident_sys_st &var_name,
+                        const Lex_ident_sys_st &field_name);
 
   bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
