@@ -201,6 +201,8 @@ DROP TABLE t3;
 DROP DATABASE db1;
 set binlog_format=mixed;
 SET @@create_tmp_table_binlog_formats="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 select @@binlog_format, @@create_tmp_table_binlog_formats;
 @@binlog_format	@@create_tmp_table_binlog_formats
 MIXED	MIXED,STATEMENT

@@ -741,7 +741,11 @@ static bool binlog_create_tmp_format_check(sys_var *self, THD *thd,
     Logging of temporary tables is always done in STATEMENT format.
     Because of this MIXED implies STATEMENT.
   */
-  var->save_result.ulonglong_value|= (1 << BINLOG_FORMAT_STMT);
+  if (!(var->save_result.ulonglong_value & (1 << BINLOG_FORMAT_STMT)))
+  {
+    throw_bounds_warning(thd, self->name.str, "MIXED");
+    var->save_result.ulonglong_value|= (1 << BINLOG_FORMAT_STMT);
+  }
   return false;
 }
 

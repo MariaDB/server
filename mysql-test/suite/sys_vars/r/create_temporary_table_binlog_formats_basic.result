@@ -57,6 +57,8 @@ COUNT(VARIABLE_VALUE)
 # Check assignment of correct values
 SET @@session.create_tmp_table_binlog_formats= @start_value;
 SET @@SESSION.create_tmp_table_binlog_formats="MIXED";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 SELECT @@SESSION.create_tmp_table_binlog_formats;
 @@SESSION.create_tmp_table_binlog_formats
 MIXED,STATEMENT

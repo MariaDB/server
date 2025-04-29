@@ -4,9 +4,11 @@
 
 if (`SELECT @@binlog_format = "MIXED"`) {
 --disable_query_log
+--disable_warnings
 # Ensure that switching between mixed and statment works in all case */
 set @@global.create_tmp_table_binlog_formats= "MIXED";
 set @@session.create_tmp_table_binlog_formats= "MIXED";
+--enable_warnings
 --enable_query_log
 }
 

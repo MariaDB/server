@@ -45,6 +45,8 @@ Variable_name	Value
 Slave_open_temp_tables	0
 connect con1,localhost,root,,;
 set @@CREATE_TMP_TABLE_BINLOG_FORMATS="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 CREATE TEMPORARY TABLE ttmp1 ( i INT );
 SET SESSION binlog_format=ROW;
 disconnect con1;

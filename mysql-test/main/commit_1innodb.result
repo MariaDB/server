@@ -3,6 +3,8 @@ set sql_mode=no_engine_substitution;
 set default_storage_engine = InnoDB;
 set autocommit=1;
 set @@create_tmp_table_binlog_formats="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 drop table if exists t1;
 drop table if exists t2;
 drop table if exists t3;

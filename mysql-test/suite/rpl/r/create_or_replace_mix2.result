@@ -1,5 +1,9 @@
 set @@global.create_tmp_table_binlog_formats="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 set @@session.create_tmp_table_binlog_formats="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 include/rpl_init.inc [topology=1->2]
 select @@binlog_format, @@create_tmp_table_binlog_formats;
 @@binlog_format	@@create_tmp_table_binlog_formats

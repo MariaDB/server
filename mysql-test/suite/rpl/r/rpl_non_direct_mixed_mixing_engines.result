@@ -1,5 +1,9 @@
 include/master-slave.inc
 [connection master]
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 #########################################################################
 #                            CONFIGURATION
 #########################################################################

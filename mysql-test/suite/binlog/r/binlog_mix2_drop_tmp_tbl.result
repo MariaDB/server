@@ -1,5 +1,9 @@
 set @@session.create_tmp_table_binlog_formats="MIXED";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 set @@global.create_tmp_table_binlog_formats="MIXED";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 DROP DATABASE IF EXISTS `drop-temp+table-test`;
 select @@session.binlog_format;
 @@session.binlog_format

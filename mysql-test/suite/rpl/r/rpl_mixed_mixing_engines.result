@@ -1,7 +1,11 @@
 include/master-slave.inc
 [connection master]
 set @@global.create_tmp_table_binlog_formats="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 set @@session.create_tmp_table_binlog_formats="mixed";
+Warnings:
+Warning	1292	Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
 #########################################################################
 #                            CONFIGURATION
 #########################################################################
