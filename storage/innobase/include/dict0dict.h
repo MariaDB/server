@@ -146,21 +146,21 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
-/** Decrement the count of open handles */
-void dict_table_close(dict_table_t *table);
+/** Release a metadata lock.
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+void mdl_release(THD *thd, MDL_ticket *mdl) noexcept;
 
-/** Decrements the count of open handles of a table.
-@param[in,out]	table		table
-@param[in]	dict_locked	whether dict_sys.latch is being held
-@param[in]	thd		thread to release MDL
-@param[in]	mdl		metadata lock or NULL if the thread is a
-				foreground one. */
-void
-dict_table_close(
-	dict_table_t*	table,
-	bool		dict_locked,
-	THD*		thd = NULL,
-	MDL_ticket*	mdl = NULL);
+/** Release a table reference and a metadata lock.
+@param table  referenced table
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+inline void dict_table_close(dict_table_t* table, THD *thd, MDL_ticket *mdl)
+  noexcept
+{
+  table->release();
+  mdl_release(thd, mdl);
+}
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -672,7 +672,7 @@ TPOOL_SUPPRESS_TSAN
 @return estimated number of rows */
 inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
 {
-  ut_ad(table->stat_initialized);
+  ut_ad(table->stat_initialized());
   return table->stat_n_rows;
 }
 
@@ -1637,6 +1637,27 @@ UNIV_INLINE
 bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
+
+/** Helper for opening the InnoDB persistent statistics tables */
+class dict_stats final
+{
+  MDL_context *mdl_context= nullptr;
+  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
+  dict_table_t *table_stats= nullptr, *index_stats= nullptr;
+
+public:
+  dict_stats()= default;
+
+  /** Open the statistics tables.
+  @return whether the operation failed */
+  bool open(THD *thd) noexcept;
+
+  /** Close the statistics tables after !open_tables(thd). */
+  void close() noexcept;
+
+  dict_table_t *table() const noexcept { return table_stats; }
+  dict_table_t *index() const noexcept { return index_stats; }
+};
 
 #include "dict0dict.inl"
 

@@ -2295,6 +2295,47 @@ SELECT 1 LIKE 2 ESCAPE a;
 END;
 $$
 ERROR 21000: Operand should contain 1 column(s)
+# Start of 10.6 tests
+#
+# MDEV-36179 Assertion `0' failed in virtual bool Type_handler_row::Item_save_in_value(THD*, Item*, st_value*) const
+#
+CREATE PROCEDURE p0 (IN a ROW(a INT,b INT))
+BEGIN
+SET a=ROW(0,0);
+END;
+/
+PREPARE s0 FROM 'CALL p0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 (INOUT a ROW(a INT,b INT))
+BEGIN
+SET a=ROW(0,0);
+END;
+/
+PREPARE s0 FROM 'CALL p0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP PROCEDURE p0;
+CREATE PROCEDURE p0 (OUT a ROW(a INT,b INT))
+BEGIN
+SET a=ROW(0,0);
+END;
+/
+PREPARE s0 FROM 'CALL p0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP PROCEDURE p0;
+CREATE FUNCTION f0(a ROW(a INT,b INT)) RETURNS BOOLEAN
+BEGIN
+RETURN FALSE;
+END;
+/
+PREPARE s0 FROM 'SELECT f0(?)';
+EXECUTE s0 USING @a;
+ERROR HY000: Illegal parameter data type row for operation 'EXECUTE ... USING ?'
+DROP FUNCTION f0;
+# End of 10.6 tests
 #
 # Start of 11.7 tests
 #
@@ -2383,3 +2424,130 @@ DROP PROCEDURE p1;
 #
 # End of 11.7 tests
 #
+#
+# MDEV-36322 Comparison ROW(stored_func(),1)=ROW(1,1) calls the function twice per row
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+SET @counter= COALESCE(@counter, 0) + 1;
+RETURN @counter;
+END;
+/
+#
+# Queries without ROW comparison
+#
+SET @counter=0;
+SELECT f1() FROM seq_1_to_5;
+f1()
+1
+2
+3
+4
+5
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 ORDER BY f;
+f
+1
+2
+3
+4
+5
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 ORDER BY f DESC;
+f
+5
+4
+3
+2
+1
+SET @counter=0;
+SELECT f1()=1 AS eq, @counter AS counter FROM seq_1_to_5;
+eq	counter
+1	1
+0	2
+0	3
+0	4
+0	5
+#
+# Queries without ROW comparison + HAVING
+# The counter is incremented by 2 per row.
+#
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 HAVING f1()<>0;
+f
+2
+4
+6
+8
+10
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 HAVING f<>0;
+f
+2
+4
+6
+8
+10
+#
+# Queries with ROW comparison.
+# Item_row::bring_value() is called on the left side, which calls
+# Item_func_sp::bring_value() for f1(),
+# which does *not* call Item_func_sp::execute()
+# because the return type of f1() is scalar.
+# Item_func_sp::execute() will be called from Item_func_sp::val_int()
+# from Arg_comparator::compare_int_signed().
+#
+SET @counter=0;
+SELECT ROW(f1(),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+eq	counter
+1	1
+0	2
+0	3
+0	4
+0	5
+SET @counter=0;
+SELECT ROW(COALESCE(f1()),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+eq	counter
+1	1
+0	2
+0	3
+0	4
+0	5
+SET @counter=0;
+SELECT ROW(@f1:=f1(),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+eq	counter
+1	1
+0	2
+0	3
+0	4
+0	5
+SET @counter=0;
+SELECT ROW(f1(),1) IN ((1,1),(1,2)) AS c0, @counter AS counter FROM seq_1_to_5;
+c0	counter
+1	1
+0	2
+0	3
+0	4
+0	5
+DROP FUNCTION f1;
+#
+# Queries with comparison of an SP returning ROW vs a ROW constant.
+# Item_func_sp::bring_value() is called on the left side,
+# which calls execute().
+#
+CREATE FUNCTION f1() RETURNS ROW (a INT,b VARCHAR(10))
+BEGIN
+SET @counter= COALESCE(@counter, 0) + 1;
+RETURN ROW(1,'b1');
+END;
+/
+SET @counter=0;
+SELECT f1() = ROW(1,'b1') AS eq, @counter AS counter FROM seq_1_to_5;
+eq	counter
+1	1
+1	2
+1	3
+1	4
+1	5
+DROP FUNCTION f1;
+# End of 11.8 tests

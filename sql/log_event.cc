@@ -1947,7 +1947,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
   uchar *p= (uchar *)packet->ptr() + ev_offset;
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t data_len= packet->length() - ev_offset;
-  size_t dummy_bytes;
+  uint dummy_bytes;
   uint16 flags;
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -1975,10 +1975,14 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
     DUMMY value, and will skip the rest of the status vars section.
   */
   DBUG_ASSERT(data_len >= LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
-  dummy_bytes= data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  if (data_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return 1;
+  DBUG_ASSERT(std::numeric_limits<uint16>::max() >=
+              (data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)));
+  dummy_bytes=
+      static_cast<uint>(data_len - (LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN));
   int2store(q + Q_STATUS_VARS_LEN_OFFSET, dummy_bytes);
-  for (size_t i= 0; i < dummy_bytes; i++)
-    q[Q_DATA_OFFSET + i]= Q_DUMMY;
+  bfill(&q[Q_DATA_OFFSET], dummy_bytes, Q_DUMMY);
   q[Q_DATA_OFFSET + dummy_bytes]= 0; /* Zero terminator for empty db */
   q+= Q_DATA_OFFSET + dummy_bytes + 1;
 

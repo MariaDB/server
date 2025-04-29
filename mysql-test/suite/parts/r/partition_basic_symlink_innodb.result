@@ -10,20 +10,19 @@ SET SESSION innodb_strict_mode = ON;
 SET GLOBAL innodb_file_per_table = OFF;
 Warnings:
 Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
-CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
+CREATE TABLE t1 (c1 INT, KEY(c1))  ENGINE = InnoDB
 PARTITION BY HASH (c1) (
 PARTITION p0
-DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
-    INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir',
+DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+    INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir',
 PARTITION p1
-DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
-    INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir'
+DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+    INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir'
 );
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: DATA DIRECTORY requires innodb_file_per_table.
-Warning	1478	InnoDB: INDEX DIRECTORY is not supported
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 Error	6	Error on delete of 'MYSQLD_DATADIR/test/t1.par' (Errcode: 2 "No such file or directory")
@@ -40,22 +39,22 @@ SET SESSION innodb_strict_mode = OFF;
 SET GLOBAL innodb_file_per_table = ON;
 Warnings:
 Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
-CREATE TABLE t1 (c1 INT) ENGINE = InnoDB
+CREATE TABLE t1 (c1 INT, KEY(c1)) ENGINE = InnoDB
 PARTITION BY HASH (c1)
 (PARTITION p0
-DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
- INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir',
+DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+ INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir',
 PARTITION p1
-DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
- INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir'
+DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
+ INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir'
 );
 Warnings:
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Note	1618	INDEX DIRECTORY option ignored
+Note	1618	INDEX DIRECTORY option ignored
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Note	1618	INDEX DIRECTORY option ignored
+Note	1618	INDEX DIRECTORY option ignored
 # Verifying .frm, .par, .isl & .ibd files
 ---- MYSQLD_DATADIR/test
 db.opt
@@ -74,7 +73,8 @@ FLUSH TABLES;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` int(11) DEFAULT NULL
+  `c1` int(11) DEFAULT NULL,
+  KEY `c1` (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`c1`)
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
@@ -87,7 +87,8 @@ ALTER TABLE t1 engine=MyISAM;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` int(11) DEFAULT NULL
+  `c1` int(11) DEFAULT NULL,
+  KEY `c1` (`c1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`c1`)
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM,
@@ -114,7 +115,8 @@ ALTER TABLE t1 engine=InnoDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` int(11) DEFAULT NULL
+  `c1` int(11) DEFAULT NULL,
+  KEY `c1` (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`c1`)
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,

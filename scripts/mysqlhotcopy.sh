@@ -211,7 +211,7 @@ if ($opt{socket} and -S $opt{socket})
 else
 {
   $dsn .= "host=" . $opt{host};
-  if ($opt{host} ne "localhost")
+  if ($opt{host} ne "localhost" and $opt{port})
   {
     $dsn .= ";port=". $opt{port};
   }

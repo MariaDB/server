@@ -31,3 +31,6 @@ test.t1	repair	status	OK
 test.t2	repair	status	OK
 DROP TABLE t1;
 DROP TABLE t2;
+connection node_1;
+disconnect node_2a;
+disconnect node_2b;

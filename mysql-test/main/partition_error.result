@@ -782,10 +782,10 @@ SUBPARTITION BY HASH(TO_DAYS(purchased))
 DATA DIRECTORY = '/tmp/not-existing' 
 INDEX DIRECTORY = '/tmp/not-existing');
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -805,8 +805,8 @@ DATA DIRECTORY = '/tmp/not-existing'
 INDEX DIRECTORY = '/tmp/not-existing',
 SUBPARTITION sp1));
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -825,8 +825,8 @@ PARTITION BY RANGE(YEAR(purchased))
 DATA DIRECTORY = '/tmp/not-existing' 
 INDEX DIRECTORY = '/tmp/not-existing');
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

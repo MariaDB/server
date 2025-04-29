@@ -469,3 +469,35 @@ DROP TABLE t1;
 DROP PROCEDURE p1;
 
 --echo # End of 11.2 tests
+
+--echo # MDEV-36079: Stored routine with a cursor crashes on
+--echo # the second execution if a DDL statement happened
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--delimiter $
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va INT DEFAULT 0;
+  DECLARE cur CURSOR FOR SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+--delimiter ;
+
+CALL p1;
+
+ALTER TABLE t1 MODIFY a INT UNSIGNED;
+
+CALL p1;
+
+--echo # Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

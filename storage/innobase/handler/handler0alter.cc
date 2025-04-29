@@ -2237,6 +2237,12 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
+	if (ha_alter_info->create_info->used_fields
+	    & HA_CREATE_USED_SEQUENCE) {
+		ha_alter_info->unsupported_reason = "SEQUENCE";
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
 	update_thd();
 
 	if (!m_prebuilt->table->space) {
@@ -6494,6 +6500,8 @@ prepare_inplace_alter_table_dict(
 	DBUG_ASSERT(!ctx->add_index);
 	DBUG_ASSERT(!ctx->add_key_numbers);
 	DBUG_ASSERT(!ctx->num_to_add_index);
+	DBUG_ASSERT(!(ha_alter_info->create_info->used_fields
+		      & HA_CREATE_USED_SEQUENCE));
 
 	user_table = ctx->new_table;
 
@@ -6593,8 +6601,9 @@ prepare_inplace_alter_table_dict(
 		mem_heap_alloc(ctx->heap, ctx->num_to_add_index
 			       * sizeof *ctx->add_key_numbers));
 
-	const bool fts_exist = ctx->new_table->flags2
+	const bool have_fts = user_table->flags2
 		& (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
+	const bool pause_purge = have_fts || user_table->get_ref_count() > 1;
 	/* Acquire a lock on the table before creating any indexes. */
 	bool table_lock_failed = false;
 
@@ -6621,12 +6630,17 @@ acquire_lock:
 		user_table->lock_shared_unlock();
 	}
 
-	if (fts_exist) {
-		purge_sys.stop_FTS(*ctx->new_table);
+	if (pause_purge) {
+		purge_sys.stop_FTS();
+		if (have_fts) {
+			purge_sys.stop_FTS(*user_table, true);
+		}
 		if (error == DB_SUCCESS) {
-			error = fts_lock_tables(ctx->trx, *ctx->new_table);
+			error = fts_lock_tables(ctx->trx, *user_table);
 		}
 	}
+
+	ut_ad(user_table->get_ref_count() == 1);
 
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(ctx->trx);
@@ -7459,7 +7473,7 @@ error_handling_drop_uncached:
 		/* fts_create_common_tables() may drop old common tables,
 		whose files would be deleted here. */
 		commit_unlock_and_unlink(ctx->trx);
-		if (fts_exist) {
+		if (pause_purge) {
 			purge_sys.resume_FTS();
 		}
 
@@ -7523,10 +7537,11 @@ error_handled:
 		}
 	}
 
-	/* n_ref_count must be 1, because background threads cannot
+	/* n_ref_count must be 1 (+ InnoDB_share),
+	because background threads cannot
 	be executing on this very table as we are
 	holding MDL_EXCLUSIVE. */
-	ut_ad(ctx->online || user_table->get_ref_count() == 1);
+	ut_ad(ctx->online || ((user_table->get_ref_count() - 1) <= 1));
 
 	if (new_clustered) {
 		online_retry_drop_indexes_low(user_table, ctx->trx);
@@ -7555,7 +7570,7 @@ err_exit:
 		ctx->trx->free();
 	}
 	trx_commit_for_mysql(ctx->prebuilt->trx);
-	if (fts_exist) {
+	if (pause_purge) {
 		purge_sys.resume_FTS();
 	}
 
@@ -11165,7 +11180,10 @@ alter_stats_norebuild(
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
 
-	if (!dict_stats_is_persistent_enabled(ctx->new_table)) {
+	auto stat = ctx->new_table->stat;
+
+	if (!dict_table_t::stat_initialized(stat)
+	    || !dict_table_t::stats_is_persistent(stat)) {
 		DBUG_VOID_RETURN;
 	}
 
@@ -11174,7 +11192,6 @@ alter_stats_norebuild(
 		DBUG_ASSERT(index->table == ctx->new_table);
 
 		if (!(index->type & DICT_FTS)) {
-			dict_stats_init(ctx->new_table);
 			dict_stats_update_for_index(index);
 		}
 	}
@@ -11199,12 +11216,15 @@ alter_stats_rebuild(
 {
 	DBUG_ENTER("alter_stats_rebuild");
 
-	if (!table->space
-	    || !dict_stats_is_persistent_enabled(table)) {
+	if (!table->space || !table->stats_is_persistent()
+	    || dict_stats_persistent_storage_check(false) != SCHEMA_OK) {
 		DBUG_VOID_RETURN;
 	}
 
-	dberr_t	ret = dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
+	dberr_t	ret = dict_stats_update_persistent(table);
+	if (ret == DB_SUCCESS) {
+		ret = dict_stats_save(table);
+	}
 
 	if (ret != DB_SUCCESS) {
 		push_warning_printf(
@@ -11317,6 +11337,13 @@ ha_innobase::commit_inplace_alter_table(
 		/* A rollback is being requested. So far we may at
 		most have created stubs for ADD INDEX or a copy of the
 		table for rebuild. */
+#if 0 /* FIXME: is there a better way for innodb.innodb-index-online? */
+		lock_shared_ha_data();
+		auto share = static_cast<InnoDB_share*>(get_ha_share_ptr());
+		set_ha_share_ptr(nullptr);
+		unlock_shared_ha_data();
+		delete share;
+#endif
 		DBUG_RETURN(rollback_inplace_alter_table(
 				    ha_alter_info, table, m_prebuilt));
 	}
@@ -11544,34 +11571,16 @@ err_index:
 		}
 	}
 
-	dict_table_t *table_stats = nullptr, *index_stats = nullptr;
-	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
+	dict_stats stats;
+	bool stats_failed = true;
 	dberr_t error = DB_SUCCESS;
 	if (!ctx0->old_table->is_stats_table() &&
 	    !ctx0->new_table->is_stats_table()) {
-		table_stats = dict_table_open_on_name(
-			TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-		if (table_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-			table_stats = dict_acquire_mdl_shared<false>(
-				table_stats, m_user_thd, &mdl_table);
-			dict_sys.unfreeze();
-		}
-		index_stats = dict_table_open_on_name(
-			INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
-		if (index_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-			index_stats = dict_acquire_mdl_shared<false>(
-				index_stats, m_user_thd, &mdl_index);
-			dict_sys.unfreeze();
-		}
-
-		if (table_stats && index_stats
-		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
-		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)
-		    && !(error = lock_table_for_trx(table_stats,
+		stats_failed = stats.open(m_user_thd);
+		if (!stats_failed
+		    && !(error = lock_table_for_trx(stats.table(),
 						    trx, LOCK_X))) {
-			error = lock_table_for_trx(index_stats, trx, LOCK_X);
+			error = lock_table_for_trx(stats.index(), trx, LOCK_X);
 		}
 	}
 
@@ -11585,15 +11594,9 @@ err_index:
 		error = lock_sys_tables(trx);
 	}
 	if (error != DB_SUCCESS) {
-		if (table_stats) {
-			dict_table_close(table_stats, false, m_user_thd,
-					 mdl_table);
+		if (!stats_failed) {
+			stats.close();
 		}
-		if (index_stats) {
-			dict_table_close(index_stats, false, m_user_thd,
-					 mdl_index);
-		}
-		my_error_innodb(error, table_share->table_name.str, 0);
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
@@ -11609,6 +11612,7 @@ err_index:
 			trx_start_for_ddl(trx);
 		}
 
+		my_error_innodb(error, table_share->table_name.str, 0);
 		DBUG_RETURN(true);
 	}
 
@@ -11626,15 +11630,10 @@ err_index:
 fail:
 			trx->rollback();
 			ut_ad(!trx->fts_trx);
-			if (table_stats) {
-				dict_table_close(table_stats, true, m_user_thd,
-						 mdl_table);
-			}
-			if (index_stats) {
-				dict_table_close(index_stats, true, m_user_thd,
-						 mdl_index);
-			}
 			row_mysql_unlock_data_dictionary(trx);
+			if (!stats_failed) {
+				stats.close();
+			}
 			if (fts_exist) {
 				purge_sys.resume_FTS();
 			}
@@ -11654,14 +11653,14 @@ fail:
 
 			if (commit_try_rebuild(ha_alter_info, ctx,
 					       altered_table, table,
-					       table_stats && index_stats,
+					       !stats_failed,
 					       trx,
 					       table_share->table_name.str)) {
 				goto fail;
 			}
 		} else if (commit_try_norebuild(ha_alter_info, ctx,
 						altered_table, table,
-						table_stats && index_stats,
+						!stats_failed,
 						trx,
 						table_share->table_name.str)) {
 			goto fail;
@@ -11682,13 +11681,6 @@ fail:
 			);
 		}
 #endif
-	}
-
-	if (table_stats) {
-		dict_table_close(table_stats, true, m_user_thd, mdl_table);
-	}
-	if (index_stats) {
-		dict_table_close(index_stats, true, m_user_thd, mdl_index);
 	}
 
 	/* Commit or roll back the changes to the data dictionary. */
@@ -11839,6 +11831,9 @@ foreign_fail:
 		DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 				DBUG_SUICIDE(););
 		trx->free();
+		if (!stats_failed) {
+			stats.close();
+		}
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
@@ -11895,6 +11890,9 @@ foreign_fail:
 	DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 			DBUG_SUICIDE(););
 	trx->free();
+	if (!stats_failed) {
+		stats.close();
+	}
 	if (fts_exist) {
 		purge_sys.resume_FTS();
 	}

@@ -9,6 +9,7 @@
 --source include/force_restart.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -88,7 +89,7 @@ SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 --connection node_2
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 # As noted above sometimes node delivers the same view twice
-call mtr.add_suppression("WSREP: node uuid:.*");
+call mtr.add_suppression("WSREP: node uuid:");
 
 --connection node_1
 DROP TABLE t1;

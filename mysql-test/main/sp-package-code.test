@@ -198,3 +198,26 @@ DROP PACKAGE pkg1;
 DROP TABLE t1;
 
 
+--echo # Start of 11.4 tests
+
+--echo #
+--echo # MDEV-36047 Package body variables are not allowed as FETCH targets
+--echo #
+
+--source include/sp-cursor-pkg-01.inc
+SELECT pkg.f1() FROM DUAL;
+SHOW FUNCTION CODE pkg.f1;
+SHOW PACKAGE BODY CODE pkg;
+DROP PACKAGE pkg;
+
+--source include/sp-cursor-pkg-02.inc
+SELECT pkg.f1() FROM DUAL;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--source include/sp-cursor-pkg-03.inc
+SELECT pkg.f1() FROM DUAL;
+SHOW FUNCTION CODE pkg.f1;
+DROP PACKAGE pkg;
+
+--echo # End of 11.4 tests

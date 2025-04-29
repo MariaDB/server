@@ -258,3 +258,105 @@ Pos	Instruction
 6	set a.a@0["a"] b.a@1["a"] + 1
 DROP PACKAGE pkg1;
 DROP TABLE t1;
+# Start of 11.4 tests
+#
+# MDEV-36047 Package body variables are not allowed as FETCH targets
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc INT DEFAULT 0;
+FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc with a "PACKAGE_BODY" prefix
+CLOSE cur;
+RETURN vc;
+END;
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc without a prefix
+CLOSE cur;
+END;
+END;
+$$
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	cpush cur@0
+1	copen cur@0
+2	cfetch cur@0 PACKAGE_BODY.vc@0
+3	cclose cur@0
+4	freturn int PACKAGE_BODY.vc@0
+SHOW PACKAGE BODY CODE pkg;
+Pos	Instruction
+0	set vc@0 0
+1	cpush cur@0
+2	copen cur@0
+3	cfetch cur@0 vc@0
+4	cclose cur@0
+5	cpop 1
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc1 INT DEFAULT 0;
+FUNCTION f1() RETURNS TEXT
+BEGIN
+DECLARE vc2 INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc1, vc2;
+CLOSE cur;
+RETURN CONCAT(vc1, ' ', vc2);
+END;
+END;
+$$
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1 2
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	set vc2@0 0
+1	cpush cur@0
+2	copen cur@0
+3	cfetch cur@0 PACKAGE_BODY.vc1@0 vc2@0
+4	cclose cur@0
+5	freturn blob concat(PACKAGE_BODY.vc1@0,' ',vc2@0)
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc ROW(p1 INT, p2 INT);
+FUNCTION f1() RETURNS TEXT
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN CONCAT(vc.p1, ' ', vc.p2);
+END;
+END;
+$$
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1 2
+SHOW FUNCTION CODE pkg.f1;
+Pos	Instruction
+0	cpush cur@0
+1	copen cur@0
+2	cfetch cur@0 PACKAGE_BODY.vc@0
+3	cclose cur@0
+4	freturn blob concat(PACKAGE_BODY.vc.p1@0[0],' ',PACKAGE_BODY.vc.p2@0[1])
+DROP PACKAGE pkg;
+# End of 11.4 tests

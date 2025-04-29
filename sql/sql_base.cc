@@ -765,6 +765,8 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
       if (extra != HA_EXTRA_NOT_USED && table->db_stat)
       {
         table->file->extra(extra);
+        if (table->hlindex)
+          table->hlindex->file->extra(extra);
         extra= HA_EXTRA_NOT_USED;               // Call extra once!
       }
 
@@ -784,6 +786,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   }
 }
 
+#ifdef DBUG_ASSERT_EXISTS
 static inline bool check_field_pointers(const TABLE *table)
 {
   for (Field **pf= table->field; *pf; pf++)
@@ -799,6 +802,7 @@ static inline bool check_field_pointers(const TABLE *table)
   }
   return true;
 }
+#endif
 
 
 int close_thread_tables_for_query(THD *thd)
@@ -4590,6 +4594,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
     }
 
   thd->current_tablenr= 0;
+  sroutine_to_open= &thd->lex->sroutines_list.first;
 
 restart:
   /*
@@ -4605,7 +4610,6 @@ restart:
 
   has_prelocking_list= thd->lex->requires_prelocking();
   table_to_open= start;
-  sroutine_to_open= &thd->lex->sroutines_list.first;
   *counter= 0;
   THD_STAGE_INFO(thd, stage_opening_tables);
   prelocking_strategy->reset(thd);
@@ -4702,7 +4706,7 @@ restart:
             elements from the table list (if MERGE tables are involved),
           */
           close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp(),
-                                  ot_ctx.remove_implicitly_used_deps());
+                                  false);
 
           /*
             Here we rely on the fact that 'tables' still points to the valid
@@ -4770,10 +4774,9 @@ restart:
           /* F.ex. deadlock happened */
           if (ot_ctx.can_recover_from_failed_open())
           {
-            DBUG_ASSERT(ot_ctx.remove_implicitly_used_deps());
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp(),
-                                    ot_ctx.remove_implicitly_used_deps());
+                                    true);
             if (ot_ctx.recover_from_failed_open())
               goto error;
 
@@ -4782,6 +4785,7 @@ restart:
               goto error;
 
             error= FALSE;
+            sroutine_to_open= &thd->lex->sroutines_list.first;
             goto restart;
           }
           /*
@@ -5429,6 +5433,7 @@ static bool check_lock_and_start_stmt(THD *thd,
     table_list->table->file->print_error(error, MYF(0));
     DBUG_RETURN(1);
   }
+  table_list->table->unlock_hlindexes();
 
   /*
     Record in transaction state tracking
@@ -6080,19 +6085,19 @@ bool restart_trans_for_tables(THD *thd, TABLE_LIST *table)
                          trying to reopen tables. NULL if no metadata locks
                          were held and thus all metadata locks should be
                          released.
-  @param[in] remove_implicit_deps  True in case routines and tables implicitly
+  @param[in] remove_indirect  True in case routines and tables implicitly
                                    used by a statement should be removed.
 */
 
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp,
-                             bool remove_implicit_deps)
+                             bool remove_indirect)
 {
-  TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
   TABLE_LIST *tmp;
 
-  if (remove_implicit_deps)
+  if (remove_indirect)
   {
+    TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
     /*
       If table list consists only from tables from prelocking set, table list
       for new attempt should be empty, so we have to update list's root pointer.
@@ -9492,9 +9497,11 @@ my_bool mysql_rm_tmp_tables(void)
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
           init_tmp_table_share(thd, &share, "", 0, "", path_copy, true);
-          handlerton *ht= share.db_type();
           if (!open_table_def(thd, &share))
-            ht->drop_table(share.db_type(), path_copy);
+          {
+            handlerton *ht= share.db_type();
+            ht->drop_table(ht, path_copy);
+          }
           free_table_share(&share);
         }
         /*

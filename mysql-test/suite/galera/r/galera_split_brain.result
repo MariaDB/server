@@ -2,6 +2,7 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
+connection node_2;
 call mtr.add_suppression("WSREP: TO isolation failed for: ");
 connection node_1;
 call mtr.add_suppression("CREATE TABLE isolation failure");

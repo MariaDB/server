@@ -1516,7 +1516,7 @@ row_purge_record_func(
 	case TRX_UNDO_DEL_MARK_REC:
 		purged = row_purge_del_mark(node);
 		if (purged) {
-			if (node->table->stat_initialized
+			if (node->table->stat_initialized()
 			    && srv_stats_include_delete_marked) {
 				dict_stats_update_if_needed(
 					node->table, *thr->graph->trx);

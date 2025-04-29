@@ -831,7 +831,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
 Warnings:
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 set max_sort_length=200;
 select c from t1 order by c, id;
 c

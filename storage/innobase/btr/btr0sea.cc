@@ -327,7 +327,7 @@ btr_search_disable(const UT_LIST_BASE_NODE_T(dict_table_t)& tables) noexcept
 }
 
 /** Lazily free detached metadata when removing the last reference. */
-ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
+ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept
 {
   ut_ad(index->freed());
   dict_table_t *table= index->table;
@@ -351,8 +351,7 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
   table->autoinc_mutex.wr_unlock();
 }
 
-/** Disable the adaptive hash search system and empty the index. */
-void btr_sea::disable() noexcept
+ATTRIBUTE_COLD bool btr_sea::disable() noexcept
 {
   dict_sys.freeze(SRW_LOCK_CALL);
 
@@ -362,7 +361,9 @@ void btr_sea::disable() noexcept
     parts[i].blocks_mutex.wr_lock();
   }
 
-  if (enabled)
+  const bool was_enabled{enabled};
+
+  if (was_enabled)
   {
     enabled= false;
     btr_search_disable(dict_sys.table_LRU);
@@ -381,18 +382,20 @@ void btr_sea::disable() noexcept
     parts[i].latch.wr_unlock();
     parts[i].blocks_mutex.wr_unlock();
   }
+
+  return was_enabled;
 }
 
 /** Enable the adaptive hash search system.
 @param resize whether buf_pool_t::resize() is the caller */
-void btr_sea::enable(bool resize) noexcept
+ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
 {
   if (!resize)
   {
     mysql_mutex_lock(&buf_pool.mutex);
-    bool changed= srv_buf_pool_old_size != srv_buf_pool_size;
+    const auto is_shrinking = buf_pool.is_shrinking();
     mysql_mutex_unlock(&buf_pool.mutex);
-    if (changed)
+    if (is_shrinking)
       return;
   }
 
@@ -405,7 +408,7 @@ void btr_sea::enable(bool resize) noexcept
   if (!parts[0].table.array)
   {
     enabled= true;
-    alloc(buf_pool_get_curr_size() / sizeof(void *) / 64);
+    alloc(buf_pool.curr_size() / sizeof(void *) / 64);
   }
 
   ut_ad(enabled);
@@ -896,89 +899,6 @@ static bool ha_search_and_update_if_found(hash_table_t *table, uint32_t fold,
   ha_search_and_update_if_found(table,fold,data,new_data)
 #endif
 
-/** Clear the adaptive hash index on all pages in the buffer pool. */
-inline void buf_pool_t::clear_hash_index() noexcept
-{
-  ut_ad(!resizing);
-  ut_ad(!btr_search.enabled);
-
-  std::set<dict_index_t*> garbage;
-
-  for (chunk_t *chunk= chunks + n_chunks; chunk-- != chunks; )
-  {
-    for (buf_block_t *block= chunk->blocks, * const end= block + chunk->size;
-         block != end; block++)
-    {
-      dict_index_t *index= block->index;
-
-      /* We can clear block->index and block->n_pointers when
-      holding all AHI latches exclusively; see the comments in buf0buf.h */
-
-      if (!index)
-      {
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-        ut_a(!block->n_pointers);
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-        continue;
-      }
-
-      ut_d(const auto s= block->page.state());
-      /* Another thread may have set the state to
-      REMOVE_HASH in buf_LRU_block_remove_hashed().
-
-      The state change in buf_pool_t::realloc() is not observable
-      here, because in that case we would have !block->index.
-
-      In the end, the entire adaptive hash index will be removed. */
-      ut_ad(s >= buf_page_t::UNFIXED || s == buf_page_t::REMOVE_HASH);
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-      block->n_pointers= 0;
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-      block->index= nullptr;
-      if (index->freed())
-        garbage.emplace(index);
-      else
-        index->search_info.ref_count= 0;
-    }
-  }
-
-  for (dict_index_t *index : garbage)
-    btr_search_lazy_free(index);
-}
-
-/** Get a buffer block from an adaptive hash index pointer.
-This function does not return if the block is not identified.
-@param ptr  pointer to within a page frame
-@return pointer to block, never NULL */
-inline buf_block_t* buf_pool_t::block_from_ahi(const byte *ptr) const noexcept
-{
-  chunk_t::map *chunk_map = chunk_t::map_ref;
-  ut_ad(chunk_t::map_ref == chunk_t::map_reg);
-  ut_ad(!resizing);
-
-  chunk_t::map::const_iterator it= chunk_map->upper_bound(ptr);
-  ut_a(it != chunk_map->begin());
-
-  chunk_t *chunk= it == chunk_map->end()
-    ? chunk_map->rbegin()->second
-    : (--it)->second;
-
-  const size_t offs= size_t(ptr - chunk->blocks->page.frame) >>
-    srv_page_size_shift;
-  ut_a(offs < chunk->size);
-
-  buf_block_t *block= &chunk->blocks[offs];
-  /* buf_pool_t::chunk_t::init() invokes buf_block_init() so that
-  block[n].frame == block->page.frame + n * srv_page_size.  Check it. */
-  ut_ad(block->page.frame == page_align(ptr));
-  /* Read the state of the block without holding hash_lock.
-  A state transition to REMOVE_HASH is possible during
-  this execution. */
-  ut_ad(block->page.state() >= buf_page_t::REMOVE_HASH);
-
-  return block;
-}
-
 /** Fold a prefix given as the number of fields of a tuple.
 @param tuple    index record
 @param cursor   B-tree cursor
@@ -1118,7 +1038,8 @@ btr_search_guess_on_hash(
   }
 
   const rec_t *rec= node->rec;
-  buf_block_t *block= buf_pool.block_from_ahi(rec);
+  buf_block_t* block = buf_pool.block_from(rec);
+  ut_ad(block->page.frame == page_align(rec));
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
   ut_a(block == node->block);
 #endif
@@ -1965,7 +1886,7 @@ func_exit:
 
 		for (; node != NULL; node = node->next) {
 			const buf_block_t*	block
-				= buf_pool.block_from_ahi(node->rec);
+				= buf_pool.block_from(node->rec);
 			index_id_t		page_index_id;
 
 			if (UNIV_LIKELY(block->page.in_file())) {

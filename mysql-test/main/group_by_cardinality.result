@@ -1,0 +1,213 @@
+#
+# MDEV-30877: Output cardinality for derived table ignores GROUP BY
+#
+create table t1 (
+groups_20 int,
+groups_20_2 int,
+b int,
+index (groups_20)
+);
+insert into t1 select seq/1000, seq/1000, seq from seq_1_to_20000;
+create table t2 (a int, b int, index(a));
+insert into t2 select seq, seq from seq_1_to_10;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+set optimizer_trace=1;
+# Case 1: one indexed column
+explain
+select *
+from
+t2,
+(select count(*) cnt, groups_20 from t1
+group by groups_20) TBL
+where
+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	DERIVED	t1	index	NULL	groups_20	5	NULL	20000	Using index
+select
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+[
+    {
+        "join_output_cardinality": 20000,
+        "estimation": 
+        [
+            {
+                "table": "t1",
+                "steps": 
+                [
+                    {
+                        "index_name": "groups_20",
+                        "cardinality": 20.99999895
+                    }
+                ],
+                "cardinality": 20.99999895
+            }
+        ],
+        "post_group_cardinality": 20.99999895
+    }
+]
+# Case 2: one non- indexed column
+explain
+select *
+from
+t2,
+(select count(*) cnt, groups_20_2 from t1
+group by groups_20_2) TBL
+where
+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20000	Using temporary; Using filesort
+select
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+[
+    {
+        "join_output_cardinality": 20000,
+        "estimation": 
+        [
+            {
+                "table": "t1",
+                "steps": 
+                [
+                    {
+                        "column": "groups_20_2",
+                        "cardinality": 20.99999895
+                    }
+                ],
+                "cardinality": 20.99999895
+            }
+        ],
+        "post_group_cardinality": 20.99999895
+    }
+]
+# Case 4: one indexed column, multiple tables
+create table t3(c int);
+insert into t3 select seq from seq_1_to_10;
+explain
+select *
+from
+t2,
+(select count(*) cnt, groups_20 from t1,t3
+group by groups_20) TBL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+2	DERIVED	t1	index	NULL	groups_20	5	NULL	20000	Using index; Using join buffer (flat, BNL join)
+select
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+[
+    {
+        "join_output_cardinality": 200000,
+        "estimation": 
+        [
+            {
+                "table": "t1",
+                "steps": 
+                [
+                    {
+                        "index_name": "groups_20",
+                        "cardinality": 20.99999895
+                    }
+                ],
+                "cardinality": 20.99999895
+            }
+        ],
+        "post_group_cardinality": 20.99999895
+    }
+]
+# Case 5: group by two tables
+explain
+select *
+from
+t2,
+(select count(*) cnt, groups_20 from t1,t3
+group by groups_20, t3.c) TBL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	209	Using join buffer (flat, BNL join)
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+2	DERIVED	t1	index	NULL	groups_20	5	NULL	20000	Using index; Using join buffer (flat, BNL join)
+select
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+[
+    {
+        "join_output_cardinality": 200000,
+        "estimation": 
+        [
+            {
+                "table": "t1",
+                "steps": 
+                [
+                    {
+                        "index_name": "groups_20",
+                        "cardinality": 20.99999895
+                    }
+                ],
+                "cardinality": 20.99999895
+            },
+            {
+                "table": "t3",
+                "steps": 
+                [],
+                "cardinality": 10
+            }
+        ],
+        "post_group_cardinality": 209.9999895
+    }
+]
+# Now, without an index
+explain
+select *
+from
+t2,
+(select count(*) cnt, groups_20 from t1 use index(),t3 group by groups_20) TBL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20000	Using join buffer (flat, BNL join)
+select
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.materialized_output_cardinality'))
+[
+    {
+        "join_output_cardinality": 200000,
+        "estimation": 
+        [
+            {
+                "table": "t1",
+                "steps": 
+                [
+                    {
+                        "column": "groups_20",
+                        "cardinality": 20.99999895
+                    }
+                ],
+                "cardinality": 20.99999895
+            }
+        ],
+        "post_group_cardinality": 20.99999895
+    }
+]
+set optimizer_trace=default;
+drop table t1, t2, t3;

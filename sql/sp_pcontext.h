@@ -83,6 +83,27 @@ public:
                                          uint *row_field_offset);
 };
 
+
+/*
+  This class stores FETCH statement target variables:
+    FETCH cur INTO t1, t2, t2;
+  Targets can be:
+  - Local SP variables
+  - PACKAGE BODY variables
+*/
+class sp_fetch_target: public Sql_alloc,
+                       public sp_rcontext_addr
+{
+public:
+  LEX_CSTRING name;
+
+  sp_fetch_target(const LEX_CSTRING &name_arg, const sp_rcontext_addr &addr)
+   :sp_rcontext_addr(addr),
+    name(name_arg)
+  { }
+};
+
+
 ///////////////////////////////////////////////////////////////////////////
 
 /// This class represents an SQL/PSM label. Can refer to the identifier

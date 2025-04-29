@@ -716,7 +716,8 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 {
   const uchar *end;
   register ulong m1= *nr1, m2= *nr2;
-    
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
+
   /*
     Remove end space. We have to do this to be able to compare
     'AE' and 'Ä' as identical

@@ -1955,7 +1955,7 @@ row_ins_check_foreign_constraints(
 				TRUE, foreign, table, ref_tuple, thr);
 
 			if (ref_table) {
-				dict_table_close(ref_table);
+				ref_table->release();
 			}
 		}
 	}
@@ -2577,12 +2577,44 @@ static bool thd_sql_is_insert(const THD *thd) noexcept
   }
 }
 
-#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
-/* Avoid GCC 4.8.5 internal compiler error due to srw_mutex::wr_unlock().
-We would only need this for row_ins_clust_index_entry_low(),
-but GCC 4.8.5 does not support pop_options. */
-# pragma GCC optimize ("O0")
-#endif
+/** Parse the integer data from specified data, which could be
+DATA_INT, DATA_FLOAT or DATA_DOUBLE. If the value is less than 0
+and the type is not unsigned then we reset the value to 0
+@param data             data to read
+@param len              length of data
+@param mtype            main type of the column
+@param prtype           precise type of the column
+@return the integer value from the data
+@retval 0  if the value is negative or the type or length invalid */
+static uint64_t row_parse_int(const byte *data, size_t len,
+                              ulint mtype, ulint prtype) noexcept
+{
+  switch (mtype) {
+  case DATA_FLOAT:
+    if (len != sizeof(float))
+      return 0;
+    {
+      float f= mach_float_read(data);
+      return f <= 0.0 ? 0 : uint64_t(f);
+    }
+  case DATA_DOUBLE:
+    if (len != sizeof(double))
+      return 0;
+    {
+      double d= mach_double_read(data);
+      return d <= 0.0 ? 0 : uint64_t(d);
+    }
+  case DATA_INT:
+    if (len == 0 || len > 8)
+      return 0;
+    const ibool unsigned_type{prtype & DATA_UNSIGNED};
+    uint64_t value= mach_read_int_type(data, len, unsigned_type);
+    return !unsigned_type && int64_t(value) < 0 ? 0 : value;
+  }
+
+  ut_ad("invalid type" == 0);
+  return 0;
+}
 
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
@@ -2669,8 +2701,7 @@ row_ins_clust_index_entry_low(
 							dfield->data),
 						dfield->len,
 						dfield->type.mtype,
-						dfield->type.prtype
-						& DATA_UNSIGNED);
+						dfield->type.prtype);
 					if (auto_inc
 					    && mode != BTR_MODIFY_TREE) {
 						mode = btr_latch_mode(
@@ -2717,6 +2748,12 @@ err_exit:
 
 	DBUG_EXECUTE_IF("row_ins_row_level", goto row_level_insert;);
 
+#ifdef WITH_WSREP
+	/* Appliers never execute bulk insert statements directly. */
+	if (trx->is_wsrep() && !wsrep_thd_is_local_transaction(trx->mysql_thd))
+		goto row_level_insert;
+#endif /* WITH_WSREP */
+
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->page.frame)
 	    && !entry->is_metadata() && !trx->duplicates
@@ -2746,15 +2783,11 @@ avoid_bulk:
 				goto row_level_insert;
 			}
 #ifdef WITH_WSREP
-			if (trx->is_wsrep())
+			if (trx->is_wsrep() &&
+			    wsrep_append_table_key(trx->mysql_thd, *index->table))
 			{
-				if (!wsrep_thd_is_local_transaction(trx->mysql_thd))
-					goto row_level_insert;
-				if (wsrep_append_table_key(trx->mysql_thd, *index->table))
-				{
-					trx->error_state = DB_ROLLBACK;
-					goto err_exit;
-				}
+				trx->error_state = DB_ROLLBACK;
+				goto err_exit;
 			}
 #endif /* WITH_WSREP */
 
@@ -3852,4 +3885,80 @@ error_handling:
 	}
 
 	return(thr);
+}
+
+/** Read the AUTOINC column from an index record
+@param index  index of the record
+@param rec    the record
+@return value read from the first column
+@retval 0 if the value would be NULL or negative */
+static uint64_t row_read_autoinc(const dict_index_t &index, const rec_t *rec)
+  noexcept
+{
+  const dict_field_t &field= index.fields[0];
+  ut_ad(!DATA_BIG_COL(field.col));
+  ut_ad(!(rec_get_info_bits(rec, index.table->not_redundant()) &
+          (REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)));
+  mem_heap_t *heap= nullptr;
+  rec_offs offsets_[REC_OFFS_HEADER_SIZE + 2];
+  rec_offs_init(offsets_);
+  rec_offs *offsets= rec_get_offsets(rec, &index, offsets_,
+                                     index.n_core_fields, 1, &heap);
+  ut_ad(!heap);
+
+  size_t len;
+  ut_d(size_t first_offset=) rec_get_nth_field_offs(offsets, 0, &len);
+  ut_ad(!first_offset);
+  return row_parse_int(rec, len, field.col->mtype, field.col->prtype);
+}
+
+/** Get the maximum and non-delete-marked record in an index.
+@param index    index B-tree
+@param mtr      mini-transaction (may be committed and restarted)
+@return maximum record, page s-latched in mtr
+@retval nullptr if there are no records, or if all of them are delete-marked */
+static
+const rec_t *row_search_get_max_rec(dict_index_t *index, mtr_t *mtr) noexcept
+{
+  btr_pcur_t pcur;
+  const bool desc= index->fields[0].descending;
+
+  /* Open at the high/right end (false), and init cursor */
+  if (pcur.open_leaf(desc, index, BTR_SEARCH_LEAF, mtr) != DB_SUCCESS)
+    return nullptr;
+
+  if (desc)
+  {
+    const bool comp= index->table->not_redundant();
+    while (btr_pcur_move_to_next_user_rec(&pcur, mtr))
+    {
+      const rec_t *rec= btr_pcur_get_rec(&pcur);
+      if (!rec_is_metadata(rec, comp) && !rec_get_deleted_flag(rec, comp))
+        return rec;
+    }
+    return nullptr;
+  }
+
+  do
+  {
+    const page_t *page= btr_pcur_get_page(&pcur);
+    const rec_t *rec= page_find_rec_last_not_deleted(page);
+    if (page_rec_is_user_rec_low(rec - page))
+      return rec;
+    btr_pcur_move_before_first_on_page(&pcur);
+  }
+  while (btr_pcur_move_to_prev(&pcur, mtr));
+
+  return nullptr;
+}
+
+uint64_t row_search_max_autoinc(dict_index_t *index) noexcept
+{
+  uint64_t value= 0;
+  mtr_t mtr;
+  mtr.start();
+  if (const rec_t *rec= row_search_get_max_rec(index, &mtr))
+    value= row_read_autoinc(*index, rec);
+  mtr.commit();
+  return value;
 }

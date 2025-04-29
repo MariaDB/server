@@ -4466,6 +4466,18 @@ bool my_var_sp_row_field::set(THD *thd, Item *item)
 }
 
 
+sp_rcontext *THD::get_rcontext(const sp_rcontext_addr &addr)
+{
+  return addr.rcontext_handler()->get_rcontext(spcont);
+}
+
+
+Item_field *THD::get_variable(const sp_rcontext_addr &addr)
+{
+  return get_rcontext(addr)->get_variable(addr.offset());
+}
+
+
 bool select_dumpvar::send_data_to_var_list(List<Item> &items)
 {
   DBUG_ENTER("select_dumpvar::send_data_to_var_list");
@@ -8383,6 +8395,24 @@ end:
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
+}
+
+
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+
+    The ER_PRIOR_COMMIT_FAILED is just an internal mechanism to ensure that a
+    transaction does not commit successfully if a prior commit failed, so that
+    the parallel replication worker threads stop in an orderly fashion when
+    one of them get an error. Thus, if another worker already got another real
+    error, overriding it with ER_PRIOR_COMMIT_FAILED is not useful.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
 }
 
 

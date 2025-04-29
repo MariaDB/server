@@ -352,6 +352,12 @@ bool ha_sequence::check_if_incompatible_data(HA_CREATE_INFO *create_info,
   return(COMPATIBLE_DATA_YES);
 }
 
+enum_alter_inplace_result
+ha_sequence::check_if_supported_inplace_alter(TABLE *altered_table,
+                                              Alter_inplace_info *ai)
+{
+  return file->check_if_supported_inplace_alter(altered_table, ai);
+}
 
 int ha_sequence::external_lock(THD *thd, int lock_type)
 {

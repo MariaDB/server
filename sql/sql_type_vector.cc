@@ -256,7 +256,22 @@ static void do_copy_vec(const Copy_field *copy)
     int2store(copy->to_ptr, to_length);
 
   if (from_length > to_length)
+  {
     memcpy(to, from, to_length);
+    if (copy->from_field->table->in_use->count_cuted_fields >
+        CHECK_FIELD_EXPRESSION)
+    {
+      for (uint i= to_length; i < from_length; i++)
+      {
+        if (from[i] != 0)
+        {
+            copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
+                                        WARN_DATA_TRUNCATED, 1);
+            break;
+        }
+      }
+    }
+  }
   else
   {
     memcpy(to, from, from_length);

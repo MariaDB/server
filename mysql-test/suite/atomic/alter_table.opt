@@ -1,1 +1,2 @@
 --innodb-max-dirty-pages-pct=0
+--skip-ssl

@@ -711,6 +711,46 @@ drop table t1;
 --echo # End of MariaDB 10.4 tests
 
 --echo #
+--echo # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+--echo #
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+--echo # End of MariaDB 10.11 tests
+
+--echo #
 --echo # MDEV-29189: Second execution of SF using UPDATE?DELETE
 --echo #             after reported error by the first execution
 --echo #
@@ -748,7 +788,7 @@ DROP FUNCTION f2;
 DROP TABLE t1;
 --enable_ps2_protocol
 
---echo # End of MariaDB 10.10 tests
+--echo # End of MariaDB 11.1 tests
 
 --echo #
 --echo # MDEV-25008: Delete query gets stuck on mariadb, same query works
@@ -783,6 +823,19 @@ create table t2 as select * from t1;
 explain update t1 set c = 5  where    b <= 2 and a not in (select b from t2);
 explain update t1 set c = 5  where    b <= 3 and a not in (select b from t2);
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-35662 Assertion failure in diagnostics area upon EXPLAIN UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INET6);
+INSERT INTO t2 VALUES ('::'),('::'); # Optional, fails either way
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT b FROM t2) ORDER BY a LIMIT 1;
+
+# Cleanup
+DROP TABLE t1, t2;
 
 --echo # End of 11.7 tests
 
@@ -824,4 +877,4 @@ select * from t3;
 
 drop table t1, t2, t3;
 
---echo # End of MariaDB 10.11 tests
+--echo # End of MariaDB 11.8 tests

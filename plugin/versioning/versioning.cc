@@ -149,7 +149,6 @@ static const Native_func_registry func_array_vers[] =
   { { C_STRING_WITH_LEN("TRT_TRX_ID") }, BUILDER(Create_func_trt<TR_table::FLD_TRX_ID>)},
   { { C_STRING_WITH_LEN("TRT_TRX_SEES") }, BUILDER(Create_func_trt_trx_sees<Item_func_trt_trx_sees>)},
   { { C_STRING_WITH_LEN("TRT_TRX_SEES_EQ") }, BUILDER(Create_func_trt_trx_sees<Item_func_trt_trx_sees_eq>)},
-  { {0, 0}, NULL}
 };
 
 
