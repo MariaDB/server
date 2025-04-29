@@ -1165,8 +1165,15 @@ static int install_used_plugin_data_types(void)
       if (strstr(line, "'MYSQL_JSON'"))
       {
         verbose("installing plugin for MYSQL_JSON data type");
-        if(!run_query("INSTALL SONAME 'type_mysql_json'", NULL, TRUE))
+        dynstr_set(&ds_result, "");
+        if(!run_query("INSTALL SONAME 'type_mysql_json'", &ds_result, TRUE))
         {
+          if (ds_result.length)
+          {
+            verbose("Failed to install the plugin 'type_mysql_json' for MYSQL_JSON data type");
+            dynstr_free(&ds_result);
+            return 1;
+          }
           dynstr_append(&ds_plugin_data_types, "'type_mysql_json'");
           dynstr_append(&ds_plugin_data_types, "\n");
           break;
