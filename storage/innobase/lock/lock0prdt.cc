@@ -257,7 +257,7 @@ lock_prdt_has_lock(
 							lock);
 
 			/* if the lock predicate operator is the same
-			as the one to look, and prdicate test is successful,
+			as the one to look, and predicate test is successful,
 			then we find a lock */
 			if (cur_prdt->op == prdt->op
 			    && lock_prdt_consistent(cur_prdt, prdt, 0)) {

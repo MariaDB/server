@@ -2764,10 +2764,10 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 select distinct c from t;
 c
-NULL
-
-bar
 foo
+bar
+
+NULL
 select c from t;
 c
 foo

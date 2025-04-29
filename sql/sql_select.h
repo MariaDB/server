@@ -60,7 +60,7 @@ typedef struct keyuse_t {
     !NULL - This KEYUSE was created from an equality that was wrapped into
             an Item_func_trig_cond. This means the equality (and validity of 
             this KEYUSE element) can be turned on and off. The on/off state 
-            is indicted by the pointed value:
+            is indicated by the pointed value:
               *cond_guard == TRUE <=> equality condition is on
               *cond_guard == FALSE <=> equality condition is off
 
@@ -841,7 +841,7 @@ public:
                  double *record_count,
                  double *read_time,
                  table_map *handled_fanout,
-                 sj_strategy_enum *stratey,
+                 sj_strategy_enum *strategy,
                  POSITION *loose_scan_pos) override;
 
   void mark_used() override { is_used= TRUE; }
@@ -1026,7 +1026,7 @@ public:
     pushed down selection condition is applied) per each row combination of
     previous tables.
 
-    In best_access_path() it is set to the minum number of accepted rows
+    In best_access_path() it is set to the minimum number of accepted rows
     for any possible access method or filter:
 
     records_out takes into account table->cond_selectivity, the WHERE clause
@@ -1134,7 +1134,7 @@ public:
     *very* imprecise guesses made in best_access_path().
   */
   bool use_join_buffer;
-  /* True if we can use join_buffer togethere with firstmatch */
+  /* True if we can use join_buffer together with firstmatch */
   bool firstmatch_with_join_buf;
   POSITION();
 };
@@ -1166,7 +1166,7 @@ class Pushdown_query;
 
   @details
     The result records are obtained on the put_record() call.
-    The aggrgation process is determined by the write_func, it could be:
+    The aggregation process is determined by the write_func, it could be:
       end_write          Simply store all records in tmp table.
       end_write_group    Perform grouping using join->group_fields,
                          records are expected to be sorted.
@@ -1295,7 +1295,7 @@ public:
   */
   TABLE    **table;
   /**
-    The table which has an index that allows to produce the requried ordering.
+    The table which has an index that allows to produce the required ordering.
     A special value of 0x1 means that the ordering will be produced by
     passing 1st non-const table to filesort(). NULL means no such table exists.
   */
@@ -1375,7 +1375,7 @@ public:
 
   /*
     Tables one is allowed to use in choose_plan(). Either all or
-    set to a mapt of the tables in the materialized semi-join nest
+    set to a map of the tables in the materialized semi-join nest
   */
   table_map allowed_tables;
 
@@ -1413,7 +1413,7 @@ public:
   ha_rows  send_records,found_records, accepted_rows;
 
   /*
-    LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
+    LIMIT for the JOIN operation. When not using aggregation or DISTINCT, this
     is the same as select's LIMIT clause specifies.
     Note that this doesn't take sql_calc_found_rows into account.
   */
@@ -1507,7 +1507,7 @@ public:
   double   best_read;
   /*
     Estimated result rows (fanout) of the join operation. If this is a subquery
-    that is reexecuted multiple times, this value includes the estiamted # of
+    that is reexecuted multiple times, this value includes the estimated # of
     reexecutions. This value is equal to the multiplication of all
     join->positions[i].records_read of a JOIN.
   */
@@ -1612,7 +1612,7 @@ public:
 
   bool need_tmp; 
   bool hidden_group_fields;
-  /* TRUE if there was full cleunap of the JOIN */
+  /* TRUE if there was full cleanup of the JOIN */
   bool cleaned;
   DYNAMIC_ARRAY keyuse;
   Item::cond_result cond_value, having_value;
@@ -1654,13 +1654,13 @@ public:
   COND *conds;                            // ---"---
   Item *conds_history;                    // store WHERE for explain
   COND *outer_ref_cond;       ///<part of conds containing only outer references
-  COND *pseudo_bits_cond;     // part of conds containing special bita
+  COND *pseudo_bits_cond;     // part of conds containing special bits
   TABLE_LIST *tables_list;           ///<hold 'tables' parameter of mysql_select
   List<TABLE_LIST> *join_list;       ///< list of joined tables in reverse order
   COND_EQUAL *cond_equal;
   COND_EQUAL *having_equal;
   /*
-    Constant codition computed during optimization, but evaluated during
+    Constant condition computed during optimization, but evaluated during
     join execution. Typically expensive conditions that should not be
     evaluated at optimization time.
   */
@@ -1797,7 +1797,7 @@ public:
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
 			  bool before_group_by);
 
-  /// Initialzes a slice, see comments for ref_ptrs above.
+  /// Initializes a slice, see comments for ref_ptrs above.
   Ref_ptr_array ref_ptr_array_slice(size_t slice_num)
   {
     size_t slice_sz= select_lex->ref_pointer_array.size() / 5U;
@@ -2427,6 +2427,25 @@ public:
     for (uint i= 0; i < s->fields; i++)
       field[i]->set_null();
   }
+
+  /*
+    Run the event handler for all fields in the table
+    in the range [start, end-1].
+  */
+  void expr_event_handler(THD *thd, expr_event_t event, uint start, uint end)
+  {
+    DBUG_ASSERT(start <= end);
+    DBUG_ASSERT(end <= s->fields);
+    for (uint i= start; i < end; i++)
+      field[i]->expr_event_handler(thd, event);
+  }
+
+  // Run the event handler for all fields in the table
+  void expr_event_handler(THD *thd, expr_event_t event)
+  {
+    expr_event_handler(thd, event, 0, s->fields);
+  }
+
   /**
     Set all fields from a compatible item list.
     The number of fields in "this" must be equal to the number
@@ -2498,7 +2517,7 @@ create_virtual_tmp_table(THD *thd, List<Spvar_definition> &field_list)
     is enabled, we now enable "simulate_out_of_memory". This effectively
     makes table->init() fail on OOM inside multi_alloc_root().
     This is done to test that ~Virtual_tmp_table() called from the "delete"
-    below correcly handles OOM.
+    below correctly handles OOM.
   */
   DBUG_EXECUTE_IF("simulate_create_virtual_tmp_table_out_of_memory",
                   DBUG_SET("+d,simulate_out_of_memory"););

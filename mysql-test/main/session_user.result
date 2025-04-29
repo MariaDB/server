@@ -24,7 +24,7 @@ CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_U
 # Check SESSION_USER is not allowed for indexed virtual columns
 CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()), INDEX idx (b));
 ERROR HY000: Function or expression 'session_user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
-# Check SESSION_USER is not allowed in virtual columns when CHECK constrains are provided
+# Check SESSION_USER is not allowed in virtual columns when CHECK constraints are provided
 CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()) CHECK (b <> ''));
 ERROR HY000: Function or expression 'b' cannot be used in the CHECK clause of `b`
 # Check SESSION_USER is not allowed for stored virtual columns

@@ -770,7 +770,7 @@ struct TABLE_SHARE
   LEX_CSTRING comment;			/* Comment about table */
   CHARSET_INFO *table_charset;		/* Default charset of string fields */
 
-  MY_BITMAP *check_set;                 /* Fields used by check constrant */
+  MY_BITMAP *check_set;                 /* Fields used by check constraint */
   MY_BITMAP all_set;
   /*
     Key which is used for looking-up table in table cache and in the list
@@ -846,6 +846,16 @@ struct TABLE_SHARE
 
   uint default_expressions;
   uint table_check_constraints, field_check_constraints;
+  /*
+    This is set for all normal tables and for temporary tables that have
+    the CREATE TABLE statement binary logged.
+
+    0 table is not in the binary log (not logged temporary table)
+    1 table create was logged (normal table or logged temp table)
+    2 table create was logged but not all changes are in the binary log.
+      ROW LOGGING will be used for the table.
+  */
+  uint table_creation_was_logged;
 
   uint rec_buff_length;                 /* Size of table->record[] buffer */
   uint keys;                            /* Number of KEY's for the engine */
@@ -898,8 +908,7 @@ struct TABLE_SHARE
   bool crashed;
   bool is_view;
   bool can_cmp_whole_record;
-  /* This is set for temporary tables where CREATE was binary logged */
-  bool table_creation_was_logged;
+  bool binlog_not_up_to_date;
   bool non_determinstic_insert;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
@@ -1234,6 +1243,11 @@ struct TABLE_SHARE
   void update_optimizer_costs(handlerton *hton);
   void update_engine_independent_stats(TABLE_STATISTICS_CB *stat);
   bool histograms_exists();
+  /* True if changes for the table should be logged to binary log */
+  bool using_binlog()
+  {
+    return table_creation_was_logged == 1;
+  }
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1270,7 +1284,7 @@ public:
     truncated_value= false;
   }
   /**
-     Fuction creates duplicate of 'from'
+     Function creates duplicate of 'from'
      string in 'storage' MEM_ROOT.
 
      @param from           string to copy
@@ -1488,7 +1502,7 @@ public:
        select max(col1), col2 from t1. In this case, the query produces
        one row with all columns having NULL values.
 
-    Interpetation: If maybe_null!=0, all fields of the table are considered
+    Interpretation: If maybe_null!=0, all fields of the table are considered
     NULLable (and have NULL values when null_row=true)
   */
   uint maybe_null;
@@ -1989,6 +2003,17 @@ public:
   void vers_fix_old_timestamp(rpl_group_info *rgi);
 #endif
   void find_constraint_correlated_indexes();
+
+  /* Mark that table is not up to date in binary log */
+  void mark_as_not_binlogged()
+  {
+    if (s->tmp_table && s->table_creation_was_logged == 1 &&
+        file->mark_trx_read_write_done)
+    {
+      /* Do not log anything more to binlog for this table */
+      s->table_creation_was_logged= 2;
+    }
+  }
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
@@ -2665,7 +2690,7 @@ struct TABLE_LIST
      
      For the @c TABLE_LIST representing the derived table @c b, @c derived
      points to the SELECT_LEX_UNIT representing the result of the query within
-     parenteses.
+     parentheses.
      
      - Views. This is set for views with @verbatim ALGORITHM = TEMPTABLE
      @endverbatim by mysql_make_view().
@@ -2823,7 +2848,7 @@ struct TABLE_LIST
   bool          updating;               /* for replicate-do/ignore table */
   bool          ignore_leaves;          /* preload only non-leaf nodes */
   bool          crashed;                /* Table was found crashed */
-  bool          skip_locked;            /* Skip locked in view defination */
+  bool          skip_locked;            /* Skip locked in view definition */
   table_map     dep_tables;             /* tables the table depends on      */
   table_map     on_expr_dep_tables;     /* tables on expression depends on  */
   struct st_nested_join *nested_join;   /* if the element is a nested join  */
@@ -3712,7 +3737,7 @@ public:
    */
   enum_tx_isolation iso_level() const;
   /**
-     Stores transactioin isolation level to internal TABLE object.
+     Stores transaction isolation level to internal TABLE object.
    */
   void store_iso_level(enum_tx_isolation iso_level)
   {

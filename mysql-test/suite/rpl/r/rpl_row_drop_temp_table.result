@@ -26,7 +26,7 @@ END
 connection slave;
 SELECT @@read_only;
 @@read_only
-1
+ON
 ======== CLEAN UP =========
 connection master;
 DROP TEMPORARY TABLE t1_tmp;

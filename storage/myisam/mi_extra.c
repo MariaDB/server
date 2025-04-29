@@ -37,7 +37,7 @@ static void mi_extra_keyflag(MI_INFO *info, enum ha_extra_function function);
 
 int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
 {
-  int error=0;
+  int error=0, error2;
   ulong cache_size;
   MYISAM_SHARE *share=info->s;
   DBUG_ENTER("mi_extra");
@@ -208,7 +208,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     info->read_record=	share->read_record;
     info->opt_flag&= ~(KEY_READ_USED | REMEMBER_OLD_POS);
     break;
-  case HA_EXTRA_NO_USER_CHANGE: /* Database is somehow locked against changes */
+  case HA_EXTRA_NO_USER_CHANGE: /* Database is locked preventing changes */
     info->lock_type= F_EXTRA_LCK; /* Simulate as locked */
     break;
   case HA_EXTRA_WAIT_LOCK:
@@ -277,10 +277,29 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     break;
   case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_FLUSH:
-    if (!share->temporary)
-      flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,
-                       FLUSH_KEEP);
     mysql_mutex_lock(&share->intern_lock);
+    if (!share->temporary)
+    {
+      if (flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,
+                           FLUSH_KEEP))
+        error= my_errno;
+      /*
+        Check if this is the primary table holding the state of the table
+        If there are multiple usage of the same table, only one is holding
+        the true state.
+      */
+      if (info->state == &info->save_state)
+      {
+        info->s->state.state= *info->state;
+        if (info->opt_flag & WRITE_CACHE_USED)
+        {
+          if ((error2= my_b_flush_io_cache(&info->rec_cache, 0)))
+            error= error2;
+        }
+        if ((error2= mi_state_info_write(share->kfile, &share->state, 1)))
+          error= error2;
+      }
+    }
     /* Tell mi_lock_database() that we locked the intern_lock mutex */
     info->intern_lock_locked= 1;
     _mi_decrement_open_count(info);

@@ -348,7 +348,7 @@ set optimizer_switch=@save_optimizer_switch;
 #
 # LP Bug #915291: query using a materialized view
 #                 + extended_keys = on
-# (valgrinf complains fixed by the patch for bug #914560)
+# (valgrind complains fixed by the patch for bug #914560)
 #
 SET optimizer_switch = 'derived_with_keys=on';
 CREATE TABLE t1 (a varchar(1)) ENGINE=MyISAM;

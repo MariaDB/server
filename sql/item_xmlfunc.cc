@@ -66,7 +66,7 @@ typedef struct my_xml_node_st
 typedef struct my_xpath_lex_st
 {
   int        term;  /* token type, see MY_XPATH_LEX_XXXXX below */
-  const char *beg;  /* beginnign of the token                   */
+  const char *beg;  /* beginning of the token                   */
   const char *end;  /* end of the token                         */
 } MY_XPATH_LEX;
 
@@ -769,7 +769,7 @@ bool Item_nodeset_func_ancestorbyname::val_native(THD *thd, Native *nodeset)
   {
     /*
        Go to the root and add all nodes on the way.
-       Don't add the root if context is the root itelf
+       Don't add the root if context is the root itself
     */
     MY_XML_NODE *self= &nodebeg[flt->num];
     if (need_self && validname(self))
@@ -1043,7 +1043,7 @@ static Item *create_comparator(MY_XPATH *xpath,
     /*
      Compare a node set to a scalar value.
      We just create a fake Item_string_xml_non_const() argument,
-     which will be filled to the partular value
+     which will be filled to the particular value
      in a loop through all of the nodes in the node set.
     */
 
@@ -2566,7 +2566,7 @@ static int my_xpath_parse_Number(MY_XPATH *xpath)
   
   SYNOPSYS
     
-    The keywords AND, OR, MOD, DIV are valid identitiers
+    The keywords AND, OR, MOD, DIV are valid identifiers
     when they are in identifier context:
     
     SELECT

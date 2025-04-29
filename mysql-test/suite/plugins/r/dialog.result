@@ -9,7 +9,7 @@ user()	current_user()
 test_dialog@localhost	test_dialog@%
 #
 # without -p. up to three questions are asked on the stdin.
-# athentication is successful, the correct pasword is on the third line
+# authentication is successful, the correct password is on the third line
 #
 Password, please: ***
 Password, please: ****
@@ -18,7 +18,7 @@ select user(), current_user();
 user()	current_user()
 test_dialog@localhost	test_dialog@%
 #
-# athentication is unsuccessful, first three lines are all wrong
+# authentication is unsuccessful, first three lines are all wrong
 #
 Password, please: ***
 Password, please: ****

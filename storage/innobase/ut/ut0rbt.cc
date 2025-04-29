@@ -61,7 +61,7 @@ static
 ibool
 rbt_check_ordering(
 /*===============*/
-	const ib_rbt_t*		tree)		/*!< in: tree to verfify */
+	const ib_rbt_t*		tree)		/*!< in: tree to verify */
 {
 	const ib_rbt_node_t*	node;
 	const ib_rbt_node_t*	prev = NULL;
@@ -414,7 +414,7 @@ rbt_find_successor(
 
 /**********************************************************************//**
 Find the given node's precedecessor.
-@return predecessor node or NULL if no predecesor */
+@return predecessor node or NULL if no predecessor */
 static
 ib_rbt_node_t*
 rbt_find_predecessor(

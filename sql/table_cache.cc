@@ -159,7 +159,7 @@ struct Table_cache_instance
   /**
     Lock table cache mutex and check contention.
 
-    Instance is considered contested if more than 20% of mutex acquisiotions
+    Instance is considered contested if more than 20% of mutex acquisitions
     can't be served immediately. Up to 100 000 probes may be performed to avoid
     instance activation on short sporadic peaks. 100 000 is estimated maximum
     number of queries one instance can serve in one second.
@@ -168,8 +168,8 @@ struct Table_cache_instance
     system, that is expected number of instances is activated within reasonable
     warmup time. It may have to be adjusted for other systems.
 
-    Only TABLE object acquistion is instrumented. We intentionally avoid this
-    overhead on TABLE object release. All other table cache mutex acquistions
+    Only TABLE object acquisition is instrumented. We intentionally avoid this
+    overhead on TABLE object release. All other table cache mutex acquisitions
     are considered out of hot path and are not instrumented either.
   */
   void lock_and_check_contention(uint32_t n_instances, uint32_t instance)
@@ -300,7 +300,7 @@ static void tc_remove_all_unused_tables(TDC_element *element,
   - free resources related to unused objects
 
   @note This is called by 'handle_manager' when one wants to
-        periodicly flush all not used tables.
+        periodically flush all not used tables.
 */
 
 static my_bool tc_purge_callback(void *_element, void *_purge_tables)
@@ -539,7 +539,7 @@ static void tdc_delete_share_from_hash(TDC_element *element)
 
 
 /**
-  Prepeare table share for use with table definition cache.
+  Prepare table share for use with table definition cache.
 */
 
 static void lf_alloc_constructor(uchar *arg)
@@ -901,6 +901,7 @@ retry:
   {
     mysql_mutex_unlock(&element->LOCK_table_share);
     lf_hash_search_unpin(thd->tdc_hash_pins);
+    VALGRIND_YIELD;
     goto retry;
   }
   lf_hash_search_unpin(thd->tdc_hash_pins);

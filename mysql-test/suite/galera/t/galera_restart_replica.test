@@ -16,7 +16,7 @@
 #  - Verify that gtid_slave_pos, gtid_binlog_pos and gtid_current_pos are
 #    same in all Galera nodes
 #  - Verify that mysql.gtid_slave_pos table has limited amount of rows
-#  - Veruft that ddl works (drop table)
+#  - Verify that ddl works (drop table)
 #
 #  Similar test is done so that new rows are added to table in
 #  primary while async replica (node #2) is down.
@@ -40,11 +40,12 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 
 --let $node_1 = node_1
 --let $node_2 = replica
+--let $node_3 = primary
 --source include/auto_increment_offset_save.inc
 
 --connection replica
 --disable_query_log
---eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 

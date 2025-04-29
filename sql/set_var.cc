@@ -860,7 +860,7 @@ int set_var::light_check(THD *thd)
   @returns 0|1    ok or ERROR
 
   @note ERROR can be only due to abnormal operations involving
-  the server's execution evironment such as
+  the server's execution environment such as
   out of memory, hard disk failure or the computer blows up.
   Consider set_var::check() method if there is a need to return
   an error due to logics.

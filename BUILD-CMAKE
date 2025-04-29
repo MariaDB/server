@@ -242,7 +242,7 @@ is in <build-root>/sql/CMakeFiles/mysqld.dir/link.txt
 feature because tests do not rerun when reconfiguring (e.g when a new test was 
 added).The downside of caching is that when a platform test was wrong and was 
 later corrected, the cached result is still used. If you encounter this 
-situation,  which should be a rare occation, you need either to remove the 
+situation, which should be a rare occasion, you need either to remove the
 offending entry from CMakeCache.txt (if test was for HAVE_FOO, remove lines 
 containing HAVE_FOO from CMakeCache.txt) or just remove the cache file.
 

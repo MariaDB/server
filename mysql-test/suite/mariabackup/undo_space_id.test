@@ -18,7 +18,7 @@ list_files $basedir undo*;
 
 --echo # xtrabackup prepare
 exec $XTRABACKUP --prepare --target-dir=$basedir;
---echo # Display undo log files from targer directory
+--echo # Display undo log files from target directory
 list_files $basedir undo*;
 
 DROP TABLE t1;

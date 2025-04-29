@@ -74,7 +74,7 @@ rtr_page_split_initialize_nodes(
 	n_recs = ulint(page_get_n_recs(page)) + 1;
 
 	/*We reserve 2 MBRs memory space for temp result of split
-	algrithm. And plus the new mbr that need to insert, we
+	algorithm. And plus the new mbr that need to insert, we
 	need (n_recs + 3)*MBR size for storing all MBRs.*/
 	buf = static_cast<double*>(mem_heap_alloc(
 		heap, DATA_MBR_LEN * (n_recs + 3)
@@ -277,7 +277,7 @@ rtr_update_mbr_field(
 				ins_suc = false;
 
 				/* Since btr_cur_update_alloc_zip could
-				reorganize the page, we need to repositon
+				reorganize the page, we need to reposition
 				cursor2. */
 				if (cursor2) {
 					cursor2->page_cur.rec =
@@ -1888,7 +1888,7 @@ Calculates MBR_AREA(a+b) - MBR_AREA(a)
 Note: when 'a' and 'b' objects are far from each other,
 the area increase can be really big, so this function
 can return 'inf' as a result.
-Return the area increaed. */
+Return the area increased. */
 static double
 rtree_area_increase(
 	const uchar*	a,		/*!< in: original mbr. */

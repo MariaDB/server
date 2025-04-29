@@ -3,7 +3,7 @@
 # information_schema, part2" this test can't be run on Window with our
 # current test framework. When "chmod -r" is done within cygwin the
 # MySQL Server can still read the directory.
-# Manual testing shows the functionalty to skip unlistable directories
+# Manual testing shows the functionality to skip unlistable directories
 # works on windows
 #
 --source include/not_windows.inc

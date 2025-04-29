@@ -78,7 +78,7 @@ struct Listener
   virtual void begin_accept()= 0;
 
   /**
-   Completion callback,called whenever IO posted by begin_accept is finisjed
+   Completion callback,called whenever IO posted by begin_accept is finished
    Listener needs to create a new THD then (or, call scheduler so it creates one)
 
    @param success - whether IO completed successfull
@@ -112,7 +112,7 @@ struct Listener
   };
 };
 
-/* Winsock extension finctions. */
+/* Winsock extension functions. */
 static LPFN_ACCEPTEX my_AcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS my_GetAcceptExSockaddrs;
 
@@ -121,7 +121,7 @@ static LPFN_GETACCEPTEXSOCKADDRS my_GetAcceptExSockaddrs;
   Can be threadpool-bound (i.e the completion is executed in threadpool thread),
   or use events for waits.
 
-  Threadpool-bound listener should be used with theradpool scheduler, for better
+  Threadpool-bound listener should be used with threadpool scheduler, for better
   performance.
 */
 struct Socket_Listener: public Listener

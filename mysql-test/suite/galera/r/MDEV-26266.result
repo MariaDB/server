@@ -19,5 +19,5 @@ INSERT INTO t2 VALUES (3);
 INSERT INTO t2 VALUES (4);
 INSERT INTO t2 VALUES (5);
 CREATE VIEW v1 AS SELECT c1 FROM t1 WHERE c1 IN (SELECT a FROM t2) GROUP BY c1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP VIEW v1;
 DROP TABLE t1,t2;

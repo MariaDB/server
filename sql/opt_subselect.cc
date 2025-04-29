@@ -28,6 +28,7 @@
 #include "sql_select.h"
 #include "sql_update.h"  // class Sql_cmd_update
 #include "sql_delete.h"  // class Sql_cmd_delete
+#include "sql_table.h"   // make_tmp_table_name
 #include "filesort.h"
 #include "opt_subselect.h"
 #include "sql_test.h"
@@ -345,7 +346,7 @@ with the first one:
 
 When SJM nests are present, we should take care not to construct equalities
 that violate the (SJM-RULE). This is achieved by generating separate sets of
-equalites for top-level tables and for inner tables. That is, for the join
+equalities for top-level tables and for inner tables. That is, for the join
 order 
 
   ot1 - ot2 --\                    /--- ot3 -- ot5 
@@ -546,7 +547,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
     The disjunctive members
       !((Sql_cmd_update *) cmd)->is_multitable()
       !((Sql_cmd_delete *) cmd)->is_multitable()
-    will be removed when conversions of IN predicands to semi-joins are
+    will be removed when conversions of IN predicants to semi-joins are
     fully supported for single-table UPDATE/DELETE statements.
 */
 
@@ -1984,7 +1985,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   else if (left_exp->type() == Item::ROW_ITEM)
   {
     /*
-      disassemple left expression and add
+      disassemble left expression and add
       left1 = select_list_element1 and left2 = select_list_element2 ...
     */
     for (uint i= 0; i < ncols; i++)
@@ -3041,7 +3042,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
                 1. strategy X removes fanout for semijoin X,Y
                 2. using strategy Z is cheaper, but it only removes
                    fanout from semijoin X.
-                3. We have no clue what to do about fanount of semi-join Y.
+                3. We have no clue what to do about fanout of semi-join Y.
 
           For the first iteration read_time will always be bigger than
           *current_read_time (as the 'strategy' is an addition to the
@@ -3057,7 +3058,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
           DBUG_ASSERT(pos->sj_strategy != sj_strategy);
           /*
             If the strategy chosen first time or
-            the strategy replace strategy which was used to exectly the same
+            the strategy replace strategy which was used to exactly the same
             tables
           */
           if (pos->sj_strategy == SJ_OPT_NONE ||
@@ -3093,7 +3094,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
             (*prev_strategy)->set_empty();
             dups_producing_tables= prev_dups_producing_tables;
             join->sjm_lookup_tables= prev_sjm_lookup_tables;
-            // mark it 'none' to avpoid loops
+            // mark it 'none' to avoid loops
             pos->sj_strategy= SJ_OPT_NONE;
             // next skip to last;
             strategy= pickers +
@@ -3149,7 +3150,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
   Update JOIN's semi-join optimization state after the join tab new_tab
   has been added into the join prefix.
 
-  @seealso restore_prev_sj_state() does the reverse actoion
+  @seealso restore_prev_sj_state() does the reverse action
 */
 
 void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
@@ -4326,7 +4327,7 @@ uint get_number_of_tables_at_top_level(JOIN *join)
     Setup execution structures for one semi-join materialization nest:
     - Create the materialization temporary table
     - If we're going to do index lookups
-        create TABLE_REF structure to make the lookus
+        create TABLE_REF structure to make the lookups
     - else (if we're going to do a full scan of the temptable)
         create Copy_field structures to do copying.
 
@@ -4780,8 +4781,8 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path,"%s-subquery-%lx-%lx-%x", tmp_file_prefix,current_pid,
-            (ulong) thd->thread_id, thd->tmp_table++);
+    LEX_STRING tmp= { path, sizeof(path) };
+    make_tmp_table_name(thd, &tmp, "subquery");
   }
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
@@ -5360,7 +5361,7 @@ int setup_semijoin_loosescan(JOIN *join)
             application of FirstMatch strategy, with the exception that
             outer IN-correlated tables are considered to be non-correlated.
 
-      (4) - THe suffix of outer and outer non-correlated tables.
+      (4) - The suffix of outer and outer non-correlated tables.
 
   
   The choice between the strategies is made by the join optimizer (see
@@ -5984,7 +5985,7 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
   Create a dummy temporary table, useful only for the sake of having a 
   TABLE* object with map,tablenr and maybe_null properties.
   
-  This is used by non-mergeable semi-join materilization code to handle
+  This is used by non-mergeable semi-join materialization code to handle
   degenerate cases where materialized subquery produced "Impossible WHERE" 
   and thus wasn't materialized.
 */
@@ -6557,7 +6558,7 @@ bool setup_degenerate_jtbm_semi_joins(JOIN *join,
     The function saves the equalities between all pairs of the expressions
     from the left part of the IN subquery predicate and the corresponding
     columns of the subquery from the predicate in eq_list appending them
-    to the list. The equalities of eq_list will be later conjucted with the
+    to the list. The equalities of eq_list will be later conjuncted with the
     condition of the WHERE clause.
 
     In the case when a table is nested in another table 'nested_join' the
@@ -7031,7 +7032,7 @@ bool JOIN::choose_tableless_subquery_plan()
     }
     
     /*
-      For IN subqueries, use IN->EXISTS transfomation, unless the subquery 
+      For IN subqueries, use IN->EXISTS transformation, unless the subquery
       has been converted to a JTBM semi-join. In that case, just leave
       everything as-is, setup_jtbm_semi_joins() has special handling for cases
       like this.

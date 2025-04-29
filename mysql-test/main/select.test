@@ -1544,7 +1544,7 @@ INSERT INTO t4 (companynr, companyname) VALUES (50,'company 11');
 INSERT INTO t4 (companynr, companyname) VALUES (00,'Unknown');
 --enable_query_log
 #
-# Test of stright join to force a full join.
+# Test of straight join to force a full join.
 #
 
 select STRAIGHT_JOIN t2.companynr,companyname from t4,t2 where t2.companynr=t4.companynr group by t2.companynr;
@@ -1606,7 +1606,7 @@ select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.compa
 explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 
 #
-# Search using 'or' with the same referens group.
+# Search using 'or' with the same reference group.
 # An interval search will be done first with the first table and after that
 # the other table is referenced with a key with a 'test if key in use' for
 # each record
@@ -1883,7 +1883,7 @@ insert into t1 values ();
 # ,
 select * from (t1 as t2 left join t1 as t3 using (a)), t1;
 select * from t1, (t1 as t2 left join t1 as t3 using (a));
-# stright_join
+# straight_join
 select * from (t1 as t2 left join t1 as t3 using (a)) straight_join t1;
 select * from t1 straight_join (t1 as t2 left join t1 as t3 using (a));
 # inner join on
@@ -1908,7 +1908,7 @@ select * from t1 natural left join (t1 as t2 left join t1 as t3 using (a));
 select * from (t1 as t2 left join t1 as t3 using (a)) right join t1 on t1.a>1;
 --sorted_result
 select * from t1 right join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
-# right [outer] joing using
+# right [outer] join using
 select * from (t1 as t2 left join t1 as t3 using (a)) right outer join t1 using ( a );
 select * from t1 right outer join (t1 as t2 left join t1 as t3 using (a)) using ( a );
 # natural right join

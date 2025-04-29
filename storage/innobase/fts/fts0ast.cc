@@ -688,7 +688,7 @@ fts_ast_visit(
 				continue;
 			}
 
-			/* Process leaf node accroding to its pass.*/
+			/* Process leaf node according to its pass.*/
 			if (oper == FTS_EXIST_SKIP
 			    && visit_pass == FTS_PASS_EXIST) {
 				error = visitor(FTS_EXIST, node, arg);

@@ -1,7 +1,7 @@
 connection node_2;
 connection node_1;
 
-Test phase 1 to make sure that natral deadlock in trigger SP execution is
+Test phase 1 to make sure that natural deadlock in trigger SP execution is
 handled correctly
 
 CREATE TABLE t1(a INT);

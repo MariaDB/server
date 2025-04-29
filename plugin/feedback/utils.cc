@@ -381,7 +381,7 @@ int fill_linux_info(THD *thd, TABLE_LIST *tables)
 }
 
 /**
-  Adds varios bits of information to the I_S.FEEDBACK
+  Adds various bits of information to the I_S.FEEDBACK
 */
 int fill_misc_data(THD *thd, TABLE_LIST *tables)
 {

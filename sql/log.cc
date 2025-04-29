@@ -162,8 +162,8 @@ static SHOW_VAR binlog_status_vars_detail[]=
 };
 
 /**
-  This class implementes the feature to rename a binlog cache temporary file to
-  a binlog file. It is used to avoid holding LOCK_log long time when writting a
+  This class implements the feature to rename a binlog cache temporary file to
+  a binlog file. It is used to avoid holding LOCK_log long time when writing a
   huge binlog cache to binlog file.
 
   With this feature, temporary files of binlog caches will be created in
@@ -1910,6 +1910,16 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
     if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
       DBUG_RETURN(1);
 
+#ifdef WITH_WSREP
+    /* Wsrep transaction was BF aborted but it must replay because certification
+       succeeded. The transaction must not be written into binlog yet, it will
+       be done during commit after the replay. */
+    if (WSREP(thd) && wsrep_must_replay(thd))
+    {
+      DBUG_RETURN(0);
+    }
+#endif /* WITH_WSREP */
+
     /*
       Doing a commit or a rollback including non-transactional tables,
       i.e., ending a transaction where we might write the transaction
@@ -2227,7 +2237,7 @@ inline bool is_prepared_xa(THD *thd)
 
 
 /*
-  We flush the cache wrapped in a beging/rollback if:
+  We flush the cache wrapped in a beginning/rollback if:
     . aborting a single or multi-statement transaction and;
     . the OPTION_BINLOG_THIS_TRX is active or;
     . the format is STMT and a non-trans table was updated or;
@@ -3274,7 +3284,7 @@ void MYSQL_QUERY_LOG::reopen_file()
 
   DESCRIPTION
 
-   Log given command to to normal (not rotable) log file
+   Log given command to normal (not rotable) log file
 
   RETURN
     FASE - OK
@@ -3774,7 +3784,6 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
 
-  /* Fix correct mutex order to catch violations quicker (MDEV-35197). */
   mysql_mutex_record_order(&LOCK_log, &LOCK_global_system_variables);
 }
 
@@ -4696,7 +4705,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 
   /*
     Close the active log.
-    Close the active GTID index synchroneously. We don't want the close
+    Close the active GTID index synchronously. We don't want the close
     running in the background while we delete the gtid index file. And we just
     pushed a sentinel through the binlog background thread while holding
     LOCK_log, so no other GTID index operations can be pending.
@@ -5724,7 +5733,7 @@ error:
     /* Remove directory (to keep things shorter and compatible */
     log_file_name_arg+= dirname_length(log_file_name_arg);
 
-    /* purge_warning_given is reset after next sucessful purge */
+    /* purge_warning_given is reset after next successful purge */
     purge_warning_given= 1;
     if (interactive)
     {
@@ -5870,7 +5879,7 @@ bool MYSQL_BIN_LOG::is_active(const char *log_file_name_arg)
    * #12 next_event
    * #13 exec_relay_log_event
    *
-   * I didn't investigate if this is ligit...(i.e if my comment is wrong)
+   * I didn't investigate if this is legit...(i.e if my comment is wrong)
    */
   return !strcmp(log_file_name, log_file_name_arg);
 }
@@ -8071,7 +8080,7 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
 
   if ((err_gtid= do_delete_gtid_domain(domain_drop_lex)))
   {
-    // inffective attempt to delete merely skips rotate and purge
+    // ineffective attempt to delete merely skips rotate and purge
     if (err_gtid < 0)
       error= 1; // otherwise error is propagated the user
   }
@@ -8486,7 +8495,12 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   {
     DBUG_RETURN(0);
   }
-  else if (!(thd->variables.option_bits & OPTION_BIN_LOG))
+
+  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
+#ifdef WITH_WSREP
+      && !WSREP(thd)
+#endif
+      )
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -8600,7 +8614,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
       If waitee->commit_started is set, it means that the transaction we need
       to wait for has already queued up for group commit. In this case it is
-      safe for us to queue up immediately as well, increasing the opprtunities
+      safe for us to queue up immediately as well, increasing the opportunities
       for group commit. Because waitee has taken the LOCK_prepare_ordered
       before setting the flag, so there is no risk that we can queue ahead of
       it.
@@ -9432,6 +9446,13 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
 
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
+#ifdef WITH_WSREP
+  if (WSREP(entry->thd) &&
+      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+  {
+    DBUG_RETURN(0);
+  }
+#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good
@@ -11317,7 +11338,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     most recent binlog.
 
     Note also that we need to first release LOCK_xid_list, then acquire
-    LOCK_log, then re-aquire LOCK_xid_list. If we were to take LOCK_log while
+    LOCK_log, then re-acquire LOCK_xid_list. If we were to take LOCK_log while
     holding LOCK_xid_list, we might deadlock with other threads that take the
     locks in the opposite order.
   */
@@ -11842,7 +11863,7 @@ public:
     Otherwise enumeration starts with zero for the first file, increments
     by one for any next file except for the last file in the list, which
     is also the initial binlog file for recovery,
-    that is enumberated with UINT_MAX.
+    that is enumerated with UINT_MAX.
   */
   Binlog_file_id id_binlog;
   enum_binlog_checksum_alg checksum_alg;
@@ -11925,7 +11946,7 @@ public:
     Is invoked when a standalone or non-2pc group is detected.
     Both are unsafe to truncate in the semisync-slave recovery so
     the maximum unsafe coordinate may be updated.
-    In the non-2pc group case though, *exeptionally*,
+    In the non-2pc group case though, *exceptionally*,
     the no-engine group is considered safe, to be invalidated
     to not contribute to binlog state.
   */
@@ -12136,7 +12157,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
         if (!truncate_validated)
         {
           if (truncate_gtid.seq_no == 0 /* was reset or never set */ ||
-              (truncate_set_in_1st && round == 2 /* reevaluted at round turn */))
+              (truncate_set_in_1st && round == 2 /* reevaluated at round turn */))
           {
             if (set_truncate_coord(linfo, round, fdle->used_checksum_alg))
               return true;

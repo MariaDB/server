@@ -5,7 +5,7 @@
 # SELECT/DELETE/UPDATE with =,>,< predicate conditions
 # Datatypes with Procedure (IN/INOUT/OUT,Cursors,Trigger)
 # Datatypes with Aggregate functions
-# File Formts Compressed & Dynamic
+# File Formats Compressed & Dynamic
 # All Geometric functions.
 #********************************************************
 --source include/have_geometry.inc
@@ -93,7 +93,7 @@ INSERT into gis_geometry SELECT * FROM gis_multi_line;
 INSERT into gis_geometry SELECT * FROM gis_multi_polygon;
 INSERT into gis_geometry SELECT * FROM gis_geometrycollection;
 
---echo #check format coversion functions & spatial values
+--echo #check format conversion functions & spatial values
 SELECT fid, ST_AsText(g) FROM gis_point;
 SELECT fid, ST_AsText(g) FROM gis_line;
 SELECT fid, ST_AsText(g) FROM gis_polygon;
@@ -299,7 +299,7 @@ SET @c8=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))
 --echo #call the proc
 CALL geom_insert(@c1,@c2,@c3,@c4,@c5,@c6,@c7,@c8);
 
---echo #check the values ofter proc call
+--echo #check the values after proc call
 SELECT ST_AsText(c0) FROM tab;
 SELECT ST_AsText(c2) FROM tab;
 SELECT ST_AsText(c3) FROM tab;
@@ -346,7 +346,7 @@ SHOW CREATE TABLE tab2;
 
 delimiter |;
 
---echo #create a tigger and populate the values into tab2
+--echo #create a trigger and populate the values into tab2
 CREATE TRIGGER geom_trigger AFTER INSERT ON tab
 FOR EACH ROW
 BEGIN

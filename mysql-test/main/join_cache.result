@@ -5606,7 +5606,7 @@ set @@optimizer_switch=@local_optimizer_switch;
 drop table t1,t2,t3,t4;
 #
 # Bug#50358 - semijoin execution of subquery with outerjoin
-#             emplying join buffer
+#             implying join buffer
 #
 CREATE TABLE t1 (i int);
 CREATE TABLE t2 (i int);

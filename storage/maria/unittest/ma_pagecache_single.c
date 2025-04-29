@@ -600,7 +600,7 @@ int simple_big_test()
   desc[i].length= 0;
   desc[i].content= '\0';
   ok(1, "Simple big file write");
-  /* check written pages sequentally read */
+  /* check written pages sequentially read */
   for (i= 0; i < PCACHE_SIZE/(TEST_PAGE_SIZE/2); i++)
   {
     int j;

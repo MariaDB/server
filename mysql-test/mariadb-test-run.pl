@@ -1859,7 +1859,7 @@ sub collect_mysqld_features {
     /^([\S]+)[ \t]+(.*?)\r?$/ or die "Could not parse mysqld --help: $_\n";
     $mysqld_variables{$1}= $2;
   }
-  mtr_error("Could not find variabes list") unless %mysqld_variables;
+  mtr_error("Could not find variables list") unless %mysqld_variables;
 }
 
 
@@ -2233,6 +2233,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -2851,7 +2854,7 @@ sub mysql_server_start($) {
 
   # If wsrep is on, we need to wait until the first
   # server starts and bootstraps the cluster before
-  # starting other servers. The bootsrap server in the
+  # starting other servers. The bootstrap server in the
   # configuration should always be the first which has
   # wsrep_on=ON
   if (wsrep_on($mysqld) && wsrep_is_bootstrap_server($mysqld))
@@ -3250,7 +3253,7 @@ sub mysql_install_db {
     mtr_tofile($bootstrap_sql_file,
          "CREATE DATABASE mtr CHARSET=utf8mb4;\n");
 
-    # Add help tables and data for warning detection and supression
+    # Add help tables and data for warning detection and suppression
     mtr_tofile($bootstrap_sql_file,
                sql_to_bootstrap(mtr_grab_file("include/mtr_warnings.sql")));
 
@@ -3417,12 +3420,12 @@ sub do_before_run_mysqltest($)
 
 
 #
-# Check all server for sideffects
+# Check all server for side effects
 #
 # RETURN VALUE
 #  0 ok
 #  1 Check failed
-#  >1 Fatal errro
+#  >1 Fatal error
 
 sub check_testcase($$)
 {
@@ -3960,7 +3963,7 @@ sub run_testcase ($$) {
     }
 
     # Set up things for catalogs
-    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # The values of MARIADB_TOPDIR and MARIADB_DATADIR should
     # be taken from the values used by the default (first)
     # connection that is used by mariadb-test.
     my ($mysqld, @servers);
@@ -4421,7 +4424,7 @@ sub extract_warning_lines ($$) {
   my ($error_log, $append) = @_;
 
   # Open the servers .err log file and read all lines
-  # belonging to current tets into @lines
+  # belonging to current test into @lines
   my $Ferr = IO::File->new($error_log)
     or return [];
   my $last_pos= $last_warning_position->{$error_log}{seek_pos};
@@ -4495,6 +4498,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/InnoDB: Trying to delete tablespace.*but there are.*pending/,
      qr/InnoDB: Tablespace 1[0-9]* was not found at .*, and innodb_force_recovery was set/,
+     qr/InnoDB: Long wait \([0-9]+ seconds\) for double-write buffer flush/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -5964,7 +5968,7 @@ Options that specify ports
                         set and is not "auto", it overrides build-thread.
   mtr-build-thread=#    Specify unique number to calculate port number(s) from.
   build-thread=#        Can be set in environment variable MTR_BUILD_THREAD.
-                        Set  MTR_BUILD_THREAD="auto" to automatically aquire
+                        Set  MTR_BUILD_THREAD="auto" to automatically acquire
                         a build thread id that is unique to current host
   port-group-size=N     Reserve groups of TCP ports of size N for each MTR thread
 

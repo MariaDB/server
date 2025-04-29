@@ -589,7 +589,7 @@ my_bool _ma_enlarge_root(MARIA_HA *info, MARIA_KEY *key, my_off_t *root)
   page_store_info(share, &page);
 
   /*
-    Clear unitialized part of page to avoid valgrind/purify warnings
+    Clear uninitialized part of page to avoid valgrind/purify warnings
     and to get a clean page that is easier to compress and compare with
     pages generated with redo
   */
@@ -1078,7 +1078,7 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
     res= -1;
 
   /*
-    Clear unitialized part of page to avoid valgrind/purify warnings
+    Clear uninitialized part of page to avoid valgrind/purify warnings
     and to get a clean page that is easier to compress and compare with
     pages generated with redo
   */
@@ -1320,7 +1320,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   if ((right ? right_length : left_length) + curr_keylength <=
       share->max_index_block_size)
   {
-    /* Enough space to hold all keys in the two buffers ; Balance bufferts */
+    /* Enough space to hold all keys in the two buffers ; Balance buffers */
     new_left_length= share->keypage_header+nod_flag+(keys/2)*curr_keylength;
     new_right_length=share->keypage_header+nod_flag+(((keys+1)/2)*
                                                        curr_keylength);
@@ -1498,7 +1498,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   extra_page.buff=    extra_buff;
 
   /*
-    5 is the minum number of keys we can have here. This comes from
+    5 is the minimum number of keys we can have here. This comes from
     the fact that each full page can store at least 2 keys and in this case
     we have a 'split' key, ie 2+2+1 = 5
   */
@@ -1561,7 +1561,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   {
     /*
       Page order according to key values:
-      orignal_page (curr_page = left_page), next_page (buff), extra_buff
+      original_page (curr_page = left_page), next_page (buff), extra_buff
 
       Move page positions so that we store data in extra_page where
       next_page was and next_page will be stored at the new position
@@ -2052,7 +2052,7 @@ my_bool _ma_log_change(MARIA_PAGE *ma_page, const uchar *key_pos, uint length,
 
    @note
      Write log entry for page that has got a key added to the page under
-     one and only one of the following senarios:
+     one and only one of the following scenarios:
      - Page is shortened from end
      - Data is added to end of page
      - Data added at front of page

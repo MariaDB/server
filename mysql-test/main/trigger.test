@@ -625,7 +625,7 @@ select @a;
 --replace_column 6 #
 show triggers;
 drop table t1;
-# check that rigger preserve sql_mode during execution
+# check that trigger preserves sql_mode during execution
 set sql_mode="traditional";
 create table t1 (a date);
 -- error 1292
@@ -2830,7 +2830,7 @@ create table t1 (a int);
 --copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
 drop trigger t1_trg;
 
-# Test creating an additonal trigger for t1, but with different names
+# Test creating an additional trigger for t1, but with different names
 delimiter |;
 create trigger t1_trg_2 before insert on t1 for each row
 begin
@@ -2990,6 +2990,316 @@ SELECT * FROM t2;
 
 --echo # Clean up
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-10164: Add support for TRIGGERS that fire on multiple events
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER t1_b_any BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (1000);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+CREATE TRIGGER t1_bd BEFORE DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a);
+
+INSERT INTO t1 VALUES (1);
+--echo # The previous statement should fire the triggers t1_b_any and t1_bi.
+--echo # Check it. The following query should return the rows (1000), (1)
+SELECT * FROM t2;
+
+--echo # Clean up the table t2 before running the next test case
+TRUNCATE TABLE t2;
+
+UPDATE t1 SET a = -1;
+--echo # The previous statement should fire the triggers t1_b_any and t1_bu.
+--echo # Check it. The following query should return the rows (1000), (-1)
+SELECT * FROM t2;
+
+--echo # Clean up the table t2 before running the next test case
+TRUNCATE TABLE t2;
+
+DELETE FROM t1 WHERE a = -1;
+--echo # The previous statement should fire the triggers t1_b_any and t1_bu.
+--echo # Check it. The following query should return the rows (1000), (-1)
+SELECT * FROM t2;
+
+--echo # Clean up
+DROP TABLE t1, t2;
+
+--echo # The following test case is about handling the new clauses
+--echo # INSERTING, UPDATING, DELETING
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+
+--delimiter $
+CREATE TRIGGER t1_b_any BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+    INSERT INTO t2 VALUES (NEW.a, 'INSERTING');
+  ELSEIF UPDATING THEN
+    INSERT INTO t2 VALUES (NEW.a, 'UPDATING');
+  ELSEIF DELETING THEN
+    INSERT INTO t2 VALUES (OLD.a, 'DELETING');
+  END IF;
+END
+$
+
+--delimiter ;
+
+INSERT INTO t1 VALUES(100);
+UPDATE t1 SET a = 300;
+DELETE FROM t1;
+
+--echo # Query results of trigger executions
+SELECT * FROM t2;
+
+--echo # Check that SHOW TRIGGERS outputs data about every specified event type
+--echo # in the column `event`. For the trigger t1_b_any the column `event`
+--echo # must contain the value `INSERT,UPDATE,DELETE`
+--replace_column 6 #
+SHOW TRIGGERS;
+
+--echo # Check that DROP TRIGGER does work correctly
+DROP TRIGGER t1_b_any;
+--echo # No triggers in output of SHOW TRIGGERS;
+SHOW TRIGGERS;
+--echo # Clean up
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Check that event flag in condition must match the event type of a trigger
+--echo #
+CREATE TABLE t1 (a INT);
+--delimiter $
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the UPDATING clause can be specified only for UPDATE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF UPDATING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the DELETING clause can be specified only for DELETE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF DELETING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the INSERTING clause can be specified only for INSERT trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the INSERTING clause can be specified only for INSERT trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the DELETING clause can be specified only for DELETE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF DELETING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--echo # The following CREATE TRIGGER statement must fail since
+--echo # the DELETING clause can be specified only for DELETE trigger event
+--error ER_INCOMPATIBLE_EVENT_FLAG
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  IF DELETING THEN
+   SET @a=100;
+  END IF;
+END;
+$
+--delimiter ;
+--echo # Clean up
+DROP TABLE t1;
+
+--echo # Check that NEW and OLD clause is handled correctly for different trigger
+--echo # event types.
+--echo # For INSERT trigger, referencing to a table's column via the OLD clause
+--echo # should return the NULL value; for DELETE trigger, referencing to a table's
+--echo # column via the NEW clause should return the NULL value.
+
+--echo # First, check that for integral types
+# Cursor protocol be enabled as soon as the bug MDEV-36258 be fixed
+--disable_cursor_protocol
+CREATE TABLE t1 (a INT, b TINYINT, c SMALLINT, d MEDIUMINT, e BIGINT, f DECIMAL, g FLOAT, h DOUBLE);
+CREATE TABLE t2 (old_a INT, new_a INT, old_b TINYINT, new_b TINYINT, old_c SMALLINT, new_c SMALLINT, old_d MEDIUMINT, new_d MEDIUMINT, old_e BIGINT, new_e BIGINT, old_f DECIMAL, new_f DECIMAL, old_g FLOAT, new_g FLOAT, old_h DOUBLE, new_h DOUBLE, event_name VARCHAR(20));
+
+--delimiter $
+CREATE TRIGGER t1_b_all BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+   INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, OLD.c, NEW.c, OLD.d, NEW.d, OLD.e, NEW.e, OLD.f, NEW.f, OLD.g, NEW.g, OLD.h, NEW.h, 'INSERTING');
+   SET @old_a = OLD.a;
+   SET @new_a = NEW.a;
+   SET @old_b = OLD.b;
+   SET @new_b = NEW.b;
+   SET @old_c = OLD.c;
+   SET @new_c = NEW.c;
+   SET @old_d = OLD.d;
+   SET @new_d = NEW.d;
+   SET @old_e = OLD.e;
+   SET @new_e = NEW.e;
+   SET @old_f = OLD.f;
+   SET @new_f = NEW.f;
+   SET @old_g = OLD.g;
+   SET @new_g = NEW.g;
+   SET @old_h = OLD.h;
+   SET @new_h = NEW.h;
+  ELSEIF UPDATING THEN
+   INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, OLD.c, NEW.c, OLD.d, NEW.d, OLD.e, NEW.e, OLD.f, NEW.f, OLD.g, NEW.g, OLD.h, NEW.h, 'UPDATING');
+   SET @old_a = OLD.a;
+   SET @new_a = NEW.a;
+   SET @old_b = OLD.b;
+   SET @new_b = NEW.b;
+   SET @old_c = OLD.c;
+   SET @new_c = NEW.c;
+   SET @old_d = OLD.d;
+   SET @new_d = NEW.d;
+   SET @old_e = OLD.e;
+   SET @new_e = NEW.e;
+   SET @old_f = OLD.f;
+   SET @new_f = NEW.f;
+   SET @old_g = OLD.g;
+   SET @new_g = NEW.g;
+   SET @old_h = OLD.h;
+   SET @new_h = NEW.h;
+  ELSEIF DELETING THEN
+   INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, OLD.c, NEW.c, OLD.d, NEW.d, OLD.e, NEW.e, OLD.f, NEW.f, OLD.g, NEW.g, OLD.h, NEW.h, 'DELETING');
+   SET @old_a = OLD.a;
+   SET @new_a = NEW.a;
+   SET @old_b = OLD.b;
+   SET @new_b = NEW.b;
+   SET @old_c = OLD.c;
+   SET @new_c = NEW.c;
+   SET @old_d = OLD.d;
+   SET @new_d = NEW.d;
+   SET @old_e = OLD.e;
+   SET @new_e = NEW.e;
+   SET @old_f = OLD.f;
+   SET @new_f = NEW.f;
+   SET @old_g = OLD.g;
+   SET @new_g = NEW.g;
+   SET @old_h = OLD.h;
+   SET @new_h = NEW.h;
+  END IF;
+END
+$
+
+--delimiter ;
+
+INSERT INTO t1 VALUES (100, 100, 100, 100, 100, 100, 100, 100);
+SELECT @old_a, @new_a, @old_b, @new_b, @old_c, @new_c, @old_d, @new_d, @old_e, @new_e, @old_f, @new_f, @old_g, @new_g, @old_h, @new_h;
+UPDATE t1 SET a = 150, b=110, c=150, d=150, e=150, f=150, g=150, h=150 WHERE a = 100;
+SELECT @old_a, @new_a, @old_b, @new_b, @old_c, @new_c, @old_d, @new_d, @old_e, @new_e, @old_f, @new_f, @old_g, @new_g, @old_h, @new_h;
+DELETE FROM t1 WHERE a = 150;
+SELECT @old_a, @new_a, @old_b, @new_b, @old_c, @new_c, @old_d, @new_d, @old_e, @new_e, @old_f, @new_f, @old_g, @new_g, @old_h, @new_h;
+
+SELECT * FROM t2;
+
+--echo # Clean up
+DROP TABLE t1, t2;
+--enable_cursor_protocol
+
+--echo # Then, check this assertion for string types
+CREATE TABLE t1 (a CHAR(10), b VARCHAR(10));
+CREATE TABLE t2 (old_a CHAR(10), new_a CHAR(10), old_b VARCHAR(10), new_b VARCHAR(10), event_name VARCHAR(20));
+
+--delimiter $
+CREATE TRIGGER t1_b_all BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+   INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, 'INSERTING');
+   SET @old_a = OLD.a;
+   SET @new_a = NEW.a;
+   SET @old_b = OLD.b;
+   SET @new_b = NEW.b;
+  ELSEIF UPDATING THEN
+   INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, 'UPDATING');
+   SET @old_a = OLD.a;
+   SET @new_a = NEW.a;
+   SET @old_b = OLD.b;
+   SET @new_b = NEW.b;
+  ELSEIF DELETING THEN
+   INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, 'DELETING');
+   SET @old_a = OLD.a;
+   SET @new_a = NEW.a;
+   SET @old_b = OLD.b;
+   SET @new_b = NEW.b;
+  END IF;
+END
+$
+
+--delimiter ;
+
+INSERT INTO t1 VALUES ('aaa', 'bbb');
+SELECT @old_a, @new_a, @old_b, @new_b;
+UPDATE t1 SET a = 'AAA', b = 'BBB' WHERE a = 'aaa';
+SELECT @old_a, @new_a, @old_b, @new_b;
+DELETE FROM t1 WHERE a = 'AAA';
+SELECT @old_a, @new_a, @old_b, @new_b;
+
+SELECT * FROM t2;
+
+--echo # Clean up
+DROP TABLE t1, t2;
+
+--echo # Test for a column declared as NOT NULL
+CREATE TABLE t1 (a INT NOT NULL);
+CREATE TABLE t2 (old_a INT, new_a INT, event_name VARCHAR(20));
+
+--delimiter $
+CREATE TRIGGER t1_b_all BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+  IF INSERTING THEN
+    INSERT INTO t2 VALUES (OLD.a, NEW.a, 'INSERTING');
+  ELSEIF DELETING THEN
+    INSERT INTO t2 VALUES (OLD.a, NEW.a, 'DELETING');
+  END IF;
+END;
+$
+--delimiter ;
+--echo # Check that OLD.a is NULL in spite of the fact that the column `a`
+--echo # is declared as NOT NULL. OLD.a is referenced from the trigger t1_b_all
+--echo # when it is fired on INSERT event
+INSERT INTO t1 VALUES (1);
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+TRUNCATE TABLE t2;
+
+--echo # Check that NEL.a is NULL in spite of the fact that the column `a`
+--echo # is declared as NOT NULL. NEW.a is referenced from the trigger t1_b_all
+--echo # when it is fired on DELETE event
+DELETE FROM t1;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+--echo # End of tests for MDEV-10164
 
 --echo #
 --echo # End of 11.8 tests

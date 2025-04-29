@@ -79,7 +79,7 @@ struct fts_index_cache_t {
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
-/** Stop word control infotmation. */
+/** Stop word control information. */
 struct fts_stopword_t {
 	ulint		status;		/*!< Status of the stopword tree */
 	ib_alloc_t*	heap;		/*!< The memory allocator to use */

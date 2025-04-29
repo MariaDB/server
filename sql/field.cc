@@ -85,7 +85,7 @@ bool Field::marked_for_write_or_computed() const
   Rules for merging different types of fields in UNION
 
   NOTE: to avoid 256*256 table, gap in table types numeration is skipped
-  following #defines describe that gap and how to canculate number of fields
+  following #defines describe that gap and how to calculate number of fields
   and index of field in this array.
 */
 const int FIELDTYPE_TEAR_FROM= (MYSQL_TYPE_BIT + 1);
@@ -2824,7 +2824,13 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
   }
 
   src->bring_value();
-  DBUG_RETURN(m_table->sp_set_all_fields_from_item(thd, src));
+  if (m_table->sp_set_all_fields_from_item(thd, src))
+  {
+    set_null();
+    DBUG_RETURN(true);
+  }
+  set_notnull();
+  DBUG_RETURN(false);
 }
 
 
@@ -2857,6 +2863,13 @@ void Field_row::sql_type_for_sp_returns(String &res) const
     res.append(col.to_lex_cstring());
   }
   res.append(')');
+}
+
+
+void Field_row::expr_event_handler(THD *thd, expr_event_t event)
+{
+  if (m_table)
+    m_table->expr_event_handler(thd, event);
 }
 
 
@@ -8573,7 +8586,7 @@ void Field_varstring::hash_not_null(Hasher *hasher)
   @param[in]     from       data to compress
   @param[in]     length     from length
   @param[in]     max_length truncate `from' to this length
-  @param[out]    out_length compessed data length
+  @param[out]    out_length compressed data length
   @param[in]     cs         from character set
   @param[in]     nchars     copy no more than "nchars" characters
 
@@ -9989,8 +10002,8 @@ Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
               3 - first (high) bit of 'c'
               2 - second bit of 'c'
               1 - third bit of 'c'
-              0 - forth bit of 'c'
-  2           7 - firth bit of 'c'
+              0 - fourth bit of 'c'
+  2           7 - fifth bit of 'c'
               6 - null bit for 'd'
   3 - 6       four bytes for 'a'
   7 - 8       two bytes for 'b'

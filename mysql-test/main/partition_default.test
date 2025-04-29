@@ -125,7 +125,7 @@ create table t1 (a int, b int)
 ;
 
 #
-# partititon prunning test
+# partition prunning test
 #
 
 create table t1 (a int, b int)

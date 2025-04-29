@@ -158,7 +158,7 @@ DROP TABLE t;
 --echo #
 --echo # MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
 --echo #
-create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb charset=utf8mb3;
+create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb;
 alter table t add vector (v);
 drop table t;
 
@@ -321,3 +321,32 @@ select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e')
 drop table t1, t2;
 
 --echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-36163 InnoDB assert with vector index under LOCK TABLES
+--echo #
+create table t (a int,v vector (1) not null,vector index (v)) engine=innodb;
+lock table t write;
+insert into t values (1,0x30303030);
+insert into t values (1,0x31313131);
+drop table t;
+
+--echo #
+--echo # MDEV-36177 InnoDB: Failing assertion: prebuilt->select_lock_type != LOCK_NONE || srv_read_only_mode || trx->read_view.is_open()
+--echo #
+--disable_service_connection
+create table t (id int key,v vector (1) not null,vector index (v)) engine=innodb;
+flush tables t for export;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+unlock tables;
+drop table t;
+--enable_service_connection
+
+--echo #
+--echo # MDEV-36188 assert with vector index and very long PK
+--echo #
+--error ER_TOO_LONG_KEY
+create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
+
+--echo # End of 11.8 tests

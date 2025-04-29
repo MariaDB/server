@@ -13,7 +13,7 @@ INSERT INTO t1 (id) VALUES (1);
 # <con1, S, granted>, <con2, X, waiting for con1>, <con1, X, waiting for con1>
 # After MDEV-34877:
 # <con1, S, granted>, <con1, X, granted>, <con2, X, waiting for con1>
-# Expected: instead of deadlocking, the con1's request should ingore con2's
+# Expected: instead of deadlocking, the con1's request should ignore con2's
 connection con1;
 BEGIN;
 SELECT * FROM t1 LOCK IN SHARE MODE;
@@ -156,7 +156,7 @@ connection con3;
 id
 1
 COMMIT;
-# A secenario, where con1 has to bypass two transactions:
+# A scenario, where con1 has to bypass two transactions:
 # <con1, S, granted>
 # <con1, S, granted> <con2, X, waiting>
 # <con1, S, granted> <con2, X, waiting> <con3, X, waiting>

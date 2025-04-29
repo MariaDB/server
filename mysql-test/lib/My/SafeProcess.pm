@@ -196,7 +196,7 @@ sub new {
   my $proc= bless
     ({
       SAFE_PID  => $pid,
-      SAFE_WINPID  => $pid, # Inidicates this is always a real process
+      SAFE_WINPID  => $pid, # Indicates this is always a real process
       SAFE_NAME => $name,
       SAFE_SHUTDOWN => $shutdown,
       PARENT => $$,
@@ -539,7 +539,7 @@ sub wait_any_timeout {
 
   do {
     ::mtr_milli_sleep($millis);
-    # Slowly increse interval up to max. 1 second
+    # Slowly increase interval up to max. 1 second
     $millis++ if $millis < 1000;
     # Return a "fake" process for timeout
     if (::has_expired($timeout)) {

@@ -282,7 +282,7 @@ set @@in_predicate_conversion_threshold= 2;
 eval $query;
 eval explain extended $query;
 
---echo # use vectors in IN predeicate
+--echo # use vectors in IN predicate
 
 set @@in_predicate_conversion_threshold= 4;
 

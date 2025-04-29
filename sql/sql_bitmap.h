@@ -49,7 +49,7 @@ public:
 template <uint width> class Bitmap
 {
 /*
-  Workaround GCC optimizer bug (generating SSE instuctions on unaligned data)
+  Workaround GCC optimizer bug (generating SSE instructions on unaligned data)
 */
 #if defined (__GNUC__) && defined(__x86_64__) && (__GNUC__ < 6) && !defined(__clang__)
 #define NEED_GCC_NO_SSE_WORKAROUND

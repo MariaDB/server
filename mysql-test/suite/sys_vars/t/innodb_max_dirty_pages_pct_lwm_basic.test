@@ -72,7 +72,7 @@ SELECT @@global.innodb_max_dirty_pages_pct_lwm;
 --echo '#--------------------FN_DYNVARS_046_03------------------------#'
 ##########################################################################
 #  change the value of innodb_max_dirty_pages_pct_lwm to a valid value   #
-#  Aloowed values are <= innodb_max_dirty_pages_pct value                #
+#  Allowed values are <= innodb_max_dirty_pages_pct value                #
 ##########################################################################
 
 SET @@global.innodb_max_dirty_pages_pct_lwm = 0;

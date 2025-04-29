@@ -44,6 +44,7 @@ typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
 typedef struct st_order ORDER;
 typedef struct st_ddl_log_state DDL_LOG_STATE;
+extern LEX_CSTRING generated_by_server;
 
 enum enum_explain_filename_mode
 {
@@ -94,6 +95,7 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *table,
                                      uint flags);
 uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
+void make_tmp_table_name(THD *thd, LEX_STRING *to, const char *prefix);
 bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
                           const LEX_CSTRING *add);
 
@@ -127,7 +129,6 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
   (which should be the number of fields in the SELECT ... part), and other
   cases use constants as defined below.
 */
-#define C_CREATE_SELECT(X)        ((X) > 0 ? (X) : 0)
 #define C_ORDINARY_CREATE         0
 #define C_ASSISTED_DISCOVERY     -1
 #define C_ALTER_TABLE            -2

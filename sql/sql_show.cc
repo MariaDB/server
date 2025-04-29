@@ -120,11 +120,16 @@ static const LEX_CSTRING trg_action_time_type_names[]=
   { STRING_WITH_LEN("AFTER") }
 };
 
-static const LEX_CSTRING trg_event_type_names[]=
+const LEX_CSTRING trg_event_type_names[]=
 {
-  { STRING_WITH_LEN("INSERT") },
-  { STRING_WITH_LEN("UPDATE") },
-  { STRING_WITH_LEN("DELETE") }
+  { STRING_WITH_LEN("<invalid>") }, // 0x00
+  { STRING_WITH_LEN("INSERT") }, // 0x01
+  { STRING_WITH_LEN("UPDATE") }, // 0x02
+  { STRING_WITH_LEN("INSERT,UPDATE") }, // 0x03
+  { STRING_WITH_LEN("DELETE") }, // 0x04
+  { STRING_WITH_LEN("INSERT,DELETE") }, // 0x05
+  { STRING_WITH_LEN("UPDATE,DELETE") }, // 0x06
+  { STRING_WITH_LEN("INSERT,UPDATE,DELETE") } // 0x07
 };
 
 static const LEX_CSTRING sp_data_access_name[]=
@@ -570,7 +575,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Set user","Server", "To create views and stored routines with a different definer"},
   {"Federated admin", "Server", "To execute the CREATE SERVER, ALTER SERVER, DROP SERVER statements"},
   {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
-  {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
+  {"Read_only admin", "Server", "To perform write operations even if @@read_only=READ_ONLY or READ_ONLY_NO_LOCK"},
   {"Usage","Server Admin","No privileges - allow connect only"},
   {"Show Create Routine","Databases,Functions,Procedures","To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE"},
   {NullS, NullS, NullS}
@@ -1361,7 +1366,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   /*
     Metadata locks taken during SHOW CREATE should be released when
-    the statmement completes as it is an information statement.
+    the statement completes as it is an information statement.
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
@@ -3630,7 +3635,7 @@ int add_status_vars(SHOW_VAR *list)
   while (list->name)
     res|= insert_dynamic(&all_status_vars, (uchar*)list++);
   res|= insert_dynamic(&all_status_vars, (uchar*)list); // appending NULL-element
-  all_status_vars.elements--; // but next insert_dynamic should overwite it
+  all_status_vars.elements--; // but next insert_dynamic should overwrite it
   if (status_vars_inited)
     sort_dynamic(&all_status_vars, show_var_cmp);
   status_var_array_version++;
@@ -5622,6 +5627,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
         if (!partial_cond || partial_cond->val_bool())
         {
+          if (thd->is_error())
+            goto err;
           /*
             If table is I_S.tables and open_table_method is 0 (eg SKIP_OPEN)
             we can skip table opening and we don't have lookup value for
@@ -6181,7 +6188,7 @@ err:
  @brief           Fill IS.table with temporary tables
  @param[in]       thd              thread handler
  @param[in]       table            I_S table (TABLE)
- @param[in]       tmp_tbl          temporary table to be represetned by IS.table
+ @param[in]       tmp_tbl          temporary table to be represented by IS.table
  @return          Operation status
    @retval        0   - success
    @retval        1   - failure
@@ -6228,7 +6235,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   tmp_buff= strchr(column_type.c_ptr_safe(), '(');
   if (!tmp_buff)
     /*
-      if there is no dimention part then check the presence of
+      if there is no dimension part then check the presence of
       [unsigned] [zerofill] attributes and cut them of if exist.
     */
     tmp_buff= strchr(column_type.c_ptr_safe(), ' ');
@@ -7752,12 +7759,25 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   table->field[0]->store(STRING_WITH_LEN("def"), cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
   table->field[2]->store(trigger->name.str, trigger->name.length, cs);
-  table->field[3]->store(trg_event_type_names[trigger->event].str,
-                         trg_event_type_names[trigger->event].length, cs);
+  DBUG_ASSERT(trigger->events < trg2bit(TRG_EVENT_MAX));
+  table->field[3]->store(trg_event_type_names[trigger->events].str,
+                         trg_event_type_names[trigger->events].length, cs);
   table->field[4]->store(STRING_WITH_LEN("def"), cs);
   table->field[5]->store(db_name->str, db_name->length, cs);
   table->field[6]->store(table_name->str, table_name->length, cs);
-  table->field[7]->store(trigger->action_order);
+  String buff;
+  for (int i=0;i < TRG_EVENT_MAX; i++)
+  {
+    if (trigger->action_order[i])
+    {
+      if (!buff.is_empty())
+        buff.append(',');
+      buff.append_longlong(trigger->action_order[i]);
+    }
+
+    table->field[7]->store(buff.ptr(), buff.length(), cs);
+  }
+
   table->field[9]->store(trigger_body.str, trigger_body.length, cs);
   table->field[10]->store(STRING_WITH_LEN("ROW"), cs);
   table->field[11]->store(trg_action_time_type_names[trigger->action_time].str,
@@ -7810,9 +7830,11 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
                get_trigger((enum trg_event_type) event,
                            (enum trg_action_time_type) timing) ;
              trigger;
-             trigger= trigger->next)
+             trigger= trigger->next[event])
         {
-          if (store_trigger(thd, trigger, table, db_name, table_name))
+          if (is_the_right_most_event_bit(trigger->events,
+                                          (trg_event_type)event) &&
+              store_trigger(thd, trigger, table, db_name, table_name))
             DBUG_RETURN(1);
         }
       }
@@ -8824,7 +8846,7 @@ struct schema_table_ref
 };
 
 /*
-  Find schema_tables elment by name
+  Find schema_tables element by name
 
   SYNOPSIS
     find_schema_table_in_plugin()
@@ -9658,7 +9680,7 @@ bool get_schema_tables_result(JOIN *join,
         continue;
 
       /*
-        Do not fill in tables thare are marked as JT_CONST as these will never
+        Do not fill in tables marked as JT_CONST as these will never
         be read and they also don't have a tab->read_record.table set!
         This can happen with queries like
         SELECT * FROM t1 LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES)
@@ -9731,7 +9753,7 @@ bool get_schema_tables_result(JOIN *join,
     /*
       This hack is here, because I_S code uses thd->clear_error() a lot.
       Which means, a Warnings_only_error_handler cannot handle the error
-      corectly as it does not know whether an error is real (e.g. caused
+      correctly as it does not know whether an error is real (e.g. caused
       by tab->select_cond->val_int()) or will be cleared later.
       Thus it ignores all errors, and the real one (that is, the error
       that was not cleared) is pushed now.
@@ -10296,7 +10318,7 @@ ST_FIELD_INFO triggers_fields_info[]=
   Column("TRIGGER_CATALOG",        Catalog(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("TRIGGER_SCHEMA",            Name(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("TRIGGER_NAME",              Name(), NOT_NULL, "Trigger",  OPEN_FRM_ONLY),
-  Column("EVENT_MANIPULATION",    Varchar(6), NOT_NULL, "Event",    OPEN_FRM_ONLY),
+  Column("EVENT_MANIPULATION",    Varchar(20), NOT_NULL, "Event",   OPEN_FRM_ONLY),
   Column("EVENT_OBJECT_CATALOG",   Catalog(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("EVENT_OBJECT_SCHEMA",       Name(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("EVENT_OBJECT_TABLE",        Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),
@@ -11089,7 +11111,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 
 /**
   Read TRN and TRG files to obtain base table name for the specified
-  trigger name and construct TABE_LIST object for the base table.
+  trigger name and construct TABLE_LIST object for the base table.
 
   @param thd      Thread context.
   @param trg_name Trigger name.

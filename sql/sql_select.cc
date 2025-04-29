@@ -628,7 +628,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
     /*
       'options' of mysql_select will be set in JOIN, as far as JOIN for
       every PS/SP execution new, we will not need reset this flag if 
-      setup_tables_done_option changed for next rexecution
+      setup_tables_done_option changed for next reexecution
     */
     res= mysql_select(thd,
 		      select_lex->table_list.first,
@@ -909,7 +909,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   }
 
   /*
-    TODO: This would prevent processing quries with ORDER BY ... LIMIT
+    TODO: This would prevent processing queries with ORDER BY ... LIMIT
     therefore we disable this optimization for now.
     Remove GROUP BY if there are no aggregate functions and no HAVING
     clause
@@ -2081,7 +2081,7 @@ bool JOIN::make_range_rowid_filters()
       DBUG_RETURN(true); /* Fatal error */
     }
     /*
-      If SUBS_IN_TO_EXISTS strtrategy is chosen for the subquery then
+      If SUBS_IN_TO_EXISTS strategy is chosen for the subquery then
       additional conditions are injected into WHERE/ON/HAVING and it may
       happen that the call of test_quick_select() discovers impossible range.
     */
@@ -2928,7 +2928,7 @@ int JOIN::optimize_stage2()
   }
 
   /*
-    Perform the optimization on fields evaliation mentioned above
+    Perform the optimization on fields evaluation mentioned above
     for all used ref items.
   */
   for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES); tab;
@@ -4949,7 +4949,7 @@ int JOIN::exec_inner()
   /*
     Evaluate expensive constant conditions that were not evaluated during
     optimization. Do not evaluate them for EXPLAIN statements as these
-    condtions may be arbitrarily costly, and because the optimize phase
+    conditions may be arbitrarily costly, and because the optimize phase
     might not have produced a complete executable plan for EXPLAINs.
   */
   if (!zero_result_cause &&
@@ -5261,7 +5261,7 @@ find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
                               WHERE clause of the top level select
   @param og_num               total number of ORDER BY and GROUP BY clauses
                               arguments
-  @param order                linked list of ORDER BY agruments
+  @param order                linked list of ORDER BY arguments
   @param group                linked list of GROUP BY arguments
   @param having               top level item of HAVING expression
   @param proc_param           list of PROCEDUREs
@@ -5681,7 +5681,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     {
       /*
         Information schema is slow and we don't know how many rows we will
-        find. Be setting a moderate ammount of rows we are more likely
+        find. Be setting a moderate amount of rows we are more likely
         to have it materialized if needed.
       */
       table->file->stats.records= table->used_stat_records= 100;
@@ -7350,7 +7350,7 @@ static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       /* 
         If a key use is extracted from an equi-join predicate then it is
         added not only as a key use for every index whose component can
-        be evalusted utilizing this key use, but also as a key use for
+        be evaluated utilizing this key use, but also as a key use for
         hash join. Such key uses are marked with a special key number. 
       */    
       if (add_keyuse(keyuse_array, key_field, get_hash_join_key_no(), 0))
@@ -7616,7 +7616,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
     directly to fill at most 2 array elements, either of KEY_FIELD
     or SARGABLE_PARAM type. For a BETWEEN predicate 3 elements
     can be filled as this predicate is considered as
-    saragable with respect to each of its argument.
+    sargable with respect to each of its argument.
     An IN predicate can require at most 1 element as currently
     it is considered as sargable only for its first argument.
     Multiple equality can add  elements that are filled after
@@ -8137,7 +8137,7 @@ static double apply_selectivity_for_table(JOIN_TAB *s,
     DBUG_ASSERT(sel >= 0 && sel <= 1.0);
     /*
       table->cond_selectivity will include data from opt_range.
-      Here we check that this is indeeded the case.
+      Here we check that this is indeed the case.
       Note that if table_records == 0, then 'sel' is probably 1
     */
     DBUG_ASSERT(table_records == 0 ||
@@ -8559,7 +8559,7 @@ const char* dbug_print_join_prefix(const POSITION *join_positions,
 
   The function finds the best access path to table 's' from the passed
   partial plan where an access path is the general term for any means to
-  cacess the data in 's'. An access path may use either an index or a scan,
+  access the data in 's'. An access path may use either an index or a scan,
   whichever is cheaper. The input partial plan is passed via the array
   'join->positions' of length 'idx'. The chosen access method for 's' and its
   cost are stored in 'join->positions[idx]'.
@@ -8938,11 +8938,11 @@ best_access_path(JOIN      *join,
                 
                 If range optimizer was able to construct a "range" 
                 access on this index, then its condition "quick_cond" was
-                eqivalent to ref_const_cond (*), and we can re-use E(#rows)
+                equivalent to ref_const_cond (*), and we can re-use E(#rows)
                 from the range optimizer.
                 
                 Proof of (*): By properties of range and ref optimizers 
-                quick_cond will be equal or tighther than ref_const_cond. 
+                quick_cond will be equal or tighter than ref_const_cond.
                 ref_const_cond already covers "smallest" possible interval - 
                 a singlepoint interval over all keyparts. Therefore, 
                 quick_cond is equivalent to ref_const_cond (if it was an 
@@ -9282,7 +9282,7 @@ best_access_path(JOIN      *join,
           index condition pushdown is employed for the used key access).
           Let this number be N. Then the total gain from using the filter is
           N*a_adj - b where b is the cost of building the filter and
-          a_adj is calcilated as follows:
+          a_adj is calculated as follows:
           a - (1-access_cost_factor)*(1-s) =
           (1+1_cond_eval_cost)*(1-s)-1_probe_cost - (1-access_cost_factor)*(1-s)
           =  (1-s)*(1_cond_eval_cost+access_cost_factor) - 1_probe_cost.
@@ -9420,7 +9420,7 @@ best_access_path(JOIN      *join,
 
   /*
     If there is no key to access the table, but there is an equi-join
-    predicate connecting the table with the privious tables then we
+    predicate connecting the table with the previous tables then we
     consider the possibility of using hash join.
     We need also to check that:
     (1) s is inner table of semi-join -> join cache is allowed for semijoins
@@ -10574,7 +10574,7 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
       or disk.
       The following calculation takes a middle ground where assume
       we can sort the keys in memory but have to use a disk based
-      temporary table to retrive the rows.
+      temporary table to retrieve the rows.
       This cost is probably much bigger than it has to be...
     */
     double sort_cost;
@@ -10612,7 +10612,7 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     best complete continuation of the partial QEP. This continuation can be
     used directly as a result of the search.
     -# When (search_depth == 1) the 'best_extension_by_limited_search'
-    consideres the extension of the current QEP with each of the remaining
+    considers the extension of the current QEP with each of the remaining
     unoptimized tables.
 
     All other cases are in-between these two extremes. Thus the parameter
@@ -11145,7 +11145,7 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 
         tbl.keypart1=expr1 AND tbl.keypart2=expr2 AND ...
       
-      and it will only return rows for which this condition is satisified.
+      and it will only return rows for which this condition is satisfied.
       Suppose, certain expr{i} is a constant. Since ref access only returns
       rows that satisfy
         
@@ -11383,7 +11383,7 @@ exit:
 
 /*
   Check if the table is an EQ_REF or similar table and there is no cost
-  to gain by moveing it to a later stage.
+  to gain by moving it to a later stage.
   We call such a table a edge table (or hanging leaf) as it will read at
   most one row and will not add to the number of row combinations in the join.
 */
@@ -11438,7 +11438,7 @@ static int sort_positions(const void *a_, const void *b_)
 
   @param join             JOIN object
   @param trace_one_table  Current optimizer_trace
-  @param pos              Pointer to remanining tables
+  @param pos              Pointer to remaining tables
   @param allowed_tables   bitmap of allowed tables. On return set to
                           the collected tables.
   @param store_poisition  Points to where to store next found SORT_POSITION.
@@ -11531,7 +11531,7 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
 
 /*
   @brief
-    Check if it is potentally possible to short-cut the JOIN execution due to
+    Check if it is potentially possible to short-cut the JOIN execution due to
     ORDER BY ... LIMIT clause
 
   @detail
@@ -11649,7 +11649,7 @@ bool test_if_skip_sort_order_early(JOIN *join,
 
   if (ref_key != MAX_KEY && usable_keys.is_set(ref_key))
   {
-    return true;  // we're using an index that produces the reqired ordering.
+    return true;  // we're using an index that produces the required ordering.
   }
 
   /*
@@ -11862,7 +11862,7 @@ bool join_limit_shortcut_limits_tables(const JOIN *join, uint idx, table_map *ma
     plan with the access plan that results in lowest cost of the expanded
     partial plan, and removes the corresponding relation from
     'remaining_tables'. The algorithm continues until it either constructs a
-    complete optimal plan, or constructs an optimal plartial plan with size =
+    complete optimal plan, or constructs an optimal partial plan with size =
     search_depth.
 
     The final optimal plan is stored in 'join->best_positions'. The
@@ -11951,7 +11951,7 @@ bool join_limit_shortcut_limits_tables(const JOIN *join, uint idx, table_map *ma
   @retval
     enum_best_search::SEARCH_OK          All fine
   @retval
-    enum_best_search::SEARCH_FOUND_EDGE  All remaning tables are edge tables
+    enum_best_search::SEARCH_FOUND_EDGE  All remaining tables are edge tables
   @retval
     enum_best_search::SEARCH_ABORT       Killed by user
   @retval
@@ -12187,7 +12187,7 @@ best_extension_by_limited_search(JOIN      *join,
             Store the current record count and cost as the best
             possible cost at this level if the following holds:
             - It's the lowest record number and cost so far
-            - There is no remaing table that could improve index usage
+            - There is no remaining table that could improve index usage
             or we found an EQ_REF or REF key with less than 2
             matching records (good enough).
           */
@@ -12319,7 +12319,7 @@ best_extension_by_limited_search(JOIN      *join,
             or disk.
             The following calculation takes a middle ground where assume
             we can sort the keys in memory but have to use a disk based
-            temporary table to retrive the rows.
+            temporary table to retrieve the rows.
             This cost is probably much bigger than it has to be...
           */
           double sort_cost;
@@ -12368,7 +12368,7 @@ end:
 
 
 /**
-  Find how much space the prevous read not const tables takes in cache.
+  Find how much space the previous read not const tables takes in cache.
 */
 
 void JOIN_TAB::calc_used_field_length(bool max_fl)
@@ -12674,7 +12674,7 @@ cache_record_length(JOIN *join,uint idx)
      repeated rows: t2.records_out * t3.records_out
      engine_calls: record_count/repeated_rows = t1.records_out
 
-   If t4 depends on a table that uses EQ_REF access, we can multipy that
+   If t4 depends on a table that uses EQ_REF access, we can multiply that
    table's repeated_rows with current table's repeated_rows to take that
    into account.
 
@@ -12834,7 +12834,14 @@ end:
 static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
                                         uint n_top_tabs_count, JOIN_TAB *tab)
 {
-  n_top_tabs_count += tab->join->aggr_tables;
+  /*
+    tab->join == NULL means that we're performing JOIN::cleanup()
+    after a raised error: on EOM, or on an attempt to create a temporary table
+    with a column of a non allowed data type, such as SYS_REFCURSOR.
+  */
+  DBUG_ASSERT(tab->join || current_thd->is_error());
+  if (tab->join)
+    n_top_tabs_count += tab->join->aggr_tables;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
@@ -13832,7 +13839,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
       We look through equalities chosen to perform ref/eq_ref access,
       pick equalities that have form "tbl.part_of_key = othertbl.field"
       (where othertbl is a non-const table and othertbl.field may be NULL)
-      and add them to conditions on correspoding tables (othertbl in this
+      and add them to conditions on corresponding tables (othertbl in this
       example).
 
       Exception from that is the case when referred_tab->join != join.
@@ -13863,7 +13870,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
       1.1 add_key_part saves these to KEYUSE.
       2. create_ref_for_key copies them to TABLE_REF.
       3. add_not_null_conds adds "x IS NOT NULL" to join_tab->select_cond of
-         appropiate JOIN_TAB members.
+         appropriate JOIN_TAB members.
 */
 
 static void add_not_null_conds(JOIN *join)
@@ -15074,6 +15081,36 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
 }
    
 
+/*
+  Procedure of keys generation for result tables of materialized derived
+  tables/views.
+
+  A key is generated for each equi-join pair {derived_table, some_other_table}.
+  Each generated key consists of fields of derived table used in equi-join.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
+  In this case for the derived table tt one key will be generated. It will
+  consist of two parts f1 and f2.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=t1.f3 JOIN
+                  t2 ON tt.f2=t2.f4;
+  In this case for the derived table tt two keys will be generated.
+  One key over f1 field, and another key over f2 field.
+  Currently optimizer may choose to use only one such key, thus the second
+  one will be dropped after range optimizer is finished.
+  See also JOIN::drop_unused_derived_keys function.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=a_function(t1.f3);
+  In this case for the derived table tt one key will be generated. It will
+  consist of one field - f1.
+*/
+
 static
 bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
 {
@@ -15438,7 +15475,7 @@ void revise_cache_usage(JOIN_TAB *join_tab)
                       TRUE  <=> EOF (no action)
 
   DESCRIPTION
-    This function is used by semi-join materialization to capture suquery's
+    This function is used by semi-join materialization to capture subquery's
     resultset and write it into the temptable (that is, materialize it).
 
   NOTE
@@ -15705,7 +15742,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     The problem is, the temp.table is not filled (actually not even opened
     properly) yet, and this doesn't let us call
     handler->multi_range_read_info(). It is possible to come up with
-    estimates, etc. without acessing the table, but it seems not to worth the
+    estimates, etc. without accessing the table, but it seems not to worth the
     effort now.
   */
   if (tab->table->pos_in_table_list->is_materialized_derived())
@@ -16430,7 +16467,7 @@ bool JOIN_TAB::build_range_rowid_filter()
 
   /**
      The same handler object (table->file) is used to build a filter
-     and to perfom a primary table access (by the main query).
+     and to perform a primary table access (by the main query).
 
      To estimate the time for filter building tracker should be changed
      and after building of the filter has been finished it should be
@@ -16911,7 +16948,7 @@ bool TABLE_REF::is_access_triggered()
 
     For a join that is resolved using a temporary table, the first sweep is
     performed against actual tables and an intermediate result is inserted
-    into the temprorary table.
+    into the temporary table.
     The last sweep is performed against the temporary table. Therefore,
     the base tables and associated buffers used to fill the temporary table
     are no longer needed, and this function is called to free them.
@@ -17172,7 +17209,7 @@ void JOIN::free_pushdown_handlers(List<TABLE_LIST>& join_list)
   Remove the following expressions from ORDER BY and GROUP BY:
   Constant expressions @n
   Expression that only uses tables that are of type EQ_REF and the reference
-  is in the ORDER list or if all refereed tables are of the above type.
+  is in the ORDER list or if all referred tables are of the above type.
 
   In the following, the X field can be removed:
   @code
@@ -17664,7 +17701,7 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
   /*
     JOIN::join_free() must be called after the virtual method
     select::send_result_set_metadata() returned control since
-    implementation of this method could use data strutcures
+    implementation of this method could use data structures
     that are released by the method JOIN::join_free().
   */
   join->join_free();
@@ -17837,7 +17874,7 @@ finish:
     the Field::eq_def method) are placed to the same multiple equalities.
     Because of this some equality predicates are not eliminated and
     can be used in the constant propagation procedure.
-    We could weeken the equlity test as soon as at least one of the 
+    We could weaken the equality test as soon as at least one of the
     equal fields is to be equal to a constant. It would require a 
     more complicated implementation: we would have to store, in
     general case, its own constant for each fields from the multiple
@@ -17849,8 +17886,8 @@ finish:
     The implementation does not follow exactly the above rules to
     build a new multiple equality for the equality predicate.
     If it processes the equality of the form field1=field2, it
-    looks for multiple equalities me1 containig field1 and me2 containing
-    field2. If only one of them is found the fuction expands it with
+    looks for multiple equalities me1 containing field1 and me2 containing
+    field2. If only one of them is found the function expands it with
     the lacking field. If multiple equalities for both fields are
     found they are merged. If both searches fail a new multiple equality
     containing just field1 and field2 is added to the existing
@@ -18290,7 +18327,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
     will be replaced by (=(t1.a,t2.b,t3.c,t4.d) AND t2.b>5)
 
     The function performs the substitution in a recursive descent by
-    the condtion tree, passing to the next AND level a chain of multiple
+    the condition tree, passing to the next AND level a chain of multiple
     equality predicates which have been built at the upper levels.
     The Item_equal items built at the level are attached to other
     non-equality conjucts as a sublist. The pointer to the inherited
@@ -18456,7 +18493,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
     E.g. in the following where condition
     WHERE a=5 AND (b=5 or a=c)
     (b=5) and (a=c) are standalone equalities.
-    In general we can't leave alone standalone eqalities:
+    In general we can't leave alone standalone equalities:
     for WHERE a=b AND c=d AND (b=c OR d=5)
     b=c is replaced by =(a,b,c,d).  
    */
@@ -18838,7 +18875,7 @@ static TABLE_LIST* embedding_sjm(Item *item)
     If cond is equal to 0, then not more then one equality is generated
     and a pointer to it is returned as the result of the function.
     
-    Equality substutution and semi-join materialization nests:
+    Equality substitution and semi-join materialization nests:
 
        In case join order looks like this:
 
@@ -18853,7 +18890,7 @@ static TABLE_LIST* embedding_sjm(Item *item)
         outer_tbl1.col.
 
         Item_equal::get_first() also takes similar measures for dealing with
-        equality substitution in presense of SJM nests.
+        equality substitution in presence of SJM nests.
 
     Grep for EqualityPropagationAndSjmNests for a more verbose description.
 
@@ -19084,7 +19121,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
        We're doing substitution for an Item which will be evaluated in the 
        context of a particular item. For example, if the optimizer does a 
        ref access on "tbl1.key= expr" then
-        = equality substitution will be perfomed on 'expr'
+        = equality substitution will be performed on 'expr'
         = it is known in advance that 'expr' will be evaluated when 
           table t1 is accessed.
        Note that in this kind of substution we never have to replace Item_equal
@@ -19098,7 +19135,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
     2. context_tab == NO_PARTICULAR_TAB
        We're doing substitution in WHERE/ON condition, which is not yet 
        attached to any particular join_tab. We will use information about the
-       chosen join order to make "optimal" substitions, i.e. those that allow
+       chosen join order to make "optimal" substitutions, i.e. those that allow
        to apply filtering as soon as possible. See eliminate_item_equal() and 
        Item_equal::get_first() for details.
 
@@ -19515,7 +19552,7 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
     to check whether the query contains  invalid cross-references.
     The forth attribute is an auxiliary one and is used to calculate
     dep_tables.
-    As the attribute dep_tables qualifies possibles orders of tables in the
+    As the attribute dep_tables qualifies possible orders of tables in the
     execution plan, the dependencies required by the straight join
     modifiers are reflected in this attribute as well.
     The function also removes all braces that can be removed from the join
@@ -19757,6 +19794,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         prev_table->dep_tables|= used_tables;
       if (prev_table->on_expr)
       {
+        /* If the ON expression is still there, it's an outer join */
+        DBUG_ASSERT(prev_table->outer_join);
         prev_table->dep_tables|= table->on_expr_dep_tables;
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
@@ -19771,11 +19810,59 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
           prevents update of inner table dependences.
           For example it might happen if RAND() function
           is used in JOIN ON clause.
-	*/  
-        if (!((prev_table->on_expr->used_tables() &
-               ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT)) &
-              ~prev_used_tables))
+	*/
+        table_map prev_on_expr_deps= prev_table->on_expr->used_tables() &
+                                     ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
+        prev_on_expr_deps&= ~prev_used_tables;
+
+        if (!prev_on_expr_deps)
           prev_table->dep_tables|= used_tables;
+        else
+        {
+          /*
+            Another possible case is when prev_on_expr_deps!=0 but it depends
+            on a table outside this join nest. SQL name resolution don't allow
+            this but it is possible when LEFT JOIN is inside a subquery which
+            is converted into a semi-join nest, Example:
+
+              t1 SEMI JOIN (
+                t2
+                LEFT JOIN (t3 LEFT JOIN t4 ON t4.col=t1.col) ON expr
+              ) ON ...
+
+            here, we would have prev_table=t4, table=t3.  The condition
+            "ON t4.col=t1.col" depends on tables {t1, t4}. To make sure the
+            optimizer puts t3 before t4 we need to make sure t4.dep_tables
+            includes t3.
+          */
+
+          DBUG_ASSERT(table->embedding == prev_table->embedding);
+          if (table->embedding)
+          {
+            /*
+              Find what are the "peers" of "table" in the join nest. Normally,
+              it is table->embedding->nested_join->used_tables, but here we are
+              in the process of recomputing that value.
+              So, we walk the join list and collect the bitmap of peers:
+            */
+            table_map peers= 0;
+            List_iterator_fast<TABLE_LIST> li(*join_list);
+            TABLE_LIST *peer;
+            while ((peer= li++))
+            {
+              table_map curmap= peer->nested_join
+                                    ? peer->nested_join->used_tables
+                                    : peer->get_map();
+              peers|= curmap;
+            }
+            /*
+              If prev_table doesn't depend on any of its peers, add a
+              dependency on nearest peer, that is, on 'table'.
+            */
+            if (!(prev_on_expr_deps & peers))
+              prev_table->dep_tables|= used_tables;
+          }
+        }
       }
     }
     prev_table= table;
@@ -20604,11 +20691,11 @@ bool cond_has_datetime_is_null(Item *cond)
 }
 
 /*
-  Check if passed condtition has for of
+  Check if passed condition has for of
 
     not_null_date_col IS NULL
 
-  where not_null_date_col has a datte or datetime type
+  where not_null_date_col has a date or datetime type
 */
 
 bool cond_is_datetime_is_null(Item *cond)
@@ -20976,7 +21063,7 @@ Item_bool_func2::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
     cond_value                  the resulting value of the condition
 
   NOTES
-    calls the inner_remove_eq_conds to check all the tree reqursively
+    calls the inner_remove_eq_conds to check all the tree recursively
 
   RETURN
     *COND with the simplified condition
@@ -21520,7 +21607,7 @@ static bool make_json_valid_expr(TABLE *table, Field *field)
   @param default_field If field has a default value field, store it here
   @param group         1 if we are going to do a relative group by on result
   @param modify_item   1 if item->result_field should point to new item.
-                       This is relevent for how fill_record() is going to
+                       This is relevant for how fill_record() is going to
                        work:
                        If modify_item is 1 then fill_record() will update
                        the record in the original table.
@@ -21674,11 +21761,11 @@ void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr,
   @param fields               list of items that will be used to define
                               column types of the table (also see NOTES)
   @param group                Create an unique key over all group by fields.
-                              This is used to retrive the row during
+                              This is used to retrieve the row during
                               end_write_group() and update them.
   @param distinct             should table rows be distinct
   @param save_sum_fields      see NOTES
-  @param select_options       Optiions for how the select is run.
+  @param select_options       Options for how the select is run.
                               See sql_priv.h for a list of options.
   @param rows_limit           Maximum number of rows to insert into the
                               temporary table
@@ -21720,8 +21807,8 @@ TABLE *Create_tmp_table::start(THD *thd,
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-%s-%lx-%llx-%x", tmp_file_prefix, param->tmp_name,
-            current_pid, thd->thread_id, thd->tmp_table++);
+    LEX_STRING tmp= {path, sizeof(path) };
+    make_tmp_table_name(thd, &tmp, param->tmp_name);
   }
 
   /*
@@ -22007,7 +22094,7 @@ bool Create_tmp_table::add_fields(THD *thd,
                          param->force_copy_fields);
       if (unlikely(!new_field))
       {
-        if (unlikely(thd->is_fatal_error))
+        if (unlikely(thd->is_fatal_error || item->cols() == 1))
           goto err;                             // Got OOM
         continue;                               // Some kind of const item
       }
@@ -22400,7 +22487,7 @@ bool Create_tmp_table::finalize(THD *thd,
 	  m_key_part_info->null_offset= (uint) (field->null_ptr -
 					      (uchar*) table->record[0]);
           cur_group->buff++;                        // Pointer to field data
-	  m_group_buff++;                         // Skipp null flag
+	  m_group_buff++;                         // Skip null flag
 	}
         m_group_buff+= cur_group->field->pack_length();
       }
@@ -22758,6 +22845,11 @@ void Virtual_tmp_table::setup_field_pointers()
       }
     }
     cur_field->reset();
+    /*
+      SYS_REFCURSOR SP variables need NULL as the initial Field value
+      to watch sp_cursor_array_element::m_ref_count properly.
+    */
+    cur_field->set_null();
     field_pos+= cur_field->pack_length();
   }
 }
@@ -23826,7 +23918,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
   @param end_records  TRUE <=> all records were accumulated, send them further
 
   @details
-  This function accumulates records of the aggreagation operation for 
+  This function accumulates records of the aggregation operation for
   the node join_tab from the execution plan in a tmp table. To add a new
   record the function calls join_tab->aggr->put_records.
   When there is no more records to save, in this
@@ -24084,7 +24176,7 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   @param join      pointer to the structure providing all context info for
                    the query
   @param join_tab  the first next table of the execution plan to be retrieved
-  @param end_records  true when we need to perform final steps of retrival   
+  @param end_records  true when we need to perform final steps of retrieval
 
   @return
     return one of enum_nested_loop_state, except NESTED_LOOP_NO_MORE_ROWS.
@@ -25016,6 +25108,20 @@ join_read_last_key(JOIN_TAB *tab)
     report_error(table,error);
     return -1;
   }
+
+  /*
+    Tell the storage engine what the range endpoint is so that it can stop
+    scanning once it has hit that point.
+   */
+  key_range range_endpoint
+  {
+    tab->ref.key_buff,
+    tab->ref.key_length,
+    make_prev_keypart_map(tab->ref.key_parts),
+    HA_READ_PREFIX_LAST
+  };
+  table->file->set_end_range(&range_endpoint, handler::RANGE_SCAN_DESC);
+
   if (unlikely((error=
                 table->file->ha_index_read_map(table->record[0],
                                                tab->ref.key_buff,
@@ -25222,7 +25328,7 @@ int join_init_read_record(JOIN_TAB *tab)
   /*
     JT_NEXT means that we should use an index scan on index 'tab->index'
     However if filesort is set, the table was already sorted above
-    and now have to retrive the rows from the tmp file or by rnd_pos()
+    and now have to retrieve the rows from the tmp file or by rnd_pos()
     If !(tab->select && tab->select->quick)) it means that we are
     in "Range checked for each record" and we better let the normal
     init_read_record() handle this case
@@ -25270,7 +25376,7 @@ JOIN_TAB::sort_table()
                                             JOIN::ordered_index_order_by :
                                             JOIN::ordered_index_group_by));
   rc= create_sort_index(join->thd, join, this, NULL);
-  /* Disactivate rowid filter if it was used when creating sort index */
+  /* Deactivate rowid filter if it was used when creating sort index */
   if (rowid_filter)
     table->file->rowid_filter_is_active= false;
   return (rc != 0);
@@ -26997,7 +27103,7 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
   else
   {
     /* 
-      Walk through join's muliple equalities and find the one that contains
+      Walk through join's multiple equalities and find the one that contains
       item_field.
     */
     if (!join->cond_equal)
@@ -27042,47 +27148,6 @@ void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
   @detail
     - Disable "Range checked for each record" (Is this strictly necessary
       here?)
-    - Disable Index Condition Pushdown and Rowid Filtering.
-
-  IndexConditionPushdownAndReverseScans, RowidFilteringAndReverseScans:
-  Suppose we're computing
-
-    select * from t1
-    where
-      key1 between 10 and 20 and extra_condition
-    order by key1 desc
-
-  here the range access uses a reverse-ordered scan on (1 <= key1 <= 10) and
-  extra_condition is checked by either ICP or Rowid Filtering.
-
-  Also suppose that extra_condition happens to be false for rows of t1 that
-  do not satisfy the "10 <= key1 <= 20" condition.
-
-  For forward ordered range scan, the SQL layer will make these calls:
-
-    h->read_range_first(RANGE(10 <= key1 <= 20));
-    while (h->read_range_next()) { ... }
-
-  The storage engine sees the end endpoint of "key1<=20" and can stop scanning
-  as soon as it encounters a row with key1>20.
-
-  For backward-ordered range scan, the SQL layer will make these calls:
-
-    h->index_read_map(key1=20, HA_READ_PREFIX_LAST_OR_PREV);
-    while (h->index_prev()) {
-      if (cmp_key(h->record, "key1=10" )<0)
-        break; // end of range
-      ...
-    }
-
-  Note that the check whether we've walked beyond the key=10 endpoint is
-  made at the SQL layer. The storage engine has no information about the left
-  endpoint of the interval we're scanning.  If all rows before that endpoint
-  do not satisfy ICP condition or do not pass the Rowid Filter, the storage
-  engine will enumerate the records until the table start.
-
-  In MySQL, the API is extended with set_end_range() call so that the storage
-  engine "knows" when to stop scanning.
 */
 
 static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
@@ -27092,28 +27157,6 @@ static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
   {
     tab->use_quick= 1;
     tab->read_first_record= join_init_read_record;
-  }
-  /*
-    Cancel Pushed Index Condition, as it doesn't work for reverse scans.
-  */
-  if (tab->select && tab->select->pre_idx_push_select_cond)
-  {
-    tab->set_cond(tab->select->pre_idx_push_select_cond);
-     tab->table->file->cancel_pushed_idx_cond();
-  }
-  /*
-    The same with Rowid Filter: it doesn't work with reverse scans so cancel
-    it, too.
-  */
-  {
-    /*
-      Rowid Filter is initialized at a later stage. It is not pushed to
-      the storage engine yet:
-    */
-    DBUG_ASSERT(!tab->table->file->pushed_rowid_filter);
-    tab->range_rowid_filter_info= NULL;
-    delete tab->rowid_filter;
-    tab->rowid_filter= NULL;
   }
 }
 
@@ -27654,7 +27697,7 @@ check_reverse_order:
   /*
     Cleanup:
     We may have both a 'select->quick' and 'save_quick' (original)
-    at this point. Delete the one that we wan't use.
+    at this point. Delete the one that we won't use.
   */
 
 skipped_filesort:
@@ -27903,7 +27946,7 @@ JOIN_TAB::remove_duplicates()
     {
       if (item->get_tmp_table_field())
       {
-        /* Field is stored in temporary table, skipp */
+        /* Field is stored in temporary table, skip */
         field_count++;
       }
       else
@@ -28351,7 +28394,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
                    bool is_group_field, bool add_to_all_fields,
                    bool from_window_spec)
 {
-  Item *order_item= *order->item; /* The item from the GROUP/ORDER caluse. */
+  Item *order_item= *order->item; /* The item from the GROUP/ORDER clause. */
   Item::Type order_item_type;
   Item **select_item; /* The corresponding item from the SELECT clause. */
   Field *from_field;  /* The corresponding field from the FROM clause. */
@@ -29237,7 +29280,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	goto err;
       if (pos->type() == Item::REF_ITEM)
       {
-        /* preserve the names of the ref when dereferncing */
+        /* preserve the names of the ref when dereferencing */
         Item_ref *ref= (Item_ref *) pos;
         item->db_name= ref->db_name;
         item->table_name= ref->table_name;
@@ -29390,7 +29433,7 @@ bool JOIN::alloc_func_list()
   group_parts= send_group_parts;
   /*
     If distinct, reserve memory for possible
-    disctinct->group_by optimization
+    distinct->group_by optimization
   */
   if (select_distinct)
   {
@@ -29872,7 +29915,7 @@ copy_funcs(Item **func_ptr, const THD *thd)
 
 /**
   Create a condition for a const reference and add this to the
-  currenct select for the table.
+  current select for the table.
 */
 
 static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
@@ -31447,7 +31490,7 @@ static void print_table_array(THD *thd,
     TABLE_LIST *curr= *tbl;
     
     /*
-      The "eliminated_tables &&" check guards againist the case of 
+      The "eliminated_tables &&" check guards against the case of
       printing the query for CREATE VIEW. We do that without having run 
       JOIN::optimize() and so will have nested_join->used_tables==0.
     */
@@ -33995,7 +34038,7 @@ bool JOIN::optimize_upper_rownum_func()
   @return 1  No or invalid rownum() compare
   @return 0  rownum() is compared with a constant.
              In this case *args contains the constant and
-             *inv_order constains 1 if the rownum() was the right
+             *inv_order contains 1 if the rownum() was the right
              argument, like in 'WHERE 2 >= rownum()'.
 */
 
@@ -34351,7 +34394,7 @@ err:
 
   @details
   The function assumes that each type of a DML statement has its own
-  implementation of the virtunal functions precheck(). It is also
+  implementation of the virtual functions precheck(). It is also
   assumed that that the virtual function execute execute_inner() is to be
   overridden by the implementations for specific commands.
 

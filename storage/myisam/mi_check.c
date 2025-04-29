@@ -1750,7 +1750,7 @@ err:
 }
 
 
-/* Uppate keyfile when doing repair */
+/* Update keyfile when doing repair */
 
 static int writekeys(MI_SORT_PARAM *sort_param)
 {
@@ -2976,7 +2976,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   if (sort_param[0].fix_datafile)
   {
     /*
-      Append some nuls to the end of a memory mapped file. Destroy the
+      Append some nulls to the end of a memory mapped file. Destroy the
       write cache. The master thread did already detach from the share
       by remove_io_thread() in sort.c:thr_find_all_keys().
     */
@@ -4397,7 +4397,7 @@ int recreate_table(HA_CHECK *param, MI_INFO **org_info, char *filename)
 		my_errno);
     goto end;
   }
-  /* We are modifing */
+  /* We are modifying */
   (*org_info)->s->options&= ~HA_OPTION_READ_ONLY_DATA;
   (void) _mi_readinfo(*org_info,F_WRLCK,0);
   (*org_info)->state->records=info.state->records;

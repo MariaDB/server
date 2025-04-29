@@ -97,7 +97,7 @@ static inline my_bitmap_map last_bit_mask(uint bits)
 /*
   Get a mask of the bits that are to be considered as 'on' at location
   starting with 'bits'.
-  This function has _inv in it's name as it's usage is invers compared
+  This function has _inv in its name as its usage is the inverse compared
   to last_bit_mask().
 
   For (bits & 63) it will return values from the series

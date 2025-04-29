@@ -340,7 +340,7 @@ PREPARE stmt FROM "UPDATE t SET a = 0 LIMIT ?";
 EXECUTE stmt USING 0;
 EXECUTE stmt USING 1;
 
-# CLeanup
+# Cleanup
 DROP TABLE t;
 
 --echo #
@@ -451,7 +451,7 @@ CALL p1();
 DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
---echo # Recomplilation of the statement 'SELECT * FORM t1' on
+--echo # Recompilation of the statement 'SELECT * FORM t1' on
 --echo # the second run of the procedure p1 shouldn't result in memory leaks
 CALL p1();
 SET @@debug_dbug='-d,sp_instr_reparsing_1st_time';
@@ -469,3 +469,35 @@ DROP TABLE t1;
 DROP PROCEDURE p1;
 
 --echo # End of 11.2 tests
+
+--echo # MDEV-36079: Stored routine with a cursor crashes on
+--echo # the second execution if a DDL statement happened
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--delimiter $
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va INT DEFAULT 0;
+  DECLARE cur CURSOR FOR SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+--delimiter ;
+
+CALL p1;
+
+ALTER TABLE t1 MODIFY a INT UNSIGNED;
+
+CALL p1;
+
+--echo # Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

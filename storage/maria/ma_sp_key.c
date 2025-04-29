@@ -33,7 +33,7 @@ static int sp_mbr_from_wkb(uchar (*wkb), uint size, uint n_dims, double *mbr);
 
 
 /**
-   Create spactial key
+   Create spatial key
 */
 
 MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,

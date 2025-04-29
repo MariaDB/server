@@ -38,8 +38,8 @@ set local sql_mode="";
 --echo # ALTER TABLE, ANALYZE, OPTIMIZE and some others always
 --echo # issue an implicit commit, even if its argument is a
 --echo # temporary table. 
---echo # *Howewer* an implicit commit is a no-op if all engines
---echo # used since the start of transactiona are non-
+--echo # *However* an implicit commit is a no-op if all engines
+--echo # used since the start of transaction are non-
 --echo # transactional. Thus, for non-transactional engines,
 --echo # these operations are not blocked by FTWRL.
 --echo # This is class #3 -- compatible because do not take
@@ -1802,7 +1802,7 @@ set debug_sync= "RESET";
 --echo #       such changes are considered read only [sic!/QQ] this commit
 --echo #       is compatible with FTWRL.
 --echo #
---echo #       Let us demostrate this fact for some common DML statements.
+--echo #       Let us demonstrate this fact for some common DML statements.
 let $statement= delete from t3_temp_trans;
 let $cleanup_stmt= ;
 --source include/check_ftwrl_compatible.inc
@@ -2031,7 +2031,7 @@ delete from t1_base;
 delete from t2_base;
 
 --echo 
---echo # Check that COMMIT thas is issued after
+--echo # Check that COMMIT that is issued after
 --echo # FLUSH TABLES WITH READ LOCK is not blocked by
 --echo # FLUSH TABLES WITH READ LOCK from another connection.
 --echo # This scenario is used in innobackup.pl. The COMMIT goes

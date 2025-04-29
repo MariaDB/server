@@ -31,6 +31,7 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   key_list(rhs.key_list, mem_root),
   alter_rename_key_list(rhs.alter_rename_key_list, mem_root),
   create_list(rhs.create_list, mem_root),
+  select_field_count(rhs.select_field_count),
   alter_index_ignorability_list(rhs.alter_index_ignorability_list, mem_root),
   check_constraint_list(rhs.check_constraint_list, mem_root),
   flags(rhs.flags), partition_flags(rhs.partition_flags),
@@ -453,15 +454,8 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   }
 
   tmp_name.str= tmp_name_buff;
-  tmp_name.length= my_snprintf(tmp_name_buff, sizeof(tmp_name_buff),
-                               "%s-alter-%lx-%llx",
-                               tmp_file_prefix, current_pid, thd->thread_id);
-  /* Safety fix for InnoDB */
-  if (lower_case_table_names)
-  {
-    // Ok to latin1, as the file name is in the form '#sql-alter-abc-def'
-    tmp_name.length= my_casedn_str_latin1(tmp_name_buff);
-  }
+  tmp_name.length= sizeof(tmp_name_buff);
+  make_tmp_table_name(thd, (LEX_STRING*) &tmp_name, "alter");
 
   if (table_list->table->s->tmp_table == NO_TMP_TABLE)
   {

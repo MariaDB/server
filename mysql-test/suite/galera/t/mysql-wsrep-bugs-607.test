@@ -13,7 +13,7 @@
 #
 
 --echo #
---echo # test the order of wsrep XID storage after certifiation failure
+--echo # test the order of wsrep XID storage after certification failure
 --echo #
 
 --connection node_1

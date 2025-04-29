@@ -43,7 +43,7 @@ Tick one of the following boxes [x] to help us understand if the base branch for
 - [ ] *This is a bug fix, and the PR is based against the earliest maintained branch in which the bug can be reproduced.*
 
 <!--
-  All code merged into the MariaDB codebase must meet a quality standard and codying style.
+  All code merged into the MariaDB codebase must meet a quality standard and coding style.
   Maintainers are happy to point out inconsistencies but in order to speed up the review and merge process we ask you to check the CODING standards.
 -->
 ## PR quality check

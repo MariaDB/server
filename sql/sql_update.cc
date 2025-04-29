@@ -61,7 +61,7 @@ bool records_are_comparable(const TABLE *table) {
 
 
 /**
-   Compares the input and outbut record buffers of the table to see if a row
+   Compares the input and output record buffers of the table to see if a row
    has changed.
 
    @return true if row has changed.
@@ -254,7 +254,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
   /*
     Only duplicate key errors print the key value.
-    If storage engine does always read all columns, we have the value alraedy.
+    If storage engine does always read all columns, we have the value already.
   */
   if ((error != HA_ERR_FOUND_DUPP_KEY) ||
       !(table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ))
@@ -361,6 +361,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   bool          used_key_is_modified= FALSE, transactional_table;
   bool          will_batch= FALSE;
   bool		can_compare_record;
+  bool          binlogged= 0;
   int           res;
   int		error, loc_error;
   ha_rows       dup_key_found;
@@ -1275,7 +1276,8 @@ update_end:
   if (likely(error < 0) || thd->transaction->stmt.modified_non_trans_table ||
       thd->log_current_statement())
   {
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+        table->s->using_binlog())
     {
       int errcode= 0;
       if (likely(error < 0))
@@ -1291,8 +1293,12 @@ update_end:
       {
         error=1;				// Rollback update
       }
+      binlogged= 1;
     }
   }
+  if (!binlogged)
+    table->mark_as_not_binlogged();
+
   DBUG_ASSERT(transactional_table || !updated || thd->transaction->stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
   delete file_sort;
@@ -1377,13 +1383,13 @@ produce_explain_and_leave:
     goto err;
 
 emit_explain_and_leave:
+  if (!thd->is_error() && need_to_optimize &&
+      select_lex->optimize_unflattened_subqueries(false))
+    DBUG_RETURN(TRUE);
   bool extended= thd->lex->describe & DESCRIBE_EXTENDED;
   int err2= thd->lex->explain->send_explain(thd, extended);
 
   delete select;
-  if (!thd->is_error() && need_to_optimize &&
-      select_lex->optimize_unflattened_subqueries(false))
-    DBUG_RETURN(TRUE);
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
 }
@@ -1682,7 +1688,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   for (tl= table_list; tl ; tl= tl->next_local)
     if (tl->view)
       break;
-  // ... and pass this knowlage in check_fields call
+  // ... and pass this knowledge in check_fields call
   if (check_fields(thd, table_list, *fields, tl != NULL ))
     DBUG_RETURN(1);
 
@@ -1810,7 +1816,7 @@ multi_update::multi_update(THD *thd_arg,
     updated_sys_ver(0),
     tables_to_update(get_table_map(fields))
 {
-  // Defer error reporting to multi_update::init whne tables_to_update is zero
+  // Defer error reporting to multi_update::init when tables_to_update is zero
   // because we don't have exceptions and we can't return values from a constructor.
 }
 
@@ -2526,10 +2532,12 @@ error:
 
 void multi_update::abort_result_set()
 {
+  TABLE_LIST *cur_table;
+
   /* the error was handled or nothing deleted and no side effects return */
   if (unlikely(error_handled ||
                (!thd->transaction->stmt.modified_non_trans_table && !updated)))
-    return;
+    goto end;
 
   /****************************************************************************
 
@@ -2581,6 +2589,15 @@ void multi_update::abort_result_set()
   thd->transaction->all.m_unsafe_rollback_flags|=
     (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
   DBUG_ASSERT(trans_safe || !updated || thd->transaction->stmt.modified_non_trans_table);
+
+end:
+  /*
+    Mark all temporay tables as not completely binlogged
+    All future usage of these tables will enforce row level logging, which
+    ensures that all future usage of them enforces row level logging.
+  */
+  for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
+    cur_table->table->mark_as_not_binlogged();
 }
 
 
@@ -3195,6 +3212,7 @@ err:
 bool Sql_cmd_update::execute_inner(THD *thd)
 {
   bool res= 0;
+  Running_stmt_guard guard(thd, active_dml_stmt::UPDATING_STMT);
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (!multitable)

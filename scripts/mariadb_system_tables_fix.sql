@@ -786,7 +786,7 @@ DELIMITER ;
 -- Get warnings (if any)
 SHOW WARNINGS;
 
-# Convering the host name to lower case for existing users
+# Converting the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
 
 DELIMITER //

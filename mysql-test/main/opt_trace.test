@@ -201,7 +201,7 @@ select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t0, t1, t2, t3;
 
 --echo #
---echo # IN subquery to sem-join is traced
+--echo # IN subquery to semi-join is traced
 --echo #
 
 create table t1(a int, b int);

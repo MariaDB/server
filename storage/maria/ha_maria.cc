@@ -3212,11 +3212,12 @@ THR_LOCK_DATA **ha_maria::store_lock(THD *thd,
       We have to disable concurrent inserts for INSERT ... SELECT or
       INSERT/UPDATE/DELETE with sub queries if we are using statement based
       logging.  We take the safe route here and disable this for all commands
-      that only does reading that are not SELECT.
+      that only does reading that are not SELECT or ALTER TABLE nolock.
     */
     if (lock_type <= TL_READ_HIGH_PRIORITY &&
         !thd->is_current_stmt_binlog_format_row() &&
         (sql_command != SQLCOM_SELECT &&
+         sql_command != SQLCOM_ALTER_TABLE &&
          sql_command != SQLCOM_LOCK_TABLES) &&
         (thd->variables.option_bits & OPTION_BIN_LOG) &&
         mysql_bin_log.is_open())
@@ -4324,7 +4325,7 @@ int ha_maria::find_unique_row(uchar *record, uint constrain_no)
   else
   {
     /*
-     It is case when just unique index used instead unicue constrain
+     It is the case when just unique index is used instead of unique constraint
      (conversion from heap table).
      */
     DBUG_ASSERT(file->s->state.header.keys > constrain_no);

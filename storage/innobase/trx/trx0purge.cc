@@ -1052,16 +1052,25 @@ inline trx_purge_rec_t purge_sys_t::fetch_next_rec()
 /** Close all tables that were opened in a purge batch for a worker.
 @param node   purge task context
 @param thd    purge coordinator thread handle */
-static void trx_purge_close_tables(purge_node_t *node, THD *thd)
+static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
 {
   for (auto &t : node->tables)
   {
-    if (!t.second.first);
-    else if (t.second.first == reinterpret_cast<dict_table_t*>(-1));
-    else
+    dict_table_t *table= t.second.first;
+    if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
+      table->release();
+  }
+
+  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
+
+  for (auto &t : node->tables)
+  {
+    dict_table_t *table= t.second.first;
+    if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
     {
-      dict_table_close(t.second.first, thd, t.second.second);
       t.second.first= reinterpret_cast<dict_table_t*>(-1);
+      if (mdl_context != nullptr && t.second.second != nullptr)
+        mdl_context->release_lock(t.second.second);
     }
   }
 }
@@ -1073,36 +1082,35 @@ void purge_sys_t::wait_FTS(bool also_sys)
 }
 
 __attribute__((nonnull))
-/** Aqcuire a metadata lock on a table.
+/** Acquire a metadata lock on a table.
 @param table        table handle
 @param mdl_context  metadata lock acquisition context
-@param mdl          metadata lcok
+@param mdl          metadata lock
 @return table handle
 @retval nullptr if the table is not found or accessible
 @retval -1      if the purge of history must be suspended due to DDL */
 static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
                                              MDL_context *mdl_context,
-                                             MDL_ticket **mdl)
+                                             MDL_ticket **mdl) noexcept
 {
   ut_ad(dict_sys.frozen_not_locked());
   *mdl= nullptr;
 
   if (!table->is_readable() || table->corrupted)
-  {
-    table->release();
     return nullptr;
-  }
 
   size_t db_len= dict_get_db_name_len(table->name.m_name);
   if (db_len == 0)
-    return table; /* InnoDB system tables are not covered by MDL */
+  {
+    /* InnoDB system tables are not covered by MDL */
+  got_table:
+    table->acquire();
+    return table;
+  }
 
   if (purge_sys.must_wait_FTS())
-  {
   must_wait:
-    table->release();
     return reinterpret_cast<dict_table_t*>(-1);
-  }
 
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
@@ -1110,7 +1118,7 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
 
   if (!table->parse_name<true>(db_buf, tbl_buf, &db_len, &tbl_len))
     /* The name of an intermediate table starts with #sql */
-    return table;
+    goto got_table;
 
   {
     MDL_request request;
@@ -1123,37 +1131,38 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
       goto must_wait;
   }
 
-  return table;
+  goto got_table;
 }
 
 /** Open a table handle for the purge of committed transaction history
 @param table_id     InnoDB table identifier
 @param mdl_context  metadata lock acquisition context
-@param mdl          metadata lcok
+@param mdl          metadata lock
 @return table handle
 @retval nullptr if the table is not found or accessible
 @retval -1      if the purge of history must be suspended due to DDL */
 static dict_table_t *trx_purge_table_open(table_id_t table_id,
                                           MDL_context *mdl_context,
-                                          MDL_ticket **mdl)
+                                          MDL_ticket **mdl) noexcept
 {
-  dict_sys.freeze(SRW_LOCK_CALL);
+  dict_table_t *table;
 
-  dict_table_t *table= dict_sys.find_table(table_id);
-
-  if (table)
-    table->acquire();
-  else
+  for (;;)
   {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    table= dict_sys.find_table(table_id);
+    if (table)
+      break;
     dict_sys.unfreeze();
     dict_sys.lock(SRW_LOCK_CALL);
     table= dict_load_table_on_id(table_id, DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     dict_sys.unlock();
     if (!table)
       return nullptr;
-    dict_sys.freeze(SRW_LOCK_CALL);
+    /* At this point, the freshly loaded table may already have been evicted.
+    We must look it up again while holding a shared dict_sys.latch.  We keep
+    trying this until the table is found in the cache or it cannot be found
+    in the dictionary (because the table has been dropped or rebuilt). */
   }
 
   table= trx_purge_table_acquire(table, mdl_context, mdl);
@@ -1172,10 +1181,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
 
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
-  {
-    purge_node_t *node= static_cast<purge_node_t*>(thr->child);
-    trx_purge_close_tables(node, thd);
-  }
+    trx_purge_close_tables(static_cast<purge_node_t*>(thr->child), thd);
 
   m_active= false;
   wait_FTS(false);
@@ -1183,7 +1189,10 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
 
   dict_table_t *table= trx_purge_table_open(id, mdl_context, mdl);
   if (table == reinterpret_cast<dict_table_t*>(-1))
+  {
+    VALGRIND_YIELD;
     goto retry;
+  }
 
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
@@ -1199,6 +1208,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
         {
           if (table)
             dict_table_close(table, thd, *mdl);
+          VALGRIND_YIELD;
           goto retry;
         }
       }
@@ -1230,9 +1240,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
   MDL_context *const mdl_context=
     static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
-
-  const size_t max_pages=
-    std::min(buf_pool.curr_size * 3 / 4, size_t{srv_purge_batch_size});
 
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
@@ -1283,11 +1290,11 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
       ut_ad(!table_node->in_progress);
     }
 
-    if (purge_sys.n_pages_handled() >= max_pages)
+    const size_t size{purge_sys.n_pages_handled()};
+    if (size >= size_t{srv_purge_batch_size} ||
+        size >= buf_pool.usable_size() * 3 / 4)
       break;
   }
-
-  purge_sys.m_active= false;
 
 #ifdef UNIV_DEBUG
   thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
@@ -1337,6 +1344,8 @@ static void trx_purge_wait_for_workers_to_complete()
 TRANSACTIONAL_INLINE
 void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 {
+  m_active= false;
+
   /* Release the undo pages. */
   for (auto p : pages)
     p.second->unfix();

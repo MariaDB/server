@@ -133,7 +133,7 @@ drop temporary table t1;
 --echo #
 --echo # For that, start a transaction, use a routine. In a concurrent
 --echo # connection, try to drop or alter the routine. It should place
---echo # a pending or exclusive lock and block. In another concurrnet
+--echo # a pending or exclusive lock and block. In another concurrent
 --echo # connection, try to use the routine.
 --echo # That should block on the pending exclusive lock.
 --echo #

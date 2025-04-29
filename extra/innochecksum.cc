@@ -382,7 +382,7 @@ open_file(
  @param  [in,out]	buf			read the file in buffer
  @param  [in]		partial_page_read	enable when to read the
 						remaining buffer for first page.
- @param  [in]		physical_page_size	Physical/Commpressed page size.
+ @param  [in]		physical_page_size	Physical/Compressed page size.
  @param  [in,out]	fil_in			file pointer created for the
 						tablespace.
  @retval no. of bytes read.
@@ -590,7 +590,7 @@ Rewrite the checksum for the page.
 
 @retval true  : do rewrite
 @retval false : skip the rewrite as checksum stored match with
-		calculated or page is doublwrite buffer.
+		calculated or page is doublewrite buffer.
 */
 static bool update_checksum(byte* page, uint32_t flags)
 {
@@ -1875,7 +1875,7 @@ first_non_zero:
 		}
 
 		if (!read_from_stdin) {
-			/* flcose() will flush the data and release the lock if
+			/* fclose() will flush the data and release the lock if
 			any acquired. */
 			fclose(fil_in);
 		}

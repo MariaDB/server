@@ -35,4 +35,3 @@
 --source include/galera_signal_sync_point.inc
 --let $galera_sync_point = after_replicate_sync
 --source include/galera_signal_sync_point.inc
-

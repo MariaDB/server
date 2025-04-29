@@ -757,7 +757,7 @@ static my_bool create_database_if_not_exists(const char *name)
   dirname_part(dirname, name, &length);
   if (!length)
   {
-    /* Skip files without directores */
+    /* Skip files without directories */
     DBUG_RETURN(0);
   }
   /*
@@ -3930,7 +3930,7 @@ state is current and can be flushed. So we have a per-table sequence:
     Launch one or more threads to do the background rollback. Don't wait for
     them to complete their rollback (background rollback; for debugging, we
     can have an option which waits). Set a counter (total_of_rollback_threads)
-    to the number of threads to lauch.
+    to the number of threads to launch.
 
     Note that InnoDB's rollback-in-background works as long as InnoDB is the
     last engine to recover, otherwise MySQL will refuse new connections until

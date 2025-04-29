@@ -586,7 +586,7 @@ DROP TABLE worklog5743;
 
 #------------------------------------------------------------------------------
 # Prefix index with utf8 charset
-# utf8 charcter takes 3 bytes in mysql so prefix index limit is 3072/3 = 1024
+# utf8 character takes 3 bytes in mysql so prefix index limit is 3072/3 = 1024
 CREATE TABLE worklog5743 (
 col_1_text TEXT (4000) CHARACTER SET 'utf8',
 col_2_text TEXT (4000) CHARACTER SET 'utf8',
@@ -624,7 +624,7 @@ SELECT col_1_varchar = REPEAT("c", 4000) FROM worklog5743;
 DROP TABLE worklog5743;
 
 #------------------------------------------------------------------------------
-# prefinx index on utf8 charset with transaction
+# prefix index on utf8 charset with transaction
 CREATE TABLE worklog5743 (
 col_1_varbinary VARBINARY (4000) ,
 col_2_varchar VARCHAR (4000) CHARACTER SET 'utf8',
@@ -872,7 +872,7 @@ SELECT tbl1.col_1_varchar = tbl2.col_1_varchar
 FROM worklog5743 tbl1 , worklog5743 tbl2
 WHERE tbl1.col_1_varchar = tbl2.col_1_varchar ;
 
-# Select in subquey
+# Select in subquery
 SELECT tbl1.col_1_varchar = REPEAT("c", 4000) FROM worklog5743 tbl1
 WHERE col_1_varchar IN (SELECT tbl2.col_1_varchar FROM worklog5743 tbl2) ;
 SELECT tbl1.col_1_varchar = REPEAT("c", 4000) FROM worklog5743 tbl1

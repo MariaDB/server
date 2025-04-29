@@ -9,4 +9,3 @@ wsrep-on=OFF
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
-

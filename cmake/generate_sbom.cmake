@@ -149,7 +149,7 @@ FUNCTION(GENERATE_SBOM)
   LIST(FILTER ALL_SUBMODULES EXCLUDE REGEX libmariadb/docs)
 
   # It is possible to provide  EXTRA_SBOM_DEPENDENCIES
-  # and accompanying per-dependency data, to extend generared sbom
+  # and accompanying per-dependency data, to extend generated sbom
   # document.
   # Example below injects an extra "ncurses" dependency  using several
   # command line parameters for CMake.

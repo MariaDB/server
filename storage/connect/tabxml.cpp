@@ -382,7 +382,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
       xcp->Found = false;
       } // endfor xcp
 
-    } // endor i
+    } // endfor i
 
   txmp->CloseDB(g);
 
@@ -818,7 +818,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
 
 /***********************************************************************/
 /*  Initialize the processing of the XML file.                         */
-/*  Note: this function can be called several times, eventally before  */
+/*  Note: this function can be called several times, eventually before */
 /*  the columns are known (from TBL for instance)                      */
 /***********************************************************************/
 bool TDBXML::Initialize(PGLOBAL g)

@@ -876,7 +876,7 @@ static bool ddl_log_increment_phase_no_lock(uint entry_pos)
     else
     {
       /*
-        Trying to deativate an execute entry or already deactive entry.
+        Trying to deactivate an execute entry or already inactive entry.
         This should not happen
       */
       DBUG_ASSERT(0);
@@ -1017,7 +1017,7 @@ static void ddl_log_to_binary_log(THD *thd, String *query)
      table name to the query
 
    When we log, we always log all found tables and views at the same time. This
-   is done to simply the exceute code as otherwise we would have to keep
+   is done to simplify the execute code as otherwise we would have to keep
    information of what was logged.
 */
 
@@ -1505,7 +1505,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     case DDL_RENAME_PHASE_STAT:
       /*
         Stat tables must be updated last so that we can handle a rename of
-        a stat table. For now we just rememeber that we have to update it
+        a stat table. For now we just remember that we have to update it
       */
       update_flags(ddl_log_entry->entry_pos, DDL_LOG_FLAG_UPDATE_STAT);
       ddl_log_entry->flags|= DDL_LOG_FLAG_UPDATE_STAT;
@@ -2543,7 +2543,7 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
   @brief Write or update execute entry in the ddl log.
 
   @details An execute entry points to the first entry that should
-  be excuted during recovery. In some cases it's only written once,
+  be executed during recovery. In some cases it's only written once,
   in other cases it's updated for each log entry to point to the new
   header for the list.
 
@@ -2749,7 +2749,6 @@ bool ddl_log_close_binlogged_events(HASH *xids)
   @retval 0     Ok.
   @retval > 0   Fatal error. We have to abort (can't create ddl log)
   @return < -1  Recovery failed, but new log exists and is usable
-
 */
 
 int ddl_log_execute_recovery()
@@ -3576,7 +3575,7 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
     ddl_log_entry.extra_name.length= 0;
     max_query_length= ddl_log_free_space_in_entry(&ddl_log_entry);
   }
-  if (ddl_log_write_execute_entry(first_entry->entry_pos,
+  if (ddl_log_write_execute_entry(first_entry->entry_pos, 0,
                                   &ddl_state->execute_entry))
     goto err;
 

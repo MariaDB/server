@@ -114,7 +114,7 @@ install_mariadb_from_archive() {
     version=$1
     # Find latest RPM repository from https://archive.mariadb.org/
     # The RPMs for each MariaDB version are build for the latest distribution version at the time of release.
-    # Certain required libraries are missing in the latest version of the distribuiton this test is being run on (currently Fedora).
+    # Certain required libraries are missing in the latest version of the distribution this test is being run on (currently Fedora).
     # The missing libraries depned on the latest distribution version, so that is found by scanning the MariaDB archive directory.
 
     log "Finding MariaDB RPM repository for version $version"

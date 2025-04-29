@@ -4,6 +4,7 @@ SET sql_log_bin = 0;
 source include/add_anonymous_users.inc;
 SET sql_log_bin = 1;
 
+set @@binlog_format="statement";
 -- source include/master-slave.inc
 
 # Clean up old slave's binlogs.
@@ -179,7 +180,7 @@ drop temporary table t3;
 
 select * from t2 ORDER BY f;
 
-# Commented out 8/30/2005 to make compatable with both sbr and rbr
+# Commented out 8/30/2005 to make compatible with both sbr and rbr
 #--replace_result $VERSION VERSION
 #--replace_column 2 # 5 #
 #show binlog events;

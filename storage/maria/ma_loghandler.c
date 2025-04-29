@@ -395,7 +395,7 @@ struct st_translog_descriptor
   DYNAMIC_ARRAY unfinished_files;
 
   /*
-    minimum number of still need file calculeted during last
+    minimum number of still needed file calculated during last
     translog_purge call
   */
   uint32 min_need_file;
@@ -1582,7 +1582,7 @@ static my_bool translog_buffer_init(struct st_translog_buffer *buffer, int num)
 /*
   @brief close transaction log file by descriptor
 
-  @param file            pagegecache file descriptor reference
+  @param file            pagecache file descriptor reference
 
   @return Operation status
     @retval 0  OK
@@ -1939,7 +1939,7 @@ static void translog_finish_page(TRANSLOG_ADDRESS *horizon,
   DBUG_ASSERT(LSN_FILE_NO(*horizon) == LSN_FILE_NO(cursor->buffer->offset)
               || translog_status == TRANSLOG_UNINITED);
   if ((LSN_FILE_NO(*horizon) != LSN_FILE_NO(cursor->buffer->offset)))
-    DBUG_VOID_RETURN; // everything wrong do not write to awoid more problems
+    DBUG_VOID_RETURN; // everything wrong do not write to avoid more problems
   translog_check_cursor(cursor);
   if (cursor->protected)
   {
@@ -6503,7 +6503,7 @@ my_bool translog_write_record(LSN *lsn,
     for (i= TRANSLOG_INTERNAL_PARTS; i < part_no; i++)
     {
 #ifdef HAVE_valgrind
-      /* Find unitialized bytes early */
+      /* Find uninitialized bytes early */
       checksum+= my_checksum(checksum, parts_data[i].str,
                              parts_data[i].length);
 #endif
@@ -6740,7 +6740,7 @@ translog_scanner_get_page(TRANSLOG_SCANNER_DATA *scanner)
   @param fixed_horizon   true if it is OK do not read records which was written
                          after scanning beginning
   @param scanner         scanner which have to be inited
-  @param use_direct      prefer using direct lings from page handler
+  @param use_direct      prefer using direct links from page handler
                          where it is possible.
 
   @note If direct link was used translog_destroy_scanner should be
@@ -6844,7 +6844,7 @@ static my_bool translog_scanner_eol(TRANSLOG_SCANNER_DATA *scanner)
 
 
 /**
-  @brief Cheks End of the Page
+  @brief Checks End of the Page
 
   @param scanner         Information about current chunk during scanning
 

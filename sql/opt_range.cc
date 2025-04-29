@@ -312,7 +312,7 @@ public:
   longlong baseflag;
   uint max_key_parts, range_count;
 
-  bool quick;				// Don't calulate possible keys
+  bool quick;				// Don't calculate possible keys
 
   uint fields_bitmap_size;
   MY_BITMAP needed_fields;    /* bitmask of fields needed by the query */
@@ -1029,7 +1029,7 @@ int imerge_list_or_list(RANGE_OPT_PARAM *param,
       tree        SEL_TREE whose range part is to be ored with the imerges
 
   DESCRIPTION
-    For each imerge mi from the list 'merges' the function performes OR
+    For each imerge mi from the list 'merges' the function performs OR
     operation with mi and the range part of 'tree' rt, producing one or
     two imerges.
 
@@ -2690,7 +2690,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   TODO
    * Change the value returned in opt_range_condition_rows from a pessimistic
      estimate to true E(#rows that satisfy table condition). 
-     (we can re-use some of E(#rows) calcuation code from
+     (we can re-use some of E(#rows) calculation code from
      index_merge/intersection for this)
    
    * Check if this function really needs to modify keys_to_use, and change the
@@ -4054,7 +4054,7 @@ typedef struct st_part_prune_param
     partitioning index definition doesn't include partitioning fields.
   */
   int last_part_partno;
-  int last_subpart_partno; /* Same as above for supartitioning */
+  int last_subpart_partno; /* Same as above for subpartitioning */
 
   /*
     is_part_keypart[i] == MY_TEST(keypart #i in partitioning index is a member
@@ -4065,7 +4065,7 @@ typedef struct st_part_prune_param
   /* Same as above for subpartitioning */
   my_bool *is_subpart_keypart;
 
-  my_bool ignore_part_fields; /* Ignore rest of partioning fields */
+  my_bool ignore_part_fields; /* Ignore rest of partitioning fields */
 
   /***************************************************************
    Following fields form find_used_partitions() recursion context:
@@ -4819,7 +4819,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
           res= 0; /* No satisfying partitions */
           goto pop_and_go_right;
         }
-        /* Rembember the limit we got - single partition #part_id */
+        /* Remember the limit we got - single partition #part_id */
         init_single_partition_iterator(part_id, &ppar->part_iter);
         
         /*
@@ -4864,7 +4864,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
     {
       /* 
         Can't handle condition on current key part. If we're that deep that 
-        we're processing subpartititoning's key parts, this means we'll not be
+        we're processing subpartitioning's key parts, this means we'll not be
         able to infer any suitable condition, so bail out.
       */
       if (key_tree_part >= ppar->last_part_partno)
@@ -5704,7 +5704,7 @@ skip_to_ror_scan:
                       indexes are to be merges
       read_time       The upper bound for the cost of the plan to be evaluated
 
-  DESRIPTION
+  DESCRIPTION
     For the given index merge plan imerge_trp extracted from the SEL_MERGE
     imerge the function looks for range scans with the same indexes and merges
     them into SEL_ARG trees. Then for each such SEL_ARG tree r_i the function
@@ -5812,7 +5812,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
 
 /*
   This structure contains the info common for all steps of a partial
-  index intersection plan. Morever it contains also the info common
+  index intersection plan. Moreover it contains also the info common
   for index intersect plans. This info is filled in by the function
   prepare_search_best just before searching for the best index
   intersection plan.
@@ -5839,7 +5839,7 @@ typedef struct st_common_index_intersect_info
   ha_rows best_records;
   uint best_length;    /* number of indexes in the current best intersection */
   INDEX_SCAN_INFO **best_intersect;  /* the current best index intersection  */
-  /* scans from the best intersect to be filtrered by cpk conditions         */
+  /* scans from the best intersect to be filtered by cpk conditions         */
   key_map filtered_scans; 
 
   uint *buff_elems;        /* buffer to calculate cost of index intersection */
@@ -6384,7 +6384,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     the function returns a number bigger than #r.
 
   NOTES
-   See the comment before the desription of the function that explains the
+   See the comment before the description of the function that explains the
    reasoning used  by this function.
     
   RETURN
@@ -6465,7 +6465,7 @@ double get_cpk_filter_cost(ha_rows filtered_records,
 
 
 /*
-  Check whether a patial index intersection plan can be extended 
+  Check whether a partial index intersection plan can be extended
 
   SYNOPSIS
     check_index_intersect_extension()
@@ -6616,7 +6616,7 @@ bool check_index_intersect_extension(THD *thd,
   }
 
   /*
-    The cost after sweeep can be bigger than cutoff, but that is ok as the
+    The cost after sweep can be bigger than cutoff, but that is ok as the
     end cost can decrease when we add the next index.
   */
   cost+= get_sweep_read_cost(common_info->param, rows2double(records), 1);
@@ -8110,7 +8110,7 @@ QUICK_SELECT_I *TRP_ROR_UNION::make_quick(PARAM *param,
       cond_func   item for the predicate
       field       field in the predicate
       lt_value    constant that field should be smaller
-      gt_value    constant that field should be greaterr
+      gt_value    constant that field should be greater
 
   RETURN 
     #  Pointer to tree built tree
@@ -8289,7 +8289,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
 
       /*
         if this is a "col1 NOT IN (...)", and there is a UNIQUE KEY(col1), do
-        not constuct a SEL_TREE from it. The rationale is as follows:
+        not construct a SEL_TREE from it. The rationale is as follows:
          - if there are only a few constants, this condition is not selective
            (unless the table is also very small in which case we won't gain
            anything)
@@ -8381,7 +8381,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
       {
         /*
           Get the SEL_TREE for the last "c_last < X < +inf" interval
-          (value_item cotains c_last already)
+          (value_item contains c_last already)
         */
         tree2= get_mm_parts(param, field, Item_func::GT_FUNC, value_item);
         tree= tree_or(param, tree, tree2);
@@ -9353,7 +9353,7 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
   DBUG_ENTER("Item_func_null_predicate::get_mm_leaf");
   DBUG_ASSERT(!value);
   /*
-    No check for field->table->maybe_null. It's perfecly fine to use range
+    No check for field->table->maybe_null. It's perfectly fine to use range
     access for cases like
 
       SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
@@ -10691,7 +10691,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
 	new_tree=new_tree->insert(new_arg);
     }
     if (e1->cmp_max_to_max(e2) < 0)
-      e1=e1->next;				// e1 can't overlapp next e2
+      e1=e1->next;				// e1 can't overlap next e2
     else
       e2=e2->next;
   }
@@ -10807,7 +10807,7 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
    transformation is key_or( expr1, expr2 ) => expr1 OR expr2.
 
    Both expressions are assumed to be in the SEL_ARG format. In a logic sense,
-   theformat is reminiscent of DNF, since an expression such as the following
+   the format is reminiscent of DNF, since an expression such as the following
 
    ( 1 < kp1 < 10 AND p1 ) OR ( 10 <= kp2 < 20 AND p2 )
 
@@ -10833,7 +10833,7 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
    If the predicates are equal for the rest of the keyparts, or if there are
    no more, the range in expr2 has its endpoints copied in, and the SEL_ARG
    node in expr2 is deallocated. If more ranges became connected in expr1, the
-   surplus is also dealocated. If they differ, two ranges are created.
+   surplus is also deallocated. If they differ, two ranges are created.
    
    - The range leading up to the overlap. Empty if endpoints are equal.
 
@@ -10929,7 +10929,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
       Ambiguity: *** 
         The range starts or stops somewhere in the "***" range.
-        Example: a starts before b and may end before/the same plase/after b
+        Example: a starts before b and may end before/the same place/after b
         a: [----***]
         b:   [---]
 
@@ -12329,7 +12329,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
         estimates may be slightly out of sync.
 
         We cannot do this easily in the above multi_range_read_info_const()
-        call as then we would need to have similar adjustmends done
+        call as then we would need to have similar adjustments done
         in the partitioning engine.
       */
       rows= MY_MAX(table_records, 1);
@@ -12378,7 +12378,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   else if (param->range_count > 1)
   {
     /* 
-      Scaning multiple key values in the index: the records are ROR
+      Scanning multiple key values in the index: the records are ROR
       for each value, but not between values. E.g, "SELECT ... x IN
       (1,3)" returns ROR order for all records with x=1, then ROR
       order for records with x=3
@@ -13766,16 +13766,24 @@ int QUICK_SELECT_DESC::get_next()
       continue;
     }
 
-    if (last_range->flag & EQ_RANGE &&
-        used_key_parts <= head->key_info[index].user_defined_key_parts)
+    // Case where we can avoid descending scan, see comment above
+    const bool eqrange_all_keyparts= (last_range->flag & EQ_RANGE) &&
+                          (used_key_parts <= head->key_info[index].user_defined_key_parts);
 
+    if (eqrange_all_keyparts)
     {
+      file->set_end_range(NULL, handler::RANGE_SCAN_ASC);
       result= file->ha_index_read_map(record, last_range->max_key,
                                       last_range->max_keypart_map,
                                       HA_READ_KEY_EXACT);
     }
     else
     {
+      key_range min_range;
+      last_range->make_min_endpoint(&min_range);
+      if (min_range.length > 0)
+        file->set_end_range(&min_range, handler::RANGE_SCAN_DESC);
+
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
                    used_key_parts > head->key_info[index].user_defined_key_parts) ||
@@ -14611,17 +14619,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       goto next_index;
     }
 
-    {
-      for (uint i= 0; i < table->actual_n_key_parts(cur_index_info); i++)
-      {
-        if (cur_index_info->key_part[i].key_part_flag & HA_REVERSE_SORT)
-        {
-          cause="Reverse-ordered (not supported yet)";
-          goto next_index;
-        }
-      }
-    }
-    
     /*
       This function is called on the precondition that the index is covering.
       Therefore if the GROUP BY list contains more elements than the index,
@@ -16070,7 +16067,7 @@ bool QUICK_GROUP_MIN_MAX_SELECT::add_range(SEL_ARG *sel_range)
     are more keyparts to follow the ones we are using we must make the 
     condition on the key inclusive (because x < "ab" means 
     x[0] < 'a' OR (x[0] == 'a' AND x[1] < 'b').
-    To achive the above we must turn off the NEAR_MIN/NEAR_MAX
+    To achieve the above we must turn off the NEAR_MIN/NEAR_MAX
 */
 void QUICK_GROUP_MIN_MAX_SELECT::adjust_prefix_ranges ()
 {
@@ -16210,8 +16207,9 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
 
   NOTES
     If both MIN and MAX are computed, then we use the fact that if there is
-    no MIN key, there can't be a MAX key as well, so we can skip looking
-    for a MAX key in this case.
+    no FIRST key (MIN with ASC index or MAX with DESC index), there
+    can't be a LAST key (MAX with ASC index or MIN with DESC index) as
+    well, so we can skip looking for a LAST key in this case.
 
   RETURN
     0                  on success
@@ -16221,8 +16219,18 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
 
 int QUICK_GROUP_MIN_MAX_SELECT::get_next()
 {
-  int min_res= 0;
-  int max_res= 0;
+  int first_res= 0;
+  int last_res= 0;
+  /*
+    reverse: whether the min/max arg has reverse index. If there's no
+    min nor max its value is irrelevant and unused but we assign it
+    false anyway.
+  */
+  DBUG_ASSERT(!min_max_arg_part || have_min || have_max);
+  bool reverse= min_max_arg_part != NULL &&
+    (min_max_arg_part->key_part_flag & HA_REVERSE_SORT);
+  bool have_first= reverse ? have_max : have_min;
+  bool have_last= reverse ? have_min : have_max;
 #ifdef HPUX11
   /*
     volatile is required by a bug in the HP compiler due to which the
@@ -16246,22 +16254,32 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
     /*
       At this point this->record contains the current prefix in record format.
     */
-    if (have_min)
+    if (have_first)
     {
-      min_res= next_min();
-      if (min_res == 0)
-        update_min_result();
+      first_res= next_min_max(!reverse, reverse);
+      if (first_res == 0)
+      {
+        if (reverse)
+          update_max_result();
+        else
+          update_min_result();
+      }
     }
-    /* If there is no MIN in the group, there is no MAX either. */
-    if ((have_max && !have_min) ||
-        (have_max && have_min && (min_res == 0)))
+    /* If there is no FIRST in the group, there is no LAST either. */
+    if ((have_last && !have_first) ||
+        (have_last && have_first && (first_res == 0)))
     {
-      max_res= next_max();
-      if (max_res == 0)
-        update_max_result();
-      /* If a MIN was found, a MAX must have been found as well. */
-      DBUG_ASSERT((have_max && !have_min) ||
-                  (have_max && have_min && (max_res == 0)));
+      last_res= next_min_max(reverse, reverse);
+      if (last_res == 0)
+      {
+        if (reverse)
+          update_min_result();
+        else
+          update_max_result();
+      }
+      /* If a LAST was found, a FIRST must have been found as well. */
+      DBUG_ASSERT((have_last && !have_first) ||
+                  (have_last && have_first && (last_res == 0)));
     }
     /*
       If this is just a GROUP BY or DISTINCT without MIN or MAX and there
@@ -16273,7 +16291,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
                                       make_prev_keypart_map(real_key_parts),
                                       HA_READ_KEY_EXACT);
 
-    result= have_min ? min_res : have_max ? max_res : result;
+    result= have_first ? first_res : have_last ? last_res : result;
   } while (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE);
 
   if (result == HA_ERR_KEY_NOT_FOUND)
@@ -16283,131 +16301,130 @@ int QUICK_GROUP_MIN_MAX_SELECT::get_next()
 }
 
 
+/* Skip NULLs when looking for MIN. */
+
+int QUICK_GROUP_MIN_MAX_SELECT::skip_nulls(bool reverse)
+{
+  int result= 0;
+  DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::skip_nulls");
+  /*
+    If the min/max argument field is NULL, skip subsequent rows in the same
+    group with NULL in it. Notice that:
+    - if the first (or last with DESC index) row in a group doesn't have
+      a NULL in the field, no row in the same group has (because NULL <
+      any other value),
+    - min_max_arg_part->field->ptr points to some place in 'record'.
+  */
+  DBUG_ASSERT(min_max_arg_part);
+  if (min_max_arg_part->field->is_null())
+  {
+    uchar *tmp_key_buff= (uchar*)my_alloca(max_used_key_length);
+    /* Find the first subsequent record without NULL in the MIN/MAX field. */
+    key_copy(tmp_key_buff, record, index_info, max_used_key_length);
+    result= file->ha_index_read_map(record, tmp_key_buff,
+                                    make_keypart_map(real_key_parts),
+                                    reverse ? HA_READ_BEFORE_KEY :
+                                    HA_READ_AFTER_KEY);
+    /*
+      Check if the new record belongs to the current group by comparing its
+      prefix with the group's prefix. If it is from the next group, then the
+      whole group has NULLs in the MIN/MAX field, so use the first record in
+      the group as a result.
+      TODO:
+      It is possible to reuse this new record as the result candidate for the
+      next call to next_min_max(true, false), and to save one lookup in the
+      next call. For this add a new member 'this->next_group_prefix'.
+    */
+    if (!result)
+    {
+      if (key_cmp(index_info->key_part, group_prefix, real_prefix_len))
+        key_restore(record, tmp_key_buff, index_info, 0);
+    }
+    else if (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE)
+      result= 0; /* There is a result in any case. */
+    my_afree(tmp_key_buff);
+  }
+  DBUG_RETURN(result);
+}
+
+
 /*
-  Retrieve the minimal key in the next group.
+  Retrieve the min or max key in the next group.
 
   SYNOPSIS
-    QUICK_GROUP_MIN_MAX_SELECT::next_min()
+    QUICK_GROUP_MIN_MAX_SELECT::next_min_max()
+    min                    [in] Whether retrieving min (true) or max (false)
+    reverse                [in] Whether the key is a descending one
 
   DESCRIPTION
-    Find the minimal key within this group such that the key satisfies the query
+    Find the first key within this group such that the key satisfies the query
     conditions and NULL semantics. The found key is loaded into this->record.
 
   IMPLEMENTATION
     Depending on the values of min_max_ranges.elements, key_infix_len, and
-    whether there is a  NULL in the MIN field, this function may directly
+    whether there is a NULL in the MIN field, this function may directly
     return without any data access. In this case we use the key loaded into
     this->record by the call to this->next_prefix() just before this call.
 
   RETURN
     0                    on success
-    HA_ERR_KEY_NOT_FOUND if no MIN key was found that fulfills all conditions.
+    HA_ERR_KEY_NOT_FOUND if no min/max key was found that fulfills all
+                         conditions.
     HA_ERR_END_OF_FILE   - "" -
     other                if some error occurred
 */
 
-int QUICK_GROUP_MIN_MAX_SELECT::next_min()
+int QUICK_GROUP_MIN_MAX_SELECT::next_min_max(bool min, bool reverse)
 {
   int result= 0;
-  DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::next_min");
+  bool last= (min == reverse);
+  DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::next_min_max");
 
-  /* Find the MIN key using the eventually extended group prefix. */
+  /* Find the min/max key using the eventually extended group prefix. */
   if (min_max_ranges.elements > 0)
-  {
-    if ((result= next_min_in_range()))
-      DBUG_RETURN(result);
-  }
+    result= next_min_max_in_range(min, reverse);
   else
   {
-    /* Apply the constant equality conditions to the non-group select fields */
-    if (key_infix_len > 0)
+    DBUG_ASSERT(min_max_arg_part);
+    /*
+      If we are looking for min/max on a reverse key with no range
+      conditions for the min/max arg or infix equality conditions and
+      the current (i.e. max) value is already NULL, the whole group
+      has NULLs only in the min/max field.
+    */
+    if (reverse && key_infix_len == 0 && min_max_arg_part->field->is_null())
+      DBUG_RETURN(0);
+    if (last)
     {
       if ((result=
-           file->ha_index_read_map(record, group_prefix,
-                                   make_prev_keypart_map(real_key_parts),
-                                   HA_READ_KEY_EXACT)))
+             file->ha_index_read_map(record, group_prefix,
+                                     make_prev_keypart_map(real_key_parts),
+                                     HA_READ_PREFIX_LAST)))
         DBUG_RETURN(result);
     }
-
     /*
-      If the min/max argument field is NULL, skip subsequent rows in the same
-      group with NULL in it. Notice that:
-      - if the first row in a group doesn't have a NULL in the field, no row
-      in the same group has (because NULL < any other value),
-      - min_max_arg_part->field->ptr points to some place in 'record'.
+      Apply the constant equality conditions to the non-group select
+      fields
     */
-    if (min_max_arg_part && min_max_arg_part->field->is_null())
+    else if (key_infix_len > 0)
     {
-      uchar *tmp_key_buff= (uchar*)my_alloca(max_used_key_length);
-      /* Find the first subsequent record without NULL in the MIN/MAX field. */
-      key_copy(tmp_key_buff, record, index_info, max_used_key_length);
-      result= file->ha_index_read_map(record, tmp_key_buff,
-                                      make_keypart_map(real_key_parts),
-                                      HA_READ_AFTER_KEY);
-      /*
-        Check if the new record belongs to the current group by comparing its
-        prefix with the group's prefix. If it is from the next group, then the
-        whole group has NULLs in the MIN/MAX field, so use the first record in
-        the group as a result.
-        TODO:
-        It is possible to reuse this new record as the result candidate for the
-        next call to next_min(), and to save one lookup in the next call. For
-        this add a new member 'this->next_group_prefix'.
-      */
-      if (!result)
-      {
-        if (key_cmp(index_info->key_part, group_prefix, real_prefix_len))
-          key_restore(record, tmp_key_buff, index_info, 0);
-      }
-      else if (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE)
-        result= 0; /* There is a result in any case. */
-      my_afree(tmp_key_buff);
+      if ((result=
+             file->ha_index_read_map(record, group_prefix,
+                                     make_prev_keypart_map(real_key_parts),
+                                     HA_READ_KEY_EXACT)))
+        DBUG_RETURN(result);
     }
+    /* Skip nulls if looking for MIN. */
+    if (min)
+      result= skip_nulls(reverse);
   }
 
-  /*
-    If the MIN attribute is non-nullable, this->record already contains the
-    MIN key in the group, so just return.
-  */
-  DBUG_RETURN(result);
-}
-
-
-/* 
-  Retrieve the maximal key in the next group.
-
-  SYNOPSIS
-    QUICK_GROUP_MIN_MAX_SELECT::next_max()
-
-  DESCRIPTION
-    Lookup the maximal key of the group, and store it into this->record.
-
-  RETURN
-    0                    on success
-    HA_ERR_KEY_NOT_FOUND if no MAX key was found that fulfills all conditions.
-    HA_ERR_END_OF_FILE	 - "" -
-    other                if some error occurred
-*/
-
-int QUICK_GROUP_MIN_MAX_SELECT::next_max()
-{
-  int result;
-
-  DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::next_max");
-
-  /* Get the last key in the (possibly extended) group. */
-  if (min_max_ranges.elements > 0)
-    result= next_max_in_range();
-  else
-    result= file->ha_index_read_map(record, group_prefix,
-                                    make_prev_keypart_map(real_key_parts),
-                                    HA_READ_PREFIX_LAST);
   DBUG_RETURN(result);
 }
 
 
 /** 
-  Find the next different key value by skiping all the rows with the same key 
+  Find the next different key value by skipping all the rows with the same key
   value.
 
   Implements a specialized loose index access method for queries 
@@ -16553,16 +16570,19 @@ QUICK_GROUP_MIN_MAX_SELECT::cmp_min_max_key(const uchar *key, uint16 length)
 
 
 /*
-  Find the minimal key in a group that satisfies some range conditions for the
-  min/max argument field.
+  Find the min/max key in a group that satisfies some range conditions
+  for the min/max argument field.
 
   SYNOPSIS
-    QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
+    QUICK_GROUP_MIN_MAX_SELECT::next_min_max_in_range()
+    min                    [in] Whether finding min (true) or max (false))
+    reverse                [in] Whether the key is a descending one
 
   DESCRIPTION
-    Given the sequence of ranges min_max_ranges, find the minimal key that is
-    in the left-most possible range. If there is no such key, then the current
-    group does not have a MIN key that satisfies the WHERE clause. If a key is
+    Given the sequence of ranges min_max_ranges, find the min (resp.
+    max) key that is in the leftmost (resp. rightmost) possible
+    range. If there is no such key, then the current group does not
+    have a min/max key that satisfies the WHERE clause. If a key is
     found, its value is stored in this->record.
 
   RETURN
@@ -16573,192 +16593,92 @@ QUICK_GROUP_MIN_MAX_SELECT::cmp_min_max_key(const uchar *key, uint16 length)
     other                if some error
 */
 
-int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
+int QUICK_GROUP_MIN_MAX_SELECT::next_min_max_in_range(bool min, bool reverse)
 {
   ha_rkey_function find_flag;
   key_part_map keypart_map;
   QUICK_RANGE *cur_range;
-  bool found_null= FALSE;
   int result= HA_ERR_KEY_NOT_FOUND;
+  /* Whether looking for a last key (true) or a first key (false). */
+  bool last= (min == reverse);
+  bool found_null_for_min= FALSE;
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
-  for (uint range_idx= 0; range_idx < min_max_ranges.elements; range_idx++)
-  { /* Search from the left-most range to the right. */
-    get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx);
+  /*
+    Start from the leftmost (resp. rightmost) range if looking for min
+    (resp. max).
+  */
+  for (size_t range_idx= 0; range_idx < min_max_ranges.elements; range_idx++)
+  {
+    get_dynamic(&min_max_ranges, (uchar*)&cur_range,
+                min ? range_idx : min_max_ranges.elements - range_idx - 1);
 
     /*
-      If the current value for the min/max argument is bigger than the right
-      boundary of cur_range, there is no need to check this range.
+      If the key has already been "moved" by a successful call to
+      ha_index_read_map, and the current value for the max (resp. min)
+      argument comes before (resp. after) the range, there is no need
+      to check this range.
     */
-    if (range_idx != 0 && !(cur_range->flag & NO_MAX_RANGE) &&
-        (key_cmp(min_max_arg_part, (const uchar*) cur_range->max_key,
-                 min_max_arg_len) == 1))
+    if (!result &&
+        ((!min &&
+          !(cur_range->flag & NO_MIN_RANGE) &&
+          (key_cmp(min_max_arg_part, (const uchar*) cur_range->min_key,
+                   min_max_arg_len) == (last ? -1 : 1))) ||
+         (min &&
+          !(cur_range->flag & NO_MAX_RANGE) &&
+          (key_cmp(min_max_arg_part, (const uchar*) cur_range->max_key,
+                   min_max_arg_len) == (last ? -1 : 1)))))
       continue;
 
-    if (cur_range->flag & NO_MIN_RANGE)
+    /*
+      If the current range has no corresponding bound (i.e. upper
+      bound for max and vice versa) for the key, set an unconditional
+      find_flag.
+    */
+    if ((!min && cur_range->flag & NO_MAX_RANGE) ||
+        (min && cur_range->flag & NO_MIN_RANGE))
     {
       keypart_map= make_prev_keypart_map(real_key_parts);
-      find_flag= HA_READ_KEY_EXACT;
+      find_flag= (last ? HA_READ_PREFIX_LAST : HA_READ_KEY_EXACT);
     }
     else
     {
-      /* Extend the search key with the lower boundary for this range. */
-      memcpy(group_prefix + real_prefix_len, cur_range->min_key,
-             cur_range->min_length);
+      /*
+        Extend the search key with the corresponding boundary (upper
+        boundary for max and lower boundary for min) for this range,
+        then set the correct flag. For example, if looking for min
+        with descending index (hence last == true), and the current
+        range has an open lower boundary (NEAR_MIN), the find_flag is
+        HA_READ_BEFORE_KEY.
+      */
+      memcpy(group_prefix + real_prefix_len,
+             min ? cur_range->min_key : cur_range->max_key,
+             min ? cur_range->min_length : cur_range->max_length);
       keypart_map= make_keypart_map(real_key_parts);
       find_flag= (cur_range->flag & (EQ_RANGE | NULL_RANGE)) ?
-                 HA_READ_KEY_EXACT : (cur_range->flag & NEAR_MIN) ?
-                 HA_READ_AFTER_KEY : HA_READ_KEY_OR_NEXT;
+                 HA_READ_KEY_EXACT :
+                 ((!min && cur_range->flag & NEAR_MAX) ||
+                  (min && cur_range->flag & NEAR_MIN)) ?
+                  (last ? HA_READ_BEFORE_KEY : HA_READ_AFTER_KEY) :
+                  (last ? HA_READ_PREFIX_LAST_OR_PREV : HA_READ_KEY_OR_NEXT);
     }
 
     result= file->ha_index_read_map(record, group_prefix, keypart_map,
                                     find_flag);
+
+    /*
+      If no key was found within this boundary: if the current range
+      is an equality or IS NULL, check the next range, otherwise there
+      certainly are no keys in subsequent ranges.
+    */
     if (result)
     {
       if ((result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE) &&
           (cur_range->flag & (EQ_RANGE | NULL_RANGE)))
-        continue; /* Check the next range. */
-
-      /*
-        In all other cases (HA_ERR_*, HA_READ_KEY_EXACT with NO_MIN_RANGE,
-        HA_READ_AFTER_KEY, HA_READ_KEY_OR_NEXT) if the lookup failed for this
-        range, it can't succeed for any other subsequent range.
-      */
-      break;
-    }
-
-    /* A key was found. */
-    if (cur_range->flag & EQ_RANGE)
-      break; /* No need to perform the checks below for equal keys. */
-
-    if (cur_range->flag & NULL_RANGE)
-    {
-      /*
-        Remember this key, and continue looking for a non-NULL key that
-        satisfies some other condition.
-      */
-      memcpy(tmp_record, record, head->s->rec_buff_length);
-      found_null= TRUE;
-      continue;
-    }
-
-    /* Check if record belongs to the current group. */
-    if (key_cmp(index_info->key_part, group_prefix, real_prefix_len))
-    {
-      result= HA_ERR_KEY_NOT_FOUND;
-      continue;
-    }
-
-    /* If there is an upper limit, check if the found key is in the range. */
-    if ( !(cur_range->flag & NO_MAX_RANGE) )
-    {
-      int cmp_res= cmp_min_max_key(cur_range->max_key, cur_range->max_length);
-      /*
-        The key is outside of the range if: 
-        the interval is open and the key is equal to the maximum boundry
-        or
-        the key is greater than the maximum
-      */
-      if (((cur_range->flag & NEAR_MAX) && cmp_res == 0) ||
-          cmp_res > 0)
-      {
-        result= HA_ERR_KEY_NOT_FOUND;
         continue;
-      }
-    }
-    /* If we got to this point, the current key qualifies as MIN. */
-    DBUG_ASSERT(result == 0);
-    break;
-  }
-  /*
-    If there was a key with NULL in the MIN/MAX field, and there was no other
-    key without NULL from the same group that satisfies some other condition,
-    then use the key with the NULL.
-  */
-  if (found_null && result)
-  {
-    memcpy(record, tmp_record, head->s->rec_buff_length);
-    result= 0;
-  }
-  return result;
-}
 
-
-/*
-  Find the maximal key in a group that satisfies some range conditions for the
-  min/max argument field.
-
-  SYNOPSIS
-    QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
-
-  DESCRIPTION
-    Given the sequence of ranges min_max_ranges, find the maximal key that is
-    in the right-most possible range. If there is no such key, then the current
-    group does not have a MAX key that satisfies the WHERE clause. If a key is
-    found, its value is stored in this->record.
-
-  RETURN
-    0                    on success
-    HA_ERR_KEY_NOT_FOUND if there is no key with the given prefix in any of
-                         the ranges
-    HA_ERR_END_OF_FILE   - "" -
-    other                if some error
-*/
-
-int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
-{
-  ha_rkey_function find_flag;
-  key_part_map keypart_map;
-  QUICK_RANGE *cur_range;
-  int result;
-
-  DBUG_ASSERT(min_max_ranges.elements > 0);
-
-  for (size_t range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
-  { /* Search from the right-most range to the left. */
-    get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
-
-    /*
-      If the current value for the min/max argument is smaller than the left
-      boundary of cur_range, there is no need to check this range.
-    */
-    if (range_idx != min_max_ranges.elements &&
-        !(cur_range->flag & NO_MIN_RANGE) &&
-        (key_cmp(min_max_arg_part, (const uchar*) cur_range->min_key,
-                 min_max_arg_len) == -1))
-      continue;
-
-    if (cur_range->flag & NO_MAX_RANGE)
-    {
-      keypart_map= make_prev_keypart_map(real_key_parts);
-      find_flag= HA_READ_PREFIX_LAST;
-    }
-    else
-    {
-      /* Extend the search key with the upper boundary for this range. */
-      memcpy(group_prefix + real_prefix_len, cur_range->max_key,
-             cur_range->max_length);
-      keypart_map= make_keypart_map(real_key_parts);
-      find_flag= (cur_range->flag & EQ_RANGE) ?
-                 HA_READ_KEY_EXACT : (cur_range->flag & NEAR_MAX) ?
-                 HA_READ_BEFORE_KEY : HA_READ_PREFIX_LAST_OR_PREV;
-    }
-
-    result= file->ha_index_read_map(record, group_prefix, keypart_map,
-                                    find_flag);
-
-    if (result)
-    {
-      if ((result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE) &&
-          (cur_range->flag & EQ_RANGE))
-        continue; /* Check the next range. */
-
-      /*
-        In no key was found with this upper bound, there certainly are no keys
-        in the ranges to the left.
-      */
-      return result;
+      break;
     }
     /* A key was found. */
     if (cur_range->flag & EQ_RANGE)
@@ -16766,26 +16686,61 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
 
     /* Check if record belongs to the current group. */
     if (key_cmp(index_info->key_part, group_prefix, real_prefix_len))
-      continue;                                 // Row not found
-
-    /* If there is a lower limit, check if the found key is in the range. */
-    if ( !(cur_range->flag & NO_MIN_RANGE) )
     {
-      int cmp_res= cmp_min_max_key(cur_range->min_key, cur_range->min_length);
-      /*
-        The key is outside of the range if: 
-        the interval is open and the key is equal to the minimum boundry
-        or
-        the key is less than the minimum
-      */
-      if (((cur_range->flag & NEAR_MIN) && cmp_res == 0) ||
-          cmp_res < 0)
-        continue;
+      result= HA_ERR_KEY_NOT_FOUND;
+      continue; // Row not found
     }
-    /* If we got to this point, the current key qualifies as MAX. */
+
+    /* Save a successful IS NULL lookup in case of min. */
+    if (min && cur_range->flag & NULL_RANGE)
+    {
+      memcpy(tmp_record, record, head->s->reclength);
+      found_null_for_min= TRUE;
+      continue;
+    }
+
+    /*
+      Compare the found key with the opposite boundary of the range
+      (i.e. the lower boundary for max and vice versa) if the said
+      boundary exists.
+    */
+    if ((!min && !(cur_range->flag & NO_MIN_RANGE)) ||
+        (min && !(cur_range->flag & NO_MAX_RANGE)))
+    {
+      int cmp_res= min ?
+        cmp_min_max_key(cur_range->max_key, cur_range->max_length) :
+        cmp_min_max_key(cur_range->min_key, cur_range->min_length);
+      /*
+        The key is outside of the range if:
+
+        - the max key (resp. min key) is equal to the open lower
+          boundary (resp. upper boundary), OR
+        - the max key (resp. min key) is less than the (open or
+          closed) lower boundary (resp. greater than the upper
+          boundary)
+      */
+      if ((((!min && cur_range->flag & NEAR_MIN) ||
+            (min && cur_range->flag & NEAR_MAX)) &&
+           cmp_res == 0) ||
+          (last && cmp_res < 0) || (!last && cmp_res > 0))
+      {
+        result= HA_ERR_KEY_NOT_FOUND;
+        continue;
+      }
+    }
+    /* If we get to this point, the current key qualifies. */
     return result;
   }
-  return HA_ERR_KEY_NOT_FOUND;
+  /*
+    If no keys have been found except a NULL was found previously for
+    an IS NULL in case of MIN, use it.
+  */
+  if (found_null_for_min)
+  {
+    memcpy(record, tmp_record, head->s->reclength);
+    result= 0;
+  }
+  return result;
 }
 
 
@@ -17460,7 +17415,7 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
 }
 
 /**
-  Print key parts involed in a range
+  Print key parts involved in a range
   @param[out] out          String the key is appended to
   @param[in]  key_part     Index components description
   @param[in]  n_keypart    Number of keyparts in index

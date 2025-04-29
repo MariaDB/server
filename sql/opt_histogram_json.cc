@@ -548,7 +548,7 @@ bool read_hex_bucket_endpoint(json_engine_t *je, Field *field, String *out,
 
 
 /*
-  @brief  Parse a JSON reprsentation for one histogram bucket
+  @brief  Parse a JSON representation for one histogram bucket
 
   @param je     The JSON parser object
   @param field  Table field we are using histogram (used to convert
@@ -670,7 +670,7 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
     }
     save1.restore_to(je);
 
-    // Less common endoints:
+    // Less common endpoints:
     Json_string start_hex_str("start_hex");
     if (json_key_matches(je, start_hex_str.get()))
     {

@@ -3432,7 +3432,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   /*
     Below we will start all stopped threads.  But if the user wants to
     start only one thread, do as if the other thread was running (as we
-    don't wan't to touch the other thread), so set the bit to 0 for the
+    don't want to touch the other thread), so set the bit to 0 for the
     other thread
   */
   if (thd->lex->slave_thd_opt)
@@ -3603,7 +3603,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   /*
     Below we will stop all running threads.
     But if the user wants to stop only one thread, do as if the other thread
-    was stopped (as we don't wan't to touch the other thread), so set the
+    was stopped (as we don't want to touch the other thread), so set the
     bit to 0 for the other thread
   */
   if (thd->lex->slave_thd_opt)
@@ -4052,7 +4052,10 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->connect_retry)
     mi->connect_retry = lex_mi->connect_retry;
   if (lex_mi->retry_count)
+  {
     mi->retry_count= lex_mi->retry_count;
+    mi->connects_tried= 0;
+  }
   if (lex_mi->heartbeat_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->heartbeat_period = lex_mi->heartbeat_period;
   else
@@ -4299,7 +4302,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     }
   }
   /*
-    Coordinates in rli were spoilt by the 'if (need_relay_log_purge)' block,
+    Coordinates in rli were spoiled by the 'if (need_relay_log_purge)' block,
     so restore them to good values. If we left them to ''/0, that would work;
     but that would fail in the case of 2 successive CHANGE MASTER (without a
     START SLAVE in between): because first one would set the coords in mi to
@@ -4892,7 +4895,7 @@ err:
 /**
    Load data's io cache specific hook to be executed
    before a chunk of data is being read into the cache's buffer
-   The fuction instantianates and writes into the binlog
+   The function instantiates and writes into the binlog
    replication events along LOAD DATA processing.
    
    @param file  pointer to io-cache

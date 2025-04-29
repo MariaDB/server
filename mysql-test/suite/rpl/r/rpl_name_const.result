@@ -3,7 +3,7 @@ include/master-slave.inc
 ==== Initialize ====
 connection master;
 create table t1 (id int);
-==== create a procedure that has a column aliase in a subquery ====
+==== create a procedure that has a column aliases in a subquery ====
 drop procedure if exists test_procedure;
 create procedure test_procedure(_id int)
 begin

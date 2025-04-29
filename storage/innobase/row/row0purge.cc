@@ -1647,7 +1647,7 @@ row_purge_step(
 
 #ifdef UNIV_DEBUG
 /***********************************************************//**
-Validate the persisent cursor. The purge node has two references
+Validate the persistent cursor. The purge node has two references
 to the clustered index record - one via the ref member, and the
 other via the persistent cursor.  These two references must match
 each other if the found_clust flag is set.

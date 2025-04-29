@@ -95,7 +95,7 @@ SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),r
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 --disable_view_protocol
-#chaeck after fix MDEV-31540
+#check after fix MDEV-31540
 --disable_cursor_protocol
 --enable_metadata
 select replace('aaaa','a','bbbb');
@@ -463,7 +463,7 @@ select charset(a), collation(a), coercibility(a) from t1;
 drop table t1;
 select charset(null), collation(null), coercibility(null);
 #
-# Make sure OUTER JOIN is not replaced with a regular joun
+# Make sure OUTER JOIN is not replaced with a regular join
 #
 CREATE TABLE t1 (a int, b int);
 CREATE TABLE t2 (a int, b int);
@@ -490,7 +490,7 @@ select SUBSTR('abcdefg',1,-1) FROM DUAL;
 
 #
 # Test that fix_fields doesn't follow to upper level (to comparison)
-# when an error on a lower level (in concat) has accured:
+# when an error on a lower level (in concat) has occured:
 #
 create table t7 (s1 char);
 --error 1267
@@ -1627,7 +1627,7 @@ SELECT format(12345678901234567890.123, 3, 'en_US');
 --enable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'it_CH');
 SELECT format(12345678901234567890.123, 3, 'ru_RU');
-#checkafter fix MDEV-31512
+#check after fix MDEV-31512
 --disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'ta_IN');
 --enable_cursor_protocol

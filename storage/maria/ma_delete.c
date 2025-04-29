@@ -754,7 +754,7 @@ err:
    @brief Balances adjacent pages if underflow occours
 
    @fn    underflow()
-   @param anc_buff        Anchestor page data
+   @param anc_buff        Ancestor page data
    @param leaf_page       Leaf page (page that underflowed)
    @param leaf_page_link  Pointer to pin information about leaf page
    @param keypos          Position after current key in anc_buff
@@ -764,7 +764,7 @@ err:
      leaf_page is saved to disk
      Caller must save anc_buff
 
-     For the algoritm to work, we have to ensure for packed keys that
+     For the algorithm to work, we have to ensure for packed keys that
      key_length + (underflow_length + max_block_length + key_length) / 2
      <= block_length.
      From which follows that underflow_length <= block_length - key_length *3

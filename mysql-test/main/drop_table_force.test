@@ -2,11 +2,11 @@
 --source include/have_innodb.inc
 --source include/have_archive.inc
 #
-# This test is based on the orginal test from Tencent for DROP TABLE ... FORCE
+# This test is based on the original test from Tencent for DROP TABLE ... FORCE
 # In MariaDB we did reuse the code but MariaDB does not require the FORCE
 # keyword to drop a table even if the .frm file or some engine files are
 # missing.
-# To make it easy to see the differences between the orginal code and
+# To make it easy to see the differences between the original code and
 # the new one, we have left some references to the original test case
 #
 

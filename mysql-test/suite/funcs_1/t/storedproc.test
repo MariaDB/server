@@ -27196,7 +27196,7 @@ DROP PROCEDURE IF EXISTS sp4;
 
 set @@sql_mode = 'ansi, error_for_division_by_zero';
 
-# now set the corrent value:
+# now set the correct value:
 set @@sql_mode = 'ansi,error_for_division_by_zero';
 
 SHOW VARIABLES LIKE 'sql_mode';

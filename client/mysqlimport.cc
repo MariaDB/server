@@ -785,7 +785,7 @@ int table_load_params::load_data(MYSQL *mysql)
     if (exec_sql(mysql, "SET TIME_ZONE=@save_tz;"))
       DBUG_RETURN(1);
   }
-  /* Restore constrains and triggers */
+  /* Restore constraints and triggers */
   for (const auto &create_trigger_def : triggers)
   {
     if (exec_sql(mysql, create_trigger_def))

@@ -171,7 +171,7 @@ select * from t1 order by b;
 drop table t1;
 
 #
-# Test of behavior of ALTER TABLE when coulmn containing NULL or zeroes is
+# Test of behavior of ALTER TABLE when column containing NULL or zeroes is
 # converted to AUTO_INCREMENT column
 #
 create table t1 (a bigint);

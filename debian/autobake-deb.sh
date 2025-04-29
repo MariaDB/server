@@ -59,7 +59,7 @@ disable_libfmt()
 
 remove_package_notes()
 {
-  # binutils >=2.39 + disto makefile /usr/share/debhelper/dh_package_notes/package-notes.mk
+  # binutils >=2.39 + distro makefile /usr/share/debhelper/dh_package_notes/package-notes.mk
   sed -e '/package.notes/d' -i debian/rules debian/control
 }
 

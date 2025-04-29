@@ -1,0 +1,79 @@
+---
+name: backup
+
+on:
+  schedule:
+    - cron: "32 02 * * *"
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      REPO: ${{ github.repository }}
+      RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
+      RESTIC_REPOSITORY_URL: ${{ secrets.RESTIC_REPOSITORY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Install requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install restic
+      - name: Trigger backup export
+        run: |
+          # needed for sanity check
+          NUMBER=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            repos/$REPO/pulls --jq '.[0].number')
+          TITLE=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            repos/$REPO/pulls --jq '.[0].title')
+          ID=$(gh api --method POST /orgs/MariaDB/migrations \
+            --raw-field "repositories[]=$REPO" \
+            --field lock_repositories=false \
+            --field exclude_git_data=true --jq '.id')
+          # define some ENV vars needed below
+          echo "LATEST_PR_NUMBER=$NUMBER" >>$GITHUB_ENV
+          echo "LATEST_PR_TITLE=$TITLE" >>$GITHUB_ENV
+          echo "EXPORT_ID=$ID" >>$GITHUB_ENV
+          echo "REPO_NAME=${{ github.event.repository.name }}" >>$GITHUB_ENV
+      - name: Wait until backup is finished
+        run: |
+          while true; do
+            STATE=$(gh api --method GET "/orgs/MariaDB/migrations/$EXPORT_ID" \
+              --jq '.state')
+            [[ $STATE == "exported" ]] && break
+            sleep 10
+          done
+      - name: Download backup
+        run: |
+          ARCHIVE_URL=$(gh api --method GET "/orgs/MariaDB/migrations/$EXPORT_ID" \
+            --jq '.archive_url')
+          curl -L -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o "archive.tgz" "$ARCHIVE_URL"
+      - name: Sanity check
+        run: |
+          # Make sure that we have the latest PR information
+          # title and corresponding number (from URL)
+          zgrep -a -B3 "$LATEST_PR_TITLE" archive.tgz |
+            grep "\"url\":" |
+            grep -q "https://github.com/$REPO/pull/$LATEST_PR_NUMBER" || {
+            echo "Latest PR not found in archive.tgz"
+            exit 1
+          }
+      - name: Save backup (restic)
+        run: |
+          export RESTIC_REPOSITORY=$RESTIC_REPOSITORY_URL/$REPO_NAME
+          # init repository if necessary
+          if ! restic cat config >/dev/null 2>&1; then
+            restic init
+          fi
+          restic backup --host gh-runner --stdin \
+            --stdin-filename archive.tgz <./archive.tgz
+          restic forget --prune --keep-within 6m
+          restic check

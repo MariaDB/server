@@ -34,7 +34,7 @@ extern "C" {
 #define MY_XML_FLAG_RELATIVE_NAMES 1
 
 /*
-  A flag whether to skip normilization of text values before calling
+  A flag whether to skip normalization of text values before calling
   call-back functions: i.e. skip leading/trailing spaces,
   \r, \n, \t characters.
 */

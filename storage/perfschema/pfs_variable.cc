@@ -1265,7 +1265,7 @@ void sum_host_status(PFS_client *pfs_host, STATUS_VAR *status_totals)
 
 /*
   Get status totals for this account from active THDs and from totals aggregated
-  from disconnectd threads.
+  from disconnected threads.
 */
 void sum_account_status(PFS_client *pfs_account, STATUS_VAR *status_totals)
 {

@@ -1836,10 +1836,9 @@ public:
   QUICK_RANGE_SELECT *quick_prefix_select;/* For retrieval of group prefixes. */
 private:
   int  next_prefix();
-  int  next_min_in_range();
-  int  next_max_in_range();
-  int  next_min();
-  int  next_max();
+  int  next_min_max_in_range(bool min, bool reverse);
+  int  next_min_max(bool min, bool reverse);
+  int  skip_nulls(bool reverse);
   void update_min_result();
   void update_max_result();
   int cmp_min_max_key(const uchar *key, uint16 length);

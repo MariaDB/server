@@ -446,7 +446,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       //case RECFM_OCCUR:
       //case RECFM_PRX:
       case RECFM_OEM:
-        poff = 0;      // Offset represents an independant flag
+        poff = 0;      // Offset represents an independent flag
         break;
       default:         // PLG ODBC JDBC MYSQL WMI...
         poff = 0;      // NA

@@ -40,7 +40,6 @@ COMMIT;
 --connection node_1
 SELECT COUNT(*) = 6 FROM t1;
 
-
 --connection node_2
 SELECT COUNT(*) = 6 FROM t1;
 

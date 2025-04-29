@@ -15,7 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
-  Functions to handle initializating and allocationg of all mysys & debug
+  Functions to handle initializating and allocating of all mysys & debug
   thread variables.
 */
 
@@ -202,7 +202,7 @@ void my_thread_global_end(void)
                 THR_thread_count);
 #endif /* HAVE_PTHREAD_KILL */
 #ifdef SAFEMALLOC
-      /* We know we will have memoryleaks, suppress the leak report */
+      /* We know we will have memory leaks, suppress the leak report */
       sf_leaking_memory= 1;
 #endif /* SAFEMALLOC */
       all_threads_killed= 0;

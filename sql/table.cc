@@ -1260,7 +1260,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       table->map= 1;
       if (vcol &&
           (field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode) ||
-           vcol->expr->check_assignability_to(field_ptr[0], false)))
+           vcol->expr->check_assignability_to(field_ptr[0],
+             mode == VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING)))
       {
         DBUG_ASSERT(thd->is_error());
         *error_reported= true;
@@ -2474,6 +2475,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                        extra2.field_data_type_info))
     goto err;
 
+  /*
+    Column definitions extraction begins here.
+  */
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
     uint interval_nr= 0, recpos;
@@ -2843,6 +2847,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         share->default_fields++;
     }
   }
+  /*
+    Column definitions extraction ends here.
+  */
+  
   *field_ptr=0;					// End marker
   /* Sanity checks: */
   DBUG_ASSERT(share->fields>=share->stored_fields);
@@ -2916,7 +2924,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         /*
           If the key column is of NOT NULL BLOB type, then it
-          will definitly have key prefix. And if key part prefix size
+          will definitely have key prefix. And if key part prefix size
           is equal to the BLOB column max size, then we can promote
           it to primary key.
         */
@@ -2938,8 +2946,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       Make sure that the primary key is not marked as IGNORE
       This can happen in the case
         1) when IGNORE is mentioned in the Key specification
-        2) When a unique NON-NULLABLE key is promted to a primary key.
-           The unqiue key could have been marked as IGNORE when there
+        2) When a unique NON-NULLABLE key is promoted to a primary key.
+           The unique key could have been marked as IGNORE when there
            was a primary key in the table.
 
            Eg:
@@ -2947,7 +2955,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
              so for this table when we try to IGNORE key1
              then we run:
                 ALTER TABLE t1 ALTER INDEX key1 IGNORE
-              this runs successsfully and key1 is marked as IGNORE.
+              this runs successfully and key1 is marked as IGNORE.
 
               But lets say then we drop the primary key
                ALTER TABLE t1 DROP PRIMARY
@@ -4984,7 +4992,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
 
 	/*
 	** fix a str_type to a array type
-	** typeparts separated with some char. differents types are separated
+	** typeparts separated with some char. different types are separated
 	** with a '\0'
 	*/
 
@@ -6256,10 +6264,10 @@ bool TABLE_LIST::setup_underlying(THD *thd)
     TABLE_LIST::prep_where()
     thd             - thread handler
     conds           - condition of this JOIN
-    no_where_clause - do not build WHERE or ON outer qwery do not need it
+    no_where_clause - do not build WHERE or ON outer query do not need it
                       (it is INSERT), we do not need conds if this flag is set
 
-  NOTE: have to be called befor CHECK OPTION preparation, because it makes
+  NOTE: have to be called before CHECK OPTION preparation, because it makes
   fix_fields for view WHERE clause
 
   RETURN
@@ -6904,7 +6912,7 @@ TABLE_LIST *TABLE_LIST::last_leaf_for_name_resolution()
 
   SYNOPSIS
     register_want_access()
-    want_access          Acess which we require
+    want_access          Access which we require
 */
 
 void TABLE_LIST::register_want_access(privilege_t want_access)
@@ -7014,7 +7022,7 @@ Security_context *TABLE_LIST::find_view_security_context(THD *thd)
   }
   if (upper_view)
   {
-    DBUG_PRINT("info", ("Securety context of view %s will be used",
+    DBUG_PRINT("info", ("Security context of view %s will be used",
                         upper_view->alias.str));
     sctx= upper_view->view_sctx;
     DBUG_ASSERT(sctx);
@@ -7030,7 +7038,7 @@ Security_context *TABLE_LIST::find_view_security_context(THD *thd)
 
 
 /*
-  Prepare security context and load underlying tables priveleges for view
+  Prepare security context and load underlying tables privileges for view
 
   SYNOPSIS
     TABLE_LIST::prepare_security()
@@ -7416,12 +7424,12 @@ void Field_iterator_table_ref::set_field_iterator()
     If the table reference we are iterating over is a natural join, or it is
     an operand of a natural join, and TABLE_LIST::join_columns contains all
     the columns of the join operand, then we pick the columns from
-    TABLE_LIST::join_columns, instead of the  orginial container of the
+    TABLE_LIST::join_columns, instead of the original container of the
     columns of the join operator.
   */
   if (table_ref->is_join_columns_complete)
   {
-    /* Necesary, but insufficient conditions. */
+    /* Necessary, but insufficient conditions. */
     DBUG_ASSERT(table_ref->is_natural_join ||
                 table_ref->nested_join ||
                 (table_ref->join_columns &&
@@ -7549,7 +7557,7 @@ GRANT_INFO *Field_iterator_table_ref::grant()
     created natural join column. The former happens for base tables or
     views, and the latter for natural/using joins. If a new field is
     created, then the field is added to 'parent_table_ref' if it is
-    given, or to the original table referene of the field if
+    given, or to the original table reference of the field if
     parent_table_ref == NULL.
 
   NOTES
@@ -7564,7 +7572,7 @@ GRANT_INFO *Field_iterator_table_ref::grant()
       fields. This is OK because for such table references
       Field_iterator_table_ref iterates over the fields of the nested
       table references (recursively). In this way we avoid the storage
-      of unnecessay copies of result columns of nested joins.
+      of unnecessary copies of result columns of nested joins.
 
   RETURN
     #     Pointer to a column of a natural join (or its operand)
@@ -8311,7 +8319,7 @@ bool TABLE::check_virtual_columns_marked_for_write()
 
   This is done once for the TABLE_SHARE the first time the table is opened.
   The marking must be done non-destructively to handle the case when
-  this could be run in parallely by two threads
+  this could be run in parallel by two threads
 */
 
 void TABLE::mark_columns_used_by_virtual_fields(void)
@@ -8582,7 +8590,7 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
   imposed on the keys of any temporary table.
 
   We need to filter out BLOB columns here, because ref access optimizer creates
-  KEYUSE objects for equalities for non-key columns for two puproses:
+  KEYUSE objects for equalities for non-key columns for two purposes:
   1. To discover possible keys for derived_with_keys optimization
   2. To do hash joins
   For the purpose of #1, KEYUSE objects are not created for "blob_column=..." .
@@ -9911,7 +9919,7 @@ err_killed:
 
   @detail
   Reset const_table flag for this table. If this table is a merged derived
-  table/view the flag is recursively reseted for all tables of the underlying
+  table/view the flag is recursively reset for all tables of the underlying
   select.
 */
 
@@ -10203,37 +10211,6 @@ int TABLE_LIST::fetch_number_of_rows()
     error= table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
   return error;
 }
-
-/*
-  Procedure of keys generation for result tables of materialized derived
-  tables/views.
-
-  A key is generated for each equi-join pair derived table-another table.
-  Each generated key consists of fields of derived table used in equi-join.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
-  In this case for the derived table tt one key will be generated. It will
-  consist of two parts f1 and f2.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 JOIN
-                  t2 ON tt.f2=t2.f4;
-  In this case for the derived table tt two keys will be generated.
-  One key over f1 field, and another key over f2 field.
-  Currently optimizer may choose to use only one such key, thus the second
-  one will be dropped after range optimizer is finished.
-  See also JOIN::drop_unused_derived_keys function.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=a_function(t1.f3);
-  In this case for the derived table tt one key will be generated. It will
-  consist of one field - f1.
-*/
-
 
 
 /*

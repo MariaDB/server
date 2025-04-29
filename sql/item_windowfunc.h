@@ -1188,7 +1188,7 @@ public:
 
   /*
     Computation functions.
-    TODO: consoder merging these with class Group_bound_tracker.
+    TODO: consider merging these with class Group_bound_tracker.
   */
   void setup_partition_border_check(THD *thd);
 

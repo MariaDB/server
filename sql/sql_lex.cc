@@ -220,8 +220,8 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
     val= new (thd->mem_root) Item_null(thd);
 
   DBUG_ASSERT(trg_chistics.action_time == TRG_ACTION_BEFORE &&
-              (trg_chistics.event == TRG_EVENT_INSERT ||
-               trg_chistics.event == TRG_EVENT_UPDATE));
+              (is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) ||
+               is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE)));
 
   trg_fld= new (thd->mem_root)
             Item_trigger_field(thd, current_context(),
@@ -332,7 +332,7 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
     should be re-interpreted as an Item_in_subselect, which corresponds
     to a <table subquery> when used inside an <in predicate>.
 
-    Our reading of Note 184 is reccursive, so that all:
+    Our reading of Note 184 is recursive, so that all:
     - IN (( <subquery> ))
     - IN ((( <subquery> )))
     - IN '('^N <subquery> ')'^N
@@ -435,7 +435,7 @@ bool sp_create_assignment_lex(THD *thd, const char *pos)
   @param no_lookahead     - True if the parser has no lookahead
   @param rhs_value_str    - a string value for right hand side of assignment
   @param need_set_keyword - if a SET statement "SET a=10",
-                            or a direct assignment overwise "a:=10"
+                            or a direct assignment otherwise "a:=10"
   @return false if success, true otherwise.
 */
 
@@ -503,7 +503,7 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
     if (lex->check_main_unit_semantics())
     {
       /*
-        "lex" can be referrenced by:
+        "lex" can be referenced by:
         - sp_instr_set                          SET a= expr;
         - sp_instr_set_row_field                SET r.a= expr;
         - sp_instr_stmt (just generated above)  SET @a= expr;
@@ -3223,7 +3223,7 @@ void st_select_lex_node::substitute_in_tree(st_select_lex_node *subst)
 
   SYNOPSYS
     st_select_lex_node::include_standalone()
-    upper - reference on node underr which this node should be included
+    upper - reference on node under which this node should be included
     ref - references on reference on this node
 */
 void st_select_lex_node::include_standalone(st_select_lex_node *upper,
@@ -3362,7 +3362,7 @@ void st_select_lex_node::exclude()
     st_select_lex_unit::exclude_level()
 
   NOTE: units which belong to current will be brought up on level of
-  currernt unit 
+  current unit
 */
 void st_select_lex_unit::exclude_level()
 {
@@ -3431,7 +3431,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
     found table as depended (of select where was found table)
 
     We move by name resolution context, bacause during merge can some select
-    be excleded from SELECT tree
+    be excluded from SELECT tree
   */
   Name_resolution_context *c= &this->context;
   do
@@ -3691,7 +3691,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   @detail
     The intent is to allow to eventually print back any query.
 
-    This is useful e.g. for storage engines that take over diferrent kinds of
+    This is useful e.g. for storage engines that take over different kinds of
     queries
 */
 
@@ -3942,7 +3942,7 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
     Here the variable 'i' references to the instruction that could be deleted
     by sp_head's destructor and it would result in server abnormal termination.
     This use case can theoretically happen in case the current stored routine's
-    instruction causes re-compilation of a SP intruction's statement and
+    instruction causes re-compilation of a SP instruction's statement and
     internal parse error happens during this process.
 
     Rather, just restore the original LEX object used before parser has been
@@ -4278,7 +4278,7 @@ bool LEX::need_correct_ident()
     view    given view
 
   NOTE
-    It have not sense to set CHECK OPTION for SELECT satement or subqueries,
+    It have not sense to set CHECK OPTION for SELECT statement or subqueries,
     so we do not.
 
   RETURN
@@ -4449,7 +4449,7 @@ void LEX::set_trg_event_type_for_tables()
                        trg2bit(TRG_EVENT_DELETE);
     break;
   /*
-    Basic INSERT. If there is an additional ON DUPLIATE KEY UPDATE
+    Basic INSERT. If there is an additional ON DUPLICATE KEY UPDATE
     clause, it will be handled later in this method.
   */
   case SQLCOM_INSERT:                           /* fall through */
@@ -4719,7 +4719,7 @@ void LEX::cleanup_after_one_table_open()
   {
     derived_tables= 0;
     first_select_lex()->exclude_from_table_unique_test= false;
-    /* cleunup underlying units (units of VIEW) */
+    /* cleanup underlying units (units of VIEW) */
     for (SELECT_LEX_UNIT *un= first_select_lex()->first_inner_unit();
          un;
          un= un->next_unit())
@@ -4734,7 +4734,7 @@ void LEX::cleanup_after_one_table_open()
 
 /*
   Save current state of Query_tables_list for this LEX, and prepare it
-  for processing of new statemnt.
+  for processing of new statement.
 
   SYNOPSIS
     reset_n_backup_query_tables_list()
@@ -5076,7 +5076,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         {
           /*
             If at least one subquery in a union is non-empty, the UNION result
-            is non-empty. If there is no UNION, the only subquery is non-empy.
+            is non-empty. If there is no UNION, the only subquery is non-empty.
           */
           empty_union_result= inner_join->empty_result();
         }
@@ -5192,7 +5192,7 @@ void st_select_lex::append_table_to_list(TABLE_LIST *TABLE_LIST::*link,
   Replace given table from the leaf_tables list for a list of tables 
 
   @param table Table to replace
-  @param list  List to substititute the table for
+  @param list  List to substitute the table for
 
   @details
   Replace 'table' from the leaf_tables list for a list of tables 'tbl_list'.
@@ -5847,7 +5847,7 @@ bool LEX::save_prep_leaf_tables()
 
   Query_arena *arena= thd->stmt_arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
-  //It is used for DETETE/UPDATE so top level has only one SELECT
+  //It is used for DELETE/UPDATE so top level has only one SELECT
   DBUG_ASSERT(first_select_lex()->next_select() == NULL);
   bool res= first_select_lex()->save_prep_leaf_tables(thd);
 
@@ -6697,6 +6697,21 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
+bool LEX::check_variable_is_refcursor(const LEX_CSTRING &verb_clause,
+                                      const sp_variable *var) const
+{
+  const LEX_CSTRING tname= var->type_handler()->name().lex_cstring();
+  if (my_charset_latin1.strnncollsp(tname.str, tname.length,
+                                    STRING_WITH_LEN("sys_refcursor")))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tname.str, verb_clause.str);
+    return true;
+  }
+  return false;
+}
+
+
 sp_fetch_target *LEX::make_fetch_target(THD *thd, const Lex_ident_sys_st &name)
 {
   sp_pcontext *spc;
@@ -7269,8 +7284,12 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   DBUG_ASSERT(cursor_name);
   if (unlikely(!(expr=
                  new (thd->mem_root)
-                 Item_func_cursor_found(thd, cursor_name,
-                                        loop.m_cursor_offset))))
+                 Item_func_cursor_found(thd,
+                                        Cursor_ref(cursor_name,
+                                                   // Static cursor
+                                                   &sp_rcontext_handler_local,
+                                                   loop.m_cursor_offset,
+                                                   NULL)))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr, empty_clex_str))
     return true;
@@ -7528,6 +7547,80 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
 }
 
 
+/*
+  Add instructions for "OPEN sys_ref_cursor FROM stmt".
+  This statement is only supported for SYS_REFCURSOR variables.
+  It's not supported for static cursors.
+*/
+bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
+                                  sp_lex_cursor *stmt)
+{
+  const Sp_rcontext_handler *rh;
+  sp_variable *spv;
+  if (!(spv= find_variable(name, &rh)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return true;
+  }
+  if (spv->mode == sp_variable::MODE_IN &&
+      spv->offset < sphead->get_parse_context()->context_var_count())
+  {
+    /*
+      OPEN for IN SYS_REFCURSOR parameters is not supported in Oracle.
+      Let's also disallow this. The error message might be misleading
+      about "not supported *yet*". But we don't have a better message.
+    */
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "OPEN IN_sp_parameter");
+    return true;
+  }
+  if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
+    return true;
+  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
+                                 sphead->instructions(), spcont,
+                                 sp_rcontext_ref(
+                                   sp_rcontext_addr(rh, spv->offset),
+                                   &sp_rcontext_handler_statement),
+                                 stmt);
+  return i == NULL || sphead->add_instr(i);
+}
+
+
+/*
+  Add instructions for "CLOSE cur".
+  It handles both static cursors and SYS_REFCURORs.
+*/
+bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
+{
+  uint offset;
+
+  // Search for a static cursor with the given name first
+  if (spcont->find_cursor(&name, &offset, false))
+  {
+    sp_instr_cclose *i=
+      new (thd->mem_root) sp_instr_cclose(sphead->instructions(),
+                                          spcont, offset);
+    return i == nullptr || sphead->add_instr(i);
+  }
+
+  // Search for a SYS_REFCURSOR variable
+  const Sp_rcontext_handler *rh;
+  const sp_variable *spv= find_variable(&name, &rh);
+  if (spv)
+  {
+    if (check_variable_is_refcursor({STRING_WITH_LEN("CLOSE")}, spv))
+      return true;
+    auto *i= new (thd->mem_root) sp_instr_cclose_by_ref(
+                                   sphead->instructions(), spcont,
+                                   sp_rcontext_ref(
+                                     sp_rcontext_addr(rh, spv->offset),
+                                     &sp_rcontext_handler_statement));
+    return i == nullptr || sphead->add_instr(i);
+  }
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+  return true;
+}
+
+
 bool LEX::sp_handler_declaration_init(THD *thd, int type)
 {
   sp_handler *h= spcont->add_handler(thd, (sp_handler::enum_type) type);
@@ -7580,6 +7673,14 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
 }
 
 
+void LEX::sp_block_init_package_body(THD *thd)
+{
+  spcont->push_label(thd, &empty_clex_str,
+                     sphead->instructions(), sp_label::BEGIN);
+  spcont= spcont->push_context(thd, sp_pcontext::PACKAGE_BODY_SCOPE);
+}
+
+
 void LEX::sp_block_init(THD *thd, const LEX_CSTRING *label)
 {
   spcont->push_label(thd, label, sphead->instructions(), sp_label::BEGIN);
@@ -7611,6 +7712,10 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
         unlikely(sp->add_instr(i)))
       return true;
   }
+
+  if (sphead->add_sp_block_destruct_variables(thd, spcont))
+    return true;
+
   spcont= ctx->pop_context();
   *splabel= spcont->pop_label();
   return false;
@@ -8253,21 +8358,39 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 {
   Item_trigger_field *trg_fld;
 
-  if (unlikely(trg_chistics.event == TRG_EVENT_INSERT && !new_row))
+  if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) &&
+               !new_row &&
+               /*
+                 OLD is not compatible only with INSERT event, so
+                 emits the error in case neither UPDATE nor DELETE
+                 is also specified for in the trigger definition
+               */
+
+               !(is_trg_event_on(trg_chistics.events,TRG_EVENT_UPDATE) ||
+                 is_trg_event_on(trg_chistics.events,TRG_EVENT_DELETE))))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT");
     return NULL;
   }
 
-  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE && new_row))
+  if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE) &&
+               new_row &&
+               /*
+                 NEW is not compatible only with DELETE event, so
+                 emits the error in case neither UPDATE nor INSERT
+                 is also specified for in the trigger definition
+               */
+               !(is_trg_event_on(trg_chistics.events,TRG_EVENT_UPDATE) ||
+                 is_trg_event_on(trg_chistics.events,TRG_EVENT_INSERT))
+               ))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return NULL;
   }
 
   DBUG_ASSERT(!new_row ||
-              (trg_chistics.event == TRG_EVENT_INSERT ||
-               trg_chistics.event == TRG_EVENT_UPDATE));
+              (is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) ||
+               is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE)));
 
   const bool tmp_read_only=
     !(new_row && trg_chistics.action_time == TRG_ACTION_BEFORE);
@@ -8306,24 +8429,50 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 }
 
 
+/*
+  Make an Item for Oracle style cursor attributes:
+    cur%ISOPEN
+    cur%FOUND
+    cur%NOTFOUND
+    cur%ROWCOUNT
+  Works for static cursors and SYS_REFCURSORs.
+*/
 Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
                                        plsql_cursor_attr_t attr)
 {
   uint offset;
-  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  const Sp_rcontext_handler *rh= nullptr;
+  const Sp_rcontext_handler *deref_rcontext_handler= nullptr;
+  const sp_variable *spv= nullptr;
+  if (spcont && spcont->find_cursor(name, &offset, false))
+  {
+    rh= &sp_rcontext_handler_local; // A static cursor found
+  }
+  else if (spcont && (spv= find_variable(name, &rh)))
+  {
+    static constexpr LEX_CSTRING cursor_attr=
+      {STRING_WITH_LEN("%cursor_attr")};
+    if (check_variable_is_refcursor(cursor_attr, spv))
+      return nullptr;
+     // A SYS_REFCURSOR variable found
+    offset= spv->offset;
+    deref_rcontext_handler= &sp_rcontext_handler_statement;
+  }
+  else
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
     return NULL;
   }
+  const Cursor_ref ref(name, rh, offset, deref_rcontext_handler);
   switch (attr) {
   case PLSQL_CURSOR_ATTR_ISOPEN:
-    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, ref);
   case PLSQL_CURSOR_ATTR_FOUND:
-    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_found(thd, ref);
   case PLSQL_CURSOR_ATTR_NOTFOUND:
-    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, ref);
   case PLSQL_CURSOR_ATTR_ROWCOUNT:
-    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, ref);
   }
   DBUG_ASSERT(0);
   return NULL;
@@ -8675,6 +8824,41 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
+Item *LEX::create_item_ident_trigger_specific(THD *thd,
+                                              active_dml_stmt stmt_type,
+                                              bool *throw_error)
+{
+  if (stmt_type == active_dml_stmt::INSERTING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "INSERTING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (stmt_type == active_dml_stmt::UPDATING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "UPDATING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (stmt_type == active_dml_stmt::DELETING_STMT &&
+      !is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "DELETING",
+             trg_event_type_names[trg_chistics.events].str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  return new (thd->mem_root) Item_trigger_type_of_statement(thd, stmt_type);
+}
+
+
 Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 {
   DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
@@ -8825,6 +9009,31 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
+  /*
+    Check the supplied identifier name for reserved names having the special
+    meaning in trigger context. Use this checking after call to find_variable()
+    to don't break backward compatibility - names of variables is resolved
+    before checking an identifier name for reserved values, so behavior of
+    user's triggers that use local variable names coinciding with the reserved
+    values wouldn't be changed
+  */
+  bool got_error;
+  Item *trigger_specific_item=
+    create_item_ident_trigger_specific(thd,
+                                       Lex_ident_sys(thd, name), &got_error);
+  if (trigger_specific_item)
+    /*
+      trigger_specific_item != nullptr if the  argument 'name' equals one of
+      the following clauses `INSERTING`, `UPDATING`, `DELETING`
+    */
+    return trigger_specific_item;
+  else if (got_error)
+    /*
+      The supplied clause INSERTING or UPDATING or DELETING isn't compatible
+      with the trigger event type
+    */
+    return NULL;
+
   if (fields_are_impossible() &&
       (current_select->parsing_place != FOR_LOOP_BOUND ||
        spcont->find_cursor(name, &unused_off, false) == NULL))
@@ -8949,7 +9158,7 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
     return true;
   }
-  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE))
+  if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE)))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return true;
@@ -8979,9 +9188,9 @@ uint binlog_unsafe_map[256];
   Sets the combination given by "a" and "b" and automatically combinations
   given by other types of access, i.e. 2^(8 - 2), as unsafe.
 
-  It may happen a colision when automatically defining a combination as unsafe.
+  Collision may happen when a combination is marked unsafe automatically.
   For that reason, a combination has its unsafe condition redefined only when
-  the new_condition is greater then the old. For instance,
+  the new_condition is greater than the old. For instance,
   
      . (BINLOG_DIRECT_ON & TRX_CACHE_NOT_EMPTY) is never overwritten by 
      . (BINLOG_DIRECT_ON | BINLOG_DIRECT_OFF).
@@ -9006,7 +9215,7 @@ void unsafe_mixed_statement(LEX::enum_stmt_accessed_table a,
   which means that both conditions need to be satisfied or any of them is
   enough. For example, 
     
-    . BINLOG_DIRECT_ON & TRX_CACHE_NOT_EMPTY means that the statment is
+    . BINLOG_DIRECT_ON & TRX_CACHE_NOT_EMPTY means that the statement is
     unsafe when the option is on and trx-cache is not empty;
 
     . BINLOG_DIRECT_ON | BINLOG_DIRECT_OFF means the statement is unsafe
@@ -9113,7 +9322,7 @@ void binlog_unsafe_map_init()
 
 /**
   @brief
-    Collect fiels that are used in the GROUP BY of this st_select_lex
+    Collect fields that are used in the GROUP BY of this st_select_lex
     
   @param thd  The thread handle
 
@@ -9175,7 +9384,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
 
 /**
   @brief
-   For a condition check possibility of exraction a formula over grouping fields 
+   For a condition check possibility of extraction a formula over grouping fields
 
   @param thd      The thread handle
   @param cond     The condition whose subformulas are to be analyzed
@@ -9189,7 +9398,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     the call-back parameter checker to check whether a primary formula
     depends only on grouping fields.
     The subformulas that are not usable are marked with the flag MARKER_NO_EXTRACTION.
-    The subformulas that can be entierly extracted are marked with the flag 
+    The subformulas that can be entirely extracted are marked with the flag
     MARKER_FULL_EXTRACTION.
   @note
     This method is called before any call of extract_cond_for_grouping_fields.
@@ -9269,7 +9478,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
     to figure out whether a subformula depends only on these fields or not.
   @note
     The built condition C is always implied by the condition cond
-    (cond => C). The method tries to build the least restictive such
+    (cond => C). The method tries to build the least restrictive such
     condition (i.e. for any other condition C' such that cond => C'
     we have C => C').
   @note
@@ -9512,22 +9721,43 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
-sp_instr_cfetch *LEX::sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name)
+/*
+  Add instructions to handle "FETCH cur INTO targets".
+  It covers both static cursors and SYS_REFCUSORs.
+*/
+sp_instr_fetch_cursor *
+LEX::sp_add_instr_fetch_cursor(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
-  sp_instr_cfetch *i;
 
-  if (!spcont->find_cursor(name, &offset, false))
+  // Search for a static cursor with the given name first
+  if (spcont->find_cursor(name, &offset, false))
   {
-    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
-    return nullptr;
+    sp_instr_cfetch *i= new (thd->mem_root)
+      sp_instr_cfetch(sphead->instructions(),
+                      spcont, offset,
+                      !(thd->variables.sql_mode & MODE_ORACLE));
+    return i == nullptr || sphead->add_instr(i) ? nullptr : i;
   }
-  i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset,
-                    !(thd->variables.sql_mode & MODE_ORACLE));
-  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
-    return nullptr;
-  return i;
+
+  // Search for a SYS_REFCURSOR variable
+  const Sp_rcontext_handler *rh;
+  const sp_variable *spv= find_variable(name, &rh);
+  if (spv)
+  {
+    if (check_variable_is_refcursor({STRING_WITH_LEN("FETCH")}, spv))
+      return nullptr;
+    auto *i= new (thd->mem_root) sp_instr_cfetch_by_ref(
+                                   sphead->instructions(), spcont,
+                                   sp_rcontext_ref(
+                                     sp_rcontext_addr(rh, spv->offset),
+                                     &sp_rcontext_handler_statement),
+                                   !(thd->variables.sql_mode & MODE_ORACLE));
+    return i == nullptr || sphead->add_instr(i) ? nullptr : i;
+  }
+
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+  return nullptr;
 }
 
 
@@ -10713,7 +10943,7 @@ LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
 
 /**
   Add query primary to a parenthesized query primary
-  pruducing a new query expression body
+  producing a new query expression body
 */
 
 SELECT_LEX_UNIT *
@@ -11302,7 +11532,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
     (dt.a>2) OR (dt.a<3) condition from or1 again and push it into WHERE.
     This will cause duplicate conditions in WHERE of dt.
 
-    To avoid repeatable pushdown such OR conditions as or1 describen
+    To avoid repeatable pushdown such OR conditions as or1 described
     above are marked with MARKER_NO_EXTRACTION.
 
   @note
@@ -12510,7 +12740,7 @@ bool LEX::sp_create_set_password_instr(THD *thd,
   @param pos          - The position of the keyword `NAMES` inside the query
   @param cs           - The character set part, or nullptr if DEFAULT
   @param cl           - The collation (explicit or contextually typed)
-  @param no_lookahead - The tokinizer lookahead state
+  @param no_lookahead - The tokenizer lookahead state
 */
 bool LEX::set_names(const char *pos,
                     CHARSET_INFO *cs,

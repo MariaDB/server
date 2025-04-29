@@ -131,7 +131,7 @@ let $fixed_bug41925= 0;
 #              or user = 'event_scheduler' with command = 'Connect'
 #                 The session which will soon change its identity to event creator.
 #
-#    2. Reason two: If an event modifies a MyISAM table than a delayed visibilty of changes
+#    2. Reason two: If an event modifies a MyISAM table than a delayed visibility of changes
 #                   might occur (concurrent_inserts=on or delayed inserts ...).
 #
 
@@ -961,7 +961,7 @@ DROP USER evtest1@localhost;
 #    few seconds
 # 3. Check that the event is never executed again
 #    It could be that an event execution was running before the DROP USER
-#    and all implicite actions belonging to this are completed.
+#    and all implicit actions belonging to this are completed.
 #    Lets assume that ~ 4 seconds waiting are enough for the event
 #    scheduler to detect that
 --echo Sleep 4 seconds

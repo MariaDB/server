@@ -101,7 +101,7 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
   applied, then the event should be skipped. If not then the event should be
   applied.
 
-  To avoid two master connections tring to apply the same event
+  To avoid two master connections trying to apply the same event
   simultaneously, only one is allowed to work in any given domain at any point
   in time. The associated Relay_log_info object is called the owner of the
   domain (and there can be multiple parallel worker threads working in that
@@ -1240,7 +1240,7 @@ rpl_slave_state_tostring_cb(rpl_gtid *gtid, void *data)
   The state consists of the most recently applied GTID for each domain_id,
   ie. the one with the highest sub_id within each domain_id.
 
-  Optinally, extra_gtids is a list of GTIDs from the binlog. This is used when
+  Optionally, extra_gtids is a list of GTIDs from the binlog. This is used when
   a server was previously a master and now needs to connect to a new master as
   a slave. For each domain_id, if the GTID in the binlog was logged with our
   own server_id _and_ has a higher seq_no than what is in the slave state,
@@ -2309,7 +2309,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
                               Gtid_list_log_event *glev,
                               char* errbuf)
 {
-  DYNAMIC_ARRAY domain_unique; // sequece (unsorted) of unique element*:s
+  DYNAMIC_ARRAY domain_unique; // sequence (unsorted) of unique element*:s
   rpl_binlog_state::element* domain_unique_buffer[16];
   ulong k, l;
   const char* errmsg= NULL;
@@ -2902,7 +2902,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
       /*
         The elements in the gtid_slave_state_hash are never re-allocated once
         they enter the hash, so we do not need to re-do the lookup after releasing
-        and re-aquiring the lock.
+        and re-acquiring the lock.
       */
       if (!slave_state_elem &&
           !(slave_state_elem= rpl_global_gtid_slave_state->get_element(domain_id)))
@@ -3004,7 +3004,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
 
       /*
         Note that hash_entry pointers do not change once allocated, so we do
-        not need to lookup `he' again after re-aquiring LOCK_gtid_waiting.
+        not need to lookup `he' again after re-acquiring LOCK_gtid_waiting.
       */
       process_wait_hash(wakeup_seq_no, he);
     }

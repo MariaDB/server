@@ -2003,7 +2003,7 @@ DROP PROCEDURE p1;
 SET @@SQL_MODE=default;
 
 
-# TODO: Uncomment the below test whe we fix:
+# TODO: Uncomment the below test when we fix it:
 # MDEV-9623INFORMATION_SCHEMA.ROUTINES.ROUTINE_DEFINITION does not handle binary literals well
 #
 #SET NAMES binary;

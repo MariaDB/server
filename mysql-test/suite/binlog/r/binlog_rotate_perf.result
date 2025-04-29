@@ -2,7 +2,7 @@ connect conn1,localhost,root,,test;
 reset master;
 create database test_rotate_db;
 use test_rotate_db;
-#currrent engine=myisam
+#current engine=myisam
 show binary logs;
 Log_name	File_size
 master-bin.000001	#

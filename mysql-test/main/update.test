@@ -824,6 +824,19 @@ explain update t1 set c = 5  where    b <= 2 and a not in (select b from t2);
 explain update t1 set c = 5  where    b <= 3 and a not in (select b from t2);
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-35662 Assertion failure in diagnostics area upon EXPLAIN UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INET6);
+INSERT INTO t2 VALUES ('::'),('::'); # Optional, fails either way
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT b FROM t2) ORDER BY a LIMIT 1;
+
+# Cleanup
+DROP TABLE t1, t2;
+
 --echo # End of 11.7 tests
 
 --source include/test_db_charset_restore.inc

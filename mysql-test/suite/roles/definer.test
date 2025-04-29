@@ -44,7 +44,7 @@ grant select on test.* to role4;
 # views
 ##################################################
 
-# no curent role = error
+# no current role = error
 --error ER_MALFORMED_DEFINER
 create definer=current_role view test.v1 as select a+b,c from t1;
 
@@ -137,7 +137,7 @@ drop user role4;
 
 create table t2 select * from t1;
 
-# no curent role = error
+# no current role = error
 --error ER_MALFORMED_DEFINER
 create definer=current_role trigger tr1 before insert on t2 for each row
   insert t1 values (111, 222, 333);
@@ -200,7 +200,7 @@ select * from t2;
 # stored procedures
 ##################################################
 
-# no curent role = error
+# no current role = error
 --error ER_MALFORMED_DEFINER
 create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
 
@@ -237,7 +237,7 @@ call pr2();
 # stored functions
 ##################################################
 
-# no curent role = error
+# no current role = error
 --error ER_MALFORMED_DEFINER
 create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
 
@@ -268,7 +268,7 @@ select fn3();
 
 set global event_scheduler=on;
 
-# no curent role = error
+# no current role = error
 --error ER_MALFORMED_DEFINER
 create definer=current_role event e1 on schedule every 1 second starts '2000-01-01' do
   insert t1 values (111, 1, 0);

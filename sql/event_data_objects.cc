@@ -519,7 +519,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   else
     expression= 0;
   /*
-    If neigher STARTS and ENDS is set, then both fields are empty.
+    If neither STARTS and ENDS is set, then both fields are empty.
     Hence, if ET_FIELD_EXECUTE_AT is empty there is an error.
   */
   execute_at_null= table->field[ET_FIELD_EXECUTE_AT]->is_null();

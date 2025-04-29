@@ -285,8 +285,8 @@ index tables) of a FTS table are in HEX format. */
 	(table->flags2 &= ~(flag) & ((1U << DICT_TF2_BITS) - 1))
 
 /** Tables could be chained together with Foreign key constraint. When
-first load the parent table, we would load all of its descedents.
-This could result in rescursive calls and out of stack error eventually.
+first load the parent table, we would load all of its descendants.
+This could result in recursive calls and out of stack error eventually.
 DICT_FK_MAX_RECURSIVE_LOAD defines the maximum number of recursive loads,
 when exceeded, the child table will not be loaded. It will be loaded when
 the foreign constraint check needs to be run. */
@@ -2515,7 +2515,7 @@ public:
   columns; protected by lock_latch */
   dict_vcol_templ_t *vc_templ;
 
-  /* @return whether the table has any other transcation lock
+  /* @return whether the table has any other transaction lock
   other than the given transaction */
   bool has_lock_other_than(const trx_t *trx) const
   {

@@ -6,7 +6,7 @@ mariadb source: package-uses-deprecated-debhelper-compat-version 9
 source-is-missing [sql/share/charsets/languages.html]
 source-is-missing [storage/rocksdb/rocksdb/docs/_includes/footer.html]
 missing-build-dependency-for-dh-addon systemd (does not satisfy debhelper:any (>= 9.20160709~) | debhelper-compat:any | dh-sequence-systemd:any | dh-systemd:any) [debian/rules]
-# Should in some point reviewd what should we done
+# Should in some point review what should we do
 dependency-is-not-multi-archified libmariadb-dev-compat depends on libmariadb-dev (multi-arch: no)
 dependency-is-not-multi-archified mariadb-plugin-gssapi-client depends on mariadb-client (multi-arch: no)
 # These are for purpose

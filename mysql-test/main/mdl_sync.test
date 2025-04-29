@@ -91,7 +91,7 @@ set debug_sync= 'RESET';
 create table t1 (c1 int);
 
 --echo # 
---echo # A) First let us check compatibility rules between differend kinds of
+--echo # A) First let us check compatibility rules between different kinds of
 --echo #    type-of-operation aware metadata locks.
 --echo #    Of course, these rules are already covered by the tests scattered
 --echo #    across the test suite. But it still makes sense to have one place
@@ -2450,7 +2450,7 @@ connection deadlock_con2;
 set debug_sync='now WAIT_FOR parked2';
 --echo # Resume ALTER execution. Eventually it will release its
 --echo # metadata lock and INSERT's request for SW lock will be
---echo # satisified.
+--echo # satisfied.
 set debug_sync='now SIGNAL go1';
 
 --echo #
@@ -3173,7 +3173,7 @@ disconnect con1;
 --echo #           failed in open_ltable()
 --echo #
 
---echo # Supress warnings written to the log file
+--echo # Suppress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
 
 connect (con1,localhost,root);

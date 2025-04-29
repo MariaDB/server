@@ -80,7 +80,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue';
 --reap
 
 --connection node_1c
-# this will succeeed, becaus the query will be replayed
+# this will succeed, because the query will be replayed
 --reap
 
 --connection node_1

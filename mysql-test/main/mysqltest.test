@@ -2148,7 +2148,7 @@ reap;
 select * from t1;
 --reap
 
-# 4. Non-query stmt betwen send and reap allowed
+# 4. Non-query stmt between send and reap is allowed
 
 --send select * from t1;
 --sleep 0.05
@@ -2953,6 +2953,12 @@ connection default;
 set sql_mode=no_backslash_escapes;
 select "foo\""bar";
 set sql_mode=default;
+
+--echo #
+--echo # MDEV-29344: engines/iuds.insert_time cannot run with PS protocol (syntax error)
+--echo #
+SELECT 1 /* doesn't throw error */;
+SELECT 1 /* doesn't throw error */;
 
 --echo End of tests
 

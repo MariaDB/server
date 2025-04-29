@@ -2134,7 +2134,7 @@ Warnings:
 Note	1003	select sum(ord(`test`.`t1`.`a1`)) AS `sum(ord(a1))` from `test`.`t1` where `test`.`t1`.`a1` > 'a' group by `test`.`t1`.`a1`,`test`.`t1`.`a2`,`test`.`t1`.`b`
 create table t4 as select distinct a1, a2, b, c from t1;
 alter table t4 add unique index idxt4 (a1, a2, b, c);
-# This is "superceded" by MDEV-7118, and Loose Index Scan is again an option:
+# This is "superseded" by MDEV-7118, and Loose Index Scan is again an option:
 explain
 select a1, a2, b, min(c) from t4 group by a1, a2, b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -4382,4 +4382,28 @@ MIN(a)
 drop table t1;
 #
 # End of 10.6 tests
+#
+#
+# MDEV-36118 Wrong result in loose index scan
+#
+CREATE TABLE t1 (a int, b int, KEY (a, b));
+insert into t1 values (1, 3), (1, 1);
+SELECT MAX(b) FROM t1 WHERE (b > 2 AND b < 4) OR (b = 5) GROUP BY a;
+MAX(b)
+3
+drop table t1;
+#
+# MDEV-36220 ASAN unknown-crash in loose index scan of MIN with IS NULL
+#
+CREATE TABLE t1 (a int, b int, KEY (a, b));
+insert into t1 values (4, NULL), (1, 14), (4, 3);
+SELECT MIN(b) FROM t1 WHERE b = 3 OR b IS NULL GROUP BY a;
+MIN(b)
+3
+SELECT MIN(b) FROM t1 WHERE b IS NULL GROUP BY a;
+MIN(b)
+NULL
+drop table t1;
+#
+# End of 10.11 tests
 #

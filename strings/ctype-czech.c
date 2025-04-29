@@ -94,7 +94,7 @@ static const uchar *const CZ_SORT_TABLE[] = {
 };
 
 /*
-	These define the valuse for the double chars that need to be
+	These define the values for the double chars that need to be
 	sorted as they were single characters -- in Czech these are
 	'ch', 'Ch' and 'CH'.
 */
@@ -396,7 +396,7 @@ static my_bool my_like_range_czech(CHARSET_INFO *cs __attribute__((unused)),
     { continue; }
     if (value <= 2)			/* End of pass or end of string */
     { break; }
-    if (value == 255)		/* Double char too compicated */
+    if (value == 255)		/* Double char too complicated */
     { break; }
 
     *min_str++= *max_str++ = *ptr;

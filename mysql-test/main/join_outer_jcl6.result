@@ -2856,7 +2856,7 @@ Election	Voted	ElectionID
 drop table t1, t2;
 drop view v1;
 #
-# and another contrived example showing a bit of heirarchy
+# and another contrived example showing a bit of hierarchy
 #
 create table t10 (a int);
 create table t20 (b int);

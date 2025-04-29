@@ -1628,7 +1628,7 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
   Rdb_string_reader reader(packed_key);
   Rdb_string_reader unp_reader = Rdb_string_reader::read_or_empty(unpack_info);
 
-  // There is no checksuming data after unpack_info for primary keys, because
+  // There is no checksumming data after unpack_info for primary keys, because
   // the layout there is different. The checksum is verified in
   // ha_rocksdb::convert_record_from_storage_format instead.
   DBUG_ASSERT_IMP(!(m_index_type == INDEX_TYPE_SECONDARY),
@@ -2202,7 +2202,7 @@ void Rdb_key_def::pack_legacy_variable_format(
     flag is set to N.
 
   For N=9, the following input values encode to the specified
-  outout (where 'X' indicates a byte of the original input):
+  output (where 'X' indicates a byte of the original input):
   - 0 bytes  is encoded as 0 0 0 0 0 0 0 0 0
   - 1 byte   is encoded as X 0 0 0 0 0 0 0 1
   - 2 bytes  is encoded as X X 0 0 0 0 0 0 2
@@ -4161,7 +4161,7 @@ bool Rdb_ddl_manager::init(Rdb_dict_manager *const dict_arg,
 
   /*
     If validate_tables is greater than 0 run the validation.  Only fail the
-    initialzation if the setting is 1.  If the setting is 2 we continue.
+    initialization if the setting is 1.  If the setting is 2 we continue.
   */
   if (validate_tables > 0) {
     std::string msg;

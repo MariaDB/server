@@ -196,7 +196,7 @@ INSERT INTO t1 VALUES (7, 2);
 --let $wait_condition = SELECT COUNT(*) = 7 FROM t1;
 --source include/wait_condition.inc
 
-# node_1 is stiil processing PC2, it was let to send state transfer request
+# node_1 is still processing PC2, it was let to send state transfer request
 # while in non-PRIM. Now it should be able to complete it and shift to
 # JOINING. Make it block on next PC(3) and continue to receive IST
 --connection node_1a
@@ -246,7 +246,7 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 #
 # Now node_1 is blocked before processing PC3, and should have finished state
 # transfer started while in PC2.
-# State tranfer request was dilivered in PC3 to donor, so node_1 should have
+# State transfer request was dilivered in PC3 to donor, so node_1 should have
 # received IST up to 6 rows in t1 (what was there before PC3).
 #
 --let $wait_condition = SELECT COUNT(*) = 6 FROM t1;
@@ -295,13 +295,13 @@ INSERT INTO t1 VALUES (9, 2);
 
 DROP TABLE t1;
 
-call mtr.add_suppression("WSREP: Send action {(.*), STATE_REQUEST} returned -107 \\(Transport endpoint is not connected\\)");
-call mtr.add_suppression("WSREP: Rejecting JOIN message from (.*): new State Transfer required\\.");
+call mtr.add_suppression("WSREP: Send action {.* STATE_REQUEST} returned -107 \\((Transport endpoint|Socket) is not connected\\)");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from .+: new State Transfer required\\.");
 
 --connection node_2
-call mtr.add_suppression("WSREP: Rejecting JOIN message from (.*): new State Transfer required\\.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from .+: new State Transfer required\\.");
 
 --connection node_3
-call mtr.add_suppression("WSREP: Rejecting JOIN message from (.*): new State Transfer required\\.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from .+: new State Transfer required\\.");
 
 --source ../galera/include/auto_increment_offset_restore.inc

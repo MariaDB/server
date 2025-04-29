@@ -1,4 +1,4 @@
-# Test database resiliency against scenario where the server crashes
+# Test database resilience against scenario where the server crashes
 # right before fts_sync_commit commits its transaction
 source include/have_innodb.inc;
 source include/have_debug.inc;

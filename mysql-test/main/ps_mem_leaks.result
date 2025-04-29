@@ -424,7 +424,7 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (a INT);
 SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
-# Recomplilation of the statement 'SELECT * FORM t1' on
+# Recompilation of the statement 'SELECT * FORM t1' on
 # the second run of the procedure p1 shouldn't result in memory leaks
 CALL p1();
 a
@@ -441,3 +441,28 @@ SET @@debug_dbug=@save_dbug;
 DROP TABLE t1;
 DROP PROCEDURE p1;
 # End of 11.2 tests
+# MDEV-36079: Stored routine with a cursor crashes on
+# the second execution if a DDL statement happened
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT a FROM t1;
+OPEN cur;
+FETCH cur INTO va;
+SELECT va;
+CLOSE cur;
+END;
+$
+CALL p1;
+va
+1
+ALTER TABLE t1 MODIFY a INT UNSIGNED;
+CALL p1;
+va
+1
+# Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 11.8 tests

@@ -204,7 +204,7 @@ private:
 	/** Upper limit of used space */
 	Element*		m_last;
 
-	/** Priority queue ordered on the pointer addresse. */
+	/** Priority queue ordered on the pointer addresses. */
 	pqueue_t		m_pqueue;
 
 	/** Lock strategy to use */

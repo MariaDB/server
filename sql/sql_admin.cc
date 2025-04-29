@@ -57,6 +57,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   trans_rollback_stmt(thd);
   trans_rollback(thd);
+  thd->tmp_table_binlog_handled= 1;
   close_thread_tables(thd);
   thd->release_transactional_locks();
 
@@ -236,7 +237,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   {
     /*
       Table open failed, maybe because we run out of memory.
-      Close all open tables and relaese all MDL locks
+      Close all open tables and release all MDL locks
     */
     tdc_release_share(share);
     share->tdc->flush(thd, true);
@@ -755,7 +756,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     /*
       CHECK/REPAIR TABLE command is only command where VIEW allowed here and
       this command use only temporary table method for VIEWs resolving =>
-      there can't be VIEW tree substitition of join view => if opening table
+      there can't be VIEW tree substitution of join view => if opening table
       succeed then table->table will have real TABLE pointer as value (in
       case of join view substitution table->table can be 0, but here it is
       impossible)
@@ -817,6 +818,25 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     }
 
     /*
+      This has to be tested separately from the following test as
+      optimizer table takes a MDL_SHARED_WRITE lock but we want to
+      log this to the ddl log.
+    */
+
+    if (lock_type == TL_WRITE && table->mdl_request.type >= MDL_SHARED_WRITE)
+    {
+      /* Store information about table for ddl log */
+      storage_engine_partitioned= table->table->file->partition_engine();
+      strmake(storage_engine_name, table->table->file->real_table_type(),
+              sizeof(storage_engine_name)-1);
+      tabledef_version.str= tabledef_version_buff;
+      if ((tabledef_version.length= table->table->s->tabledef_version.length))
+        memcpy((char*) tabledef_version.str,
+               table->table->s->tabledef_version.str,
+               MY_UUID_SIZE);
+    }
+
+    /*
       Close all instances of the table to allow MyISAM "repair"
       (which is internally also used from "optimize") to rename files.
       @todo: This code does not close all instances of the table.
@@ -834,16 +854,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         thd->close_unused_temporary_table_instances(table);
       else
       {
-        /* Store information about table for ddl log */
-        storage_engine_partitioned= table->table->file->partition_engine();
-        strmake(storage_engine_name, table->table->file->real_table_type(),
-                sizeof(storage_engine_name)-1);
-        tabledef_version.str= tabledef_version_buff;
-        if ((tabledef_version.length= table->table->s->tabledef_version.length))
-          memcpy((char*) tabledef_version.str,
-                 table->table->s->tabledef_version.str,
-                 MY_UUID_SIZE);
-
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
           goto err;
         DEBUG_SYNC(thd, "after_admin_flush");
@@ -1005,7 +1015,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             /*
               Note that type() always return MYSQL_TYPE_BLOB for
               all blob types. Another function needs to be added
-              if we in the future want to distingush between blob
+              if we in the future want to distinguish between blob
               types here.
             */
             enum enum_field_types type= field->type();
@@ -1286,6 +1296,7 @@ send_result_message:
       recreate_used= 1;
       trans_commit_stmt(thd);
       trans_commit(thd);
+      thd->tmp_table_binlog_handled= 1;
       close_thread_tables(thd);
       thd->release_transactional_locks();
       /* Clear references to TABLE and MDL_ticket after releasing them. */
@@ -1459,6 +1470,7 @@ send_result_message:
         goto err;
       is_table_modified= true;
     }
+    thd->tmp_table_binlog_handled= 1;
     close_thread_tables(thd);
 
     if (storage_engine_name[0])
@@ -1473,6 +1485,14 @@ send_result_message:
       ddl_log.org_database=     table->db;
       ddl_log.org_table=        table->table_name;
       ddl_log.org_table_id=     tabledef_version;
+      if (recreate_used)
+      {
+        LEX_CUSTRING tabledef_version=
+          { recreate_info.tabledef_version, MY_UUID_SIZE };
+        ddl_log.new_database=     table->db;
+        ddl_log.new_table=        table->table_name;
+        ddl_log.new_table_id=     tabledef_version;
+      }
       backup_log_ddl(&ddl_log);
     }
 
@@ -1509,6 +1529,16 @@ send_result_message:
     if (res)
       goto err;
   }
+  else
+  {
+    /*
+      We decided to not log the query to binlog.
+      We mark the query as logged to ensure that temporary tables are not
+      marked with 'mark_as_not_binlogged()' on close.
+    */
+    thd->tmp_table_binlog_handled= 1;
+  }
+
   my_eof(thd);
 
   DBUG_RETURN(FALSE);
@@ -1521,6 +1551,7 @@ err:
   if (table && table->table)
   {
     table->table->mark_table_for_reopen();
+    table->table->mark_as_not_binlogged();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed

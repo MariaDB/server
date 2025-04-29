@@ -519,7 +519,7 @@ protected:
 	char *GetDBfromName(const char *name);
 
   // Members
-  static ulong  num;                  // Tracable handler number
+  static ulong  num;                  // Traceable handler number
   PCONNECT      xp;                   // To user_connect associated class
   ulong         hnum;                 // The number of this handler
   query_id_t    valid_query_id;       // The one when tdbp was allocated

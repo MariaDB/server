@@ -778,7 +778,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
    Any clock-based timer can be affected by NPT (ntpd program),
    which means:
    - full-second correction can occur for leap second
-   - tiny corrections can occcur approimately every 11 minutes
+   - tiny corrections can occur approximately every 11 minutes
      (but I think they only affect the RTC which isn't the PIT).
 
    We define "precision" as "frequency" and "high precision" is

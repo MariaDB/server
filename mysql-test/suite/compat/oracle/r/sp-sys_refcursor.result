@@ -1,0 +1,643 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+#
+# Error: Unknown cursor and wrong variable data type in OPEN, FETCH, CLOSE
+#
+BEGIN
+OPEN c FOR SELECT 1 AS c FROM DUAL;
+END;
+/
+ERROR 42000: Undeclared variable: c
+DECLARE
+c INT;
+BEGIN
+OPEN c FOR SELECT 1 AS c FROM DUAL;
+END;
+/
+ERROR HY000: Illegal parameter data type int for operation 'OPEN'
+DECLARE
+c INT;
+BEGIN
+CLOSE c;
+END;
+/
+ERROR HY000: Illegal parameter data type int for operation 'CLOSE'
+DECLARE
+a INT;
+c INT;
+BEGIN
+FETCH c INTO a;
+END;
+/
+ERROR HY000: Illegal parameter data type int for operation 'FETCH'
+#
+# Error: Closing a not open cursor
+#
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+CLOSE c;
+END;
+/
+ERROR 24000: Cursor is not open
+#
+# Error: Fetching from a not open cursor
+#
+DECLARE
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+FETCH c INTO a;
+END;
+/
+ERROR 24000: Cursor is not open
+#
+# Error: fetching beyond the available number of records
+# sql_mode=ORACLE preserves the variable value
+#
+DECLARE
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE(a);
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE(a);
+END;
+/
+
+1
+
+1
+#
+# Two consequent OPEN (without a CLOSE in beetween) are allowed
+#
+DECLARE
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+OPEN c FOR SELECT 2 FROM DUAL;
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE(a);
+END;
+/
+
+2
+#
+# Many consequent OPEN (without a CLOSE in between) are allowed
+# and do not cause ER_TOO_MANY_OPEN_CURSORS.
+#
+SET max_open_cursors=2;
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+FOR i IN 1..3
+LOOP
+OPEN c FOR SELECT 1 AS c FROM DUAL;
+END LOOP;
+END;
+/
+SET max_open_cursors=DEFAULT;
+#
+# Simple use example (OPEN, FETCH, CLOSE)
+#
+DECLARE
+c SYS_REFCURSOR;
+a INT;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+FETCH c INTO a;
+CLOSE c;
+DBMS_OUTPUT.PUT_LINE(a);
+END;
+/
+
+1
+#
+# Fetching from two parallel cursors
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1() AS
+a0 INT;
+a1 INT;
+c0 SYS_REFCURSOR;
+c1 SYS_REFCURSOR;
+BEGIN
+OPEN c0  FOR SELECT a*10 FROM t1;
+OPEN c1  FOR SELECT a*20 FROM t1;
+FETCH c0 INTO a0;
+FETCH c1 INTO a1;
+DBMS_OUTPUT.PUT_LINE(a0 || ' ' || a1);
+CLOSE c0;
+CLOSE c1;
+END;
+/
+CALL p1;
+
+10 20
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Returning an open cursor from a function
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE FUNCTION f1 RETURN SYS_REFCURSOR AS
+c SYS_REFCURSOR;
+BEGIN
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+RETURN c;
+END;
+/
+CREATE PROCEDURE p1 AS
+a INT;
+c SYS_REFCURSOR DEFAULT f1();
+BEGIN
+LOOP
+FETCH c INTO a;
+EXIT WHEN c%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE(a);
+END LOOP;
+CLOSE c;
+END;
+/
+CALL p1;
+
+10
+
+20
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Returning SYS_REFCURSOR from a function: too many open cursors
+#
+SET max_open_cursors=2;
+CREATE OR REPLACE FUNCTION f1 RETURN SYS_REFCURSOR IS
+c SYS_REFCURSOR;
+BEGIN
+OPEN c FOR SELECT 1 AS a FROM DUAL;
+RETURN c;
+END;
+/
+DECLARE
+c0 SYS_REFCURSOR;
+c1 SYS_REFCURSOR;
+c2 SYS_REFCURSOR;
+a INT;
+BEGIN
+c0:= f1();
+FETCH c0 INTO a;
+c1:= f1();
+FETCH c1 INTO a;
+c2:= f1();
+FETCH c2 INTO a;
+END;
+/
+ERROR HY000: Too many open cursors; max 2 cursors allowed
+DROP FUNCTION f1;
+SET max_open_cursors=DEFAULT;
+#
+# Returning an open cursor as an OUT param
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1(c OUT SYS_REFCURSOR) AS
+BEGIN
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+END;
+/
+CREATE PROCEDURE p2 AS
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+p1(c);
+LOOP
+FETCH c INTO a;
+EXIT WHEN c%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE(a);
+END LOOP;
+CLOSE c;
+END;
+/
+CALL p2;
+
+10
+
+20
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+#
+# Returning an open cursor as an OUT param: Too many open cursors
+#
+SET @@max_open_cursors=2;
+CREATE PROCEDURE p1(c OUT SYS_REFCURSOR) AS
+BEGIN
+OPEN c FOR VALUES (10),(20);
+END;
+/
+CREATE PROCEDURE p2 AS
+a INT;
+c0 SYS_REFCURSOR;
+c1 SYS_REFCURSOR;
+c2 SYS_REFCURSOR;
+BEGIN
+p1(c0);
+LOOP
+FETCH c0 INTO a;
+EXIT WHEN c0%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE(a);
+END LOOP;
+p1(c1);
+LOOP
+FETCH c1 INTO a;
+EXIT WHEN c1%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE(a);
+END LOOP;
+p1(c2);
+END;
+/
+CALL p2;
+
+10
+
+20
+
+10
+
+20
+ERROR HY000: Too many open cursors; max 2 cursors allowed
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET @@max_open_cursors=DEFAULT;
+#
+# Returning an open cursor as an OUT param: no "Too many open cursors"
+#
+SET @@max_open_cursors=2;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1(c OUT SYS_REFCURSOR) AS
+BEGIN
+OPEN c FOR SELECT a FROM t1 ORDER BY a;
+END;
+/
+CREATE PROCEDURE p2 AS
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+FOR i IN 1..5
+LOOP
+p1(c); -- This closes the cursor and reopens it in p1
+LOOP
+FETCH c INTO a;
+EXIT WHEN c%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE(a);
+END LOOP;
+END LOOP;
+CLOSE c;
+END;
+/
+CALL p2;
+
+10
+
+20
+
+10
+
+20
+
+10
+
+20
+
+10
+
+20
+
+10
+
+20
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+SET @@max_open_cursors=DEFAULT;
+#
+# Returning an open cursor as an INOUT param: no "Too many open cursors"
+#
+SET @@max_open_cursors=2;
+CREATE PROCEDURE p1(c INOUT SYS_REFCURSOR) AS
+BEGIN
+OPEN c FOR VALUES (10), (20);
+END;
+/
+CREATE PROCEDURE p2 AS
+a INT;
+c SYS_REFCURSOR;
+BEGIN
+FOR i IN 1..5
+LOOP
+p1(c); -- This closes the cursor and reopens it in p1
+LOOP
+FETCH c INTO a;
+EXIT WHEN c%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE(a);
+END LOOP;
+END LOOP;
+CLOSE c;
+END;
+/
+CALL p2;
+
+10
+
+20
+
+10
+
+20
+
+10
+
+20
+
+10
+
+20
+
+10
+
+20
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET @@max_open_cursors=DEFAULT;
+#
+# Function returning SYS_REFCURSOR and mysql.proc
+#
+CREATE FUNCTION f1() RETURN SYS_REFCURSOR AS
+c0 SYS_REFCURSOR;
+BEGIN
+RETURN c0;
+END;
+/
+SELECT returns FROM mysql.proc WHERE name='f1';
+returns
+sys_refcursor
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN sys_refcursor
+AS
+c0 SYS_REFCURSOR;
+BEGIN
+RETURN c0;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP FUNCTION f1;
+#
+# Procedure with a SYS_REFCURSOR parameter and mysql.proc
+#
+CREATE PROCEDURE p1(a0 OUT SYS_REFCURSOR) AS
+c0 SYS_REFCURSOR;
+BEGIN
+a0:= c0;
+END;
+/
+SELECT param_list FROM mysql.proc WHERE name='p1';
+param_list
+a0 OUT SYS_REFCURSOR
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PROCEDURE "p1"(a0 OUT SYS_REFCURSOR)
+AS
+c0 SYS_REFCURSOR;
+BEGIN
+a0:= c0;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP PROCEDURE p1;
+#
+# NULL predicate
+#
+CREATE PROCEDURE p1 AS
+c0 SYS_REFCURSOR;
+v INT;
+BEGIN
+DBMS_OUTPUT.PUT_LINE(bool_to_char(c0 IS NULL));
+OPEN c0 FOR SELECT 1 FROM DUAL;
+DBMS_OUTPUT.PUT_LINE(bool_to_char(c0 IS NULL));
+FETCH c0 INTO v;
+DBMS_OUTPUT.PUT_LINE(bool_to_char(c0 IS NULL));
+CLOSE c0;
+DBMS_OUTPUT.PUT_LINE(bool_to_char(c0 IS NULL));
+END;
+/
+CALL p1;
+
+true
+
+false
+
+false
+
+false
+DROP PROCEDURE p1;
+#
+# Cursor attributes on a not open SYS_REFCURSOR
+#
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+DBMS_OUTPUT.PUT_LINE('c%ISOPEN=' || bool_to_char(c%ISOPEN));
+END;
+/
+
+c%ISOPEN=false
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+DBMS_OUTPUT.PUT_LINE('c%FOUND=' || bool_to_char(c%FOUND));
+END;
+/
+ERROR 24000: Cursor is not open
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+DBMS_OUTPUT.PUT_LINE('c%NOTFOUND=' || bool_to_char(c%NOTFOUND));
+END;
+/
+ERROR 24000: Cursor is not open
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+DBMS_OUTPUT.PUT_LINE('c%ROWCOUNT=' || c%ROWCOUNT);
+END;
+/
+ERROR 24000: Cursor is not open
+#
+# Cursor attributes on an open SYS_REFCURSOR
+#
+DECLARE
+c SYS_REFCURSOR;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+DBMS_OUTPUT.PUT_LINE('c%ISOPEN=' || bool_to_char(c%ISOPEN));
+END;
+/
+
+c%ISOPEN=true
+DECLARE
+c SYS_REFCURSOR;
+a INT;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+DBMS_OUTPUT.PUT_LINE('c%FOUND=' || bool_to_char(c%FOUND));
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE('c%FOUND=' || bool_to_char(c%FOUND));
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE('c%FOUND=' || bool_to_char(c%FOUND));
+END;
+/
+
+c%FOUND=NULL
+
+c%FOUND=true
+
+c%FOUND=false
+DECLARE
+c SYS_REFCURSOR;
+a INT;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+DBMS_OUTPUT.PUT_LINE('c%NOTFOUND=' || bool_to_char(c%NOTFOUND));
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE('c%NOTFOUND=' || bool_to_char(c%NOTFOUND));
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE('c%NOTFOUND=' || bool_to_char(c%NOTFOUND));
+END;
+/
+
+c%NOTFOUND=NULL
+
+c%NOTFOUND=false
+
+c%NOTFOUND=true
+DECLARE
+c SYS_REFCURSOR;
+a INT;
+BEGIN
+OPEN c FOR SELECT 1 FROM DUAL;
+DBMS_OUTPUT.PUT_LINE('c%ROWCOUNT=' || c%ROWCOUNT);
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE('c%ROWCOUNT=' || c%ROWCOUNT);
+FETCH c INTO a;
+DBMS_OUTPUT.PUT_LINE('c%ROWCOUNT=' || c%ROWCOUNT);
+END;
+/
+
+c%ROWCOUNT=0
+
+c%ROWCOUNT=1
+
+c%ROWCOUNT=1
+#
+# - Returning a never opened cursor does not cause ER_TOO_MANY_OPEN_CURSORS
+# - Returning an opened+closed cursor does not cause ER_TOO_MANY_OPEN_CURSORS
+# - Only returning an opened cursor causes ER_TOO_MANY_OPEN_CURSORS
+#
+SET @@max_open_cursors=2;
+CREATE FUNCTION f1(task VARCHAR) RETURN SYS_REFCURSOR AS
+c SYS_REFCURSOR := NULL;
+BEGIN
+IF task LIKE '%open%' THEN
+OPEN c FOR SELECT 1 FROM DUAL;
+END IF;
+IF task LIKE '%close%' THEN
+CLOSE c;
+END IF;
+RETURN c;
+END;
+/
+CREATE PROCEDURE p1(task VARCHAR) AS
+c0 SYS_REFCURSOR;
+c1 SYS_REFCURSOR;
+c2 SYS_REFCURSOR;
+BEGIN
+c0:= f1(task);
+DBMS_OUTPUT.PUT_LINE('0' || ' ' || CASE WHEN c0 IS NULL THEN '<NULL>' ELSE '<NOTNULL>' END ||
+' ' || bool_to_char(c0%ISOPEN));
+c1:= f1(task);
+DBMS_OUTPUT.PUT_LINE('1' || ' ' || CASE WHEN c1 IS NULL THEN '<NULL>' ELSE '<NOTNULL>' END ||
+' ' || bool_to_char(c1%ISOPEN));
+c2:= f1(task);
+DBMS_OUTPUT.PUT_LINE('2' || ' ' || CASE WHEN c2 IS NULL THEN '<NULL>' ELSE '<NOTNULL>' END ||
+' ' || bool_to_char(c2%ISOPEN));
+END;
+/
+CALL p1('none');
+
+0 <NULL> false
+
+1 <NULL> false
+
+2 <NULL> false
+CALL p1('open_close');
+
+0 <NOTNULL> false
+
+1 <NOTNULL> false
+
+2 <NOTNULL> false
+CALL p1('open');
+
+0 <NOTNULL> true
+
+1 <NOTNULL> true
+ERROR HY000: Too many open cursors; max 2 cursors allowed
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+SET @@max_open_cursors=DEFAULT;
+#
+# Cursor variables cannot be declared as part of a package
+#
+CREATE PACKAGE pkg AS
+FUNCTION f1 RETURN INT;
+END;
+/
+CREATE PACKAGE BODY pkg AS
+cur SYS_REFCURSOR; -- This is wrong (the top PACKAGE BODY frame)
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+END;
+/
+ERROR HY000: 'sys_refcursor' is not allowed in this context
+CREATE PACKAGE BODY pkg AS
+vc INT := 0;
+FUNCTION f1 RETURN INT AS
+cur SYS_REFCURSOR;
+BEGIN
+RETURN vc;
+END;
+BEGIN
+DECLARE
+cur SYS_REFCURSOR; -- This is OK (executable section)
+BEGIN
+OPEN cur FOR SELECT 1 AS c FROM DUAL;
+FETCH cur INTO vc;
+CLOSE cur;
+END;
+END;
+/
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+DROP PACKAGE pkg;
+DROP FUNCTION bool_to_char;
+DROP PACKAGE DBMS_OUTPUT;

@@ -384,7 +384,7 @@ update t1 set i=(select distinct 1 from (select * from t2) a);
 drop table t1, t2, t3;
 
 #
-# system databse test
+# system database test
 #
 use mysql;
 disable_result_log;
