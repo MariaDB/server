@@ -5514,7 +5514,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 
 bool Rows_log_event::write_data_header(Log_event_writer *writer)
 {
-  uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
+  uchar buf[ROWS_HEADER_LEN_V1];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
