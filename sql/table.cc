@@ -316,12 +316,7 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
         name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    return TABLE_CATEGORY_MYSQL;
-  }
-
 #ifdef WITH_WSREP
-  if (db.streq(WSREP_LEX_SCHEMA))
-  {
     if(name.streq(WSREP_LEX_STREAMING))
       return TABLE_CATEGORY_INFORMATION;
     if (name.streq(WSREP_LEX_CLUSTER))
@@ -330,8 +325,10 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
       return TABLE_CATEGORY_INFORMATION;
     if (name.streq(WSREP_LEX_ALLOWLIST))
       return TABLE_CATEGORY_INFORMATION;
-  }
 #endif /* WITH_WSREP */
+
+    return TABLE_CATEGORY_MYSQL;
+  }
 
   return TABLE_CATEGORY_USER;
 }
