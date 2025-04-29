@@ -5651,12 +5651,13 @@ bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
     write_data_header(Log_event_writer *writer)
 {
   /*
-    TODO: Write seq_no and total fragments
-
     TODO: Need to write rows_event->write_data_header() in after metadata
   */
-  return false;
-  //return rows_event->write_data_header(writer);
+  uchar buf[PARTIAL_ROWS_HEADER_LEN];        // No need to init the buffer
+  int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
+  int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
+  buf[PRW_FLAGS_OFFSET]= this->flags2;
+  return write_data(writer, buf, PARTIAL_ROWS_HEADER_LEN);
 }
 
 

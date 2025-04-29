@@ -227,6 +227,7 @@ class String;
 #define START_ENCRYPTION_HEADER_LEN 0
 #define XA_PREPARE_HEADER_LEN 0
 #define CONTAINER_HEADER_LEN 4
+#define PARTIAL_ROWS_HEADER_LEN  (4 + 4 + 1)
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -407,6 +408,11 @@ class String;
 #define ELQ_FN_POS_START_OFFSET ELQ_FILE_ID_OFFSET + 4
 #define ELQ_FN_POS_END_OFFSET ELQ_FILE_ID_OFFSET + 8
 #define ELQ_DUP_HANDLING_OFFSET ELQ_FILE_ID_OFFSET + 12
+
+/* PRW = "Partial RoWs" */
+#define PRW_TOTAL_SEQS_OFFSET 0
+#define PRW_SELF_SEQ_OFFSET 4
+#define PRW_FLAGS_OFFSET 8
 
 /* 4 bytes which all binlogs should begin with */
 #define BINLOG_MAGIC        (const uchar*) "\xfe\x62\x69\x6e"
@@ -2339,7 +2345,7 @@ public:        /* !!! Public in this patch to allow old usage */
 class Partial_rows_log_event : public Log_event
 {
 public:
-  uint32_t flags;
+  uchar flags2;
 
   /*
     Starts at 1 for consistency with GTID seq_no
@@ -2361,7 +2367,10 @@ public:
   ~Partial_rows_log_event() {}
 
   /* TODO */
-  bool is_valid() const override { return true; }
+  bool is_valid() const override
+  {
+    return total_fragments && seq_no && seq_no <= total_fragments;
+  }
 
   Log_event_type get_type_code() override { return PARTIAL_ROW_DATA_EVENT; }
 
@@ -5649,7 +5658,7 @@ public:
   class Indirect_partial_rows_log_event : public Log_event
   {
   public:
-    uint32_t flags;
+    uchar flags2;
 
     /*
       Starts at 1 for consistency with GTID seq_no
@@ -5668,7 +5677,7 @@ public:
                                     uint32 metadata_written,
                                     uint64_t start_offset, uint64_t end_offset,
                                     Rows_log_event *rows_event)
-        : seq_no(seq_no), total_fragments(total_fragments),
+        : flags2(0), seq_no(seq_no), total_fragments(total_fragments),
           metadata_written(metadata_written), start_offset(start_offset),
           end_offset(end_offset), rows_event(rows_event){};
 
@@ -5694,7 +5703,8 @@ public:
 
     int get_data_size() override
     {
-      return (int) end_offset - start_offset + metadata_written;
+      return (int) end_offset - start_offset + metadata_written +
+             PARTIAL_ROWS_HEADER_LEN;
     }
 
 #ifdef MYSQL_SERVER
@@ -5717,8 +5727,7 @@ public:
         no_bytes_in_export_map(&rows_event->m_cols) *
         ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
     
-    uint32_t rows_header_size= ROWS_HEADER_LEN_V1;
-    uint32_t metadata_size= width_size + cols_size + rows_header_size;
+    uint32_t metadata_size= width_size + cols_size + ROWS_HEADER_LEN_V1;
 
     uint64_t const data_size=
         static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
@@ -5727,10 +5736,11 @@ public:
     uint64_t const total_size= metadata_size + data_size;
 
     uint64_t size_per_chunk= get_size_per_chunk();
+    uint64_t data_size_per_chunk= size_per_chunk - PARTIAL_ROWS_HEADER_LEN;
 
-    uint32_t last_chunk_size= (total_size % size_per_chunk);
+    uint32_t last_chunk_size= (total_size % data_size_per_chunk); /* TODO Should last_chunk_size be uint64? */
     uint32_t last_chunk= last_chunk_size ? 1 : 0;
-    uint32_t num_chunks= (total_size / size_per_chunk) + last_chunk;
+    uint32_t num_chunks= (total_size / data_size_per_chunk) + last_chunk;
 
     /*
       TODO First chunk here doesn't account row the real Rows_log_event
@@ -5748,11 +5758,11 @@ public:
       my_bool is_first_chunk= (i == 0);
       my_bool is_last_chunk= (i == (num_chunks - 1));
       uint64_t chunk_start=
-          is_first_chunk ? 0 : ((i * size_per_chunk) - metadata_size);
-      uint64_t chunk_end=
-          (is_last_chunk)
-              ? chunk_start + last_chunk_size
-              : ((chunk_start + size_per_chunk) - 1 - (is_first_chunk ? metadata_size : 0));
+          is_first_chunk ? 0 : ((i * data_size_per_chunk) - metadata_size);
+      uint64_t chunk_end= (is_last_chunk)
+                              ? chunk_start + last_chunk_size
+                              : ((chunk_start + data_size_per_chunk) - 1 -
+                                 (is_first_chunk ? metadata_size : 0));
 
       Indirect_partial_rows_log_event *fragment=
           new Indirect_partial_rows_log_event(

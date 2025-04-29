@@ -1199,7 +1199,9 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
 #endif
     case PARTIAL_ROW_DATA_EVENT:
       ev= new Partial_rows_log_event(buf, event_len, fdle);
-      fprintf(stderr, "\n\tFound Partial in read_log_event\n");
+      fprintf(stderr, "\n\tFound Partial in read_log_event: %u/%u\n",
+              ((Partial_rows_log_event *) ev)->seq_no,
+              ((Partial_rows_log_event *) ev)->total_fragments);
       break;
     case BEGIN_LOAD_QUERY_EVENT:
       ev= new Begin_load_query_log_event(buf, event_len, fdle);
@@ -2138,7 +2140,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
-      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  ROWS_HEADER_LEN_V2;
+      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  PARTIAL_ROWS_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -3943,9 +3945,43 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
 Partial_rows_log_event::Partial_rows_log_event(
     const uchar *buf, uint event_len,
     const Format_description_log_event *description_event)
-    : Log_event(buf, description_event), flags(0), seq_no(0),
+    : Log_event(buf, description_event), flags2(0), seq_no(0),
       total_fragments(0)
 {
+  DBUG_ENTER("Partial_rows_log_event::Partial_rows_log_even(const uchar*,uint,...)");
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[PARTIAL_ROW_DATA_EVENT-1];
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+                     event_len, common_header_len, post_header_len));
+  DBUG_ASSERT(post_header_len == PARTIAL_ROWS_HEADER_LEN);
+
+  /*
+    Don't print debug messages when running valgrind since they can
+    trigger false warnings.
+   */
+#ifndef HAVE_valgrind
+  DBUG_DUMP("event buffer", (uchar*) buf, event_len);
+#endif
+
+	if (event_len < (uint)(common_header_len + post_header_len))
+		DBUG_VOID_RETURN;
+
+  /* Read the post-header */
+  const uchar *post_start= buf + common_header_len;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  total_fragments= uint4korr(post_start);
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  seq_no= uint4korr((post_start));
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+  DBUG_ASSERT(seq_no <= total_fragments);
+
+  flags2= *post_start;
+  DBUG_VOID_RETURN;
 }
 #endif
 

@@ -6944,10 +6944,10 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     bool skip= false;
     if (pending->is_too_big())
     {
-      Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[11];
+      Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[12];
       Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(256, pending);
       fragmenter.fragment(fraggers);
-      for (int i= 0; i < 11; i++)
+      for (int i= 0; i < 12; i++)
       {
         writer.write(fraggers[i]);
       }
