@@ -583,6 +583,16 @@ void wsrep_ready_set(bool ready_value);
  */
 bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
 
+/**
+ * Append foreign key to wsrep.
+ *
+ * @param thd           Thread object
+ * @param fk            Foreign Key Info
+ *
+ * @return true if error, otherwise false.
+ */
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support
