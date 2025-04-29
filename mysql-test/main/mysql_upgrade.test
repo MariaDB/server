@@ -8,6 +8,10 @@ let majorminor=`select substring_index(version(), '.', 2)`;
 # for major upgrade test, see below
 let major=`select substring_index(version(), '.', 1) - (version() like '%.0.%')`;
 
+if (`select version() like '%.%.0-%'`) {
+  --skip cannot test minor upgrade for previews
+}
+
 set sql_mode="";
 
 call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
