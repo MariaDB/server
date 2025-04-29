@@ -10,8 +10,8 @@ SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 Connection_name	Connects_Tried
 	0
 named	0
-START ALL SLAVES;
 SET @time_begin= CURRENT_TIMESTAMP(1);
+START ALL SLAVES;
 SET @@SESSION.default_master_connection= 'named';
 include/wait_for_slave_io_error.inc [errno=2003]
 SET @@SESSION.default_master_connection= '';

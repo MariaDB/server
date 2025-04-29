@@ -24,8 +24,8 @@ CHANGE MASTER TO master_connect_retry=2;
 SELECT Connection_name, Connects_Tried FROM information_schema.SLAVE_STATUS;
 
 --disable_warnings
-START ALL SLAVES; # will fail because the masters are down
 SET @time_begin= CURRENT_TIMESTAMP(1);
+START ALL SLAVES; # will fail because the masters are down
 --enable_warnings
 # CR_CONN_HOST_ERROR
 --let $slave_io_errno= 2003
