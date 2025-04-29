@@ -5396,8 +5396,9 @@ pthread_handler_t handle_slave_sql(void *arg)
     execute_init_command(thd, &opt_init_slave, &LOCK_sys_init_slave);
     if (unlikely(thd->is_slave_error))
     {
-      rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), NULL,
-                  "Slave SQL thread aborted. Can't execute init_slave query");
+      rli->report(ERROR_LEVEL, ER_INIT_SLAVE_ERROR, NULL,
+                  my_get_err_msg(ER_INIT_SLAVE_ERROR),
+                  thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
       goto err;
     }
   }
