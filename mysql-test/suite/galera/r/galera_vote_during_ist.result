@@ -8,6 +8,8 @@ connection node_2;
 connection node_3;
 connection node_4;
 connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
 CREATE TABLE t1(pk INT AUTO_INCREMENT PRIMARY KEY);
 CREATE PROCEDURE p1(IN max INT)
 BEGIN
@@ -48,6 +50,8 @@ CREATE TABLE t2(pk INT AUTO_INCREMENT PRIMARY KEY);
 SET SESSION wsrep_on = ON;
 INSERT INTO t2 VALUES (DEFAULT);
 CALL p1(130);
+connection node_2;
+connection node_3;
 connection node_1;
 SET GLOBAL debug = "+d,sync.wsrep_sst_donor_after_donation";
 Restarting server 4
@@ -58,8 +62,6 @@ SET SESSION DEBUG_SYNC = "now SIGNAL signal.wsrep_sst_donor_after_donation_conti
 SET GLOBAL debug = "";
 SET DEBUG_SYNC='RESET';
 Waiting for server 4 to leave the cluster
-SET SESSION wsrep_on = ON;
-SET SESSION wsrep_sync_wait = 15;
 connection node_2;
 SET SESSION wsrep_on = ON;
 SET SESSION wsrep_sync_wait = 15;
@@ -69,8 +71,16 @@ SET SESSION wsrep_sync_wait = 15;
 connection node_4;
 Server 4 left the cluster, killing it...
 Killed server 4...
+connection node_1;
+connection node_4;
 Restarting server 4...
 connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_3;
 SET SESSION wsrep_on = ON;
 SET SESSION wsrep_sync_wait = 15;
 connection node_1;
