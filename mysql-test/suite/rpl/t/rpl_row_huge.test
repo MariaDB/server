@@ -11,10 +11,10 @@
 --let $rpl_topology=1->2, 2->3
 --source include/rpl_init.inc
 
---connection server_2
---source include/stop_slave.inc
---connection server_3
---source include/stop_slave.inc
+#--connection server_2
+#--source include/stop_slave.inc
+#--connection server_3
+#--source include/stop_slave.inc
 
 --echo #
 --echo # Initialize test data
