@@ -3035,12 +3035,19 @@ const uint8_t Item_func_latlongfromgeohash::geohash_alphabet[256] = {
 };
 
 
+/**
+  converts a geohash character to an int.
+  @return false on success, true on valid (invalid geohash character)
+*/
 bool Item_func_latlongfromgeohash::convert_character(char in, int &out)
 {
+#if CHAR_MIN
+  /* representing signed char, unsigned char always has a map */
   if (in < 0)
     return true;
+#endif
   out= Item_func_latlongfromgeohash::geohash_alphabet[(int) in];
-  return false;
+  return out == 255;
 }
 
 
@@ -3071,10 +3078,8 @@ bool Item_func_latlongfromgeohash::decode_geohash(
   for (uint i = 0; i < input_length; i++)
   {
     int converted_character= -1;
-    if (convert_character((*geohash)[i], converted_character) ||
-        converted_character == 255) {
+    if (convert_character((*geohash)[i], converted_character))
       return true;
-    }
 
     for (int bit_number = 4; bit_number >= 0; bit_number--)
     {
