@@ -2035,6 +2035,8 @@ public:
   {
     return const_item;
   }
+  virtual Item_field *make_item_field_spvar(THD *thd,
+                                            const Spvar_definition &def);
   virtual Data_type_compatibility can_optimize_keypart_ref(
                                         const Item_bool_func *cond,
                                         const Item *item) const;
@@ -5301,6 +5303,8 @@ public:
     return m_table;
   }
   Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
+  Item_field *make_item_field_spvar(THD *thd,
+                                    const Spvar_definition &def) override;
   bool row_create_fields(THD *thd, List<Spvar_definition> *list);
   bool row_create_fields(THD *thd, const Spvar_definition &def);
   bool sp_prepare_and_store_item(THD *thd, Item **value) override;
@@ -5708,6 +5712,7 @@ public:
   bool adjust_formal_params_to_actual_params(THD *thd,
                                              Item **args, uint arg_count);
   bool resolve_type_refs(THD *);
+  Row_definition_list *deep_copy(THD *thd) const;
 };
 
 /**
@@ -5826,7 +5831,6 @@ public:
     m_row_field_definitions= list;
   }
 
-  class Item_field_row *make_item_field_row(THD *thd, Field_row *field);
 };
 
 
