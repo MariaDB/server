@@ -6807,11 +6807,9 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
 
 
 bool
-LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
+LEX::sp_variable_declarations_copy_type_finalize_internal(THD *thd, int nvars,
                                                  const Column_definition &ref,
-                                                 Row_definition_list *fields,
-                                                 Item *default_value,
-                                                 const LEX_CSTRING &expr_str)
+                                                 Row_definition_list *fields)
 {
   for (uint i= 0 ; i < (uint) nvars; i++)
   {
@@ -6824,7 +6822,21 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
     }
     spvar->field_def.field_name= spvar->name;
   }
-  if (unlikely(sp_variable_declarations_set_default(thd, nvars,
+  return false;
+}
+
+
+bool
+LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
+                                                 const Column_definition &ref,
+                                                 Row_definition_list *fields,
+                                                 Item *default_value,
+                                                 const LEX_CSTRING &expr_str)
+{
+  if (unlikely(sp_variable_declarations_copy_type_finalize_internal(thd, nvars,
+                                                                    ref,
+                                                                    fields)) ||
+      unlikely(sp_variable_declarations_set_default(thd, nvars,
                                                     default_value, expr_str)))
     return true;
   spcont->declare_var_boundary(0);
@@ -6838,83 +6850,28 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
                                             const LEX_CSTRING &expr_str)
 {
   DBUG_ASSERT(cdef);
-
-  if (cdef->type_handler() == &type_handler_row)
-  {
-    if (sp_record *sprec=
-       (sp_record *)cdef->get_attr_const_void_ptr(0)) {
-      return sp_variable_declarations_rec_finalize(thd, nvars,
-                                                   sprec->field,
-                                                   dflt_value_item, expr_str);
-    }
-  }
-
-  Column_definition tmp(*cdef);
-  if (sphead->fill_spvar_definition(thd, &tmp))
+  if (unlikely(cdef->type_handler()->sp_variable_declarations_finalize(thd,
+                                                                      this,
+                                                                      nvars,
+                                                                      *cdef)))
     return true;
-  return sp_variable_declarations_copy_type_finalize(thd, nvars, tmp, NULL,
-                                                     dflt_value_item, expr_str);
+  if (unlikely(sp_variable_declarations_set_default(thd, nvars,
+                                                    dflt_value_item, expr_str)))
+    return true;
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
 }
 
-
-bool LEX::sp_variable_declarations_rec_finalize(THD *thd, int nvars,
-                                                Row_definition_list *src_row,
-                                                Item *dflt_value_item,
-                                                const LEX_CSTRING &expr_str)
-{
-  DBUG_ASSERT(src_row);
-
-  // Create a copy of the row definition list to fill
-  // definitions
-  Row_definition_list *row= new (thd->mem_root) Row_definition_list();
-  if (unlikely(row == NULL))
-    return true;
-  
-  // Create a deep copy of the elements
-  List_iterator<Spvar_definition> it(*src_row);
-  for (Spvar_definition *def= it++; def; def= it++)
-  {
-    Spvar_definition *new_def= new (thd->mem_root) Spvar_definition(*def);
-    if (unlikely(new_def == NULL))
-      return true;
-    
-    row->push_back(new_def, thd->mem_root);
-  }
-
-  return sp_variable_declarations_row_finalize(thd, nvars, row,
-                                               dflt_value_item, expr_str);
-}
 
 bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                                 Row_definition_list *row,
                                                 Item *dflt_value_item,
                                                 const LEX_CSTRING &expr_str)
 {
-  DBUG_ASSERT(row);
-  /*
-    Prepare all row fields.
-    Note, we do it only one time outside of the below loop.
-    The converted list in "row" is further reused by all variable
-    declarations processed by the current call.
-    Example:
-      DECLARE
-        a, b, c ROW(x VARCHAR(10) CHARACTER SET utf8);
-      BEGIN
-        ...
-      END;
-  */
-  if (sphead->row_fill_field_definitions(thd, row))
-    return true;
-
-  for (uint i= 0 ; i < (uint) nvars ; i++)
-  {
-    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
-    spvar->field_def.set_row_field_definitions(row);
-    if (sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name))
-      return true;
-  }
-
-  if (sp_variable_declarations_set_default(thd, nvars, dflt_value_item,
+  if (Type_handler_row::sp_variable_declarations_row_finalize(thd, this,
+                                                              nvars,
+                                                              row) ||
+      sp_variable_declarations_set_default(thd, nvars, dflt_value_item,
                                            expr_str))
     return true;
   spcont->declare_var_boundary(0);
@@ -8664,38 +8621,39 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
 }
 
 
-my_var *LEX::create_outvar(THD *thd, const LEX_CSTRING *name)
+my_var *LEX::create_outvar(THD *thd,const Lex_ident_sys_st &name)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if (likely((spv= find_variable(name, &rh))))
-    return result ? new (thd->mem_root)
-                    my_var_sp(rh, name, spv->offset,
-                              spv->type_handler(), sphead) :
-                    NULL /* EXPLAIN */;
-  my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
-  return NULL;
+  if (unlikely(!(spv= find_variable(&name, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return NULL;
+  }
+  const sp_rcontext_addr addr(rh, spv->offset);
+  my_var *var= spv->type_handler()->make_outvar(thd, name, addr,
+                                                sphead, !result);
+  DBUG_ASSERT(var || thd->is_error() || !result);
+  return var;
 }
 
 
 my_var *LEX::create_outvar(THD *thd,
-                           const LEX_CSTRING *a,
-                           const LEX_CSTRING *b)
+                           const Lex_ident_sys_st &a,
+                           const Lex_ident_sys_st &b)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *t;
-  if (unlikely(!(t= find_variable(a, &rh))))
+  if (unlikely(!(t= find_variable(&a, &rh))))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
     return NULL;
   }
-  uint row_field_offset;
-  if (!t->find_row_field(a, b, &row_field_offset))
-    return NULL;
-  return result ?
-    new (thd->mem_root) my_var_sp_row_field(rh, a, b, t->offset,
-                                            row_field_offset, sphead) :
-    NULL /* EXPLAIN */;
+  const sp_rcontext_addr addr(rh, t->offset);
+  my_var *var= t->type_handler()->make_outvar_field(thd, a, addr, b,
+                                                    sphead, !result);
+  DBUG_ASSERT(var || thd->is_error() || !result);
+  return var;
 }
 
 

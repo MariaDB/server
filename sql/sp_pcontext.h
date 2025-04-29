@@ -21,6 +21,7 @@
 #include "sql_string.h"                         // LEX_STRING
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
+#include "sp_type_def.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -391,7 +392,8 @@ public:
 ///   - for error checking (e.g. to check correct number of parameters);
 ///   - to resolve SQL-handlers.
 
-class sp_pcontext : public Sql_alloc
+class sp_pcontext : public Sql_alloc,
+                    public sp_type_def_list
 {
 public:
   enum enum_scope
@@ -752,27 +754,23 @@ public:
     return m_scope;
   }
 
+  sp_type_def *find_type_def(const LEX_CSTRING &name,
+                             bool current_scope_only) const;
+
   /////////////////////////////////////////////////////////////////////////
   // Record.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_record(THD *thd,
-                  const Lex_ident_column &name,
-                  Row_definition_list *field);
-
-  sp_record *find_record(const LEX_CSTRING *name,
-                         bool current_scope_only) const;
-
-  bool declare_record(THD *thd,
-                      const Lex_ident_column &name,
-                      Row_definition_list *field)
+  bool type_defs_declare_record(THD *thd,
+                                const Lex_ident_column &name,
+                                Row_definition_list *field)
   {
-    if (find_record(&name, true))
+    if (unlikely(find_type_def(name, true)))
     {
       my_error(ER_SP_DUP_DECL, MYF(0), name.str);
       return true;
     }
-    return add_record(thd, name, field);
+    return type_defs_add_record(thd, name, field);
   }
 
 private:
@@ -838,9 +836,6 @@ private:
 
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
-
-  /// Stack of records.
-  Dynamic_array<sp_record *> m_records;
 
   /*
    In the below example the label <<lab>> has two meanings:
