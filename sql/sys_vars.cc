@@ -450,11 +450,10 @@ static Sys_var_double Sys_analyze_sample_percentage(
   from analyze.
 */
 
-static Sys_var_ulong Sys_analyze_max_length(
+static Sys_var_uint Sys_analyze_max_length(
        "analyze_max_length",
-       "Fields that require more storage than analyze_max_length and are not "
-       "listed in ANALYZE ... FOR COLUMNS () will automatically be skipped by "
-       "ANALYZE TABLE PERSISTENT",
+       "Fields which length in bytes more than this are skipped by ANALYZE "
+       "TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause",
        SESSION_VAR(analyze_max_length),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(32, UINT_MAX32),
        DEFAULT(UINT_MAX32), BLOCK_SIZE(1));
