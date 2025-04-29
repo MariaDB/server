@@ -2647,8 +2647,8 @@ struct wait_for_commit
       return wait_for_prior_commit2(thd, allow_kill);
     else
     {
-      if (wakeup_error)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      if (unlikely(wakeup_error))
+        prior_commit_error(thd);
       return wakeup_error;
     }
   }
@@ -2699,6 +2699,7 @@ struct wait_for_commit
   void wakeup(int wakeup_error);
 
   int wait_for_prior_commit2(THD *thd, bool allow_kill);
+  void prior_commit_error(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
@@ -3337,7 +3338,6 @@ public:
             binlog_flush_pending_rows_event(stmt_end, TRUE));
   }
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
-  void binlog_remove_rows_events();
   uint has_pending_row_events();
   bool binlog_need_stmt_format(bool is_transactional) const
   {
@@ -4080,6 +4080,9 @@ public:
   enum_sql_command last_sql_command;  // Last sql_command executed in mysql_execute_command()
 
   sp_rcontext *spcont;		// SP runtime context
+
+  sp_rcontext *get_rcontext(const sp_rcontext_addr &addr);
+  Item_field *get_variable(const sp_rcontext_addr &addr);
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -6480,10 +6483,11 @@ private:
   /// FETCH <cname> INTO <varlist>.
   class Select_fetch_into_spvars: public select_result_interceptor
   {
-    List<sp_variable> *spvar_list;
+    List<sp_fetch_target> *m_fetch_target_list;
     uint field_count;
     bool m_view_structure_only;
-    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
+    bool send_data_to_variable_list(List<sp_fetch_target> &vars,
+                                    List<Item> &items);
   public:
     Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
      :select_result_interceptor(thd_arg),
@@ -6492,11 +6496,14 @@ private:
     void reset(THD *thd_arg)
     {
       select_result_interceptor::reinit(thd_arg);
-      spvar_list= NULL;
+      m_fetch_target_list= NULL;
       field_count= 0;
     }
     uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
+    void set_spvar_list(List<sp_fetch_target> *vars)
+    {
+      m_fetch_target_list= vars;
+    }
 
     bool send_eof() override { return FALSE; }
     int send_data(List<Item> &items) override;
@@ -6526,7 +6533,7 @@ public:
   my_bool is_open()
   { return MY_TEST(server_side_cursor); }
 
-  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
+  int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
 

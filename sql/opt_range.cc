@@ -8793,6 +8793,11 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   SEL_TREE *tree= li.ref()[0]->get_mm_tree(param, li.ref());
   if (param->statement_should_be_aborted())
     DBUG_RETURN(NULL);
+  bool orig_disable_index_merge= param->disable_index_merge_plans;
+
+  if (list.elements > MAX_OR_ELEMENTS_FOR_INDEX_MERGE)
+    param->disable_index_merge_plans= true;
+
   if (tree)
   {
     if (tree->type == SEL_TREE::IMPOSSIBLE &&
@@ -8809,7 +8814,10 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     {
       SEL_TREE *new_tree= li.ref()[0]->get_mm_tree(param, li.ref());
       if (new_tree == NULL || param->statement_should_be_aborted())
+      {
+        param->disable_index_merge_plans= orig_disable_index_merge;
         DBUG_RETURN(NULL);
+      }
       tree= tree_or(param, tree, new_tree);
       if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
       {
@@ -8841,6 +8849,7 @@ SEL_TREE *Item_cond::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     if (replace_cond)
       *cond_ptr= replacement_item;
   }
+  param->disable_index_merge_plans= orig_disable_index_merge;
   DBUG_RETURN(tree);
 }
 
@@ -10397,6 +10406,8 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   {
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
+    if (param->disable_index_merge_plans)
+      no_imerge_from_ranges= true;
 
     if (no_imerge_from_ranges && no_merges1 && no_merges2)
     {
@@ -16627,7 +16638,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
         Remember this key, and continue looking for a non-NULL key that
         satisfies some other condition.
       */
-      memcpy(tmp_record, record, head->s->rec_buff_length);
+      memcpy(tmp_record, record, head->s->reclength);
       found_null= TRUE;
       continue;
     }
@@ -16667,7 +16678,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_min_in_range()
   */
   if (found_null && result)
   {
-    memcpy(record, tmp_record, head->s->rec_buff_length);
+    memcpy(record, tmp_record, head->s->reclength);
     result= 0;
   }
   return result;
@@ -16700,7 +16711,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
   ha_rkey_function find_flag;
   key_part_map keypart_map;
   QUICK_RANGE *cur_range;
-  int result;
+  int result= HA_ERR_KEY_NOT_FOUND;
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
@@ -16709,10 +16720,11 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
     get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
 
     /*
-      If the current value for the min/max argument is smaller than the left
-      boundary of cur_range, there is no need to check this range.
+      If the key has already been "moved" by a successful call to
+      ha_index_read_map, and the current value for the max argument
+      comes before the range, there is no need to check this range.
     */
-    if (range_idx != min_max_ranges.elements &&
+    if (!result &&
         !(cur_range->flag & NO_MIN_RANGE) &&
         (key_cmp(min_max_arg_part, (const uchar*) cur_range->min_key,
                  min_max_arg_len) == -1))

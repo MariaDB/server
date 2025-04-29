@@ -352,7 +352,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
 # endif
       buf= static_cast<byte*>(ptr);
       max_buf_free= 1;
-      writer_update();
+      writer_update(false);
 # ifdef HAVE_PMEM
       if (is_pmem)
         return true;
@@ -394,7 +394,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
   TRASH_ALLOC(buf, buf_size);
   TRASH_ALLOC(flush_buf, buf_size);
   max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
-  writer_update();
+  writer_update(false);
   memset_aligned<512>(checkpoint_buf, 0, write_size);
 
  func_exit:
@@ -594,31 +594,35 @@ void log_t::set_write_through(bool write_through)
 
 /** Start resizing the log and release the exclusive latch.
 @param size  requested new file_size
+@param thd   the current thread identifier
 @return whether the resizing was started successfully */
-log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
+log_t::resize_start_status log_t::resize_start(os_offset_t size, void *thd)
+  noexcept
 {
   ut_ad(size >= 4U << 20);
   ut_ad(!(size & 4095));
   ut_ad(!srv_read_only_mode);
+  ut_ad(thd);
 
   log_resize_acquire();
 
-  resize_start_status status= RESIZE_NO_CHANGE;
-  lsn_t start_lsn{0};
-#ifdef HAVE_PMEM
-  bool is_pmem{false};
-#endif
+  resize_start_status status;
 
-  if (resize_in_progress())
+  if (size == file_size)
+    status= RESIZE_NO_CHANGE;
+  else if (resize_in_progress())
     status= RESIZE_IN_PROGRESS;
-  else if (size != file_size)
+  else
   {
+    lsn_t start_lsn;
     ut_ad(!resize_in_progress());
     ut_ad(!resize_log.is_opened());
     ut_ad(!resize_buf);
     ut_ad(!resize_flush_buf);
+    ut_ad(!resize_initiator);
     std::string path{get_log_file_path("ib_logfile101")};
     bool success;
+    resize_initiator= thd;
     resize_lsn.store(1, std::memory_order_relaxed);
     resize_target= 0;
     resize_log.m_file=
@@ -636,6 +640,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
 #ifdef HAVE_PMEM
       else if (is_mmap())
       {
+        bool is_pmem{false};
         ptr= ::log_mmap(resize_log.m_file, is_pmem, size);
 
         if (ptr == MAP_FAILED)
@@ -685,34 +690,33 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
         else if (!is_opened())
           resize_log.close();
 
-        writer_update();
+        resize_lsn.store(start_lsn, std::memory_order_relaxed);
+        writer_update(true);
+        log_resize_release();
+
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        lsn_t target_lsn= buf_pool.get_oldest_modification(0);
+        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+        buf_flush_ahead(start_lsn < target_lsn ? target_lsn + 1 : start_lsn,
+                        false);
+        return RESIZE_STARTED;
       }
-      status= success ? RESIZE_STARTED : RESIZE_FAILED;
     }
-    resize_lsn.store(start_lsn, std::memory_order_relaxed);
+    resize_initiator= nullptr;
+    resize_lsn.store(0, std::memory_order_relaxed);
+    status= RESIZE_FAILED;
   }
 
   log_resize_release();
-
-  if (start_lsn)
-  {
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    lsn_t target_lsn= buf_pool.get_oldest_modification(0);
-    if (start_lsn < target_lsn)
-      start_lsn= target_lsn + 1;
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    buf_flush_ahead(start_lsn, false);
-  }
-
   return status;
 }
 
-/** Abort log resizing. */
-void log_t::resize_abort() noexcept
+/** Abort a resize_start() that we started. */
+void log_t::resize_abort(void *thd) noexcept
 {
   log_resize_acquire();
 
-  if (resize_in_progress() > 1)
+  if (resize_running(thd))
   {
 #ifdef HAVE_PMEM
     const bool is_mmap{this->is_mmap()};
@@ -739,11 +743,12 @@ void log_t::resize_abort() noexcept
     resize_buf= nullptr;
     resize_target= 0;
     resize_lsn.store(0, std::memory_order_relaxed);
+    resize_initiator= nullptr;
     std::string path{get_log_file_path("ib_logfile101")};
     IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+    writer_update(false);
   }
 
-  writer_update();
   log_resize_release();
 }
 
@@ -1063,12 +1068,13 @@ lsn_t log_t::write_buf() noexcept
         the current LSN are generated. */
         MEM_MAKE_DEFINED(buf + length, (write_size_1 + 1) - new_buf_free);
         buf[length]= 0; /* allow recovery to catch EOF faster */
+        if (UNIV_LIKELY_NULL(re_write_buf))
+          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
+                           new_buf_free);
         length&= ~write_size_1;
         memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
         if (UNIV_LIKELY_NULL(re_write_buf))
         {
-          MEM_MAKE_DEFINED(re_write_buf + length, (write_size_1 + 1) -
-                           new_buf_free);
           memcpy_aligned<16>(resize_flush_buf, re_write_buf + length,
                              (new_buf_free + 15) & ~15);
           re_write_buf[length + new_buf_free]= 0;
@@ -1207,10 +1213,11 @@ ATTRIBUTE_COLD static lsn_t log_writer_resizing() noexcept
   return log_sys.write_buf<log_t::RESIZING>();
 }
 
-void log_t::writer_update() noexcept
+void log_t::writer_update(bool resizing) noexcept
 {
   ut_ad(latch_have_wr());
-  writer= resize_in_progress() ? log_writer_resizing : log_writer;
+  ut_ad(resizing == (resize_in_progress() > 1));
+  writer= resizing ? log_writer_resizing : log_writer;
   mtr_t::finisher_update();
 }
 
@@ -1340,7 +1347,11 @@ void log_free_check()
   }
 }
 
-extern void buf_resize_shutdown();
+#ifdef __linux__
+extern void buf_mem_pressure_shutdown() noexcept;
+#else
+inline void buf_mem_pressure_shutdown() noexcept {}
+#endif
 
 /** Make a checkpoint at the latest lsn on shutdown. */
 ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
@@ -1356,8 +1367,7 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 		srv_master_timer.reset();
 	}
 
-	/* Wait for the end of the buffer resize task.*/
-	buf_resize_shutdown();
+	buf_mem_pressure_shutdown();
 	dict_stats_shutdown();
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;

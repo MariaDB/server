@@ -4023,7 +4023,79 @@ public:
 
   void bring_value() override
   {
-    execute();
+    DBUG_ASSERT(fixed());
+    /*
+      This comment describes the difference between a single row
+      subselect and a stored function returning ROW.
+
+      In case of a single column subselect:
+        SELECT 1=(SELECT a FROM t1) FROM seq_1_to_5;
+      Item_singlerow_subselect pretends to be a scalar,
+      so its type_handler() returns the type handler of the column "a".
+      (*) This is according to the SQL scandard, which says:
+          The declared type of a <scalar subquery> is the declared
+          type of the column of QE (i.e. its query expression).
+      In the above SELECT statement Arg_comparator calls a scalar comparison
+      function e.g. compare_int_signed(), which does not call bring_value().
+      Item_singlerow_subselect::exec() is called when
+      Arg_comparator::compare_int_signed(), or another scalar comparison
+      function, calls a value method like Item_singlerow_subselect::val_int().
+
+      In case of a multiple-column subselect:
+        SELECT (1,1)=(SELECT a,a FROM t1) FROM seq_1_to_5;
+      Item_singlerow_subselect::type_handler() returns &type_handler_row.
+      Arg_comparator uses compare_row() to compare its arguments.
+      compare_row() calls bring_value(), which calls
+      Item_singlerow_subselect::exec().
+
+      Unlike a single row subselect, a stored function returning a ROW does
+      not pretend to be a scalar when there is only one column in the ROW:
+        SELECT sp_row_func_with_one_col()=sp_row_var_with_one_col FROM ...;
+      Item_function_sp::type_handler() still returns &type_handler_row when
+      the return type is a ROW with one column.
+      Arg_comparator choses compare_row() as the comparison function.
+      So the execution comes to here.
+
+      This chart summarizes how a comparison of ROW values works.
+      In particular, how Item_singlerow_subselect::exec() vs
+      Item_func_sp::execute() are called.
+
+                         Single row subselect    ROW value stored function
+                         --------------------    -------------------------
+      1. bring_value()     Yes                     Yes
+         is called when
+         cols>1
+      2. exec()/execute()  Yes                     Yes
+         is called from
+         bring_value()
+         when cols>1
+      3. Pretends          Yes                     No
+         to be a scalar
+         when cols==1
+      4. bring_value()     No                      Yes
+         is called
+         when cols==1
+      5. exec()/execute()  N/A                     No
+         is called from
+         bring_value()
+         when cols==1
+      6. exec()/execute()  Yes                     Yes
+         is called from
+         a value method,
+         like val_int()
+         when cols==1
+    */
+    if (result_type() == ROW_RESULT)
+    {
+      /*
+        The condition in the "if" above catches the *intentional* difference
+        in the chart lines 3,4,5 (between a single row subselect and a stored
+        function returning ROW). Thus the condition makes #6 work in the same
+        way. See (*) in the beginning of the comment why the difference is
+        intentional.
+      */
+      execute();
+    }
   }
 
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,

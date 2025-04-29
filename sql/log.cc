@@ -558,28 +558,6 @@ private:
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
 
-
-/*
-  Remove all row event from all binlog caches and clear all caches.
-  This is only called from CREATE .. SELECT, in which case it safe to delete
-  also events from the statement cache.
-*/
-
-void THD::binlog_remove_rows_events()
-{
-  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
-  DBUG_ENTER("THD::binlog_remove_rows_events");
-
-  if (!cache_mngr ||
-      (!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open()))
-    DBUG_VOID_RETURN;
-
-  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->stmt_cache);
-  MYSQL_BIN_LOG::remove_pending_rows_event(this, &cache_mngr->trx_cache);
-  cache_mngr->reset(1,1);
-  DBUG_VOID_RETURN;
-}
-
 /**
   The function handles the first phase of two-phase binlogged ALTER.
   On master binlogs START ALTER when that is configured to do so.
@@ -1909,6 +1887,16 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
       DBUG_RETURN(1);
     if (using_trx && thd->binlog_flush_pending_rows_event(TRUE, TRUE))
       DBUG_RETURN(1);
+
+#ifdef WITH_WSREP
+    /* Wsrep transaction was BF aborted but it must replay because certification
+       succeeded. The transaction must not be written into binlog yet, it will
+       be done during commit after the replay. */
+    if (WSREP(thd) && wsrep_must_replay(thd))
+    {
+      DBUG_RETURN(0);
+    }
+#endif /* WITH_WSREP */
 
     /*
       Doing a commit or a rollback including non-transactional tables,
@@ -8486,7 +8474,12 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   {
     DBUG_RETURN(0);
   }
-  else if (!(thd->variables.option_bits & OPTION_BIN_LOG))
+
+  if (!(thd->variables.option_bits & OPTION_BIN_LOG)
+#ifdef WITH_WSREP
+      && !WSREP(thd)
+#endif
+      )
   {
     cache_mngr->need_unlog= false;
     DBUG_RETURN(0);
@@ -9432,6 +9425,13 @@ int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
 
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
+#ifdef WITH_WSREP
+  if (WSREP(entry->thd) &&
+      !(entry->thd->variables.option_bits & OPTION_BIN_LOG))
+  {
+    DBUG_RETURN(0);
+  }
+#endif /* WITH_WSREP */
 
   /*
     An error in the trx_cache will truncate the cache to the last good

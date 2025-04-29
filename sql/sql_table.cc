@@ -1618,12 +1618,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     else
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton))
+      if (WSREP(thd) && hton)
       {
-        error= 1;
-        goto err;
+        handlerton *ht= hton;
+        // For partitioned tables resolve underlying handlerton
+        if (table->table && table->table->file->partition_ht())
+          ht= table->table->file->partition_ht();
+        if (!wsrep_should_replicate_ddl(thd, ht))
+        {
+          error= 1;
+          goto err;
+        }
       }
-#endif
+#endif /* WITH_WSREP */
 
       error= -1;
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
@@ -1898,18 +1905,6 @@ err:
 
   if (non_temp_tables_count)
     query_cache_invalidate3(thd, tables, 0);
-
-  /*
-    We are always logging drop of temporary tables.
-    The reason is to handle the following case:
-    - Use statement based replication
-    - CREATE TEMPORARY TABLE foo (logged)
-    - set row based replication
-    - DROP TEMPORARY TABLE foo   (needs to be logged)
-    This should be fixed so that we remember if creation of the
-    temporary table was logged and only log it if the creation was
-    logged.
-  */
 
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
@@ -5071,9 +5066,26 @@ bool wsrep_check_sequence(THD* thd,
     // In Galera cluster we support only InnoDB sequences
     if (db_type != DB_TYPE_INNODB)
     {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "non-InnoDB sequences in Galera cluster");
-      return(true);
+      // Currently any dynamic storage engine is not possible to identify
+      // using DB_TYPE_XXXX and ENGINE=SEQUENCE is one of them.
+      // Therefore, we get storage engine name from lex.
+      const LEX_CSTRING *tb_name= thd->lex->m_sql_cmd->option_storage_engine_name()->name();
+      // (1) CREATE TABLE ... ENGINE=SEQUENCE  OR
+      // (2) ALTER TABLE ... ENGINE=           OR
+      //     Note in ALTER TABLE table->s->sequence != nullptr
+      // (3) CREATE SEQUENCE ... ENGINE=
+      if ((thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+           lex_string_eq(tb_name, STRING_WITH_LEN("SEQUENCE"))) ||
+          (thd->lex->sql_command == SQLCOM_ALTER_TABLE) ||
+          (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE))
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "non-InnoDB sequences in Galera cluster");
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_NOT_SUPPORTED_YET,
+                            "ENGINE=%s not supported by Galera", tb_name->str);
+	return(true);
+      }
     }
 
     // In Galera cluster it is best to use INCREMENT BY 0 with CACHE
@@ -10806,10 +10818,21 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (WSREP(thd) && table &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
-       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table->s->db_type()))
-    DBUG_RETURN(true);
-#endif /* WITH_WSREP */
+       thd->lex->sql_command == SQLCOM_DROP_INDEX))
+  {
+    handlerton *ht= table->s->db_type();
+
+    // If alter used ENGINE= we use that
+    if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+      ht= create_info->db_type;
+    // For partitioned tables resolve underlying handlerton
+    else if (table->file->partition_ht())
+      ht= table->file->partition_ht();
+
+    if (!wsrep_should_replicate_ddl(thd, ht))
+      DBUG_RETURN(true);
+  }
+#endif
 
   DEBUG_SYNC(thd, "alter_table_after_open_tables");
 
@@ -11945,7 +11968,8 @@ alter_copy:
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  engine_changed= ((new_table->file->ht != table->file->ht) &&
+  engine_changed= ((new_table->file->storage_ht() !=
+                    table->file->storage_ht()) &&
                    ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                      !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
@@ -11980,7 +12004,7 @@ alter_copy:
 
   debug_crash_here("ddl_log_alter_after_copy");      // Use old table
   /*
-    We are new ready to use the new table. Update the state in the
+    We are now ready to use the new table. Update the state in the
     ddl log so that we recovery know that the new table is ready and
     in case of crash it should use the new one and log the query
     to the binary log.

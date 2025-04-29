@@ -3471,6 +3471,38 @@ INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
 SELECT NTH_VALUE(a,b) OVER () FROM t;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-32619 Settng SRID on geometry with ST_*FromWKKB(g, srid)
+--echo #
+SELECT
+  ST_SRID(g1),
+  ST_SRID(ST_GeomFromWKB(g1, 4326)),
+  ST_SRID(ST_GeomFromWKB(g1)),
+  ST_AsText(g1),
+  ST_SRID(ST_PointFromWKB(g2, 4326)),
+  ST_SRID(g2),
+  ST_SRID(ST_LineStringFromWKB(g3, 3)),
+  ST_SRID(ST_PolygonFromWKB(g4, 4)),
+  ST_SRID(ST_MultiPointFromWKB(g5, 5)),
+  ST_SRID(ST_MultiLineStringFromWKB(g6, 6)),
+  ST_SRID(ST_MultiPolygonFromWKB(g7, 7))
+FROM (
+  SELECT
+    POINT(1, 2) AS g1,
+    POINT(4, 3) AS g2,
+    LINESTRING(POINT(4, 3), POINT(4, 4)) AS g3,
+    POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3))) AS g4,
+    MULTIPOINT(POINT(4, 3)) AS g5,
+    MULTILINESTRING(LINESTRING(POINT(4, 3), POINT(4, 4))) AS g6,
+    MULTIPOLYGON(POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3)))) AS g7
+) AS t;
+
+--echo #
+--echo # MDEV-35117 Error message "ERROR 1815 (HY000): Internal error: st_distance_sphere' could be improved
+--echo #
+--error ER_GIS_UNSUPPORTED_ARGUMENT
+SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
+
 --echo # End of 10.5 tests
 
 --echo #

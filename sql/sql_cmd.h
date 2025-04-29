@@ -140,6 +140,7 @@ public:
   bool resolve_storage_engine_with_error(THD *thd, handlerton **ha,
                                          bool tmp_table);
   bool is_set() { return m_storage_engine_name.str != NULL; }
+  const LEX_CSTRING *name() const { return &m_storage_engine_name; }
 };
 
 

@@ -42,4 +42,3 @@ if ($node_4)
   --connection $node_4
   let $auto_increment_offset_node_4 = `SELECT @@global.auto_increment_offset`;
 }
-

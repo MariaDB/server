@@ -591,7 +591,8 @@ public:
 }; // class sp_instr_stmt : public sp_lex_instr
 
 
-class sp_instr_set : public sp_lex_instr
+class sp_instr_set : public sp_lex_instr,
+                     public sp_rcontext_addr
 {
   sp_instr_set(const sp_instr_set &);	/**< Prevent use of these */
   void operator=(sp_instr_set &);
@@ -603,8 +604,7 @@ public:
                LEX *lex, bool lex_resp,
 	       const LEX_CSTRING &expr_str)
     : sp_lex_instr(ip, ctx, lex, lex_resp),
-      m_rcontext_handler(rh),
-      m_offset(offset),
+      sp_rcontext_addr(rh, offset),
       m_value(val),
       m_expr_str(expr_str)
   {}
@@ -651,8 +651,6 @@ protected:
   }
 
   sp_rcontext *get_rcontext(THD *thd) const;
-  const Sp_rcontext_handler *m_rcontext_handler;
-  uint m_offset;		///< Frame offset
   Item *m_value;
 
 private:
@@ -1254,6 +1252,32 @@ public:
 
 
 /**
+  Get a query text associated with the cursor.
+*/
+
+static inline LEX_CSTRING get_cursor_query(const LEX_CSTRING &cursor_stmt)
+{
+  /*
+    Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
+    move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
+    in order to get correct value of cursor's query string.
+  */
+
+  if (strncasecmp(cursor_stmt.str, "FOR", 3) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[3]))
+    return LEX_CSTRING{cursor_stmt.str + 4, cursor_stmt.length - 4};
+
+  if (strncasecmp(cursor_stmt.str, "IS", 2) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[2]))
+    return LEX_CSTRING{cursor_stmt.str + 3, cursor_stmt.length - 3};
+
+  return cursor_stmt;
+}
+
+
+/**
   This is DECLARE CURSOR
 */
 
@@ -1313,16 +1337,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1454,16 +1469,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1515,7 +1521,7 @@ public:
       m_cursor(c),
       m_error_on_no_data(error_on_no_data)
   {
-    m_varlist.empty();
+    m_fetch_target_list.empty();
   }
 
   virtual ~sp_instr_cfetch() = default;
@@ -1524,14 +1530,19 @@ public:
 
   void print(String *str) override;
 
-  void add_to_varlist(sp_variable *var)
+  bool add_to_fetch_target_list(sp_fetch_target *target)
   {
-    m_varlist.push_back(var);
+    return m_fetch_target_list.push_back(target);
+  }
+
+  void set_fetch_target_list(List<sp_fetch_target> *list)
+  {
+    m_fetch_target_list= *list;
   }
 
 private:
   uint m_cursor;
-  List<sp_variable> m_varlist;
+  List<sp_fetch_target> m_fetch_target_list;
   bool m_error_on_no_data;
 
 public:

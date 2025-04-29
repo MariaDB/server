@@ -270,6 +270,9 @@ our $opt_force= 0;
 our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_catalogs= 0;
+our $opt_catalog_name="";
+our $catalog_name="def";
 
 our $opt_gcov;
 our $opt_gprof;
@@ -2230,6 +2233,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -3956,6 +3962,23 @@ sub run_testcase ($$) {
       }
     }
 
+    # Set up things for catalogs
+    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # be taken from the values used by the default (first)
+    # connection that is used by mariadb-test.
+    my ($mysqld, @servers);
+    @servers= all_servers();
+    $mysqld= $servers[0];
+    $ENV{'MARIADB_TOPDIR'}= $mysqld->value('datadir');
+    if (!$opt_catalogs)
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir');
+    }
+    else
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir') . "/" . $catalog_name;
+    }
+
     # Write start of testcase to log
     mark_log($path_current_testlog, $tinfo);
 
@@ -4469,14 +4492,13 @@ sub extract_warning_lines ($$) {
     (
      @global_suppressions,
      qr/error .*connecting to master/,
-     qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
-     qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
-     qr/InnoDB: Warning: a long semaphore wait:/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
      qr/InnoDB: Could not free any blocks in the buffer pool!/,
-     qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
      qr/InnoDB: innodb_open_files .* should not be greater than/,
+     qr/InnoDB: Trying to delete tablespace.*but there are.*pending/,
+     qr/InnoDB: Tablespace 1[0-9]* was not found at .*, and innodb_force_recovery was set/,
+     qr/InnoDB: Long wait \([0-9]+ seconds\) for double-write buffer flush/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,

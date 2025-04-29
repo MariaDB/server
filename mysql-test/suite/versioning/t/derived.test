@@ -1,6 +1,6 @@
 --source include/default_optimizer_switch.inc
 
---let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
+--let $replace_regex_tsltz6= /(TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'|<cache>\(current_timestamp\(6\)\))/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
 
 create table emp
 (

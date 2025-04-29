@@ -11,9 +11,11 @@ insert into t1 values(5, repeat('.',12));
 commit work;
 SET GLOBAL innodb_fast_shutdown = 0;
 # restart
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0,innodb_max_dirty_pages_pct=0;
+SET GLOBAL innodb_max_dirty_pages_pct=99;
 connect  dml,localhost,root,,;
 XA START 'x';
-insert into t1 values (6, repeat('%', @@innodb_page_size/2));
+insert into t1 values(6, repeat('%', @@innodb_page_size/2));
 XA END 'x';
 XA PREPARE 'x';
 disconnect dml;
@@ -23,7 +25,6 @@ flush table t1 for export;
 # restart
 FOUND 1 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=0\]/ in mysqld.1.err
 # restart
-XA ROLLBACK 'x';
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -34,18 +35,13 @@ f1	f2
 3	////////////
 4	------------
 5	............
-connect  dml,localhost,root,,;
-XA START 'x';
-insert into t1 values (6, repeat('%', @@innodb_page_size/2));
-XA END 'x';
-XA PREPARE 'x';
-disconnect dml;
-connection default;
-flush table t1 for export;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0,innodb_max_dirty_pages_pct=0;
+SET GLOBAL innodb_max_dirty_pages_pct=99;
+XA ROLLBACK 'x';
+FLUSH TABLE t1 FOR EXPORT;
 # Kill the server
 # restart
 FOUND 4 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=[03]\]/ in mysqld.1.err
-XA ROLLBACK 'x';
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

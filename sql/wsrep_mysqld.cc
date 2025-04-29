@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2023 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2022, MariaDB
+/* Copyright (c) 2008, 2025, Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2025, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -833,7 +833,8 @@ void wsrep_init_globals()
     wsrep_server_gtid_t new_gtid;
     new_gtid.domain_id= wsrep_gtid_domain_id;
     new_gtid.server_id= global_system_variables.server_id;
-    new_gtid.seqno= 0;
+    /* Use seqno which was recovered in wsrep_init_gtid() */
+    new_gtid.seqno= wsrep_gtid_server.seqno();
     /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
     wsrep_get_binlog_gtid_seqno(new_gtid);
     wsrep_gtid_server.gtid(new_gtid);
@@ -1614,7 +1615,12 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
     */
-    return thd->wsrep_cs().sync_wait(-1);
+    if (thd->wsrep_cs().sync_wait(-1))
+    {
+      wsrep_override_error(thd, thd->wsrep_cs().current_error(),
+                           thd->wsrep_cs().current_error_status());
+      return true;
+    }
   }
 
   return false;
@@ -2498,49 +2504,47 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 /* Forward declarations. */
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 
-bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
-{
-  if (WSREP(thd))
-  {
-    for (const TABLE_LIST* it= table_list; it; it= it->next_global)
-    {
-      if (it->table &&
-          !wsrep_should_replicate_ddl(thd, it->table->s->db_type()))
-        return false;
-    }
-  }
-  return true;
-}
+/*! Should DDL be replicated by Galera
+ *
+ * @param thd            thread handle
+ * @param hton           real storage engine handlerton
+ *
+ * @retval true if we should replicate DDL, false if not */
 
 bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
 {
   if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
-  if (!hton)
-    return true;
+  DBUG_ASSERT(hton != nullptr);
 
   switch (hton->db_type)
   {
+    case DB_TYPE_UNKNOWN:
+      /* Special pseudo-handlertons (such as 10.6+ JSON tables). */
+      return true;
+      break;
     case DB_TYPE_INNODB:
       return true;
       break;
     case DB_TYPE_MYISAM:
       if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM))
         return true;
-      else
-        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;
     case DB_TYPE_ARIA:
       if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
-	return true;
-      else
-        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
+        return true;
+      break;
+    case DB_TYPE_PARTITION_DB:
+      /* In most cases this means we could not find out
+         table->file->partition_ht() */
+      return true;
       break;
     default:
-      WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;
   }
+
+  WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
 
   /* wsrep_mode = STRICT_REPLICATION, treat as error */
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
@@ -2551,6 +2555,26 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
                       ha_resolve_storage_engine_name(hton));
   return false;
 }
+
+bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
+{
+  for (const TABLE_LIST* it= table_list; it; it= it->next_global)
+  {
+    const TABLE* table= it->table;
+    if (table && !it->table_function)
+    {
+      /* If this is partitioned table we need to find out
+         implementing storage engine handlerton.
+      */
+      const handlerton *ht= table->file->partition_ht();
+      if (!ht) ht= table->s->db_type();
+      if (!wsrep_should_replicate_ddl(thd, ht))
+        return false;
+    }
+  }
+  return true;
+}
+
 /*
   Decide if statement should run in TOI.
 
@@ -2659,9 +2683,8 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     if (create_info)
     {
       const handlerton *hton= create_info->db_type;
-
       if (!hton)
-	hton= ha_default_handlerton(thd);
+        hton= ha_default_handlerton(thd);
       if (!wsrep_should_replicate_ddl(thd, hton))
         return false;
     }
@@ -2797,7 +2820,6 @@ fail:
   unireg_abort(1);
 }
 
-
 /*
   returns:
    0: statement was replicated as TOI
@@ -2813,6 +2835,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
 
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
+  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
 
   if (wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
@@ -3053,12 +3076,13 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const wsrep::key_array *fk_tables,
                              const HA_CREATE_INFO *create_info)
 {
+  DEBUG_SYNC(thd, "wsrep_kill_thd_before_enter_toi");
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   const killed_state killed = thd->killed;
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   if (killed)
   {
-    DBUG_ASSERT(FALSE);
+    /* The thread may have been killed as a result of memory pressure. */
     return -1;
   }
 
@@ -3227,29 +3251,28 @@ void wsrep_to_isolation_end(THD *thd)
 
   @param  requestor_ctx        The MDL context of the requestor
   @param  ticket               MDL ticket for the requested lock
+  @param  key                  The key of the object (data) being protected
 
-  @retval TRUE   Lock request can be granted
-  @retval FALSE  Lock request cannot be granted
 */
-
 void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
 {
   THD *request_thd= requestor_ctx->get_thd();
-  THD *granted_thd= ticket->get_ctx()->get_thd();
 
   /* Fallback to the non-wsrep behaviour */
   if (!WSREP(request_thd)) return;
-
-  const char* schema= key->db_name();
-  int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
 
   if (wsrep_thd_is_toi(request_thd) ||
       wsrep_thd_is_applying(request_thd))
   {
+    THD *granted_thd= ticket->get_ctx()->get_thd();
+
+    const char* schema= key->db_name();
+    int schema_len= key->db_name_length();
+
     WSREP_DEBUG("wsrep_handle_mdl_conflict request TOI/APPLY for %s",
                 wsrep_thd_query(request_thd));
     THD_STAGE_INFO(request_thd, stage_waiting_isolation);
@@ -3269,7 +3292,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     /* Here we will call wsrep_abort_transaction so we should hold
     THD::LOCK_thd_data to protect victim from concurrent usage
     and THD::LOCK_thd_kill to protect from disconnect or delete.
-
     */
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
@@ -3313,15 +3335,20 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
             (granted_thd->system_thread != NON_SYSTEM_THREAD &&
              granted_thd->mdl_context.has_explicit_locks()))
     {
-      WSREP_DEBUG("BF thread waiting for FLUSH for %s",
-                  wsrep_thd_query(request_thd));
-      THD_STAGE_INFO(request_thd, stage_waiting_ddl);
+      WSREP_DEBUG("BF thread waiting for %s",
+                  granted_thd->lex->sql_command == SQLCOM_FLUSH ? "FLUSH" : "BACKUP");
       ticket->wsrep_report(wsrep_debug);
+
       if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
 	  wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
       {
 	wsrep_abort_thd(request_thd, granted_thd, 1);
       }
+    }
+    else if (granted_thd->lex->sql_command == SQLCOM_LOCK_TABLES)
+    {
+      WSREP_DEBUG("BF thread waiting for LOCK TABLES");
+      ticket->wsrep_report(wsrep_debug);
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {

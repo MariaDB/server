@@ -559,6 +559,7 @@ my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
 {
   register ulong m1= *nr1, m2= *nr2;
   const uchar *end= key + len;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < end ; key++)
   {
     MY_HASH_ADD(m1, m2, (uint)*key);
@@ -577,6 +578,7 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
     'A ' and 'A' as identical
   */
   const uchar *end= skip_trailing_space(key, len);
+  DBUG_ASSERT(key);  /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_mb_nopad_bin(cs, key, end - key, nr1, nr2);
 }
 

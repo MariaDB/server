@@ -8111,7 +8111,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     fqtn= FALSE;
-  bool info_schema= is_infoschema_db(&db);
+  bool info_schema= (db.is_null() || db.is_empty())
+	            ? false : is_infoschema_db(&db);
   if (!table->sel && info_schema &&
       (table_options & TL_OPTION_UPDATING) &&
       /* Special cases which are processed by commands itself */

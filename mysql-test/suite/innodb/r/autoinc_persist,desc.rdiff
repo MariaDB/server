@@ -1,4 +1,6 @@
-@@ -13,212 +13,212 @@
+--- autoinc_persist.result
++++ autoinc_persist.result,desc
+@@ -13,224 +13,224 @@
  #
  # Pre-create several tables
  SET SQL_MODE='STRICT_ALL_TABLES';
@@ -296,8 +298,7 @@
 +2
 +1
 +CREATE TABLE t11(a FLOAT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
- INSERT INTO t11 VALUES(0), (0), (0), (0), (-1), (-10), (0),
- (20), (30), (31);
+ INSERT INTO t11 VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
  SELECT * FROM t11;
  a
 --10
@@ -310,7 +311,7 @@
 -20
 -30
  31
--CREATE TABLE t12(a DOUBLE AUTO_INCREMENT KEY) ENGINE = InnoDB;
+-CREATE TABLE t11u(a FLOAT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
 +30
 +20
 +5
@@ -320,9 +321,30 @@
 +1
 +-1
 +-10
++CREATE TABLE t11u(a FLOAT UNSIGNED AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t11u VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
+ ERROR 22003: Out of range value for column 'a' at row 5
+ INSERT INTO t11u VALUES(0), (0), (0), (0), (0), (20), (30), (31);
+ SELECT * FROM t11u;
+ a
+-11
+-12
+-13
+-14
+-15
+-20
+-30
+ 31
+-CREATE TABLE t12(a DOUBLE AUTO_INCREMENT KEY) ENGINE = InnoDB;
++30
++20
++15
++14
++13
++12
++11
 +CREATE TABLE t12(a DOUBLE AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
- INSERT INTO t12 VALUES(0), (0), (0), (0), (-1), (-10), (0),
- (20), (30), (31);
+ INSERT INTO t12 VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
  SELECT * FROM t12;
  a
 --10
@@ -344,10 +366,10 @@
 +1
 +-1
 +-10
- # Scenario 1: Normal restart, to test if the counters are persisted
- # Scenario 2: Delete some values, to test the counters should not be the
- # one which is the largest in current table
-@@ -242,14 +242,14 @@
+ CREATE TABLE t12u(a DOUBLE UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
+ INSERT INTO t12u VALUES(0), (0), (0), (0), (-1), (-10), (0), (20), (30), (31);
+ ERROR 22003: Out of range value for column 'a' at row 5
+@@ -268,14 +268,14 @@
  SELECT MAX(a) AS `Expect 100000000000` FROM t9;
  Expect 100000000000
  100000000000
@@ -364,7 +386,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=1234 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t13 VALUES(0);
  SELECT a AS `Expect 1234` FROM t13;
-@@ -464,28 +464,28 @@
+@@ -490,28 +490,28 @@
  INSERT INTO t1 VALUES(0), (0);
  SELECT * FROM t1;
  a
@@ -398,7 +420,7 @@
  # Ensure that all changes before the server is killed are persisted.
  set global innodb_flush_log_at_trx_commit=1;
  TRUNCATE TABLE t1;
-@@ -498,63 +498,63 @@
+@@ -524,63 +524,63 @@
  INSERT INTO t19 VALUES(0), (0);
  SELECT * FROM t19;
  a
@@ -481,7 +503,7 @@
  DELETE FROM t3 WHERE a > 300;
  SELECT MAX(a) AS `Expect 200` FROM t3;
  Expect 200
-@@ -566,7 +566,7 @@
+@@ -592,7 +592,7 @@
  Table	Create Table
  t3	CREATE TABLE `t3` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -490,7 +512,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=201 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0);
  SELECT MAX(a) AS `Expect 201` FROM t3;
-@@ -579,7 +579,7 @@
+@@ -605,7 +605,7 @@
  Table	Create Table
  t3	CREATE TABLE `t3` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -499,7 +521,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=500 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0);
  SELECT MAX(a) AS `Expect 500` FROM t3;
-@@ -591,13 +591,13 @@
+@@ -617,13 +617,13 @@
  Table	Create Table
  t3	CREATE TABLE `t3` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -515,7 +537,7 @@
  INSERT INTO t3 VALUES(150), (180);
  UPDATE t3 SET a = 200 WHERE a = 150;
  INSERT INTO t3 VALUES(220);
-@@ -607,7 +607,7 @@
+@@ -633,7 +633,7 @@
  Table	Create Table
  t3	CREATE TABLE `t3` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -524,7 +546,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=221 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t3 VALUES(0);
  SELECT MAX(a) AS `Expect 221` FROM t3;
-@@ -619,7 +619,7 @@
+@@ -645,7 +645,7 @@
  Table	Create Table
  t3	CREATE TABLE `t3` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -533,7 +555,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=120 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # MDEV-6076: Test adding an AUTO_INCREMENT COLUMN
  CREATE TABLE mdev6076a (b INT) ENGINE=InnoDB;
-@@ -669,18 +669,18 @@
+@@ -695,18 +695,18 @@
  INSERT INTO t_inplace SELECT * FROM t3;
  SELECT * FROM t_inplace;
  a
@@ -559,7 +581,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This will keep the autoinc counter
  ALTER TABLE t_inplace AUTO_INCREMENT = 250, ALGORITHM = INPLACE;
-@@ -689,7 +689,7 @@
+@@ -715,7 +715,7 @@
  Table	Create Table
  t_inplace	CREATE TABLE `t_inplace` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -568,7 +590,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should keep the autoinc counter as well
  ALTER TABLE t_inplace ADD COLUMN b INT, ALGORITHM = INPLACE;
-@@ -699,16 +699,16 @@
+@@ -725,16 +725,16 @@
  t_inplace	CREATE TABLE `t_inplace` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
    `b` int(11) DEFAULT NULL,
@@ -590,7 +612,7 @@
  # This should reset the autoinc counter to the one specified
  # Since it's smaller than current one but bigger than existing
  # biggest counter in the table
-@@ -719,7 +719,7 @@
+@@ -745,7 +745,7 @@
  t_inplace	CREATE TABLE `t_inplace` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
    `b` int(11) DEFAULT NULL,
@@ -599,7 +621,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should reset the autoinc counter to the next value of
  # current max counter in the table, since the specified value
-@@ -730,7 +730,7 @@
+@@ -756,7 +756,7 @@
  Table	Create Table
  t_inplace	CREATE TABLE `t_inplace` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -608,7 +630,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t_inplace VALUES(0), (0);
  SELECT MAX(a) AS `Expect 124` FROM t_inplace;
-@@ -757,18 +757,18 @@
+@@ -783,18 +783,18 @@
  INSERT INTO t_copy SELECT * FROM t3;
  SELECT * FROM t_copy;
  a
@@ -634,7 +656,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This will keep the autoinc counter
  ALTER TABLE t_copy AUTO_INCREMENT = 250, ALGORITHM = COPY;
-@@ -777,7 +777,7 @@
+@@ -803,7 +803,7 @@
  Table	Create Table
  t_copy	CREATE TABLE `t_copy` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -643,7 +665,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should keep the autoinc counter as well
  ALTER TABLE t_copy ADD COLUMN b INT, ALGORITHM = COPY;
-@@ -787,16 +787,16 @@
+@@ -813,16 +813,16 @@
  t_copy	CREATE TABLE `t_copy` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
    `b` int(11) DEFAULT NULL,
@@ -665,7 +687,7 @@
  # This should reset the autoinc counter to the one specified
  # Since it's smaller than current one but bigger than existing
  # biggest counter in the table
-@@ -807,7 +807,7 @@
+@@ -833,7 +833,7 @@
  t_copy	CREATE TABLE `t_copy` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
    `b` int(11) DEFAULT NULL,
@@ -674,7 +696,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  # This should reset the autoinc counter to the next value of
  # current max counter in the table, since the specified value
-@@ -818,7 +818,7 @@
+@@ -844,7 +844,7 @@
  Table	Create Table
  t_copy	CREATE TABLE `t_copy` (
    `a` smallint(6) NOT NULL AUTO_INCREMENT,
@@ -683,7 +705,7 @@
  ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  INSERT INTO t_copy VALUES(0), (0);
  SELECT MAX(a) AS `Expect 124` FROM t_copy;
-@@ -842,7 +842,7 @@
+@@ -868,7 +868,7 @@
  126
  DROP TABLE t_copy, it_copy;
  # Scenario 9: Test the sql_mode = NO_AUTO_VALUE_ON_ZERO
@@ -692,7 +714,7 @@
  set SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
  INSERT INTO t30 VALUES(NULL, 1), (200, 2), (0, 3);
  INSERT INTO t30(b) VALUES(4), (5), (6), (7);
-@@ -869,20 +869,20 @@
+@@ -895,20 +895,20 @@
  set global innodb_flush_log_at_trx_commit=1;
  CREATE TABLE t31 (a INT) ENGINE = InnoDB;
  INSERT INTO t31 VALUES(1), (2);
@@ -719,7 +741,7 @@
  INSERT INTO t32 VALUES(0), (0);
  # Ensure that all changes before the server is killed are persisted.
  set global innodb_flush_log_at_trx_commit=1;
-@@ -897,7 +897,7 @@
+@@ -923,7 +923,7 @@
  # increasing the counter
  CREATE TABLE t33 (
  a BIGINT NOT NULL PRIMARY KEY,
@@ -728,7 +750,7 @@
  INSERT INTO t33 VALUES(1, NULL);
  INSERT INTO t33 VALUES(2, NULL);
  INSERT INTO t33 VALUES(2, NULL);
-@@ -920,13 +920,13 @@
+@@ -946,13 +946,13 @@
  INSERT INTO t31(a) VALUES(6), (0);
  SELECT * FROM t31;
  a	b
@@ -748,7 +770,7 @@
  DROP TABLE t31;
  set SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
  DELETE FROM t30 WHERE a = 0;
-@@ -965,7 +965,7 @@
+@@ -991,7 +991,7 @@
  DROP TABLE t33;
  CREATE TABLE t33 (
  a BIGINT NOT NULL PRIMARY KEY,
@@ -757,7 +779,7 @@
  ALTER TABLE t33 DISCARD TABLESPACE;
  restore: t33 .ibd and .cfg files
  ALTER TABLE t33 IMPORT TABLESPACE;
-@@ -975,7 +975,7 @@
+@@ -1001,8 +1001,8 @@
  4
  SELECT * FROM t33;
  a	b
@@ -766,4 +788,5 @@
  3	4
 +2	2
 +10	1
- DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t30, t32, t33;
+ DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t11u, t12u,
+ t30, t32, t33;

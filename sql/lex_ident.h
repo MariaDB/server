@@ -165,6 +165,7 @@ public:
 */
 class Lex_ident_db: public Lex_ident_fs
 {
+public:
   bool is_null() const
   {
     return length == 0 && str == NULL;
@@ -174,7 +175,6 @@ class Lex_ident_db: public Lex_ident_fs
   {
     return length == 0 && str != NULL;
   }
-public:
   static bool check_name(const LEX_CSTRING &str);
   static bool check_name_with_error(const LEX_CSTRING &str);
 public:

@@ -258,6 +258,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
+  sp_instr_cfetch *instr_cfetch;
   sp_expr_lex *expr_lex;
   sp_assignment_lex *assignment_lex;
   class sp_lex_cursor *sp_cursor_stmt;
@@ -271,6 +272,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
   List<Lex_ident_sys> *ident_sys_list;
+  List<sp_fetch_target> *fetch_target_list;
   Statement_information_item *stmt_info_item;
   String *string;
   TABLE_LIST *table_list;
@@ -1585,6 +1587,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
         sp_cursor_stmt
+
+%type <instr_cfetch>
+        sp_proc_stmt_fetch_head
+
+%type <fetch_target_list>
+        sp_fetch_list
 
 %type <expr_lex>
         expr_lex
@@ -4363,23 +4371,26 @@ sp_proc_stmt_open:
 sp_proc_stmt_fetch_head:
           FETCH_SYM ident INTO
           {
-            if (unlikely(Lex->sp_add_cfetch(thd, &$2)))
+            if (unlikely(!($$= Lex->sp_add_instr_cfetch(thd, &$2))))
               MYSQL_YYABORT;
           }
         | FETCH_SYM FROM ident INTO
           {
-            if (unlikely(Lex->sp_add_cfetch(thd, &$3)))
+            if (unlikely(!($$= Lex->sp_add_instr_cfetch(thd, &$3))))
               MYSQL_YYABORT;
           }
        | FETCH_SYM NEXT_SYM FROM ident INTO
           {
-            if (unlikely(Lex->sp_add_cfetch(thd, &$4)))
+            if (unlikely(!($$= Lex->sp_add_instr_cfetch(thd, &$4))))
               MYSQL_YYABORT;
           }
         ;
 
 sp_proc_stmt_fetch:
-         sp_proc_stmt_fetch_head sp_fetch_list { }
+         sp_proc_stmt_fetch_head sp_fetch_list
+         {
+           $1->set_fetch_target_list($2);
+         }
        | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
          {
            if (unlikely(Lex->sp_add_agg_cfetch()))
@@ -4408,35 +4419,16 @@ sp_proc_stmt_close:
 sp_fetch_list:
           ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *spc= lex->spcont;
-            sp_variable *spv= likely(spc != NULL)
-              ? spc->find_variable(&$1, false)
-              : NULL;
-
-            if (unlikely(!spv))
-              my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $1.str));
-
-            /* An SP local variable */
-            sp_instr_cfetch *i= (sp_instr_cfetch *)sp->last_instruction();
-            i->add_to_varlist(spv);
+            sp_fetch_target *target= Lex->make_fetch_target(thd, $1);
+            if (!target ||
+                !($$= List<sp_fetch_target>::make(thd->mem_root, target)))
+              MYSQL_YYABORT;
           }
         | sp_fetch_list ',' ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *spc= lex->spcont;
-            sp_variable *spv= likely(spc != NULL)
-              ? spc->find_variable(&$3, false)
-              : NULL;
-
-            if (unlikely(!spv))
-              my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $3.str));
-
-            /* An SP local variable */
-            sp_instr_cfetch *i= (sp_instr_cfetch *)sp->last_instruction();
-            i->add_to_varlist(spv);
+            sp_fetch_target *target= Lex->make_fetch_target(thd, $3);
+            if (!target || $1->push_back(target, thd->mem_root))
+              MYSQL_YYABORT;
           }
         ;
 

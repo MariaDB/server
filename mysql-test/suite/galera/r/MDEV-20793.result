@@ -41,4 +41,4 @@ connection node_1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SET debug_sync = "RESET";
 DROP TABLE t1;
-SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;

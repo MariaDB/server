@@ -36,30 +36,23 @@ ENDMACRO()
 
 # Get CPE ID ( https://en.wikipedia.org/wiki/Common_Platform_Enumeration )
 # for given project name and version
-# Only "known" CPEs are handled here, e.g currently no CPE for rocksdb
+# CPE prefix are stored with other auxilliary info in the 3rdparty_info.cmake
+# file
 FUNCTION(SBOM_GET_CPE name version var)
-  SET(cpe_prefix_map
-    "zlib" "zlib:zlib"
-    "mariadb-connector-c" "mariadb:connector\\\\/c"
-    "wolfssl" "wolfssl:wolfssl"
-    "minizip" "zlib:zlib"
-    "pcre2" "pcre:pcre2"
-    "fmt" "fmt:fmt"
-    "boost" "boost:boost"
-    "thrift" "apache:thrift"
-  )
-  LIST(FIND cpe_prefix_map "${name}" idx_cpe_mapping)
-  # Version needs to have at least one dot character in it.
-  # Otherwise, we assume it is a git  hash, and do not generate CPE
-  STRING(FIND "${version}" "." idx_version_dot)
-  IF((idx_cpe_mapping GREATER -1) AND (idx_version_dot GREATER -1))
-    MATH(EXPR next_idx "${idx_cpe_mapping}+1")
-    LIST(GET cpe_prefix_map ${next_idx} cpe_name_and_vendor)
-    STRING(REGEX REPLACE "[^0-9\\.]" "" cleaned_version "${version}")
-    SET(${var} "cpe:2.3:a:${cpe_name_and_vendor}:${cleaned_version}:*:*:*:*:*:*:*" PARENT_SCOPE)
-  ELSE()
-    SET(${var} "" PARENT_SCOPE)
+  SET(${var} "" PARENT_SCOPE)
+  STRING(FIND "${version}" "." dot_idx)
+  IF(${dot_idx} EQUAL -1)
+    # Version does not have dot inside.
+    # mostly likely it is just a git hash
+    RETURN()
   ENDIF()
+  SET(cpe_name_and_vendor "${${repo_name_lower}.cpe-prefix}")
+  IF(NOT cpe_name_and_vendor)
+    RETURN()
+  ENDIF()
+
+  STRING(REGEX REPLACE "[^0-9\\.]" "" cleaned_version "${version}")
+  SET(${var} "cpe:2.3:a:${cpe_name_and_vendor}:${cleaned_version}:*:*:*:*:*:*:*" PARENT_SCOPE)
 ENDFUNCTION()
 
 # Add dependency on CMake ExternalProject.
@@ -97,8 +90,8 @@ ENDMACRO()
 # Perhaps it can always be "MariaDB", but security team recommendation is different
 # more towards "author"
 FUNCTION (sbom_get_supplier repo_name repo_user varname)
-  IF("${repo_name_SUPPLIER}")
-    SET(${varname} "${repo_name_SUPPLIER}" PARENT_SCOPE)
+  IF("${${repo_name}_SUPPLIER}")
+    SET(${varname} "${${repo_name}_SUPPLIER}" PARENT_SCOPE)
   ELSEIF (repo_name MATCHES "zlib|minizip")
     # stuff that is checked into out repos
     SET(${varname} "MariaDB" PARENT_SCOPE)
@@ -230,6 +223,7 @@ FUNCTION(GENERATE_SBOM)
       \"ref\": \"${CPACK_PACKAGE_NAME}\",
       \"dependsOn\": [" )
 
+  INCLUDE(3rdparty_info)
   SET(first ON)
   FOREACH(dep ${ALL_THIRD_PARTY})
     # Extract the part after the last "/" from URL
@@ -277,6 +271,14 @@ FUNCTION(GENERATE_SBOM)
     IF(cpe)
       SET(cpe "\n      \"cpe\": \"${cpe}\",")
     ENDIF()
+    SET(license "${${repo_name_lower}.license}")
+    IF(NOT license)
+      MESSAGE(FATAL_ERROR "no license for 3rd party dependency ${repo_name_lower}.")
+    ENDIF()
+    SET(copyright "${${repo_name_lower}.copyright}")
+    IF(NOT copyright)
+      SET(copyright NOASSERTION)
+    ENDIF()
     STRING(APPEND sbom_components "
     {
       \"bom-ref\": \"${bom_ref}\",
@@ -286,7 +288,15 @@ FUNCTION(GENERATE_SBOM)
       \"purl\": \"${purl}\",${cpe}
       \"supplier\": {
           \"name\": \"${supplier}\"
-       }
+       },
+      \"licenses\": [
+          {
+            \"license\": {
+              \"id\": \"${license}\"
+            }
+          }
+        ],
+      \"copyright\": \"${copyright}\"
     }")
     STRING(APPEND sbom_dependencies "
         \"${bom_ref}\"")
@@ -302,5 +312,6 @@ FUNCTION(GENERATE_SBOM)
   IF(NOT DEFINED CPACK_PACKAGE_VERSION)
     SET(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
   ENDIF()
+  STRING(TIMESTAMP CURRENT_YEAR "%Y")
   configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/sbom.json.in ${CMAKE_BINARY_DIR}/sbom.json)
 ENDFUNCTION()

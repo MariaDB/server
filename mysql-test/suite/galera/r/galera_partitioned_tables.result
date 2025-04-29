@@ -1,0 +1,176 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine partition for table");
+# wsrep-mode= DEFAULT
+SET GLOBAL wsrep_mode = "";
+SELECT @@wsrep_mode;
+@@wsrep_mode
+
+CREATE OR REPLACE TABLE t1 (v1 INT NOT NULL PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+ALTER TABLE t1 ADD COLUMN v2 int;
+ALTER TABLE t2 ADD COLUMN v2 int;
+INSERT INTO t1 VALUES (1,1),(2,2);
+INSERT INTO t2 VALUES (1,1),(2,2);
+ALTER TABLE t1 ADD COLUMN v3 int, ENGINE=MyISAM;
+ALTER TABLE t2 ADD COLUMN v3 int, ENGINE=Aria;
+UPDATE t1 SET v3 = 3;
+UPDATE t2 SET v3 = 3;
+CREATE INDEX xx1 ON t1(v2);
+CREATE INDEX xx2 ON t2(v2);
+DROP INDEX xx1 ON t1;
+DROP INDEX xx2 ON t2;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+RENAME TABLE t1 TO t1_v2;
+RENAME TABLE t2 TO t2_v2;
+CREATE VIEW x1 AS SELECT * FROM t1_v2;
+CREATE VIEW x2 AS SELECT * FROM t2_v2;
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t1
+AFTER INSERT ON t1_v2 FOR EACH ROW
+UPDATE t1_v2 SET t1_v2.v3 = t1_v2.v3+1;
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t2
+AFTER INSERT ON t2_v2 FOR EACH ROW
+UPDATE t2_v2 SET t2_v2.v3 = t2_v2.v3+1;
+connection node_2;
+SHOW CREATE TABLE t1_v2;
+Table	Create Table
+t1_v2	CREATE TABLE `t1_v2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  `v3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE TABLE t2_v2;
+Table	Create Table
+t2_v2	CREATE TABLE `t2_v2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  `v3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE VIEW x1;
+View	Create View	character_set_client	collation_connection
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2`,`t1_v2`.`v3` AS `v3` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+SHOW CREATE VIEW x2;
+View	Create View	character_set_client	collation_connection
+x2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x2` AS select `t2_v2`.`v1` AS `v1`,`t2_v2`.`v2` AS `v2`,`t2_v2`.`v3` AS `v3` from `t2_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+SELECT * FROM t1_v2;
+v1	v2	v3
+SELECT * FROM t2_v2;
+v1	v2	v3
+connection node_1;
+DROP VIEW x1;
+DROP VIEW x2;
+DROP TRIGGER increment_before_t1;
+DROP TRIGGER increment_before_t2;
+DROP TABLE t1_v2;
+DROP TABLE t2_v2;
+SET GLOBAL wsrep_mode = "";
+CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+# wsrep-mode= STRICT_REPLICATION
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION";
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION
+CREATE OR REPLACE TABLE t1 (v1 INT NOT NULL PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+CREATE OR REPLACE TABLE t3 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+ERROR HY000: Galera replication not supported
+ALTER TABLE t1 ADD COLUMN v2 int;
+ALTER TABLE t2 ADD COLUMN v2 int;
+ERROR HY000: Galera replication not supported
+INSERT INTO t1 VALUES (1,1),(2,2);
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t1' is not supported in Galera
+INSERT INTO t2 VALUES (1),(2);
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t2' is not supported in Galera
+ALTER TABLE t1 ADD COLUMN v3 int, ENGINE=MyISAM;
+ERROR HY000: Galera replication not supported
+ALTER TABLE t2 ADD COLUMN v3 int, ENGINE=Aria;
+ERROR HY000: Galera replication not supported
+UPDATE t1 SET v2 = v2 + 3;
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t1' is not supported in Galera
+UPDATE t2 SET v1 = v1 + 3;
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table 'test'.'t2' is not supported in Galera
+CREATE INDEX xx1 ON t1(v2);
+CREATE INDEX xx2 ON t2(v2);
+ERROR HY000: Galera replication not supported
+DROP INDEX xx1 ON t1;
+DROP INDEX xx2 on t2;
+ERROR HY000: Galera replication not supported
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+ERROR HY000: Galera replication not supported
+RENAME TABLE t1 TO t1_v2;
+RENAME TABLE t2 TO t2_v2;
+RENAME TABLE t2_v2 TO t2;
+CREATE VIEW x1 AS SELECT * FROM t1_v2;
+CREATE VIEW x2 AS SELECT * FROM t2;
+ERROR HY000: Galera replication not supported
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t1
+AFTER INSERT ON t1_v2 FOR EACH ROW
+UPDATE t1_v2 SET t1_v2.v2 = t1_v2.v2+1;
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t2
+AFTER INSERT ON t2 FOR EACH ROW
+UPDATE t2 SET t2.v1 = t2.v1+1;
+ERROR HY000: Galera replication not supported
+connection node_2;
+SHOW CREATE TABLE t1_v2;
+Table	Create Table
+t1_v2	CREATE TABLE `t1_v2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `v1` int(11) NOT NULL,
+  `v2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`v1`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY KEY (`v1`)
+PARTITIONS 2
+SHOW CREATE VIEW x1;
+View	Create View	character_set_client	collation_connection
+x1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `x1` AS select `t1_v2`.`v1` AS `v1`,`t1_v2`.`v2` AS `v2` from `t1_v2`	utf8mb4	utf8mb4_uca1400_ai_ci
+SELECT * FROM t1_v2;
+v1	v2
+SELECT * FROM t2;
+v1	v2
+connection node_1;
+DROP VIEW x1;
+DROP TRIGGER increment_before_t1;
+DROP TABLE t1_v2;
+DROP TABLE t2;
+SET GLOBAL wsrep_mode = "";
+CREATE OR REPLACE TABLE t2 (v1 INT NOT NULL PRIMARY KEY) ENGINE=MyISAM
+PARTITION BY KEY (v1)
+PARTITIONS 2;
+# wsrep-mode= STRICT_REPLICATION
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION";
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION
+ALTER TABLE t2 ENGINE=InnoDB;
+DROP TABLE t2;
+SET GLOBAL wsrep_mode = DEFAULT;

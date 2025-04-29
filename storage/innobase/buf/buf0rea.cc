@@ -53,7 +53,7 @@ bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
   return page_hash.get(page_id, chain);
 }
 
-/** If there are buf_pool.curr_size per the number below pending reads, then
+/** If there are buf_pool.curr_size() per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
 #define BUF_READ_AHEAD_PEND_LIMIT	2
@@ -315,7 +315,7 @@ ulint buf_read_ahead_random(const page_id_t page_id) noexcept
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   fil_space_t* space= fil_space_t::get(page_id.space());
@@ -516,7 +516,7 @@ ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;

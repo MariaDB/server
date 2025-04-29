@@ -17,9 +17,10 @@
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_4, MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_USER='root';
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_4;
 --enable_query_log
 START SLAVE;
+
 SET SESSION wsrep_sync_wait = 0;
 
 --connection node_4
@@ -84,7 +85,7 @@ RESET SLAVE ALL;
 
 CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
 CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
-CALL mtr.add_suppression("Transport endpoint is not connected");
+CALL mtr.add_suppression("(Transport endpoint|Socket) is not connected");
 CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
 CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
 

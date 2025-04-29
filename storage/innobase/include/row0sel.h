@@ -182,9 +182,8 @@ dberr_t row_check_index(row_prebuilt_t *prebuilt, ulint *n_rows)
 @param[in] index	index starting with an AUTO_INCREMENT column
 @return	the largest AUTO_INCREMENT value
 @retval	0	if no records were found */
-ib_uint64_t
-row_search_max_autoinc(dict_index_t* index)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+uint64_t row_search_max_autoinc(dict_index_t *index) noexcept
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** A structure for caching column values for prefetched rows */
 struct sel_buf_t{

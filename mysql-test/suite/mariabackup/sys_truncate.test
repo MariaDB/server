@@ -13,13 +13,13 @@ DROP TABLE t1;
 --source ../innodb/include/wait_all_purged.inc
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir --throttle=1000;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --skip-innodb-log-checkpoint-now --parallel=10 --target-dir=$basedir --throttle=1000;
 --enable_result_log
 --source include/restart_mysqld.inc
 SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
 
 --echo # Incremental backup
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=2 --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --skip-innodb-log-checkpoint-now --parallel=2 --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir;
 
 --disable_result_log
 echo # Prepare full backup, apply incremental one;

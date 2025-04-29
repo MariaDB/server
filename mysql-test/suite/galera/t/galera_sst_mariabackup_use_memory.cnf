@@ -5,4 +5,4 @@ wsrep_sst_method=mariabackup
 wsrep_sst_auth="root:"
 
 [mariabackup]
-use_memory=123m
+use_memory=129m

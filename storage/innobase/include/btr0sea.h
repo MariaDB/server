@@ -37,6 +37,8 @@ extern mysql_pfs_key_t btr_search_latch_key;
 # define btr_search_sys_create() btr_search.create()
 # define btr_search_sys_free() btr_search.free()
 
+ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept;
+
 /** Tries to guess the right search position based on the hash search info
 of the index. Note that if mode is PAGE_CUR_LE, which is used in inserts,
 and the function returns TRUE, then cursor->up_match and cursor->low_match
@@ -107,12 +109,13 @@ struct btr_sea
   while a thread is holding a partition::latch, then also this must hold. */
   Atomic_relaxed<bool> enabled;
 
-  /** Disable the adaptive hash search system and empty the index. */
-  void disable() noexcept;
+  /** Disable the adaptive hash search system and empty the index.
+  @return whether the adaptive hash index was enabled */
+  ATTRIBUTE_COLD bool disable() noexcept;
 
   /** Enable the adaptive hash search system.
   @param resize whether buf_pool_t::resize() is the caller */
-  void enable(bool resize= false) noexcept;
+  ATTRIBUTE_COLD void enable(bool resize= false) noexcept;
 
   /** Partition of the hash table */
   struct partition
