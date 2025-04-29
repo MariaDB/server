@@ -670,7 +670,7 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
     }
     save1.restore_to(je);
 
-    // Less common endoints:
+    // Less common endpoints:
     Json_string start_hex_str("start_hex");
     if (json_key_matches(je, start_hex_str.get()))
     {

@@ -18,7 +18,7 @@
   This file contains code to interact with the PAM module.
   To be included into auth_pam_tool.c and auth_pam_v2.c,
 
-  Before the #include these sould be defined:
+  Before the #include these should be defined:
   
   struct param {
     unsigned char buf[10240], *ptr;

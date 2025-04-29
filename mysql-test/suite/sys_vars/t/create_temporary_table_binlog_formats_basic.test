@@ -1,0 +1,95 @@
+################## mysql-test\t\binlog_format_basic.test ######################
+#                                                                             #
+# Variable Name: create_tmp_table_binlog_formats                        #
+# Scope: Global & Session                                                     #
+# Access Type: Static                                                         #
+# Data Type: set eration                                                      #
+#                                                                             #
+# Description:Test Cases of a Dynamic System
+#             that checks the behavior of this variable in the following ways #
+#              * Value Check                                                  #
+#              * Scope Check                                                  #
+#                                                                             #
+###############################################################################
+
+SET @start_value= @@global.create_tmp_table_binlog_formats;
+SELECT @@GLOBAL.create_tmp_table_binlog_formats;
+
+--echo '#---------------------BS_STVARS_002_01----------------------#'
+####################################################################
+#   Displaying default value                                       #
+####################################################################
+
+SELECT COUNT(@@GLOBAL.create_tmp_table_binlog_formats);
+--echo 1 Expected
+
+SELECT COUNT(@@SESSION.create_tmp_table_binlog_formats);
+--echo 1 Expected
+
+--echo '#---------------------BS_STVARS_002_02----------------------#'
+####################################################################
+#   Check if Value can set                                         #
+####################################################################
+SET @@GLOBAL.create_tmp_table_binlog_formats="STATEMENT";
+SELECT @@GLOBAL.create_tmp_table_binlog_formats;
+SET @@GLOBAL.create_tmp_table_binlog_formats="MIXED,STATEMENT";
+SELECT @@GLOBAL.create_tmp_table_binlog_formats;
+
+SET @@SESSION.create_tmp_table_binlog_formats="STATEMENT";
+SELECT @@SESSION.create_tmp_table_binlog_formats;
+SET @@SESSION.create_tmp_table_binlog_formats="MIXED,STATEMENT";
+SELECT @@SESSION.create_tmp_table_binlog_formats;
+
+--echo '#---------------------BS_STVARS_002_03----------------------#'
+#################################################################
+# Check if the value in GLOBAL Table matches value in variable  #
+#################################################################
+
+SELECT @@GLOBAL.create_tmp_table_binlog_formats = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='create_tmp_table_binlog_formats';
+--echo 1 Expected
+
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='create_tmp_table_binlog_formats';
+--echo 1 Expected
+
+
+--echo '#---------------------BS_STVARS_002_04----------------------#'
+#################################################################
+# Check if the value in SESSION Table matches value in variable #
+#################################################################
+
+SELECT @@SESSION.create_tmp_table_binlog_formats = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES
+WHERE VARIABLE_NAME='create_tmp_table_binlog_formats';
+--echo 1 Expected
+
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES
+WHERE VARIABLE_NAME='create_tmp_table_binlog_formats';
+--echo 1 Expected
+
+--echo # Check assignment of correct values
+
+SET @@session.create_tmp_table_binlog_formats= @start_value;
+SET @@SESSION.create_tmp_table_binlog_formats="MIXED";
+SELECT @@SESSION.create_tmp_table_binlog_formats;
+SET @@session.create_tmp_table_binlog_formats= @start_value;
+SET @@SESSION.create_tmp_table_binlog_formats="STATEMENT,MIXED";
+SELECT @@SESSION.create_tmp_table_binlog_formats;
+
+--echo # Check assignment of wrong values
+
+SET @@session.create_tmp_table_binlog_formats= @start_value;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@SESSION.create_tmp_table_binlog_formats="";
+SELECT @@SESSION.create_tmp_table_binlog_formats;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@SESSION.create_tmp_table_binlog_formats="ROW";
+SELECT @@SESSION.create_tmp_table_binlog_formats;
+
+--echo # Cleanup
+
+SET @@global.create_tmp_table_binlog_formats= @start_value;

@@ -2749,7 +2749,6 @@ bool ddl_log_close_binlogged_events(HASH *xids)
   @retval 0     Ok.
   @retval > 0   Fatal error. We have to abort (can't create ddl log)
   @return < -1  Recovery failed, but new log exists and is usable
-
 */
 
 int ddl_log_execute_recovery()
@@ -3576,7 +3575,7 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
     ddl_log_entry.extra_name.length= 0;
     max_query_length= ddl_log_free_space_in_entry(&ddl_log_entry);
   }
-  if (ddl_log_write_execute_entry(first_entry->entry_pos,
+  if (ddl_log_write_execute_entry(first_entry->entry_pos, 0,
                                   &ddl_state->execute_entry))
     goto err;
 

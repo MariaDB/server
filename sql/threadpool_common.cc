@@ -420,7 +420,7 @@ static dispatch_command_return threadpool_process_request(THD *thd)
 
   /*
     In the loop below, the flow is essentially the copy of
-    thead-per-connections
+    thread-per-connections
     logic, see do_handle_one_connection() in sql_connect.c
 
     The goal is to execute a single query, thus the loop is normally executed 

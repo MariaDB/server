@@ -178,10 +178,13 @@ PrivateNetwork=false
 ##
 
 # CAP_IPC_LOCK To allow memlock to be used as non-root user
+# These are enabled by default
+AmbientCapabilities=CAP_IPC_LOCK
+
 # CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
 #   does nothing for non-root, not needed if /etc/shadow is u+r
 # CAP_AUDIT_WRITE auth_pam_tool needs it on Debian for whatever reason
-AmbientCapabilities=CAP_IPC_LOCK CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
 
 # PrivateDevices=true implies NoNewPrivileges=true and
 # SUID auth_pam_tool suddenly doesn't do setuid anymore
@@ -204,7 +207,7 @@ ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
 
 # Start main service
 # A few variables are here:
-# * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguisable
+# * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguishable
 # * MYSQLD_OPTS - user definable extras - not a replacement for my.cnf
 #
 # Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
@@ -219,7 +222,7 @@ SendSIGKILL=no
 
 # Restart crashed server only, on-failure would also restart, for example, when
 # my.cnf contains unknown option
-Restart=on-abort
+Restart=on-abnormal
 RestartSec=5s
 
 UMask=007

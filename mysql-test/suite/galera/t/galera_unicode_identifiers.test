@@ -77,4 +77,3 @@ DROP DATABASE `database with space`;
 DROP DATABASE `база`;
 DROP DATABASE `втора база`;
 --eval SET GLOBAL wsrep_sync_wait = $wsrep_sync_wait_orig
-

@@ -698,7 +698,7 @@ static int init_sets(REP_SETS *sets,uint states)
   return 0;
 }
 
-	/* Make help sets invisible for nicer codeing */
+	/* Make help sets invisible for nicer coding */
 
 static void make_sets_invisible(REP_SETS *sets)
 {

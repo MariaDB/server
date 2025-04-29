@@ -126,7 +126,7 @@ INDEXDEF::INDEXDEF(char *name, bool uniq, int n)
   } // end of INDEXDEF constructor
 
 /***********************************************************************/
-/*  Set the max same values for each colum after making the index.     */
+/*  Set the max same values for each column after making the index.    */
 /***********************************************************************/
 void INDEXDEF::SetMxsame(PXINDEX x)
   {

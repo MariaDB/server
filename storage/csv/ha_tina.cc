@@ -1189,7 +1189,7 @@ int ha_tina::init_data_file()
   ha_tina::info
   ha_tina::rnd_init
   ha_tina::extra
-  ENUM HA_EXTRA_CACHE   Cash record in HA_rrnd()
+  ENUM HA_EXTRA_CACHE   Cache record in HA_rrnd()
   ha_tina::rnd_next
   ha_tina::rnd_next
   ha_tina::rnd_next
@@ -1729,6 +1729,11 @@ int ha_tina::create(const char *name, TABLE *table_arg,
     }
   }
   
+  if (create_info->data_file_name)
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "DATA DIRECTORY");
+
+  if (create_info->index_file_name && table_arg->s->keys)
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "INDEX DIRECTORY");
 
   if ((create_file= mysql_file_create(csv_key_file_metadata,
                                       fn_format(name_buff, name, "", CSM_EXT,

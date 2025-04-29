@@ -433,7 +433,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
     goto err;
 
   int was_cut;
-  if (check_date(l_time, fuzzydate | TIME_INVALID_DATES, &was_cut))
+  if (check_date(l_time, fuzzydate, &was_cut))
     goto err;
 
   if (val != val_end)
@@ -3197,14 +3197,25 @@ String *Item_char_typecast::val_str_generic(String *str)
   DBUG_ASSERT(fixed());
   String *res;
 
-  if (has_explicit_length())
-    cast_length= adjusted_length_with_warn(cast_length);
-
   if (!(res= args[0]->val_str(str)))
   {
     null_value= 1;
     return 0;
   }
+  return val_str_generic_finalize(res, str);
+}
+
+
+/*
+  Adjust the result of: res= args[0]->val_str(str);
+  according to the cast length.
+  @param res - the value returned from val_str()
+  @param str - the value passed to val_str() as a buffer.
+*/
+String *Item_char_typecast::val_str_generic_finalize(String *res, String *str)
+{
+  if (has_explicit_length())
+    cast_length= adjusted_length_with_warn(cast_length);
 
   if (cast_cs == &my_charset_bin &&
       has_explicit_length() &&

@@ -13,7 +13,7 @@ connection node_3;
 SELECT @@wsrep_on;
 @@wsrep_on
 0
-call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use (server_errno=1047)");
+call mtr.add_suppression("Error reading packet from server: WSREP has not yet prepared node for application use \\(server_errno ?= ?1047\\)");
 START SLAVE;
 include/wait_for_slave_param.inc [Slave_IO_Running]
 connection node_1;

@@ -2824,7 +2824,13 @@ bool Field_row::sp_prepare_and_store_item(THD *thd, Item **value)
   }
 
   src->bring_value();
-  DBUG_RETURN(m_table->sp_set_all_fields_from_item(thd, src));
+  if (m_table->sp_set_all_fields_from_item(thd, src))
+  {
+    set_null();
+    DBUG_RETURN(true);
+  }
+  set_notnull();
+  DBUG_RETURN(false);
 }
 
 
@@ -2857,6 +2863,13 @@ void Field_row::sql_type_for_sp_returns(String &res) const
     res.append(col.to_lex_cstring());
   }
   res.append(')');
+}
+
+
+void Field_row::expr_event_handler(THD *thd, expr_event_t event)
+{
+  if (m_table)
+    m_table->expr_event_handler(thd, event);
 }
 
 

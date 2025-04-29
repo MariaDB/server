@@ -861,7 +861,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
     DBUG_RETURN(1);
   }
   share=info->s;
-  share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+  share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
   share->tot_locks-= share->r_locks;
   share->r_locks=0;
 

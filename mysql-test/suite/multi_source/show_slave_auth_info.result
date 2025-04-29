@@ -1,0 +1,45 @@
+# Setup
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  slave1,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connect  slave2,127.0.0.1,root,,,$SERVER_MYPORT_4;
+connection slave2;
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_1, master_ssl_verify_server_cert=0;
+CHANGE MASTER 'control sample' TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_2, master_ssl_verify_server_cert=0;
+START ALL SLAVES;
+connection slave1;
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_1, master_ssl_verify_server_cert=0;
+CHANGE MASTER 'control sample' TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_2, master_ssl_verify_server_cert=0;
+START ALL SLAVES;
+# Test
+connection master2;
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id
+3	localhost	SERVER_MYPORT_3	2
+4	localhost	SERVER_MYPORT_4	2
+connection master1;
+SHOW SLAVE HOSTS;
+Server_id	Host	User	Password	Port	Master_id
+3	localhost			SERVER_MYPORT_3	1
+4	localhost	my_user	my_password	SERVER_MYPORT_4	1
+SHOW REPLICA HOSTS;
+Server_id	Host	User	Password	Port	Master_id
+3	localhost			SERVER_MYPORT_3	1
+4	localhost	my_user	my_password	SERVER_MYPORT_4	1
+# Cleanup
+connection slave2;
+STOP ALL SLAVES;
+include/wait_for_slave_to_stop.inc
+SET @@SESSION.default_master_connection= 'control sample';
+include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;
+connection slave1;
+STOP ALL SLAVES;
+include/wait_for_slave_to_stop.inc
+SET @@SESSION.default_master_connection= 'control sample';
+include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;
+disconnect master1;
+disconnect master2;
+disconnect slave1;
+disconnect slave2;

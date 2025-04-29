@@ -76,7 +76,7 @@ class Single_line_formatting_helper
   };
 
   /*
-    This works like a finite automaton.
+    This works like a finite automation.
 
     state=DISABLED means the helper is disabled - all on_XXX functions will
     return false (which means "not handled") and do nothing.

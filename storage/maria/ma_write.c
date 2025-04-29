@@ -589,7 +589,7 @@ my_bool _ma_enlarge_root(MARIA_HA *info, MARIA_KEY *key, my_off_t *root)
   page_store_info(share, &page);
 
   /*
-    Clear unitialized part of page to avoid valgrind/purify warnings
+    Clear uninitialized part of page to avoid valgrind/purify warnings
     and to get a clean page that is easier to compress and compare with
     pages generated with redo
   */
@@ -1078,7 +1078,7 @@ int _ma_split_page(MARIA_HA *info, MARIA_KEY *key, MARIA_PAGE *split_page,
     res= -1;
 
   /*
-    Clear unitialized part of page to avoid valgrind/purify warnings
+    Clear uninitialized part of page to avoid valgrind/purify warnings
     and to get a clean page that is easier to compress and compare with
     pages generated with redo
   */

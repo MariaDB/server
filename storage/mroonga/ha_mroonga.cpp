@@ -2342,7 +2342,7 @@ static ulonglong mrn_generic_ft_ext_get_flags()
 {
   MRN_DBUG_ENTER_FUNCTION();
   // TODO: Should we support FTS_ORDERED_RESULT?
-  // TODO: Shuold we support FTS_DOCID_IN_RESULT?
+  // TODO: Should we support FTS_DOCID_IN_RESULT?
   ulonglong flags = 0;
   DBUG_RETURN(flags);
 }

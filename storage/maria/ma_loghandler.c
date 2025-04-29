@@ -6503,7 +6503,7 @@ my_bool translog_write_record(LSN *lsn,
     for (i= TRANSLOG_INTERNAL_PARTS; i < part_no; i++)
     {
 #ifdef HAVE_valgrind
-      /* Find unitialized bytes early */
+      /* Find uninitialized bytes early */
       checksum+= my_checksum(checksum, parts_data[i].str,
                              parts_data[i].length);
 #endif

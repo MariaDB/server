@@ -7839,12 +7839,12 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
     // outside the MySQL data directory. We don't support this for MyRocks.
     // The `rocksdb_datadir` setting should be used to configure RocksDB data
     // directory.
-    DBUG_RETURN(HA_ERR_ROCKSDB_TABLE_DATA_DIRECTORY_NOT_SUPPORTED);
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "DATA DIRECTORY");
   }
 
-  if (create_info->index_file_name) {
+  if (create_info->index_file_name && table_arg->s->keys) {
     // Similar check for INDEX DIRECTORY as well.
-    DBUG_RETURN(HA_ERR_ROCKSDB_TABLE_INDEX_DIRECTORY_NOT_SUPPORTED);
+    my_error(WARN_OPTION_IGNORED, ME_NOTE, "INDEX DIRECTORY");
   }
 
   int err;
@@ -8262,7 +8262,7 @@ int ha_rocksdb::read_row_from_secondary_key(uchar *const buf,
     keyparts whose datatype is not yet known.
 
     We walk around this problem by using check_keyread_allowed(), which uses
-    table_share object and is careful not to step on unitialized data.
+    table_share object and is careful not to step on uninitialized data.
 
     When we get a call with all_parts=TRUE, we try to analyze all parts but
     ignore those that have key_part->field==nullptr (these are not initialized

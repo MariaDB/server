@@ -326,7 +326,7 @@ static MYSQL_THDVAR_BOOL(cond_push, PLUGIN_VAR_RQCMDARG,
   Temporary file usage:
     no:    Not using temporary file
     auto:  Using temporary file when needed
-    yes:   Allways using temporary file
+    yes:   Always using temporary file
     force: Force using temporary file (no MAP)
     test:  Reserved
 */

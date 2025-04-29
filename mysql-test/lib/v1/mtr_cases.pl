@@ -146,7 +146,7 @@ sub collect_test_cases ($) {
 
       if ( defined $depend_on_test_name )
       {
-	mtr_verbose2("Giving $test_name same critera as $depend_on_test_name");
+	mtr_verbose2("Giving $test_name same criteria as $depend_on_test_name");
 	$sort_criteria{$test_name} = $sort_criteria{$depend_on_test_name};
       }
       else

@@ -1166,7 +1166,7 @@ class Pushdown_query;
 
   @details
     The result records are obtained on the put_record() call.
-    The aggrgation process is determined by the write_func, it could be:
+    The aggregation process is determined by the write_func, it could be:
       end_write          Simply store all records in tmp table.
       end_write_group    Perform grouping using join->group_fields,
                          records are expected to be sorted.
@@ -1375,7 +1375,7 @@ public:
 
   /*
     Tables one is allowed to use in choose_plan(). Either all or
-    set to a mapt of the tables in the materialized semi-join nest
+    set to a map of the tables in the materialized semi-join nest
   */
   table_map allowed_tables;
 
@@ -2427,6 +2427,25 @@ public:
     for (uint i= 0; i < s->fields; i++)
       field[i]->set_null();
   }
+
+  /*
+    Run the event handler for all fields in the table
+    in the range [start, end-1].
+  */
+  void expr_event_handler(THD *thd, expr_event_t event, uint start, uint end)
+  {
+    DBUG_ASSERT(start <= end);
+    DBUG_ASSERT(end <= s->fields);
+    for (uint i= start; i < end; i++)
+      field[i]->expr_event_handler(thd, event);
+  }
+
+  // Run the event handler for all fields in the table
+  void expr_event_handler(THD *thd, expr_event_t event)
+  {
+    expr_event_handler(thd, event, 0, s->fields);
+  }
+
   /**
     Set all fields from a compatible item list.
     The number of fields in "this" must be equal to the number

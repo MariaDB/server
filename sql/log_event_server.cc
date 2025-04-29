@@ -2082,7 +2082,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           {
             /*
               To be compatible with previous releases, the slave thread uses the global
-              log_slow_disabled_statements value, wich can be changed dynamically, so we
+              log_slow_disabled_statements value, which can be changed dynamically, so we
               have to set the sql_log_slow respectively.
             */
             thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);

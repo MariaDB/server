@@ -20,6 +20,11 @@
 
 /* This file defines all spatial functions */
 
+#ifdef USE_PRAGMA_INTERFACE
+#pragma interface			/* gcc class implementation */
+#endif
+
+#include <bitset>
 #include "sql_type_geom.h"
 #include "item.h"
 #include "gstream.h"
@@ -954,9 +959,6 @@ public:
 
 class Item_func_issimple: public Item_long_func_args_geometry
 {
-  Gcalc_heap collector;
-  Gcalc_function func;
-  Gcalc_scan_iterator scan_it;
   String tmp;
 public:
   Item_func_issimple(THD *thd, Item *a)
@@ -971,6 +973,29 @@ public:
   decimal_digits_t decimal_precision() const override { return 1; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_issimple>(thd, this); }
+};
+
+class Item_func_simplify: public Item_geometry_func_args_geometry
+{
+  String tmp_value;
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_scan_iterator scan_it;
+public:
+  Item_func_simplify(THD *thd, Item *a, Item *b)
+   :Item_geometry_func_args_geometry(thd, a, b) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_simplify") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_geometry;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_simplify>(thd, this); }
 };
 
 class Item_func_isclosed: public Item_long_func_args_geometry
@@ -1002,6 +1027,41 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isring>(thd, this); }
+};
+
+class Item_func_isvalid: public Item_long_func_args_geometry
+{
+public:
+  String tmp;
+  Item_func_isvalid(THD *thd, Item *a): Item_long_func_args_geometry(thd, a) {}
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_isvalid") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_isvalid>(thd, this); }
+};
+
+class Item_func_validate: public Item_geometry_func_args_geometry
+{
+public:
+  String tmp;
+  Item_func_validate(THD *thd, Item *a):
+    Item_geometry_func_args_geometry(thd, a) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_validate") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_geometry;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_validate>(thd, this); }
 };
 
 class Item_func_dimension: public Item_long_func_args_geometry
@@ -1220,6 +1280,109 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
+};
+
+
+class Item_func_geohash: public Item_str_ascii_checksum_func
+{
+  void encode_geohash(String *str, double longitude, double latitude,
+                      uint length);
+  void set_bit(double &max_value, double &min_value, const double &target_value,
+               std::bitset<5> &base_set, const uint &bit_index);
+  bool is_invalid_length_field(enum_field_types field_type);
+  bool is_invalid_longitude_field(enum_field_types field_type);
+  bool is_invalid_latitude_field(enum_field_types field_type);
+
+public:
+  Item_func_geohash(THD *thd, Item *point, Item *max_length):
+    Item_str_ascii_checksum_func(thd, point, max_length) {}
+  Item_func_geohash(THD *thd, Item *longitude, Item *latitude,
+                    Item *max_length):
+    Item_str_ascii_checksum_func(thd, longitude, latitude, max_length) {}
+  bool fix_length_and_dec(THD *thd) override
+  {
+    fix_length_and_charset(UINT_MAX32, default_charset());
+    return FALSE;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geohash") };
+    return name;
+  }
+  String *val_str_ascii(String *) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_geohash>(thd, this); }
+};
+
+
+class Item_func_latlongfromgeohash : public Item_real_func
+{
+private:
+  String buf;
+  static const uint8_t geohash_alphabet[256];
+  const bool decode_longitude;
+  static bool convert_character(char in, int &out);
+
+public:
+  Item_func_latlongfromgeohash(THD *thd, Item *a, bool start_on_even_bit_arg)
+      : Item_real_func(thd, a),
+        decode_longitude(start_on_even_bit_arg) {}
+  double val_real() override;
+  static bool is_invalid_geohash_field(const enum_field_types field_type);
+  static bool decode_geohash(String *geohash, double *result_latitude,
+                             double *result_longitude);
+  static double round_latlongitude(double latlongitude, double error_range,
+                                   double lower_limit, double upper_limit);
+};
+
+
+class Item_func_latfromgeohash: public Item_func_latlongfromgeohash
+{
+public:
+  Item_func_latfromgeohash(THD *thd, Item *a)
+   :Item_func_latlongfromgeohash(thd, a, false) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_latfromgeohash") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_latfromgeohash>(thd, this); }
+};
+
+
+class Item_func_longfromgeohash: public Item_func_latlongfromgeohash
+{
+public:
+  Item_func_longfromgeohash(THD *thd, Item *a)
+   :Item_func_latlongfromgeohash(thd, a, true) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_longfromgeohash") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_longfromgeohash>(thd, this); }
+};
+
+
+class Item_func_pointfromgeohash: public Item_geometry_func
+{
+private:
+  String buf;
+  static bool is_invalid_SRID_field(const enum_field_types field_type);
+
+public:
+  Item_func_pointfromgeohash(THD *thd, Item *a, Item *b)
+   :Item_geometry_func(thd, a, b) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_pointfromgeohash") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_pointfromgeohash>(thd, this); }
 };
 
 

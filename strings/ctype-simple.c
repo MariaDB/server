@@ -365,6 +365,7 @@ void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
   register const uchar *sort_order=cs->sort_order;
   const uchar *end= key + len;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < (uchar*) end ; key++)
   {
     MY_HASH_ADD(m1, m2, (uint) sort_order[(uint) *key]);
@@ -381,6 +382,7 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
   register const uchar *sort_order=cs->sort_order;
   const uchar *end;
   uint16 space_weight= sort_order[' '];
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
   /*
     Remove all trailing characters that are equal to space.
@@ -796,7 +798,7 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     return (~(ulonglong) 0);
   }
 
-  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  /* Avoid undefined behavior - negation of LONGLONG_MIN */
   return negative && (longlong) i != LONGLONG_MIN ?
         -((longlong) i) :
          (longlong) i;

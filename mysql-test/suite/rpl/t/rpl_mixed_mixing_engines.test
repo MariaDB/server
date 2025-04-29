@@ -8,7 +8,11 @@
 --source include/not_msan.inc
 --source include/master-slave.inc
 
+set @@global.create_tmp_table_binlog_formats="mixed";
+set @@session.create_tmp_table_binlog_formats="mixed";
 let $engine_type=Innodb;
 let $database_name=test;
 --source include/rpl_mixing_engines.test
+--connection server_1
+set @@global.create_tmp_table_binlog_formats=default;
 --source include/rpl_end.inc

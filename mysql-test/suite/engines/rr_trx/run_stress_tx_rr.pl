@@ -146,7 +146,7 @@ $cmd="MTR_VERSION=1 " .
 
 # running the test
 print("\n   Running \'rr_trx\' test with ".$opt_threads." clients\n");
-print("   for ".$opt_duration." seconds using the ".$opt_engine." storag engine.\n");
+print("   for ".$opt_duration." seconds using the ".$opt_engine." storage engine.\n");
 print("\n   Log file: ".$runlog."\n");
 if ($opt_try) {
    print("\nThe following command will execute:\n");
@@ -282,7 +282,7 @@ SYNTAX $0 --engine=<engine> [--duration=<nn>] [--thread=<nn>] [--try]
 
   --engine=<engine>
     The engine used to run the test. \<engine\> needs to be provided exactly as 
-    it is reprted in the SHOW ENGINES comand.
+    it is reported in the SHOW ENGINES command.
     EXCEPTION: In order to use the InnoDB plugin, specify 'InnoDB_plugin'
   Required option.
 
@@ -308,12 +308,12 @@ sub add_engine_help
 {
   print <<EOF;
 
-\nThis test is can be run against any transactional engine. However scripts need to be modifed in order
+\nThis test can be run against any transactional engine. However scripts need to be modified in order
 to support such engines (support to InnoDB is provided as an example).
 In order to add support for a new engine, you will need to modify scripts as follows:
    1) cd to INSTALL_DIR/mysql-test/suite/engines/rr_trx
    2) Modify the 'run_stress_rr.pl' file by adding an 'elsif' section for your engine and have it
-      include specifc values required to be passed as startup parameters to the MySQL server by
+      include specific values required to be passed as startup parameters to the MySQL server by
       specifying them using "--mysqld" options (see InnoDB example).
    3) Copy the 'init_innodb.txt' file to 'init_<engine>.txt file and change its content to be "init_<engine>".
    4) In the 't' directory copy the "init_innodb.test" file to "init_\<engine\>.test" and change the value of

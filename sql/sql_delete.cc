@@ -332,6 +332,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   bool safe_update;
   bool const_cond_result;
   bool return_error= 0;
+  bool binlogged= 0;
   TABLE	*table;
   SQL_SELECT *select= 0;
   SORT_INFO *file_sort= 0;
@@ -456,8 +457,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   transactional_table= table->file->has_transactions_and_rollback();
 
   if (!returning && !using_limit && const_cond_result &&
-      (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
-      && !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
+      !thd->is_current_stmt_binlog_format_row() && !has_triggers &&
+      !table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -991,10 +992,11 @@ cleanup:
       thd->transaction->all.modified_non_trans_table= TRUE;
 
   /* See similar binlogging code in sql_update.cc, for comments */
-  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table
-      || thd->log_current_statement()))
+  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table ||
+             thd->log_current_statement()))
   {
-    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+    if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+        table->s->using_binlog())
     {
       int errcode= 0;
       if (error < 0)
@@ -1019,8 +1021,13 @@ cleanup:
       {
         error=1;
       }
+      else
+        binlogged= 1;
     }
   }
+  if (!binlogged)
+    table->mark_as_not_binlogged();
+
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction->stmt.modified_non_trans_table);
   
   if (likely(error < 0) ||
@@ -1421,6 +1428,7 @@ int multi_delete::send_data(List<Item> &values)
 
 void multi_delete::abort_result_set()
 {
+  TABLE_LIST *cur_table;
   DBUG_ENTER("multi_delete::abort_result_set");
 
   /****************************************************************************
@@ -1480,6 +1488,13 @@ void multi_delete::abort_result_set()
                                transactional_tables, FALSE, FALSE, errcode);
     }
   }
+  /*
+    Mark all temporay tables as not completely binlogged
+    All future usage of these tables will enforce row level logging, which
+    ensures that all future usage of them enforces row level logging.
+  */
+  for (cur_table= delete_tables; cur_table; cur_table= cur_table->next_local)
+    cur_table->table->mark_as_not_binlogged();
   DBUG_VOID_RETURN;
 }
 
@@ -2049,6 +2064,8 @@ err:
 
 bool Sql_cmd_delete::execute_inner(THD *thd)
 {
+  Running_stmt_guard guard(thd, active_dml_stmt::DELETING_STMT);
+
   if (!multitable)
   {
     if (lex->has_returning())

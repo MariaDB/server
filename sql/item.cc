@@ -1071,6 +1071,17 @@ bool Item::check_type_traditional_scalar(const LEX_CSTRING &opname) const
 }
 
 
+bool Item::check_type_can_return_bool(const LEX_CSTRING &opname) const
+{
+  const Type_handler *handler= type_handler();
+  if (handler->can_return_bool())
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           handler->name().ptr(), opname.str);
+  return true;
+}
+
+
 bool Item::check_type_can_return_int(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
@@ -1708,6 +1719,8 @@ bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
   unsigned_flag= it->unsigned_flag;
   base_flags|= item_base_t::FIXED;
   with_flags|= item_with_t::SP_VAR;
+  if (type_handler()->is_complex())
+    with_flags|= item_with_t::COMPLEX_DATA_TYPE;
   if (thd->lex->current_select && thd->lex->current_select->master_unit()->item)
     thd->lex->current_select->master_unit()->item->with_flags|= item_with_t::SP_VAR;
   collation.set(it->collation.collation, it->collation.derivation);
@@ -1733,6 +1746,14 @@ longlong Item_sp_variable::val_int()
   longlong ret= it->val_int();
   null_value= it->null_value;
   return ret;
+}
+
+
+Type_ref_null Item_sp_variable::val_ref(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(!is_cond());
+  return this_item()->val_ref(thd);
 }
 
 
@@ -3167,6 +3188,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
   sp_result_field->null_ptr= (uchar *) null_value;
   sp_result_field->null_bit= 1;
+  sp_result_field->set_null(); // SYS_REFCURSOR needs NULL as the initial value
 
   DBUG_RETURN(FALSE);
 }
@@ -3515,6 +3537,14 @@ bool Item_field::val_bool()
   if ((null_value= field->is_null()))
     return 0;
   return field->val_bool();
+}
+
+
+Type_ref_null Item_field::val_ref(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(!is_cond());
+  return field->val_ref(thd);
 }
 
 
@@ -5203,14 +5233,26 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     to make sure the next mysql_stmt_execute()
     correctly fetches the value from the client-server protocol,
     using set_param_func().
+
+    We're here in statements like:
+       EXECUTE IMMEDIATE 'CALL proc(?)' USING ps_param;
+    where proc() is a procedure with an OUT/INOUT parameter.
+    At the end of EXECUTE the formal routine parameter (Item_splocal)
+    is copied back to the actual routine parameter, which is "this" and which
+    is later copied back to the prepared statement parameter ps_param.
   */
+  if (!is_null() && with_complex_data_types())
+  {
+    // Destruct the previous value
+    expr_event_handler(thd, expr_event_t::DESTRUCT_DYNAMIC_PARAM);
+  }
   if (arg->save_in_value(thd, &tmp) ||
       set_value(thd, arg, &tmp, arg->type_handler()))
   {
     set_null_string(arg->collation);
     return false;
   }
-  /* It is wrapper => other set_* shoud set null_value */
+  /* It is wrapper => other set_* should set null_value */
   DBUG_ASSERT(null_value == false);
   return false;
 }
@@ -9619,7 +9661,7 @@ void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr,
   Mark references from inner selects used in group by clause
 
   The method is used by the walk method when called for the expressions
-  from the group by clause. The callsare  occurred in the function
+  from the group by clause. The calls occur in the function
   fix_inner_refs invoked by JOIN::prepare.
   The parameter passed to Item_outer_ref::check_inner_refs_processor
   is the iterator over the list of inner references from the subselects
@@ -10360,6 +10402,25 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 }
 
 
+/**
+  Check whether a value of the clause OLD or NEW can produce meaning value:
+    for INSERT event, evaluation of the OLD clause should return NULL;
+    for DELETE event, evaluation of the NEW clause should return NULL.
+
+  @param thd  current thread context
+*/
+
+void
+Item_trigger_field::check_new_old_qulifiers_comform_with_trg_event(THD *thd)
+{
+  if ((thd->current_trg_event() == TRG_EVENT_INSERT && row_version == OLD_ROW) ||
+      (thd->current_trg_event() == TRG_EVENT_DELETE && row_version == NEW_ROW))
+    null_value= true;
+  else
+    null_value= false;
+}
+
+
 bool Item_trigger_field::fix_fields(THD *thd, Item **items)
 {
   /*
@@ -10395,6 +10456,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
     field= (row_version == OLD_ROW) ? triggers->old_field[field_idx] :
                                       triggers->new_field[field_idx];
     set_field(field);
+    check_new_old_qulifiers_comform_with_trg_event(thd);
     base_flags|= item_base_t::FIXED;
     return FALSE;
   }
@@ -10419,6 +10481,52 @@ bool Item_trigger_field::check_vcol_func_processor(void *arg)
   return mark_unsupported_function(ver, field_name.str, arg, VCOL_IMPOSSIBLE);
 }
 
+
+int Item_trigger_field::save_in_field(Field *to, bool no_conversions)
+{
+  if (null_value)
+    return set_field_to_null_with_conversions(to, no_conversions);
+
+  return Item_field::save_in_field(to, no_conversions);
+}
+
+
+double Item_trigger_field::val_real()
+{
+  if (null_value)
+    return 0.0;
+  return Item_field::val_real();
+}
+
+longlong Item_trigger_field::val_int()
+{
+  if (null_value)
+    return 0;
+  return Item_field::val_int();
+}
+
+bool Item_trigger_field::val_bool()
+{
+  if (null_value)
+    return false;
+  return Item_field::val_bool();
+}
+
+my_decimal *
+Item_trigger_field::val_decimal(my_decimal *decimal_value)
+{
+  if (null_value)
+    return 0;
+  return Item_field::val_decimal(decimal_value);
+}
+
+String *
+Item_trigger_field::val_str(String *str)
+{
+  if (null_value)
+    return nullptr;
+  return Item_field::val_str(str);
+}
 
 void Item_trigger_field::cleanup()
 {
@@ -10496,6 +10604,11 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   return cmp.type_handler()->stored_field_cmp_to_item(thd, field, item);
 }
 
+
+bool Item_trigger_type_of_statement::val_bool()
+{
+  return m_trigger_stmt_type == m_thd->current_active_stmt();
+}
 
 void Item_cache::store(Item *item)
 {

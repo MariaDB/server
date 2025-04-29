@@ -36,6 +36,12 @@
 #include "item_geofunc.h"
 #include "item_create.h"
 
+#define MAX_LONGITUDE 180
+#define MIN_LONGITUDE -180
+#define MAX_LATITUDE 90
+#define MIN_LATITUDE -90
+#define MAX_GEOHASH_LENGTH 100
+#define MIN_GEOHASH_LENGTH 0
 
 bool Item_geometry_func::fix_length_and_dec(THD *thd)
 {
@@ -1133,10 +1139,12 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
 
 
 LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
-{ 
+{
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
       return { STRING_WITH_LEN("mbrcontains") };
+    case SP_COVEREDBY_FUNC:
+      return { STRING_WITH_LEN("mbrcoveredby") };
     case SP_WITHIN_FUNC:
       return { STRING_WITH_LEN("mbrwithin") } ;
     case SP_EQUALS_FUNC:
@@ -1177,9 +1185,15 @@ bool Item_func_spatial_mbr_rel::val_bool()
 	g2->get_mbr(&mbr2, &dummy) || !mbr2.valid())))
    return 0;
 
+  uint32 srid1= uint4korr(res1->ptr()), srid2= uint4korr(res2->ptr());
+  if (srid1 != srid2)
+    my_error(ER_GIS_DIFFERENT_SRIDS, MYF(0), func_name(), srid1, srid2);
+
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
       return mbr1.contains(&mbr2);
+    case SP_COVEREDBY_FUNC:
+      return mbr1.coveredby(&mbr2);
     case SP_WITHIN_FUNC:
       return mbr1.within(&mbr2);
     case SP_EQUALS_FUNC:
@@ -1203,11 +1217,14 @@ bool Item_func_spatial_mbr_rel::val_bool()
 }
 
 
+
 LEX_CSTRING Item_func_spatial_precise_rel::func_name_cstring() const
-{ 
+{
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
       return { STRING_WITH_LEN("st_contains") };
+    case SP_COVEREDBY_FUNC:
+      return { STRING_WITH_LEN("st_coveredby") };
     case SP_WITHIN_FUNC:
       return { STRING_WITH_LEN("st_within") };
     case SP_EQUALS_FUNC:
@@ -2066,13 +2083,105 @@ mem_error:
 }
 
 
+longlong Item_func_isvalid::val_int()
+{
+  String *wkb= args[0]->val_str(&tmp);
+  Geometry_buffer buffer;
+  Geometry *geometry;
+
+  int valid;
+  if ((args[0]->null_value ||
+      !(geometry= Geometry::construct(&buffer, wkb->ptr(), wkb->length()))))
+  {
+    if (!args[0]->null_value)
+      my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
+    null_value= 1;
+    return 1;
+  }
+
+  if (geometry->is_valid(&valid))
+  {
+    null_value= 1;
+    return 1;
+  }
+
+  return (longlong) valid;
+}
+
+
+String *Item_func_validate::val_str(String *str_value)
+{
+  DBUG_ENTER("Item_func_buffer::val_str");
+  DBUG_ASSERT(fixed());
+  String *wkb= args[0]->val_str(&tmp);
+  Geometry_buffer buffer;
+  Geometry *geometry;
+  int valid= 1;
+  str_value= NULL;
+  null_value= 1;
+
+  if(args[0]->null_value)
+    DBUG_RETURN(str_value);
+
+  if (!(geometry= Geometry::construct(&buffer, wkb->ptr(), wkb->length())))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
+    DBUG_RETURN(str_value);
+  }
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_point)
+  {
+    double x, y;
+    if(((Gis_point *) geometry)->get_xy(&x, &y))
+      DBUG_RETURN(str_value);
+
+    if (x > MAX_LONGITUDE || x <= MIN_LONGITUDE)
+    {
+      my_error(ER_LATITUDE_OUT_OF_RANGE, MYF(0), x, "st_validate");
+      DBUG_RETURN(str_value);
+    }
+    else if(y > MAX_LATITUDE || y < MIN_LATITUDE) {
+      my_error(ER_LONGITUDE_OUT_OF_RANGE, MYF(0), y,"st_validate");
+      DBUG_RETURN(str_value);
+    }
+
+    null_value= 0;
+    str_value= wkb;
+    DBUG_RETURN(str_value);
+  }
+
+  if (geometry->is_valid(&valid))
+    DBUG_RETURN(str_value);
+
+  if (!valid)
+    DBUG_RETURN(str_value);
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_polygon ||
+      geometry->get_class_info()->m_type_id == Geometry::wkb_multipolygon ||
+      geometry->get_class_info()->m_type_id ==
+      Geometry::wkb_geometrycollection)
+  {
+    String clockwise_wkb;
+    if(geometry->make_clockwise(&clockwise_wkb))
+      DBUG_RETURN(str_value);
+
+    wkb->length(4); // keep the SRID
+    wkb->append(clockwise_wkb.ptr(), clockwise_wkb.length());
+  }
+
+  null_value= 0;
+  str_value= wkb;
+  DBUG_RETURN(str_value);
+}
+
+
 bool Item_func_isempty::val_bool()
 {
   DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
-  
+
   null_value= args[0]->null_value ||
               !(Geometry::construct(&buffer, swkb->ptr(), swkb->length()));
   return null_value ? 1 : 0;
@@ -2083,71 +2192,94 @@ longlong Item_func_issimple::val_int()
 {
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
-  Gcalc_operation_transporter trn(&func, &collector);
-  Geometry *g;
-  int result= 1;
-  MBR mbr;
-  const char *c_end;
+  Geometry *geometry;
 
   DBUG_ENTER("Item_func_issimple::val_int");
   DBUG_ASSERT(fixed());
-  
+
   null_value= 0;
   if ((args[0]->null_value ||
-       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-       g->get_mbr(&mbr, &c_end)))
+       !(geometry= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
   {
-    /* We got NULL as an argument. Have to return -1 */
-    DBUG_RETURN(-1);
+    if (!args[0]->null_value)
+      my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
+    null_value= 1;
+    DBUG_RETURN(0);
   }
 
-  collector.set_extent(mbr.xmin, mbr.xmax, mbr.ymin, mbr.ymax);
-
-  if (g->get_class_info()->m_type_id == Geometry::wkb_point)
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_point)
     DBUG_RETURN(1);
 
-  if (g->store_shapes(&trn))
-    goto mem_error;
-
-  collector.prepare_operation();
-  scan_it.init(&collector);
-
-  while (scan_it.more_points())
-  {
-    const Gcalc_scan_iterator::event_point *ev, *next_ev;
-
-    if (scan_it.step())
-      goto mem_error;
-
-    ev= scan_it.get_events();
-    if (ev->simple_event())
-      continue;
-
-    next_ev= ev->get_next();
-    if ((ev->event & (scev_thread | scev_single_point)) && !next_ev)
-      continue;
-
-    if ((ev->event == scev_two_threads) && !next_ev->get_next())
-      continue;
-
-    /* If the first and last points of a curve coincide - that is     */
-    /* an exception to the rule and the line is considered as simple. */
-    if ((next_ev && !next_ev->get_next()) &&
-        (ev->event & (scev_thread | scev_end)) &&
-        (next_ev->event & (scev_thread | scev_end)))
-      continue;
-
-    result= 0;
-    break;
+  int simple;
+  if (geometry->is_simple(&simple)) {
+    null_value= 1;
+    DBUG_RETURN(0);
   }
 
-  collector.reset();
-  func.reset();
-  scan_it.reset();
-  DBUG_RETURN(result);
-mem_error:
+  DBUG_RETURN(simple);
+}
+
+
+String *Item_func_simplify::val_str(String *str)
+{
+  DBUG_ENTER("Item_func_simplify::val_str");
+  String *res= args[0]->val_str(&tmp_value);
+  double max_distance= (double) args[1]->val_real();
+  Geometry_buffer buffer;
+  Geometry *geometry;
+  uint32 num_points;
+
   null_value= 1;
-  DBUG_RETURN(0);
+  if ((null_value= (args[0]->null_value || args[1]->null_value)) ||
+       !(geometry= Geometry::construct(&buffer, res->ptr(), res->length())))
+  {
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+
+  if (max_distance <= 0)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+
+  uint32 srid= uint4korr(res->ptr());
+  if (srid != 0)
+  {
+    my_error(ER_NOT_IMPLEMENTED_FOR_GEOGRAPHIC_SRS, MYF(0), func_name());
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_point ||
+      geometry->get_class_info()->m_type_id == Geometry::wkb_multipoint)
+  {
+    str = res;
+    DBUG_RETURN(str);
+  }
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_linestring)
+  {
+    if (geometry->num_points(&num_points))
+    {
+      null_value= 1;
+      DBUG_RETURN(NULL);
+    }
+
+    if (num_points < 3)
+    {
+      str = res;
+      DBUG_RETURN(str);
+    }
+  }
+
+  if (geometry->simplify(str, max_distance))
+  {
+    null_value= 1;
+    DBUG_RETURN(NULL);
+  }
+  DBUG_RETURN(str);
 }
 
 
@@ -2187,14 +2319,15 @@ longlong Item_func_isring::val_int()
   null_value= 0;
   if (!swkb || 
       args[0]->null_value ||
-      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())) ||
-      geom->is_closed(&isclosed))
+      !(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())))
   {
-    /* IsRing(NULL) should return -1 */
-    return -1;
+    if (!args[0]->null_value)
+      my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
+    null_value= 1;
+    return 0;
   }
 
-  if (!isclosed)
+  if (geom->is_closed(&isclosed) || !isclosed)
     return 0;
 
   return Item_func_issimple::val_int();
@@ -2528,7 +2661,7 @@ double Item_func_sphere_distance::val_real()
   String *arg2= args[1]->val_str(&bak2);
   double distance= 0.0;
   double sphere_radius= 6370986.0; // Default radius equals Earth radius
-  
+
   null_value= (args[0]->null_value || args[1]->null_value);
   if (null_value)
   {
@@ -2546,7 +2679,7 @@ double Item_func_sphere_distance::val_real()
     }
     if (sphere_radius <= 0)
     {
-      my_error(ER_INTERNAL_ERROR, MYF(0), "Radius must be greater than zero.");
+      my_error(ER_GIS_UNSUPPORTED_ARGUMENT, MYF(0), func_name());
       return 1;
     }
   }
@@ -2558,26 +2691,27 @@ double Item_func_sphere_distance::val_real()
     my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_Distance_Sphere");
     goto handle_errors;
   }
-// Method allowed for points and multipoints
+  // Method allowed for points and multipoints
   if (!(g1->get_class_info()->m_type_id == Geometry::wkb_point ||
         g1->get_class_info()->m_type_id == Geometry::wkb_multipoint) ||
       !(g2->get_class_info()->m_type_id == Geometry::wkb_point ||
         g2->get_class_info()->m_type_id == Geometry::wkb_multipoint))
   {
-    // Generate error message in case different geometry is used? 
-    my_error(ER_INTERNAL_ERROR, MYF(0), func_name());
+    // Generate error message in case of unexpected geometry.
+    my_error(ER_GIS_UNSUPPORTED_ARGUMENT, MYF(0), func_name());
     return 0;
   }
   distance= spherical_distance_points(g1, g2, sphere_radius);
   if (distance < 0)
   {
-    my_error(ER_INTERNAL_ERROR, MYF(0), "Returned distance cannot be negative.");
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "Returned distance cannot be negative.");
     return 1;
   }
   return distance;
 
-  handle_errors:
-    return 0;
+handle_errors:
+  return 0;
 }
 
 
@@ -2657,6 +2791,508 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
   else if (err_sph || err_hv == 2)
     my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
   return res;
+}
+
+
+String *Item_func_geohash::val_str_ascii(String *str)
+{
+  DBUG_ASSERT(fixed());
+  double latitude, longitude;
+  int geohash_length;
+  Item* length_field;
+  null_value= 1;
+
+  if (arg_count == 2)
+  {
+    Geometry_buffer buffer;
+    Geometry *geometry;
+    String tmp;
+    String *wkb= args[0]->val_str(&tmp);
+
+    if (args[0]->null_value)
+      return 0;
+
+    length_field= args[1];
+    geometry = Geometry::construct(&buffer, wkb->ptr(), wkb->length());
+    if (!geometry ||
+        geometry->get_class_info()->m_type_id != Geometry::wkb_point ||
+        geometry->get_x(&longitude) || geometry->get_y(&latitude))
+    {
+      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeoHash");
+      return 0;
+    }
+  }
+  else
+  {
+    if (args[0]->null_value || args[1]->null_value)
+      return 0;
+
+    if (is_invalid_longitude_field(args[0]->field_type()) ||
+        is_invalid_latitude_field(args[1]->field_type()))
+    {
+      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeoHash");
+      return 0;
+    }
+
+    longitude= args[0]->val_real();
+    latitude= args[1]->val_real();
+
+    // We need to check again because the val_real calls may set the null
+    // bit, depending on their implementation.
+    if (args[0]->null_value || args[1]->null_value)
+      return 0;
+
+    length_field= args[2];
+  }
+
+  if (is_invalid_length_field(length_field->field_type()))
+  {
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "max_length parameter should be an integer in the range [1, 100]",
+             "ST_GeoHash");
+    return 0;
+  }
+
+  if (longitude > MAX_LONGITUDE || longitude < MIN_LONGITUDE)
+  {
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "Longitude should be [-180,180]", "ST_GeoHash");
+    return 0;
+  }
+
+  if (latitude > MAX_LATITUDE || latitude < MIN_LATITUDE)
+  {
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "Latitude should be [-90,90]", "ST_GeoHash");
+    return 0;
+  }
+
+  geohash_length= static_cast<uint>(length_field->val_int());
+  if (length_field->null_value)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  if (geohash_length <= MIN_GEOHASH_LENGTH ||
+      geohash_length > MAX_GEOHASH_LENGTH)
+  {
+    my_error(ER_STD_OUT_OF_RANGE_ERROR, MYF(0),
+             "max_length parameter should be an integer in the range [1, 100]",
+             "ST_GeoHash");
+    return 0;
+  }
+
+  str->length(0);
+  str->set_charset(&my_charset_latin1);
+  if (str->reserve(geohash_length))
+    return 0;
+
+  encode_geohash(str, longitude, latitude, geohash_length);
+
+  null_value= 0;
+  return str;
+}
+
+
+bool Item_func_geohash::is_invalid_length_field(enum_field_types field_type)
+{
+  switch (field_type)
+  {
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_LONGLONG:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_LONG_BLOB:
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+bool Item_func_geohash::is_invalid_longitude_field(enum_field_types field_type)
+{
+  switch (field_type)
+  {
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_NEWDECIMAL:
+    case MYSQL_TYPE_GEOMETRY:
+    case MYSQL_TYPE_DOUBLE:
+    case MYSQL_TYPE_LONG_BLOB:
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+bool Item_func_geohash::is_invalid_latitude_field(enum_field_types field_type)
+{
+  return is_invalid_longitude_field(field_type);
+}
+
+
+void Item_func_geohash::encode_geohash(String *str, double longitude,
+                                       double latitude, uint length)
+{
+  constexpr char BASE32[]= "0123456789bcdefghjkmnpqrstuvwxyz";
+  double tmp_max_latitude= MAX_LATITUDE;
+  double tmp_min_latitude= MIN_LATITUDE;
+  double tmp_max_longitude= MAX_LONGITUDE;
+  double tmp_min_longitude= MIN_LONGITUDE;
+  std::bitset<5> base_set;
+  bool switch_bit= true;
+
+  for (uint i=0; i<length; ++i)
+  {
+    for (uint bit_index=0; bit_index<5; ++bit_index)
+    {
+      set_bit(switch_bit ? tmp_max_longitude : tmp_max_latitude,
+              switch_bit ? tmp_min_longitude : tmp_min_latitude,
+              switch_bit ? longitude : latitude,
+              base_set, bit_index);
+      switch_bit = !switch_bit;
+    }
+
+    uint char_index= base_set.to_ulong();
+    DBUG_ASSERT(char_index <= 31);
+    str->append(BASE32[char_index]);
+
+    if (latitude == ((tmp_max_latitude + tmp_min_latitude) / 2.0) &&
+        longitude == ((tmp_max_longitude + tmp_min_longitude) / 2.0))
+      break;
+  }
+}
+
+
+void Item_func_geohash::set_bit(double &max_value, double &min_value, const double &target_value,
+                                std::bitset<5> &base_set, const uint &bit_index)
+{
+  double mid_value= (max_value + min_value) / 2.0;
+  if (target_value >= mid_value)
+  {
+    base_set[4 - bit_index]= 1;
+    min_value= mid_value;
+    return;
+  }
+
+  base_set[4 - bit_index]= 0;
+  max_value= mid_value;
+}
+
+
+const uint8_t Item_func_latlongfromgeohash::geohash_alphabet[256] = {
+    // 0-47
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255,
+    // '0'-'9' (48-57)
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    // 58-65
+    255, 255, 255, 255, 255, 255, 255, 255,
+    // 'B'-'H' (66-73)
+    10, 11, 12, 13, 14, 15, 16,
+    // 'I' (74)
+    255,
+    // 'J'-'K' (75-76)
+    17, 18,
+    // 'L' (77)
+    255,
+    // 'M'-'N' (78-79)
+    19, 20,
+    // O (80)
+    255,
+    // 'P'-'Z' (81-92)
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    255, 255, 255, 255, 255, 255, 255,
+    // 'b'-'h' (97-104)
+    10, 11, 12, 13, 14, 15, 16,
+    // 'i' (105)
+    255,
+    // 'j'-'k' (106-107)
+    17, 18,
+    // 'l' (108)
+    255,
+    // 'm'-'n' (109-110)
+    19, 20,
+    // 'o' (111)
+    255,
+    // 'p'-'z' (112-122)
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    // 123-255
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+};
+
+
+bool Item_func_latlongfromgeohash::convert_character(char in, int &out)
+{
+  if (in < 0)
+    return true;
+  out= Item_func_latlongfromgeohash::geohash_alphabet[(int) in];
+  return false;
+}
+
+
+/**
+  Decodes a geohash string into longitude and latitude.
+  The results are rounded,  based on the length of input geohash. The function
+  will stop evaluating when the error range, or "accuracy", has become 0.0 for
+  both latitude and longitude since no more changes can happen after this.
+  @param geohash The geohash to decode.
+  @param upper_latitude Upper limit of returned latitude (normally 90.0).
+  @param[out] result_latitude Calculated latitude.
+  @param[out] result_longitude Calculated longitude.
+  @return false on success, true on failure (invalid geohash string).
+*/
+bool Item_func_latlongfromgeohash::decode_geohash(
+    String *geohash, double *result_latitude,
+    double *result_longitude)
+{
+  double latitude_accuracy= (MAX_LATITUDE - MIN_LATITUDE) / 2.0;
+  double longitude_accuracy= (MAX_LONGITUDE - MIN_LONGITUDE) / 2.0;
+
+  double latitude_value= (MAX_LATITUDE + MIN_LATITUDE) / 2.0;
+  double longitude_value= (MAX_LONGITUDE + MIN_LONGITUDE) / 2.0;
+
+  uint number_of_bits_used= 0;
+  const uint input_length= geohash->length();
+
+  for (uint i = 0; i < input_length; i++)
+  {
+    int converted_character= -1;
+    if (convert_character((*geohash)[i], converted_character) ||
+        converted_character == 255) {
+      return true;
+    }
+
+    for (int bit_number = 4; bit_number >= 0; bit_number--)
+    {
+      if (number_of_bits_used % 2) {
+        latitude_accuracy/= 2.0;
+        if (converted_character & (1 << bit_number))
+          latitude_value+= latitude_accuracy;
+        else
+          latitude_value-= latitude_accuracy;
+      } else {
+        longitude_accuracy/= 2.0;
+        if (converted_character & (1 << bit_number))
+          longitude_value+= longitude_accuracy;
+        else
+          longitude_value-= longitude_accuracy;
+      }
+
+      number_of_bits_used++;
+    }
+
+    if (latitude_accuracy <= 0.0 || longitude_accuracy <= 0.0)
+      break;
+  }
+
+  *result_latitude= round_latlongitude(latitude_value, latitude_accuracy * 2.0,
+                                       latitude_value - latitude_accuracy,
+                                       latitude_value + latitude_accuracy);
+  *result_longitude= round_latlongitude(longitude_value,
+                                        longitude_accuracy * 2.0,
+                                        longitude_value - longitude_accuracy,
+                                        longitude_value + longitude_accuracy);
+
+  return false;
+}
+
+
+/**
+  Rounds a latitude or longitude value.
+  This will round a latitude or longitude value, based on error_range.
+  The error_range is the difference between upper and lower lat/longitude
+  (e.g upper value of 45.0 and a lower value of 22.5, gives an error range of
+  22.5).
+  The returned result will always be in the range [lower_limit, upper_limit]
+  @param latlongitude The latitude or longitude to round.
+  @param error_range The total error range of the calculated laglongitude.
+  @param lower_limit Lower limit of the returned result.
+  @param upper_limit Upper limit of the returned result.
+  @return A rounded latitude or longitude.
+*/
+double Item_func_latlongfromgeohash::round_latlongitude(double latlongitude,
+                                                        double error_range,
+                                                        double lower_limit,
+                                                        double upper_limit)
+{
+  if (error_range == 0.0)
+    return latlongitude;
+
+  uint number_of_decimals= 0;
+  while (error_range <= 0.1 && number_of_decimals <= DBL_DIG) {
+    number_of_decimals++;
+    error_range*= 10.0;
+  }
+
+  double return_value;
+  do {
+    return_value= my_double_round(latlongitude, number_of_decimals, false,
+                                  false);
+    number_of_decimals++;
+  } while ((lower_limit > return_value || return_value > upper_limit) &&
+           number_of_decimals <= DBL_DIG);
+
+  // If the result is outside the allowed range, return the input value
+  if (lower_limit > return_value || return_value > upper_limit)
+    return_value= latlongitude;
+
+  // Avoid printing signed zero
+  return return_value + 0.0;
+}
+
+
+bool Item_func_latlongfromgeohash::is_invalid_geohash_field(
+      enum_field_types field_type)
+{
+  switch (field_type)
+  {
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_GEOMETRY:
+    case MYSQL_TYPE_STRING:
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+
+double Item_func_latlongfromgeohash::val_real()
+{
+  null_value= 1;
+  String *input_value;
+
+  if (args[0]->null_value)
+    return 0.0;
+
+  if (is_invalid_geohash_field(args[0]->field_type()))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), decode_longitude ?
+                                          "ST_LongFromGeoHas" :
+                                          "ST_LatFromGeohash");
+    return 0.0;
+  }
+
+  input_value= args[0]->val_str(&buf);
+  if (args[0]->null_value)
+  {
+    args[0]->null_value= 0;
+    return 0.0;
+  }
+
+  if (input_value->is_empty())
+  {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+            input_value->c_ptr_safe(), func_name());
+    return 0.0;
+  }
+
+  double latitude= 0.0, longitude= 0.0;
+  if (decode_geohash(input_value, &latitude, &longitude)) {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+             input_value->c_ptr_safe(), func_name());
+    return 0.0;
+  }
+
+  null_value= 0;
+  if (decode_longitude) return longitude;
+  return latitude;
+}
+
+
+bool Item_func_pointfromgeohash::is_invalid_SRID_field
+                                  (enum_field_types field_type)
+{
+  switch (field_type)
+  {
+    case MYSQL_TYPE_NULL:
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_LONGLONG:
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+String *Item_func_pointfromgeohash::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  null_value= 1;
+  String *input_value;
+  uint32 srid;
+
+  if (args[0]->null_value || args[1]->null_value)
+    return NULL;
+
+  if (is_invalid_SRID_field(args[1]->field_type()) ||
+      Item_func_latlongfromgeohash::is_invalid_geohash_field(
+        args[0]->field_type()
+      ))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_PointFromGeoHash");
+    return NULL;
+  }
+
+  input_value= args[0]->val_str(&buf);
+  if (args[0]->null_value)
+  {
+    args[0]->null_value= 0;
+    return NULL;
+  }
+
+  if (input_value->length() == 0)
+  {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+            input_value->c_ptr_safe(), func_name());
+    return NULL;
+  }
+
+  srid= static_cast<uint32>(args[1]->val_uint());
+  if (args[1]->null_value)
+  {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+        input_value->c_ptr_safe(), func_name());
+    return NULL;
+  }
+
+  double latitude= 0.0, longitude= 0.0;
+  if (Item_func_latlongfromgeohash::decode_geohash(input_value, &latitude, &longitude)) {
+    my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0), "geohash",
+             input_value->c_ptr_safe(), func_name());
+    return NULL;
+  }
+
+  str->set_charset(&my_charset_bin);
+  str->length(0);
+  if (str->reserve(SRID_SIZE + WKB_HEADER_SIZE + POINT_DATA_SIZE))
+    return NULL;
+
+  str->q_append((uint32) srid);
+  str->q_append((char) Geometry::wkb_ndr);
+  str->q_append((uint32) Geometry::wkb_point);
+  str->q_append(longitude);
+  str->q_append(latitude);
+
+  null_value= 0;
+  return str;
 }
 
 
@@ -2909,6 +3545,38 @@ protected:
 };
 
 
+class Create_func_mbr_coveredby : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+      Item_func::SP_COVEREDBY_FUNC);
+  }
+
+  static Create_func_mbr_coveredby s_singleton;
+
+protected:
+  Create_func_mbr_coveredby() = default;
+  ~Create_func_mbr_coveredby() override = default;
+};
+
+class Create_func_coveredby : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                 Item_func::SP_COVEREDBY_FUNC);
+  }
+  static Create_func_coveredby s_singleton;
+
+protected:
+  Create_func_coveredby() = default;
+  ~Create_func_coveredby() override = default;
+};
+
+
 class Create_func_crosses : public Create_func_arg2
 {
 public:
@@ -3019,6 +3687,104 @@ Create_func_distance_sphere::create_native(THD *thd, const LEX_CSTRING *name,
   }
   return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
 }
+
+
+class Create_func_geohash : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_geohash s_singleton;
+
+protected:
+  Create_func_geohash() = default;
+  virtual ~Create_func_geohash() = default;
+};
+
+
+Item*
+Create_func_geohash::create_native(THD *thd, const LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 2:
+  {
+    Item *point= item_list->pop();
+    Item *max_length= item_list->pop();
+    func= new (thd->mem_root) Item_func_geohash(thd, point, max_length);
+    break;
+  }
+  case 3:
+  {
+    Item *longitude= item_list->pop();
+    Item *latitude= item_list->pop();
+    Item *max_length= item_list->pop();
+    func= new (thd->mem_root) Item_func_geohash(thd, longitude, latitude, max_length);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+class Create_func_latfromgeohash : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_latfromgeohash(thd, arg1);
+  }
+
+  static Create_func_latfromgeohash s_singleton;
+
+protected:
+  Create_func_latfromgeohash() = default;
+  virtual ~Create_func_latfromgeohash() = default;
+};
+
+
+class Create_func_longfromgeohash : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_longfromgeohash(thd, arg1);
+  }
+
+  static Create_func_longfromgeohash s_singleton;
+
+protected:
+  Create_func_longfromgeohash() = default;
+  virtual ~Create_func_longfromgeohash() = default;
+};
+
+
+class Create_func_pointfromgeohash : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_pointfromgeohash(thd, arg1, arg2);
+  }
+
+  static Create_func_pointfromgeohash s_singleton;
+
+protected:
+  Create_func_pointfromgeohash() = default;
+  virtual ~Create_func_pointfromgeohash() = default;
+};
 
 
 class Create_func_endpoint : public Create_func_arg1
@@ -3606,6 +4372,36 @@ protected:
 };
 
 
+class Create_func_isvalid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
+  }
+
+  static Create_func_isvalid s_singleton;
+
+protected:
+  Create_func_isvalid() = default;
+  virtual ~Create_func_isvalid() = default;
+};
+
+class Create_func_validate : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_validate(thd, arg1);
+  }
+
+  static Create_func_validate s_singleton;
+
+protected:
+  Create_func_validate() = default;
+  virtual ~Create_func_validate() = default;
+};
+
 class Create_func_issimple : public Create_func_arg1
 {
 public:
@@ -3621,6 +4417,21 @@ protected:
   ~Create_func_issimple() override = default;
 };
 
+
+class Create_func_simplify : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_simplify(thd, arg1, arg2);
+  }
+
+  static Create_func_simplify s_singleton;
+
+protected:
+  Create_func_simplify() = default;
+  ~Create_func_simplify() override = default;
+};
 
 
 class Create_func_numgeometries : public Create_func_arg1
@@ -3865,6 +4676,7 @@ Create_func_boundary Create_func_boundary::s_singleton;
 Create_func_buffer Create_func_buffer::s_singleton;
 Create_func_centroid Create_func_centroid::s_singleton;
 Create_func_contains Create_func_contains::s_singleton;
+Create_func_coveredby Create_func_coveredby::s_singleton;
 Create_func_convexhull Create_func_convexhull::s_singleton;
 Create_func_crosses Create_func_crosses::s_singleton;
 Create_func_difference Create_func_difference::s_singleton;
@@ -3872,6 +4684,10 @@ Create_func_dimension Create_func_dimension::s_singleton;
 Create_func_disjoint Create_func_disjoint::s_singleton;
 Create_func_distance Create_func_distance::s_singleton;
 Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
+Create_func_geohash Create_func_geohash::s_singleton;
+Create_func_latfromgeohash Create_func_latfromgeohash ::s_singleton;
+Create_func_longfromgeohash Create_func_longfromgeohash ::s_singleton;
+Create_func_pointfromgeohash Create_func_pointfromgeohash ::s_singleton;
 Create_func_endpoint Create_func_endpoint::s_singleton;
 Create_func_envelope Create_func_envelope::s_singleton;
 Create_func_equals Create_func_equals::s_singleton;
@@ -3887,9 +4703,13 @@ Create_func_intersection Create_func_intersection::s_singleton;
 Create_func_intersects Create_func_intersects::s_singleton;
 Create_func_isclosed Create_func_isclosed::s_singleton;
 Create_func_isempty Create_func_isempty::s_singleton;
+Create_func_isvalid Create_func_isvalid::s_singleton;
+Create_func_validate Create_func_validate::s_singleton;
 Create_func_isring Create_func_isring::s_singleton;
 Create_func_issimple Create_func_issimple::s_singleton;
+Create_func_simplify Create_func_simplify::s_singleton;
 Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
+Create_func_mbr_coveredby Create_func_mbr_coveredby::s_singleton;
 Create_func_mbr_disjoint Create_func_mbr_disjoint::s_singleton;
 Create_func_mbr_equals Create_func_mbr_equals::s_singleton;
 Create_func_mbr_intersects Create_func_mbr_intersects::s_singleton;
@@ -3931,6 +4751,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
   { { STRING_WITH_LEN("CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
   { { STRING_WITH_LEN("CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
+  { { STRING_WITH_LEN("COVEREDBY") }, GEOM_BUILDER(Create_func_coveredby)},
   { { STRING_WITH_LEN("CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
   { { STRING_WITH_LEN("CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
   { { STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
@@ -3954,13 +4775,17 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("INTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
   { { STRING_WITH_LEN("ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
+  { { STRING_WITH_LEN("VALIDATE") }, GEOM_BUILDER(Create_func_validate)},
   { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
+  { { STRING_WITH_LEN("SIMPLIFY") }, GEOM_BUILDER(Create_func_simplify)},
   { { STRING_WITH_LEN("LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("LINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("MBRCONTAINS") }, GEOM_BUILDER(Create_func_mbr_contains)},
+  { { STRING_WITH_LEN("MBRCOVEREDBY") }, GEOM_BUILDER(Create_func_mbr_coveredby)},
   { { STRING_WITH_LEN("MBRDISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
   { { STRING_WITH_LEN("MBREQUAL") }, GEOM_BUILDER(Create_func_mbr_equals)},
   { { STRING_WITH_LEN("MBREQUALS") }, GEOM_BUILDER(Create_func_mbr_equals)},
@@ -3992,6 +4817,10 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("POLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { STRING_WITH_LEN("POLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
+  { { STRING_WITH_LEN("LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
+  { { STRING_WITH_LEN("LONGFROMGEOHASH") }, GEOM_BUILDER(Create_func_longfromgeohash)},
+  { { STRING_WITH_LEN("POINTFROMGEOHASH") }, GEOM_BUILDER(Create_func_pointfromgeohash)},
   { { STRING_WITH_LEN("SRID") }, GEOM_BUILDER(Create_func_srid)},
   { { STRING_WITH_LEN("ST_AREA") }, GEOM_BUILDER(Create_func_area)},
   { { STRING_WITH_LEN("STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
@@ -4004,6 +4833,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
   { { STRING_WITH_LEN("ST_CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
   { { STRING_WITH_LEN("ST_CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
+  { { STRING_WITH_LEN("ST_COVEREDBY") }, GEOM_BUILDER(Create_func_coveredby)},
   { { STRING_WITH_LEN("ST_CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
   { { STRING_WITH_LEN("ST_CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
   { { STRING_WITH_LEN("ST_DIFFERENCE") }, GEOM_BUILDER(Create_func_difference)},
@@ -4030,8 +4860,11 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_INTERSECTS") }, GEOM_BUILDER(Create_func_intersects)},
   { { STRING_WITH_LEN("ST_ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ST_ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ST_ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
+  { { STRING_WITH_LEN("ST_VALIDATE") }, GEOM_BUILDER(Create_func_validate)},
   { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
+  { { STRING_WITH_LEN("ST_SIMPLIFY") }, GEOM_BUILDER(Create_func_simplify)},
   { { STRING_WITH_LEN("ST_LENGTH") }, GEOM_BUILDER(Create_func_glength)},
   { { STRING_WITH_LEN("ST_LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { STRING_WITH_LEN("ST_LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
@@ -4071,6 +4904,10 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
+  { { STRING_WITH_LEN("ST_GEOHASH") }, GEOM_BUILDER(Create_func_geohash)},
+  { { STRING_WITH_LEN("ST_LATFROMGEOHASH") }, GEOM_BUILDER(Create_func_latfromgeohash)},
+  { { STRING_WITH_LEN("ST_LONGFROMGEOHASH") }, GEOM_BUILDER(Create_func_longfromgeohash)},
+  { { STRING_WITH_LEN("ST_POINTFROMGEOHASH") }, GEOM_BUILDER(Create_func_pointfromgeohash)},
   { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
   { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},

@@ -909,7 +909,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   }
 
   /*
-    TODO: This would prevent processing quries with ORDER BY ... LIMIT
+    TODO: This would prevent processing queries with ORDER BY ... LIMIT
     therefore we disable this optimization for now.
     Remove GROUP BY if there are no aggregate functions and no HAVING
     clause
@@ -12834,7 +12834,14 @@ end:
 static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
                                         uint n_top_tabs_count, JOIN_TAB *tab)
 {
-  n_top_tabs_count += tab->join->aggr_tables;
+  /*
+    tab->join == NULL means that we're performing JOIN::cleanup()
+    after a raised error: on EOM, or on an attempt to create a temporary table
+    with a column of a non allowed data type, such as SYS_REFCURSOR.
+  */
+  DBUG_ASSERT(tab->join || current_thd->is_error());
+  if (tab->join)
+    n_top_tabs_count += tab->join->aggr_tables;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
@@ -15073,6 +15080,36 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
   return FALSE;
 }
    
+
+/*
+  Procedure of keys generation for result tables of materialized derived
+  tables/views.
+
+  A key is generated for each equi-join pair {derived_table, some_other_table}.
+  Each generated key consists of fields of derived table used in equi-join.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
+  In this case for the derived table tt one key will be generated. It will
+  consist of two parts f1 and f2.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=t1.f3 JOIN
+                  t2 ON tt.f2=t2.f4;
+  In this case for the derived table tt two keys will be generated.
+  One key over f1 field, and another key over f2 field.
+  Currently optimizer may choose to use only one such key, thus the second
+  one will be dropped after range optimizer is finished.
+  See also JOIN::drop_unused_derived_keys function.
+  Example:
+
+    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
+                  t1 ON tt.f1=a_function(t1.f3);
+  In this case for the derived table tt one key will be generated. It will
+  consist of one field - f1.
+*/
 
 static
 bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
@@ -19757,6 +19794,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         prev_table->dep_tables|= used_tables;
       if (prev_table->on_expr)
       {
+        /* If the ON expression is still there, it's an outer join */
+        DBUG_ASSERT(prev_table->outer_join);
         prev_table->dep_tables|= table->on_expr_dep_tables;
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
@@ -19771,11 +19810,59 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
           prevents update of inner table dependences.
           For example it might happen if RAND() function
           is used in JOIN ON clause.
-	*/  
-        if (!((prev_table->on_expr->used_tables() &
-               ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT)) &
-              ~prev_used_tables))
+	*/
+        table_map prev_on_expr_deps= prev_table->on_expr->used_tables() &
+                                     ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
+        prev_on_expr_deps&= ~prev_used_tables;
+
+        if (!prev_on_expr_deps)
           prev_table->dep_tables|= used_tables;
+        else
+        {
+          /*
+            Another possible case is when prev_on_expr_deps!=0 but it depends
+            on a table outside this join nest. SQL name resolution don't allow
+            this but it is possible when LEFT JOIN is inside a subquery which
+            is converted into a semi-join nest, Example:
+
+              t1 SEMI JOIN (
+                t2
+                LEFT JOIN (t3 LEFT JOIN t4 ON t4.col=t1.col) ON expr
+              ) ON ...
+
+            here, we would have prev_table=t4, table=t3.  The condition
+            "ON t4.col=t1.col" depends on tables {t1, t4}. To make sure the
+            optimizer puts t3 before t4 we need to make sure t4.dep_tables
+            includes t3.
+          */
+
+          DBUG_ASSERT(table->embedding == prev_table->embedding);
+          if (table->embedding)
+          {
+            /*
+              Find what are the "peers" of "table" in the join nest. Normally,
+              it is table->embedding->nested_join->used_tables, but here we are
+              in the process of recomputing that value.
+              So, we walk the join list and collect the bitmap of peers:
+            */
+            table_map peers= 0;
+            List_iterator_fast<TABLE_LIST> li(*join_list);
+            TABLE_LIST *peer;
+            while ((peer= li++))
+            {
+              table_map curmap= peer->nested_join
+                                    ? peer->nested_join->used_tables
+                                    : peer->get_map();
+              peers|= curmap;
+            }
+            /*
+              If prev_table doesn't depend on any of its peers, add a
+              dependency on nearest peer, that is, on 'table'.
+            */
+            if (!(prev_on_expr_deps & peers))
+              prev_table->dep_tables|= used_tables;
+          }
+        }
       }
     }
     prev_table= table;
@@ -21720,8 +21807,8 @@ TABLE *Create_tmp_table::start(THD *thd,
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-%s-%lx-%llx-%x", tmp_file_prefix, param->tmp_name,
-            current_pid, thd->thread_id, thd->tmp_table++);
+    LEX_STRING tmp= {path, sizeof(path) };
+    make_tmp_table_name(thd, &tmp, param->tmp_name);
   }
 
   /*
@@ -22007,7 +22094,7 @@ bool Create_tmp_table::add_fields(THD *thd,
                          param->force_copy_fields);
       if (unlikely(!new_field))
       {
-        if (unlikely(thd->is_fatal_error))
+        if (unlikely(thd->is_fatal_error || item->cols() == 1))
           goto err;                             // Got OOM
         continue;                               // Some kind of const item
       }
@@ -22758,6 +22845,11 @@ void Virtual_tmp_table::setup_field_pointers()
       }
     }
     cur_field->reset();
+    /*
+      SYS_REFCURSOR SP variables need NULL as the initial Field value
+      to watch sp_cursor_array_element::m_ref_count properly.
+    */
+    cur_field->set_null();
     field_pos+= cur_field->pack_length();
   }
 }

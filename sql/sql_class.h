@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2025, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include <atomic>
 #include "dur_prop.h"
 #include <waiting_threads.h>
+#include "sql_array.h"
 #include "sql_const.h"
 #include "lex_ident.h"
 #include "sql_used.h"
@@ -55,6 +56,8 @@
 #include "scope.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
+#include "sql_basic_types.h"                     // enum class active_dml_stmt
+#include "sql_trigger.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -123,6 +126,8 @@ enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
                                        SLAVE_RUN_TRIGGERS_FOR_RBR_ENFORCE};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
+enum read_only_options { READONLY_OFF, READONLY_ON, READONLY_NO_LOCK,
+                         READONLY_NO_LOCK_NO_ADMIN};
 
 /*
   COLUMNS_READ:       A column is goind to be read.
@@ -232,6 +237,8 @@ extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
 extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
 
+extern void mariadb_error_read_only();
+
 /**
   @class CSET_STRING
   @brief Character set armed LEX_STRING
@@ -265,23 +272,22 @@ public:
 
 class Recreate_info
 {
-  ha_rows m_records_copied;
-  ha_rows m_records_duplicate;
 public:
+  ha_rows copied;
+  ha_rows duplicate;
+  uchar tabledef_version[MY_UUID_SIZE];
+
   Recreate_info()
-   :m_records_copied(0),
-    m_records_duplicate(0)
-  { }
-  Recreate_info(ha_rows records_copied,
-                ha_rows records_duplicate)
-   :m_records_copied(records_copied),
-    m_records_duplicate(records_duplicate)
-  { }
-  ha_rows records_copied() const { return m_records_copied; }
-  ha_rows records_duplicate() const { return m_records_duplicate; }
+   :copied(0),
+    duplicate(0)
+  {
+    bzero(tabledef_version, sizeof(tabledef_version));
+  }
+  ha_rows records_copied() const { return copied; }
+  ha_rows records_duplicate() const { return duplicate; }
   ha_rows records_processed() const
   {
-    return m_records_copied + m_records_duplicate;
+    return copied + duplicate;
   }
 };
 
@@ -736,6 +742,7 @@ typedef struct system_variables
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
   ulonglong max_rowid_filter_size;
+  ulonglong create_temporary_table_binlog_formats;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -855,6 +862,7 @@ typedef struct system_variables
   uint column_compression_threshold;
   uint column_compression_zlib_level;
   uint in_subquery_conversion_threshold;
+  uint max_open_cursors;
   int max_user_connections;
 
   /**
@@ -1202,6 +1210,9 @@ struct THD_count
 
 #ifdef MYSQL_SERVER
 
+#include "select_result.h"
+#include "statement_rcontext.h"
+
 void free_tmp_table(THD *thd, TABLE *entry);
 
 
@@ -1250,6 +1261,28 @@ public:
 
   enum_state state;
 
+  /*
+    Bit-ORed mask of Item::with_flag for *some* items in free_list.
+    The goal is to have the cumulated COMPLEX_DATA_TYPE flag.
+    So far only only some items can can COMPLEX_DATA_TYPE:
+      Item_param, Item_func, Item_sp_variable, Item_row
+    For other Item types this flag is not collected.
+  */
+  item_with_t with_flags_bit_or_for_complex_data_types;
+
+  bool with_complex_data_types() const
+  {
+    return (bool) (with_flags_bit_or_for_complex_data_types &
+                   item_with_t::COMPLEX_DATA_TYPE);
+  }
+
+  /*
+    Raise an error if free_list contains items with complex data types.
+      @param op - the operation name for the error message, e.g. "CREATE VIEW"
+      @return   - true if the error was raised, or false otherwise
+  */
+  bool check_free_list_no_complex_data_types(const char *op);
+
 public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
@@ -1258,7 +1291,8 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg)
+    free_list(0), mem_root(mem_root_arg), state(state_arg),
+    with_flags_bit_or_for_complex_data_types(item_with_t::NONE)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
@@ -1524,6 +1558,8 @@ public:
 
   void set_query_arena(Query_arena *set);
 
+  void expr_event_handler_for_free_list(THD *thd, expr_event_t event);
+
   void free_items();
   /* Close the active state associated with execution of this statement */
   virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/);
@@ -1558,8 +1594,6 @@ public:
   }
 };
 
-
-class Server_side_cursor;
 
 /*
   Struct to catch changes in column metadata that is sent to client. 
@@ -1707,6 +1741,63 @@ public:
   void restore_backup_statement(Statement *stmt, Statement *backup);
   /* return class type */
   Type type() const override;
+
+private:
+  Dynamic_array<active_dml_stmt> m_running_stmts{PSI_INSTRUMENT_MEM};
+
+  /**
+    Stack of events of triggers being invoked on running a DML statement.
+    E.g. if there is a trigger BEFORE INSERT ON t1 that calls the statement
+    `DELETE FROM t2` and there is a BEFORE DELETE trigger for the table t2
+    that runs the statement `UPDATE t3` and there is a BEFORE UPDATE trigger
+    for the table t3 then at the moment when the statement `UPDATE t3 ...`
+    be invoked, the stack m_running_trgs would contain the following events:
+     top ->   TRG_EVENT_UPDATE
+              TRG_EVENT_DELETE
+     bottom ->TRG_EVENT_INSERT
+    }
+  */
+  Dynamic_array<trg_event_type> m_running_trgs{PSI_INSTRUMENT_MEM};
+
+public:
+  active_dml_stmt current_active_stmt();
+  bool push_active_stmt(active_dml_stmt new_active_stmt);
+  void pop_current_active_stmt();
+
+  trg_event_type current_trg_event();
+  bool push_current_trg_event(trg_event_type trg_event);
+  void pop_current_trg_event();
+};
+
+
+/**
+  This class is responsible for storing a kind of current DML statement
+  for further matching with type of statement represented by the clauses
+    INSERTING / UPDATING / DELETING.
+  On handling the statements INSERT / UPDATE / DELETE the corresponding type
+  of the statement specified by the enum active_dml_stmt is pushed on top of
+  the Statement's stack in constructor of the class Running_stmt_guard and
+  popped up on finishing execution of the statement by destructor of the class
+  Running_stmt_guard.
+  Every time when the one of the clauses INSERTING / UPDATING / DELETING
+  is evaluated, the last pushed type of DML statement matched with the type
+  representing by the clause INSERTING / UPDATING / DELETING.
+  @see Item_trigger_type_of_statement::val_bool()
+*/
+class Running_stmt_guard
+{
+  Statement *m_stmt;
+public:
+  Running_stmt_guard(Statement *stmt,
+                     active_dml_stmt new_active_stmt)
+  : m_stmt{stmt}
+  {
+    m_stmt->push_active_stmt(new_active_stmt);
+  }
+  ~Running_stmt_guard()
+  {
+    m_stmt->pop_current_active_stmt();
+  }
 };
 
 
@@ -2647,8 +2738,8 @@ struct wait_for_commit
       return wait_for_prior_commit2(thd, allow_kill);
     else
     {
-      if (wakeup_error)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      if (unlikely(wakeup_error))
+        prior_commit_error(thd);
       return wakeup_error;
     }
   }
@@ -2699,6 +2790,7 @@ struct wait_for_commit
   void wakeup(int wakeup_error);
 
   int wait_for_prior_commit2(THD *thd, bool allow_kill);
+  void prior_commit_error(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
@@ -2949,7 +3041,6 @@ enum class THD_WHERE
 };
 
 
-class THD;
 const char *thd_where(THD *thd);
 
 
@@ -2972,7 +3063,8 @@ class THD: public THD_count, /* this must be first */
            public Item_change_list,
            public MDL_context_owner,
            public Open_tables_state,
-           public Sp_caches
+           public Sp_caches,
+           public Statement_rcontext
 {
 private:
   inline bool is_stmt_prepare() const
@@ -3028,7 +3120,7 @@ public:
 #endif
   Query_cache_tls query_cache_tls;
   NET	  net;				// client connection descriptor
-  /** Aditional network instrumentation for the server only. */
+  /** Additional network instrumentation for the server only. */
   NET_SERVER m_net_server_extension;
   scheduler_functions *scheduler;       // Scheduler for this connection
   Protocol *protocol;			// Current protocol
@@ -3187,6 +3279,12 @@ public:
   bool semi_sync_slave;
   /* Several threads may share this thd. Used with parallel repair */
   bool shared_thd;
+  /*
+    Mark if query was logged as statement or to mark that there was no
+    changes in the table.  Used to check if tmp table changes are
+    properly logged.
+  */
+  bool tmp_table_binlog_handled;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 
@@ -3366,6 +3464,33 @@ public:
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
     return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
   }
+
+  int is_binlog_format_row() const
+  {
+    return variables.binlog_format == BINLOG_FORMAT_ROW;
+  }
+
+  /*
+    Should we binlog a CREATE TEMPORARY statement.
+
+    This should happen only if all of the following is true
+    - binlog format is either BINLOG_FORMAT_STMT or BINLOG_FORMAT_MIXED
+      and the corresponding bit is set in binlog_format_for_create_temporary.
+    - The server is not in readonly mode or this is a slave thread.
+      - Slave threads are not affected by readonly in this case.
+
+    Note that CREATE TEMPORARY is always logged in STATEMENT from as
+    temporary tables does not support ROW logging.
+
+    @result 1 CREATE should be logged
+    @result 0 CREATE should not be logged
+  */
+  bool binlog_create_tmp_table()
+  {
+    return (((1ULL << variables.binlog_format) &
+             variables.create_temporary_table_binlog_formats) &&
+            (!opt_readonly || slave_thread));
+  }
   /**
     Determine if binlogging is disabled for this session
     @retval 0 if the current statement binlogging is disabled
@@ -3408,14 +3533,19 @@ public:
     return m_binlog_filter_state;
   }
 
+  bool binlog_renamed_tmp_tables(TABLE_LIST *table_list);
+
   /**
     Checks if a user connection is read-only
   */
-  inline bool is_read_only_ctx()
+  inline bool check_read_only_with_error()
   {
-    return opt_readonly &&
-           !(security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
-           !slave_thread;
+    if (likely(!opt_readonly) || slave_thread ||
+        ((security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
+         opt_readonly != READONLY_NO_LOCK_NO_ADMIN))
+      return false;
+    mariadb_error_read_only();
+    return true;
   }
 
 private:
@@ -3743,6 +3873,19 @@ public:
   {
     m_row_count_func= row_count_func;
   }
+
+  /*
+    Free all top level statement data (e.g. belonging to SYS_REFCURSORs)
+    and reinit it for a new top level statement.
+    It's called in the very end of the top level statement
+    (it's not called for individual stored routune statements).
+  */
+  void statement_rcontext_reinit()
+  {
+    Statement_rcontext::reinit(this);
+    with_flags_bit_or_for_complex_data_types= item_with_t::NONE;
+  }
+
   inline void set_affected_rows(longlong row_count_func)
   {
     /*
@@ -4881,7 +5024,7 @@ public:
 
   /*
     Mark thread to be killed, with optional error number and string.
-    string is not released, so it has to be allocted on thd mem_root
+    string is not released, so it has to be allocated on thd mem_root
     or be a global string
 
     Ensure that we don't replace a kill with a lesser one. For example
@@ -5047,21 +5190,6 @@ public:
   inline void reset_current_stmt_binlog_format_row()
   {
     DBUG_ENTER("reset_current_stmt_binlog_format_row");
-    /*
-      If there are temporary tables, don't reset back to
-      statement-based. Indeed it could be that:
-      CREATE TEMPORARY TABLE t SELECT UUID(); # row-based
-      # and row-based does not store updates to temp tables
-      # in the binlog.
-      INSERT INTO u SELECT * FROM t; # stmt-based
-      and then the INSERT will fail as data inserted into t was not logged.
-      So we continue with row-based until the temp table is dropped.
-      If we are in a stored function or trigger, we mustn't reset in the
-      middle of its execution (as the binary logging way of a stored function
-      or trigger is decided when it starts executing, depending for example on
-      the caller (for a stored function: if caller is SELECT or
-      INSERT/UPDATE/DELETE...).
-    */
     DBUG_PRINT("debug",
                ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
                 YESNO(has_temporary_tables()), YESNO(in_sub_stmt),
@@ -5070,7 +5198,7 @@ public:
     {
       if (wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
-      else if (!has_temporary_tables())
+      else
         set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
@@ -5671,6 +5799,8 @@ public:
   };
   bool has_thd_temporary_tables();
   bool has_temporary_tables();
+  bool has_not_logged_temporary_tables();
+  bool has_logged_temporary_tables();
 
   TABLE *create_and_open_tmp_table(LEX_CUSTRING *frm,
                                    const char *path,
@@ -6229,144 +6359,6 @@ public:
 
 class JOIN;
 
-/* Pure interface for sending tabular data */
-class select_result_sink: public Sql_alloc
-{
-public:
-  THD *thd;
-  select_result_sink(THD *thd_arg): thd(thd_arg) {}
-  inline int send_data_with_check(List<Item> &items,
-                              SELECT_LEX_UNIT *u,
-                              ha_rows sent)
-  {
-    if (u->lim.check_offset(sent))
-      return 0;
-
-    if (u->thd->killed == ABORT_QUERY)
-      return 0;
-
-    return send_data(items);
-  }
-  /*
-    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
-    example for a duplicate row entry written to a temp table.
-  */
-  virtual int send_data(List<Item> &items)=0;
-  virtual ~select_result_sink() = default;
-  // Used in cursors to initialize and reset
-  void reinit(THD *thd_arg) { thd= thd_arg; }
-};
-
-class select_result_interceptor;
-
-/*
-  Interface for sending tabular data, together with some other stuff:
-
-  - Primary purpose seems to be sending typed tabular data:
-     = the DDL is sent with send_fields()
-     = the rows are sent with send_data()
-  Besides that,
-  - there seems to be an assumption that the sent data is a result of 
-    SELECT_LEX_UNIT *unit,
-  - nest_level is used by SQL parser
-*/
-
-class select_result :public select_result_sink 
-{
-protected:
-  /* 
-    All descendant classes have their send_data() skip the first 
-    unit->offset_limit_cnt rows sent.  Select_materialize
-    also uses unit->get_column_types().
-  */
-  SELECT_LEX_UNIT *unit;
-  /* Something used only by the parser: */
-public:
-  ha_rows est_records;  /* estimated number of records in the result */
-  select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
-  void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
-  virtual ~select_result() = default;
-  /**
-    Change wrapped select_result.
-
-    Replace the wrapped result object with new_result and call
-    prepare() and prepare2() on new_result.
-
-    This base class implementation doesn't wrap other select_results.
-
-    @param new_result The new result object to wrap around
-
-    @retval false Success
-    @retval true  Error
-  */
-  virtual bool change_result(select_result *new_result)
-  {
-    return false;
-  }
-  virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u)
-  {
-    unit= u;
-    return 0;
-  }
-  virtual int prepare2(JOIN *join) { return 0; }
-  /*
-    Because of peculiarities of prepared statements protocol
-    we need to know number of columns in the result set (if
-    there is a result set) apart from sending columns metadata.
-  */
-  virtual uint field_count(List<Item> &fields) const
-  { return fields.elements; }
-  virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
-  virtual bool initialize_tables (JOIN *join) { return 0; }
-  virtual bool send_eof()=0;
-  /**
-    Check if this query returns a result set and therefore is allowed in
-    cursors and set an error message if it is not the case.
-
-    @retval FALSE     success
-    @retval TRUE      error, an error message is set
-  */
-  virtual bool check_simple_select() const;
-  virtual void abort_result_set() {}
-  virtual void reset_for_next_ps_execution();
-  void set_thd(THD *thd_arg) { thd= thd_arg; }
-  void reinit(THD *thd_arg)
-  {
-    select_result_sink::reinit(thd_arg);
-    unit= NULL;
-  }
-#ifdef EMBEDDED_LIBRARY
-  virtual void begin_dataset() {}
-#else
-  void begin_dataset() {}
-#endif
-  virtual void update_used_tables() {}
-
-  /* this method is called just before the first row of the table can be read */
-  virtual void prepare_to_read_rows() {}
-
-  void remove_offset_limit()
-  {
-    unit->lim.remove_offset();
-  }
-
-  /*
-    This returns
-    - NULL if the class sends output row to the client
-    - this if the output is set elsewhere (a file, @variable, or table).
-  */
-  virtual select_result_interceptor *result_interceptor()=0;
-
-  /*
-    This method is used to distinguish an normal SELECT from the cursor
-    structure discovery for cursor%ROWTYPE routine variables.
-    If this method returns "true", then a SELECT execution performs only
-    all preparation stages, but does not fetch any rows.
-  */
-  virtual bool view_structure_only() const { return false; }
-};
-
-
 /*
   This is a select_result_sink which simply writes all data into a (temporary)
   table. Creation/deletion of the table is outside of the scope of the class
@@ -6410,145 +6402,6 @@ private:
 
   List<char*> rows;
   int n_columns;
-};
-
-
-/*
-  Base class for select_result descendants which intercept and
-  transform result set rows. As the rows are not sent to the client,
-  sending of result set metadata should be suppressed as well.
-*/
-
-class select_result_interceptor: public select_result
-{
-public:
-  select_result_interceptor(THD *thd_arg):
-    select_result(thd_arg), suppress_my_ok(false)
-  {
-    DBUG_ENTER("select_result_interceptor::select_result_interceptor");
-    DBUG_PRINT("enter", ("this %p", this));
-    DBUG_VOID_RETURN;
-  }              /* Remove gcc warning */
-  uint field_count(List<Item> &fields) const override { return 0; }
-  bool send_result_set_metadata(List<Item> &fields, uint flag) override { return FALSE; }
-  select_result_interceptor *result_interceptor() override { return this; }
-
-  /*
-    Instruct the object to not call my_ok(). Client output will be handled
-    elsewhere. (this is used by ANALYZE $stmt feature).
-  */
-  void disable_my_ok_calls() { suppress_my_ok= true; }
-  void reinit(THD *thd_arg)
-  {
-    select_result::reinit(thd_arg);
-    suppress_my_ok= false;
-  }
-protected:
-  bool suppress_my_ok;
-};
-
-
-class sp_cursor_statistics
-{
-protected:
-  ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
-  ulonglong m_row_count;   // Number of successful FETCH since last OPEN
-  bool m_found;            // If last FETCH fetched a row
-public:
-  sp_cursor_statistics()
-   :m_fetch_count(0),
-    m_row_count(0),
-    m_found(false)
-  { }
-  bool found() const
-  { return m_found; }
-
-  ulonglong row_count() const
-  { return m_row_count; }
-
-  ulonglong fetch_count() const
-  { return m_fetch_count; }
-  void reset() { *this= sp_cursor_statistics(); }
-};
-
-
-class sp_instr_cpush;
-
-/* A mediator between stored procedures and server side cursors */
-class sp_lex_keeper;
-class sp_cursor: public sp_cursor_statistics
-{
-private:
-  /// An interceptor of cursor result set used to implement
-  /// FETCH <cname> INTO <varlist>.
-  class Select_fetch_into_spvars: public select_result_interceptor
-  {
-    List<sp_fetch_target> *m_fetch_target_list;
-    uint field_count;
-    bool m_view_structure_only;
-    bool send_data_to_variable_list(List<sp_fetch_target> &vars,
-                                    List<Item> &items);
-  public:
-    Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
-     :select_result_interceptor(thd_arg),
-      m_view_structure_only(view_structure_only)
-    {}
-    void reset(THD *thd_arg)
-    {
-      select_result_interceptor::reinit(thd_arg);
-      m_fetch_target_list= NULL;
-      field_count= 0;
-    }
-    uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_fetch_target> *vars)
-    {
-      m_fetch_target_list= vars;
-    }
-
-    bool send_eof() override { return FALSE; }
-    int send_data(List<Item> &items) override;
-    int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
-    bool view_structure_only() const override { return m_view_structure_only; }
-};
-
-public:
-  sp_cursor()
-   :result(NULL, false),
-    server_side_cursor(NULL)
-  { }
-  sp_cursor(THD *thd_arg, bool view_structure_only)
-   :result(thd_arg, view_structure_only),
-    server_side_cursor(NULL)
-  {}
-
-  virtual ~sp_cursor()
-  { destroy(); }
-
-  virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
-
-  int open(THD *thd);
-
-  int close(THD *thd);
-
-  my_bool is_open()
-  { return MY_TEST(server_side_cursor); }
-
-  int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
-
-  bool export_structure(THD *thd, Row_definition_list *list);
-
-  void reset(THD *thd_arg)
-  {
-    sp_cursor_statistics::reset();
-    result.reinit(thd_arg);
-    server_side_cursor= NULL;
-  }
-
-  virtual sp_instr_cpush *get_push_instr() { return nullptr; }
-private:
-  Select_fetch_into_spvars result;
-  Server_side_cursor *server_side_cursor;
-  void destroy();
 };
 
 
@@ -6676,7 +6529,7 @@ class select_insert :public select_result_interceptor {
   int send_data(List<Item> &items) override;
   virtual bool store_values(List<Item> &values, bool *trg_skip_row);
   virtual bool can_rollback_data() { return 0; }
-  bool prepare_eof();
+  bool prepare_eof(bool using_create);
   bool send_ok_packet();
   bool send_eof() override;
   void abort_result_set() override;
@@ -6718,7 +6571,6 @@ public:
     }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
 
-  int binlog_show_create_table(TABLE **tables, uint count);
   bool store_values(List<Item> &values, bool *trg_skip_row) override;
   bool send_eof() override;
   void abort_result_set() override;

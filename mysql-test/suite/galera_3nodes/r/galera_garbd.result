@@ -2,8 +2,6 @@ connection node_2;
 connection node_1;
 connection node_1;
 connection node_2;
-connection node_1;
-connection node_2;
 connection node_3;
 Killing node #3 to free ports for garbd ...
 connection node_3;
@@ -26,8 +24,8 @@ DROP TABLE t1;
 Restarting node #3 to satisfy MTR's end-of-test checks
 connection node_3;
 connection node_1;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 connection node_2;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 connection node_3;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0 (.*) is not in state transfer \\(SYNCED\\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");

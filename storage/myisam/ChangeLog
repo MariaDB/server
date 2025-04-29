@@ -8,7 +8,7 @@
 
 2000-08-17  Michael Widenius  <monty@mysql.com>
 
-* Add a new flag in share.staus so that we can quickly check if a table
+* Add a new flag in share.status so that we can quickly check if a table
   is analyzed or not!
 
 2000-07-02  Michael Widenius  <monty@mysql.com>
@@ -135,7 +135,7 @@ Mon Aug  2 13:54:35 1999  Michael Widenius  <monty@bitch.pp.sci.fi>
 	
 1999-02-06  Michael Widenius  <monty@monty.pp.sci.fi>
 
-* Keys, key pointers and all varibles in the index file are stored in
+* Keys, key pointers and all variables in the index file are stored in
   high-endian-order to get better compression.
 * Allow NULL on keys
 	

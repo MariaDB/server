@@ -861,6 +861,8 @@ err:
               thd->transaction->stmt.modified_non_trans_table);
   table->file->ha_release_auto_increment();
   table->auto_increment_field_not_null= FALSE;
+  if (thd->tmp_table_binlog_handled)
+    table->mark_as_not_binlogged(); 		// tmp table changes are not in binlog
   thd->abort_on_warning= 0;
   DBUG_RETURN(error);
 }
@@ -996,6 +998,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   if (!(load_data_query= (char *)thd->strmake(query_str.ptr(), query_str.length())))
     return TRUE;
 
+  thd->tmp_table_binlog_handled= 1;
   Execute_load_query_log_event
     e(thd, load_data_query, query_str.length(),
       (uint) (fname_start - 1), (uint) fname_end,

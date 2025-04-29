@@ -30,6 +30,7 @@
         op_intersection ( A && B && C ... )
         op_symdifference ( A+B+C+... == 1 )
         op_difference ( A && !(B||C||..))
+        op_any_intersection ( A && B || A && C || ... || B && C ... )
   with the calls of the add_operation(operation, n_operands) method.
   The relation is calculated over a set of shapes, that in turn have
   to be added with the add_new_shape() method. All the 'shapes' can
@@ -55,23 +56,24 @@ public:
   enum op_type
   {
     v_empty=          0x00000000,
-    v_find_t=         0x01000000,
-    v_find_f=         0x02000000,
-    v_t_found=        0x03000000,
-    v_f_found=        0x04000000,
-    v_mask=           0x07000000,
+    v_find_t=         0x00100000,
+    v_find_f=         0x00200000,
+    v_t_found=        0x00300000,
+    v_f_found=        0x00400000,
+    v_mask=           0x00700000,
 
-    op_not=           0x80000000,
-    op_shape=         0x00000000,
-    op_union=         0x10000000,
-    op_intersection=  0x20000000,
-    op_symdifference= 0x30000000,
-    op_difference=    0x40000000,
-    op_repeat=        0x50000000,
-    op_border=        0x60000000,
-    op_internals=     0x70000000,
-    op_false=         0x08000000,
-    op_any=           0x78000000 /* The mask to get any of the operations */
+    op_not=              0x80000000,
+    op_shape=            0x00000000,
+    op_union=            0x10000000,
+    op_intersection=     0x20000000,
+    op_symdifference=    0x30000000,
+    op_difference=       0x40000000,
+    op_repeat=           0x50000000,
+    op_border=           0x60000000,
+    op_internals=        0x70000000,
+    op_false=            0x08000000,
+    op_any_intersection= 0x07000000,
+    op_any=              0x7F000000 /* The mask to get any of the operations */
   };
   enum shape_type
   {
@@ -144,7 +146,7 @@ protected:
   gcalc_shape_info m_si;
 public:
   Gcalc_operation_transporter(Gcalc_function *fn, Gcalc_heap *heap) :
-    Gcalc_shape_transporter(heap), m_fn(fn) {}
+    Gcalc_shape_transporter(heap), m_fn(fn), m_si(0) {}
 
   int single_point(double x, double y) override;
   int start_line() override;

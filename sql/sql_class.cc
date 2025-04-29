@@ -1573,6 +1573,7 @@ void THD::change_user(void)
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
   sp_caches_clear();
+  statement_rcontext_reinit();
   opt_trace.delete_traces();
 }
 
@@ -1704,6 +1705,7 @@ void THD::cleanup(void)
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
   sp_caches_clear();
+  statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -1859,6 +1861,9 @@ THD::~THD()
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
+
+  statement_rcontext_reinit();
+
   my_free(semisync_info);
 #endif
   main_lex.free_set_stmt_mem_root();
@@ -2417,6 +2422,15 @@ void THD::cleanup_after_query()
   DBUG_ENTER("THD::cleanup_after_query");
 
   thd_progress_end(this);
+
+  if (!spcont && !in_sub_stmt)
+  {
+    /*
+      We're at the end of the top level statement
+      (not just in the end of a stored routine individual statement).
+    */
+    statement_rcontext_reinit();
+  }
 
   /*
     Reset RAND_USED so that detection of calls to rand() will save random
@@ -3105,7 +3119,7 @@ struct Item_change_record: public ilink
 
 
 /*
-  Register an item tree tree transformation, performed by the query
+  Register an item tree transformation, performed by the query
   optimizer. We need a pointer to runtime_memroot because it may be !=
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */
@@ -3197,6 +3211,25 @@ void Item_change_list::rollback_item_tree_changes()
 /*****************************************************************************
 ** Functions to provide a interface to select results
 *****************************************************************************/
+
+int select_result_sink::send_data_with_check(List<Item> &items,
+                                             SELECT_LEX_UNIT *u,
+                                             ha_rows sent)
+{
+  if (u->lim.check_offset(sent))
+    return 0;
+
+  if (u->thd->killed == ABORT_QUERY)
+    return 0;
+
+  int rc= send_data(items);
+
+  if (thd->stmt_arena->with_complex_data_types())
+    thd->stmt_arena->expr_event_handler_for_free_list(thd,
+                                  expr_event_t::DESTRUCT_RESULT_SET_ROW_FIELD);
+  return rc;
+}
+
 
 void select_result::reset_for_next_ps_execution()
 {
@@ -4098,6 +4131,37 @@ Query_arena::Type Query_arena::type() const
 }
 
 
+bool Query_arena::check_free_list_no_complex_data_types(const char *op)
+{
+  DBUG_ENTER("Query_arena::check_free_list_no_complex_data_types");
+  for (Item *item= free_list; item; item= item->next)
+  {
+    if (item->fixed())
+    {
+      const Type_handler *th= item->type_handler();
+      if (th->is_complex())
+      {
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+                 th->name().ptr(), op);
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+void Query_arena::expr_event_handler_for_free_list(THD *thd,
+                                                   expr_event_t event)
+{
+  for (Item *item= free_list; item; item= item->next)
+  {
+    if (item->fixed())
+      item->expr_event_handler(thd, event);
+  }
+}
+
+
 void Query_arena::free_items()
 {
   Item *next;
@@ -4224,6 +4288,62 @@ void Statement::restore_backup_statement(Statement *stmt, Statement *backup)
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  Get a type of DML statement currently is running
+*/
+
+active_dml_stmt Statement::current_active_stmt()
+{
+  return *m_running_stmts.back();
+}
+
+
+/**
+  Store information about a type of the current DML statement being executed
+*/
+
+bool Statement::push_active_stmt(active_dml_stmt new_active_stmt)
+{
+  return m_running_stmts.push(new_active_stmt);
+}
+
+
+/**
+  Remove information about a type of completed DML statement
+*/
+
+void Statement::pop_current_active_stmt()
+{
+  m_running_stmts.pop();
+}
+
+
+trg_event_type Statement::current_trg_event()
+{
+  /*
+    current_trg_event() is called indirectly by Item_trigger_field::fix_fields
+    both on handling DML statements INSERT/UPDATE/DELETE and DDL statement
+    CREATE TRIGGER. For the last one, m_running_trgs is empty since the
+    method push_current_trg_event() is run only on processing triggers, not on
+    thier creation. So take care about this case.
+  */
+  if (unlikely(m_running_trgs.elements() == 0))
+    return TRG_EVENT_MAX;
+  return *m_running_trgs.back();
+}
+
+
+bool Statement::push_current_trg_event(trg_event_type trg_event)
+{
+  return m_running_trgs.push(trg_event);
+}
+
+
+void Statement::pop_current_trg_event()
+{
+  m_running_trgs.pop();
+}
 
 void THD::end_statement()
 {
@@ -6162,7 +6282,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
 }
 
 /*
-  Store slow query state at start of a stored procedure statment
+  Store slow query state at start of a stored procedure statement
 */
 
 void THD::store_slow_query_state(Sub_statement_state *backup)
@@ -6487,7 +6607,7 @@ void THD::mark_transaction_to_rollback(bool all)
 
 
 /**
-  Commit the whole transaction (both statment and all)
+  Commit the whole transaction (both statement and all)
 
   This is used mainly to commit an independent transaction,
   like reading system tables.
@@ -6858,7 +6978,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       table= tbl->table;
       share= table->s;
       flags= table->file->ha_table_flags();
-      if (!share->table_creation_was_logged)
+      if (!share->using_binlog())
       {
         /*
           This is a temporary table which was not logged in the binary log.
@@ -7937,6 +8057,18 @@ void THD::issue_unsafe_warnings()
 /**
   Log the current query.
 
+  @param qtype      Query type
+  @param query_arg  Query to be logged
+  @param query_len  Query length
+  @param is_trans   If table is transactional. This is need to know in which
+                    cache the table changes has been logged
+  @param direct     Set if the query should be done directly to binary
+                    log instead of to the binary log cache.
+  suppress_use      Don't write 'use database' to the binary log. Used with
+                    statements like DROP DATABASE.
+  errcode           The error code if the statement failed.
+
+
   The query will be logged in either row format or statement format
   depending on the value of @c current_stmt_binlog_format_row field and
   the value of the @c qtype parameter.
@@ -8082,6 +8214,9 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
         row logged binlog may not have been reset in the case of locked tables
       */
       reset_binlog_for_next_statement();
+
+      /* Temp tables changes are logged as a statement */
+      tmp_table_binlog_handled= 1;
 
       DBUG_RETURN(error >= 0 ? error : 1);
     }
@@ -8395,6 +8530,24 @@ end:
     thd->mdl_context.acquire_lock(thd->backup_commit_lock,
                                   thd->variables.lock_wait_timeout);
   return wakeup_error;
+}
+
+
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+
+    The ER_PRIOR_COMMIT_FAILED is just an internal mechanism to ensure that a
+    transaction does not commit successfully if a prior commit failed, so that
+    the parallel replication worker threads stop in an orderly fashion when
+    one of them get an error. Thus, if another worker already got another real
+    error, overriding it with ER_PRIOR_COMMIT_FAILED is not useful.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
 }
 
 

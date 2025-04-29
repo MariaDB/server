@@ -530,6 +530,7 @@ void init_update_queries(void)
                                             CF_SCHEMA_CHANGE;
   sql_command_flags[SQLCOM_CREATE_SEQUENCE]=  (CF_CHANGES_DATA |
                                             CF_REEXECUTION_FRAGILE |
+                                            CF_FORCE_ORIGINAL_BINLOG_FORMAT |
                                             CF_AUTO_COMMIT_TRANS |
                                             CF_SCHEMA_CHANGE);
   sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS |
@@ -1469,14 +1470,16 @@ out:
 static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 {
   DBUG_ENTER("deny_updates_if_read_only_option");
+  DBUG_ASSERT(!thd->slave_thread);              // Checked by caller
 
   if (!opt_readonly)
     DBUG_RETURN(FALSE);
 
   LEX *lex= thd->lex;
 
-  /* Super user is allowed to do changes */
-  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL)
+  /* Super user is allowed to do changes in some cases */
+  if ((thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) != NO_ACL &&
+      opt_readonly < READONLY_NO_LOCK_NO_ADMIN)
     DBUG_RETURN(FALSE);
 
   /* Check if command doesn't update anything */
@@ -2183,7 +2186,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
 
     /*
       Initialize thd->lex since it's used in many base functions, such as
-      open_tables(). Otherwise, it remains unitialized and may cause crash
+      open_tables(). Otherwise, it remains uninitialized and may cause crash
       during execution of COM_REFRESH.
     */
     lex_start(thd);
@@ -3629,7 +3632,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     }
     
     /*
-      Check if statment should be skipped because of slave filtering
+      Check if statement should be skipped because of slave filtering
       rules
 
       Exceptions are:
@@ -3668,7 +3671,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     */
     if (deny_updates_if_read_only_option(thd, all_tables))
     {
-      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+      mariadb_error_read_only();
       DBUG_RETURN(-1);
     }
 #ifdef HAVE_REPLICATION
@@ -3687,7 +3690,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     /*
       change LOCK TABLE WRITE to transaction
     */
-    if (lex->sql_command== SQLCOM_LOCK_TABLES && wsrep_convert_LOCK_to_trx)
+    if (lex->sql_command == SQLCOM_LOCK_TABLES && wsrep_convert_LOCK_to_trx)
     {
       for (TABLE_LIST *table= all_tables; table; table= table->next_global)
       {
@@ -3699,7 +3702,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 	}
       }
     }
-    if (lex->sql_command== SQLCOM_UNLOCK_TABLES &&
+    if (lex->sql_command == SQLCOM_UNLOCK_TABLES &&
 	thd->wsrep_converted_lock_session)
     {
       thd->wsrep_converted_lock_session= false;
@@ -5948,7 +5951,7 @@ finish:
         INSERT INTO t1 VALUES (_utf8mb3'test');
         COMMIT;
 
-      The statment (INSERT in this example) is already in binlog at this point, and the
+      The statement (INSERT in this example) is already in binlog at this point, and the
       and the "SET character_set_collations" is written inside a
       Q_CHARACTER_SET_COLLATIONS chunk in its log entry header.
       The flag CHARACTER_SET_COLLATIONS_USED is not needed any more.
@@ -7494,6 +7497,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   get_stmt_da()->reset_for_next_command();
   sent_row_count_for_statement= examined_row_count_for_statement= 0;
   accessed_rows_and_keys= 0;
+  tmp_table_binlog_handled= 0;
 
   reset_slow_query_state(0);
 
@@ -8111,7 +8115,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     fqtn= FALSE;
-  bool info_schema= is_infoschema_db(&db);
+  bool info_schema= (db.is_null() || db.is_empty())
+	            ? false : is_infoschema_db(&db);
   if (!table->sel && info_schema &&
       (table_options & TL_OPTION_UPDATING) &&
       /* Special cases which are processed by commands itself */

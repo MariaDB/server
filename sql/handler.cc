@@ -501,7 +501,7 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_INDEX_COL_TOO_LONG,	ER_DEFAULT(ER_INDEX_COLUMN_TOO_LONG));
   SETMSG(HA_ERR_INDEX_CORRUPT,		ER_DEFAULT(ER_INDEX_CORRUPT));
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
-  SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
+  SETMSG(HA_ERR_DISK_FULL,              "Disk got full writing '%s'");
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
   SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
   SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
@@ -754,6 +754,8 @@ int ha_initialize_handlerton(void *plugin_)
 
   DBUG_EXECUTE_IF("unstable_db_type", {
                     static int i= (int) DB_TYPE_FIRST_DYNAMIC;
+                    while (installed_htons[i])
+                      i++;
                     hton->db_type= (enum legacy_db_type)++i;
                   });
 
@@ -1853,11 +1855,8 @@ int ha_commit_trans(THD *thd, bool all)
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
 
-  if (rw_trans && thd->is_read_only_ctx())
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+  if (rw_trans && thd->check_read_only_with_error())
     goto err;
-  }
 
 #if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
@@ -2353,7 +2352,7 @@ int ha_rollback_trans(THD *thd, bool all)
                      "conf %d wsrep_err %s SQL %s",
                      thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
                      wsrep::to_c_string(thd->wsrep_cs().current_error()),
-                     thd->query());
+                     wsrep_thd_query(thd));
         }
 #endif /* WITH_WSREP */
       }
@@ -2369,7 +2368,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (WSREP(thd) && thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: msg %s is_real %d wsrep_err %s",
-                thd->thread_id, all? "TRUE" : "FALSE",
+                thd->thread_id, all ? "TRUE" : "FALSE",
                 thd->get_stmt_da()->message(), is_real_trans,
                 wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
@@ -2868,6 +2867,7 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
         }
         if (IF_WSREP((wsrep_emulate_bin_log &&
                       wsrep_is_wsrep_xid(info->list + i) &&
+                      !wsrep_is_xid_gtid_undefined(info->list + i) &&
                       x <= wsrep_limit), false) ||
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
@@ -3263,7 +3263,7 @@ Lex_cstring handler::get_canonical_filename(const Lex_cstring &path,
 
     Otherwise, in case if either of the table name or the database name
     starts with '#mysql50#', it's probably not correct to lower-case using
-    files_charset_info. Shoudn't we lower-case '#mysql50#name' using
+    files_charset_info. Shouldn't we lower-case '#mysql50#name' using
     character_set_filesystem instead?
   */
   return buff->set_casedn(path.left(mysql_data_home_len),
@@ -4727,8 +4727,12 @@ void handler::print_error(int error, myf errflag)
     break;
   case ENOSPC:
   case HA_ERR_DISK_FULL:
-    textno= ER_DISK_FULL;
     SET_FATAL_ERROR;                            // Ensure error is logged
+    my_printf_error(ER_DISK_FULL, "Disk got full writing '%s.%s' (Errcode: %iE)",
+                    MYF(errflag | ME_ERROR_LOG),
+                    table_share->db.str, table_share->table_name.str,
+                    error);
+    DBUG_VOID_RETURN;
     break;
   case EE_GLOBAL_TMP_SPACE_FULL:                // Safety
   case EE_LOCAL_TMP_SPACE_FULL:                 // Safety
@@ -6458,12 +6462,19 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
+    char index_file_name[FN_REFLEN+1], *index_file_name_end;
     Alter_info index_ainfo;
     HA_CREATE_INFO index_cinfo;
     char *path_end= strmov(file_name, path);
 
     bzero((char*) &index_cinfo, sizeof(index_cinfo));
     index_cinfo.alter_info= &index_ainfo;
+    if (create_info->index_file_name)
+    {
+      index_file_name_end= strmov(index_file_name, create_info->index_file_name);
+      index_cinfo.index_file_name= index_file_name;
+      index_cinfo.data_file_name= index_file_name;
+    }
 
     if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
       goto err;
@@ -6471,11 +6482,14 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     for (uint i= share.keys; i < share.total_keys; i++)
     {
       my_snprintf(path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+      if (create_info->index_file_name)
+        my_snprintf(index_file_name_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
       LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
-      if ((error= index_share.init_from_sql_statement_string(thd, false,
-                        sql.str, sql.length)))
+      error= !sql.length ||
+        index_share.init_from_sql_statement_string(thd, 0, sql.str, sql.length);
+      if (error)
       {
         index_share.db_plugin= NULL;
         break;
@@ -8195,7 +8209,10 @@ int handler::ha_write_row(const uchar *buf)
                   });
 #endif /* WITH_WSREP */
   if ((error= ha_check_overlaps(NULL, buf)))
+  {
+    DEBUG_SYNC_C("ha_write_row_end");
     DBUG_RETURN(error);
+  }
 
   if (table->s->long_unique_table && is_root_handler())
   {
@@ -8205,6 +8222,7 @@ int handler::ha_write_row(const uchar *buf)
       if (table->next_number_field)
         if (int err= update_auto_increment())
           error= err;
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
   }
@@ -8225,13 +8243,10 @@ int handler::ha_write_row(const uchar *buf)
     error= binlog_log_row(0, buf, log_func);
 
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-    {
-      DEBUG_SYNC_C("ha_write_row_end");
-      DBUG_RETURN(error);
-    }
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION && !error)
+      error= wsrep_after_row(thd);
 #endif /* WITH_WSREP */
   }
 
@@ -8388,7 +8403,7 @@ int handler::ha_delete_row(const uchar *buf)
   In a Spider cluster the direct update operation is pushed down to the
   child levels of the cluster.
 
-  Note that this can't be used in case of statment logging
+  Note that this can't be used in case of statement logging
 
   @param  update_rows   Number of updated rows.
 
@@ -8838,11 +8853,10 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 }
 
 
-int get_select_field_pos(Alter_info *alter_info, int select_field_count,
-                         bool versioned)
+int get_select_field_pos(Alter_info *alter_info, bool versioned)
 {
-  int select_field_pos= alter_info->create_list.elements - select_field_count;
-  if (select_field_count && versioned &&
+  int select_field_pos= alter_info->field_count();
+  if (alter_info->select_field_count && versioned &&
       /*
         ALTER_PARSER_ADD_COLUMN indicates system fields was created implicitly,
         select_field_count guarantees it's not ALTER TABLE
@@ -8855,7 +8869,7 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_ident_table &table_name,
-        const Lex_ident_db &db, int select_count)
+        const Lex_ident_db &db)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8866,8 +8880,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   {
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
-    uint select_field_pos= (uint) get_select_field_pos(alter_info, select_count,
-                                                       true);
+    uint select_field_pos= (uint) get_select_field_pos(alter_info, true);
     while (Create_field *f= field_it++)
     {
       /*
@@ -9304,10 +9317,9 @@ bool Table_period_info::check_field(const Create_field* f,
 
 bool Table_scope_and_contents_source_st::check_fields(
   THD *thd, Alter_info *alter_info,
-  const Lex_ident_table &table_name, const Lex_ident_db &db, int select_count)
+  const Lex_ident_table &table_name, const Lex_ident_db &db)
 {
-  return vers_check_system_fields(thd, alter_info,
-                                  table_name, db, select_count) ||
+  return vers_check_system_fields(thd, alter_info, table_name, db) ||
     check_period_fields(thd, alter_info);
 }
 

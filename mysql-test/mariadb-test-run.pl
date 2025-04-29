@@ -1859,7 +1859,7 @@ sub collect_mysqld_features {
     /^([\S]+)[ \t]+(.*?)\r?$/ or die "Could not parse mysqld --help: $_\n";
     $mysqld_variables{$1}= $2;
   }
-  mtr_error("Could not find variabes list") unless %mysqld_variables;
+  mtr_error("Could not find variables list") unless %mysqld_variables;
 }
 
 
@@ -2233,6 +2233,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -4495,6 +4498,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: innodb_open_files .* should not be greater than/,
      qr/InnoDB: Trying to delete tablespace.*but there are.*pending/,
      qr/InnoDB: Tablespace 1[0-9]* was not found at .*, and innodb_force_recovery was set/,
+     qr/InnoDB: Long wait \([0-9]+ seconds\) for double-write buffer flush/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -5964,7 +5968,7 @@ Options that specify ports
                         set and is not "auto", it overrides build-thread.
   mtr-build-thread=#    Specify unique number to calculate port number(s) from.
   build-thread=#        Can be set in environment variable MTR_BUILD_THREAD.
-                        Set  MTR_BUILD_THREAD="auto" to automatically aquire
+                        Set  MTR_BUILD_THREAD="auto" to automatically acquire
                         a build thread id that is unique to current host
   port-group-size=N     Reserve groups of TCP ports of size N for each MTR thread
 

@@ -120,11 +120,16 @@ static const LEX_CSTRING trg_action_time_type_names[]=
   { STRING_WITH_LEN("AFTER") }
 };
 
-static const LEX_CSTRING trg_event_type_names[]=
+const LEX_CSTRING trg_event_type_names[]=
 {
-  { STRING_WITH_LEN("INSERT") },
-  { STRING_WITH_LEN("UPDATE") },
-  { STRING_WITH_LEN("DELETE") }
+  { STRING_WITH_LEN("<invalid>") }, // 0x00
+  { STRING_WITH_LEN("INSERT") }, // 0x01
+  { STRING_WITH_LEN("UPDATE") }, // 0x02
+  { STRING_WITH_LEN("INSERT,UPDATE") }, // 0x03
+  { STRING_WITH_LEN("DELETE") }, // 0x04
+  { STRING_WITH_LEN("INSERT,DELETE") }, // 0x05
+  { STRING_WITH_LEN("UPDATE,DELETE") }, // 0x06
+  { STRING_WITH_LEN("INSERT,UPDATE,DELETE") } // 0x07
 };
 
 static const LEX_CSTRING sp_data_access_name[]=
@@ -570,7 +575,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Set user","Server", "To create views and stored routines with a different definer"},
   {"Federated admin", "Server", "To execute the CREATE SERVER, ALTER SERVER, DROP SERVER statements"},
   {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
-  {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
+  {"Read_only admin", "Server", "To perform write operations even if @@read_only=READ_ONLY or READ_ONLY_NO_LOCK"},
   {"Usage","Server Admin","No privileges - allow connect only"},
   {"Show Create Routine","Databases,Functions,Procedures","To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE"},
   {NullS, NullS, NullS}
@@ -5622,6 +5627,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
         if (!partial_cond || partial_cond->val_bool())
         {
+          if (thd->is_error())
+            goto err;
           /*
             If table is I_S.tables and open_table_method is 0 (eg SKIP_OPEN)
             we can skip table opening and we don't have lookup value for
@@ -7752,12 +7759,25 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   table->field[0]->store(STRING_WITH_LEN("def"), cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
   table->field[2]->store(trigger->name.str, trigger->name.length, cs);
-  table->field[3]->store(trg_event_type_names[trigger->event].str,
-                         trg_event_type_names[trigger->event].length, cs);
+  DBUG_ASSERT(trigger->events < trg2bit(TRG_EVENT_MAX));
+  table->field[3]->store(trg_event_type_names[trigger->events].str,
+                         trg_event_type_names[trigger->events].length, cs);
   table->field[4]->store(STRING_WITH_LEN("def"), cs);
   table->field[5]->store(db_name->str, db_name->length, cs);
   table->field[6]->store(table_name->str, table_name->length, cs);
-  table->field[7]->store(trigger->action_order);
+  String buff;
+  for (int i=0;i < TRG_EVENT_MAX; i++)
+  {
+    if (trigger->action_order[i])
+    {
+      if (!buff.is_empty())
+        buff.append(',');
+      buff.append_longlong(trigger->action_order[i]);
+    }
+
+    table->field[7]->store(buff.ptr(), buff.length(), cs);
+  }
+
   table->field[9]->store(trigger_body.str, trigger_body.length, cs);
   table->field[10]->store(STRING_WITH_LEN("ROW"), cs);
   table->field[11]->store(trg_action_time_type_names[trigger->action_time].str,
@@ -7810,9 +7830,11 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
                get_trigger((enum trg_event_type) event,
                            (enum trg_action_time_type) timing) ;
              trigger;
-             trigger= trigger->next)
+             trigger= trigger->next[event])
         {
-          if (store_trigger(thd, trigger, table, db_name, table_name))
+          if (is_the_right_most_event_bit(trigger->events,
+                                          (trg_event_type)event) &&
+              store_trigger(thd, trigger, table, db_name, table_name))
             DBUG_RETURN(1);
         }
       }
@@ -10296,7 +10318,7 @@ ST_FIELD_INFO triggers_fields_info[]=
   Column("TRIGGER_CATALOG",        Catalog(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("TRIGGER_SCHEMA",            Name(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("TRIGGER_NAME",              Name(), NOT_NULL, "Trigger",  OPEN_FRM_ONLY),
-  Column("EVENT_MANIPULATION",    Varchar(6), NOT_NULL, "Event",    OPEN_FRM_ONLY),
+  Column("EVENT_MANIPULATION",    Varchar(20), NOT_NULL, "Event",   OPEN_FRM_ONLY),
   Column("EVENT_OBJECT_CATALOG",   Catalog(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("EVENT_OBJECT_SCHEMA",       Name(), NOT_NULL,             OPEN_FRM_ONLY),
   Column("EVENT_OBJECT_TABLE",        Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),

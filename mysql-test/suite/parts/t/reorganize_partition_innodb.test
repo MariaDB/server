@@ -8,9 +8,8 @@
 
 mkdir $MYSQLTEST_VARDIR/tmp/partitions_here;
 
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-eval CREATE TABLE t (
-      a INT NOT NULL
+evalp CREATE TABLE t (
+      a INT NOT NULL, KEY(a)
     ) ENGINE=INNODB
 PARTITION BY HASH (a) (
   PARTITION p1 DATA DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/' ENGINE = INNODB,
@@ -61,9 +60,8 @@ DROP TABLE t;
 
 SET @strict = @@innodb_strict_mode;
 SET innodb_strict_mode=OFF;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
-eval CREATE TABLE t (
-      a INT NOT NULL
+evalp CREATE TABLE t (
+      a INT NOT NULL, KEY(a)
     ) ENGINE=INNODB
 PARTITION BY RANGE (a)
   SUBPARTITION BY HASH (a)
@@ -71,11 +69,11 @@ PARTITION BY RANGE (a)
   (
      PARTITION p1 VALUES LESS THAN (7)
          DATA DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/'
-         INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/'
+         INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
          ENGINE = INNODB,
      PARTITION p2 VALUES LESS THAN MAXVALUE
          DATA DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/'
-         INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/'
+         INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
          ENGINE = INNODB
   );
 SET innodb_strict_mode=@strict;
@@ -86,11 +84,11 @@ REORGANIZE PARTITION p1,p2 INTO
 (
  PARTITION p1 VALUES LESS THAN (7)
    DATA DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
-   INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+   INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/'
    ENGINE = INNODB,
  PARTITION p2 VALUES LESS THAN MAXVALUE
    DATA DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
-   INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+   INDEX DIRECTORY = '$MYSQLTEST_VARDIR/tmp/partitions_here/'
    ENGINE = INNODB
 );
 

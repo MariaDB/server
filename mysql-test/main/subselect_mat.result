@@ -899,7 +899,7 @@ Warnings:
 Warning	1260	Row 1 was cut by group_concat()
 Warning	1260	Row 2 was cut by group_concat()
 Warning	1260	Row 3 was cut by group_concat()
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_1024
@@ -917,7 +917,7 @@ Warnings:
 Warning	1260	Row 1 was cut by group_concat()
 Warning	1260	Row 2 was cut by group_concat()
 Warning	1260	Row 3 was cut by group_concat()
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1_1024, t2_1024, t3_1024;
 set @blob_len = 1025;
 set @suffix_len = @blob_len - @prefix_len;
@@ -1002,7 +1002,7 @@ Warnings:
 Warning	1260	Row 1 was cut by group_concat()
 Warning	1260	Row 2 was cut by group_concat()
 Warning	1260	Row 3 was cut by group_concat()
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_1025
@@ -1020,7 +1020,7 @@ Warnings:
 Warning	1260	Row 1 was cut by group_concat()
 Warning	1260	Row 2 was cut by group_concat()
 Warning	1260	Row 3 was cut by group_concat()
-Warning	4203	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1_1025, t2_1025, t3_1025;
 create table t1bit (a1 bit(3), a2 bit(3));
 create table t2bit (b1 bit(3), b2 bit(3));

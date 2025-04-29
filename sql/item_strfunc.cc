@@ -57,7 +57,6 @@ C_MODE_END
 #endif
 
 /* fmtlib include (https://fmt.dev/). */
-#define FMT_STATIC_THOUSANDS_SEPARATOR ','
 #define FMT_HEADER_ONLY 1
 #include "fmt/args.h"
 
@@ -1560,6 +1559,13 @@ namespace fmt {
   };
 };
 
+struct fmt_locale_comma : std::numpunct<char>
+{
+  char do_thousands_sep() const override { return ','; }
+  std::string do_grouping() const override { return "\3"; }
+};
+static std::locale fmt_locale(std::locale(), new fmt_locale_comma);
+
 /*
   SFORMAT(format_string, ...)
   This function receives a formatting specification string and N parameters
@@ -1612,7 +1618,7 @@ String *Item_func_sformat::val_str(String *res)
   /* Create the string output  */
   try
   {
-    auto text = fmt::vformat(fmt_arg->c_ptr_safe(), arg_store);
+    auto text = fmt::vformat(fmt_locale, fmt_arg->c_ptr_safe(), arg_store);
     res->length(0);
     res->set_charset(collation.collation);
     res->append(text.c_str(), text.size(), fmt_arg->charset());
@@ -6155,7 +6161,10 @@ String *Item_func_format_bytes::val_str_ascii(String *)
   if (null_value)
     return 0;
 
-  double bytes_abs= fabs(bytes);
+  /*
+    snprintf below uses %4.2f, so 1023.99 MiB should be shown as 1.00 GiB
+  */
+  double bytes_abs= fabs(bytes)/1023.995*1024;
 
   constexpr uint64_t kib{1024};
   constexpr uint64_t mib{1024 * kib};

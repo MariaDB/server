@@ -78,7 +78,7 @@ endforeach()
 
 set(CPACK_COMPONENTS_ALL ${COMPONENTS_INSTALL})
 
-# Extra things beyong CMake components
+# Extra things beyond CMake components
 # DBInstance (running mysql_install_db.exe)
 set(WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
 

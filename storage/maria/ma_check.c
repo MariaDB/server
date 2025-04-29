@@ -2894,7 +2894,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
 
   if (param->testflag & T_SAFE_REPAIR)
   {
-    /* Don't repair if we loosed more than one row */
+    /* Don't repair if we lost more than one row */
     if (sort_info.new_info->s->state.state.records+1 < start_records)
     {
       share->state.state.records= start_records;
@@ -6327,7 +6327,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
                           "indexfile", my_errno);
     goto end;
   }
-  /* We are modifing */
+  /* We are modifying */
   (*org_info)->s->options&= ~HA_OPTION_READ_ONLY_DATA;
   _ma_readinfo(*org_info,F_WRLCK,0);
   (*org_info)->s->state.state.records= info.state->records;

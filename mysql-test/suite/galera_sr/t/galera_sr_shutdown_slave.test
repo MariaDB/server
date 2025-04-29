@@ -8,6 +8,7 @@
 --let $node_1=node_1
 --let $node_2=node_2
 --source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_2
 call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 
