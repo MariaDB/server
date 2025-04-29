@@ -5631,8 +5631,15 @@ bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
       How large can metadata size be?
     */
     uint64_t metadata_size= 0;
-    rows_event->write_data_body_metadata(writer, &metadata_size);
+    /*
+      Write 0 for data_len in header, as the event is being fragmented and it
+      will be calculated dynamically on the slave
+    */
+    rows_event->write_header(writer, 0);
     rows_event->write_data_header(writer);
+    rows_event->write_data_body_metadata(writer, &metadata_size);
+    metadata_size+= LOG_EVENT_HEADER_LEN;
+    metadata_size+= ROWS_HEADER_LEN_V1;
 
     /*
       TODO metadata size should already be accounted for in our end/start
@@ -5658,6 +5665,44 @@ bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
   int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
   buf[PRW_FLAGS_OFFSET]= this->flags2;
   return write_data(writer, buf, PARTIAL_ROWS_HEADER_LEN);
+}
+
+bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
+{
+  if (partial_ev->total_fragments != this->total_fragments)
+  {
+    /*
+      TODO Error handling
+    */
+    fprintf(stderr,
+            "\n\tRows_log_event_assembler::append ERROR ev->total_frags (%u) "
+            "!= this->total_frags (%u) \n",
+            partial_ev->total_fragments, this->total_fragments);
+    return 1;
+  }
+  if (partial_ev->seq_no != this->last_fragment_seen + 1)
+  {
+    /*
+      TODO Error handling
+    */
+    fprintf(stderr,
+            "\n\tRows_log_event_assembler::append ERROR ev->seq_no (%u) != "
+            "last_fragment_seen+1 (%u) \n",
+            partial_ev->seq_no, this->last_fragment_seen);
+    return 1;
+  }
+
+  fprintf(stderr,
+          "\n\tRows_log_event_assembler::append adding in fragment %u / %u\n",
+          partial_ev->seq_no, partial_ev->total_fragments);
+
+  rows_ev_buf_builder.append(
+      ((const char *) (partial_ev->temp_buf +
+                       partial_ev->rows_offset_in_temp_buf)),
+      partial_ev->rows_chunk_len);
+  last_fragment_seen= partial_ev->seq_no;
+
+  return 0;
 }
 
 

@@ -3980,7 +3980,12 @@ Partial_rows_log_event::Partial_rows_log_event(
   VALIDATE_BYTES_READ(post_start, buf, event_len);
   DBUG_ASSERT(seq_no <= total_fragments);
 
-  flags2= *post_start;
+  flags2= *(post_start++);
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  rows_offset_in_temp_buf= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  rows_chunk_len= (buf + event_len) - post_start;
+
   DBUG_VOID_RETURN;
 }
 #endif

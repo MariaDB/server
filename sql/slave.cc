@@ -4035,6 +4035,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           mysql_mutex_lock(&rli->data_lock);
         });
 
+    if (typ == PARTIAL_ROW_DATA_EVENT)
+    {
+      fprintf(stderr, "\n\t SQL thread found partial row data event\n");
+      delete ev;
+      DBUG_RETURN(0);
+    }
+
     /*
       Even if we don't execute this event, we keep the master timestamp,
       so that seconds behind master shows correct delta (there are events

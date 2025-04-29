@@ -2353,16 +2353,19 @@ public:
   uint32_t seq_no;
   uint32_t total_fragments;
 
+  uint32_t rows_offset_in_temp_buf;
+  uint32_t rows_chunk_len;
+
   Partial_rows_log_event(uint32 seq_no, uint32 total_fragments)
-      : seq_no(seq_no), total_fragments(total_fragments){}
+      : seq_no(seq_no), total_fragments(total_fragments),
+        rows_offset_in_temp_buf(0), rows_chunk_len(0)
+  {
+  }
 
   Partial_rows_log_event() {};
   Partial_rows_log_event(
       const uchar *buf, uint event_len,
       const Format_description_log_event *description_event);
-  //{
-  //  /* TODO */
-  //}
 
   ~Partial_rows_log_event() {}
 
@@ -2388,6 +2391,34 @@ public:
     return 0;
   }
 #endif
+};
+
+class Rows_log_event_assembler
+{
+private:
+  uint32_t last_fragment_seen;
+
+public:
+  const uint64_t total_buf_size;
+
+  String rows_ev_buf_builder;
+
+  /*
+    Mutable, extended once per event
+  */
+  uint64_t event_size;
+  uint32_t fragment_max_size;
+  uint32_t total_fragments;
+
+
+  Rows_log_event_assembler(uint32_t total_fragments,
+                           uint32_t fragment_max_size)
+      : total_buf_size(total_fragments * fragment_max_size){};
+
+  ~Rows_log_event_assembler() {};
+
+
+  bool append(Partial_rows_log_event *partial_ev);
 };
 
 
@@ -5713,7 +5744,11 @@ public:
 #endif
   };
 
-  /* TODO Hardcoded to length of 11*/
+  /*
+    TODO Hardcoded to length of 12...
+
+    TODO : Move to .cc
+  */
   void fragment(Rows_log_event_fragmenter::Indirect_partial_rows_log_event **outs)
   {
     uchar width_tmp_buf[MAX_INT_WIDTH];
@@ -5726,8 +5761,9 @@ public:
     cols_size=
         no_bytes_in_export_map(&rows_event->m_cols) *
         ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
-    
-    uint32_t metadata_size= width_size + cols_size + ROWS_HEADER_LEN_V1;
+
+    uint32_t metadata_size=
+        LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
 
     uint64_t const data_size=
         static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
