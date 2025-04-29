@@ -158,6 +158,11 @@ size_t my_pwrite(int Filedes, const uchar *Buffer, size_t Count,
 #else
     writtenbytes= pwrite(Filedes, Buffer, Count, offset);
 #endif
+    DBUG_EXECUTE_IF ("simulate_space_error",
+                     if (!errors && (MyFlags & MY_WAIT_IF_FULL)) {
+                       errno= ENOSPC;
+                       writtenbytes= (size_t) -1;
+                     });
     if (writtenbytes == Count)
       break;
     my_errno= errno;
