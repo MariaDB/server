@@ -170,6 +170,29 @@ sp_rcontext *sp_rcontext::create(THD *thd,
 }
 
 
+/*
+  Create a deep copy.
+  Used e.g. for "TYPE IS RECORD" variables.
+*/
+Row_definition_list *Row_definition_list::deep_copy(THD *thd) const
+{
+  Row_definition_list *row= new (thd->mem_root) Row_definition_list();
+  if (unlikely(row == NULL))
+    return nullptr;
+
+  // Create a deep copy of the elements
+  List_iterator<Spvar_definition> it(*const_cast<Row_definition_list*>(this));
+  for (Spvar_definition *def= it++; def; def= it++)
+  {
+    Spvar_definition *new_def= new (thd->mem_root) Spvar_definition(*def);
+    if (unlikely(new_def == NULL) ||
+        row->push_back(new_def, thd->mem_root))
+      return nullptr;
+  }
+  return row;
+}
+
+
 bool Row_definition_list::append_uniq(MEM_ROOT *mem_root, Spvar_definition *var)
 {
   DBUG_ASSERT(elements);
@@ -402,25 +425,6 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
 };
 
 
-Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
-                                                      Field_row *field)
-{
-  Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
-  if (!item)
-    return nullptr;
-
-  if (field->row_create_fields(thd, *this))
-    return nullptr;
-
-  // field->virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
-  if (field->virtual_tmp_table() &&
-      item->add_array_of_item_field(thd, *field->virtual_tmp_table()))
-    return nullptr;
-
-  return item;
-}
-
-
 bool sp_rcontext::init_var_items(THD *thd,
                                  List<Spvar_definition> &field_def_lst)
 {
@@ -438,10 +442,7 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    Field_row *field_row= dynamic_cast<Field_row*>(field);
-    if (!(m_var_items[idx]= field_row ?
-                            def->make_item_field_row(thd, field_row) :
-                            new (thd->mem_root) Item_field(thd, field)))
+    if (!(m_var_items[idx]= field->make_item_field_spvar(thd, *def)))
       return true;
   }
   return false;
