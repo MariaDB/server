@@ -767,6 +767,8 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   uchar ev_offset= packet->length();
 
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,String*...)");
+  
+  fprintf(stderr, "\n\tReading ev at pos: %zu \n", (size_t) (file->read_pos - file->buffer));
 
   if (my_b_read(file, (uchar*) buf, sizeof(buf)))
   {

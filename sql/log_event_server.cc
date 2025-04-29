@@ -698,6 +698,11 @@ int Log_event_writer::write_internal(const uchar *pos, size_t len)
       cache_data->write_prepare(len))
     return 1;
 
+  fprintf(stderr, "\n\tWrite_internal to offset %zu of len %zu\n", (file->write_pos - file->write_buffer), len);
+  if (len==8)
+  {
+    fprintf(stderr, "\n\tgot an 8\n");
+  }
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -843,9 +848,9 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
                        (longlong) writer->pos(), event_data_length,
                        (int) get_type_code()));
 
-  fprintf(stderr, "\n\tWriting header of len %zu\n", event_data_length);
   /* Store number of bytes that will be written by this event */
   data_written= event_data_length + sizeof(header) + writer->checksum_len;
+
 
   /*
     log_pos != 0 if this is relay-log event. In this case we should not
@@ -879,6 +884,11 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
   }
 
   now= get_time();                               // Query start time
+
+  fprintf(stderr,
+          "\n\t Writing header data_written: %zu event_data_len: (%zu) pos: "
+          "(%llu)\n",
+          data_written, event_data_length, log_pos);
 
   /*
     Header will be of size LOG_EVENT_HEADER_LEN for all events, except for
@@ -5617,11 +5627,20 @@ bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
   {
     /*
       TODO Error handling
+
+      How large can metadata size be?
     */
     uint64_t metadata_size= 0;
     rows_event->write_data_body_metadata(writer, &metadata_size);
-    DBUG_ASSERT(metadata_size < row_data_len_to_write);
-    row_data_len_to_write-= metadata_size;
+    rows_event->write_data_header(writer);
+
+    /*
+      TODO metadata size should already be accounted for in our end/start
+           offset
+      TODO Make an assertion for it
+    */
+    //DBUG_ASSERT(metadata_size < row_data_len_to_write);
+    //row_data_len_to_write-= metadata_size;
   }
 
   return rows_event->write_data_body_rows(writer, start_offset,
@@ -5631,7 +5650,13 @@ bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
 bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
     write_data_header(Log_event_writer *writer)
 {
-  return rows_event->write_data_header(writer);
+  /*
+    TODO: Write seq_no and total fragments
+
+    TODO: Need to write rows_event->write_data_header() in after metadata
+  */
+  return false;
+  //return rows_event->write_data_header(writer);
 }
 
 

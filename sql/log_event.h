@@ -5642,6 +5642,9 @@ public:
     the original Rows_log_event.
 
     TODO extend this description once everything works.
+
+    TODO Should have this extent Partial_rows_log_event and have abstract classes that this
+     impl pulls from an existing Rows_log_event, and the other one pulls from its own memory
   */
   class Indirect_partial_rows_log_event : public Log_event
   {
@@ -5653,6 +5656,7 @@ public:
     */
     uint32_t seq_no;
     uint32_t total_fragments;
+    uint32_t metadata_written;
     uint64_t start_offset;
     uint64_t end_offset;
 
@@ -5661,11 +5665,12 @@ public:
 
   public:
     Indirect_partial_rows_log_event(uint32 seq_no, uint32 total_fragments,
+                                    uint32 metadata_written,
                                     uint64_t start_offset, uint64_t end_offset,
                                     Rows_log_event *rows_event)
         : seq_no(seq_no), total_fragments(total_fragments),
-          start_offset(start_offset), end_offset(end_offset),
-          rows_event(rows_event){};
+          metadata_written(metadata_written), start_offset(start_offset),
+          end_offset(end_offset), rows_event(rows_event){};
 
     Indirect_partial_rows_log_event(
         const uchar *buf, uint event_len,
@@ -5687,8 +5692,10 @@ public:
       return PARTIAL_ROW_DATA_EVENT;
     }
 
-    int get_data_size() override { return (int) end_offset - start_offset;}
-
+    int get_data_size() override
+    {
+      return (int) end_offset - start_offset + metadata_written;
+    }
 
 #ifdef MYSQL_SERVER
     bool write_data_header(Log_event_writer *writer) override;
@@ -5709,12 +5716,15 @@ public:
     cols_size=
         no_bytes_in_export_map(&rows_event->m_cols) *
         ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
+    
+    uint32_t rows_header_size= ROWS_HEADER_LEN_V1;
+    uint32_t metadata_size= width_size + cols_size + rows_header_size;
 
     uint64_t const data_size=
         static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
 
     // TODO Update rows size
-    uint64_t const total_size= width_size + cols_size + data_size;
+    uint64_t const total_size= metadata_size + data_size;
 
     uint64_t size_per_chunk= get_size_per_chunk();
 
@@ -5722,17 +5732,32 @@ public:
     uint32_t last_chunk= last_chunk_size ? 1 : 0;
     uint32_t num_chunks= (total_size / size_per_chunk) + last_chunk;
 
+    /*
+      TODO First chunk here doesn't account row the real Rows_log_event
+      header information. I.e., here, we say we will write 232 bytes,
+      but only 230 will actually be written. Need to account for that,
+      how...
+
+      We need to use:
+        rows_event->m_width + rows_event->bitmap_size + (update_ev ? rows_event-> bitmap_size ? 0)
+    */
+    fprintf(stderr, "\n\tfragmenter: witdth_size is %" PRIu32 "\n", width_size);
+
     for (uint32 i= 0; i < num_chunks; i++)
     {
+      my_bool is_first_chunk= (i == 0);
       my_bool is_last_chunk= (i == (num_chunks - 1));
-      uint64_t chunk_start= i * size_per_chunk;
-      uint64_t chunk_end= (is_last_chunk)
-                              ? chunk_start + last_chunk_size
-                              : (chunk_start) + (size_per_chunk - 1);
+      uint64_t chunk_start=
+          is_first_chunk ? 0 : ((i * size_per_chunk) - metadata_size);
+      uint64_t chunk_end=
+          (is_last_chunk)
+              ? chunk_start + last_chunk_size
+              : ((chunk_start + size_per_chunk) - 1 - (is_first_chunk ? metadata_size : 0));
 
       Indirect_partial_rows_log_event *fragment=
-          new Indirect_partial_rows_log_event(i + 1, num_chunks, chunk_start,
-                                              chunk_end, rows_event);
+          new Indirect_partial_rows_log_event(
+              i + 1, num_chunks, is_first_chunk ? metadata_size : 0,
+              chunk_start, chunk_end, rows_event);
       outs[i]= fragment;
       /*
 TODO I forget how to call a constructor on existing zeroed memory
@@ -5744,9 +5769,9 @@ TODO I forget how to call a constructor on existing zeroed memory
 
       fprintf(stderr,
               "creating fragment %" PRIu32 "/ %" PRIu32 " from %" PRIu64
-              " to %" PRIu64 "\n",
+              " to %" PRIu64 " size: %" PRIu64 "\n",
               fragment->seq_no, fragment->total_fragments, fragment->start_offset,
-              fragment->end_offset);
+              fragment->end_offset, fragment->end_offset - fragment->start_offset);
       //insert_dynamic(fragments_out, &fragment);
     }
 
@@ -5761,8 +5786,12 @@ TODO I forget how to call a constructor on existing zeroed memory
     //return opt_binlog_rows_event_max_size;
     /*
       TODO Debug is 256, switch post-debug
+
+      TODO Binlog_checksum should be calculated/read from the writer
+
+      TODO Why need +1? It is off by 1 otherwise..
     */
-    return fragment_size - LOG_EVENT_HEADER_LEN;
+    return fragment_size - LOG_EVENT_HEADER_LEN - BINLOG_CHECKSUM_LEN;
   }
 
   uint32 get_num_fragments()
