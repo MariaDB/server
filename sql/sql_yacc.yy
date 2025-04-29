@@ -288,7 +288,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class sp_head *sphead;
   class sp_name *spname;
   class sp_variable *spvar;
-  class sp_record *sprec;
+  class sp_type_def_record *sprec;
   class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
@@ -1347,7 +1347,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <ident_sys>
         IDENT_sys
-        ident_func
         ident
         label_ident
         sp_decl_ident
@@ -6486,9 +6485,9 @@ field_type_all_with_record:
           }
         | udt_name float_options srid_option
           {
-            sp_record *sprec = NULL;
+            sp_type_def *sprec = NULL;
             if (Lex->spcont)
-              sprec = Lex->spcont->find_record(&$1, false);
+              sprec = Lex->spcont->find_type_def($1, false);
             
             if (sprec == NULL)
             {
@@ -10916,13 +10915,15 @@ function_call_conflict:
   in sql/item_create.cc
 */
 function_call_generic:
-          ident_func '('
+          ident_cli_func '('
           {
 #ifdef HAVE_DLOPEN
             udf_func *udf= 0;
             LEX *lex= Lex;
+            Lex_ident_sys ident(thd, &$1);
+
             if (using_udf_functions &&
-                (udf= find_udf($1.str, $1.length)) &&
+                (udf= find_udf(ident.str, ident.length)) &&
                 udf->type == UDFTYPE_AGGREGATE)
             {
               if (unlikely(lex->current_select->inc_in_sum_expr()))
@@ -10940,9 +10941,11 @@ function_call_generic:
             const Type_handler *h;
             Create_func *builder;
             Item *item= NULL;
-            sp_record* rec= NULL;
+            const sp_type_def *tdef= NULL;
+            const Lex_ident_sys ident(thd, &$1);
 
-            if (unlikely(Lex_ident_routine::check_name_with_error($1)))
+            if (unlikely(ident.is_null() ||
+                         Lex_ident_routine::check_name_with_error(ident)))
               MYSQL_YYABORT;
 
             /*
@@ -10956,20 +10959,20 @@ function_call_generic:
               This will be revised with WL#2128 (SQL PATH)
             */
             builder= Schema::find_implied(thd)->
-                       find_native_function_builder(thd, $1);
+                       find_native_function_builder(thd, ident);
             if (builder)
             {
-              item= builder->create_func(thd, &$1, $4);
+              item= builder->create_func(thd, &ident, $4);
             }
-            else if ((h= Type_handler::handler_by_name(thd, $1)) &&
+            else if ((h= Type_handler::handler_by_name(thd, ident)) &&
                      (item= h->make_constructor_item(thd, $4)))
             {
               // Found a constructor with a proper argument count
             }
             else if (Lex->spcont &&
-                    (rec = Lex->spcont->find_record(&$1, false)))
+                     (tdef= Lex->spcont->find_type_def(ident, false)))
             {
-              item= new (thd->mem_root) Item_row(thd, *$4);
+              item= tdef->make_constructor_item(thd, $4);
             }
             else
             {
@@ -10991,7 +10994,7 @@ function_call_generic:
               {
                 builder= find_qualified_function_builder(thd);
                 DBUG_ASSERT(builder);
-                item= builder->create_func(thd, &$1, $4);
+                item= builder->create_func(thd, &ident, $4);
               }
             }
 
@@ -13329,12 +13332,13 @@ select_outvar:
           }
         | ident_or_text
           {
-            if (unlikely(!($$= Lex->create_outvar(thd, &$1)) && Lex->result))
+            const Lex_ident_sys name(thd, &$1);
+            if (unlikely(!($$= Lex->create_outvar(thd, name)) && Lex->result))
               MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3)) && Lex->result))
+            if (unlikely(!($$= Lex->create_outvar(thd, $1, $3)) && Lex->result))
               MYSQL_YYABORT;
           }
         ;
@@ -15994,15 +15998,6 @@ ident_cli_func:
         | keyword_func_sp_var_and_label  { $$= $1; }
         | keyword_func_sp_var_not_label  { $$= $1; }
         ;
-
-ident_func:
-          ident_cli_func
-          {
-            if (unlikely(thd->to_ident_sys_alloc(&$$, &$1)))
-              MYSQL_YYABORT;
-          }
-        ;
-
 
 TEXT_STRING_sys:
           TEXT_STRING
@@ -20173,7 +20168,7 @@ sp_decl_non_handler:
         | TYPE_SYM ident_directly_assignable IS RECORD_SYM rec_type_body
           {
             if (unlikely(Lex->spcont->
-                          declare_record(thd, Lex_ident_column($2), $5)))
+                  type_defs_declare_record(thd, Lex_ident_column($2), $5)))
               MYSQL_YYABORT;
 
             $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;

@@ -26,6 +26,8 @@
 #include "log.h"
 #include "tztime.h"
 #include <mysql/plugin_data_type.h>
+#include "sp_type_def.h"
+#include "sp_head.h"
 
 
 const DTCollation &DTCollation_numeric::singleton()
@@ -2766,6 +2768,27 @@ Field *Type_handler_enum::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 /*************************************************************************/
 
+bool
+Type_handler::sp_variable_declarations_finalize(THD *thd,
+                                                LEX *lex, int nvars,
+                                                const Column_definition &cdef)
+                                                                        const
+{
+  Column_definition tmp(cdef);
+  if (lex->sphead->fill_spvar_definition(thd, &tmp))
+    return true;
+
+  for (uint i= 0 ; i < (uint) nvars; i++)
+  {
+    uint offset= (uint) nvars - 1 - i;
+    sp_variable *spvar= lex->spcont->get_last_context_variable(offset);
+    spvar->field_def.set_type(tmp);
+    spvar->field_def.field_name= spvar->name;
+  }
+  return false;
+}
+
+
 bool Type_handler::
        Column_definition_validate_check_constraint(THD *thd,
                                                    Column_definition * c) const
@@ -3639,6 +3662,35 @@ uint Type_handler_blob_common::calc_key_length(const Column_definition &def) con
 {
   return 0;
 }
+
+/*************************************************************************/
+
+// SELECT 1 INTO spvar;
+my_var *Type_handler::make_outvar(THD *thd,
+                                  const Lex_ident_sys_st &name,
+                                  const sp_rcontext_addr &addr,
+                                  sp_head *sphead,
+                                  bool validate_only) const
+{
+  if (validate_only) // e.g. EXPLAIN SELECT
+    return nullptr;
+  return new (thd->mem_root) my_var_sp(name, addr, this, sphead);
+}
+
+
+// SELECT 1 INTO spvar.field;
+my_var *Type_handler::make_outvar_field(THD *thd,
+                                        const Lex_ident_sys_st &name,
+                                        const sp_rcontext_addr &addr,
+                                        const Lex_ident_sys_st &field,
+                                        sp_head *sphead,
+                                        bool validate_only) const
+{
+  my_printf_error(ER_UNKNOWN_ERROR,
+                  "'%s' is not a row variable", MYF(0), name.str);
+  return nullptr;
+}
+
 
 /*************************************************************************/
 Field *Type_handler::make_and_init_table_field(MEM_ROOT *root,
@@ -9852,4 +9904,13 @@ int initialize_data_type_plugin(void *plugin_)
     return 1;
   }
   return 0;
+}
+
+
+Item *Type_handler::make_typedef_constructor_item(THD *thd,
+                                                  const sp_type_def &def,
+                                                  List<Item> *arg_list) const
+{
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), def.get_name().str);
+  return nullptr;
 }

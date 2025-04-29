@@ -1077,6 +1077,12 @@ void Field::make_sort_key_part(uchar *buff,uint length)
 }
 
 
+Item_field *Field::make_item_field_spvar(THD *thd, const Spvar_definition &def)
+{
+  return new (thd->mem_root) Item_field(thd, this);
+}
+
+
 /*
   @brief
     Create a packed sort key part
