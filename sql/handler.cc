@@ -5775,6 +5775,9 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
       (table->s->row_type != create_info->row_type))
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
+  if (create_info->sequence)
+    DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
   uint table_changes= (ha_alter_info->handler_flags &
                        ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE) ?
     IS_EQUAL_PACK_LENGTH : IS_EQUAL_YES;
