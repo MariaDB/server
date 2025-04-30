@@ -12325,3 +12325,5 @@ ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED
         eng "Optimizer hints are not supported inside view definitions"
 ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
+ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
+        eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"

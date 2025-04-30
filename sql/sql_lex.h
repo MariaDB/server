@@ -3758,6 +3758,8 @@ public:
 
   void resolve_optimizer_hints_in_last_select();
 
+  bool discard_optimizer_hints_in_last_select();
+
   SELECT_LEX *current_select_or_default()
   {
     return current_select ? current_select : &builtin_select;

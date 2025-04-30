@@ -72,10 +72,16 @@ Warning	1912	Incorrect value '4294967296' for option 'MAX_EXECUTION_TIME'
 CREATE TABLE t2 (i INT);
 INSERT /*+ MAX_EXECUTION_TIME(10) */ INTO t2 SELECT 1;
 Warnings:
+Warning	4223	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
+INSERT INTO t2 SELECT /*+ MAX_EXECUTION_TIME(10) */ 1;
+Warnings:
 Warning	4172	'MAX_EXECUTION_TIME(10)' is not allowed in this context
 REPLACE /*+ MAX_EXECUTION_TIME(15) */ INTO t2 SELECT 1;
 Warnings:
-Warning	4172	'MAX_EXECUTION_TIME(15)' is not allowed in this context
+Warning	4223	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
+REPLACE INTO t2 SELECT /*+ MAX_EXECUTION_TIME(10) */ 1;
+Warnings:
+Warning	4172	'MAX_EXECUTION_TIME(10)' is not allowed in this context
 UPDATE /*+ MAX_EXECUTION_TIME(23) */ t2 SET i = 1;
 Warnings:
 Warning	4172	'MAX_EXECUTION_TIME(23)' is not allowed in this context
