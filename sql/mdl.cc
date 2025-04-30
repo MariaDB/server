@@ -707,6 +707,29 @@ public:
     return res;
   }
 
+
+  /**
+    Callback for mdl_iterate()
+
+    We can skip check for m_strategy here, because m_granted
+    must be empty for such locks anyway.
+  */
+  bool iterate(mdl_iterator_callback callback, void *argument)
+  {
+    mysql_prlock_rdlock(&m_rwlock);
+    DBUG_ASSERT(m_strategy || is_empty());
+    bool res= std::any_of(m_granted.begin(), m_granted.end(),
+                          [callback, argument](MDL_ticket &ticket) {
+                            return callback(&ticket, argument, true);
+                          });
+    res= std::any_of(m_waiting.begin(), m_waiting.end(),
+                     [callback, argument](MDL_ticket &ticket) {
+                       return callback(&ticket, argument, false);
+                     });
+    mysql_prlock_unlock(&m_rwlock);
+    return res;
+  }
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -787,21 +810,7 @@ static my_bool mdl_iterate_lock(void *lk, void *a)
 {
   MDL_lock *lock= static_cast<MDL_lock*>(lk);
   mdl_iterate_arg *arg= static_cast<mdl_iterate_arg*>(a);
-  /*
-    We can skip check for m_strategy here, becase m_granted
-    must be empty for such locks anyway.
-  */
-  mysql_prlock_rdlock(&lock->m_rwlock);
-  bool res= std::any_of(lock->m_granted.begin(), lock->m_granted.end(),
-                        [arg](MDL_ticket &ticket) {
-                          return arg->callback(&ticket, arg->argument, true);
-                        });
-  res= std::any_of(lock->m_waiting.begin(), lock->m_waiting.end(),
-                   [arg](MDL_ticket &ticket) {
-                     return arg->callback(&ticket, arg->argument, false);
-                   });
-  mysql_prlock_unlock(&lock->m_rwlock);
-  return res;
+  return lock->iterate(arg->callback, arg->argument);
 }
 
 
