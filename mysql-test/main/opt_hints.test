@@ -275,13 +275,13 @@ EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Turn off ICP for a particular table
-EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
-  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Turn off ICP for a particular table and a key
-EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
-  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5 
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Make sure ICP is expected to be used when there are no hints
@@ -294,13 +294,13 @@ EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Turn off ICP for a particular table
-EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
-  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Turn off ICP for a particular table and a key
-EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
-  (SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5 x_idx) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
    WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 
 --echo # Misc tests
@@ -723,24 +723,24 @@ INSERT INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
 EXPLAIN EXTENDED
 INSERT INTO t1 (a) SELECT /*+ no_range_optimization (t1 a)*/ a FROM t1 WHERE a>1 AND a<=3;
 
---echo # Alternatively, a hint may be placed next to INSERT keyword:
+--echo # Hints at the INSERT part of a INSERT..SELECT are not supported:
 EXPLAIN EXTENDED
 INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
 
---echo # But if hints are present at both INSERT and SELECT parts,
---echo # those at the INSERT part are ignored:
+--echo # If hints are present at both INSERT and SELECT parts,
+--echo # those at the INSERT part are ignored
 EXPLAIN EXTENDED
 INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT /*+ mrr(t1)*/ a 
   FROM t1 WHERE a>1 AND a<=3;
 
 --echo # Table `t2` cannot be resolved since it is not present in the SELECT part
 --echo # (a warning expected):
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
 EXPLAIN EXTENDED
 INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 AND a<=3;
-
---echo # Alternative placement of the hint:
-EXPLAIN EXTENDED
-INSERT /*+ no_range_optimization (t2 ix1)*/ INTO t2 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+--enable_ps_protocol
 
 DROP TABLE t1, t2;
 

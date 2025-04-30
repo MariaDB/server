@@ -1336,6 +1336,14 @@ INSERT INTO t2 (id, f2) VALUES
 (4,5),(3,3),(1,0),(1,3),(6,1),(2,0),(4,1),(2,7),(2,1),(1,0),(3,0),(5,8),(5,4),
 (3,9),(2,0),(7,2),(2,0),(1,8),(6,5),(4,1);
 CREATE TABLE tn (fn_1 INT, fn_2 INT);
+ANALYZE TABLE t1, t2, tn;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.tn	analyze	status	Engine-independent statistics collected
+test.tn	analyze	status	OK
 EXPLAIN EXTENDED
 INSERT INTO tn (fn_1, fn_2)
 SELECT /*+ JOIN_ORDER(t2,t1) JOIN_FIXED_ORDER() */ f1,f2

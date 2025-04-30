@@ -490,17 +490,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table
-EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
-(SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table and a key
-EXPLAIN EXTENDED INSERT /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
-(SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5 
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+(SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
@@ -525,8 +525,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table
-EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1) */ INTO t3(f1, f2, f3)
-(SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
@@ -534,14 +534,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table and a key
-EXPLAIN EXTENDED REPLACE /*+ NO_ICP(t5@QB1 x_idx) */ INTO t3(f1, f2, f3)
-(SELECT /*+ QB_NAME(qb1) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5 x_idx) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Misc tests
 # Should issue warning
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
@@ -1400,21 +1400,23 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	a	a	5	NULL	3	100.00	Using where; Using index; Using temporary
 Warnings:
 Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#2` `a`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
-# Alternatively, a hint may be placed next to INSERT keyword:
+# Hints at the INSERT part of a INSERT..SELECT are not supported:
 EXPLAIN EXTENDED
 INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	index	a	a	5	NULL	3	100.00	Using where; Using index; Using temporary
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
 Warnings:
-Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#1`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
-# But if hints are present at both INSERT and SELECT parts,
-# those at the INSERT part are ignored:
+Warning	4223	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
+Note	1003	insert into `test`.`t1`(a) select sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# If hints are present at both INSERT and SELECT parts,
+# those at the INSERT part are ignored
 EXPLAIN EXTENDED
 INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT /*+ mrr(t1)*/ a 
 FROM t1 WHERE a>1 AND a<=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
 Warnings:
+Warning	4223	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
 Note	1003	insert into `test`.`t1`(a) select /*+ MRR(`t1`@`select#2`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
 # Table `t2` cannot be resolved since it is not present in the SELECT part
 # (a warning expected):
@@ -1423,15 +1425,7 @@ INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 A
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index
 Warnings:
-Warning	4212	Unresolved table name `t2`@`select#2` for NO_RANGE_OPTIMIZATION hint
-Note	1003	insert into `test`.`t2`(a) select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
-# Alternative placement of the hint:
-EXPLAIN EXTENDED
-INSERT /*+ no_range_optimization (t2 ix1)*/ INTO t2 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index
-Warnings:
-Warning	4213	Unresolved index name `t2`@`select#1` `ix1` for NO_RANGE_OPTIMIZATION hint
+Warning	4219	Unresolved table name `t2`@`select#2` for NO_RANGE_OPTIMIZATION hint
 Note	1003	insert into `test`.`t2`(a) select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
 DROP TABLE t1, t2;
 set optimizer_switch = DEFAULT;

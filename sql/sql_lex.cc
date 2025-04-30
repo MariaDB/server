@@ -11185,22 +11185,17 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
-  resolve_optimizer_hints_in_last_select();
+  if (discard_optimizer_hints_in_last_select())
+  {
+    // Hints were specified at the INSERT part of an INSERT..SELECT
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT,
+                 ER_THD(thd, ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT));
+  }
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
 
-  // INSERT..SELECT allows placing hints next to either INSERT or SELECT, i.e.:
-  //  `INSERT /* hint(t1) */ INTO t2 SELECT a FROM t1` or
-  //  `INSERT INTO t2 SELECT /* hint(t1) */ a FROM t1`
-  // but not at both places at the same time.
-  // `first_select` represents the SELECT part here while `builtin_select` -
-  // the INSERT part. Future processing will proceed with `first_select`,
-  // so transfer the hints from `builtin_select` to `first_select` in case
-  // they were not already set. If hints are present for both INSERT and SELECT
-  // parts, SELECT part hints are preserved while INSERT part hints are discarded
-  if (!first_select->opt_hints_qb && blt->opt_hints_qb)
-    first_select->opt_hints_qb= blt->opt_hints_qb;
   return false;
 }
 
@@ -13003,4 +12998,31 @@ void LEX::resolve_optimizer_hints_in_last_select()
     Parse_context pc(thd, select_lex);
     select_lex->parsed_optimizer_hints->resolve(&pc);
   }
+}
+
+/*
+  This method discards previously parsed optimizer hints attached to
+  the last select_lex without their resolving, which may be required
+  in some scenarios (for example, ignoring hints at the INSERT part of a
+  INSERT..SELECT statement).
+
+  Also see resolve_optimizer_hints_in_last_select().
+
+  Return value:
+  - false  optimizer hints were not found
+  - true   optimizer hints were found and discarded
+*/
+bool LEX::discard_optimizer_hints_in_last_select()
+{
+  SELECT_LEX *select_lex;
+  if (likely(select_stack_top))
+    select_lex= select_stack[select_stack_top - 1];
+  else
+    select_lex= nullptr;
+  if (select_lex && select_lex->parsed_optimizer_hints)
+  {
+    select_lex->parsed_optimizer_hints= nullptr;
+    return true;
+  }
+  return false;
 }
