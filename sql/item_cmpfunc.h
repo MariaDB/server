@@ -1226,26 +1226,33 @@ protected:
     return FALSE;
   }
 
-  void cache_type_info(const Item *source, bool maybe_null_arg)
+  bool cache_type_info(THD *thd, Item *source, bool maybe_null_arg)
   {
+    if (source->type_handler()->
+          Item_hybrid_func_fix_attributes(thd, func_name_cstring(),
+                                          this, this, &source, 1))
+      return true;
     Type_std_attributes::set(source);
     set_handler(source->type_handler());
     set_maybe_null(maybe_null_arg);
+    return false;
   }
 
-  bool fix_length_and_dec2_eliminate_null(Item **items)
+  bool fix_length_and_dec2_eliminate_null(THD *thd, Item **items)
   {
     // Let IF(cond, expr, NULL) and IF(cond, NULL, expr) inherit type from expr.
     if (items[0]->type() == NULL_ITEM)
     {
-      cache_type_info(items[1], true);
+      if (cache_type_info(thd, items[1], true))
+        return true;
       // If both arguments are NULL, make resulting type BINARY(0).
       if (items[1]->type() == NULL_ITEM)
         set_handler(&type_handler_string);
     }
     else if (items[1]->type() == NULL_ITEM)
     {
-      cache_type_info(items[0], true);
+      if (cache_type_info(thd, items[0], true))
+        return true;
     }
     else
     {
@@ -1315,6 +1322,8 @@ public:
 */
 class Item_func_case_abbreviation2_switch: public Item_func_case_abbreviation2
 {
+  bool check_arguments() const override
+  { return check_argument_types_can_return_bool(0, 1); }
 protected:
   virtual Item *find_item() const= 0;
 
@@ -1362,8 +1371,6 @@ public:
 
 class Item_func_if :public Item_func_case_abbreviation2_switch
 {
-  bool check_arguments() const override
-  { return check_argument_types_can_return_bool(0, 1); }
 protected:
   Item *find_item() const override
   { return args[0]->val_bool() ? args[1] : args[2]; }
@@ -1375,7 +1382,7 @@ public:
   bool fix_fields(THD *, Item **) override;
   bool fix_length_and_dec(THD *thd) override
   {
-    return fix_length_and_dec2_eliminate_null(args + 1);
+    return fix_length_and_dec2_eliminate_null(thd, args + 1);
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1387,8 +1394,6 @@ public:
     override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_if>(thd, this); }
-private:
-  void cache_type_info(Item *source);
 };
 
 
@@ -1409,7 +1414,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   {
-    return fix_length_and_dec2_eliminate_null(args + 1);
+    return fix_length_and_dec2_eliminate_null(thd, args + 1);
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_nvl2>(thd, this); }
