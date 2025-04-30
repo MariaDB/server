@@ -748,6 +748,7 @@ public:
                          PRE_ACQUIRE_NOTIFY, POST_RELEASE_NOTIFY };
 private:
   friend class MDL_context;
+  friend class MDL_lock;
 
   MDL_ticket(MDL_context *ctx_arg, enum_mdl_type type_arg
 #ifndef DBUG_OFF
