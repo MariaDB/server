@@ -1004,6 +1004,40 @@ bool Field::check_assignability_from(const Type_handler *from,
   return false;
 }
 
+/**
+  Checks whether the field can be assigned by the user in the current query.
+  If it's not, emits warning and returns false. In strict mode, also sets
+  thd->is_error().
+
+  @return true if the field is assignable by the user
+          false otherwise
+*/
+bool Field::check_user_assignability(THD *thd, const Item *value,
+                                     bool update) const
+{
+  if (generated_always)
+  {
+    /*
+      System versioning generating fields allow insert-only history injection
+      under certain conditions.
+    */
+    const bool skip_sys_field= vers_sys_field() &&
+                       (update || !thd->vers_insert_history_fast(table));
+    if (skip_sys_field &&
+        !value->vcol_assignment_allowed_value() &&
+        table->s->table_category != TABLE_CATEGORY_TEMPORARY)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
+                          ER_THD(thd,
+                            ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
+                          field_name.str, table->s->table_name.str);
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /*
   Test if the given string contains important data:
@@ -1935,6 +1969,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   part_of_key_not_clustered(0), part_of_sortkey(0),
   unireg_check(unireg_check_arg), invisible(VISIBLE), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
+  generated_always(false),
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
   default_value(0)
 {

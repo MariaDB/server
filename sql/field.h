@@ -871,7 +871,12 @@ public:
 
    */
   bool is_created_from_null_item;
-
+  /*
+    Set to true for a normal vcol, and also for auxiliary generated columns:
+    AS ROW START/END, AS IDENTITY
+    which are implemented through default_value, not vcol_info
+   */
+  bool generated_always;
   /* 
     Selectivity of the range condition over this field.
     When calculating this selectivity a range predicate
@@ -927,6 +932,7 @@ public:
   {
     return check_assignability_from(from->type_handler(), ignore);
   }
+  bool check_user_assignability(THD *thd, const Item *value, bool update) const;
 
   /**
     Convenience definition of a copy function returned by
