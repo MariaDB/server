@@ -10969,6 +10969,14 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
   // so transfer the hints from `builtin_select` to `first_select` in case
   // they were not already set. If hints are present for both INSERT and SELECT
   // parts, SELECT part hints are preserved while INSERT part hints are discarded
+  if (first_select->opt_hints_qb && blt->opt_hints_qb)
+  {
+    // Hints specified for both INSERT and SELECT parts
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WARN_HINTS_ON_BOTH_INSERT_SELECT,
+                 ER_THD(thd, ER_WARN_HINTS_ON_BOTH_INSERT_SELECT));
+  }
+  // Transfer hints from the INSERT part to the SELECT
   if (!first_select->opt_hints_qb && blt->opt_hints_qb)
     first_select->opt_hints_qb= blt->opt_hints_qb;
   return false;
