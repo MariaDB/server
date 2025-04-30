@@ -19,6 +19,7 @@
 
 #include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"
@@ -1181,7 +1182,6 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   t_name= &table->table_name;
   t_alias= &table->alias;
 
-retry:
   DBUG_PRINT("info", ("real table: %s.%s", d_name->str, t_name->str));
   for (TABLE_LIST *tl= table_list; tl ; tl= tl->next_global, res= 0)
   {
@@ -1254,42 +1254,72 @@ retry:
     TABLE_LIST *derived=  res->belong_to_derived;
     if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
-      bool materialize= true;
       if (thd->lex->sql_command == SQLCOM_UPDATE)
       {
         Sql_cmd_update *cmd= (Sql_cmd_update *) (thd->lex->m_sql_cmd);
-        if (cmd->is_multitable() || derived->derived->outer_select())
-          materialize= false;
-        else if (!cmd->processing_as_multitable_update_prohibited(thd))
+        if (!(cmd->is_multitable() || derived->derived->outer_select()) &&
+            (!cmd->processing_as_multitable_update_prohibited(thd)))
 	{
           cmd->set_as_multitable();
-          materialize= false;
         }
       }
       else if (thd->lex->sql_command == SQLCOM_DELETE)
-     {
+      {
         Sql_cmd_delete *cmd= (Sql_cmd_delete *) (thd->lex->m_sql_cmd);
-        if (cmd->is_multitable() || derived->derived->outer_select())
-          materialize= false;
-        else if (!cmd->processing_as_multitable_delete_prohibited(thd))
+        if (!(cmd->is_multitable() || derived->derived->outer_select()) &&
+            (!cmd->processing_as_multitable_delete_prohibited(thd)))
 	{
           cmd->set_as_multitable();
-          materialize= false;
         }
-      }
-      if (materialize)
-      {
-        DBUG_PRINT("info",
-                 ("convert merged to materialization to resolve the conflict"));
-        derived->change_refs_to_fields();
-        derived->set_materialized_derived();
-        goto retry;
       }
     }
   }
   DBUG_RETURN(res);
 }
 
+
+TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
+{
+  subselect_table_finder_param param= {thd, table, NULL};
+  List_iterator_fast<Item> it(sel->item_list);
+  Item *item;
+  while ((item= it++))
+  {
+    if (item->walk(&Item::subselect_table_finder_processor, FALSE, &param))
+    {
+      if (param.dup == NULL)
+        return ERROR_TABLE;
+      return param.dup;
+    }
+    DBUG_ASSERT(param.dup == NULL);
+  }
+  return NULL;
+}
+
+
+typedef TABLE_LIST* (*find_table_callback)(THD *thd, TABLE_LIST *table,
+                                           TABLE_LIST *table_list,
+                                           uint check_flag, SELECT_LEX *sel);
+
+static
+TABLE_LIST*
+find_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
+           uint check_flag, SELECT_LEX *sel, find_table_callback callback );
+
+TABLE_LIST* unique_table_callback(THD *thd, TABLE_LIST *table,
+                                  TABLE_LIST *table_list,
+                                  uint check_flag, SELECT_LEX *sel)
+{
+  return find_dup_table(thd, table, table_list, check_flag);
+}
+
+
+TABLE_LIST* unique_in_sel_table_callback(THD *thd, TABLE_LIST *table,
+                                         TABLE_LIST *table_list,
+                                         uint check_flag, SELECT_LEX *sel)
+{
+  return unique_table_in_select_list(thd, table, sel);
+}
 
 /**
   Test that the subject table of INSERT/UPDATE/DELETE/CREATE
@@ -1309,6 +1339,25 @@ retry:
 TABLE_LIST*
 unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
              uint check_flag)
+{
+  return find_table(thd, table, table_list, check_flag, NULL,
+                    &unique_table_callback);
+}
+
+
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
+{
+  return find_table(thd, table, NULL, 0, sel,
+                    &unique_in_sel_table_callback);
+
+}
+
+
+static
+TABLE_LIST*
+find_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
+           uint check_flag, SELECT_LEX *sel, find_table_callback callback )
 {
   TABLE_LIST *dup;
 
@@ -1340,12 +1389,12 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
       if (!tmp_parent)
         break;
 
-      if ((dup= find_dup_table(thd, child, child->next_global, check_flag)))
+      if ((dup= (*callback)(thd, child, child->next_global, check_flag, sel)))
         break;
     }
   }
   else
-    dup= find_dup_table(thd, table, table_list, check_flag);
+    dup= (*callback)(thd, table, table_list, check_flag, sel);
   return dup;
 }
 
@@ -7465,82 +7514,83 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     if (!found)
       continue;                                 // No matching field
 
+    /* Restore field_2 to point to the field which was a match for field_1. */
+    field_2= nj_col_2->field();
+
     /*
       field_1 and field_2 have the same names. Check if they are in the USING
       clause (if present), mark them as common fields, and add a new
       equi-join condition to the ON clause.
     */
-    if (nj_col_2)
-    {
-      /*
-        Create non-fixed fully qualified field and let fix_fields to
-        resolve it.
-      */
-      Item *item_1=   nj_col_1->create_item(thd);
-      Item *item_2=   nj_col_2->create_item(thd);
-      Item_ident *item_ident_1, *item_ident_2;
-      Item_func_eq *eq_cond;
 
-      if (!item_1 || !item_2)
-        goto err;                               // out of memory
+    /*
+      Create non-fixed fully qualified field and let fix_fields to
+      resolve it.
+    */
+    Item *item_1=   nj_col_1->create_item(thd);
+    Item *item_2=   nj_col_2->create_item(thd);
+    Item_ident *item_ident_1, *item_ident_2;
+    Item_func_eq *eq_cond;
 
-      /*
-        The following assert checks that the two created items are of
-        type Item_ident.
-      */
-      DBUG_ASSERT(!thd->lex->current_select->no_wrap_view_item);
-      /*
-        In the case of no_wrap_view_item == 0, the created items must be
-        of sub-classes of Item_ident.
-      */
-      DBUG_ASSERT(item_1->type() == Item::FIELD_ITEM ||
-                  item_1->type() == Item::REF_ITEM);
-      DBUG_ASSERT(item_2->type() == Item::FIELD_ITEM ||
-                  item_2->type() == Item::REF_ITEM);
+    if (!item_1 || !item_2)
+      goto err;                               // out of memory
 
-      /*
-        We need to cast item_1,2 to Item_ident, because we need to hook name
-        resolution contexts specific to each item.
-      */
-      item_ident_1= (Item_ident*) item_1;
-      item_ident_2= (Item_ident*) item_2;
-      /*
-        Create and hook special name resolution contexts to each item in the
-        new join condition . We need this to both speed-up subsequent name
-        resolution of these items, and to enable proper name resolution of
-        the items during the execute phase of PS.
-      */
-      if (set_new_item_local_context(thd, item_ident_1, nj_col_1->table_ref) ||
-          set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
-        goto err;
+    /*
+      The following assert checks that the two created items are of
+      type Item_ident.
+    */
+    DBUG_ASSERT(!thd->lex->current_select->no_wrap_view_item);
+    /*
+      In the case of no_wrap_view_item == 0, the created items must be
+      of sub-classes of Item_ident.
+    */
+    DBUG_ASSERT(item_1->type() == Item::FIELD_ITEM ||
+                item_1->type() == Item::REF_ITEM);
+    DBUG_ASSERT(item_2->type() == Item::FIELD_ITEM ||
+                item_2->type() == Item::REF_ITEM);
 
-      if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
-        goto err;                               /* Out of memory. */
+    /*
+      We need to cast item_1,2 to Item_ident, because we need to hook name
+      resolution contexts specific to each item.
+    */
+    item_ident_1= (Item_ident*) item_1;
+    item_ident_2= (Item_ident*) item_2;
+    /*
+      Create and hook special name resolution contexts to each item in the
+      new join condition . We need this to both speed-up subsequent name
+      resolution of these items, and to enable proper name resolution of
+      the items during the execute phase of PS.
+    */
+    if (set_new_item_local_context(thd, item_ident_1, nj_col_1->table_ref) ||
+        set_new_item_local_context(thd, item_ident_2, nj_col_2->table_ref))
+      goto err;
 
-      /*
-        Add the new equi-join condition to the ON clause. Notice that
-        fix_fields() is applied to all ON conditions in setup_conds()
-        so we don't do it here.
-      */
-      add_join_on(thd, (table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
-                        table_ref_1 : table_ref_2),
-                  eq_cond);
+    if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
+      goto err;                               /* Out of memory. */
 
-      nj_col_1->is_common= nj_col_2->is_common= TRUE;
-      DBUG_PRINT ("info", ("%s.%s and %s.%s are common", 
-                           nj_col_1->safe_table_name(),
-                           nj_col_1->name()->str,
-                           nj_col_2->safe_table_name(),
-                           nj_col_2->name()->str));
+    /*
+      Add the new equi-join condition to the ON clause. Notice that
+      fix_fields() is applied to all ON conditions in setup_conds()
+      so we don't do it here.
+    */
+    add_join_on(thd, (table_ref_1->outer_join & JOIN_TYPE_RIGHT ?
+                      table_ref_1 : table_ref_2),
+                eq_cond);
 
-      if (field_1)
-        update_field_dependencies(thd, field_1, field_1->table);
-      if (field_2)
-        update_field_dependencies(thd, field_2, field_2->table);
+    nj_col_1->is_common= nj_col_2->is_common= TRUE;
+    DBUG_PRINT ("info", ("%s.%s and %s.%s are common", 
+                         nj_col_1->safe_table_name(),
+                         nj_col_1->name()->str,
+                         nj_col_2->safe_table_name(),
+                         nj_col_2->name()->str));
 
-      if (using_fields != NULL)
-        ++(*found_using_fields);
-    }
+    if (field_1)
+      update_field_dependencies(thd, field_1, field_1->table);
+    if (field_2)
+      update_field_dependencies(thd, field_2, field_2->table);
+
+    if (using_fields != NULL)
+      ++(*found_using_fields);
   }
   if (leaf_1)
     leaf_1->is_join_columns_complete= TRUE;
@@ -8447,7 +8497,7 @@ bool setup_tables_and_check_access(THD *thd, Name_resolution_context *context,
     if (table_list->belong_to_view && !table_list->view && 
         check_single_table_access(thd, access, table_list, FALSE))
     {
-      tables->hide_view_error(thd);
+      tables->replace_view_error_with_generic(thd);
       DBUG_RETURN(TRUE);
     }
     access= want_access;
@@ -8953,14 +9003,15 @@ static bool vers_update_or_validate_fields(TABLE *table)
 }
 
 
-static void unwind_stored_field_offsets(const List<Item> &fields, Field *end)
+static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *end)
 {
-  for (Item &item_field: fields)
+  for (Item &item: fields)
   {
-    Field *f= item_field.field_for_view_update()->field;
-    if (f == end)
+    Item_field *item_field= item.field_for_view_update();
+    if (item_field == end)
       break;
 
+    Field *f= item_field->field;
     if (f->stored_in_db())
     {
       TABLE *table= f->table;
@@ -9004,7 +9055,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
-  Item_field *field;
+  Item_field *field= NULL;
   Field *rfield;
   TABLE *table;
   bool only_unvers_fields= update && table_arg->versioned();
@@ -9022,11 +9073,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 
   while ((fld= f++))
   {
-    if (!(field= fld->field_for_view_update()))
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err_unwind_fields;
-    }
+    field= fld->field_for_view_update();
+    DBUG_ASSERT(field); // ensured by check_fields or check_view_insertability.
     value=v++;
     DBUG_ASSERT(value);
     rfield= field->field;
@@ -9094,7 +9142,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   DBUG_RETURN(thd->is_error());
 err_unwind_fields:
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-    unwind_stored_field_offsets(fields, rfield);
+    unwind_stored_field_offsets(fields, field);
 err:
   DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;

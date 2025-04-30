@@ -176,8 +176,8 @@ public:
       }
     }
 
-    str->length(0);
-    str->set_charset(collation.collation);
+    // Make sure we never return {Ptr=nullptr, str_length=0}
+    str->copy("", 0, collation.collation);
     for (uint i=0 ; i < numnodes; i++)
     {
       if(active[i])

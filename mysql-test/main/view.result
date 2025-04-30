@@ -944,31 +944,19 @@ create view v1 as select * from t1;
 create view v2 as select * from v1;
 create view v3 as select v2.col1 from v2,t2 where v2.col1 = t2.col1;
 insert into v2 values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v2'
 insert into t1 values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 't1'
 insert into v2 values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v2'
 insert into v2 values ((select max(col1) from t1));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v2'
 insert into t1 values ((select max(col1) from t1));
-ERROR HY000: Table 't1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into v2 values ((select max(col1) from t1));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v2'
 insert into v2 values ((select max(col1) from v2));
-ERROR HY000: Table 'v2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into t1 values ((select max(col1) from v2));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 't1'
 insert into v2 values ((select max(col1) from v2));
-ERROR HY000: Table 'v2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into v3 (col1) values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v3'
 insert into v3 (col1) values ((select max(col1) from t1));
-ERROR HY000: The definition of table 'v3' prevents operation INSERT on table 'v3'
 insert into v3 (col1) values ((select max(col1) from v2));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v3'
-insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v3'
+insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2 LIMIT 1));
+ERROR 22003: Out of range value for column 'col1' at row 3
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 ERROR 23000: Column 'col1' cannot be null
@@ -977,6 +965,18 @@ insert into t1 values (1),(2),(3);
 insert into t1 (col1) values ((select max(col1) from v4));
 select * from t1;
 col1
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
 NULL
 1
 2
@@ -1339,9 +1339,26 @@ create view v3 as select * from t1 where 20 < (select (s1) from v2);
 insert into v3 values (30);
 ERROR HY000: The target table v3 of the INSERT is not insertable-into
 create view v4 as select * from v2 where 20 < (select (s1) from t1);
+select * from t1;
+s1
 insert into v4 values (30);
-ERROR HY000: The target table v4 of the INSERT is not insertable-into
-drop view v4, v3, v2, v1;
+select * from t1;
+s1
+30
+create view v5 as select * from v2 where s1 < (select min(s1) from t1) WITH CHECK OPTION;
+# can't insert only less then minimum
+insert into v5 values (40);
+ERROR 44000: CHECK OPTION failed `test`.`v5`
+# allow insert the new minimum
+insert into v5 values (10);
+# always emply view (can't be something less than minimum)
+select * from v5;
+s1
+select * from t1;
+s1
+30
+10
+drop view v5, v4, v3, v2, v1;
 drop table t1;
 create table t1 (a int);
 create view v1 as select * from t1;

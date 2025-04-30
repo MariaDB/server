@@ -1693,6 +1693,10 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+
+  TABLE_LIST *find_table(THD *thd,
+                         const LEX_CSTRING *db_name,
+                         const LEX_CSTRING *table_name);
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -4750,7 +4754,7 @@ public:
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
-    if (check_period_name(name.str)) {
+    if (check_column_name(name)) {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), name.str);
       return 1;
     }

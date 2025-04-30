@@ -1417,10 +1417,6 @@ Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
-/** wakeup listening(main) thread by writing to this descriptor */
-static int termination_event_fd= -1;
-
-
 
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -1474,9 +1470,14 @@ static pthread_t select_thread;
 #endif
 
 /* OS specific variables */
-
+#ifndef EMBEDDED_LIBRARY
 #ifdef _WIN32
+/** wakeup main thread by signaling this event */
 HANDLE hEventShutdown;
+#else
+/** wakeup listening(main) thread by writing to this descriptor */
+static int termination_event_fd= -1;
+#endif
 #endif
 
 
@@ -6064,8 +6065,8 @@ int mysqld_main(int argc, char **argv)
   (void)MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
 
   /* Memory used when everything is setup */
-  start_memory_used= global_status_var.global_memory_used;
-
+  start_memory_used= (global_status_var.global_memory_used +
+                      my_malloc_init_memory_allocated);
   run_main_loop();
 
   /* Shutdown requested */
@@ -7344,7 +7345,7 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
   if (scope == OPT_GLOBAL)
   {
     calc_sum_of_all_status_if_needed(status_var);
-    *(longlong*) buff= (status_var->global_memory_used +
+    *(longlong*) buff= (status_var->global_memory_used + my_malloc_init_memory_allocated +
                         status_var->local_memory_used);
   }
   else
@@ -8947,15 +8948,22 @@ char *set_server_version(char *buf, size_t size)
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
   const char *is_valgrind=
-#ifdef HAVE_VALGRIND
+#ifdef HAVE_valgrind
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
+  const char *is_asan=
+#ifdef __SANITIZE_ADDRESS__
+    !strstr(MYSQL_SERVER_SUFFIX_STR, "-asan") ? "-asan" :
+#endif
+    "";
+
   return strxnmov(buf, size - 1,
                   MYSQL_SERVER_VERSION,
                   MYSQL_SERVER_SUFFIX_STR,
                   IF_EMBEDDED("-embedded", ""),
                   is_valgrind,
+                  is_asan,
                   is_debug ? "-debug" : "",
                   is_log ? "-log" : "",
                   NullS);

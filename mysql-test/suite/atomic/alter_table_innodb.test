@@ -1,0 +1,7 @@
+#
+# Test atomic alter table with InnoDB
+
+--source include/have_innodb.inc
+let $engine_count=1;
+let $engines='innodb';
+--source alter_table.inc

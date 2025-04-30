@@ -1119,7 +1119,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_ci_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -1140,7 +1141,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_mysql500_ci_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -1161,7 +1163,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_bin_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -1182,7 +1185,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_nopad_ci_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1203,7 +1207,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_nopad_bin_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1529,7 +1534,8 @@ static MY_COLLATION_HANDLER my_collation_cs_handler =
     my_hash_sort_utf8mb3,
     my_propagate_simple,
     my_min_str_mb_simple,
-    my_max_str_mb_simple
+    my_max_str_mb_simple,
+    my_ci_eq_collation_generic
 };
 
 struct charset_info_st my_charset_utf8mb3_general_cs=
@@ -2848,7 +2854,8 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 static MY_CHARSET_HANDLER my_charset_filename_handler=
@@ -3393,6 +3400,19 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+static my_bool
+my_ci_eq_collation_utf8mb4_bin(CHARSET_INFO *a, CHARSET_INFO *b)
+{
+  return a->cset == b->cset &&
+         a->coll == b->coll &&
+         a->uca == b->uca && a->uca == NULL &&
+         a->casefold == b->casefold &&
+         (a->state & MY_CS_NOPAD) == (b->state & MY_CS_NOPAD) &&
+         a->levels_for_order == b->levels_for_order &&
+         a->tailoring == b->tailoring && a->tailoring == NULL;
+}
+
+
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb4(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -3475,7 +3495,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -3496,7 +3517,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_utf8mb4_bin
 };
 
 
@@ -3517,7 +3539,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -3538,7 +3561,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_utf8mb4_bin
 };
 
 

@@ -757,6 +757,17 @@ public:
   virtual const String *const_ptr_string() const { return NULL; }
 };
 
+struct subselect_table_finder_param
+{
+  THD *thd;
+  /*
+    We're searching for different TABLE_LIST objects referring to the same
+    table as this one
+  */
+  const TABLE_LIST *find;
+  /* NUL - not found, ERROR_TABLE - search error, or the found table reference */
+  TABLE_LIST *dup;
+};
 
 /****************************************************************************/
 
@@ -1954,6 +1965,19 @@ public:
   */
   virtual Item *clone_item(THD *thd) const { return nullptr; }
 
+  /*
+    @detail
+    The meaning of this function seems to be:
+      Check what the item would return if it was provided with two identical
+      non-NULL arguments.
+    It is not clear why it is defined for generic class Item or what its other
+    uses are.
+
+    @return
+       COND_TRUE   Would return true
+       COND_FALSE  Would return false
+       COND_OK     May return either, depending on the argument type.
+  */
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
@@ -2292,6 +2316,7 @@ public:
     set_extraction_flag(*(int16*)arg);
     return 0;
   }
+  virtual bool subselect_table_finder_processor(void *arg) { return 0; };
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
@@ -6707,7 +6732,14 @@ protected:
     Type_std_attributes::set(item);
     name= item->name;
     set_handler(item->type_handler());
+#ifndef DBUG_OFF
+    copied_in= 0;
+#endif
   }
+
+#ifndef DBUG_OFF
+  bool copied_in;
+#endif
 
 public:
 
@@ -6774,7 +6806,10 @@ public:
   double val_real() override;
   longlong val_int() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
-  { return get_date_from_string(thd, ltime, fuzzydate); }
+  {
+    DBUG_ASSERT(copied_in);
+    return get_date_from_string(thd, ltime, fuzzydate);
+  }
   void copy() override;
   int save_in_field(Field *field, bool no_conversions) override;
   Item *do_get_copy(THD *thd) const override
@@ -6804,9 +6839,13 @@ public:
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
+#ifndef DBUG_OFF
+    copied_in=1;
+#endif
   }
   int save_in_field(Field *field, bool) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     if (null_value)
       return set_field_to_null(field);
@@ -6815,30 +6854,35 @@ public:
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0 :
            m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real() override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? 0e0 :
            m_value.to_datetime(current_thd).to_double();
   }
   String *val_str(String *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value ? NULL :
            m_value.to_datetime(current_thd).to_decimal(to);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     bool res= m_value.to_TIME(thd, ltime, fuzzydate);
     DBUG_ASSERT(!res);
@@ -6846,6 +6890,7 @@ public:
   }
   bool val_native(THD *thd, Native *to) override
   {
+    DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
     return null_value || m_value.to_native(to, decimals);
   }

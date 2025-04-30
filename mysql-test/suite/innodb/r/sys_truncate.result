@@ -4,7 +4,7 @@ Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a fu
 SET UNIQUE_CHECKS=0, FOREIGN_KEY_CHECKS=0;
 CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
 f3 INT NOT NULL, INDEX(f1),
-INDEX(f2), INDEX(f3))ENGINE=InnoDB;
+INDEX(f2), INDEX(f3))STATS_PERSISTENT=0 ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
 INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;

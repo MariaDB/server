@@ -1320,5 +1320,17 @@ f
 foo
 <b></b>
 #
-# Start of 10.5 tests
+# End of 10.5 tests
 #
+# Start of 11.4 tests
+#
+# MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit
+#
+SET NAMES latin1;
+SELECT  lcase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+a
+
+SELECT  ucase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+a
+
+# End of 11.4 tests

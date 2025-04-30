@@ -23697,6 +23697,8 @@ do_select(JOIN *join, Procedure *procedure)
         */
         clear_tables(join, &cleared_tables);
       }
+      if (join->tmp_table_param.copy_funcs.elements)
+        copy_fields(&join->tmp_table_param);
       if (!join->having || join->having->val_bool())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
@@ -28415,9 +28417,13 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
-    if (resolution == RESOLVED_BEHIND_ALIAS &&
-        order_item->fix_fields_if_needed_for_order_by(thd, order->item))
-      return TRUE;
+    if (resolution == RESOLVED_BEHIND_ALIAS)
+    {
+      if (order_item->fix_fields_if_needed_for_order_by(thd, order->item))
+        return TRUE;
+      // fix_fields may have replaced order->item, reset local variable.
+      order_item= *order->item;
+    }
 
     /* Lookup the current GROUP field in the FROM clause. */
     order_item_type= order_item->type();
@@ -31901,7 +31907,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
       */
       if (top_level ||
           item->is_explicit_name() ||
-          !check_column_name(item->name.str))
+          !check_column_name(item->name))
         item->print_item_w_name(str, query_type);
       else
         item->print(str, query_type);
@@ -34268,39 +34274,38 @@ static void MYSQL_DML_START(THD *thd)
 }
 
 
-static void MYSQL_DML_DONE(THD *thd, int rc)
+static void MYSQL_DML_GET_STAT(THD * thd, ha_rows &found, ha_rows &changed)
 {
   switch (thd->lex->sql_command) {
-
   case SQLCOM_UPDATE:
-    MYSQL_UPDATE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_found()),
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_updated()));
-    break;
   case SQLCOM_UPDATE_MULTI:
-    MYSQL_MULTI_UPDATE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_found()),
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_updated()));
+  case SQLCOM_DELETE_MULTI:
+    thd->lex->m_sql_cmd->get_dml_stat(found, changed);
     break;
   case SQLCOM_DELETE:
-    MYSQL_DELETE_DONE(rc, (rc ? 0 : (ulong) (thd->get_row_count_func())));
+    found= 0;
+    changed= (thd->get_row_count_func());
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
+
+static void MYSQL_DML_DONE(THD *thd, int rc, ha_rows found, ha_rows changed)
+{
+  switch (thd->lex->sql_command) {
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_DONE(rc, found, changed);
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_DONE(rc, found, changed);
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_DONE(rc, changed);
     break;
   case SQLCOM_DELETE_MULTI:
-    MYSQL_MULTI_DELETE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_delete*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_deleted()));
+    MYSQL_MULTI_DELETE_DONE(rc, changed);
     break;
   default:
     DBUG_ASSERT(0);
@@ -34389,6 +34394,7 @@ err:
 bool Sql_cmd_dml::execute(THD *thd)
 {
   lex = thd->lex;
+  ha_rows found= 0, changed= 0;
   bool res;
 
   SELECT_LEX_UNIT *unit = &lex->unit;
@@ -34439,6 +34445,8 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   if (res)
     goto err;
+  else
+    MYSQL_DML_GET_STAT(thd, found, changed);
 
   res= unit->cleanup();
 
@@ -34447,13 +34455,13 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   THD_STAGE_INFO(thd, stage_end);
 
-  MYSQL_DML_DONE(thd, res);
+  MYSQL_DML_DONE(thd, 0, found, changed);
 
   return res;
 
 err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
-  MYSQL_DML_DONE(thd, 1);
+  MYSQL_DML_DONE(thd, 1, 0, 0);
   THD_STAGE_INFO(thd, stage_end);
   (void)unit->cleanup();
   if (is_prepared())

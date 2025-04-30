@@ -3106,7 +3106,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
 
     DBUG_ASSERT(sql_field->charset);
 
-    if (check_column_name(sql_field->field_name.str))
+    if (check_column_name(sql_field->field_name))
     {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), sql_field->field_name.str);
       DBUG_RETURN(TRUE);
@@ -3744,7 +3744,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
       key_part_info++;
     }
-    if (!key_info->name.str || check_column_name(key_info->name.str))
+    if (!key_info->name.str || check_column_name(key_info->name))
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name.str);
       DBUG_RETURN(TRUE);
@@ -6234,7 +6234,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(drop->name))
+        if (table->s->period.name.streq(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -9226,7 +9226,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     for (bool found= false; !found && (drop= drop_it++); )
     {
       found= drop->type == Alter_drop::PERIOD &&
-             table->s->period.name.streq(drop->name);
+             table->s->period.name.streq(Lex_ident(drop->name));
     }
 
     if (drop)
@@ -9269,7 +9269,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      if (share->period.constr_name.streq(check->name.str))
+      if (share->period.constr_name.streq(check->name))
       {
         if (!drop_period && !keep)
         {
@@ -12687,6 +12687,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (alt_error > 0)
     {
       error= alt_error;
+      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }
