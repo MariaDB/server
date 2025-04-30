@@ -818,6 +818,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
     The appended #P#<partname>[#SP#<subpartname>] will remain in current case.
     Using the first partitions handler, since mixing handlers is not allowed.
   */
+  create_info->is_partition= true;
   path= get_canonical_filename(*file, name, name_lc_buff);
   for (i= 0; i < m_part_info->num_parts; i++)
   {
@@ -862,6 +863,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
       file++;
     }
   }
+  create_info->is_partition= false;
   DBUG_RETURN(0);
 
 create_error:
