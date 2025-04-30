@@ -925,6 +925,7 @@ public:
   {
     return check_assignability_from(from->type_handler(), ignore);
   }
+  bool check_user_assignability(THD *thd, const Item *value, bool update) const;
 
   /**
     Convenience definition of a copy function returned by

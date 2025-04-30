@@ -9032,32 +9032,20 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
 
-    const bool skip_sys_field= rfield->vers_sys_field() &&
-                       (update || !thd->vers_insert_history_fast(table));
+    if (!rfield->check_user_assignability(thd, value, update))
+      goto err;
 
-    if ((rfield->vcol_info || skip_sys_field) &&
-        !value->vcol_assignment_allowed_value() &&
-        table->s->table_category != TABLE_CATEGORY_TEMPORARY)
-    {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN,
-                          ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN),
-                          rfield->field_name.str, table->s->table_name.str);
-    }
     if (only_unvers_fields && !rfield->vers_update_unversioned())
       only_unvers_fields= false;
 
     if (rfield->stored_in_db())
     {
-      if (!skip_sys_field)
+      if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
       {
-        if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
-        {
-          my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
-          goto err_unwind_fields;
-        }
-        rfield->set_has_explicit_value();
+        my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
+        goto err_unwind_fields;
       }
+      rfield->set_has_explicit_value();
       /*
         In sql MODE_SIMULTANEOUS_ASSIGNMENT,
         move field pointer on value stored in record[1]
