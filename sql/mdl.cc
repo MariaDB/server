@@ -584,7 +584,7 @@ public:
           If m_wrlock prefers readers (actually ignoring pending writers is
           enough) ctxA and ctxB will continue and no deadlock will occur.
   */
-  mysql_prlock_t m_rwlock;
+  mutable mysql_prlock_t m_rwlock;
 
   bool is_empty() const
   {
@@ -600,8 +600,6 @@ public:
 
   bool can_grant_lock(enum_mdl_type type, MDL_context *requstor_ctx,
                       bool ignore_lock_priority) const;
-
-  inline unsigned long get_lock_owner() const;
 
   void reschedule_waiters();
 
@@ -684,6 +682,29 @@ public:
       lock->m_strategy= &m_scoped_lock_strategy;
     else
       lock->m_strategy= &m_object_lock_strategy;
+  }
+
+
+  /**
+    Return thread id of the thread to which the first ticket was
+    granted.
+
+    Intended for user level locks. They make use of SNW lock only,
+    thus there can be only one granted ticket.
+
+    We can skip check for m_strategy here, because m_granted
+    must be empty for such locks anyway.
+  */
+  unsigned long get_lock_owner() const
+  {
+    unsigned long res= 0;
+    DBUG_ASSERT(key.mdl_namespace() == MDL_key::USER_LOCK);
+    mysql_prlock_rdlock(&m_rwlock);
+    DBUG_ASSERT(m_strategy || is_empty());
+    if (!m_granted.is_empty())
+      res= m_granted.begin()->get_ctx()->get_thread_id();
+    mysql_prlock_unlock(&m_rwlock);
+    return res;
   }
 
   const MDL_lock_strategy *m_strategy;
@@ -893,31 +914,15 @@ retry:
 unsigned long
 MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
 {
-  unsigned long res= 0;
-
-  if (mdl_key->mdl_namespace() == MDL_key::BACKUP)
+  DBUG_ASSERT(mdl_key->mdl_namespace() == MDL_key::USER_LOCK);
+  if (MDL_lock *lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
+                                                 mdl_key->length()))
   {
-    mysql_prlock_rdlock(&m_backup_lock->m_rwlock);
-    res= m_backup_lock->get_lock_owner();
-    mysql_prlock_unlock(&m_backup_lock->m_rwlock);
+    unsigned long res= lock->get_lock_owner();
+    lf_hash_search_unpin(pins);
+    return res;
   }
-  else
-  {
-    MDL_lock *lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
-                                               mdl_key->length());
-    if (lock)
-    {
-      /*
-        We can skip check for m_strategy here, becase m_granted
-        must be empty for such locks anyway.
-      */
-      mysql_prlock_rdlock(&lock->m_rwlock);
-      res= lock->get_lock_owner();
-      mysql_prlock_unlock(&lock->m_rwlock);
-      lf_hash_search_unpin(pins);
-    }
-  }
-  return res;
+  return 0;
 }
 
 
@@ -1808,21 +1813,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
     return can_grant;
   }
   return true;
-}
-
-
-/**
-  Return thread id of the thread to which the first ticket was
-  granted.
-*/
-
-inline unsigned long
-MDL_lock::get_lock_owner() const
-{
-  if (m_granted.is_empty())
-    return 0;
-
-  return m_granted.begin()->get_ctx()->get_thread_id();
 }
 
 
