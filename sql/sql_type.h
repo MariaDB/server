@@ -4937,11 +4937,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
-                                       const override
-  {
-    MY_ASSERT_UNREACHABLE();
-    return true;
-  }
+                                       const override;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override
   {
     MY_ASSERT_UNREACHABLE();

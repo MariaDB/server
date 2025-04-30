@@ -2720,6 +2720,17 @@ bool
 Item_func_nullif::fix_length_and_dec(THD *thd)
 {
   /*
+    The returned data type is determined only by args[0].
+    Check it here to be a valid returned type for a hybrid function.
+    args[1] will be checked below, to be comparable to args[0],
+    its data type does not affect the returned data type.
+  */
+  if (args[0]->type_handler()->
+         Item_hybrid_func_fix_attributes(current_thd, func_name_cstring(),
+                                         this, this, &args[0], 1))
+    return true;
+
+  /*
     If this is the first invocation of fix_length_and_dec(), create the
     third argument as a copy of the first. This cannot be done before
     fix_fields(), because fix_fields() might replace items,
@@ -3440,6 +3451,14 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
     */
     if (agg_arg_charsets_for_comparison(cmp_collation, args, ncases + 1))
       return true;
+  }
+
+  if (m_found_types & (1U << ROW_RESULT))
+  {
+    // ROWs are not supported yet in CASE ROW(..) WHEN ROW(..)
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             type_handler_row.name().ptr(), "CASE WHEN");
+    return true;
   }
 
   if (make_unique_cmp_items(thd, cmp_collation.collation))

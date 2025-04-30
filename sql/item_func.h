@@ -1104,6 +1104,15 @@ public:
 */
 class Item_func_case_expression: public Item_func_hybrid_field_type
 {
+  bool check_arguments() const override
+  {
+    /*
+      Arguments to CASE-style expressions are subject to aggregate_for_result()
+      and/or aggregate_for_comparision(). These methods validate the arguments.
+      No needs to check arguments here.
+    */
+    return false;
+  }
 public:
   Item_func_case_expression(THD *thd)
    :Item_func_hybrid_field_type(thd)
