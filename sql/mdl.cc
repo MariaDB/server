@@ -761,6 +761,25 @@ end:
     mysql_prlock_unlock(&m_rwlock);
   }
 
+
+  /**
+    MDL_context::upgrade_shared_lock() helper
+
+    To update state of MDL_lock object correctly we need to temporarily
+    exclude ticket from the granted queue and then include it back.
+  */
+  void upgrade(MDL_ticket *ticket, enum_mdl_type type,
+               MDL_ticket *remove)
+  {
+    mysql_prlock_wrlock(&m_rwlock);
+    if (remove)
+      m_granted.remove_ticket(remove);
+    m_granted.remove_ticket(ticket);
+    ticket->m_type= type;
+    m_granted.add_ticket(ticket);
+    mysql_prlock_unlock(&m_rwlock);
+  }
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -2679,20 +2698,9 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
 
   is_new_ticket= ! has_lock(mdl_svp, mdl_xlock_request.ticket);
 
-  /* Merge the acquired and the original lock. @todo: move to a method. */
-  mysql_prlock_wrlock(&mdl_ticket->m_lock->m_rwlock);
-  if (is_new_ticket)
-    mdl_ticket->m_lock->m_granted.remove_ticket(mdl_xlock_request.ticket);
-  /*
-    Set the new type of lock in the ticket. To update state of
-    MDL_lock object correctly we need to temporarily exclude
-    ticket from the granted queue and then include it back.
-  */
-  mdl_ticket->m_lock->m_granted.remove_ticket(mdl_ticket);
-  mdl_ticket->m_type= new_type;
-  mdl_ticket->m_lock->m_granted.add_ticket(mdl_ticket);
-
-  mysql_prlock_unlock(&mdl_ticket->m_lock->m_rwlock);
+  /* Merge the acquired and the original lock. */
+  mdl_ticket->m_lock->upgrade(mdl_ticket, new_type,
+                    is_new_ticket ? mdl_xlock_request.ticket : nullptr);
 
   if (is_new_ticket)
   {
