@@ -2784,6 +2784,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
     reg_field->flags|= flags;
+    reg_field->generated_always|= reg_field->flags & VERS_SYSTEM_FIELD;
     if (extra2.field_flags.str)
     {
       uchar flags= *extra2.field_flags.str++;
@@ -3385,6 +3386,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         uint recpos;
         reg_field->vcol_info= vcol_info;
+        reg_field->generated_always= true;
         share->virtual_fields++;
         share->stored_fields--;
         if (reg_field->flags & BLOB_FLAG)
@@ -3400,6 +3402,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       case VCOL_GENERATED_STORED:
         DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
+        reg_field->generated_always= true;
         share->virtual_fields++;
         break;
       case VCOL_DEFAULT:
