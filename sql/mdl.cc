@@ -707,6 +707,35 @@ public:
     return res;
   }
 
+
+  /**
+    Callback for mdl_iterate()
+
+    Another thread may be deleting this MDL_lock concurrently.
+    Being deleted lock can still be iterated since it must have
+    valid empty granted/waiting lists.
+  */
+  bool iterate(mdl_iterator_callback callback, void *argument)
+  {
+    bool res= true;
+    mysql_prlock_rdlock(&m_rwlock);
+    DBUG_ASSERT(m_strategy || is_empty());
+    for (MDL_ticket &ticket : m_granted)
+    {
+      if (callback(&ticket, argument, true))
+        goto end;
+    }
+    for (MDL_ticket &ticket : m_waiting)
+    {
+      if (callback(&ticket, argument, false))
+        goto end;
+    }
+    res= false;
+end:
+    mysql_prlock_unlock(&m_rwlock);
+    return res;
+  }
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -787,21 +816,7 @@ static my_bool mdl_iterate_lock(void *lk, void *a)
 {
   MDL_lock *lock= static_cast<MDL_lock*>(lk);
   mdl_iterate_arg *arg= static_cast<mdl_iterate_arg*>(a);
-  /*
-    We can skip check for m_strategy here, becase m_granted
-    must be empty for such locks anyway.
-  */
-  mysql_prlock_rdlock(&lock->m_rwlock);
-  bool res= std::any_of(lock->m_granted.begin(), lock->m_granted.end(),
-                        [arg](MDL_ticket &ticket) {
-                          return arg->callback(&ticket, arg->argument, true);
-                        });
-  res= std::any_of(lock->m_waiting.begin(), lock->m_waiting.end(),
-                   [arg](MDL_ticket &ticket) {
-                     return arg->callback(&ticket, arg->argument, false);
-                   });
-  mysql_prlock_unlock(&lock->m_rwlock);
-  return res;
+  return lock->iterate(arg->callback, arg->argument);
 }
 
 
