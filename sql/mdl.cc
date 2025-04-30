@@ -744,6 +744,23 @@ end:
     mysql_prlock_unlock(&m_rwlock);
   }
 
+
+  /**
+    MDL_context::downgrade_lock() helper
+
+    To update state of MDL_lock object correctly we need to temporarily
+    exclude ticket from the granted queue and then include it back.
+  */
+  void downgrade(MDL_ticket *ticket, enum_mdl_type type)
+  {
+    mysql_prlock_wrlock(&m_rwlock);
+    m_granted.remove_ticket(ticket);
+    ticket->m_type= type;
+    m_granted.add_ticket(ticket);
+    reschedule_waiters();
+    mysql_prlock_unlock(&m_rwlock);
+  }
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -3063,16 +3080,7 @@ void MDL_ticket::downgrade_lock(enum_mdl_type type)
                 m_type == MDL_BACKUP_BLOCK_DDL ||
                 m_type == MDL_BACKUP_WAIT_FLUSH)));
 
-  mysql_prlock_wrlock(&m_lock->m_rwlock);
-  /*
-    To update state of MDL_lock object correctly we need to temporarily
-    exclude ticket from the granted queue and then include it back.
-  */
-  m_lock->m_granted.remove_ticket(this);
-  m_type= type;
-  m_lock->m_granted.add_ticket(this);
-  m_lock->reschedule_waiters();
-  mysql_prlock_unlock(&m_lock->m_rwlock);
+  m_lock->downgrade(this, type);
   DBUG_VOID_RETURN;
 }
 
