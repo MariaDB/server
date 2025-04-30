@@ -736,6 +736,14 @@ end:
     return res;
   }
 
+
+  void add_cloned_ticket(MDL_ticket *ticket)
+  {
+    mysql_prlock_wrlock(&m_rwlock);
+    m_granted.add_ticket(ticket);
+    mysql_prlock_unlock(&m_rwlock);
+  }
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -2211,9 +2219,7 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
   ticket->m_time= mdl_request->ticket->m_time;
   mdl_request->ticket= ticket;
 
-  mysql_prlock_wrlock(&ticket->m_lock->m_rwlock);
-  ticket->m_lock->m_granted.add_ticket(ticket);
-  mysql_prlock_unlock(&ticket->m_lock->m_rwlock);
+  ticket->m_lock->add_cloned_ticket(ticket);
 
   m_tickets[mdl_request->duration].push_front(ticket);
 
