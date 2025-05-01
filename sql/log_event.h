@@ -1063,7 +1063,7 @@ public:
     checksum_len(( checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
                    checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF) ?
                  BINLOG_CHECKSUM_LEN : 0),
-    file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
+    file(file_arg), cache_data(cache_data_arg), crc(0), crypto(cr) { }
 
 private:
   IO_CACHE *file;
@@ -2399,7 +2399,6 @@ private:
   uint32_t last_fragment_seen;
 
 public:
-  const uint64_t total_buf_size;
 
   String rows_ev_buf_builder;
 
@@ -2407,18 +2406,27 @@ public:
     Mutable, extended once per event
   */
   uint64_t event_size;
-  uint32_t fragment_max_size;
   uint32_t total_fragments;
 
-
-  Rows_log_event_assembler(uint32_t total_fragments,
-                           uint32_t fragment_max_size)
-      : total_buf_size(total_fragments * fragment_max_size){};
+  Rows_log_event_assembler(uint32_t total_fragments)
+      : last_fragment_seen(0), total_fragments(total_fragments){};
 
   ~Rows_log_event_assembler() {};
 
+  bool all_fragments_assembled()
+  {
+    fprintf(stderr, "\n\tassembler done? %u == %u : %s\n", last_fragment_seen,
+            total_fragments,
+            last_fragment_seen == total_fragments ? "Yes!" : "No");
+    return last_fragment_seen == total_fragments;
+  }
 
   bool append(Partial_rows_log_event *partial_ev);
+
+  Log_event *create_rows_event(const Format_description_log_event *fdle,
+                                    my_bool crc_check, my_bool print_errors
+
+  );
 };
 
 

@@ -4035,13 +4035,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           mysql_mutex_lock(&rli->data_lock);
         });
 
-    if (typ == PARTIAL_ROW_DATA_EVENT)
-    {
-      fprintf(stderr, "\n\t SQL thread found partial row data event\n");
-      delete ev;
-      DBUG_RETURN(0);
-    }
-
     /*
       Even if we don't execute this event, we keep the master timestamp,
       so that seconds behind master shows correct delta (there are events
@@ -4125,6 +4118,42 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         serial_rgi->inc_event_relay_log_pos();
                         DBUG_RETURN(0);
                       };);
+    }
+
+    if (typ == PARTIAL_ROW_DATA_EVENT)
+    {
+      static Rows_log_event_assembler *assembler= NULL;
+      Partial_rows_log_event *partial_ev= (Partial_rows_log_event*) ev;
+
+      fprintf(stderr, "\n\t SQL thread found partial row data event %u / %u\n",
+              partial_ev->seq_no, partial_ev->total_fragments);
+
+      if (!assembler)
+        assembler= new Rows_log_event_assembler(partial_ev->total_fragments);
+
+      assembler->append(partial_ev);
+
+      delete ev;
+
+      if (assembler->all_fragments_assembled())
+      {
+        ev= assembler->create_rows_event(
+            rli->relay_log.description_event_for_exec, true, true);
+        delete assembler;
+        assembler= NULL;
+        if (!ev)
+        {
+          fprintf(stderr, "\n\tERROR Could not assemble event\n");
+          goto oops;
+        }
+      }
+      else
+      {
+oops:
+        mysql_mutex_unlock(&rli->data_lock);
+        rli->event_relay_log_pos= rli->future_event_relay_log_pos;
+        DBUG_RETURN(0);
+      }
     }
 
     update_state_of_relay_log(rli, ev);

@@ -777,7 +777,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   {
     uchar save=pos[FLAGS_OFFSET];
     pos[FLAGS_OFFSET]&= ~LOG_EVENT_BINLOG_IN_USE_F;
-    crc= my_checksum(0, pos, len);
+    crc= my_checksum(crc, pos, len);
     pos[FLAGS_OFFSET]= save;
   }
 
@@ -821,17 +821,31 @@ int Log_event_writer::write_footer()
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
     if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
   if (ctx)
   {
     uint dstlen;
     uchar dst[MY_AES_BLOCK_SIZE*2];
     if (encryption_ctx_finish(ctx, dst, &dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(1);
+    }
     if (maybe_write_event_len(dst, dstlen) || write_internal(dst, dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
+
+  /*
+    TODO write a comment about the lifecycle of crc
+  */
+  crc= 0;
   DBUG_RETURN(0);
 }
 
@@ -5703,6 +5717,33 @@ bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
   last_fragment_seen= partial_ev->seq_no;
 
   return 0;
+}
+
+Log_event *Rows_log_event_assembler::create_rows_event(
+    const Format_description_log_event *fdle, my_bool crc_check,
+    my_bool print_errors
+
+)
+{
+  const char *error= 0;
+  Log_event *res= 0;
+  Log_event_type typ;
+
+  if ((res= Log_event::read_log_event((uchar *) rows_ev_buf_builder.ptr(),
+                                      rows_ev_buf_builder.length(), &error,
+                                      fdle, false, true)))
+  {
+    res->register_temp_buf((uchar *) rows_ev_buf_builder.release(), true);
+    typ= res->get_type_code();
+    DBUG_ASSERT(typ == WRITE_ROWS_EVENT_V1 || typ == UPDATE_ROWS_EVENT_V1 ||
+                typ == DELETE_ROWS_EVENT_V1);
+  }
+  else
+  {
+    fprintf(stderr, "Error assembling event: %s", error);
+  }
+
+  return res;
 }
 
 
