@@ -4784,7 +4784,11 @@ public:
 
   my_bool is_too_big()
   {
-    //if (m_curr_row - m_)
+    /*
+      TODO needs to use max_packet_size
+      TODO needs to take into account header, data_header, body header, footer
+           size
+    */
     my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
     if (data_size > 256)
     {
@@ -5773,14 +5777,15 @@ public:
     uint32_t metadata_size=
         LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
 
+    fprintf(stderr, "\n\tFragmenter acounting for data body header %" PRIu32 "\n\tTotal metadata size: %" PRIu32 "\n", cols_size + width_size,  metadata_size);
+
     uint64_t const data_size=
         static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
 
     // TODO Update rows size
     uint64_t const total_size= metadata_size + data_size;
 
-    uint64_t size_per_chunk= get_size_per_chunk();
-    uint64_t data_size_per_chunk= size_per_chunk - PARTIAL_ROWS_HEADER_LEN;
+    uint64_t data_size_per_chunk= get_payload_size_per_chunk();
 
     uint32_t last_chunk_size= (total_size % data_size_per_chunk); /* TODO Should last_chunk_size be uint64? */
     uint32_t last_chunk= last_chunk_size ? 1 : 0;
@@ -5802,11 +5807,17 @@ public:
       my_bool is_first_chunk= (i == 0);
       my_bool is_last_chunk= (i == (num_chunks - 1));
       uint64_t chunk_start=
-          is_first_chunk ? 0 : ((i * data_size_per_chunk) - metadata_size);
+          is_first_chunk ? 0 : ((i * data_size_per_chunk) - metadata_size) + 1;
       uint64_t chunk_end= (is_last_chunk)
-                              ? chunk_start + last_chunk_size
-                              : ((chunk_start + data_size_per_chunk) - 1 -
-                                 (is_first_chunk ? metadata_size : 0));
+                              ? chunk_start + last_chunk_size - 1 // Why -1 again
+                              : ((chunk_start + data_size_per_chunk) -
+                                 (is_first_chunk ? metadata_size - 1 : 0)); // TODO Why - 1??
+      //uint64_t chunk_start=
+      //    is_first_chunk ? 0 : ((i * data_size_per_chunk) - metadata_size);
+      //uint64_t chunk_end= (is_last_chunk)
+      //                        ? chunk_start + last_chunk_size
+      //                        : ((chunk_start + data_size_per_chunk) - 1 -
+      //                           (is_first_chunk ? metadata_size : 0));
 
       Indirect_partial_rows_log_event *fragment=
           new Indirect_partial_rows_log_event(
@@ -5835,7 +5846,7 @@ TODO I forget how to call a constructor on existing zeroed memory
     fprintf(stderr, "\n\tfragmenter:chunks %" PRIu32 " with last %" PRIu32 "(size %" PRIu32 "\n", num_chunks, last_chunk, last_chunk_size);
   }
 
-  uint64_t get_size_per_chunk()
+  uint64_t get_payload_size_per_chunk()
   {
     //return opt_binlog_rows_event_max_size;
     /*
@@ -5845,7 +5856,11 @@ TODO I forget how to call a constructor on existing zeroed memory
 
       TODO Why need +1? It is off by 1 otherwise..
     */
-    return fragment_size - LOG_EVENT_HEADER_LEN - BINLOG_CHECKSUM_LEN;
+    DBUG_ASSERT(fragment_size > LOG_EVENT_HEADER_LEN +
+                                    PARTIAL_ROWS_HEADER_LEN +
+                                    BINLOG_CHECKSUM_LEN);
+    return fragment_size - LOG_EVENT_HEADER_LEN - PARTIAL_ROWS_HEADER_LEN -
+           BINLOG_CHECKSUM_LEN;
   }
 
   uint32 get_num_fragments()

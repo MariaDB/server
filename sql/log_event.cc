@@ -1005,6 +1005,16 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
   if (event_type == START_EVENT_V3)
     (const_cast< Format_description_log_event *>(fdle))->used_checksum_alg=
       BINLOG_CHECKSUM_ALG_OFF;
+
+  if (event_type == WRITE_ROWS_EVENT_V1)
+  {
+    fprintf(stderr, "\n\tWev Tempbuf Size: %u\n\tSlave Write Rows Data\n\t\t", event_len);
+    for (size_t i= 0; i < event_len; i++)
+    {
+     fprintf(stderr, "%X", buf[i]);
+    }
+  }
+
   /*
     CRC verification by SQL and Show-Binlog-Events master side.
     The caller has to provide @fdle->checksum_alg to
@@ -1092,7 +1102,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
 
     if (alg != BINLOG_CHECKSUM_ALG_UNDEF &&
         (event_type == FORMAT_DESCRIPTION_EVENT ||
-         alg != BINLOG_CHECKSUM_ALG_OFF))
+         alg != BINLOG_CHECKSUM_ALG_OFF) && crc_check) // TODO : This isn't valid, it is just a quick check
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
     /*

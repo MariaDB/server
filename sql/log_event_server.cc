@@ -5564,12 +5564,18 @@ bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer, uint64_t
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
   uint bitmap_size= no_bytes_in_export_map(&m_cols);
   uchar *bitmap;
+  uint64_t mlen_written= 0;
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
   res= res || write_data(writer, sbuf, (size_t) (sbuf_end - sbuf));
+
+  /*
+    TODO Len_written isn't used any more, get rid of it
+  */
   if (!res && len_written)
     *len_written+= (size_t) (sbuf_end - sbuf);
+  mlen_written+= (size_t) (sbuf_end - sbuf);
 
   bitmap= (uchar*) my_alloca(bitmap_size);
   bitmap_export(bitmap, &m_cols);
@@ -5578,6 +5584,7 @@ bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer, uint64_t
   res= res || write_data(writer, bitmap, bitmap_size);
   if (!res && len_written)
     *len_written+= bitmap_size;
+  mlen_written+= bitmap_size;
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
@@ -5590,7 +5597,10 @@ bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer, uint64_t
     res= res || write_data(writer, bitmap, bitmap_size);
     if (!res && len_written)
       *len_written+= bitmap_size;
+    mlen_written+= bitmap_size;
   }
+
+  fprintf(stderr, "\n\tRLE::Write_data_body_metadata wrote %" PRIu64 "\n", mlen_written);
   my_afree(bitmap);
 
   return res;
@@ -5733,6 +5743,7 @@ Log_event *Rows_log_event_assembler::create_rows_event(
                                       rows_ev_buf_builder.length(), &error,
                                       fdle, false, true)))
   {
+    fprintf(stderr, "\n\tAssembler says ev buf is %d long\n", rows_ev_buf_builder.length());
     res->register_temp_buf((uchar *) rows_ev_buf_builder.release(), true);
     typ= res->get_type_code();
     DBUG_ASSERT(typ == WRITE_ROWS_EVENT_V1 || typ == UPDATE_ROWS_EVENT_V1 ||

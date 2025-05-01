@@ -4139,6 +4139,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       {
         ev= assembler->create_rows_event(
             rli->relay_log.description_event_for_exec, true, true);
+        typ= ev->get_type_code();
         delete assembler;
         assembler= NULL;
         if (!ev)
