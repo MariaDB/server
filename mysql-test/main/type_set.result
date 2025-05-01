@@ -489,16 +489,6 @@ SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
 indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "DATE'2001-01-01'" of type `date`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
 SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
 indexed_col
 Warnings:
@@ -507,16 +497,6 @@ SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
 indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
 SELECT * FROM t1 WHERE indexed_col=0x00;
 indexed_col
 SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
@@ -564,26 +544,6 @@ SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "`t2`.`not_indexed_col`" of type `date`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col DATETIME);
 INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
@@ -591,26 +551,6 @@ SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "`t2`.`not_indexed_col`" of type `datetime`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col TIMESTAMP);
 INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
@@ -618,26 +558,6 @@ SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `set` = "`t2`.`not_indexed_col`" of type `timestamp`
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
-Warning	1292	Truncated incorrect datetime value: '2001'
-Warning	1292	Truncated incorrect datetime value: '2002'
-Warning	1292	Truncated incorrect datetime value: '2003'
-Warning	1292	Truncated incorrect datetime value: '2004'
-Warning	1292	Truncated incorrect datetime value: '2005'
-Warning	1292	Truncated incorrect datetime value: '2006'
-Warning	1292	Truncated incorrect datetime value: '2007'
-Warning	1292	Truncated incorrect datetime value: '2008'
-Warning	1292	Truncated incorrect datetime value: '2009'
-Warning	1292	Truncated incorrect datetime value: '2010'
 DROP TABLE t2;
 CREATE TABLE t2 (not_indexed_col VARBINARY(32));
 INSERT INTO t2 VALUES (0x30),(0x31);
