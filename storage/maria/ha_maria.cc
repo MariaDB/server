@@ -44,6 +44,7 @@ C_MODE_END
 #include "sql_parse.h"
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
+#include "opt_hints.h"
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -1838,8 +1839,17 @@ int ha_maria::assign_to_keycache(THD * thd, HA_CHECK_OPT *check_opt)
 
   table->keys_in_use_for_query.clear_all();
 
-  if (table_list->process_index_hints(table))
-    DBUG_RETURN(HA_ADMIN_FAILED);
+  if (!table_list->opt_hints_table ||
+      !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+  {
+    /*
+      Old-style index hints are processed only if there
+      new-style hints are not specified
+    */
+    if (table_list->process_index_hints(table))
+      DBUG_RETURN(HA_ADMIN_FAILED);
+  }
+
   map= ~(ulonglong) 0;
   if (!table->keys_in_use_for_query.is_clear_all())
     /* use all keys if there's no list specified by the user through hints */
@@ -1889,8 +1899,16 @@ int ha_maria::preload_keys(THD * thd, HA_CHECK_OPT *check_opt)
 
   table->keys_in_use_for_query.clear_all();
 
-  if (table_list->process_index_hints(table))
-    DBUG_RETURN(HA_ADMIN_FAILED);
+  if (!table_list->opt_hints_table ||
+      !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+  {
+    /*
+      Old-style index hints are processed only if there
+      new-style hints are not specified
+    */
+    if (table_list->process_index_hints(table))
+      DBUG_RETURN(HA_ADMIN_FAILED);
+  }
 
   map= ~(ulonglong) 0;
   /* Check validity of the index references */
