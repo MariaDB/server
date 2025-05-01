@@ -780,6 +780,17 @@ end:
     mysql_prlock_unlock(&m_rwlock);
   }
 
+
+  void notify_conflicting_locks_if_needed(MDL_ticket *ticket, bool abort_blocking)
+  {
+    if (needs_notification(ticket))
+    {
+      mysql_prlock_wrlock(&m_rwlock);
+      notify_conflicting_locks(ticket->get_ctx(), abort_blocking);
+      mysql_prlock_unlock(&m_rwlock);
+    }
+  }
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -2502,10 +2513,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
       break;
     }
 
-    mysql_prlock_wrlock(&lock->m_rwlock);
-    if (lock->needs_notification(ticket))
-      lock->notify_conflicting_locks(this, abort_blocking);
-    mysql_prlock_unlock(&lock->m_rwlock);
+    lock->notify_conflicting_locks_if_needed(ticket, abort_blocking);
   }
   if (wait_status == MDL_wait::EMPTY)
     wait_status= m_wait.timed_wait(m_owner, &abs_timeout, TRUE,
