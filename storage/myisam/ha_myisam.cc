@@ -29,6 +29,7 @@
 #include "sql_class.h"                          // THD
 #include "debug_sync.h"
 #include "sql_debug.h"
+#include "opt_hints.h"
 
 ulonglong myisam_recover_options;
 static ulong opt_myisam_block_size;
@@ -1455,8 +1456,17 @@ int ha_myisam::assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt)
 
   table->keys_in_use_for_query.clear_all();
 
-  if (table_list->process_index_hints(table))
-    DBUG_RETURN(HA_ADMIN_FAILED);
+  if (!table_list->opt_hints_table ||
+      !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+  {
+    /*
+      Old-style index hints are processed only if there
+      new-style hints are not specified
+    */
+    if (table_list->process_index_hints(table))
+      DBUG_RETURN(HA_ADMIN_FAILED);
+  }
+
   map= ~(ulonglong) 0;
   if (!table->keys_in_use_for_query.is_clear_all())
     /* use all keys if there's no list specified by the user through hints */
@@ -1506,8 +1516,16 @@ int ha_myisam::preload_keys(THD* thd, HA_CHECK_OPT *check_opt)
 
   table->keys_in_use_for_query.clear_all();
 
-  if (table_list->process_index_hints(table))
-    DBUG_RETURN(HA_ADMIN_FAILED);
+  if (!table_list->opt_hints_table ||
+      !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+  {
+    /*
+      Old-style index hints are processed only if there
+      new-style hints are not specified
+    */
+    if (table_list->process_index_hints(table))
+      DBUG_RETURN(HA_ADMIN_FAILED);
+  }
 
   map= ~(ulonglong) 0;
   /* Check validity of the index references */
