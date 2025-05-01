@@ -750,33 +750,8 @@ private:
   friend class MDL_context;
   friend class MDL_lock;
 
-  MDL_ticket(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
-             , enum_mdl_duration duration_arg
-#endif
-            )
-   :
-#ifndef DBUG_OFF
-     m_duration(duration_arg),
-#endif
-     m_time(0),
-     m_type(type_arg),
-     m_ctx(ctx_arg),
-     m_lock(NULL),
-     m_psi(NULL)
-  {}
-
-  virtual ~MDL_ticket()
-  {
-    DBUG_ASSERT(m_psi == NULL);
-  }
-
-  static MDL_ticket *create(MDL_context *ctx_arg, enum_mdl_type type_arg
-#ifndef DBUG_OFF
-                            , enum_mdl_duration duration_arg
-#endif
-                            );
-  static void destroy(MDL_ticket *ticket);
+  MDL_ticket(MDL_context *ctx_arg, MDL_request *request);
+  ~MDL_ticket();
 private:
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
