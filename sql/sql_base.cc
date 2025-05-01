@@ -8362,8 +8362,31 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       {
         setup_table_map(table, table_list, tablenr);
 
-        if (table_list->process_index_hints(table))
-          DBUG_RETURN(1);
+        /*
+          Conditions to meet for optimizer hints resolution:
+          (1)  QB hints initialized
+          (2)  Table hints are not adjusted yet
+          (3)  Table is not in the INSERT part of INSERT..SELECT
+        */
+        if (qb_hints &&                          // (1)
+            !table_list->opt_hints_table &&      // (2)
+            !(select_insert && is_insert_part))  // (3)
+        {
+          table_list->opt_hints_table=
+              qb_hints->fix_hints_for_table(table_list->table,
+                                            table_list->alias);
+        }
+
+        if (!table_list->opt_hints_table ||
+            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+        {
+          /*
+            Old-style index hints are processed only if
+            new-style hints are not specified
+          */
+          if (table_list->process_index_hints(table))
+            DBUG_RETURN(1);
+        }
       }
       tablenr++;
       /*
@@ -8376,20 +8399,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
 
-      /*
-        Conditions to meet for optimizer hints resolution:
-        (1)  QB hints initialized
-        (2)  Table hints are not adjusted yet
-        (3)  Table is not in the INSERT part of INSERT..SELECT
-      */
-      if (qb_hints &&                          // (1)
-          !table_list->opt_hints_table &&      // (2)
-          !(select_insert && is_insert_part))  // (3)
-      {
-        table_list->opt_hints_table=
-            qb_hints->fix_hints_for_table(table_list->table,
-                                          table_list->alias);
-      }
     }
     if (select_insert && is_insert_part)
     {
@@ -8414,12 +8423,22 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else
       {
-        table_list->table->tablenr= table_list->tablenr_exec;
-        table_list->table->map= table_list->map_exec;
-        table_list->table->maybe_null= table_list->maybe_null_exec;
-        table_list->table->pos_in_table_list= table_list;
-        if (table_list->process_index_hints(table_list->table))
-          DBUG_RETURN(1);
+        TABLE *table= table_list->table;
+        table->tablenr= table_list->tablenr_exec;
+        table->map= table_list->map_exec;
+        table->maybe_null= table_list->maybe_null_exec;
+        table->pos_in_table_list= table_list;
+
+        if (!table_list->opt_hints_table ||
+            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+        {
+          /*
+            Old-style index hints are processed only if
+            new-style hints are not specified
+          */
+          if (table_list->process_index_hints(table))
+            DBUG_RETURN(1);
+        }
       }
       select_lex->leaf_tables.push_back(table_list);
     }

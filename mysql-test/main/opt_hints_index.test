@@ -1,0 +1,114 @@
+--enable_prepare_warnings
+--disable_view_protocol # Since optimizer hints are not supported inside views
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT,
+                 KEY i_a(a), KEY i_b(b),
+                 KEY i_ab(a,b), KEY i_c(c), KEY i_d(d));
+INSERT INTO t1 VALUES
+(1,1,1,1),(2,2,2,1),(3,3,3,1),(4,4,4,1),
+(5,5,5,1),(6,6,6,1),(7,7,7,1),(8,8,8,1);
+INSERT INTO t1 SELECT a,b, c + 10, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 20, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 40, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 80, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 160, d FROM t1;
+ANALYZE TABLE t1;
+
+--echo # Check behavior of duplicated/intersected hints.
+--echo # First specified hint is applied and next conflicting/intersected hints
+--echo # are ignored with warning.
+
+--echo # JOIN_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1) JOIN_INDEX(t1) */ a FROM t1;
+--echo # INDEX(t1 i_d) is ignored as duplicated (same type of hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) NO_INDEX(t1 i_d) */ a FROM t1;
+--echo # JOIN_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) JOIN_INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_b) */ a FROM t1;
+--echo # GROUP_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) */ a FROM t1;
+--echo # GROUP_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1) */ a FROM t1;
+--echo # ORDER_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same key)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) */ a FROM t1;
+--echo # INDEX(t1 i_b,i_a) is ignored as intersected (INDEX/other hint for the same key)
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) INDEX(t1 i_b,i_a)*/ a FROM t1;
+--echo # ORDER_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1) */ a FROM t1;
+--echo # ORDER_INDEX(t1 i_b) is ignored as intersected (same hint/INDEX for the same table)
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) NO_ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
+--echo # INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) INDEX(t1)*/ a FROM t1;
+--echo # INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1) GROUP_INDEX(t1) INDEX(t1)*/ a FROM t1;
+--echo # Check the use of index hints.
+--echo # Force the use of i_a, i_b indexes, intersect(i_a,i_b) is used.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # Force the use of i_a, i_ab indexes, i_ab index is used.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_ab) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # Force the use of i_a, i_b, i_c indexes, i_c index is used.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_c) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+
+--echo # Test range index access
+EXPLAIN EXTENDED SELECT a FROM t1 WHERE a > 1 AND a < 3;
+--echo # Indexes are forbidden, full scan is employed
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+--echo # Indexes are forbidden for grouping and ordering but are usable for data access
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1) NO_ORDER_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+--echo # Index "i_a" is forbidden, "i_ab" is used instead
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_a)*/a FROM t1 WHERE a > 1 AND a < 3;
+
+--echo # Usable indexes are forbidden, full scan is employed
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_a, i_ab)*/a FROM t1 WHERE a > 1 AND a < 3;
+
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_ab)*/a FROM t1 WHERE a > 1 AND a < 3;
+
+--echo # Full scan is more efficient for this query, so indexes are not used by default:
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a < 8;
+--echo # Force using of any index:
+EXPLAIN EXTENDED SELECT /*+ index(t1)*/* FROM t1 WHERE a < 8;
+--echo # Force using of a particular index:
+EXPLAIN EXTENDED SELECT /*+ index(t1 i_a)*/* FROM t1 WHERE a < 8;
+
+--echo # Ignore i_ab index, i_b index is used.
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
+--echo # Ignore i_ab index, i_b index is used.
+EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
+--echo # Force i_ab index for GROUP BY, i_ab index scan is used.
+EXPLAIN EXTENDED SELECT /*+ GROUP_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
+--echo # Force i_ab index for JOIN, i_ab loose index scan is used.
+EXPLAIN EXTENDED SELECT /*+ JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
+--echo # Ignore i_ab for sorting rows. i_a index is used for sorting.
+EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
+--echo # Ignore i_a for sorting rows. i_ab is used for sorting.
+EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
+--echo # Force i_ab index for sorting rows.
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
+--echo # Force i_a index for sorting rows.
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
+--echo # Ignore all indexes.
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # Check if old-style hints work if no new hints are specified.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1) */ * FROM t1 IGNORE INDEX (i_a)
+WHERE a = 1 AND b = 2 AND c = 3;
+
+--echo # Check that old-style hint is silently ignored if a new hint is specified.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) */ * FROM t1 IGNORE INDEX(i_a)
+WHERE a = 1 AND b = 2 AND c = 3;
+
+--echo # No conflicts between different hints for same indexes
+EXPLAIN EXTENDED
+SELECT /*+ MRR(t1 i_a, i_b, i_ab) NO_ICP(t1 i_a, i_b, i_ab) JOIN_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_a, i_ab) */
+  a FROM t1;
+
+--echo # Check index hints with UPDATE/DELETE commands.
+--echo # By default, "i_ab" index is used
+EXPLAIN EXTENDED UPDATE t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # Force i_a index to be used.
+EXPLAIN EXTENDED UPDATE /*+ INDEX(t1 i_a) */ t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # By default, "i_ab" index is used
+EXPLAIN EXTENDED DELETE FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # Forbid i_ab index for DELETE.
+EXPLAIN EXTENDED DELETE /*+ NO_INDEX(t1 i_ab) */ FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+
+DROP TABLE t1;

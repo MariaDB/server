@@ -1554,13 +1554,15 @@ public:
 
   /**
     Flag set when the statement contains FORCE INDEX FOR ORDER BY
-    See TABLE_LIST::process_index_hints().
+    See TABLE_LIST::process_index_hints(),
+    Opt_hints_table::update_index_hint_maps()
   */
   bool force_index_order;
 
   /**
     Flag set when the statement contains FORCE INDEX FOR GROUP BY
-    See TABLE_LIST::process_index_hints().
+    See TABLE_LIST::process_index_hints(),
+    Opt_hints_table::update_index_hint_maps()
   */
   bool force_index_group;
   /*
