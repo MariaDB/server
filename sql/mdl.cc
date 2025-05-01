@@ -175,7 +175,8 @@ public:
   void destroy();
   MDL_lock *find_or_insert(LF_PINS *pins, const MDL_key *key);
   unsigned long get_lock_owner(LF_PINS *pins, const MDL_key *key);
-  void remove(LF_PINS *pins, MDL_lock *lock);
+  void remove(LF_PINS *pins, const MDL_key *key)
+  { lf_hash_delete(&m_locks, pins, key->ptr(), key->length()); }
   LF_PINS *get_pins() { return lf_hash_get_pins(&m_locks); }
 private:
   LF_HASH m_locks; /**< All acquired locks in the server. */
@@ -791,6 +792,17 @@ end:
     }
   }
 
+
+  void release(LF_PINS *pins, MDL_ticket *ticket)
+  {
+    remove_ticket(pins, &MDL_lock::m_granted, ticket);
+  }
+
+
+  void abort_wait(LF_PINS *pins, MDL_ticket *ticket)
+  { remove_ticket(pins, &MDL_lock::m_waiting, ticket); }
+
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -993,27 +1005,6 @@ MDL_map::get_lock_owner(LF_PINS *pins, const MDL_key *mdl_key)
     return res;
   }
   return 0;
-}
-
-
-/**
-  Destroy MDL_lock object or delegate this responsibility to
-  whatever thread that holds the last outstanding reference to
-  it.
-*/
-
-void MDL_map::remove(LF_PINS *pins, MDL_lock *lock)
-{
-  if (lock->key.mdl_namespace() == MDL_key::BACKUP)
-  {
-    /* Never destroy pre-allocated MDL_lock object in BACKUP namespace. */
-    mysql_prlock_unlock(&lock->m_rwlock);
-    return;
-  }
-
-  lock->m_strategy= 0;
-  mysql_prlock_unlock(&lock->m_rwlock);
-  lf_hash_delete(&m_locks, pins, lock->key.ptr(), lock->key.length());
 }
 
 
@@ -1886,7 +1877,13 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 }
 
 
-/** Remove a ticket from waiting or pending queue and wakeup up waiters. */
+/**
+  Removes ticket from waiting or pending queue and awakes waiters.
+
+  Once ticket is removed from the list, this thread doesn't hold
+  references to this lock and it can be destroyed concurrently. It
+  means once m_rwlock is released, "this" cannot be referenced anymore.
+*/
 
 void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
                              MDL_ticket *ticket)
@@ -1894,7 +1891,16 @@ void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
   mysql_prlock_wrlock(&m_rwlock);
   (this->*list).remove_ticket(ticket);
   if (is_empty())
-    mdl_locks.remove(pins, this);
+  {
+    /* Never destroy pre-allocated MDL_lock object in BACKUP namespace. */
+    if (key.mdl_namespace() != MDL_key::BACKUP)
+    {
+      m_strategy= 0;
+      mysql_prlock_unlock(&m_rwlock);
+      mdl_locks.remove(pins, &key);
+      return;
+    }
+  }
   else
   {
     /*
@@ -1912,8 +1918,8 @@ void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
       pending request).
     */
     reschedule_waiters();
-    mysql_prlock_unlock(&m_rwlock);
   }
+  mysql_prlock_unlock(&m_rwlock);
 }
 
 
@@ -2528,7 +2534,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   if (wait_status != MDL_wait::GRANTED)
   {
-    lock->remove_ticket(m_pins, &MDL_lock::m_waiting, ticket);
+    lock->abort_wait(m_pins, ticket);
     MDL_ticket::destroy(ticket);
     switch (wait_status)
     {
@@ -2979,7 +2985,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
   DBUG_ASSERT(this == ticket->get_ctx());
   DBUG_PRINT("mdl", ("Released: %s", dbug_print_mdl(ticket)));
 
-  lock->remove_ticket(m_pins, &MDL_lock::m_granted, ticket);
+  lock->release(m_pins, ticket);
 
   m_tickets[duration].remove(ticket);
   MDL_ticket::destroy(ticket);
