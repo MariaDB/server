@@ -934,8 +934,9 @@ hint_state hint_table_state(const THD *thd,
 }
 
 
-bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
-                    opt_hints_enum type_arg, bool fallback_value)
+bool hint_key_state(const THD *thd, const TABLE *table,
+                    uint keyno, opt_hints_enum type_arg,
+                    bool fallback_value)
 {
   Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
 
