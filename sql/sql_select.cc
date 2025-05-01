@@ -27046,24 +27046,25 @@ uint find_shortest_key(TABLE *table, const key_map *usable_keys)
   uint best= MAX_KEY;
   uint possible_keys= usable_keys->bits_set();
 
-  if (possible_keys)
-  {
-    if (possible_keys == 1)
-      return usable_keys->find_first_bit();
+  if (!possible_keys)
+    return best;
 
-    for (uint nr=0; nr < table->s->keys ; nr++)
+  if (possible_keys == 1)
+    return usable_keys->find_first_bit();
+
+  for (uint nr=0; nr < table->s->keys ; nr++)
+  {
+    if (!usable_keys->is_set(nr))
+      continue;
+
+    const size_t length= table->key_storage_length(nr);
+    if (length < min_length)
     {
-      if (usable_keys->is_set(nr))
-      {
-        size_t length= table->key_storage_length(nr);
-        if (length < min_length)
-        {
-          min_length= length;
-          best= nr;
-        }
-      }
+      min_length= length;
+      best= nr;
     }
   }
+
   return best;
 }
 
@@ -33166,24 +33167,24 @@ test_if_cheaper_ordering(bool in_join_optimizer,
       /*
         Don't use an index scan with ORDER BY without limit.
         For GROUP BY without limit always use index scan
-        if there is a suitable index. 
+        if there is a suitable index.
         Why we hold to this asymmetry hardly can be explained
         rationally. It's easy to demonstrate that using
         temporary table + filesort could be cheaper for grouping
         queries too.
-      */ 
+      */
       if (is_covering || has_limit ||
           (ref_key < 0 && (group || table->force_index)))
-      { 
+      {
         double rec_per_key;
         if (group)
         {
-          /* 
+          /*
             Used_key_parts can be larger than keyinfo->user_defined_key_parts
-            when using a secondary index clustered with a primary 
-            key (e.g. as in Innodb). 
+            when using a secondary index clustered with a primary
+            key (e.g. as in Innodb).
             See Bug #28591 for details.
-          */  
+          */
           KEY *keyinfo= table->key_info+nr;
           uint used_index_parts= keyinfo->user_defined_key_parts;
           uint used_pk_parts= 0;
