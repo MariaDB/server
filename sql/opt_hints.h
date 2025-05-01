@@ -178,6 +178,7 @@ protected:
     for key level.
   */
   Lex_ident_sys name;
+
 private:
   /*
     Parent object. There is no parent for global level,
@@ -191,7 +192,7 @@ private:
   Opt_hints_map hints_map;
 
   /* Array of child objects. i.e. array of the lower level objects */
-  Mem_root_array<Opt_hints*, true> child_array;
+  Mem_root_array<Opt_hints *> child_array;
 
   /* true if hint is connected to the real object */
   bool fixed;
@@ -260,10 +261,10 @@ public:
   }
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
-  void set_fixed() { fixed= true; }
-  bool is_fixed() const { return fixed; }
+  virtual void set_fixed() { fixed= true; }
+  virtual bool is_fixed(opt_hints_enum type_arg) const { return fixed; }
   void incr_fully_fixed_children() { n_fully_fixed_children++; }
-  Mem_root_array<Opt_hints*, true> *child_array_ptr() { return &child_array; }
+  Mem_root_array<Opt_hints *> *child_array_ptr() { return &child_array; }
 
   bool are_children_fully_fixed() const
   {
@@ -346,6 +347,21 @@ protected:
    @param str             pointer to String object
  */
   virtual void print_irregular_hints(THD *thd, String *str) {}
+
+  /**
+    If ignore_print() returns true, hint is not printed
+    by Opt_hints::print() function. At the moment used for
+    INDEX, JOIN_INDEX, GROUP_INDEX and ORDER_INDEX hints.
+
+    @param type_arg  hint type
+
+    @return  true if the hint should not be printed
+    in Opt_hints::print() function, false otherwise.
+  */
+  virtual bool ignore_print(opt_hints_enum type_arg) const
+  {
+    return false;
+  }
 };
 
 
@@ -411,7 +427,7 @@ class Opt_hints_qb : public Opt_hints
   char buff[32];          // Buffer to hold sys name
 
   // Array of join order hints
-  Mem_root_array<Parser::Join_order_hint *, false> join_order_hints;
+  Mem_root_array<Parser::Join_order_hint *> join_order_hints;
   // Bitmap marking ignored hints
   ulonglong join_order_hints_ignored;
   // Max capacity to avoid overflowing of join_order_hints_ignored bitmap
@@ -564,13 +580,68 @@ private:
 
 
 /**
+  Auxiliary class for compound key objects.
+*/
+class Compound_key_hint : public Sql_alloc
+{
+  Bitmap<64> key_map;           // Indexes, specified in the hint.
+  bool fixed= false;         // true if hint does not have unresolved index
+
+public:
+  Compound_key_hint()
+  {
+    key_map.clear_all();
+  }
+
+  virtual ~Compound_key_hint() = default;
+  
+  const Parser::Index_level_hint *parsed_hint= nullptr;
+
+  void set_fixed(bool arg) { fixed= arg; }
+  bool is_fixed() const { return fixed; }
+
+  void set_key_map(uint i) { key_map.set_bit(i); }
+  bool is_set_key_map(uint i) { return key_map.is_set(i); }
+  bool is_key_map_clear_all() { return key_map.is_clear_all(); }
+  Bitmap<64> *get_key_map() { return &key_map; }
+  virtual bool is_hint_conflicting(Opt_hints_table *table_hint,
+                                   Opt_hints_key *key_hint) const
+  {
+    return false;
+  }
+};
+
+/**
+  Auxiliary class for JOIN_INDEX, GROUP_INDEX, ORDER_INDEX hints.
+*/
+class Index_key_hint : public Compound_key_hint {
+public:
+  bool is_hint_conflicting(Opt_hints_table *table_hint,
+                           Opt_hints_key *key_hint) const override;
+};
+
+/**
+  Auxiliary class for INDEX hint.
+*/
+class Global_index_key_hint : public Compound_key_hint {
+public:
+  bool is_hint_conflicting(Opt_hints_table *table_hint,
+                           Opt_hints_key *key_hint) const override;
+};
+
+
+/**
   Table level hints.
 */
 
 class Opt_hints_table : public Opt_hints
 {
 public:
-  Mem_root_array<Opt_hints_key*, true> keyinfo_array;
+  Mem_root_array<Opt_hints_key *> keyinfo_array;
+  Global_index_key_hint global_index;
+  Index_key_hint join_index;
+  Index_key_hint group_index;
+  Index_key_hint order_index;
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
@@ -604,11 +675,32 @@ public:
   */
   bool fix_hint(TABLE *table);
 
+  void set_fixed() override;
+
+  /**
+    Returns `true` if a particular hint has been attached to an object
+    (table or key) and `false` otherwise
+
+    @param type_arg  hint type
+  */
+  bool is_fixed(opt_hints_enum type_arg) const override;
+
   virtual uint get_unfixed_warning_code() const override
   {
     return ER_UNRESOLVED_TABLE_HINT_NAME;
   }
+
+  bool is_hint_conflicting(Opt_hints_key *key_hint, opt_hints_enum type) const;
+
+  void set_compound_key_hint_map(Opt_hints *hint, uint arg);
+  
+  Compound_key_hint *get_compound_key_hint(opt_hints_enum type);
+
+  const Compound_key_hint *get_compound_key_hint(opt_hints_enum type) const;
 };
+
+
+bool is_compound_hint(opt_hints_enum type_arg);
 
 
 /**
@@ -641,6 +733,15 @@ public:
   virtual uint get_unfixed_warning_code() const override
   {
     return ER_UNRESOLVED_INDEX_HINT_NAME;
+  }
+
+  /**
+    Ignore printing of the object since parent complex hint has
+    its own printing method.
+  */
+  bool ignore_print(opt_hints_enum type_arg) const override
+  {
+    return is_compound_hint(type_arg);
   }
 };
 

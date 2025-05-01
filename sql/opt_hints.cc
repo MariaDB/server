@@ -45,6 +45,10 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_SUFFIX")}, false, true, true},
   {{STRING_WITH_LEN("JOIN_ORDER")}, false, true, true},
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
+  {{STRING_WITH_LEN("INDEX")}, false, false, false},
+  {{STRING_WITH_LEN("JOIN_INDEX")}, false, false, false},
+  {{STRING_WITH_LEN("GROUP_INDEX")}, false, false, false},
+  {{STRING_WITH_LEN("ORDER_INDEX")}, false, false, false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -295,19 +299,15 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 
 void Opt_hints::print(THD *thd, String *str)
 {
-  /* Do not print the hint if we couldn't attach it to its object */
-  if (!is_fixed())
-    return;
-
   // Print the hints stored in the bitmap
   for (uint i= 0; i < MAX_HINT_ENUM; i++)
   {
     if (opt_hint_info[i].irregular_hint)
       continue;
-    opt_hints_enum hint_type= static_cast<opt_hints_enum>(i);
-    if (is_specified(hint_type))
+    opt_hints_enum hint= static_cast<opt_hints_enum>(i);
+    if (is_specified(hint) && !ignore_print(hint) && is_fixed(hint))
     {
-      append_hint_type(str, hint_type);
+      append_hint_type(str, hint);
       str->append(STRING_WITH_LEN("("));
       uint32 len_before_name= str->length();
       append_name(thd, str);
@@ -315,7 +315,7 @@ void Opt_hints::print(THD *thd, String *str)
       if (len_after_name > len_before_name)
         str->append(' ');
       if (opt_hint_info[i].has_arguments)
-        append_hint_arguments(thd, hint_type, str);
+        append_hint_arguments(thd, hint, str);
       if (str->length() == len_after_name + 1)
       {
         // No additional arguments were printed, trim the space added before
@@ -373,7 +373,7 @@ void Opt_hints::print_unfixed_warnings(THD *thd)
 
 void Opt_hints::check_unfixed(THD *thd)
 {
-  if (!is_fixed())
+  if (!is_fixed(MAX_HINT_ENUM))
     print_unfixed_warnings(thd);
 
   if (!are_children_fully_fixed())
@@ -505,6 +505,7 @@ bool Opt_hints_table::fix_hint(TABLE *table)
         (*hint)->set_fixed();
         keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
         incr_fully_fixed_children();
+        set_compound_key_hint_map(*hint, j);
         break;
       }
     }
@@ -514,6 +515,77 @@ bool Opt_hints_table::fix_hint(TABLE *table)
     return false;
 
   return true; // Some children are not fully fixed
+}
+
+
+bool Opt_hints_table::is_hint_conflicting(Opt_hints_key *key_hint,
+                                          opt_hints_enum type) const
+{
+  if ((key_hint == nullptr) && is_specified(type))
+    return true;
+  return (key_hint && key_hint->is_specified(type));
+}
+
+
+void Opt_hints_table::set_fixed()
+{
+  Opt_hints::set_fixed();
+  if (is_specified(INDEX_HINT_ENUM))
+    global_index.set_fixed(true);
+  if (is_specified(JOIN_INDEX_HINT_ENUM))
+    join_index.set_fixed(true);
+  if (is_specified(GROUP_INDEX_HINT_ENUM))
+    group_index.set_fixed(true);
+  if (is_specified(ORDER_INDEX_HINT_ENUM))
+    order_index.set_fixed(true);
+}
+
+
+bool Opt_hints_table::is_fixed(opt_hints_enum type_arg) const
+{
+  if (is_compound_hint(type_arg))
+    return Opt_hints::is_fixed(type_arg) &&
+           get_compound_key_hint(type_arg)->is_fixed();
+  return Opt_hints::is_fixed(type_arg);
+}
+
+
+void Opt_hints_table::set_compound_key_hint_map(Opt_hints *hint, uint arg)
+{
+  if (hint->is_specified(INDEX_HINT_ENUM))
+    global_index.set_key_map(arg);
+  if (hint->is_specified(JOIN_INDEX_HINT_ENUM))
+    join_index.set_key_map(arg);
+  if (hint->is_specified(GROUP_INDEX_HINT_ENUM))
+    group_index.set_key_map(arg);
+  if (hint->is_specified(ORDER_INDEX_HINT_ENUM))
+    order_index.set_key_map(arg);
+}
+
+
+Compound_key_hint *Opt_hints_table::get_compound_key_hint(opt_hints_enum type)
+{
+  switch (type) {
+    case INDEX_HINT_ENUM:
+      return &global_index;
+    case JOIN_INDEX_HINT_ENUM:
+      return &join_index;
+    case GROUP_INDEX_HINT_ENUM:
+      return &group_index;
+    case ORDER_INDEX_HINT_ENUM:
+      return &order_index;
+    default:
+      DBUG_ASSERT(0);
+      return nullptr;
+  }
+}
+
+
+const Compound_key_hint *Opt_hints_table::get_compound_key_hint(
+    opt_hints_enum type) const
+{
+  return const_cast<const Compound_key_hint *>(
+                    get_compound_key_hint(type));
 }
 
 
@@ -989,6 +1061,51 @@ bool Opt_hints_global::fix_hint(THD *thd)
   }
   set_fixed();
   return false;
+}
+
+
+/**
+  Function checks if INDEX hint is conflicting with
+  already specified JOIN_INDEX, GROUP_INDEX, ORDER_INDEX
+  hints.
+
+  @param table_hint         pointer to table hint
+  @param key_hint           pointer to key hint
+
+  @return false if no conflict, true otherwise.
+*/
+
+bool Global_index_key_hint::is_hint_conflicting(Opt_hints_table *table_hint,
+                                              Opt_hints_key *key_hint) const
+{
+  return (table_hint->is_hint_conflicting(key_hint, JOIN_INDEX_HINT_ENUM) ||
+          table_hint->is_hint_conflicting(key_hint, GROUP_INDEX_HINT_ENUM) ||
+          table_hint->is_hint_conflicting(key_hint, ORDER_INDEX_HINT_ENUM));
+}
+
+
+/**
+  Function checks if JOIN_INDEX|GROUP_INDEX|ORDER_INDEX
+  hint is conflicting with already specified INDEX hint.
+
+  @param table_hint         pointer to table hint
+  @param key_hint           pointer to key hint
+
+  @return false if no conflict, true otherwise.
+*/
+
+bool Index_key_hint::is_hint_conflicting(Opt_hints_table *table_hint,
+                                         Opt_hints_key *key_hint) const
+{
+  return table_hint->is_hint_conflicting(key_hint, INDEX_HINT_ENUM);
+}
+
+
+bool is_compound_hint(opt_hints_enum type_arg)
+{
+  return (
+      type_arg == INDEX_HINT_ENUM || type_arg == JOIN_INDEX_HINT_ENUM ||
+      type_arg == GROUP_INDEX_HINT_ENUM || type_arg == ORDER_INDEX_HINT_ENUM);
 }
 
 
