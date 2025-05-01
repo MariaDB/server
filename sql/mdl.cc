@@ -1116,35 +1116,28 @@ void MDL_request::init_by_key_with_source(const MDL_key *key_arg,
 }
 
 
-/**
-  Auxiliary functions needed for creation/destruction of MDL_ticket
-  objects.
-
-  @todo This naive implementation should be replaced with one that saves
-        on memory allocation by reusing released objects.
-*/
-
-MDL_ticket *MDL_ticket::create(MDL_context *ctx_arg, enum_mdl_type type_arg
+MDL_ticket::MDL_ticket(MDL_context *ctx_arg, MDL_request *mdl_request):
 #ifndef DBUG_OFF
-                               , enum_mdl_duration duration_arg
+   m_duration(mdl_request->duration),
 #endif
-                               )
+   m_time(0),
+   m_type(mdl_request->type),
+   m_ctx(ctx_arg),
+   m_lock(nullptr)
 {
-  return new (std::nothrow)
-             MDL_ticket(ctx_arg, type_arg
-#ifndef DBUG_OFF
-                        , duration_arg
-#endif
-                        );
+  m_psi= mysql_mdl_create(this,
+                          &mdl_request->key,
+                          mdl_request->type,
+                          mdl_request->duration,
+                          PENDING,
+                          mdl_request->m_src_file,
+                          mdl_request->m_src_line);
 }
 
 
-void MDL_ticket::destroy(MDL_ticket *ticket)
+MDL_ticket::~MDL_ticket()
 {
-  mysql_mdl_destroy(ticket->m_psi);
-  ticket->m_psi= NULL;
-
-  delete ticket;
+  mysql_mdl_destroy(m_psi);
 }
 
 
@@ -2093,7 +2086,7 @@ MDL_context::try_acquire_lock(MDL_request *mdl_request)
     */
     DBUG_ASSERT(! ticket->m_lock->is_empty());
     mysql_prlock_unlock(&ticket->m_lock->m_rwlock);
-    MDL_ticket::destroy(ticket);
+    delete ticket;
   }
 
   return FALSE;
@@ -2169,37 +2162,24 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
   if (fix_pins())
     return TRUE;
 
-  if (!(ticket= MDL_ticket::create(this, mdl_request->type
-#ifndef DBUG_OFF
-                                   , mdl_request->duration
-#endif
-                                   )))
+  if (!(ticket= new (std::nothrow) MDL_ticket(this, mdl_request)))
     return TRUE;
+
+  if (metadata_lock_info_plugin_loaded)
+    ticket->m_time= microsecond_interval_timer();
 
   /* The below call implicitly locks MDL_lock::m_rwlock on success. */
   if (!(lock= mdl_locks.find_or_insert(m_pins, key)))
   {
-    MDL_ticket::destroy(ticket);
+    delete ticket;
     return TRUE;
   }
-
-  DBUG_ASSERT(ticket->m_psi == NULL);
-  ticket->m_psi= mysql_mdl_create(ticket,
-                                  &mdl_request->key,
-                                  mdl_request->type,
-                                  mdl_request->duration,
-                                  MDL_ticket::PENDING,
-                                  mdl_request->m_src_file,
-                                  mdl_request->m_src_line);
 
   ticket->m_lock= lock;
 
   if (lock->can_grant_lock(mdl_request->type, this, false))
   {
-    if (metadata_lock_info_plugin_loaded)
-      ticket->m_time= microsecond_interval_timer();
     lock->m_granted.add_ticket(ticket);
-
     mysql_prlock_unlock(&lock->m_rwlock);
 
     m_tickets[mdl_request->duration].push_front(ticket);
@@ -2245,25 +2225,12 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
     return TRUE;
 
   /*
-    By submitting mdl_request->type to MDL_ticket::create()
+    By submitting mdl_request->type to MDL_ticket constructor
     we effectively downgrade the cloned lock to the level of
     the request.
   */
-  if (!(ticket= MDL_ticket::create(this, mdl_request->type
-#ifndef DBUG_OFF
-                                   , mdl_request->duration
-#endif
-                                   )))
+  if (!(ticket= new (std::nothrow) MDL_ticket(this, mdl_request)))
     return TRUE;
-
-  DBUG_ASSERT(ticket->m_psi == NULL);
-  ticket->m_psi= mysql_mdl_create(ticket,
-                                  &mdl_request->key,
-                                  mdl_request->type,
-                                  mdl_request->duration,
-                                  MDL_ticket::PENDING,
-                                  mdl_request->m_src_file,
-                                  mdl_request->m_src_line);
 
   /* clone() is not supposed to be used to get a stronger lock. */
   DBUG_ASSERT(mdl_request->ticket->has_stronger_or_equal_type(ticket->m_type));
@@ -2392,7 +2359,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   {
     DBUG_PRINT("mdl", ("Nowait:  %s", ticket_msg));
     mysql_prlock_unlock(&lock->m_rwlock);
-    MDL_ticket::destroy(ticket);
+    delete ticket;
     my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
     DBUG_RETURN(TRUE);
   }
@@ -2411,8 +2378,6 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   }
 #endif /* WITH_WSREP */
 
-  if (metadata_lock_info_plugin_loaded)
-    ticket->m_time= microsecond_interval_timer();
   lock->m_waiting.add_ticket(ticket);
 
   /*
@@ -2535,7 +2500,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   if (wait_status != MDL_wait::GRANTED)
   {
     lock->abort_wait(m_pins, ticket);
-    MDL_ticket::destroy(ticket);
+    delete ticket;
     switch (wait_status)
     {
     case MDL_wait::VICTIM:
@@ -2719,7 +2684,7 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   if (is_new_ticket)
   {
     m_tickets[MDL_TRANSACTION].remove(mdl_xlock_request.ticket);
-    MDL_ticket::destroy(mdl_xlock_request.ticket);
+    delete mdl_xlock_request.ticket;
   }
 
   DBUG_RETURN(FALSE);
@@ -2988,7 +2953,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
   lock->release(m_pins, ticket);
 
   m_tickets[duration].remove(ticket);
-  MDL_ticket::destroy(ticket);
+  delete ticket;
 
   DBUG_VOID_RETURN;
 }
