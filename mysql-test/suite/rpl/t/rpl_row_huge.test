@@ -24,7 +24,7 @@ BEGIN;
 --disable_query_log
 --echo # Inserting query..
 #insert into t1 select seq,repeat("a",1000000000) from seq_1_to_3;
-insert into t1 select seq,repeat("a",512) from seq_1_to_5;
+insert into t1 select seq,repeat(seq,512) from seq_1_to_5;
 #insert into t1 select seq,repeat("a",10) from seq_1_to_5;
 COMMIT;
 #--echo # Now inserting insert .. select
@@ -39,6 +39,11 @@ select * from t1;
 
 --connection server_3
 --source include/sync_with_master_gtid.inc
+select * from t1;
+
+--let $diff_tables= server_1:test.t1, server_2:test.t1, server_3:test.t1
+--source include/diff_tables.inc
+#sleep 2;
 
 --echo #
 --echo # Cleanup
