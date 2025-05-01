@@ -1,0 +1,274 @@
+CREATE TABLE t1 (a INT, b INT, c INT, d INT,
+KEY i_a(a), KEY i_b(b),
+KEY i_ab(a,b), KEY i_c(c), KEY i_d(d));
+INSERT INTO t1 VALUES
+(1,1,1,1),(2,2,2,1),(3,3,3,1),(4,4,4,1),
+(5,5,5,1),(6,6,6,1),(7,7,7,1),(8,8,8,1);
+INSERT INTO t1 SELECT a,b, c + 10, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 20, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 40, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 80, d FROM t1;
+INSERT INTO t1 SELECT a,b, c + 160, d FROM t1;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Check behavior of duplicated/intersected hints.
+# First specified hint is applied and next conflicting/intersected hints
+# are ignored with warning.
+# JOIN_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1) JOIN_INDEX(t1) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4240	Hint JOIN_INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)
+Note	1003	select /*+ INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# INDEX(t1 i_d) is ignored as duplicated (same type of hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) NO_INDEX(t1 i_d) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4238	Hint NO_INDEX(`t1` `i_d`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`,`i_b`,`i_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# JOIN_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) JOIN_INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_b) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4241	Hint JOIN_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) JOIN_INDEX(`t1`@`select#1` `i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# GROUP_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4241	Hint GROUP_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) GROUP_INDEX(`t1`@`select#1` `i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# GROUP_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4240	Hint GROUP_INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# ORDER_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same key)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4241	Hint ORDER_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) ORDER_INDEX(`t1`@`select#1` `i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# INDEX(t1 i_b,i_a) is ignored as intersected (INDEX/other hint for the same key)
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) INDEX(t1 i_b,i_a)*/ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4241	Hint INDEX(`t1` `i_b`,`i_a`) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)
+Note	1003	select /*+ ORDER_INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# ORDER_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1) */ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4240	Hint ORDER_INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# ORDER_INDEX(t1 i_b) is ignored as intersected (same hint/INDEX for the same table)
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) NO_ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4238	Hint NO_ORDER_INDEX(`t1` `i_b`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_c`) ORDER_INDEX(`t1`@`select#1` `i_a`,`i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) INDEX(t1)*/ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4240	Hint INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)
+Note	1003	select /*+ GROUP_INDEX(`t1`@`select#1` `i_b`) ORDER_INDEX(`t1`@`select#1` `i_a`,`i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1) GROUP_INDEX(t1) INDEX(t1)*/ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4240	Hint INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)
+Note	1003	select /*+ GROUP_INDEX(`t1`@`select#1`) ORDER_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# Check the use of index hints.
+# Force the use of i_a, i_b indexes, intersect(i_a,i_b) is used.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index_merge	i_a,i_b	i_a,i_b	5,5	NULL	2	0.39	Using intersect(i_a,i_b); Using where
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`,`i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Force the use of i_a, i_ab indexes, i_ab index is used.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_ab) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	i_a,i_ab	i_ab	10	const,const	1	0.39	Using where
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`,`i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Force the use of i_a, i_b, i_c indexes, i_c index is used.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_c) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	i_a,i_b,i_c	i_c	5	const	1	1.03	Using where
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`,`i_b`) JOIN_INDEX(`t1`@`select#1` `i_c`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Test range index access
+EXPLAIN EXTENDED SELECT a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a,i_ab	i_a	5	NULL	26	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+# Indexes are forbidden, full scan is employed
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	256	12.50	Using where
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	12.50	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_JOIN_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+# Indexes are forbidden for grouping and ordering but are usable for data access
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1) NO_ORDER_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a,i_ab	i_a	5	NULL	26	100.00	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_GROUP_INDEX(`t1`@`select#1`) NO_ORDER_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+# Index "i_a" is forbidden, "i_ab" is used instead
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_a)*/a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_ab	i_ab	5	NULL	36	100.00	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+# Usable indexes are forbidden, full scan is employed
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_a, i_ab)*/a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	256	12.50	Using where
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `i_a`,`i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_ab)*/a FROM t1 WHERE a > 1 AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_ab	i_ab	5	NULL	36	100.00	Using where; Using index
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 3
+# Full scan is more efficient for this query, so indexes are not used by default:
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a < 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	i_a,i_ab	NULL	NULL	NULL	256	67.19	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` < 8
+# Force using of any index:
+EXPLAIN EXTENDED SELECT /*+ index(t1)*/* FROM t1 WHERE a < 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a,i_ab	i_a	5	NULL	172	100.00	Using index condition
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` < 8
+# Force using of a particular index:
+EXPLAIN EXTENDED SELECT /*+ index(t1 i_a)*/* FROM t1 WHERE a < 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a	i_a	5	NULL	172	100.00	Using index condition
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` < 8
+# Ignore i_ab index, i_b index is used.
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	i_b	i_b	5	const	26	100.00	Using where; Using temporary; Using filesort
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a`,max(`test`.`t1`.`b`) AS `max(b)` from `test`.`t1` where `test`.`t1`.`b` = 2 group by `test`.`t1`.`a`
+# Ignore i_ab index, i_b index is used.
+EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	i_b	i_b	5	const	26	100.00	Using where; Using temporary; Using filesort
+Warnings:
+Note	1003	select /*+ NO_JOIN_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a`,max(`test`.`t1`.`b`) AS `max(b)` from `test`.`t1` where `test`.`t1`.`b` = 2 group by `test`.`t1`.`a`
+# Force i_ab index for GROUP BY, i_ab index scan is used.
+EXPLAIN EXTENDED SELECT /*+ GROUP_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	i_ab	5	NULL	9	100.00	Using index for group-by
+Warnings:
+Note	1003	select /*+ GROUP_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a`,max(`test`.`t1`.`b`) AS `max(b)` from `test`.`t1` group by `test`.`t1`.`a`
+# Force i_ab index for JOIN, i_ab loose index scan is used.
+EXPLAIN EXTENDED SELECT /*+ JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	i_ab	5	NULL	9	100.00	Using index for group-by
+Warnings:
+Note	1003	select /*+ JOIN_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a`,max(`test`.`t1`.`b`) AS `max(b)` from `test`.`t1` group by `test`.`t1`.`a`
+# Ignore i_ab for sorting rows. i_a index is used for sorting.
+EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Note	1003	select /*+ NO_ORDER_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` order by `test`.`t1`.`a`
+# Ignore i_a for sorting rows. i_ab is used for sorting.
+EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_ab	10	NULL	256	100.00	Using index
+Warnings:
+Note	1003	select /*+ NO_ORDER_INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` order by `test`.`t1`.`a`
+# Force i_ab index for sorting rows.
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_ab	10	NULL	256	100.00	Using index
+Warnings:
+Note	1003	select /*+ ORDER_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` order by `test`.`t1`.`a`
+# Force i_a index for sorting rows.
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Note	1003	select /*+ ORDER_INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` order by `test`.`t1`.`a`
+# Ignore all indexes.
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	256	0.01	Using where
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Check if old-style hints work if no new hints are specified.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1) */ * FROM t1 IGNORE INDEX (i_a)
+WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	i_b,i_ab,i_c	i_ab|i_c	10|5	const,const	1 (0%)	0.39	Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_MRR(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` IGNORE INDEX (`i_a`) where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Check that old-style hint is silently ignored if a new hint is specified.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) */ * FROM t1 IGNORE INDEX(i_a)
+WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	i_a	i_a	5	const	26	0.05	Using where
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` IGNORE INDEX (`i_a`) where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# No conflicts between different hints for same indexes
+EXPLAIN EXTENDED
+SELECT /*+ MRR(t1 i_a, i_b, i_ab) NO_ICP(t1 i_a, i_b, i_ab) JOIN_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_a, i_ab) */
+a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Note	1003	select /*+ JOIN_INDEX(`t1`@`select#1` `i_a`,`i_b`) ORDER_INDEX(`t1`@`select#1` `i_a`,`i_ab`) NO_ICP(`t1`@`select#1` `i_a`) MRR(`t1`@`select#1` `i_a`) NO_ICP(`t1`@`select#1` `i_b`) MRR(`t1`@`select#1` `i_b`) NO_ICP(`t1`@`select#1` `i_ab`) MRR(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# Check index hints with UPDATE/DELETE commands.
+# By default, "i_ab" index is used
+EXPLAIN EXTENDED UPDATE t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a,i_b,i_ab,i_c	i_ab	10	NULL	1	100.00	Using where
+Warnings:
+Note	1003	update `test`.`t1` set `test`.`t1`.`d` = 1 where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Force i_a index to be used.
+EXPLAIN EXTENDED UPDATE /*+ INDEX(t1 i_a) */ t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a	i_a	5	NULL	26	100.00	Using where
+Warnings:
+Note	1003	update /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1` set `test`.`t1`.`d` = 1 where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# By default, "i_ab" index is used
+EXPLAIN EXTENDED DELETE FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a,i_b,i_ab,i_c	i_ab	10	NULL	1	100.00	Using where
+Warnings:
+Note	1003	delete  from `test`.`t1` using dual where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+# Forbid i_ab index for DELETE.
+EXPLAIN EXTENDED DELETE /*+ NO_INDEX(t1 i_ab) */ FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	i_a,i_b,i_c	i_c	5	NULL	1	100.00	Using where
+Warnings:
+Note	1003	delete /*+ NO_INDEX(`t1`@`select#1` `i_ab`) */  from `test`.`t1` using dual where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
+DROP TABLE t1;

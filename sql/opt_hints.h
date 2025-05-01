@@ -64,6 +64,7 @@
       Opt_hints_qb
         Opt_hints_table
           Opt_hints_key
+          Opt_hints_key_bitmap
 
   Some hints can be specified at a specific level (e.g. per-index) or at a
   more general level (e.g. per-table).  When checking the hint, we need
@@ -103,6 +104,8 @@
 
 struct LEX;
 struct TABLE;
+
+using Key_map = Bitmap<MAX_INDEXES>;
 
 struct st_opt_hint_info
 {
@@ -203,7 +206,7 @@ private:
   Opt_hints_map hints_map;
 
   /* Array of child objects. i.e. array of the lower level objects */
-  Mem_root_array<Opt_hints*, true> child_array;
+  Mem_root_array<Opt_hints *> child_array;
 
   /* FIXED if hint is connected to the real object (see above) */
   Fixed_state fixed;
@@ -215,7 +218,6 @@ private:
   uint n_fully_fixed_children;
 
 public:
-
   Opt_hints(const Lex_ident_sys &name_arg,
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
@@ -272,10 +274,35 @@ public:
   }
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
-  void set_fixed() { fixed= Fixed_state::FIXED; }
-  bool is_fixed() const { return fixed == Fixed_state::FIXED; }
+
+  /*
+    The caller is responsible for making sure all hints in this
+    hint collection are fixed.
+  */
+   void set_fixed() { fixed= Fixed_state::FIXED; }
+
+  /*
+    @brief
+      Check if all elements in this collection are fixed.
+
+      Whether this means children hint collections are fixed depends on
+      the collection.
+  */
+  bool are_all_fixed() const
+  {
+    return fixed == Fixed_state::FIXED;
+  }
+
+  /*
+    Check if the individual hint type_arg in this collection is fixed.
+  */
+  virtual bool is_fixed(opt_hints_enum type_arg)
+  {
+    return fixed == Fixed_state::FIXED;
+  }
+
   void incr_fully_fixed_children() { n_fully_fixed_children++; }
-  Mem_root_array<Opt_hints*, true> *child_array_ptr() { return &child_array; }
+  Mem_root_array<Opt_hints *> *child_array_ptr() { return &child_array; }
 
   bool are_children_fully_fixed() const
   {
@@ -358,6 +385,18 @@ protected:
    @param str             pointer to String object
  */
   virtual void print_irregular_hints(THD *thd, String *str) {}
+
+  /**
+    If ignore_print() returns true, hint is not printed
+    by Opt_hints::print() function. At the moment used for
+    INDEX, JOIN_INDEX, GROUP_INDEX and ORDER_INDEX hints.
+
+    @param type_arg  hint type
+
+    @return  true if the hint should not be printed
+    in Opt_hints::print() function, false otherwise.
+  */
+  virtual bool ignore_print(opt_hints_enum type_arg) const;
 };
 
 
@@ -423,7 +462,7 @@ class Opt_hints_qb : public Opt_hints
   char buff[32];          // Buffer to hold sys name
 
   // Array of join order hints
-  Mem_root_array<Parser::Join_order_hint *, false> join_order_hints;
+  Mem_root_array<Parser::Join_order_hint *> join_order_hints;
   // Bitmap marking ignored hints
   ulonglong join_order_hints_ignored;
   // Max capacity to avoid overflowing of join_order_hints_ignored bitmap
@@ -578,13 +617,66 @@ private:
 
 
 /**
+  Auxiliary class for "compound" index hints: INDEX, JOIN_INDEX,
+  GROUP_INDEX and ORDER_INDEX.
+  It represents a bitmap of keys specified in the hint along with methods for
+  handling it.
+
+  Data structures for compound index hints are stored in two places:
+  1) in a Opt_hints_key object(s) for each of the affected indexes;
+  2) in a Opt_hints_key_bitmap object which stores a bitmap of all indexes
+     specified in the hint.
+  These `Opt_hints_key_bitmap` objects themselves are stored
+  in the `Opt_hints_table` object.
+
+  `Opt_hints_table->get_switch(hint_type)` tells whether the hint was
+  "positive" or "negative".
+*/
+
+class Opt_hints_key_bitmap
+{
+  Key_map key_map;           // Keys specified in the hint.
+  bool fixed= false;         // true if all keys of the hint are resolved
+
+public:
+  Opt_hints_key_bitmap()
+  {
+    key_map.clear_all();
+  }
+
+  const Parser::Index_level_hint *parsed_hint= nullptr;
+
+  void set_fixed() { fixed= true; }
+  bool is_fixed() const { return fixed; }
+
+  void set_key_map(uint i) { key_map.set_bit(i); }
+  bool is_set_key_map(uint i) { return key_map.is_set(i); }
+  bool is_key_map_clear_all() { return key_map.is_clear_all(); }
+  Key_map *get_key_map() { return &key_map; }
+};
+
+
+/**
   Table level hints.
+  Collection of hints attached to a certain table (and its indexes)
 */
 
 class Opt_hints_table : public Opt_hints
 {
 public:
-  Mem_root_array<Opt_hints_key*, true> keyinfo_array;
+  /*
+    keyinfo_array[IDX] has all hint prescriptions for index number IDX.
+  */
+  Mem_root_array<Opt_hints_key *> keyinfo_array;
+
+  /*
+    Bitmaps for "compound" index hints.
+    Check get_switch(opt_hint_enum) to see if it's INDEX or NO_INDEX, etc.
+  */
+  Opt_hints_key_bitmap global_index_map; // INDEX(), NO_INDEX()
+  Opt_hints_key_bitmap join_index_map;   // JOIN_INDEX(), NO_JOIN_INDEX()
+  Opt_hints_key_bitmap group_index_map;  // GROUP_INDEX(), NO_GROUP_INDEX()
+  Opt_hints_key_bitmap order_index_map;  // ORDER_INDEX(), NO_ORDER_INDEX()
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
@@ -616,17 +708,58 @@ public:
 
     @param table      Pointer to TABLE object
   */
-  bool fix_hint(TABLE *table);
+  bool fix_key_hints(TABLE *table);
+
+  /**
+    Returns `true` if a particular hint has been attached to an object
+    (table or key) and `false` otherwise
+
+    @param type_arg  hint type
+  */
+  bool is_fixed(opt_hints_enum type_arg) override;
 
   virtual uint get_unfixed_warning_code() const override
   {
     return ER_UNRESOLVED_TABLE_HINT_NAME;
   }
+
+  /**
+    Return bitmap object corresponding to the hint type passed
+
+    @param type  hint_type
+  */
+  Opt_hints_key_bitmap *get_key_hint_bitmap(opt_hints_enum type);
+
+  void append_hint_arguments(THD *thd, opt_hints_enum hint,
+                             String *str) override;
+
+
+  bool update_index_hint_maps(THD *thd, TABLE *tbl);
+
+private:
+  bool is_force_index_hint(opt_hints_enum type_arg)
+  {
+    return (get_key_hint_bitmap(type_arg)->is_fixed() &&
+            get_switch(type_arg));
+  }
+
+  void update_index_hint_map(Key_map *keys_to_use,
+                             const Key_map *available_keys_to_use,
+                             opt_hints_enum type_arg);
+  void set_compound_key_hint_map(Opt_hints *hint, uint keynr);
+
 };
+
+bool is_index_hint_conflicting(Opt_hints_table *table_hint,
+                               Opt_hints_key *key_hint,
+                               opt_hints_enum hint_type);
+
+bool is_compound_hint(opt_hints_enum type_arg);
 
 
 /**
   Key level hints.
+  A set of hints attached to a particular index.
 */
 
 class Opt_hints_key : public Opt_hints
@@ -655,6 +788,19 @@ public:
   virtual uint get_unfixed_warning_code() const override
   {
     return ER_UNRESOLVED_INDEX_HINT_NAME;
+  }
+
+  /**
+    Compound index hints are present at both index-level (`Opt_hints_key`) and
+    table-level (`Opt_hints_table`) but must be printed only once (at the
+    table level). That is why they must be skipped when printing
+    `Opt_hints_key` hints
+  */
+  bool ignore_print(opt_hints_enum type_arg) const override
+  {
+    if (is_compound_hint(type_arg))
+      return true;
+    return Opt_hints::ignore_print(type_arg);
   }
 };
 
