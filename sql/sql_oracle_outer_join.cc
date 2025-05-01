@@ -43,7 +43,7 @@
 
   The (+) is the "outer join operator". It specifies that table t2 is outer-
   joined (i.e. is INNER) and the predicate containing the (+) is the outer
-  join's ON expression. This makes the above query to be the same as:
+  join's ON expression. This makes the above query to be equivalent to:
 
     t1.col left join t2 on t1.col=t2.col
 
@@ -58,19 +58,20 @@
    - A predicate may reference only one outer-joined (aka "INNER") table.
    - Also it may reference zero, one or more "OUTER" tables.
 
-  If the predicate has references to OUTER table(s), it describes an edge
-  in a hyper-graph where vertices are tables and hyper-edges are outer join
+  If the predicate has references to OUTER table(s), it describes an edge in
+  a hypergraph where vertices are tables and hyper-edges are outer join
   relationships:
 
      {outer_tbl1, ..., outer_tblN} -> inner_tbl
 
   If the predicate only refers to one INNER table (like "t2.col(+)=1"), then
-  it just specifies an extra condition to be added to t2's ON expression.
+  it doesn't specify a hyper-dege. It just specifies an extra condition to be
+  added to t2's ON expression.
 
   === 1.2 Building equvialent LEFT JOIN expression ==
 
-  One can walk the hyper-graph and write out a LEFT JOIN expression that's
-  equivalent to the query with original Oracle's syntax.
+  One can walk the hypergraph and write out a LEFT JOIN expression that is
+  equivalent to the original query with Oracle's syntax.
 
   Start with a node that has no incoming edges. It may have several outgoing
   edges. For example:
@@ -79,7 +80,7 @@
     from t1,t2,t3
     where t1.col=t2.col(+) and t1.col=t3.col(+)
 
-  denotes a hyper-graph with eges:
+  denotes a hypergraph with eges:
 
      t1 -> t2
      t1 -> t3
@@ -95,21 +96,22 @@
     from (t1 left join t3 on t3.col=t1.col) left join t2 on t1.col=t2.col
 
   One can write out edges in any order. However, MariaDB's optimizer is not
-  (yet) able to convert between the above two query forms, so we write them
-  in the order the tables were listed in the original query's FROM clause.
+  (yet) able to convert between the above two query forms, so we write outgoing
+  edges in the order the connected tables were listed in the original query's
+  FROM clause.
 
-  The hyper-graph may also have chains:
+  The hypergraph may also have chains:
 
     select *
     from t1,t2,t3
     where cond1(t1.col, t2.col(+)) and cond2(t2.col, t3.col(+))
 
-  gives a hyper-graph
+  gives a hypergraph
 
      t1 -> t2
      t2 -> t3
 
-  Here, the operation at the start of the chain is done first and we get:
+  Here, the operation at the start of the chain is done first. The above gives
 
     select *
     from
@@ -121,34 +123,35 @@
      (t1 left join t2) left join t3
   and not
      t1 left join (t2 left join t3)
-  which in general is not equivalent.
+  These two expressions are in general not equivalent.
 
-  Note that the hyper-graph must not have cycles. A query that produces a graph
+  Note that the hypergraph must not have cycles. A query that produces a graph
   with cycles is aborted with error.
   Alternative paths are fine, though. Example: t1->t2->t3 and t1->t4->t3.
 
   == 2. Implementation ==
+
   == 2.1 Parser ==
-  The parser recognizes the "(+)" operator.
-  After the parser, Item objects that have one more (+) operators in them have
-  (item->with_flags() & ORA_JOIN) set.
+  The parser recognizes the "(+)" operator. After parsing, Item objects that
+  have a (+) operator somewhere inside them have 
+  (item->with_flags() & ORA_JOIN) flag set.
 
   == 2.2 Building the hypergraph ==
 
-  At Name resolution phase, we convert (+) operators into LEFT JOIN data
-  structures (that is, a tree of TABLE_LIST objects).
+  At Name Resolution phase, we convert (+) operators into LEFT JOIN data
+  structures (that is, a tree of TABLE_LIST objects with ON expressions).
   This is done in setup_oracle_join().
 
-  We create an array of table_pos structures. These are the vertices of the
-  hypergraph.
-  We analyze the WHERE clause and record hypergraph's edges.
+  First, we create an array of table_pos structures. These are the vertices
+  of the hypergraph.
+  Then, we analyze the WHERE clause and construct hypergraph's edges.
 
   == 2.3 From hypergraph to outer joins ==
   Then, we do an analog of topological sorting: build a linked list of
   table_pos entries (connected via table_pos::{next,prev}) that goes in the
   order that is
     1. Required by use of LEFT JOIN syntax: outer tables before their inner.
-    2. (after satisfying #1) follows the order the tables were listed in the
+    2. (after satisfying #1) follows the order the tables were listed in in the
       original FROM clause.
 
   == 2.4 Building the TABLE_LIST structure ==
@@ -275,11 +278,9 @@ ora_join_process_expression(THD *thd, Item *cond,
   }
   else
   {
-    {
-      // Permanent list can be used in AND
-      Query_arena_stmt on_stmt_arena(thd);
-      inner_tab->on_conds.push_back(cond);
-    }
+    // Permanent list can be used in AND
+    Query_arena_stmt on_stmt_arena(thd);
+    inner_tab->on_conds.push_back(cond);
   }
 
   DBUG_RETURN(FALSE);
