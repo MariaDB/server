@@ -400,6 +400,11 @@ void xid_cache_update_xa_binlog_state(THD *thd, XID_STATE *xid_state,
   }
 }
 
+bool is_xap_binlogged(THD *thd)
+{
+  return
+    thd->transaction->xid_state.xid_cache_element->xap_binlogged_awaiting_xac;
+}
 
 struct xid_cache_iterate_arg
 {

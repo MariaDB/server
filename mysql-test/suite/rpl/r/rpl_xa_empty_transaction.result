@@ -1319,36 +1319,8 @@ XA ROLLBACK 'a';
 drop table t_not_in_binlog;
 include/save_master_gtid.inc
 connection server_2;
-XAER_NOTA: Unknown XID
-include/wait_for_slave_sql_error.inc [errno=1397]
-connect  con2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
-SET sql_log_bin=0;
-XA START 'a';
-insert into t_not_in_binlog set a=1;
-XA END 'a';
-XA PREPARE 'a';
-disconnect con2;
-connection server_2;
-xa recover;
-formatID	gtrid_length	bqual_length	data
-1	1	0	a
-include/start_slave.inc
 include/sync_with_master_gtid.inc
 connection server_3;
-XAER_NOTA: Unknown XID
-include/wait_for_slave_sql_error.inc [errno=1397]
-connect  con3,127.0.0.1,root,,test,$SERVER_MYPORT_3,;
-SET sql_log_bin=0;
-XA START 'a';
-insert into t_not_in_binlog set a=1;
-XA END 'a';
-XA PREPARE 'a';
-disconnect con3;
-connection server_3;
-xa recover;
-formatID	gtrid_length	bqual_length	data
-1	1	0	a
-include/start_slave.inc
 include/sync_with_master_gtid.inc
 connection server_1;
 include/rpl_end.inc

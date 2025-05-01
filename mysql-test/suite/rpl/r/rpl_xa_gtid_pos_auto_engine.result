@@ -136,11 +136,11 @@ set @@session.sql_log_bin = 1;
 connection master;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-*** At the end of --binlog-ignore-db section gtid list has 2 more:
+*** At the end of --binlog-ignore-db section gtid list remains the same.
 flush logs;
 show binlog events in 'master-bin.000004' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000004	#	Gtid_list	1	#	[0-1-12]
+master-bin.000004	#	Gtid_list	1	#	[0-1-11]
 connection master;
 create table t3 (a int) engine=innodb;
 *** the disconnected prepare case
@@ -180,7 +180,7 @@ formatID	gtrid_length	bqual_length	data
 flush logs;
 show binlog events in 'master-bin.000005' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000005	#	Gtid_list	1	#	[0-1-17]
+master-bin.000005	#	Gtid_list	1	#	[0-1-16]
 create table tm (a int) engine=myisam;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -211,7 +211,7 @@ formatID	gtrid_length	bqual_length	data
 flush logs;
 show binlog events in 'master-bin.000006' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000006	#	Gtid_list	1	#	[0-1-20]
+master-bin.000006	#	Gtid_list	1	#	[0-1-19]
 set @@session.sql_log_bin = OFF;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
 xa start 'skip_binlog';
@@ -245,7 +245,7 @@ formatID	gtrid_length	bqual_length	data
 flush logs;
 show binlog events in 'master-bin.000007' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000007	#	Gtid_list	1	#	[0-1-22]
+master-bin.000007	#	Gtid_list	1	#	[0-1-21]
 connection slave;
 include/sync_with_master_gtid.inc
 connection master;

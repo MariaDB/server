@@ -193,7 +193,7 @@ xa recover;
 # restore for the following tests
 --let $db=test
 
---echo *** At the end of --binlog-ignore-db section gtid list has 2 more:
+--echo *** At the end of --binlog-ignore-db section gtid list remains the same.
 flush logs;
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 --source include/show_gtid_list.inc

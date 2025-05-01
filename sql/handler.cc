@@ -1535,14 +1535,17 @@ int ha_prepare(THD *thd)
   if (ha_info)
   {
     int err;
-    bool is_rw;
+    bool is_rw, has_binlog;
 
-    for (is_rw= false; ha_info; ha_info= ha_info->next())
+    for (is_rw= false, has_binlog= false; ha_info; ha_info= ha_info->next())
     {
       transaction_participant *ht= ha_info->ht();
 
       if (ht == &binlog_tp)
+      {
+        has_binlog= true;
         continue;
+      }
       if (ht->prepare)
       {
         if (unlikely(prepare_or_error(ht, thd, all)))
@@ -1568,7 +1571,7 @@ int ha_prepare(THD *thd)
     {
       goto ro_xa;
     }
-    else if (binlog_tp.prepare && (err= prepare_or_error(&binlog_tp, thd, all)))
+    else if (has_binlog && (err= prepare_or_error(&binlog_tp, thd, all)))
     {
       ha_rollback_trans(thd, all);
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
@@ -2479,7 +2482,8 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd,
                                  bool force_skip_binlog)
 {
   struct xahton_st xaop= { xid, 1 };
-  bool skip_binlog= thd->is_current_stmt_binlog_disabled();
+  bool skip_binlog=
+    thd->is_current_stmt_binlog_disabled() || !is_xap_binlogged(thd);
 
   if (!skip_binlog && !force_skip_binlog)
   {

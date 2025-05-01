@@ -50,6 +50,7 @@ bool xid_cache_insert(XID *xid, bool is_binlogged= false);
 bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid);
 void xid_cache_delete(THD *thd, XID_STATE *xid_state);
 void xid_cache_update_xa_binlog_state(THD *thd, XID_STATE *xid_state, bool is_xap);
+bool is_xap_binlogged(THD *thd);
 
 bool trans_xa_start(THD *thd);
 bool trans_xa_end(THD *thd);
