@@ -21,7 +21,7 @@ a
 1
 2
 Warnings:
-Warning	4219	Hint NO_MRR(`t1` `idx_A`) is ignored as conflicting/duplicated
+Warning	4227	Hint NO_MRR(`t1` `idx_A`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)
 Warning	4222	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
 DROP TABLE t1;
 # Testing that query block names are accent sensitive case insensitive
@@ -885,7 +885,7 @@ Warning	4219	Hint BKA(`t1`@`q1`) is ignored as conflicting/duplicated
 SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t1;
 i
 Warnings:
-Warning	4219	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated
+Warning	4227	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)
 DROP TABLE t1;
 #
 # Hints inside views are not supported
