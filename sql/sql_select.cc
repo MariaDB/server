@@ -27045,24 +27045,25 @@ uint find_shortest_key(TABLE *table, const key_map *usable_keys)
   uint best= MAX_KEY;
   uint possible_keys= usable_keys->bits_set();
 
-  if (possible_keys)
-  {
-    if (possible_keys == 1)
-      return usable_keys->find_first_bit();
+  if (!possible_keys)
+    return best;
 
-    for (uint nr=0; nr < table->s->keys ; nr++)
+  if (possible_keys == 1)
+    return usable_keys->find_first_bit();
+
+  for (uint nr=0; nr < table->s->keys ; nr++)
+  {
+    if (!usable_keys->is_set(nr))
+      continue;
+
+    const size_t length= table->key_storage_length(nr);
+    if (length < min_length)
     {
-      if (usable_keys->is_set(nr))
-      {
-        size_t length= table->key_storage_length(nr);
-        if (length < min_length)
-        {
-          min_length= length;
-          best= nr;
-        }
-      }
+      min_length= length;
+      best= nr;
     }
   }
+
   return best;
 }
 
