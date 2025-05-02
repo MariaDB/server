@@ -161,16 +161,19 @@ longlong sequence_definition::truncate_value(const Longlong_hybrid& original)
 
 /**
   Check whether sequence values are valid.
-  
+
   Sets default values for fields that are not used, according to Oracle spec.
 
   @param in   thd                 The connection
   @param in   set_reserved_until  Whether to set reserved_until to start
-  
+  @param in   adjust_next         Whether to call flush
+                                  next_free_value. Default to true
+
   @retval     false               valid
               true                invalid
 */
-bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
+bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until,
+                                           bool adjust_next)
 {
   DBUG_ENTER("sequence_definition::check_and_adjust");
 
@@ -241,7 +244,8 @@ bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
   if (set_reserved_until)
     reserved_until= start;
 
-  adjust_values(reserved_until);
+  if (adjust_next)
+    adjust_values(reserved_until);
 
   /* To ensure that cache * real_increment will never overflow */
   const longlong max_increment= (real_increment ?
@@ -758,7 +762,11 @@ int SEQUENCE::read_stored_values(TABLE *table)
 
 
 /*
-  Adjust values after reading a the stored state
+  Adjust next_free_value after reading a the stored state
+
+  Also assign auto_increment_increment to real_increment if increment
+  is 0, though this assignment may have already happened (e.g. in
+  check_and_adjust())
 */
 
 void sequence_definition::adjust_values(longlong next_value)

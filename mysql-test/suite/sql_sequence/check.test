@@ -1,0 +1,139 @@
+--source include/have_innodb.inc
+
+# Check failure of underlying engine
+create sequence s;
+let $datadir= `select @@datadir`;
+remove_file $datadir/test/s.MYD;
+write_file $datadir/test/s.MYD;
+foo
+EOF
+call mtr.add_suppression("ha_myisam");
+call mtr.add_suppression("Checking table");
+check table s;
+drop table s;
+
+# Insert a row into a sequence table updates that row
+create sequence s;
+insert into s values (3,1,9223372036854775806,1,1,1000,0,0);
+select * from s;
+# ok
+check table s;
+--disable_ps2_protocol
+select nextval(s);
+--enable_ps2_protocol
+drop sequence s;
+
+# More than one row
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
+insert into s values (3,1,9223372036854775806,1,1,1000,0,0);
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
+
+# Fewer than one row
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
+delete from s;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
+
+# Wrong metadata (minvalue > maxvalue)
+let $datadir=`select @@datadir`;
+CREATE SEQUENCE s;
+copy_file $datadir/test/s.frm $datadir/test/s1.frm;
+ALTER TABLE s sequence=0;
+update s set minimum_value=200, maximum_value=100;
+FLUSH TABLES;
+remove_file $datadir/test/s.frm;
+move_file $datadir/test/s1.frm $datadir/test/s.frm;
+CHECK TABLE s;
+DROP SEQUENCE s;
+
+# Sequence run out tests.
+#
+# General principle: CHECK TABLE of a sequence table returns OK with a
+# warning of ER_SEQUENCE_RUN_OUT if a SELECT NEXTVAL of the sequence
+# in place of the CHECK TABLE statement would report
+# ER_SEQUENCE_RUN_OUT.
+create sequence s minvalue 13 maxvalue 15 increment by 4;
+check table s;
+--disable_ps2_protocol
+select nextval(s);
+--enable_ps2_protocol
+check table s;
+alter sequence s cycle;
+check table s;
+alter sequence s nocycle;
+check table s;
+# Still get run out because next_free_value has not changed. same
+# would happen with a SELECT NEXTVAL(s) statement without the
+# preceding check table statement.
+alter sequence s increment by 1;
+check table s;
+alter sequence s increment by 4;
+# If all_values_used is true, and then we make sequence cycle, check
+# table will be ok without warning, as expected. this is because the
+# ALTER SEQUENCE statement causes all_values_used to be reset.
+--disable_ps2_protocol
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+--enable_ps2_protocol
+alter sequence s cycle;
+check table s;
+alter sequence s maxvalue 23 nocycle;
+check table s;
+alter sequence s maxvalue 15;
+check table s;
+drop sequence s;
+
+# CHECK TABLE calls sequence_definition::check_and_adjust() with
+# adjust_next=false, so that there will be no flushing of
+# next_free_value in this call, hence no running out
+create sequence s minvalue 13 maxvalue 20 increment by 1;
+--disable_ps2_protocol
+select nextval(s);
+--enable_ps2_protocol
+check table s;
+--disable_ps2_protocol
+select nextval(s);
+--enable_ps2_protocol
+drop sequence s;
+
+# Without the CHECK TABLE statement below, the ALTER TABLE ...
+# SEQUENCE=1 statement would still cause flushing in subsequent SELECT
+# NEXTVAL statement (initialized == SQUENCE:SQL_UNITIALIZED =>
+# read_initial_value() => => sequence_defitinion::adjust_values()),
+# resulting in sequence running out.
+
+# Same effect takes place with ALTER SEQUENCE, though different cause:
+# in ALTER SEQUENCE, sequence_defitinion::adjust_values() is called in
+# sequence_definition::check_and_adjust() which is called in
+# Sql_cmd_alter_sequence::execute()
+create sequence s minvalue 13 maxvalue 20 increment by 1;
+--disable_ps2_protocol
+select nextval(s);
+--enable_ps2_protocol
+alter table s sequence=0;
+alter table s sequence=1;
+check table s;
+--disable_ps2_protocol
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+--enable_ps2_protocol
+drop sequence s;
+
+# UPDATE is banned by the storage engine - no need to check.
+create sequence s;
+--error ER_ILLEGAL_HA
+update s set minimum_value=500, maximum_value=200;
+drop sequence s;
