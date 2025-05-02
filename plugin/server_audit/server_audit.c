@@ -109,20 +109,24 @@ static void closelog() {}
 #define mysql_mutex_real_mutex(A) &(A)->m_mutex
 #endif
 
-#define flogger_mutex_init(A,B,C) do{}while(0)
-#define flogger_mutex_destroy(A) do{}while(0)
-#define flogger_mutex_lock(A) do{}while(0)
-#define flogger_mutex_unlock(A) do{}while(0)
-
 static char **int_mysql_data_home;
 static char *default_home= (char *)".";
 #define mysql_data_home (*int_mysql_data_home)
+
+#undef mysql_mutex_init
+#undef mysql_mutex_destroy
+#undef mysql_mutex_lock
+#undef mysql_mutex_unlock
+
+#define mysql_mutex_init(A,B,C) pthread_mutex_init(mysql_mutex_real_mutex(B), C)
+#define mysql_mutex_destroy(A) pthread_mutex_destroy(mysql_mutex_real_mutex(A))
+#define mysql_mutex_lock(A) pthread_mutex_lock(mysql_mutex_real_mutex(A))
+#define mysql_mutex_unlock(A) pthread_mutex_unlock(mysql_mutex_real_mutex(A))
 
 #define FLOGGER_SKIP_INCLUDES
 #define my_open(A, B, C) loc_open(A, B)
 #define my_close(A, B) loc_close(A)
 #define my_rename(A, B, C) loc_rename(A, B)
-#define my_tell(A, B) loc_tell(A)
 #define my_write(A, B, C, D) loc_write(A, B, C)
 #define my_malloc(A, B, C) malloc(B)
 #define my_free(A) free(A)
@@ -140,7 +144,8 @@ static int loc_file_errno;
 #define logger_write loc_logger_write
 #define logger_rotate loc_logger_rotate
 #define logger_init_mutexts loc_logger_init_mutexts
-#define logger_time_to_rotate loc_logger_time_to_rotate
+#define logger_sync loc_logger_sync
+#define logger_resize_buffer loc_logger_resize_buffer
 
 #ifndef HOSTNAME_LENGTH
 #define HOSTNAME_LENGTH 255
@@ -236,16 +241,6 @@ static int loc_rename(const char *from, const char *to)
 }
 
 
-static my_off_t loc_tell(File fd)
-{
-  os_off_t pos= IF_WIN(_telli64(fd),lseek(fd, 0, SEEK_CUR));
-  if (pos == (os_off_t) -1)
-  {
-    my_errno= errno;
-  }
-  return (my_off_t) pos;
-}
-
 #ifdef HAVE_PSI_INTERFACE
 #undef HAVE_PSI_INTERFACE
 #include <mysql/service_logger.h>
@@ -305,6 +300,8 @@ static ulonglong events; /* mask for events to log */
 static unsigned long long file_rotate_size;
 static unsigned int rotations;
 static my_bool rotate= TRUE;
+static my_bool sync_file= TRUE;
+static unsigned int file_buffer_size;
 static char logging;
 static volatile int internal_stop_logging= 0;
 static char incl_user_buffer[1024];
@@ -352,6 +349,8 @@ static void update_file_rotate_size(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                     void *var_ptr, const void *save);
 static void update_file_rotations(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                   void *var_ptr, const void *save);
+static void update_file_buffer_size(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                    void *var_ptr, const void *save);
 static void update_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
                               void *var_ptr, const void *save);
 static int check_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
@@ -374,6 +373,8 @@ static void update_syslog_ident(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                 void *var_ptr, const void *save);
 static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *var_ptr, const void *save);
+static void sync_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                     void *var_ptr, const void *save);
 
 static MYSQL_SYSVAR_STR(incl_users, incl_users, PLUGIN_VAR_RQCMDARG,
        "Comma separated list of users to monitor",
@@ -429,8 +430,13 @@ static MYSQL_SYSVAR_ULONGLONG(file_rotate_size, file_rotate_size,
 static MYSQL_SYSVAR_UINT(file_rotations, rotations,
        PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed",
        NULL, update_file_rotations, 9, 0, 999, 1);
+static MYSQL_SYSVAR_UINT(file_buffer_size, file_buffer_size,
+       PLUGIN_VAR_RQCMDARG, "Size of file buffer to make logging faster",
+       NULL, update_file_buffer_size, 0, 0, 65536, 1);
 static MYSQL_SYSVAR_BOOL(file_rotate_now, rotate, PLUGIN_VAR_OPCMDARG,
        "Force log rotation now", NULL, rotate_log, FALSE);
+static MYSQL_SYSVAR_BOOL(sync_log_file, sync_file, PLUGIN_VAR_OPCMDARG,
+       "Force sync log file", NULL, sync_log, FALSE);
 static MYSQL_SYSVAR_BOOL(logging, logging,
        PLUGIN_VAR_OPCMDARG, "Turn on/off the logging", NULL,
        update_logging, 0);
@@ -516,12 +522,14 @@ static struct st_mysql_sys_var* vars[] = {
     MYSQL_SYSVAR(excl_users),
     MYSQL_SYSVAR(events),
     MYSQL_SYSVAR(output_type),
+    MYSQL_SYSVAR(file_buffer_size),
     MYSQL_SYSVAR(file_path),
     MYSQL_SYSVAR(file_rotate_size),
     MYSQL_SYSVAR(file_rotations),
     MYSQL_SYSVAR(file_rotate_now),
     MYSQL_SYSVAR(logging),
     MYSQL_SYSVAR(mode),
+    MYSQL_SYSVAR(sync_log_file),
     MYSQL_SYSVAR(syslog_info),
     MYSQL_SYSVAR(syslog_ident),
     MYSQL_SYSVAR(syslog_facility),
@@ -1138,7 +1146,8 @@ static int start_logging()
       }
     }
 
-    logfile= logger_open(alt_fname, file_rotate_size, rotations);
+    logfile= logger_open(alt_fname, file_rotate_size,
+                         rotations, file_buffer_size);
 
     if (logfile == NULL)
     {
@@ -1404,25 +1413,13 @@ static int write_log(const char *message, size_t len, int take_lock)
 {
   int result= 0;
   if (take_lock)
-  {
-    /* Start by taking a read lock */
     mysql_prlock_rdlock(&lock_operations);
-  }
 
   if (output_type == OUTPUT_FILE)
   {
     if (logfile)
     {
-      my_bool allow_rotate= !take_lock; /* Allow rotate if caller write lock */
-      if (take_lock && logger_time_to_rotate(logfile))
-      {
-        /* We have to rotate the log, change above read lock to write lock */
-        mysql_prlock_unlock(&lock_operations);
-        mysql_prlock_wrlock(&lock_operations);
-        allow_rotate= 1;
-      }
-      if (!(is_active= (logger_write_r(logfile, allow_rotate, message, len) ==
-                        (int) len)))
+      if (!(is_active= (logger_write(logfile, message, len) == (int) len)))
       {
         ++log_write_failures;
         result= 1;
@@ -2794,6 +2791,16 @@ static void rotate_log(MYSQL_THD thd  __attribute__((unused)),
 }
 
 
+static void sync_log(MYSQL_THD thd  __attribute__((unused)),
+                     struct st_mysql_sys_var *var  __attribute__((unused)),
+                     void *var_ptr  __attribute__((unused)),
+                     const void *save  __attribute__((unused)))
+{
+  if (output_type == OUTPUT_FILE && logfile && *(my_bool*) save)
+    (void) logger_sync(logfile);
+}
+
+
 static struct st_mysql_audit mysql_descriptor =
 {
   MYSQL_AUDIT_INTERFACE_VERSION,
@@ -2966,6 +2973,37 @@ static void update_file_rotate_size(MYSQL_THD thd  __attribute__((unused)),
   mysql_prlock_wrlock(&lock_operations);
   logfile->size_limit= file_rotate_size;
   mysql_prlock_unlock(&lock_operations);
+}
+
+
+static void update_file_buffer_size(MYSQL_THD thd  __attribute__((unused)),
+              struct st_mysql_sys_var *var  __attribute__((unused)),
+              void *var_ptr  __attribute__((unused)), const void *save)
+{
+  file_buffer_size= *(unsigned int *) save;
+
+  error_header();
+  fprintf(stderr, "Log file buffer size was changed to '%d'.\n", file_buffer_size);
+
+  if (!logging || output_type != OUTPUT_FILE)
+    return;
+
+  ADD_ATOMIC(internal_stop_logging, 1);
+  if (!maria_55_started || !debug_server_started)
+    mysql_prlock_wrlock(&lock_operations);
+
+  if (logger_resize_buffer(logfile, file_buffer_size))
+  {
+    stop_logging();
+    error_header();
+    fprintf(stderr, "Buffer resize failed. Logging was disabled..\n");
+    CLIENT_ERROR(1, "Buffer resize failed. Logging was disabled.",
+                 MYF(ME_WARNING));
+  }
+
+  if (!maria_55_started || !debug_server_started)
+    mysql_prlock_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
 }
 
 
