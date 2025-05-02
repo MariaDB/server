@@ -2102,7 +2102,9 @@ bool JOIN::make_range_rowid_filters()
       const_table_map|= tab->table->map;
       goto no_filter;
     }
-    DBUG_ASSERT(sel->quick);
+    // Hints may cause test_quick_select not to find the best table read plan.
+    if (!sel->quick)
+      goto no_filter;
     filter_container=
       tab->range_rowid_filter_info->create_container();
     if (filter_container)
@@ -9774,6 +9776,7 @@ best_access_path(JOIN      *join,
         */
         cost.reset();
         cost.copy_cost= s->quick->read_time;
+        force_plan= s->quick->force_index_merge;
       }
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -32965,7 +32968,7 @@ test_if_cheaper_ordering(bool in_join_optimizer,
   int best_key= -1;
   double fanout;
   ha_rows table_records= table->stat_records();
-  bool group;
+  bool group= false, force_index_merge= false;
   const bool has_limit= (select_limit_arg != HA_POS_ERROR);
   THD *thd= table->in_use;
   POSITION *position;
@@ -32983,6 +32986,10 @@ test_if_cheaper_ordering(bool in_join_optimizer,
     rows_estimate= double_to_rows(position->records_out+0.5);
     set_if_bigger(rows_estimate, 1);
     refkey_rows_estimate= rows_estimate;
+
+    force_index_merge= tab->select &&
+                       tab->select->quick &&
+                       tab->select->quick->force_index_merge;
   }
   else
   {
@@ -33132,24 +33139,24 @@ test_if_cheaper_ordering(bool in_join_optimizer,
       /*
         Don't use an index scan with ORDER BY without limit.
         For GROUP BY without limit always use index scan
-        if there is a suitable index. 
+        if there is a suitable index.
         Why we hold to this asymmetry hardly can be explained
         rationally. It's easy to demonstrate that using
         temporary table + filesort could be cheaper for grouping
         queries too.
-      */ 
-      if (is_covering || has_limit ||
+      */
+      if (is_covering || has_limit || force_index_merge ||
           (ref_key < 0 && (group || table->force_index)))
-      { 
+      {
         double rec_per_key;
         if (group)
         {
-          /* 
+          /*
             Used_key_parts can be larger than keyinfo->user_defined_key_parts
-            when using a secondary index clustered with a primary 
-            key (e.g. as in Innodb). 
+            when using a secondary index clustered with a primary
+            key (e.g. as in Innodb).
             See Bug #28591 for details.
-          */  
+          */
           KEY *keyinfo= table->key_info+nr;
           uint used_index_parts= keyinfo->user_defined_key_parts;
           uint used_pk_parts= 0;
@@ -33252,8 +33259,12 @@ test_if_cheaper_ordering(bool in_join_optimizer,
           - If there is no ref key and no usable keys has yet been found and
             there is either a group by or a FORCE_INDEX
           - If the new cost is better than read_time
+
+          However, we will not try the new key if the user specified the
+          INDEX_MERGE hint, preferring instead whatever merged index strategy
+          was computed during test_quick_select.
         */
-        if (range_cost < read_time)
+        if (range_cost < read_time && !force_index_merge)
         {
           read_time= range_cost;
           possible_key.add("chosen", true);

@@ -362,20 +362,28 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
 static
 TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                           double read_time,
-                                          bool *are_all_covering);
+                                          bool *are_all_covering,
+                                          bool force_index_merge_result);
 static
 TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    SEL_TREE *tree,
-                                                   double read_time);
+                                                   double read_time,
+                                                   bool force_index_merge);
 static
-TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time, ha_rows limit,
+TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param,
+                                         bool index_merge_union_allowed,
+                                         bool index_merge_sort_union_allowed,
+                                         SEL_IMERGE *imerge,
+                                         double read_time,
+                                         ha_rows limit,
                                          bool named_trace,
                                          bool using_table_scan);
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
-                                        double read_time);
+                                        double read_time,
+                                        bool index_merge_union_allowed,
+                                        bool index_merge_sort_union_allowed);
 static
 TRP_GROUP_MIN_MAX *get_best_group_min_max(PARAM *param, SEL_TREE *tree,
                                           double read_time);
@@ -2223,6 +2231,16 @@ class TABLE_READ_PLAN
 {
 public:
   /*
+    An INDEX_MERGE hint was present in the query that created this
+    read plan, so preserve that fact for the QUICK_SELECT that will
+    be created as a result.  The QUICK_SELECT will use it to override
+    plan selection to ensure that index merge is used when possible
+    (it will not be possible if the read plan is a range read plan and
+    there are less-than two available ROR scans).
+  */
+  bool force_index_merge{false};
+
+  /*
     Plan read cost, with or without cost of full row retrieval, depending
     on plan creation parameters.
   */
@@ -2936,6 +2954,19 @@ SQL_SELECT::test_quick_select(THD *thd,
   SEL_ARG **backup_keys= nullptr;
   TABLE_READ_PLAN *best_read_plan= nullptr;
   double best_read_time= read_time;
+  /*
+    Set index_merge_allowed from OPTIMIZER_SWITCH_INDEX_MERGE.
+    Notice also that OPTIMIZER_SWITCH_INDEX_MERGE disables all
+    index merge sub strategies.
+  */
+  const bool index_merge_allowed =
+      optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE);
+  const bool index_merge_union_allowed =
+      index_merge_allowed &&
+      optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE_UNION);
+  const bool index_merge_sort_union_allowed =
+      index_merge_allowed &&
+      optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION);
 
   if (notnull_cond)
     notnull_cond_tree= notnull_cond->get_mm_tree(&param, &notnull_cond);
@@ -3016,18 +3047,20 @@ SQL_SELECT::test_quick_select(THD *thd,
       objects are not allowed so don't use ROR-intersection for
       table deletes.
     */
+    TRP_ROR_INTERSECT *rori_trp= nullptr;
     if ((thd->lex->sql_command != SQLCOM_DELETE) &&
-         optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+        (index_merge_allowed ||
+         hint_table_state(thd, param.table->pos_in_table_list,
+                          INDEX_MERGE_HINT_ENUM, 0)) &&
         !only_single_index_range_scan)
     {
       /*
         Get best non-covering ROR-intersection plan and prepare data for
         building covering ROR-intersection.
       */
-      TRP_ROR_INTERSECT *rori_trp= nullptr;
       bool can_build_covering= FALSE;
       if ((rori_trp= get_best_ror_intersect(&param, tree, best_read_time,
-                                            &can_build_covering)))
+                                            &can_build_covering, true)))
       {
         best_read_plan=       rori_trp;
         best_read_time= rori_trp->read_cost;
@@ -3037,7 +3070,8 @@ SQL_SELECT::test_quick_select(THD *thd,
         */
         if (!rori_trp->is_covering && can_build_covering &&
             (rori_trp= get_best_covering_ror_intersect(&param, tree,
-                                                       best_read_time)))
+                                                       best_read_time,
+                                                       rori_trp->force_index_merge)))
           best_read_plan= rori_trp;
       }
     }
@@ -3061,12 +3095,16 @@ SQL_SELECT::test_quick_select(THD *thd,
       }
     }
 
-    if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+    TABLE_READ_PLAN *best_conj_trp= nullptr;
+    if (!tree->merges.is_empty() &&
+        (index_merge_allowed ||
+         hint_table_state(thd, param.table->pos_in_table_list,
+                          INDEX_MERGE_HINT_ENUM, 0)) &&
         table_records != 0 && !only_single_index_range_scan)
     {
       /* Try creating index_merge/ROR-union scan. */
       SEL_IMERGE *imerge;
-      TABLE_READ_PLAN *best_conj_trp= nullptr,
+      TABLE_READ_PLAN
         *UNINIT_VAR(new_conj_trp); /* no empty index_merge lists possible */
       DBUG_PRINT("info",("No range reads possible,"
                          " trying to construct index_merge"));
@@ -3074,7 +3112,10 @@ SQL_SELECT::test_quick_select(THD *thd,
       Json_writer_array trace_idx_merge(thd, "analyzing_index_merge_union");
       while ((imerge= it++))
       {
-        new_conj_trp= get_best_disjunct_quick(&param, imerge, best_read_time,
+        new_conj_trp= get_best_disjunct_quick(&param,
+                                              index_merge_union_allowed,
+                                              index_merge_sort_union_allowed,
+                                              imerge, best_read_time,
                                               limit, 0, 1);
         if (new_conj_trp)
           param.table->set_opt_range_condition_rows(new_conj_trp->records);
@@ -3088,6 +3129,29 @@ SQL_SELECT::test_quick_select(THD *thd,
       }
       if (best_conj_trp)
         best_read_plan= best_conj_trp;
+    }
+
+    /*
+      Emit a warning if all of the following are true:
+        1.  There's a best read plan available
+        2.  An INDEX_MERGE hint is given, forcing index merge
+        3.  Available merges is empty, so no union attempted
+        4.  There were less than two ROR scans generated by get_key_scans_params
+      The emitted warning alerts the user that the index merge could not happen.
+    */
+    if (best_read_plan &&
+        best_read_plan->force_index_merge &&
+        tree->merges.is_empty() &&
+        tree->n_ror_scans < 2)
+    {
+      const bool aow= thd->abort_on_warning;
+      SCOPE_EXIT([thd, aow]() { thd->abort_on_warning= aow; });
+      thd->abort_on_warning= false; // Don't escalate to the level of error
+      push_warning_printf(thd,
+                          Sql_condition::WARN_LEVEL_WARN,
+                          WARN_INDEX_HINTS_IGNORED,
+                          "Insufficient ROR scans available for keys "
+                          "given in INDEX_MERGE hint");
     }
   }
 
@@ -3166,7 +3230,10 @@ SQL_SELECT::test_quick_select(THD *thd,
       quick= nullptr;
     }
     else
+    {
       quick->group_by_optimization_used= group_by_optimization_used;
+      quick->force_index_merge= best_read_plan->force_index_merge;
+    }
   }
   possible_keys= param.possible_keys;
 
@@ -5369,8 +5436,12 @@ static double get_sweep_read_cost(const PARAM *param, double records,
 */
 
 static
-TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time, ha_rows limit,
+TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param,
+                                         bool index_merge_union_allowed,
+                                         bool index_merge_sort_union_allowed,
+                                         SEL_IMERGE *imerge,
+                                         double read_time,
+                                         ha_rows limit,
                                          bool named_trace,
                                          bool using_table_scan)
 {
@@ -5399,7 +5470,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
 
   /*
     In every tree of imerge remove SEL_ARG trees that do not make ranges.
-    If after this removal some SEL_ARG tree becomes empty discard imerge.  
+    If after this removal some SEL_ARG tree becomes empty discard imerge.
   */
   for (ptree= imerge->trees; ptree != imerge->trees_next; ptree++)
   {
@@ -5410,8 +5481,11 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     }
   }
 
+  const bool force_index_merge =
+      hint_table_state(thd, param->table, INDEX_MERGE_HINT_ENUM, 0);
+
   n_child_scans= imerge->trees_next - imerge->trees;
-  
+
   if (!n_child_scans)
     DBUG_RETURN(NULL);
 
@@ -5473,10 +5547,11 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   DBUG_PRINT("info", ("index_merge scans cost %g", imerge_cost));
   trace_best_disjunct.add("cost_of_reading_ranges", imerge_cost);
 
-  if (imerge_too_expensive || (imerge_cost > read_time) ||
-      ((non_cpk_scan_records+cpk_scan_records >=
-        param->table->stat_records()) &&
-       read_time != DBL_MAX))
+  if (imerge_too_expensive || (((imerge_cost > read_time) ||
+                               ((non_cpk_scan_records+cpk_scan_records >=
+                                 param->table->stat_records()) &&
+                                read_time != DBL_MAX)) &&
+                               !force_index_merge))
   {
     /*
       Bail out if it is obvious that both index_merge and ROR-union will be
@@ -5488,13 +5563,12 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     DBUG_RETURN(NULL);
   }
 
-  /* 
-    If all scans happen to be ROR, proceed to generate a ROR-union plan (it's 
+  /*
+    If all scans happen to be ROR, proceed to generate a ROR-union plan (it's
     guaranteed to be cheaper than non-ROR union), unless ROR-unions are
     disabled in @@optimizer_switch
   */
-  if (all_scans_rors && 
-      optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_UNION))
+  if (all_scans_rors && (index_merge_union_allowed || force_index_merge))
   {
     roru_read_plans= (TABLE_READ_PLAN**)range_scans;
     if (unlikely(trace_best_disjunct.trace_started()))
@@ -5529,8 +5603,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   }
   DBUG_PRINT("info",("index_merge cost with rowid-to-row scan: %g",
                      imerge_cost));
-  if (imerge_cost > read_time || 
-      !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+  if ((imerge_cost > read_time || !index_merge_sort_union_allowed) &&
+      !force_index_merge)
   {
     if (unlikely(trace_best_disjunct.trace_started()))
       trace_best_disjunct.
@@ -5568,10 +5642,11 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
 
   DBUG_PRINT("info",("index_merge total cost: %g (wanted: less then %g)",
                      imerge_cost, read_time));
-  if (imerge_cost < read_time)
+  if (imerge_cost < read_time || force_index_merge)
   {
     if ((imerge_trp= new (param->mem_root)TRP_INDEX_MERGE))
     {
+      imerge_trp->force_index_merge= force_index_merge;
       imerge_trp->read_cost= imerge_cost;
       imerge_trp->records= non_cpk_scan_records + cpk_scan_records;
       imerge_trp->records= MY_MIN(imerge_trp->records,
@@ -5583,16 +5658,17 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     if (imerge_trp)
     {
       TABLE_READ_PLAN *trp= merge_same_index_scans(param, imerge, imerge_trp,
-                                                   limit_read_time);
+                                                   limit_read_time,
+                                                   index_merge_union_allowed,
+                                                   index_merge_sort_union_allowed);
       if (trp != imerge_trp)
         DBUG_RETURN(trp);
     }
   }
 
 build_ror_index_merge:
-  if (!all_scans_ror_able || 
-      param->thd->lex->sql_command == SQLCOM_DELETE ||
-      !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_UNION))
+  if (!all_scans_ror_able || param->thd->lex->sql_command == SQLCOM_DELETE ||
+      (!index_merge_union_allowed && !force_index_merge))
     DBUG_RETURN(imerge_trp);
 
   /* Ok, it is possible to build a ROR-union, try it. */
@@ -5637,7 +5713,7 @@ skip_to_ror_scan:
     TABLE_READ_PLAN *prev_plan= *cur_child;
     TRP_ROR_INTERSECT *ror_trp;
     if (!(*cur_roru_plan= ror_trp= get_best_ror_intersect(param, *ptree, cost,
-                                                          &dummy)))
+                                                          &dummy, false)))
     {
       if (!prev_plan->is_ror)
         DBUG_RETURN(imerge_trp);
@@ -5681,11 +5757,12 @@ skip_to_ror_scan:
       add("index_roworder_union_cost", roru_total_cost).
       add("members", n_child_scans);
   TRP_ROR_UNION* roru;
-  if (roru_total_cost < read_time)
+  if (roru_total_cost < read_time || force_index_merge)
   {
     if ((roru= new (param->mem_root) TRP_ROR_UNION))
     {
       trace_best_disjunct.add("chosen", true);
+      roru->force_index_merge= force_index_merge;
       roru->first_ror= roru_read_plans;
       roru->last_ror= roru_read_plans + n_child_scans;
       roru->read_cost= roru_total_cost;
@@ -5730,7 +5807,9 @@ skip_to_ror_scan:
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
-                                        double read_time)
+                                        double read_time,
+                                        bool index_merge_union_allowed,
+                                        bool index_merge_sort_union_allowed)
 {
   uint16 first_scan_tree_idx[MAX_KEY];
   SEL_TREE **tree;
@@ -5786,8 +5865,8 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
   DBUG_ASSERT(imerge->trees_next>imerge->trees);
 
   if (imerge->trees_next-imerge->trees > 1)
-    trp= get_best_disjunct_quick(param, imerge, read_time, HA_POS_ERROR, true,
-                                 0);
+    trp= get_best_disjunct_quick(param, index_merge_union_allowed, index_merge_sort_union_allowed, imerge, read_time,
+                                 HA_POS_ERROR, true, 0);
   else
   {
     /*
@@ -6995,6 +7074,7 @@ typedef struct
   ha_rows index_records; /* sum(#records to look in indexes) */
   double index_scan_costs; /* SUM(cost of 'index-only' scans) */
   double total_cost;
+  uint num_scans;  // Number of ROR scans that contributed to this intersection
 } ROR_INTERSECT_INFO;
 
 
@@ -7028,6 +7108,7 @@ ROR_INTERSECT_INFO* ror_intersect_init(const PARAM *param)
   info->index_scan_costs= 0.0;
   info->index_records= 0;
   info->out_rows= (double) param->table->stat_records();
+  info->num_scans= 0;
   bitmap_clear_all(&info->covered_fields);
   return info;
 }
@@ -7041,6 +7122,7 @@ void ror_intersect_cpy(ROR_INTERSECT_INFO *dst, const ROR_INTERSECT_INFO *src)
   dst->index_records= src->index_records;
   dst->index_scan_costs= src->index_scan_costs;
   dst->total_cost= src->total_cost;
+  dst->num_scans= src->num_scans;
 }
 
 
@@ -7251,7 +7333,8 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
 static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
                               ROR_SCAN_INFO* ror_scan,
                               Json_writer_object *trace_costs,
-                              bool is_cpk_scan)
+                              bool is_cpk_scan,
+                              bool ignore_cost)
 {
   double selectivity_mult= 1.0;
 
@@ -7262,13 +7345,13 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   DBUG_PRINT("info", ("is_cpk_scan: %d",is_cpk_scan));
 
   selectivity_mult = ror_scan_selectivity(info, ror_scan);
-  if (selectivity_mult == 1.0)
+  if (selectivity_mult == 1.0 && !ignore_cost)
   {
     /* Don't add this scan if it doesn't improve selectivity. */
     DBUG_PRINT("info", ("The scan doesn't improve selectivity."));
     DBUG_RETURN(FALSE);
   }
-  
+
   info->out_rows *= selectivity_mult;
   
   if (is_cpk_scan)
@@ -7296,6 +7379,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
       info->is_covering= TRUE;
     }
   }
+  ++info->num_scans;
 
   info->total_cost= info->index_scan_costs;
   trace_costs->add("cumulated_index_scan_cost", info->index_scan_costs);
@@ -7386,7 +7470,8 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
 static
 TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                           double read_time,
-                                          bool *are_all_covering)
+                                          bool *are_all_covering,
+                                          bool force_index_merge_result)
 {
   DBUG_ENTER("get_best_ror_intersect");
   DBUG_PRINT("enter", ("opt_range_condition_rows: %llu  cond_selectivity: %g",
@@ -7396,8 +7481,14 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   THD *thd= param->thd;
   Json_writer_object trace_ror(thd, "analyzing_roworder_intersect");
 
+  bool force_index_merge=
+    hint_table_state(thd,
+                     param->table->pos_in_table_list,
+                     INDEX_MERGE_HINT_ENUM, 0);
+
   if ((tree->n_ror_scans < 2) || !param->table->stat_records() ||
-      !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT))
+      (!optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT) &&
+       !force_index_merge))
   {
     if (tree->n_ror_scans < 2)
       trace_ror.add("cause", "too few roworder scans");
@@ -7461,6 +7552,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     [intersect_scans,intersect_scans_best) will hold the best intersection
   */
   ROR_SCAN_INFO **intersect_scans; /* ROR scans used in index intersection */
+  const uint intersect_scan_count= tree->n_ror_scans;
   if (!(intersect_scans= (ROR_SCAN_INFO**)alloc_root(param->mem_root,
                                                      sizeof(ROR_SCAN_INFO*)*
                                                      tree->n_ror_scans)))
@@ -7474,14 +7566,31 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
       !(intersect_best= ror_intersect_init(param)))
     return nullptr;
   Json_writer_array trace_isect_idx(thd, "intersecting_indexes");
+  bool use_cheapest_index_merge= false;
   while (cur_ror_scan != tree->ror_scans_end && !intersect->is_covering)
   {
     Json_writer_object trace_idx(thd);
     trace_idx.add("index",
                  param->table->key_info[(*cur_ror_scan)->keynr].name);
 
+    const index_merge_behavior ihb= index_merge_hint(param->table,
+                                                    (*cur_ror_scan)->keynr,
+                                                    force_index_merge,
+                                                    use_cheapest_index_merge);
+    if (ihb == index_merge_behavior::USE_KEY)
+      trace_idx.add("usable", true).add("cause", "index_merge_hint");
+    else if (ihb == index_merge_behavior::TABLE_DISABLED)
+      DBUG_RETURN(nullptr);
+    else if (ihb == index_merge_behavior::SKIP_KEY)
+    {
+      trace_idx.add("usable", false).add("cause", "index_merge_hint");
+      cur_ror_scan++;
+      continue;
+    }
+
     /* S= S + first(R);  R= R - first(R); */
-    if (!ror_intersect_add(intersect, *cur_ror_scan, &trace_idx, FALSE))
+    if (!ror_intersect_add(intersect, *cur_ror_scan, &trace_idx, FALSE,
+                           force_index_merge && !use_cheapest_index_merge))
     {
       trace_idx.
         add("usable", false).
@@ -7504,7 +7613,22 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
       The next ror scan is only accepted if the total cost went down
       (Enough rows where reject to offset the intersect cost)
     */
-    if (intersect->total_cost < min_cost)
+    if (intersect->total_cost < min_cost ||
+        (force_index_merge &&
+         /*
+           If INDEX_MERGE hint is used without only specified index,
+           index merge is forced and the cheapest combination of indexes
+           will be chosen. Since ranges are sorted by index scan cost,
+           index merge is forced for first two ranges and next ranges are
+           added only if they reduce total cost and there is no clustered
+           primary key scan or intersection is covering. If there is
+           a range by clustered primary key and intersection is not covering,
+           combination of first index and primary key is considered as
+           a cheapest intersection.
+         */
+         ((intersect_best->num_scans < 2 && force_index_merge_result &&
+           (!cpk_scan || intersect->is_covering)) ||
+          !use_cheapest_index_merge)))
     {
       /* Local minimum found, save it */
       min_cost= intersect->total_cost;
@@ -7521,6 +7645,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   }
   trace_isect_idx.end();
 
+  const uint num_scans= intersect_best->num_scans;
   if (intersect_scans_best == intersect_scans)
   {
     DBUG_PRINT("info", ("None of scans increase selectivity"));
@@ -7536,7 +7661,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                           intersect_scans_best););
 
   *are_all_covering= intersect->is_covering;
-  uint best_num= (uint)(intersect_scans_best - intersect_scans);
+  uint best_num= (uint) (intersect_scans_best - intersect_scans);
+  DBUG_ASSERT(best_num <= intersect_scan_count);
   ror_intersect_cpy(intersect, intersect_best);
 
   /*
@@ -7545,17 +7671,30 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     covering, it doesn't make sense to add CPK scan.
   */
   Json_writer_object trace_cpk(thd, "clustered_pk");
-  if (cpk_scan && !intersect->is_covering)
+  bool cpk_merge_allowed= false;
+  if (cpk_scan)
   {
-    if (ror_intersect_add(intersect, cpk_scan, &trace_cpk, TRUE) &&
-        (intersect->total_cost < min_cost))
+    const index_merge_behavior ihb= index_merge_hint(param->table,
+                                                     cpk_scan->keynr);
+    cpk_merge_allowed= (ihb == index_merge_behavior::USE_KEY ||
+                        ihb == index_merge_behavior::TABLE_ENABLED ||
+                        ihb == index_merge_behavior::NO_HINT);
+  }
+
+  if (cpk_merge_allowed && !intersect->is_covering)
+  {
+    if (ror_intersect_add(intersect, cpk_scan, &trace_cpk, TRUE, true) &&
+        ((intersect->total_cost < min_cost) ||
+         (force_index_merge &&
+          (!use_cheapest_index_merge ||
+           (num_scans == 1 && force_index_merge_result)))))
     {
       min_cost= intersect->total_cost;
       if (trace_cpk.trace_started())
         trace_cpk.
           add("clustered_pk_scan_added_to_intersect", true).
           add("cumulated_cost", intersect->total_cost);
-      intersect_best= intersect; //just set pointer here
+      intersect_best= intersect; // just set pointer here
     }
     else
     {
@@ -7584,7 +7723,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
 
   /* Ok, return ROR-intersect plan if we have found one */
   TRP_ROR_INTERSECT *trp= nullptr;
-  if (min_cost + cmp_cost < read_time && (cpk_scan || best_num > 1))
+  if ((min_cost + cmp_cost < read_time || force_index_merge) &&
+      (cpk_scan || num_scans > 1))
   {
     double best_rows= intersect_best->out_rows;
     set_if_bigger(best_rows, 1);
@@ -7595,6 +7735,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                        sizeof(ROR_SCAN_INFO*)*best_num)))
       DBUG_RETURN(nullptr);
     memcpy(trp->first_scan, intersect_scans, best_num*sizeof(ROR_SCAN_INFO*));
+    trp->force_index_merge= force_index_merge;
     trp->last_scan=  trp->first_scan + best_num;
     trp->is_covering= intersect_best->is_covering;
     trp->read_cost= min_cost + cmp_cost;
@@ -7632,6 +7773,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
       param     Parameter from test_quick_select function.
       tree      SEL_TREE with sets of intervals for different keys.
       read_time Don't return table read plans with cost > read_time.
+      force_index_merge Hint or optimizer switch mandates result.
 
   RETURN
     Best covering ROR-intersection plan
@@ -7661,13 +7803,15 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
 static
 TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    SEL_TREE *tree,
-                                                   double read_time)
+                                                   double read_time,
+                                                   bool force_index_merge)
 {
   ROR_SCAN_INFO **ror_scan_mark;
   ROR_SCAN_INFO **ror_scans_end= tree->ror_scans_end;
   DBUG_ENTER("get_best_covering_ror_intersect");
 
-  if (!optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT))
+  if (!optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT) &&
+      !force_index_merge)
     DBUG_RETURN(NULL);
 
   for (ROR_SCAN_INFO **scan= tree->ror_scans; scan != ror_scans_end; ++scan)
@@ -7768,6 +7912,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                      best_num)))
     DBUG_RETURN(NULL);
   memcpy(trp->first_scan, tree->ror_scans, best_num*sizeof(ROR_SCAN_INFO*));
+  trp->force_index_merge= force_index_merge;
   trp->last_scan=  trp->first_scan + best_num;
   trp->is_covering= TRUE;
   trp->read_cost= total_cost;
@@ -7800,7 +7945,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 */
 
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
-                                       bool index_read_must_be_used, 
+                                       bool index_read_must_be_used,
                                        bool for_range_access,
                                        double read_time, ha_rows limit,
                                        bool using_table_scan)
@@ -7833,108 +7978,120 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
   }
   tree->index_scans_end= tree->index_scans;
 
+  bool force_index_merge= false;
+  bool use_cheapest_index_merge= false;
   for (idx= 0; idx < param->keys; idx++)
   {
     SEL_ARG *key= tree->keys[idx];
-    if (key)
+    if (!key)
+      continue;
+
+    ha_rows found_records;
+    Cost_estimate cost;
+    double found_read_time;
+    uint mrr_flags, buf_size;
+    bool is_ror_scan= FALSE;
+    INDEX_SCAN_INFO *index_scan;
+    uint keynr= param->real_keynr[idx];
+    if (key->type == SEL_ARG::MAYBE_KEY ||
+        key->maybe_flag)
+      param->needed_reg->set_bit(keynr);
+
+    bool read_index_only= index_read_must_be_used ? TRUE :
+                          (bool) param->table->covering_keys.is_set(keynr);
+
+    Json_writer_object trace_idx(thd);
+    trace_idx.add("index", param->table->key_info[keynr].name);
+
+    found_records= check_quick_select(param, idx, limit, read_index_only,
+                                      key, for_range_access, &mrr_flags,
+                                      &buf_size, &cost, &is_ror_scan);
+
+    const index_merge_behavior ihb= index_merge_hint(param->table,
+                                                    keynr,
+                                                    force_index_merge,
+                                                    use_cheapest_index_merge);
+    if (ihb == index_merge_behavior::SKIP_KEY)
+      continue;
+    else if (ihb == index_merge_behavior::TABLE_DISABLED)
+      DBUG_RETURN(nullptr);
+
+    if (found_records == HA_POS_ERROR ||
+        (!for_range_access && !is_ror_scan &&
+         (!optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION) && !force_index_merge)))
     {
-      ha_rows found_records;
-      Cost_estimate cost;
-      double found_read_time;
-      uint mrr_flags, buf_size;
-      bool is_ror_scan= FALSE;
-      INDEX_SCAN_INFO *index_scan;
-      uint keynr= param->real_keynr[idx];
-      if (key->type == SEL_ARG::MAYBE_KEY ||
-          key->maybe_flag)
-        param->needed_reg->set_bit(keynr);
+      /* The scan is not a ROR-scan, just skip it */
+      continue;
+    }
+    found_read_time= cost.total_cost();
+    if (tree->index_scans &&
+        (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
+                                              sizeof(INDEX_SCAN_INFO))))
+    {
+      Json_writer_array trace_range(thd, "ranges");
+      const KEY &cur_key= param->table->key_info[keynr];
+      const KEY_PART_INFO *key_part= cur_key.key_part;
 
-      bool read_index_only= index_read_must_be_used ? TRUE :
-                            (bool) param->table->covering_keys.is_set(keynr);
+      index_scan->idx= idx;
+      index_scan->keynr= keynr;
+      index_scan->key_info= &param->table->key_info[keynr];
+      index_scan->used_key_parts= param->max_key_parts;
+      index_scan->range_count= param->range_count;
+      index_scan->records= found_records;
+      index_scan->sel_arg= key;
+      *tree->index_scans_end++= index_scan;
 
-      Json_writer_object trace_idx(thd);
-      trace_idx.add("index", param->table->key_info[keynr].name);
+      if (unlikely(thd->trace_started()))
+        trace_ranges(&trace_range, param, idx, key, key_part);
+      trace_range.end();
 
-      found_records= check_quick_select(param, idx, limit, read_index_only,
-                                        key, for_range_access, &mrr_flags,
-                                        &buf_size, &cost, &is_ror_scan);
-
-      if (found_records == HA_POS_ERROR ||
-          (!for_range_access && !is_ror_scan &&
-           !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION)))
+      if (unlikely(trace_idx.trace_started()))
       {
-        /* The scan is not a ROR-scan, just skip it */
-        continue;
+        trace_idx.
+          add("rowid_ordered", is_ror_scan).
+          add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
+          add("index_only", read_index_only).
+          add("rows", found_records).
+          add("cost", found_read_time);
+        if (using_table_scan && cost.limit_cost != 0.0)
+          trace_idx.add("cost_with_limit", cost.limit_cost);
       }
-      found_read_time= cost.total_cost();
-      if (tree->index_scans &&
-          (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
-						     sizeof(INDEX_SCAN_INFO))))
+    }
+    if (is_ror_scan)
+    {
+      tree->n_ror_scans++;
+      tree->ror_scans_map.set_bit(idx);
+    }
+    /*
+      Use range if best range so far or if we are comparing to a table scan
+      and the cost with limit approximation is better than the table scan
+    */
+    if ((read_time > found_read_time ||
+         (force_index_merge && (!use_cheapest_index_merge || !key_to_read))) ||
+        (using_table_scan && cost.limit_cost != 0.0 &&
+         read_time > cost.limit_cost))
+    {
+      read_time=    found_read_time;
+      best_records= found_records;
+      key_to_read=  key;
+      best_idx= idx;
+      best_mrr_flags= mrr_flags;
+      best_buf_size=  buf_size;
+      using_table_scan= 0;
+      trace_idx.add("chosen", true);
+    }
+    else if (unlikely(trace_idx.trace_started()))
+    {
+      trace_idx.add("chosen", false);
+      if (found_records == HA_POS_ERROR)
       {
-        Json_writer_array trace_range(thd, "ranges");
-        const KEY &cur_key= param->table->key_info[keynr];
-        const KEY_PART_INFO *key_part= cur_key.key_part;
-
-        index_scan->idx= idx;
-        index_scan->keynr= keynr;
-        index_scan->key_info= &param->table->key_info[keynr];
-        index_scan->used_key_parts= param->max_key_parts;
-        index_scan->range_count= param->range_count;
-        index_scan->records= found_records;
-        index_scan->sel_arg= key;
-        *tree->index_scans_end++= index_scan;
-
-        if (unlikely(thd->trace_started()))
-          trace_ranges(&trace_range, param, idx, key, key_part);
-        trace_range.end();
-
-        if (unlikely(trace_idx.trace_started()))
-        {
-          trace_idx.
-            add("rowid_ordered", is_ror_scan).
-            add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
-            add("index_only", read_index_only).
-            add("rows", found_records).
-            add("cost", found_read_time);
-          if (using_table_scan && cost.limit_cost != 0.0)
-            trace_idx.add("cost_with_limit", cost.limit_cost);
-        }
-      }
-      if (is_ror_scan)
-      {
-        tree->n_ror_scans++;
-        tree->ror_scans_map.set_bit(idx);
-      }
-      /*
-        Use range if best range so far or if we are comparing to a table scan
-        and the cost with limit approximation is better than the table scan
-      */
-      if (read_time > found_read_time ||
-          (using_table_scan && cost.limit_cost != 0.0 &&
-           read_time > cost.limit_cost))
-      {
-        read_time=    found_read_time;
-        best_records= found_records;
-        key_to_read=  key;
-        best_idx= idx;
-        best_mrr_flags= mrr_flags;
-        best_buf_size=  buf_size;
-        using_table_scan= 0;
-        trace_idx.add("chosen", true);
-      }
-      else if (unlikely(trace_idx.trace_started()))
-      {
-        trace_idx.add("chosen", false);
-        if (found_records == HA_POS_ERROR)
-        {
-          if (key->type == SEL_ARG::Type::MAYBE_KEY)
-            trace_idx.add("cause", "depends on unread values");
-          else
-            trace_idx.add("cause", "unknown");
-        }
+        if (key->type == SEL_ARG::Type::MAYBE_KEY)
+          trace_idx.add("cause", "depends on unread values");
         else
-          trace_idx.add("cause", "cost");
+          trace_idx.add("cause", "unknown");
       }
+      else
+        trace_idx.add("cause", "cost");
     }
   }
 
@@ -7945,6 +8102,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
     if ((read_plan= new (param->mem_root) TRP_RANGE(key_to_read, best_idx,
                                                     best_mrr_flags)))
     {
+      read_plan->force_index_merge= force_index_merge;
       read_plan->records= best_records;
       read_plan->is_ror= tree->ror_scans_map.is_set(best_idx);
       read_plan->read_cost= read_time;
