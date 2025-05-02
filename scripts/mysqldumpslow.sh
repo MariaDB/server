@@ -50,9 +50,21 @@ GetOptions(\%opt,
     'h=s',	# hostname/basename of db server for *-slow.log filename (can be wildcard)
     'i=s',	# name of server instance (if using mysql.server startup script)
     'l!',	# don't subtract lock time from total time
+    'json!', # output JSON format
 ) or usage("bad option");
 
 $opt{'help'} and usage();
+
+# check if JSON module is available
+if ($opt{json}) {
+    eval {
+        require JSON;
+        JSON->import();
+        1;
+    } or do {
+        die "JSON module not found. Please install the JSON module to use --json option.\n";
+    };
+}
 
 unless (@ARGV) {
     my $defaults   = `my_print_defaults --mysqld`;
@@ -181,15 +193,96 @@ my @sorted = sort { $stmt{$b}->{$opt{s}} <=> $stmt{$a}->{$opt{s}} } keys %stmt;
 @sorted = @sorted[0 .. $opt{t}-1] if $opt{t};
 @sorted = reverse @sorted         if $opt{r};
 
-foreach (@sorted) {
-    my $v = $stmt{$_} || die;
-    my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
-    my @users = keys %{$v->{users}};
-    my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
-    my @hosts = keys %{$v->{hosts}};
-    my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
-    printf "Count: %d  Time=%.2fs (%ds)  Lock=%.2fs (%ds)  Rows_sent=%.1f (%d), Rows_examined=%.1f (%d), Rows_affected=%.1f (%d), $user\@$host\n%s\n\n",
-	    $c, $at,$t, $al,$l, $ar,$r, $ae, $e, $aa, $a, $_;
+if(!$opt{json}) {
+    foreach (@sorted) {
+        my $v = $stmt{$_} || die;
+        my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
+        my @users = keys %{$v->{users}};
+        my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
+        my @hosts = keys %{$v->{hosts}};
+        my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
+        printf "Count: %d  Time=%.2fs (%ds)  Lock=%.2fs (%ds)  Rows_sent=%.1f (%d), Rows_examined=%.1f (%d), Rows_affected=%.1f (%d), $user\@$host\n%s\n\n",
+            $c, $at,$t, $al,$l, $ar,$r, $ae, $e, $aa, $a, $_;
+    }
+} else {
+    my @json_output;
+    foreach (@sorted) {
+        my $v = $stmt{$_} || die;
+        my ($c, $t, $at, $l, $al, $r, $ar, $e, $ae, $a, $aa) = @{ $v }{qw(c t at l al r ar e ae a aa)};
+        my @users = keys %{$v->{users}};
+        my $user  = (@users==1) ? $users[0] : sprintf "%dusers",scalar @users;
+        my @hosts = keys %{$v->{hosts}};
+        my $host  = (@hosts==1) ? $hosts[0] : sprintf "%dhosts",scalar @hosts;
+
+        my %engine;
+        my (@explain_lines, @clean_query);
+
+        # extract engine stats, explain, and clean the query from comments
+        foreach my $line (split("\n", $_)) {
+            if ($line =~ /\s*# explain: (.+)$/) {
+                push @explain_lines, [split /\s+/, $1];
+            }
+            elsif ($line =~ /\s*#\s*Pages_accessed:\s*(\S+)\s+Pages_read:\s*(\S+)\s+Pages_prefetched:\s*(\S+)\s+Pages_updated:\s*(\S+)\s+Old_rows_read:\s*(\S+)/) {
+                @engine{qw(Pages_accessed Pages_read Pages_prefetched Pages_updated Old_rows_read)} = ($1, $2, $3, $4, $5);
+            }
+            elsif ($line =~ /\s*#\s*Pages_read_time:\s*(\S+)\s+Engine_time:\s*(\S+)/) {
+                @engine{qw(Pages_read_time Engine_time)} = ($1, $2);
+            }
+            elsif ($line !~ /^\s*#/) {
+                push @clean_query, $line;
+            }
+        }
+
+        # build a structured explain output
+        my $explain;
+        if (@explain_lines >= 2) {
+            my @headers = @{ shift @explain_lines };
+            $explain = [ map {
+                my %row;
+                @row{@headers} = @$_;
+                \%row;
+            } @explain_lines ];
+
+            # convert "NULL" strings to actual undef
+            for my $row (@$explain) {
+                for my $key (keys %$row) {
+                    if ($row->{$key} eq 'NULL') {
+                        $row->{$key} = undef;
+                    } elsif ($row->{$key} =~ /^\d+(\.\d+)?$/) {
+                        $row->{$key} += 0; # convert to a number
+                    }
+                }
+            }
+        }
+
+        # we can use the opt{a} flag to convert engine data to numbers
+        if ($opt{a}) {
+            foreach my $key (keys %engine) {
+                $engine{$key} += 0;
+            }
+        }
+
+        # finally output the data as JSON
+        push @json_output, {
+            count           => $c,
+            avg_time        => $at,
+            total_time      => $t,
+            avg_lock        => $al,
+            total_lock      => $l,
+            avg_rows_sent   => $ar,
+            total_rows_sent => $r,
+            avg_examined    => $ae,
+            total_examined  => $e,
+            avg_affected    => $aa,
+            total_affected  => $a,
+            user            => $user,
+            host            => $host,
+            query           => join("\n", @clean_query),
+            engine          => (%engine ? \%engine : undef),
+            explain         => ($explain ? $explain : undef),
+        };
+    }
+    print JSON->new->canonical(1)->pretty->encode(\@json_output);
 }
 
 sub usage {
