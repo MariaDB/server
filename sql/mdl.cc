@@ -2312,6 +2312,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   MDL_ticket *ticket;
   MDL_wait::enum_wait_status wait_status;
   DBUG_ENTER("MDL_context::acquire_lock");
+  DBUG_ASSERT(m_wait.get_status() == MDL_wait::EMPTY);
 #ifdef DBUG_TRACE
   const char *mdl_lock_name= get_mdl_lock_name(
     mdl_request->key.mdl_namespace(), mdl_request->type)->str;
@@ -2370,14 +2371,6 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   lock= ticket->m_lock;
   lock->m_waiting.add_ticket(ticket);
-
-  /*
-    Once we added a pending ticket to the waiting queue,
-    we must ensure that our wait slot is empty, so
-    that our lock request can be scheduled. Do that in the
-    critical section formed by the acquired write lock on MDL_lock.
-  */
-  m_wait.reset_status();
 
   /*
     Don't break conflicting locks if timeout is 0 as 0 is used
@@ -2489,6 +2482,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   if (wait_status != MDL_wait::GRANTED)
   {
     lock->abort_wait(m_pins, ticket);
+    m_wait.reset_status();
     delete ticket;
     switch (wait_status)
     {
@@ -2518,7 +2512,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     concurrent thread (@sa MDL_lock:reschedule_waiters()).
     So all we need to do is to update MDL_context and MDL_request objects.
   */
-  DBUG_ASSERT(wait_status == MDL_wait::GRANTED);
+  m_wait.reset_status();
 
   m_tickets[mdl_request->duration].push_front(ticket);
 
