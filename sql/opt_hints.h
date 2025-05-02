@@ -120,6 +120,38 @@ struct st_opt_hint_info
 
 typedef Optimizer_hint_parser Parser;
 
+/*
+  Keeps track of which keys are used by hints.
+ */
+class Index_merge_map
+{
+  Bitmap<MAX_KEY> keys;
+
+public:
+  Index_merge_map()
+  {
+    keys.clear_all();
+  }
+
+  // @return the first key in the set
+  uint get_first_keyno() const
+  {
+    return keys.find_first_bit();
+  }
+
+  // @return if any keys are present
+  bool has_key_specified() const
+  {
+    return get_first_keyno() != MAX_KEY;
+  }
+
+  // Set keyno as one mentioned by a hint.
+  void set_key(uint keyno)
+  {
+    keys.set_bit(keyno);
+  }
+};
+
 /**
   Opt_hints_map contains information
   about hint state(specified or not, hint value).
@@ -127,8 +159,8 @@ typedef Optimizer_hint_parser Parser;
 
 class Opt_hints_map : public Sql_alloc
 {
-  Bitmap<64> hints;           // hint state
-  Bitmap<64> hints_specified; // true if hint is specified
+  Bitmap<MAX_KEY> hints;           // hint state
+  Bitmap<MAX_KEY> hints_specified; // true if hint is specified
 
 public:
   Opt_hints_map()
@@ -193,6 +225,7 @@ protected:
     transition from NOT_FIXED to FIXED.
   */
   enum class Fixed_state { NOT_FIXED, FIXED };
+
 private:
   /*
     Parent object. There is no parent for global level,
@@ -218,6 +251,12 @@ private:
   uint n_fully_fixed_children;
 
 public:
+  /*
+    Bitmap describing switch-type (on/off) [NO_]INDEX_MERGE hints
+    set at this scope.
+  */
+  Index_merge_map index_merge_map;
+
   Opt_hints(const Lex_ident_sys &name_arg,
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
@@ -726,6 +765,11 @@ public:
   }
 
   /**
+    Perform index hint-specific state adjustments here.
+   */
+  void set_index_hint(Opt_hints *hint, uint arg);
+
+  /**
     Return bitmap object corresponding to the hint type passed
 
     @param type  hint_type
@@ -749,7 +793,6 @@ private:
                              const Key_map *available_keys_to_use,
                              opt_hints_enum type_arg);
   void set_compound_key_hint_map(Opt_hints *hint, uint keynr);
-
 };
 
 bool is_index_hint_conflicting(Opt_hints_table *table_hint,
@@ -813,6 +856,72 @@ enum class hint_state
   ENABLED,      // Hint is specified as enabled
   DISABLED      // Hint is specified as disabled
 };
+
+
+/**
+  Used by index_hint_state functions, defines return codes
+  that indicate how to handle the hint (details inline).
+ */
+enum class index_merge_behavior
+{
+  // Hint not provided by query.
+  NO_HINT,
+
+  // Hint indicates that key should be used for index merge.
+  USE_KEY,
+
+  // Hint indicates that key should be skipped for index merge.
+  SKIP_KEY,
+
+  /*
+    Hint is supplied without specifying specific key(s), so
+    index merge is either disabled (NO_INDEX_MERGE) or
+    enabled (INDEX_MERGE) for all keys on the table.
+  */
+  TABLE_DISABLED,
+  TABLE_ENABLED
+};
+
+
+/**
+  Indicates INDEX_MERGE and NO_INDEX_MERGE hint state
+  for the given table and key.
+
+  This function does not inspect any optimizer switches.
+
+  @param tab                      Pointer to TABLE object
+  @param keyno                    Key number
+  @param force_index_merge        [OUT] true if the hint enables
+                                  index merge for either the passed
+                                  keyno or if the hint enables
+                                  index merge for the entire table.
+                                  The caller will use this to force
+                                  index merging at various points
+                                  during optimization.
+  @param use_cheapest_index_merge [OUT] true if the hint enables
+                                  index merge for the entire table
+                                  (the query does not specify one or
+                                  more keys).  In this case, the
+                                  system must find the cheapest
+                                  index merge.
+  @return some value from the index_merge_behavior enumeration
+          indicating to the caller how it should handle the hint.
+          See the index_merge_behavior enum above for details.
+*/
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno,
+                                      bool *force_index_merge,
+                                      bool *use_cheapest_index_merge);
+
+
+/**
+  Convenience wrapper of the index_hint_state function just
+  above, used by the clustered primary key logic in get_best_ror_intersect
+  because that call site does not care about force_index_merge or
+  the cheapest index merge.
+ */
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno);
 
 
 /**
