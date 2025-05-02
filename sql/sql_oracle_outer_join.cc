@@ -218,15 +218,22 @@ struct table_pos: public Sql_alloc
    }
 };
 
+
 /*
-  Sort order
+  Order the tables:
+   - INNER table comes before its OUTER
+     (TODO why do we just check immediate neighbors in outer_side,
+      without checking a->outer_side[IDX1]->outer_side[IDX2]==b ?)
+   - then, tables that were later in the FROM clause come first
 */
+
 static int
 table_pos_sort(table_pos *a, table_pos *b, void *arg)
 {
-  //sort bacward (descent) but taking into account dependencies
   if (a->is_outer_of(b))
     return -1;
+  if (b->is_outer_of(a))
+    return 1;
   return b->order - a->order;
 }
 
