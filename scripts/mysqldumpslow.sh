@@ -50,7 +50,7 @@ GetOptions(\%opt,
     'h=s',	# hostname/basename of db server for *-slow.log filename (can be wildcard)
     'i=s',	# name of server instance (if using mysql.server startup script)
     'l!',	# don't subtract lock time from total time
-    'json!', # output JSON format
+    'json|j!', # output JSON format
 ) or usage("bad option");
 
 $opt{'help'} and usage();
