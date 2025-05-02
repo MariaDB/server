@@ -128,26 +128,36 @@ extern struct logger_service_st {
   void (*logger_init_mutexes)();
   LOGGER_HANDLE* (*open)(const char *path,
                          unsigned long long size_limit,
-                         unsigned int rotations);
+                         unsigned int rotations, size_t buffer_size);
   int (*close)(LOGGER_HANDLE *log);
   int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr)
     __attribute__((format(printf, 2, 0)));
   int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
-  int (*write)(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int (*write)(LOGGER_HANDLE *log, const void *data, size_t size);
   int (*rotate)(LOGGER_HANDLE *log);
+  int (*sync)(LOGGER_HANDLE *log);
+  int (*resize_buffer)(LOGGER_HANDLE *log, size_t new_buffer_size);
+  int (*set_filesize_limit)(LOGGER_HANDLE *log,
+                            unsigned long long new_file_limit);
+  int (*set_rotations)(LOGGER_HANDLE *log, unsigned int new_rotations);
 } *logger_service;
   void logger_init_mutexes();
   LOGGER_HANDLE *logger_open(const char *path,
                              unsigned long long size_limit,
-                             unsigned int rotations);
+                             unsigned int rotations, size_t buffer_size);
   int logger_close(LOGGER_HANDLE *log);
   int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr)
     __attribute__((format(printf, 2, 0)));
   int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
-  int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size);
+  int logger_write(LOGGER_HANDLE *log, const void *data, size_t size);
   int logger_rotate(LOGGER_HANDLE *log);
+  int logger_sync(LOGGER_HANDLE *log);
+  int logger_resize_buffer(LOGGER_HANDLE *log, size_t new_buffer_size);
+  int logger_set_filesize_limit(LOGGER_HANDLE *log,
+                                unsigned long long new_file_limit);
+  int logger_set_rotations(LOGGER_HANDLE *log, unsigned int new_rotations);
 }
 extern "C" {
 extern struct my_md5_service_st {
