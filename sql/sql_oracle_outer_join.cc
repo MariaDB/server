@@ -199,7 +199,9 @@ struct table_pos: public Sql_alloc
   List<table_pos> outer_side;
   List<Item> on_conds;
   TABLE_LIST *table;
-  int order; // original order of the table
+
+  /* Ordinal number of the table in the original FROM clause */
+  int order;
   bool processed;
   bool outer_processed;
 
@@ -230,7 +232,24 @@ table_pos_sort(table_pos *a, table_pos *b, void *arg)
 
 
 /**
-  Collect information about table relation from the conditions (WHERE)
+  @brief
+    Collect info about table relationships from a part of WHERE condition
+
+  @detail
+    This processes an individual AND-part of the WHERE clause.
+    We catch these patterns:
+
+    1. Condition refers to one or more OUTER tables and one INNER table:
+       cond(outer_table1.col, outer_table2.col, ..., inner_table.col(+))
+
+    2. Condition refers to just one inner table:
+       cond(inner_table.col(+), constants)
+
+    We note one single inner table and zero or more outer tables and record
+    these dependencies in the table graph.
+
+    Also, the predicates that will form the ON expression are collected in
+    table_list::on_conds.
 */
 
 static bool
@@ -239,7 +258,6 @@ ora_join_process_expression(THD *thd, Item *cond,
 {
   DBUG_ENTER("ora_join_process_expression");
 
-  // Collect info about relations and report error if there are some
   struct ora_join_processor_param param;
   param.inner= NULL;
   param.outer.empty();
@@ -321,12 +339,13 @@ static bool process_outer_relations(THD* thd,
 
 
 /**
-  Check presence of directional cycles (starting from "tab" with beginning
-  of check in "beggining")  in case we have non-directional cycle
-
   @brief
-    Recusively check if table "beginning" is reachable from table "tab" across
-    the tab->inner_side pointers.
+  Check presence of directional cycles (starting from "tab" with beginning
+  of check in "beginning") in case we have non-directional cycle
+
+  @bdetail
+    Recusively check if table "beginning" is reachable from table "tab" through
+    the table_pos::inner_side pointers.
 */
 
 static bool check_directed_cycle(THD* thd, table_pos *tab,
@@ -585,6 +604,8 @@ static void dbug_print_tab_pos(table_pos *t)
 static void dbug_print_table_name(const char *prefix,
                                   const char *legend, TABLE_LIST *t)
 {
+  // TODO: dbug_print_item is Single-threaded! It's only for gdb!
+  // one can't use it when writing to debug trace!
   if (t)
     DBUG_PRINT(prefix, ("%s Table: '%s' %p  outer: %s  on: %s", legend,
                         (t->alias.str?t->alias.str:""), t,
@@ -621,7 +642,8 @@ static void dbug_print_table(TABLE_LIST *t)
     Convert Oracle's outer join (+) operators into regular outer join
     structures
 
-  @param conds  INOUT  The WHERE condition
+  @param conds             INOUT  The WHERE condition
+  @param select_join_list  INOUT  Top-level join list
 
   @return
     TRUE   Error
@@ -660,10 +682,18 @@ bool setup_oracle_join(THD *thd, COND **conds,
     t->outer_side.empty();
     t->on_conds.empty();
     t->table= table;
+    // psergey-todo: can't we keep ora_join_table_no in table_pos?
     table->ora_join_table_no= t->order= i;
     t->processed= t->outer_processed= FALSE;
   }
   DBUG_ASSERT(i == n_tables);
+
+  /*
+    Process the WHERE clause:
+     - Find outer join conditions
+     - Create hypergraph edges from them
+     - Remove them from the WHERE clause
+  */
   if (is_cond_and(*conds))
   {
     and_item= (Item_cond_and *)(*conds);
@@ -756,7 +786,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
     if (i >= n_tables)
       break;
 
-    // Process "sub-graph" whith this indeendent is top of one of branches
+    // Process "sub-graph" with this independent is top of one of branches
     if (list == NULL)
       list= tab + i;
     else
