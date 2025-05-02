@@ -2120,7 +2120,9 @@ bool JOIN::make_range_rowid_filters()
       const_table_map|= tab->table->map;
       goto no_filter;
     }
-    DBUG_ASSERT(sel->quick);
+    // Hints may cause test_quick_select not to find the best table read plan.
+    if (!sel->quick)
+      goto no_filter;
     filter_container=
       tab->range_rowid_filter_info->create_container();
     if (filter_container)
@@ -9666,20 +9668,26 @@ best_access_path(JOIN      *join,
         lookups are cheaper than full scans, but when the table is small, they
         can be [considered to be] more expensive, which causes lookups not to 
         be used for cases with small datasets, which is annoying.
+    OR
+    (10) The quick select is an index_merge quick select prescribed by the
+         INDEX_MERGE hint. In this case we try to follow the hint and ignore
+         all other considerations.
   */
   Json_writer_object trace_access_scan(thd);
-  if ((best.records_read >= s->found_records ||
-       best.cost > s->read_time) &&                                      // (1)
-      !(best.key && best.key->key == MAX_KEY) &&                         // (2)
-      !(s->quick &&
-        s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX && // (2)
-        best.key && s->quick->index == best.key->key &&                  // (2)
-        table->opt_range_keys.is_set(best.key->key) &&                  // (2)
-        best.max_key_part >= table->opt_range[best.key->key].key_parts) &&// (2)
-      !((file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
-        !table->covering_keys.is_clear_all() && best.key && !s->quick) &&// (3)
-      !(table->force_index_join && best.key && !s->quick) &&             // (4)
-      !(best.key && table->pos_in_table_list->jtbm_subselect))           // (5)
+  if (((best.records_read >= s->found_records ||
+        best.cost > s->read_time) &&                                      // (1)
+       !(best.key && best.key->key == MAX_KEY) &&                         // (2)
+       !(s->quick &&
+         s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX && // (2)
+         best.key && s->quick->index == best.key->key &&                  // (2)
+         table->opt_range_keys.is_set(best.key->key) &&                  // (2)
+         best.max_key_part >= table->opt_range[best.key->key].key_parts) &&// (2)
+       !((file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&      // (3)
+         !table->covering_keys.is_clear_all() && best.key && !s->quick) &&// (3)
+       !(table->force_index_join && best.key && !s->quick) &&             // (4)
+       !(best.key && table->pos_in_table_list->jtbm_subselect))           // (5)
+      ||
+      (s->quick && s->quick->force_index_merge))                        // (10)
   {                                             // Check full join
     double records_after_filter, org_records;
     double records_best_filter, cur_cost;
@@ -9794,6 +9802,7 @@ best_access_path(JOIN      *join,
         */
         cost.reset();
         cost.copy_cost= s->quick->read_time;
+        force_plan= s->quick->force_index_merge;
       }
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -33000,7 +33009,7 @@ test_if_cheaper_ordering(bool in_join_optimizer,
   int best_key= -1;
   double fanout;
   ha_rows table_records= table->stat_records();
-  bool group;
+  bool group= false, force_index_merge= false;
   const bool has_limit= (select_limit_arg != HA_POS_ERROR);
   THD *thd= table->in_use;
   POSITION *position;
@@ -33018,6 +33027,10 @@ test_if_cheaper_ordering(bool in_join_optimizer,
     rows_estimate= double_to_rows(position->records_out+0.5);
     set_if_bigger(rows_estimate, 1);
     refkey_rows_estimate= rows_estimate;
+
+    force_index_merge= tab->select &&
+                       tab->select->quick &&
+                       tab->select->quick->force_index_merge;
   }
   else
   {
@@ -33173,7 +33186,7 @@ test_if_cheaper_ordering(bool in_join_optimizer,
         temporary table + filesort could be cheaper for grouping
         queries too.
       */
-      if (is_covering || has_limit ||
+      if (is_covering || has_limit || force_index_merge ||
           (ref_key < 0 && (group || table->force_index)))
       {
         double rec_per_key;
@@ -33287,8 +33300,12 @@ test_if_cheaper_ordering(bool in_join_optimizer,
           - If there is no ref key and no usable keys has yet been found and
             there is either a group by or a FORCE_INDEX
           - If the new cost is better than read_time
+
+          However, we will not try the new key if the user specified the
+          INDEX_MERGE hint, preferring instead whatever merged index strategy
+          was computed during test_quick_select.
         */
-        if (range_cost < read_time)
+        if (range_cost < read_time && !force_index_merge)
         {
           read_time= range_cost;
           possible_key.add("chosen", true);
