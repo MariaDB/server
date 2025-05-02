@@ -202,6 +202,8 @@ struct table_pos: public Sql_alloc
 
   /* Ordinal number of the table in the original FROM clause */
   int order;
+
+  /* TRUE <=> this table is already a part of prev<=>next chain. */
   bool processed;
   bool outer_processed;
 
@@ -410,7 +412,7 @@ static bool process_inner_relations(THD* thd,
         /*
           it is case of "non-cyclic" loop (or just processed already
           branch)
-           for example:
+           for example: here tab=t2, t=t3, t3->processed=true already:
 
            t1-> t3
                  ^
@@ -454,6 +456,7 @@ static bool process_inner_relations(THD* thd,
   }
   return FALSE;
 }
+
 
 /*
   Put "tab" between "first_in_this_subgraph" and "last_in_the_subgraph".
@@ -560,7 +563,10 @@ static bool process_outer_relations(THD* thd,
 
 
 /**
-  Put tab after prev and process its OUTER side relations
+  TODO:WRONG:Put tab after prev and process its OUTER side relations
+
+  @brief
+    Add @tab into the ordering after @first.
 */
 
 static bool put_after(THD *thd,
@@ -569,6 +575,8 @@ static bool put_after(THD *thd,
                       uint &processed,
                       uint n_tables)
 {
+  //TODO: why check for stack overrun here, we are just going to call a trivial
+  //      function?
   uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     return(TRUE);// Fatal error flag is set!
@@ -673,7 +681,11 @@ bool setup_oracle_join(THD *thd, COND **conds,
   table_pos *t= tab;
   TABLE_LIST *table= tables;
   uint i= 0;
-  // Setup the original table order
+
+  // Setup the original table order (TODO: what is this)
+  /*
+    Create hypergraph vertices for each table.
+  */
   for (;table; i++, t++, table= table->next_local)
   {
     DBUG_ASSERT(i < n_tables);
@@ -738,12 +750,14 @@ bool setup_oracle_join(THD *thd, COND **conds,
     {
       /*
         This table is marked as INNER but it has no matching OUTER tables. This
-        is something like:
+        can happen for queries like:
+
           select * from t1,t2 where t2.a(+)=123;
+
+        Issue a warning and move ON condition predicates back to the WHERE.
       */
       List_iterator_fast it(tab[i].on_conds);
-      StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
-      String expr(buf);
+      StringBuffer<STRING_BUFFER_USUAL_SIZE> expr;
       Item *item;
       while ((item= it++))
       {
@@ -753,7 +767,6 @@ bool setup_oracle_join(THD *thd, COND **conds,
                             WARN_ORA_JOIN_IGNORED,
                             ER_THD(thd, WARN_ORA_JOIN_IGNORED),
                             expr.c_ptr());
-
       }
       return_to_where.append(&tab[i].on_conds);
       tab[i].on_conds.empty();
