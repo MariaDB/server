@@ -2071,25 +2071,7 @@ MDL_context::find_ticket(MDL_request *mdl_request,
 bool
 MDL_context::try_acquire_lock(MDL_request *mdl_request)
 {
-  MDL_ticket *ticket;
-
-  if (try_acquire_lock_impl(mdl_request, &ticket))
-    return TRUE;
-
-  if (! mdl_request->ticket)
-  {
-    /*
-      Our attempt to acquire lock without waiting has failed.
-      Let us release resources which were acquired in the process.
-      We can't get here if we allocated a new lock object so there
-      is no need to release it.
-    */
-    DBUG_ASSERT(! ticket->m_lock->is_empty());
-    mysql_prlock_unlock(&ticket->m_lock->m_rwlock);
-    delete ticket;
-  }
-
-  return FALSE;
+  return try_acquire_lock_impl(mdl_request, nullptr);
 }
 
 
@@ -2188,8 +2170,21 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
     mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
   }
-  else
+  else if (out_ticket)
     *out_ticket= ticket;
+  else
+  {
+    /*
+      Our attempt to acquire lock without waiting has failed.
+      Let us release resources which were acquired in the process.
+      We can't get here if we allocated a new lock object so there
+      is no need to release it.
+    */
+    DBUG_ASSERT(!ticket->m_lock->is_empty());
+    DBUG_PRINT("mdl", ("Nowait:  %s", dbug_print_mdl(ticket)));
+    mysql_prlock_unlock(&ticket->m_lock->m_rwlock);
+    delete ticket;
+  }
 
   return FALSE;
 }
@@ -2325,7 +2320,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
                        mdl_lock_name,
                        lock_wait_timeout));
 
-  if (try_acquire_lock_impl(mdl_request, &ticket))
+  if (try_acquire_lock_impl(mdl_request, lock_wait_timeout ? &ticket : nullptr))
   {
     DBUG_PRINT("mdl", ("OOM: %s", mdl_lock_name));
     DBUG_RETURN(TRUE);
@@ -2343,26 +2338,21 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     DBUG_RETURN(FALSE);
   }
 
-#ifdef DBUG_TRACE
-    const char *ticket_msg= dbug_print_mdl(ticket);
-#endif
-
   /*
     Our attempt to acquire lock without waiting has failed.
     As a result of this attempt we got MDL_ticket with m_lock
     member pointing to the corresponding MDL_lock object which
     has MDL_lock::m_rwlock write-locked.
   */
-  lock= ticket->m_lock;
-
   if (lock_wait_timeout == 0)
   {
-    DBUG_PRINT("mdl", ("Nowait:  %s", ticket_msg));
-    mysql_prlock_unlock(&lock->m_rwlock);
-    delete ticket;
     my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
     DBUG_RETURN(TRUE);
   }
+
+#ifdef DBUG_TRACE
+    const char *ticket_msg= dbug_print_mdl(ticket);
+#endif
 
 #ifdef WITH_WSREP
   if (WSREP(get_thd()))
@@ -2378,6 +2368,7 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   }
 #endif /* WITH_WSREP */
 
+  lock= ticket->m_lock;
   lock->m_waiting.add_ticket(ticket);
 
   /*
