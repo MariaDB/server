@@ -6485,6 +6485,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
+    new_thd->affected_rows= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off
