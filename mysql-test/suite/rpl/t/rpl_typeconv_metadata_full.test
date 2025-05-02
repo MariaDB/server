@@ -1,0 +1,11 @@
+#
+# Variant of rpl_typeconv.test to ensure that basic type conversions work when
+# using field name lookups (i.e. binlog_row_metadata=FULL). The behavior should
+# be exactly the same as rpl_typeconv.test, as there is no different ordering
+# of columns. This simply ensures that binlog_row_metadata=FULL doesn't break
+# existing, expected behavior.
+#
+# References:
+#   MDEV-36290: ALTER TABLE with multi-master can cause data loss
+#
+--source rpl_typeconv.test
