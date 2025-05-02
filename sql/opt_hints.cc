@@ -54,6 +54,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ROWID_FILTER")},          false,     true,         false},
+  {{STRING_WITH_LEN("INDEX_MERGE")}, false, false, false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -640,10 +641,7 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
     {
       if (key_info->name.streq((*hint)->get_name()))
       {
-        (*hint)->set_fixed();
-        keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
-        incr_fully_fixed_children();
-        set_compound_key_hint_map(*hint, j);
+        set_index_hint(*hint, j);
         break;
       }
     }
@@ -912,6 +910,26 @@ void Opt_hints_table::append_hint_arguments(THD *thd, opt_hints_enum hint,
   }
 }
 
+// See comment in header file.
+void Opt_hints_table::set_index_hint(Opt_hints *hint, uint arg)
+{
+  hint->set_fixed();
+  keyinfo_array[arg]= static_cast<Opt_hints_key *>(hint);
+  incr_fully_fixed_children();
+
+  /*
+    Update the index_merge_map to note that the key
+    is referenced by a [NO_]INDEX_HINT associated with
+    the table.
+  */
+  if (hint->is_specified(INDEX_MERGE_HINT_ENUM))
+    index_merge_map.set_key(arg);
+
+  set_compound_key_hint_map(hint, arg);
+
+  // In the future, other hint types can be managed here.
+}
+
 
 /**
   Function returns hint value depending on
@@ -1007,7 +1025,147 @@ hint_state hint_table_state(const THD *thd,
 }
 
 
-/* 
+/*
+  Inspects the table and corresponding index_merge_map to
+  interpret index merge hint state.
+
+  @param table          The table indicated by the hint
+  @param keyno          The particular key for the index hint
+  @param has_key_hint   [OUT] true if the hint is specified for keyno
+  @param other_key_hint [OUT] true if the hint is not specified for
+                        keyno but is specified for some other key on
+                        the table
+  @param has_table_hint [OUT] true if the hint is not specified for any
+                        specific key, but is specified for the table
+  @parma hint_value     [OUT] true if the hint is specified and enabled
+                        or false if: (1) the hint is specified and false
+                        or (2) the hint is not specified (in the case of
+                        (2), has_key_hint, other_key_hint, and
+                        has_table_hint will be false).
+*/
+static void index_merge_hint_impl(const TABLE *table,
+                                  uint keyno,
+                                  bool &has_key_hint,
+                                  bool &other_key_hint,
+                                  bool &has_table_hint,
+                                  bool &hint_value)
+{
+  Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
+  has_key_hint= false;
+  other_key_hint= false;
+  has_table_hint= false;
+  hint_value= false;
+
+  // Parent should always be initialized
+  if (!table_hints || keyno == MAX_KEY)
+    return;
+
+  const opt_hints_enum type_arg= INDEX_MERGE_HINT_ENUM;
+
+  // Get the hint state for the specific key, if named.
+  if (table_hints->keyinfo_array.size() > 0 &&
+      table_hints->keyinfo_array[keyno] &&
+      table_hints->keyinfo_array[keyno]->is_specified(type_arg))
+  {
+    has_key_hint= true;
+    hint_value= table_hints->keyinfo_array[keyno]->get_switch(type_arg);
+    return;
+  }
+
+  /*
+    The passed keyno doesn't have the hint specified, but see if another
+    has the [NO_]INDEX_MERGE hint specified.  If not, then see if the table
+    as a whole has the hint specified (implying all keys are affected).
+    There can't be a mix of NO_INDEX_MERGE and INDEX_MERGE hints for the
+    same table, so inspecting the first other specified key is enough.
+  */
+  const uint other_keyno= table_hints->index_merge_map.get_first_keyno();
+  if (table_hints->index_merge_map.has_key_specified() &&
+      table_hints->keyinfo_array[other_keyno] &&
+      table_hints->keyinfo_array[other_keyno]->is_specified(type_arg))
+  {
+    other_key_hint= true;
+    hint_value= table_hints->keyinfo_array[other_keyno]->get_switch(type_arg);
+    return;
+  }
+
+  // No specific key named, see if the table has the hint specified.
+  if (table_hints->is_specified(type_arg))
+  {
+    has_table_hint= true;
+    hint_value= table_hints->get_switch(type_arg);
+  }
+}
+
+
+// See comment in header file.
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno,
+                                      bool *force_index_merge,
+                                      bool *use_cheapest_index_merge)
+{
+  bool has_key_hint= false,
+       other_has_hint= false,
+       has_table_hint= false,
+       hint_value= false;
+
+  index_merge_hint_impl(table,
+                        keyno,
+                        has_key_hint,
+                        other_has_hint,
+                        has_table_hint,
+                        hint_value);
+
+  if (has_key_hint && hint_value)
+  {
+    // Index merge is allowed for this key, so use it.
+    *force_index_merge= true;
+    return index_merge_behavior::USE_KEY;
+  }
+
+  if (other_has_hint && hint_value)
+    // keyno isn't the one with the hint, another key on the table has the hint.
+    return index_merge_behavior::SKIP_KEY;
+
+  if (has_key_hint && !hint_value)
+    // This key is not allowed, so skip it.
+    return index_merge_behavior::SKIP_KEY;
+
+  if (other_has_hint && !hint_value)
+    // Another key is disallowed by the hint, this key is allowed.
+    return index_merge_behavior::USE_KEY;
+
+  if (has_table_hint && hint_value)
+  {
+    // No specific keys mentioned in the hint, so all are implied for the table.
+    *force_index_merge= true;
+    *use_cheapest_index_merge= true;
+    return index_merge_behavior::TABLE_ENABLED;
+  }
+
+  if (has_table_hint && !hint_value)
+    // Merging is disabled for all keys on the table.
+    return index_merge_behavior::TABLE_DISABLED;
+
+  // No hint specified for the table.
+  return index_merge_behavior::NO_HINT;
+}
+
+
+// See comment in header file.
+index_merge_behavior index_merge_hint(const TABLE *table,
+                                      uint keyno)
+{
+  bool force_index_merge_IGNORED= false,
+       use_cheapest_index_merge_IGNORED= false;
+  return index_merge_hint(table,
+                          keyno,
+                          &force_index_merge_IGNORED,
+                          &use_cheapest_index_merge_IGNORED);
+}
+
+
+/*
   @brief
     Check whether a given optimization is enabled for table.keyno.
 
