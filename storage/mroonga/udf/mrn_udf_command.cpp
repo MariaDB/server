@@ -220,7 +220,7 @@ static void mroonga_command_escape_value(grn_ctx *ctx,
 }
 
 MRN_API char *mroonga_command(UDF_INIT *init, UDF_ARGS *args, char *result,
-                              unsigned long *length, char *is_null, char *error)
+                              unsigned long *length, uchar *is_null, uchar *error)
 {
   CommandInfo *info = (CommandInfo *)init->ptr;
   grn_ctx *ctx = info->ctx;

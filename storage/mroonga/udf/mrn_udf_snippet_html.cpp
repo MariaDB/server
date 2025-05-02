@@ -323,8 +323,8 @@ MRN_API char *mroonga_snippet_html(UDF_INIT *init,
                                    UDF_ARGS *args,
                                    char *result,
                                    unsigned long *length,
-                                   char *is_null,
-                                   char *error)
+                                   uchar *is_null,
+                                   uchar *error)
 {
   MRN_DBUG_ENTER_FUNCTION();
 
