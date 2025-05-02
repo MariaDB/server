@@ -6945,10 +6945,11 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     if (pending->is_too_big())
     {
       //writer.write(pending);
-      Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[12];
-      Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(256, pending);
+#define N_FRAGS 4
+      Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[N_FRAGS];
+      Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(700000000, pending); // 0.5 GB?
       fragmenter.fragment(fraggers);
-      for (int i= 0; i < 12; i++)
+      for (int i= 0; i < N_FRAGS; i++)
       {
         writer.write(fraggers[i]);
       }

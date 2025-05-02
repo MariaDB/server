@@ -23,14 +23,16 @@ create table t1 (a int, b longblob) engine=innodb;
 BEGIN;
 --disable_query_log
 --echo # Inserting query..
-#insert into t1 select seq,repeat("a",1000000000) from seq_1_to_3;
-insert into t1 select seq,repeat(seq,512) from seq_1_to_5;
+# GB
+insert into t1 select seq,repeat(seq,500000000) from seq_1_to_5;
+
+#insert into t1 select seq,repeat(seq,512) from seq_1_to_5;
 #insert into t1 select seq,repeat("a",10) from seq_1_to_5;
 COMMIT;
 #--echo # Now inserting insert .. select
-#BEGIN;
-#insert into t1 select 7 as a, group_concat(b) as b from t1;
-#COMMIT;
+BEGIN;
+insert into t1 select 6 as a, group_concat(b) as b from t1;
+COMMIT;
 #update t1 set a=a+1 where a=7;
 --enable_query_log
 --source include/save_master_gtid.inc

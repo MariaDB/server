@@ -5618,8 +5618,8 @@ bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
   uchar *from_ptr= m_rows_buf + from_offset;
   my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
   DBUG_DUMP("rows", from_ptr, data_size);
-  fprintf(stderr, "\t\tWriting %" PRIu64 " row data: %.*s\n",
-          (uint64_t) data_size, (int) data_size, from_ptr);
+  //fprintf(stderr, "\t\tWriting %" PRIu64 " row data: %.*s\n",
+  //        (uint64_t) data_size, (int) data_size, from_ptr);
   return write_data(writer, from_ptr, (size_t) data_size);
 }
 
