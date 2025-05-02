@@ -29,7 +29,7 @@ insert into t1 select seq,repeat(seq,500000000) from seq_1_to_5;
 #insert into t1 select seq,repeat(seq,512) from seq_1_to_5;
 #insert into t1 select seq,repeat("a",10) from seq_1_to_5;
 COMMIT;
-#--echo # Now inserting insert .. select
+--echo # Now inserting insert .. select
 BEGIN;
 insert into t1 select 6 as a, group_concat(b) as b from t1;
 COMMIT;
@@ -37,12 +37,13 @@ COMMIT;
 --enable_query_log
 --source include/save_master_gtid.inc
 
-select * from t1;
+#select * from t1;
 
 --connection server_3
 --source include/sync_with_master_gtid.inc
-select * from t1;
+#select * from t1;
 
+--echo # Diffing tables..
 --let $diff_tables= server_1:test.t1, server_2:test.t1, server_3:test.t1
 --source include/diff_tables.inc
 #sleep 2;

@@ -1102,7 +1102,7 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
 
     if (alg != BINLOG_CHECKSUM_ALG_UNDEF &&
         (event_type == FORMAT_DESCRIPTION_EVENT ||
-         alg != BINLOG_CHECKSUM_ALG_OFF) && crc_check) // TODO : This isn't valid, it is just a quick check
+         alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
     /*

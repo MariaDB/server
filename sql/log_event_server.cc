@@ -5738,10 +5738,22 @@ Log_event *Rows_log_event_assembler::create_rows_event(
   const char *error= 0;
   Log_event *res= 0;
   Log_event_type typ;
+  uint event_len= rows_ev_buf_builder.length();
+
+  /*
+    This is a bit dumb, but read_log_event will always chop off
+    BINLOG_CHECKSUM_LEN from the event_len if checksums are enabled in the
+    Format_description_event. Though our assembled Rows_log_event won't have a
+    checksum, so we have to buffer the event_len to make it look like it does,
+    so it is cut off when constructing the actual event.
+  */
+  if (fdle->used_checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+  {
+    event_len+= BINLOG_CHECKSUM_LEN;
+  }
 
   if ((res= Log_event::read_log_event((uchar *) rows_ev_buf_builder.ptr(),
-                                      rows_ev_buf_builder.length(), &error,
-                                      fdle, false, true)))
+                                      event_len, &error, fdle, false, true)))
   {
     fprintf(stderr, "\n\tAssembler says ev buf is %d long\n", rows_ev_buf_builder.length());
     res->register_temp_buf((uchar *) rows_ev_buf_builder.release(), true);
