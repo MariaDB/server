@@ -1,0 +1,349 @@
+CREATE TABLE t1 (f1 INT, f2 INT, f3 CHAR(1), f4 CHAR(1), f5 CHAR(1), f6 CHAR(1), f7 CHAR(1),
+PRIMARY KEY (f5, f1), KEY (f2), KEY (f3), KEY (f4), KEY(f7) ) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, 1, 'a', 'h', 'i', '', ''), (2, 3, 'a', 'h', 'i', '', ''),
+(3, 2, 'b', '', 'j', '', ''), (4, 2, 'b', '', 'j', '', '');
+INSERT INTO t1 VALUES (5, 1, 'a', 'h', 'i', '', ''), (6, 3, 'a', 'h', 'i', '', ''),
+(7, 2, 'b', '', 'j', '', ''), (8, 2, 'b', '', 'j', '', '');
+INSERT INTO t1 SELECT f1 + 8, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 SELECT f1 + 16, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 VALUES (33, 3, 'c', 'g', '', '', ''), (34, 4, 'c', 'g', '', '', ''),
+(35, 5, 'd', 'f', '', '', ''), (36, 6, 'd', 'f', '', '', '');
+INSERT INTO t1 SELECT f1 + 36, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 SELECT f1 + 72, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 SELECT f1 + 144, f2, f3, f4, f5, f6, f7 FROM t1;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Index merge intersection without hints.
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f4	f2,f4	5,5	NULL	56	Using intersect(f2,f4); Using where; Using index
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f3,f4	f3,f4	5,5	NULL	56	Using intersect(f3,f4); Using where; Using index
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	25	Using intersect(f2,f3,f4); Using where; Using index
+# Index merge sort union without hints.
+EXPLAIN SELECT * FROM t1 WHERE f2 BETWEEN 5 AND 6 OR f3 = 'c' OR f4 = 'f';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	48	Using sort_union(f2,f3,f4); Using where
+EXPLAIN SELECT * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	32	Using sort_union(f2,f3); Using where
+# Index merge union without hints.
+EXPLAIN SELECT f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	40	Using union(f2,f3,f4); Using where
+# Index merge intersection
+# Turn off automatic use of index merge intersection, so that we get to
+# test that the hints below are effective.
+SET optimizer_switch='index_merge_intersection=off';
+# intersect(f2,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f2) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f4	f2,f4	5,5	NULL	56	Using intersect(f2,f4); Using where; Using index
+# intersect(f2,f3,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	25	Using intersect(f2,f3,f4); Using where; Using index
+# intersect(f3,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f3,f4	5,5	NULL	56	Using intersect(f3,f4); Using where
+# Index merge with clustered key
+# intersect(f3,f4), since 'f4, f3' indexes are specified in the hints and
+# there is no condition for index 'f2'.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f3 = 'b' AND f5 = 'i';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f3,f4	f3,f4	9,9	NULL	1	Using intersect(f3,f4); Using where; Using index
+# intersect(f3,f4), since it's covering index merge and PRIMARY index is ignored in this case.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 PRIMARY, f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f3 = 'b' AND f5 = 'i';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f3,f4	f3,f4	9,9	NULL	1	Using intersect(f3,f4); Using where; Using index
+# no index merge, since 'index_merge_intersection' optimizer switch is off.
+EXPLAIN SELECT count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f3	f3	9	NULL	1	Using index condition; Using where
+# Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f3	f3	9	NULL	1	Using index condition; Using where
+Warnings:
+Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
+# Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f3	f2	9	NULL	64	Using index condition; Using where
+Warnings:
+Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
+# Hint f5 is unknown, warn about it and use the remaining keys that apply.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f5) */ f3 FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f4	5,5	NULL	56	Using intersect(f2,f4); Using where
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `f5` for INDEX_MERGE hint
+# intersect(f4,f2), since it's the cheapest intersection.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'd' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f4,f2	5,5	NULL	1	Using intersect(f4,f2); Using where
+# intersect(f2,f3,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	25	Using intersect(f2,f3,f4); Using where; Using index
+# intersect(f2,f3,f4,f7), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3, f4, f7) */ COUNT(*) FROM t1 WHERE f4 = '' AND f2 = 2 AND f3 = 'b' AND f7 = '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4,f7	f2,f3,f4,f7	5,5,5,5	NULL	25	Using intersect(f2,f3,f4,f7); Using where; Using index
+# intersect(f4,f2), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'd' AND f2 = 2 AND f3 = 'b' AND f7 = '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4,f7	f4,f2	5,5	NULL	1	Using intersect(f4,f2); Using where
+# intersect(f2,f3,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = '' AND f2 = 2 AND f3 = 'b' AND f7 = '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4,f7	f2,f3,f4	5,5,5	NULL	25	Using intersect(f2,f3,f4); Using where
+SET optimizer_switch='index_merge=off';
+# no index merge, since 'index_merge' optimizer switch is off.
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# intersect(f2, f3, f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3, f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	25	Using intersect(f2,f3,f4); Using where; Using index
+SET optimizer_switch='index_merge=on';
+# No index merge intersection
+SET optimizer_switch='index_merge_intersection=on';
+# no index merge, since ref access by key 'f2' is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f4	NULL	NULL	NULL	288	Using where
+# no index merge, since there is no applicable indexes for index merge due to NO_INDEX_MERGE(t1) hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# intersect(f4, f2), since it's the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f4	f2,f4	5,5	NULL	56	Using intersect(f2,f4); Using where; Using index
+# no index merge, since ref access by key 'f2' is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# NO_INDEX_MERGE with clustered key
+EXPLAIN SELECT count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f3	f3	9	NULL	1	Using index condition; Using where
+# no index merge, since range access by 'f3' keys is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f3	f3	9	NULL	1	Using index condition; Using where
+# no index merge, since ref access by 'f3' index is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f3) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f3	PRIMARY	4	NULL	256	Using where
+# no index merge, since ref access by 'f3' index is the cheapest access method.
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	f2,f3,f4	f3	5	const	1	Using index condition; Using where
+# intersect(f3,f4), since it's the cheapest intersection.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f3,f4	5,5	NULL	1	Using intersect(f3,f4); Using where
+# intersect(f4,f2), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f2) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f4,f2	5,5	NULL	1	Using intersect(f4,f2); Using where
+# intersect(f3,f2), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3, f2) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f3,f2	5,5	NULL	1	Using intersect(f3,f2); Using where
+# intersect(f4,f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f3,f4	5,5	NULL	1	Using intersect(f3,f4); Using where
+# no intersection, since not-equal condition can not be used for intersection.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref|filter	f2,f4	f4|f2	5|5	const	128 (33%)	Using index condition; Using where; Using rowid filter
+Warnings:
+Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
+Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
+# Index merge union
+SET optimizer_switch='index_merge_union=off,index_merge=off';
+# union(f2,f3,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3, f4) */ f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	40	Using union(f2,f3,f4); Using where
+# no union because hint does not apply to where clause.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# union(f2,f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f1 = 4 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	24	Using union(f2,f3); Using where
+# union(PRIMARY,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 PRIMARY, f4) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f5 = 'i' OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f2,f3,f4	PRIMARY,f4	4,5	NULL	144	Using union(PRIMARY,f4); Using where
+SET optimizer_switch='index_merge_union=on,index_merge=on';
+# no union, since indexes 'f2', 'f3', 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f3, f4) */ f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# no union, since indexes 'f2', 'f3' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f1 = 4 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# union(f2,f3), since index 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f1 = 4 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	24	Using union(f2,f3); Using where
+# no union, since ref access by 'f2' index is cheapest access method.
+EXPLAIN SELECT * FROM t1 WHERE f2 = 400 AND (f3 = 'x' OR f4 = 'n');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	f2,f3,f4	f2	5	const	1	Using where
+# Index merge sort union
+SET optimizer_switch='index_merge_sort_union=off,index_merge=off';
+# sort_union(f2, f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f4	5,5	NULL	32	Using sort_union(f2,f4); Using where
+# sort_union(f2, f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	32	Using sort_union(f2,f3); Using where
+# no sort_union, since hints with one specified index is ignored.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+SET optimizer_switch='index_merge_sort_union=on,index_merge=on';
+# no sort_union, since indexes 'f2', 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f4) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# no sort_union, since indexes 'f2', 'f3' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# sort_union(f2, f3), since index 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	32	Using sort_union(f2,f3); Using where
+# sort_union(f2, f4), since index 'f3' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f4	5,5	NULL	32	Using sort_union(f2,f4); Using where
+# no sort_union, since full scan is the cheapest access method.
+EXPLAIN SELECT * FROM t1 WHERE (f2 BETWEEN 1 AND 200 OR f3 = 'c') AND (f2 BETWEEN 1 AND 200 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	f2,f3,f4	NULL	NULL	NULL	288	Using where
+# sort_union(f2, f3), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ * FROM t1 WHERE (f2 BETWEEN 1 AND 200 OR f3 = 'c') AND (f2 BETWEEN 1 AND 200 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	288	Using sort_union(f2,f3); Using where
+# sort_union(f2, f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ * FROM t1 WHERE (f2 BETWEEN 1 AND 200 OR f3 = 'c') AND (f2 BETWEEN 1 AND 200 OR f4 = 'f');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f4	5,5	NULL	288	Using sort_union(f2,f4); Using where
+# union(f2,f3,f4), since it's the cheapest access method.
+EXPLAIN SELECT f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c' OR f4 = 'f') AND (f2 BETWEEN 1 AND 200 OR f3 = 'c');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3,f4	5,5,5	NULL	40	Using union(f2,f3,f4); Using where
+# sort_union(f2,f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c' OR f4 = 'f') AND (f2 BETWEEN 1 AND 200 OR f3 = 'c');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4	f2,f3	5,5	NULL	288	Using sort_union(f2,f3); Using where
+# Tests for INDEX_MERGE hint with no index specified.
+SET optimizer_switch=default;
+# union(intersect(f2,f3,f4),f7)
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE (f4 = 'h' AND f2 = 2 AND f3 = 'b') OR (f7 = 'd' AND f6 = 'e');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4,f7	f2,f3,f4,f7	5,5,5,5	NULL	26	Using union(intersect(f2,f3,f4),f7); Using where
+# union(intersect(f2,f3),f7), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2,f3,f7) */ COUNT(*) FROM t1 WHERE (f4 = 'h' AND f2 = 2 AND f3 = 'b') OR (f7 = 'd' AND f6 = 'e');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	f2,f3,f4,f7	f2,f3,f7	5,5,5	NULL	57	Using union(intersect(f2,f3),f7); Using where
+# Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f4 = 'f' AND f2 = 3 AND f5 > '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f4	f4	9	NULL	1	Using index condition; Using where
+Warnings:
+Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
+# intersect(f2,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f2 = 3 AND f4 = 'g' AND f5 = '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f2,f4	f2,f4	9,9	NULL	1	Using intersect(f2,f4); Using where
+# no index merge, since range by 'f2' key is the cheapest access method.
+EXPLAIN SELECT f3 FROM t1 WHERE f2 = 3 AND f4 = '' AND f5 > '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f4	PRIMARY	4	NULL	256	Using where
+# Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f2 = 3 AND f4 = '' AND f5 > '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,f2,f4	PRIMARY	4	NULL	256	Using where
+Warnings:
+Warning	4207	Insufficient ROR scans available for keys given in INDEX_MERGE hint
+# sort_union(f2,f7)
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE (f2 = 3 AND f4 = '' AND f5 > '') OR (f7 = 'd' AND f6 = 'e');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f2,f4,f7	f2,f7	9,5	NULL	65	Using sort_union(f2,f7); Using where
+# sort_union(f2,f7)
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, PRIMARY, f7) */ f3 FROM t1 WHERE (f2 = 3 AND f4 = '' AND f5 > '') OR (f7 = 'd' AND f6 = 'e');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f2,f4,f7	f2,f7	9,5	NULL	65	Using sort_union(f2,f7); Using where
+# intersect(f2,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f2 FROM t1 WHERE f2 = 2 AND f4 = 'g' AND f5 = '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,f2,f4	f2,f4	9,9	NULL	1	Using intersect(f2,f4); Using where; Using index
+DROP TABLE t1;
+# union(key1, key2) when limit given, even though access via a key would be cheaper
+CREATE TABLE t1 (key1 varchar(10), key2 varchar(10), key3 int, key(key1), key(key2), key(key3)) ENGINE=INNODB;
+INSERT INTO t1 (key1, key2, key3) VALUES ('foo', 'bar', 2), ('baz', 'qux', 1);
+EXPLAIN SELECT * FROM t1 WHERE (t1.key1='foo' OR t1.key2='bar') ORDER BY t1.key3 LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	key1,key2	key3	5	NULL	1	Using where
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ * FROM t1 WHERE (t1.key1='foo' OR t1.key2='bar') ORDER BY t1.key3 LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	key1,key2	key1,key2	43,43	NULL	2	Using union(key1,key2); Using where; Using filesort
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 key1, key2) */ * FROM t1 WHERE (t1.key1='foo' OR t1.key2='bar') ORDER BY t1.key3 LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	key1,key2	key1,key2	43,43	NULL	2	Using union(key1,key2); Using where; Using filesort
+DROP TABLE t1;
+# PR testcases
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t1 (a int, b int, c int, d int, index(a),index(b),index(c),index(d));
+insert into t1 select a,a,a,a from test.one_k;
+explain select /*+ INDEX_MERGE(t1 c,d) */ *  from t1 where (a <3 or b <3 ) and (c=3 and d=4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b,c,d	c,d	5,5	NULL	1	Using intersect(c,d); Using where
+explain select /*+ INDEX_MERGE(t1 a,b) */ *  from t1 where (a <3 or b <3 ) and (c=3 and d=4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b,c,d	a,b	5,5	NULL	6	Using sort_union(a,b); Using where
+explain select /*+ INDEX_MERGE(t1 a,b) */ *  from t1 where (a <3 or b <3 ) and (c<2 and d<2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b,c,d	a,b	5,5	NULL	6	Using sort_union(a,b); Using where
+create table t2 ( c1 int, c2 int, c3 int, index(c1),index(c2),index(c3));
+insert into t2 select mod(a,1000), mod(a, 250), mod(a, 75) from test.one_k;
+insert into t2 select mod(a,1000), mod(a, 250), mod(a, 75) from test.one_k;
+set optimizer_switch='rowid_filter=off';
+alter table t2 add c1a int;
+update t2 set c1a=c1;
+alter table t2 add index(c1a);
+set optimizer_trace=1;
+explain select /*+ INDEX_MERGE(t2 c1,c2,c1a) */ * from t2 where c1=1 and c2=1 and c3=1 or c1a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index_merge	c1,c2,c3,c1a	c1,c2,c1a	5,5,5	NULL	3	Using union(intersect(c1,c2),c1a); Using where
+explain select * from t2 where c1< 100 and c2<1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	c1,c2	c2	5	NULL	8	Using index condition; Using where
+explain select /*+ NO_INDEX_MERGE(t2) */ * from t2 where c1< 100 and c2<1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	c1,c2	c2	5	NULL	8	Using index condition; Using where
+drop table ten, one_k, t1, t2;

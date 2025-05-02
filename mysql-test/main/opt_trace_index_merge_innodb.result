@@ -138,13 +138,15 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         }
                       ],
                       "clustered_pk": {
+                        "index_scan_cost": 0.000002653,
+                        "cumulated_index_scan_cost": 0.001664258,
+                        "disk_sweep_cost": 0.00171364,
                         "clustered_pk_added_to_intersect": false,
                         "cause": "cost"
                       },
                       "chosen": false,
                       "cause": "too few indexes to merge"
-                    },
-                    "analyzing_index_merge_union": []
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,

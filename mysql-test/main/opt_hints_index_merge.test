@@ -1,0 +1,213 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INT, f2 INT, f3 CHAR(1), f4 CHAR(1), f5 CHAR(1), f6 CHAR(1), f7 CHAR(1),
+PRIMARY KEY (f5, f1), KEY (f2), KEY (f3), KEY (f4), KEY(f7) ) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, 1, 'a', 'h', 'i', '', ''), (2, 3, 'a', 'h', 'i', '', ''),
+                      (3, 2, 'b', '', 'j', '', ''), (4, 2, 'b', '', 'j', '', '');
+INSERT INTO t1 VALUES (5, 1, 'a', 'h', 'i', '', ''), (6, 3, 'a', 'h', 'i', '', ''),
+                      (7, 2, 'b', '', 'j', '', ''), (8, 2, 'b', '', 'j', '', '');
+INSERT INTO t1 SELECT f1 + 8, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 SELECT f1 + 16, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 VALUES (33, 3, 'c', 'g', '', '', ''), (34, 4, 'c', 'g', '', '', ''),
+                      (35, 5, 'd', 'f', '', '', ''), (36, 6, 'd', 'f', '', '', '');
+INSERT INTO t1 SELECT f1 + 36, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 SELECT f1 + 72, f2, f3, f4, f5, f6, f7 FROM t1;
+INSERT INTO t1 SELECT f1 + 144, f2, f3, f4, f5, f6, f7 FROM t1;
+ANALYZE TABLE t1;
+
+--echo # Index merge intersection without hints.
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f3 = 'b';
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+--echo # Index merge sort union without hints.
+EXPLAIN SELECT * FROM t1 WHERE f2 BETWEEN 5 AND 6 OR f3 = 'c' OR f4 = 'f';
+EXPLAIN SELECT * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+--echo # Index merge union without hints.
+EXPLAIN SELECT f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+
+--echo # Index merge intersection
+--echo # Turn off automatic use of index merge intersection, so that we get to
+--echo # test that the hints below are effective.
+SET optimizer_switch='index_merge_intersection=off';
+--echo # intersect(f2,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f2) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+--echo # intersect(f2,f3,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+--echo # intersect(f3,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+
+--echo # Index merge with clustered key
+--echo # intersect(f3,f4), since 'f4, f3' indexes are specified in the hints and
+--echo # there is no condition for index 'f2'.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f3 = 'b' AND f5 = 'i';
+--echo # intersect(f3,f4), since it's covering index merge and PRIMARY index is ignored in this case.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 PRIMARY, f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f3 = 'b' AND f5 = 'i';
+
+--echo # no index merge, since 'index_merge_intersection' optimizer switch is off.
+EXPLAIN SELECT count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+--echo # Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+--echo # Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+--echo # Hint f5 is unknown, warn about it and use the remaining keys that apply.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4, f5) */ f3 FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+
+--echo # intersect(f4,f2), since it's the cheapest intersection.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'd' AND f2 = 2 AND f3 = 'b';
+--echo # intersect(f2,f3,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+--echo # intersect(f2,f3,f4,f7), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3, f4, f7) */ COUNT(*) FROM t1 WHERE f4 = '' AND f2 = 2 AND f3 = 'b' AND f7 = '';
+--echo # intersect(f4,f2), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'd' AND f2 = 2 AND f3 = 'b' AND f7 = '';
+--echo # intersect(f2,f3,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = '' AND f2 = 2 AND f3 = 'b' AND f7 = '';
+
+SET optimizer_switch='index_merge=off';
+--echo # no index merge, since 'index_merge' optimizer switch is off.
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+--echo # intersect(f2, f3, f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3, f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+SET optimizer_switch='index_merge=on';
+
+--echo # No index merge intersection
+SET optimizer_switch='index_merge_intersection=on';
+--echo # no index merge, since ref access by key 'f2' is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+--echo # no index merge, since there is no applicable indexes for index merge due to NO_INDEX_MERGE(t1) hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+--echo # intersect(f4, f2), since it's the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f3) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2;
+--echo # no index merge, since ref access by key 'f2' is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 = 2 AND f3 = 'b';
+
+--echo # NO_INDEX_MERGE with clustered key
+EXPLAIN SELECT count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+--echo # no index merge, since range access by 'f3' keys is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 PRIMARY) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+--echo # no index merge, since ref access by 'f3' index is the cheapest access method.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f3) */ count(*) FROM t1 WHERE f2 = 3 AND f5 > '' AND f3 = 'c';
+
+--echo # no index merge, since ref access by 'f3' index is the cheapest access method.
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+--echo # intersect(f3,f4), since it's the cheapest intersection.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+--echo # intersect(f4,f2), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f2) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+--echo # intersect(f3,f2), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3, f2) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+--echo # intersect(f4,f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f4, f3) */ COUNT(*) FROM t1 WHERE f4 = 'x' AND f2 = 5 AND f3 = 'n';
+
+--echo # no intersection, since not-equal condition can not be used for intersection.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ COUNT(*) FROM t1 WHERE f4 = 'h' AND f2 > 2;
+
+--echo # Index merge union
+SET optimizer_switch='index_merge_union=off,index_merge=off';
+--echo # union(f2,f3,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3, f4) */ f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+--echo # no union because hint does not apply to where clause.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+--echo # union(f2,f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f1 = 4 OR f4 = 'f');
+--echo # union(PRIMARY,f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 PRIMARY, f4) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f5 = 'i' OR f4 = 'f');
+
+SET optimizer_switch='index_merge_union=on,index_merge=on';
+--echo # no union, since indexes 'f2', 'f3', 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f3, f4) */ f1 FROM t1 WHERE f2 = 5 OR f3 = 'c' OR f4 = 'f';
+--echo # no union, since indexes 'f2', 'f3' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f1 = 4 OR f4 = 'f');
+--echo # union(f2,f3), since index 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c') AND (f1 = 4 OR f4 = 'f');
+--echo # no union, since ref access by 'f2' index is cheapest access method.
+EXPLAIN SELECT * FROM t1 WHERE f2 = 400 AND (f3 = 'x' OR f4 = 'n');
+
+--echo # Index merge sort union
+SET optimizer_switch='index_merge_sort_union=off,index_merge=off';
+--echo # sort_union(f2, f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+--echo # sort_union(f2, f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+--echo # no sort_union, since hints with one specified index is ignored.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+
+SET optimizer_switch='index_merge_sort_union=on,index_merge=on';
+--echo # no sort_union, since indexes 'f2', 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f4) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+--echo # no sort_union, since indexes 'f2', 'f3' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f2, f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+--echo # sort_union(f2, f3), since index 'f4' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f4) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+--echo # sort_union(f2, f4), since index 'f3' can not be used for index merge due to NO_INDEX_MERGE hint.
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t1 f3) */ * FROM t1 WHERE (f2 BETWEEN 5 AND 6 OR f3 = 'c') AND (f2 BETWEEN 5 AND 6 OR f4 = 'f');
+
+--echo # no sort_union, since full scan is the cheapest access method.
+EXPLAIN SELECT * FROM t1 WHERE (f2 BETWEEN 1 AND 200 OR f3 = 'c') AND (f2 BETWEEN 1 AND 200 OR f4 = 'f');
+--echo # sort_union(f2, f3), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ * FROM t1 WHERE (f2 BETWEEN 1 AND 200 OR f3 = 'c') AND (f2 BETWEEN 1 AND 200 OR f4 = 'f');
+--echo # sort_union(f2, f4), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f4) */ * FROM t1 WHERE (f2 BETWEEN 1 AND 200 OR f3 = 'c') AND (f2 BETWEEN 1 AND 200 OR f4 = 'f');
+
+--echo # union(f2,f3,f4), since it's the cheapest access method.
+EXPLAIN SELECT f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c' OR f4 = 'f') AND (f2 BETWEEN 1 AND 200 OR f3 = 'c');
+--echo # sort_union(f2,f3), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, f3) */ f1 FROM t1 WHERE (f2 = 5 OR f3 = 'c' OR f4 = 'f') AND (f2 BETWEEN 1 AND 200 OR f3 = 'c');
+
+--echo # Tests for INDEX_MERGE hint with no index specified.
+SET optimizer_switch=default;
+--echo # union(intersect(f2,f3,f4),f7)
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ COUNT(*) FROM t1 WHERE (f4 = 'h' AND f2 = 2 AND f3 = 'b') OR (f7 = 'd' AND f6 = 'e');
+--echo # union(intersect(f2,f3),f7), since only indexes specified in the hint are applicable for index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2,f3,f7) */ COUNT(*) FROM t1 WHERE (f4 = 'h' AND f2 = 2 AND f3 = 'b') OR (f7 = 'd' AND f6 = 'e');
+--echo # Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f4 = 'f' AND f2 = 3 AND f5 > '';
+--echo # intersect(f2,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f2 = 3 AND f4 = 'g' AND f5 = '';
+--echo # no index merge, since range by 'f2' key is the cheapest access method.
+EXPLAIN SELECT f3 FROM t1 WHERE f2 = 3 AND f4 = '' AND f5 > '';
+--echo # Warn that there are insufficient ROR scans available for the given index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE f2 = 3 AND f4 = '' AND f5 > '';
+--echo # sort_union(f2,f7)
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f3 FROM t1 WHERE (f2 = 3 AND f4 = '' AND f5 > '') OR (f7 = 'd' AND f6 = 'e');
+--echo # sort_union(f2,f7)
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 f2, PRIMARY, f7) */ f3 FROM t1 WHERE (f2 = 3 AND f4 = '' AND f5 > '') OR (f7 = 'd' AND f6 = 'e');
+--echo # intersect(f2,f4), since it's the cheapest index merge.
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ f2 FROM t1 WHERE f2 = 2 AND f4 = 'g' AND f5 = '';
+
+DROP TABLE t1;
+
+--echo # union(key1, key2) when limit given, even though access via a key would be cheaper
+CREATE TABLE t1 (key1 varchar(10), key2 varchar(10), key3 int, key(key1), key(key2), key(key3)) ENGINE=INNODB;
+INSERT INTO t1 (key1, key2, key3) VALUES ('foo', 'bar', 2), ('baz', 'qux', 1);
+EXPLAIN SELECT * FROM t1 WHERE (t1.key1='foo' OR t1.key2='bar') ORDER BY t1.key3 LIMIT 1;
+EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ * FROM t1 WHERE (t1.key1='foo' OR t1.key2='bar') ORDER BY t1.key3 LIMIT 1;
+EXPLAIN SELECT /*+ INDEX_MERGE(t1 key1, key2) */ * FROM t1 WHERE (t1.key1='foo' OR t1.key2='bar') ORDER BY t1.key3 LIMIT 1;
+DROP TABLE t1;
+
+--echo # PR testcases
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t1 (a int, b int, c int, d int, index(a),index(b),index(c),index(d));
+insert into t1 select a,a,a,a from test.one_k;
+
+explain select /*+ INDEX_MERGE(t1 c,d) */ *  from t1 where (a <3 or b <3 ) and (c=3 and d=4);
+explain select /*+ INDEX_MERGE(t1 a,b) */ *  from t1 where (a <3 or b <3 ) and (c=3 and d=4);
+explain select /*+ INDEX_MERGE(t1 a,b) */ *  from t1 where (a <3 or b <3 ) and (c<2 and d<2);
+
+create table t2 ( c1 int, c2 int, c3 int, index(c1),index(c2),index(c3));
+insert into t2 select mod(a,1000), mod(a, 250), mod(a, 75) from test.one_k;
+insert into t2 select mod(a,1000), mod(a, 250), mod(a, 75) from test.one_k;
+set optimizer_switch='rowid_filter=off';
+alter table t2 add c1a int;
+update t2 set c1a=c1;
+alter table t2 add index(c1a);
+set optimizer_trace=1;
+
+explain select /*+ INDEX_MERGE(t2 c1,c2,c1a) */ * from t2 where c1=1 and c2=1 and c3=1 or c1a=1;
+explain select * from t2 where c1< 100 and c2<1;
+explain select /*+ NO_INDEX_MERGE(t2) */ * from t2 where c1< 100 and c2<1;
+
+drop table ten, one_k, t1, t2;
