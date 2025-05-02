@@ -3,6 +3,7 @@ show variables like 'server_audit%';
 Variable_name	Value
 server_audit_events	
 server_audit_excl_users	
+server_audit_file_buffer_size	0
 server_audit_file_path	server_audit.log
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
@@ -12,6 +13,7 @@ server_audit_logging	OFF
 server_audit_mode	0
 server_audit_output_type	file
 server_audit_query_log_limit	1024
+server_audit_sync_log_file	OFF
 server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
@@ -87,6 +89,7 @@ show variables like 'server_audit%';
 Variable_name	Value
 server_audit_events	CONNECT,QUERY
 server_audit_excl_users	
+server_audit_file_buffer_size	0
 server_audit_file_path	server_audit.log
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
@@ -96,6 +99,7 @@ server_audit_logging	ON
 server_audit_mode	0
 server_audit_output_type	file
 server_audit_query_log_limit	1024
+server_audit_sync_log_file	OFF
 server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
@@ -312,6 +316,7 @@ show variables like 'server_audit%';
 Variable_name	Value
 server_audit_events	
 server_audit_excl_users	
+server_audit_file_buffer_size	0
 server_audit_file_path	  
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
@@ -321,6 +326,7 @@ server_audit_logging	ON
 server_audit_mode	1
 server_audit_output_type	file
 server_audit_query_log_limit	1024
+server_audit_sync_log_file	OFF
 server_audit_syslog_facility	LOG_USER
 server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
