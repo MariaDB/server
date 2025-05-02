@@ -1,0 +1,103 @@
+--source include/have_plugin_auth.inc
+--source include/not_embedded.inc
+
+if (!$SERVER_AUDIT_SO) {
+  skip No SERVER_AUDIT plugin;
+}
+
+--disable_ps2_protocol
+# An unfortunate wait for check-testcase.inc to complete disconnect.
+let count_sessions= 1;
+source include/wait_until_count_sessions.inc;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit.log;
+
+install plugin server_audit soname 'server_audit';
+
+set global server_audit_file_buffer_size=1024;
+
+show variables like 'server_audit%';
+
+set global server_audit_logging=on;
+
+let $counter=50;
+--disable_query_log
+--disable_result_log
+while ($counter)
+{
+   eval select $counter;
+   dec $counter;
+}
+--enable_result_log
+--enable_query_log
+
+--source include/print_file_line_count.inc
+
+set global server_audit_sync_log_file=on;
+
+--source include/print_file_line_count.inc
+
+set global server_audit_file_buffer_size=2048;
+
+let $counter=50;
+--disable_query_log
+--disable_result_log
+while ($counter)
+{
+   eval select $counter;
+   dec $counter;
+}
+--enable_result_log
+--enable_query_log
+
+--source include/print_file_line_count.inc
+
+set global server_audit_sync_log_file=on;
+
+--source include/print_file_line_count.inc
+
+let $counter=1000;
+--disable_query_log
+--disable_result_log
+while ($counter)
+{
+   eval select $counter;
+   dec $counter;
+}
+--enable_result_log
+--enable_query_log
+
+set global server_audit_sync_log_file=on;
+
+--source include/print_file_line_count.inc
+
+set global server_audit_file_buffer_size=0;
+
+let $counter=100;
+--disable_query_log
+--disable_result_log
+while ($counter)
+{
+   eval select $counter;
+   dec $counter;
+}
+--enable_result_log
+--enable_query_log
+
+--source include/print_file_line_count.inc
+
+set global server_audit_sync_log_file=on;
+
+--source include/print_file_line_count.inc
+
+SET GLOBAL server_audit_output_type=0;
+SET GLOBAL server_audit_file_buffer_size=0;
+
+set global server_audit_logging=off;
+
+uninstall plugin server_audit;
+
+remove_file $MYSQLD_DATADIR/server_audit.log;
+--enable_ps2_protocol
+
