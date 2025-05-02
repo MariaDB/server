@@ -128,6 +128,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_ORDER_INDEX;
     if ("GROUP_INDEX"_Lex_ident_column.streq(str))
       return TokenID::keyword_GROUP_INDEX;
+    if ("INDEX_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_INDEX_MERGE;
     break;
 
   case 12:
@@ -145,6 +147,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_NO_ORDER_INDEX;
     if ("NO_GROUP_INDEX"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_GROUP_INDEX;
+    if ("NO_INDEX_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_INDEX_MERGE;
     break;
 
   case 15:
@@ -525,6 +529,22 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   opt_hints_enum hint_type;
   bool hint_state; // ON or OFF
 
+  /*
+    Intended for the [NO_]INDEX_MERGE hints originally, this is set
+    true when the hint should be set also on the table as well as
+    the index.  However, for such a hint set on the table, the check_parent flag
+    is inverted from this value; that is, if set_also_on_table is
+    true, then check_parent will be false (see below).  This is
+    because the presence of the hint on the table is treated differently
+    than the hint applying to all keys on the table.  For example,
+    INDEX_MERGE(table) means that the hint applies to all keys while
+    INDEX_MERGE(table, k1) means that the hint applies to key k1.  In
+    both cases, however, we set the hint both as an index-level hint and
+    as a table-level hint, but when inspecting it during index_merge_hint,
+    it is given special treatment (see that function for details).
+  */
+  bool set_also_on_table= false;
+
   switch (index_level_hint_type.id())
   {
   case TokenID::keyword_NO_ICP:
@@ -583,6 +603,16 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     hint_type= ROWID_FILTER_HINT_ENUM;
     hint_state= false;
     break;
+  case TokenID::keyword_INDEX_MERGE:
+    hint_type= INDEX_MERGE_HINT_ENUM;
+    hint_state= true;
+    set_also_on_table= true;
+    break;
+  case TokenID::keyword_NO_INDEX_MERGE:
+    hint_type= INDEX_MERGE_HINT_ENUM;
+    hint_state= false;
+    set_also_on_table= true;
+    break;
   default:
     DBUG_ASSERT(0);
     return true;
@@ -607,7 +637,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     Otherwise this is a group of index-level hints:
     NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
   */
-  if (is_empty())
+  if (is_empty() || set_also_on_table)  // Table level hint
   {
     uint warn_code= 0;
     if (is_compound_hint(hint_type) &&
@@ -629,7 +659,9 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     {
       tab->get_key_hint_bitmap(hint_type)->parsed_hint= this;
     }
-    return false;
+
+    if (is_empty())
+      return false;
   }
 
   // Key names for a compound hint are first collected into the array:
@@ -651,7 +683,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
 
     if (!is_compound_hint(hint_type))
     {
-      if (key->set_switch(hint_state, hint_type, true))
+      if (key->set_switch(hint_state, hint_type, !set_also_on_table))
       {
         print_warn(pc->thd, ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY,
                    hint_type, hint_state, &qb_name_sys, &table_name_sys,
