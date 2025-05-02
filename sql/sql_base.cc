@@ -350,6 +350,7 @@ void purge_tables()
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout)
 {
+  bool result= false;
   DBUG_ENTER("close_cached_tables");
   DBUG_ASSERT(thd || (!wait_for_refresh && !tables));
   DBUG_ASSERT(wait_for_refresh || !tables);
@@ -375,7 +376,6 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
     */
     TABLE_LIST *tables_to_reopen= (tables ? tables :
                                   thd->locked_tables_list.locked_tables());
-    bool result= false;
 
     /* close open HANDLER for this thread to allow table to be closed */
     mysql_ha_flush_tables(thd, tables_to_reopen);
@@ -415,16 +415,9 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
     */
     for (TABLE *tab= thd->open_tables; tab; tab= tab->next)
       tab->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
-
-    DBUG_RETURN(result);
   }
   else if (tables)
   {
-    /*
-      Get an explicit MDL lock for all requested tables to ensure they are
-      not used by any other thread
-    */
-    MDL_request_list mdl_requests;
 
     DBUG_PRINT("info", ("Waiting for other threads to close their open tables"));
     DEBUG_SYNC(thd, "after_flush_unlock");
@@ -434,21 +427,24 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
-      MDL_request *mdl_request= new (thd->mem_root) MDL_request;
-      if (mdl_request == NULL)
-        DBUG_RETURN(true);
-      MDL_REQUEST_INIT_BY_KEY(mdl_request, &table->mdl_request.key,
-                              MDL_EXCLUSIVE, MDL_STATEMENT);
-      mdl_requests.push_front(mdl_request);
-    }
+      MDL_request mdl_request;
+      MDL_REQUEST_INIT_BY_KEY(&mdl_request, &table->mdl_request.key,
+                              MDL_EXCLUSIVE, MDL_EXPLICIT);
 
-    if (thd->mdl_context.acquire_locks(&mdl_requests, timeout))
-      DBUG_RETURN(true);
-
-    for (TABLE_LIST *table= tables; table; table= table->next_local)
+      /*
+        Get an explicit MDL lock for the table. close all table instances
+        and remove it from the tdc list
+      */
+      if (thd->mdl_context.acquire_lock(&mdl_request, timeout))
+      {
+        result= true;
+        continue;
+      }
       tdc_remove_table(thd, table->db.str, table->table_name.str);
+      thd->mdl_context.release_lock(mdl_request.ticket);
+    }
   }
-  DBUG_RETURN(false);
+  DBUG_RETURN(result);
 }
 
 
@@ -4388,8 +4384,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
 
   if (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK)
   {
-    DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
-                                               lock_wait_timeout) ||
+    DBUG_RETURN(thd->mdl_context.sort_and_acquire_locks(&mdl_requests,
+                                                      lock_wait_timeout) ||
                 upgrade_lock_if_not_exists(thd, options, tables_start,
                                            lock_wait_timeout));
   }
@@ -4402,7 +4398,8 @@ lock_table_names(THD *thd, const DDL_options_st &options,
                    MDL_STATEMENT);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
-  while (!thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout) &&
+  while (!thd->mdl_context.sort_and_acquire_locks(&mdl_requests,
+                                                lock_wait_timeout) &&
          !upgrade_lock_if_not_exists(thd, options, tables_start,
                                      lock_wait_timeout) &&
          !thd->mdl_context.try_acquire_lock(&global_request))

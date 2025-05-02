@@ -1813,8 +1813,11 @@ bool lock_db_routines(THD *thd, const char *db)
                                              MDL_BACKUP_DDL) &&
               thd->mdl_context.is_lock_owner(MDL_key::SCHEMA, db, "",
                                              MDL_EXCLUSIVE));
-  DBUG_RETURN(thd->mdl_context.acquire_locks(&mdl_requests,
-                                             thd->variables.lock_wait_timeout));
+  if (mdl_requests.is_empty())
+    DBUG_RETURN(0);
+  DBUG_RETURN(thd->mdl_context.
+              sort_and_acquire_locks(&mdl_requests,
+                                     thd->variables.lock_wait_timeout));
 error:
   thd->commit_whole_transaction_and_close_tables();
   new_trans.restore_old_transaction();

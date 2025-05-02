@@ -2499,6 +2499,9 @@ extern "C" int mdl_request_ptr_cmp(const void* ptr1, const void* ptr2)
   This is a replacement of lock_table_names(). It is used in
   RENAME, DROP and other DDL SQL statements.
 
+  Locks are sorted to reduce deadlock probability. This lets
+  concurrent threads wait rather than handling deadlocks.
+
   @param  mdl_requests  List of requests for locks to be acquired.
 
   @param lock_wait_timeout  Seconds to wait before timeout.
@@ -2512,23 +2515,30 @@ extern "C" int mdl_request_ptr_cmp(const void* ptr1, const void* ptr2)
   @retval TRUE   Failure
 */
 
-bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
-                                double lock_wait_timeout)
+bool MDL_context::sort_and_acquire_locks(MDL_request_list *mdl_requests,
+                                       double lock_wait_timeout)
 {
   MDL_request_list::Iterator it(*mdl_requests);
   MDL_request **sort_buf, **p_req;
   MDL_savepoint mdl_svp= mdl_savepoint();
   ssize_t req_count= static_cast<ssize_t>(mdl_requests->elements());
-  DBUG_ENTER("MDL_context::acquire_locks");
+  void *buff;
+  bool buff_allocated;
+  DBUG_ENTER("MDL_context::sort_and_acquire_locks");
 
-  if (req_count == 0)
+  if (req_count <= 1)
+  {
+    if (likely(req_count == 1))
+      DBUG_RETURN(acquire_lock(mdl_requests->front(), lock_wait_timeout));
+    DBUG_ASSERT(0);             // Should never be called with 0 locks
     DBUG_RETURN(FALSE);
-
-  /* Sort requests according to MDL_key. */
-  if (! (sort_buf= (MDL_request **)my_malloc(key_memory_MDL_context_acquire_locks,
-                                             req_count * sizeof(MDL_request*),
-                                             MYF(MY_WME))))
-    DBUG_RETURN(TRUE);
+  }
+  alloc_on_stack(&my_thread_var->stack_ends_here,
+                 buff,
+                 buff_allocated,
+                 req_count * sizeof(MDL_request*));
+  if (!(sort_buf= (MDL_request**) buff))
+    DBUG_RETURN(TRUE);                          // Error already reported
 
   for (p_req= sort_buf; p_req < sort_buf + req_count; p_req++)
     *p_req= it++;
@@ -2541,7 +2551,7 @@ bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
     if (acquire_lock(*p_req, lock_wait_timeout))
       goto err;
   }
-  my_free(sort_buf);
+  stack_alloc_free(sort_buf, buff_allocated);
   DBUG_RETURN(FALSE);
 
 err:
@@ -2557,7 +2567,75 @@ err:
   {
     (*p_req)->ticket= NULL;
   }
-  my_free(sort_buf);
+  stack_alloc_free(sort_buf, buff_allocated);
+  DBUG_RETURN(TRUE);
+}
+
+
+/**
+  Acquire exclusive locks. There must be no granted locks in the
+  context.
+
+  This is like sort_and_acquire_locks(), but used when the locks do not need
+  to be soerted, which is in most cases.
+
+  @param  mdl_requests  List of requests for locks to be acquired.
+
+  @param lock_wait_timeout  Seconds to wait before timeout.
+
+  @note The list of requests should not contain non-exclusive lock requests.
+        There should not be any acquired locks in the context.
+
+  @note Assumes that one already owns scoped intention exclusive lock.
+
+  @retval FALSE  Success
+  @retval TRUE   Failure
+*/
+
+
+bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
+                                double lock_wait_timeout)
+{
+  MDL_request_list::Iterator it(*mdl_requests);
+  MDL_request *p_req, *p_end;
+#ifndef DBUG_OFF
+  MDL_request *prev_req= nullptr;
+#endif
+  MDL_savepoint mdl_svp= mdl_savepoint();
+  ssize_t req_count= static_cast<ssize_t>(mdl_requests->elements());
+  DBUG_ENTER("MDL_context::acquire_locks");
+
+  if (req_count <= 1)
+  {
+    if (likely(req_count == 1))
+      DBUG_RETURN(acquire_lock(mdl_requests->front(), lock_wait_timeout));
+    DBUG_ASSERT(0);             // Should never be called with 0 locks
+    DBUG_RETURN(FALSE);
+  }
+
+  while ((p_req= it++))
+  {
+    DBUG_ASSERT(!prev_req || prev_req->key.cmp(&p_req->key) < 0);
+    if (acquire_lock(p_req, lock_wait_timeout))
+      goto err;
+#ifndef DBUG_OFF
+    prev_req= p_req;
+#endif
+  }
+  DBUG_RETURN(FALSE);
+
+err:
+  /*
+    Release locks we have managed to acquire so far.
+    Use rollback_to_savepoint() since there may be duplicate
+    requests that got assigned the same ticket.
+  */
+  rollback_to_savepoint(mdl_svp);
+  /* Reset lock requests back to its initial state. */
+
+  it.rewind();
+  for (p_end= p_req; (p_req= it++) != p_end ; )
+    p_req->ticket= NULL;
   DBUG_RETURN(TRUE);
 }
 

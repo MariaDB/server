@@ -470,7 +470,6 @@ int SEQUENCE::read_initial_values(TABLE *table)
     */
     if (table->mdl_ticket == 0)
     {
-      MDL_request_list mdl_requests;
       mdl_lock_used= 1;
       /*
         This happens if first request is SHOW CREATE TABLE or LIST FIELDS
@@ -480,9 +479,8 @@ int SEQUENCE::read_initial_values(TABLE *table)
       MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, table->s->db.str,
                        table->s->table_name.str, MDL_SHARED_READ,
                        MDL_EXPLICIT);
-      mdl_requests.push_front(&mdl_request);
-      if (thd->mdl_context.acquire_locks(&mdl_requests,
-                                         thd->variables.lock_wait_timeout))
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
       {
         write_unlock(table);
         DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
