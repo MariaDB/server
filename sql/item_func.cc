@@ -4182,7 +4182,7 @@ public:
 const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
-  MDL_key *key = ull->lock->get_key();
+  const MDL_key *key = ull->lock->get_key();
   *length= key->length();
   return key->ptr();
 }
