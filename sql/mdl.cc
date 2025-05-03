@@ -257,7 +257,7 @@ private:
 const char *dbug_print_mdl(MDL_ticket *mdl_ticket)
 {
   thread_local char buffer[256];
-  MDL_key *mdl_key= mdl_ticket->get_key();
+  const MDL_key *mdl_key= mdl_ticket->get_key();
   my_snprintf(buffer, sizeof(buffer) - 1, "%.*s/%.*s (%s)",
               (int) mdl_key->db_name_length(), mdl_key->db_name(),
               (int) mdl_key->name_length(),    mdl_key->name(),
@@ -688,6 +688,14 @@ public:
       lock->m_strategy= &m_object_lock_strategy;
   }
 
+  static const uchar *mdl_locks_key(const void *record, size_t *length,
+                                    my_bool)
+  {
+    const MDL_lock *lock= static_cast<const MDL_lock *>(record);
+    *length= lock->key.length();
+    return lock->key.ptr();
+  }
+
 
   /**
     Return thread id of the thread to which the first ticket was
@@ -884,6 +892,9 @@ end:
   { remove_ticket(pins, &MDL_lock::m_waiting, ticket); }
 
 
+  const MDL_key *get_key() const { return &key; }
+
+
   const MDL_lock_strategy *m_strategy;
 private:
   static const MDL_backup_lock m_backup_lock_strategy;
@@ -898,18 +909,6 @@ const MDL_lock::MDL_object_lock MDL_lock::m_object_lock_strategy;
 
 
 static MDL_map mdl_locks;
-
-
-extern "C"
-{
-static const uchar *mdl_locks_key(const void *record, size_t *length,
-                                  my_bool)
-{
-  const MDL_lock *lock= static_cast<const MDL_lock *>(record);
-  *length= lock->key.length();
-  return lock->key.ptr();
-}
-} /* extern "C" */
 
 
 /**
@@ -1002,7 +1001,7 @@ void MDL_map::init()
   m_backup_lock= new (std::nothrow) MDL_lock(&backup_lock_key);
 
   lf_hash_init(&m_locks, sizeof(MDL_lock), LF_HASH_UNIQUE, 0, 0,
-               mdl_locks_key, &my_charset_bin);
+               MDL_lock::mdl_locks_key, &my_charset_bin);
   m_locks.alloc.constructor= MDL_lock::lf_alloc_constructor;
   m_locks.alloc.destructor= MDL_lock::lf_alloc_destructor;
   m_locks.initializer= MDL_lock::lf_hash_initializer;
@@ -1230,7 +1229,7 @@ MDL_ticket::~MDL_ticket()
 
 uint MDL_ticket::get_deadlock_weight() const
 {
-  if (m_lock->key.mdl_namespace() == MDL_key::BACKUP)
+  if (get_key()->mdl_namespace() == MDL_key::BACKUP)
   {
     if (m_type == MDL_BACKUP_FTWRL1)
       return DEADLOCK_WEIGHT_FTWRL1;
@@ -2106,7 +2105,7 @@ MDL_context::find_ticket(MDL_request *mdl_request,
 
     while ((ticket= it++))
     {
-      if (mdl_request->key.is_equal(&ticket->m_lock->key) &&
+      if (mdl_request->key.is_equal(ticket->get_key()) &&
           ticket->has_stronger_or_equal_type(mdl_request->type))
       {
         DBUG_PRINT("info", ("Adding mdl lock %s to %s",
@@ -2692,7 +2691,7 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
       mdl_ticket->get_key()->mdl_namespace() != MDL_key::BACKUP)
     DBUG_RETURN(FALSE);
 
-  MDL_REQUEST_INIT_BY_KEY(&mdl_xlock_request, &mdl_ticket->m_lock->key,
+  MDL_REQUEST_INIT_BY_KEY(&mdl_xlock_request, mdl_ticket->get_key(),
                           new_type, MDL_TRANSACTION);
 
   if (acquire_lock(&mdl_xlock_request, lock_wait_timeout))
@@ -2968,7 +2967,8 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
   MDL_lock *lock= ticket->m_lock;
   DBUG_ENTER("MDL_context::release_lock");
   DBUG_PRINT("enter", ("db: '%s' name: '%s'",
-                       lock->key.db_name(), lock->key.name()));
+                       ticket->get_key()->db_name(),
+                       ticket->get_key()->name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
   DBUG_PRINT("mdl", ("Released: %s", dbug_print_mdl(ticket)));
@@ -3158,9 +3158,9 @@ bool MDL_ticket::has_pending_conflicting_lock() const
 }
 
 /** Return a key identifying this lock. */
-MDL_key *MDL_ticket::get_key() const
+const MDL_key *MDL_ticket::get_key() const
 {
-        return &m_lock->key;
+  return m_lock->get_key();
 }
 
 /**
@@ -3391,12 +3391,12 @@ void MDL_ticket::wsrep_report(bool debug) const
 {
   if (!debug) return;
 
-  const PSI_stage_info *psi_stage= m_lock->key.get_wait_state_name();
+  const PSI_stage_info *psi_stage= get_key()->get_wait_state_name();
   WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
               get_type_name()->str,
-              wsrep_get_mdl_namespace_name(m_lock->key.mdl_namespace()),
-              m_lock->key.db_name(),
-              m_lock->key.name(),
+              wsrep_get_mdl_namespace_name(get_key()->mdl_namespace()),
+              get_key()->db_name(),
+              get_key()->name(),
               psi_stage->m_name);
 }
 #endif /* WITH_WSREP */
