@@ -12121,23 +12121,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
       }
       else
       {
-        /* Duplicate key error. */
-        if (unlikely(alter_ctx->fk_error_if_delete_row))
-        {
-          /*
-            We are trying to omit a row from the table which serves as parent
-            in a foreign key. This might have broken referential integrity so
-            emit an error. Note that we can't ignore this error even if we are
-            executing ALTER IGNORE TABLE. IGNORE allows to skip rows, but
-            doesn't allow to break unique or foreign key constraints,
-          */
-          my_error(ER_FK_CANNOT_DELETE_PARENT, MYF(0),
-                   alter_ctx->fk_error_id,
-                   alter_ctx->fk_error_table);
-          break;
-        }
-
-        if (ignore)
+        if (ignore && !alter_ctx->fk_error_if_delete_row)
         {
           /* This ALTER IGNORE TABLE. Simply skip row and continue. */
           to->file->restore_auto_increment(prev_insert_id);
