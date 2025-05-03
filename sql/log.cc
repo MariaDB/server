@@ -2212,9 +2212,8 @@ inline int have_to_log_preparing_xa(THD *thd)
       The prepared XA is going to be logged as "empty".
     */
     THD_TRANS *ptr_trans= &thd->transaction->all;
-    thd->ha_data[binlog_hton->slot].ha_info[1].register_ha(ptr_trans,
-                                                           binlog_hton);
-    thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+    thd->ha_data[binlog_tp.slot].ha_info[1].register_ha(ptr_trans, &binlog_tp);
+    thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
     rc= 1;
   }
   if (rc == 1)
@@ -2273,7 +2272,7 @@ static int binlog_prepare(THD *thd, bool all)
   return rc;
 }
 
-inline int binlog_complete_by_xid(handlerton *hton, XID *xid, bool is_commit)
+inline int binlog_complete_by_xid(XID *xid, bool is_commit)
 {
   int rc= 0;
   THD *thd= current_thd;
@@ -2296,7 +2295,7 @@ inline int binlog_complete_by_xid(handlerton *hton, XID *xid, bool is_commit)
   trans.ha_list= NULL;
 
   thd->ha_data[binlog_tp.slot].ha_info[1].register_ha(&trans, &binlog_tp);
-  thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+  thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
   binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   cache_mngr->using_xa= TRUE; // just as normal trx take part in group commit
 
@@ -2371,8 +2370,8 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 
 inline bool is_binlog_read_write(THD *thd)
 {
-  return (thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
-          thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write());
+  return (thd->ha_data[binlog_tp.slot].ha_info[1].is_started() &&
+          thd->ha_data[binlog_tp.slot].ha_info[1].is_trx_read_write());
 }
 
 
@@ -10336,11 +10335,7 @@ inline void run_xa_complete_ordered(THD *thd)
 
     XID *xid= thd->transaction->xid_state.get_xid();
     bool commit= thd->lex->sql_command == SQLCOM_XA_COMMIT;
-    struct xahton_st xaop= { xid, 1 };
-
-    plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
-                   MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
-
+    ha_commit_or_rollback_by_xid(xid, commit, thd, true);
     return;
   }
   for (; ha_info; ha_info= ha_info->next())
@@ -10350,13 +10345,13 @@ inline void run_xa_complete_ordered(THD *thd)
                  (thd->lex->sql_command == SQLCOM_PRELOAD_KEYS &&
 		  thd->get_stmt_da()->get_sql_errno() /* MDEV-32455 */)));
 
-    handlerton *ht= ha_info->ht();
-    if (ht == binlog_hton)
+    transaction_participant *ht= ha_info->ht();
+    if (ht == &binlog_tp)
       continue;
     if (thd->lex->sql_command == SQLCOM_XA_COMMIT)
     {
       if (ht->commit_ordered)
-        ht->commit_ordered(ht, thd, true);
+        ht->commit_ordered(thd, true);
     }
     else
     {
@@ -10365,7 +10360,7 @@ inline void run_xa_complete_ordered(THD *thd)
                   thd->transaction->xid_state.get_error() ==
                   ER_XA_RBROLLBACK);
 
-      ht->rollback(ht, thd, true);
+      ht->rollback(thd, true);
     }
   }
 }

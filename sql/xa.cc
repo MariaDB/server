@@ -633,8 +633,8 @@ bool trans_xa_prepare(THD *thd)
         Ha_trx_info *ha_info= thd->transaction->all.ha_list;
         for (is_rw= false; ha_info; ha_info= ha_info->next())
         {
-          handlerton *ht= ha_info->ht();
-          if (ht == binlog_hton || !ht->prepare)
+          transaction_participant *ht= ha_info->ht();
+          if (ht == &binlog_tp || !ht->prepare)
             continue;
           is_rw= is_rw || ha_info->is_trx_read_write();
         }
@@ -710,13 +710,26 @@ static bool xa_complete(THD *thd, bool do_commit)
     MDL_request mdl_request;
     bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
-    if (rw_trans && thd->is_read_only_ctx())
+    if (rw_trans && thd->check_read_only_with_error())
     {
       DBUG_ASSERT(thd->is_error());
+
       goto _end_external_xid;
     }
 
     res= xa_trans_rolled_back(xs);
+    if (trans_xa_get_backup_lock(thd, &mdl_request))
+    {
+      /*
+        We can't rollback an XA transaction on lock failure due to
+        Innodb redo log and bin log update is involved in rollback.
+        Return error to user for a retry.
+      */
+      DBUG_ASSERT(thd->is_error());
+
+      goto _end_external_xid;
+    }
+
     DBUG_ASSERT(!xid_state.xid_cache_element);
 
     xid_state.xid_cache_element= xs;

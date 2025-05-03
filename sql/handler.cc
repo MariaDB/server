@@ -1581,7 +1581,7 @@ int ha_prepare(THD *thd)
 ro_xa:
     if (!thd->rgi_slave)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_XA_RDONLY, ER_THD(thd, ER_XA_RDONLY));
+                          ER_XA_RDONLY, ER_THD(thd, ER_XA_RDONLY), "");
     /*
       Slave threads will always process XA COMMITs in the binlog handler (see
       MDEV-25616 and MDEV-30423), so if this is a slave thread preparing a
@@ -2358,7 +2358,7 @@ int ha_rollback_trans(THD *thd, bool all)
     DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK ||
                 thd->transaction->xid_state.is_explicit_XA());
 
-    if (has_binlog && (err= binlog_hton->rollback(binlog_hton, thd, all)))
+    if (has_binlog && (err= binlog_tp.rollback(thd, all)))
     {
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
       error= 1;
@@ -2366,8 +2366,8 @@ int ha_rollback_trans(THD *thd, bool all)
     for (; ha_info; ha_info= ha_info_next)
     {
       transaction_participant *ht= ha_info->ht();
-      if ((ht != binlog_hton) &&
-          (err= ht->rollback(ht, thd, all)))
+      if ((ht != &binlog_tp) &&
+          (err= ht->rollback(thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -2475,22 +2475,23 @@ bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
 }
 
 
-int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd)
+int ha_commit_or_rollback_by_xid(XID *xid, bool commit, THD *thd,
+                                 bool force_skip_binlog)
 {
   struct xahton_st xaop= { xid, 1 };
   bool skip_binlog= thd->is_current_stmt_binlog_disabled();
 
-  if (!skip_binlog)
+  if (!skip_binlog && !force_skip_binlog)
   {
     // when binlog is ON start from its transaction branch
     if (commit)
-      binlog_commit_by_xid(&binlog_tp, xid);
+      binlog_commit_by_xid(xid);
     else
-      binlog_rollback_by_xid(&binlog_tp, xid);
+      binlog_rollback_by_xid(xid);
   }
   else
   {
-    int rc= thd->wait_for_prior_commit();
+    int rc= force_skip_binlog ? 0 : thd->wait_for_prior_commit();
     if (!rc)
     {
       tp_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
