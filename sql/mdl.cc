@@ -388,7 +388,6 @@ Deadlock_detection_visitor::opt_change_victim_to(MDL_context *new_victim)
 
 class MDL_lock
 {
-public:
   typedef mdl_bitmap_t bitmap_t;
 
   class Ticket_list
@@ -552,9 +551,10 @@ public:
     static const bitmap_t m_waiting_incompatible[MDL_BACKUP_END];
   };
 
-public:
+
   /** The key of the object (data) being protected. */
   MDL_key key;
+
   /**
     Read-write lock protecting this lock context.
 
@@ -590,17 +590,27 @@ public:
   */
   mutable mysql_prlock_t m_rwlock;
 
+  /** List of granted tickets for this lock. */
+  Ticket_list m_granted;
+  /** Tickets for contexts waiting to acquire a lock. */
+  Ticket_list m_waiting;
+
+  /**
+    Number of times high priority lock requests have been granted while
+    low priority lock requests were waiting.
+  */
+  ulong m_hog_lock_count;
+
+  const MDL_lock_strategy *m_strategy;
+
+  static const MDL_backup_lock m_backup_lock_strategy;
+  static const MDL_scoped_lock m_scoped_lock_strategy;
+  static const MDL_object_lock m_object_lock_strategy;
+
   bool is_empty() const
   {
     return (m_granted.is_empty() && m_waiting.is_empty());
   }
-
-  const bitmap_t *incompatible_granted_types_bitmap() const
-  { return m_strategy->incompatible_granted_types_bitmap(); }
-  const bitmap_t *incompatible_waiting_types_bitmap() const
-  { return m_strategy->incompatible_waiting_types_bitmap(); }
-
-  bool has_pending_conflicting_lock(enum_mdl_type type);
 
   bool can_grant_lock(enum_mdl_type type, MDL_context *requstor_ctx,
                       bool ignore_lock_priority) const;
@@ -609,9 +619,6 @@ public:
 
   void remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*queue,
                      MDL_ticket *ticket);
-
-  bool visit_subgraph(MDL_ticket *waiting_ticket,
-                      MDL_wait_for_graph_visitor *gvisitor);
 
   bool needs_notification(const MDL_ticket *ticket) const
   { return m_strategy->needs_notification(ticket); }
@@ -639,18 +646,16 @@ public:
   bool check_if_conflicting_replication_locks(MDL_context *ctx);
 #endif
 
-  /** List of granted tickets for this lock. */
-  Ticket_list m_granted;
-  /** Tickets for contexts waiting to acquire a lock. */
-  Ticket_list m_waiting;
-
-  /**
-    Number of times high priority lock requests have been granted while
-    low priority lock requests were waiting.
-  */
-  ulong m_hog_lock_count;
-
 public:
+  const bitmap_t *incompatible_granted_types_bitmap() const
+  { return m_strategy->incompatible_granted_types_bitmap(); }
+  const bitmap_t *incompatible_waiting_types_bitmap() const
+  { return m_strategy->incompatible_waiting_types_bitmap(); }
+
+  bool has_pending_conflicting_lock(enum_mdl_type type);
+
+  bool visit_subgraph(MDL_ticket *waiting_ticket,
+                      MDL_wait_for_graph_visitor *gvisitor);
 
   MDL_lock()
     : m_hog_lock_count(0),
@@ -893,13 +898,6 @@ end:
 
 
   const MDL_key *get_key() const { return &key; }
-
-
-  const MDL_lock_strategy *m_strategy;
-private:
-  static const MDL_backup_lock m_backup_lock_strategy;
-  static const MDL_scoped_lock m_scoped_lock_strategy;
-  static const MDL_object_lock m_object_lock_strategy;
 };
 
 
@@ -1049,7 +1047,6 @@ enum tal_status MDL_map::try_acquire_lock(LF_PINS *pins, MDL_key *mdl_key,
       for them look like '<namespace-id>\0\0'.
     */
     DBUG_ASSERT(mdl_key->length() == 3);
-    DBUG_ASSERT(m_backup_lock->m_strategy);
     return m_backup_lock->try_acquire_lock(ticket, wait);
   }
 
@@ -2033,9 +2030,7 @@ MDL_wait_for_subgraph::~MDL_wait_for_subgraph()
 
 bool MDL_ticket::has_stronger_or_equal_type(enum_mdl_type type) const
 {
-  const MDL_lock::bitmap_t *
-    granted_incompat_map= m_lock->incompatible_granted_types_bitmap();
-
+  const auto *granted_incompat_map= m_lock->incompatible_granted_types_bitmap();
   return ! (granted_incompat_map[type] & ~(granted_incompat_map[m_type]));
 }
 
