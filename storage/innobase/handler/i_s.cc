@@ -60,6 +60,7 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "dict0crea.h"
 #include "fts0vlc.h"
 #include "log.h"
+#include "log0crypt.h"
 
 /** The latest successfully looked up innodb_fts_aux_table */
 UNIV_INTERN table_id_t innodb_ft_aux_table_id;
@@ -7041,6 +7042,40 @@ i_s_dict_fill_tablespaces_encryption(
 skip:
 	DBUG_RETURN(0);
 }
+
+/** Function to fill INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
+for temporary tablespace
+@param  thd             thread handle
+@param  table_to_fill   I_S table to fill
+@return 0 on success */
+static
+int i_s_dict_fill_temp_tablespace_encryption(THD* thd,
+                                             TABLE *table_to_fill)
+{
+  DBUG_ENTER("i_s_dict_fill_temp_tablespaces_encryption");
+  if (!innodb_encrypt_temporary_tables)
+    DBUG_RETURN(0);
+
+  fil_space_t *space= fil_system.temp_space;
+  Field **fields= table_to_fill->field;
+  OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id, true));
+  OK(field_store_string(fields[TABLESPACES_ENCRYPTION_NAME],
+                        space->name));
+  OK(fields[TABLESPACES_ENCRYPTION_ENCRYPTION_SCHEME]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_KEYSERVER_REQUESTS]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_MIN_KEY_VERSION]->store(
+       tmp_key_version, true));
+  OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_VERSION]->store(
+       tmp_key_version, true));
+  /* LOG_DEFAULT_ENCRYPTION_KEY */
+  OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_ID]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING]->store(0, true));
+  fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->set_null();
+  fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_MAX_PAGE_NUMBER]->set_null();
+  OK(schema_table_store_record(thd, table_to_fill));
+  DBUG_RETURN(0);
+}
+
 /*******************************************************************//**
 Function to populate INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION table.
 Loop through each record in TABLESPACES_ENCRYPTION, and extract the column
@@ -7084,6 +7119,7 @@ i_s_tablespaces_encryption_fill_table(
 
 	fil_system.freeze_space_list--;
 	mutex_exit(&fil_system.mutex);
+	i_s_dict_fill_temp_tablespace_encryption(thd, tables->table);
 	DBUG_RETURN(err);
 }
 /*******************************************************************//**
