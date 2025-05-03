@@ -162,6 +162,8 @@ void MDL_key::init_psi_keys()
 
 static bool mdl_initialized= 0;
 
+enum tal_status { TAL_ERROR, TAL_ACQUIRED, TAL_WAIT, TAL_NOWAIT };
+
 
 /**
   A collection of all MDL locks. A singleton,
@@ -173,7 +175,8 @@ class MDL_map
 public:
   void init();
   void destroy();
-  MDL_lock *find_or_insert(LF_PINS *pins, const MDL_key *key);
+  enum tal_status try_acquire_lock(LF_PINS *pins, MDL_key *key,
+                                   MDL_ticket *ticket, bool wait);
   unsigned long get_lock_owner(LF_PINS *pins, const MDL_key *key);
   void remove(LF_PINS *pins, const MDL_key *key)
   { lf_hash_delete(&m_locks, pins, key->ptr(), key->length()); }
@@ -793,6 +796,84 @@ end:
   }
 
 
+  /**
+    Attempt to acquire lock
+
+    Before performing any action we must ensure that this lock
+    is not being deleted by concurrent thread. We're safe when
+    m_strategy != nullptr.
+
+    When there're no conflicting granted/waiting locks, lock request
+    can be served immediately. In this case the only action that has
+    to be performed is adding ticket to m_granted list.
+
+    If it is impossible to serve lock request immediately and the caller
+    doesn't intend to wait for this lock, no action has to be performed.
+    This is the case for MDL_context::acquire_lock() with
+    lock_wait_timeout == 0 and MDL_context::try_acquire_lock().
+
+    Otherwise it is regular MDL_context::acquire_lock(). Add ticket
+    to m_waiting list and notify conflicting lock owners.
+
+    Also assert that if we are trying to get an exclusive lock for a slave
+    running parallel replication, then we are not blocked by another
+    parallel slave thread that is not committed. This should never happen as
+    the parallel replication scheduler should never schedule a DDL while
+    DML's are still running.
+
+    ticket->m_lock has to be updated to point to this lock either before
+    critical section or inside critical section. Before other threads can
+    find it via m_granted or m_waiting lists.
+
+    ticket->m_lock is valid only when this method returns either TAL_ACQUIRED
+    or TAL_WAIT. In other cases caller doesn't hold references to this lock,
+    which means it can be detroyed. Caller is expected to dispose ticket
+    immediately anyway.
+
+    @retval TAL_ACQUIRED Acquired
+    @retval TAL_WAIT     Not acquired, must be waited
+    @retval TAL_NOWAIT   Not acquired, cannot be waited
+    @retval TAL_ERROR    Lock is being deleted, retry
+  */
+  enum tal_status try_acquire_lock(MDL_ticket *ticket, bool wait)
+  {
+    MDL_context *mdl_context= ticket->get_ctx();
+    // TAL_ACQUIRED to make less work on the hot path
+    enum tal_status res= TAL_ACQUIRED;
+    ticket->m_lock= this;
+    mysql_prlock_wrlock(&m_rwlock);
+    if (likely(m_strategy))
+    {
+      if (can_grant_lock(ticket->get_type(), mdl_context, false))
+        m_granted.add_ticket(ticket);
+      else
+      {
+        DBUG_ASSERT(!is_empty());
+        if (wait)
+        {
+          res= TAL_WAIT;
+          m_waiting.add_ticket(ticket);
+
+          if (needs_notification(ticket))
+            notify_conflicting_locks(mdl_context, false);
+
+           DBUG_SLOW_ASSERT((ticket->get_type() != MDL_INTENTION_EXCLUSIVE &&
+                            ticket->get_type() != MDL_EXCLUSIVE) ||
+                           !(mdl_context->get_thd()->rgi_slave &&
+                             mdl_context->get_thd()->rgi_slave->is_parallel_exec &&
+                             check_if_conflicting_replication_locks(mdl_context)));
+        }
+        else
+          res= TAL_NOWAIT;
+      }
+    }
+    else
+      res= TAL_ERROR;
+    mysql_prlock_unlock(&m_rwlock);
+    return res;
+  }
+
+
   void release(LF_PINS *pins, MDL_ticket *ticket)
   {
     remove_ticket(pins, &MDL_lock::m_granted, ticket);
@@ -947,45 +1028,44 @@ void MDL_map::destroy()
   Find MDL_lock object corresponding to the key, create it
   if it does not exist.
 
-  @retval non-NULL - Success. MDL_lock instance for the key with
-                     locked MDL_lock::m_rwlock.
-  @retval NULL     - Failure (OOM).
+  @retval TAL_ACQUIRED Acquired
+  @retval TAL_WAIT     Not acquired, must be waited
+  @retval TAL_NOWAIT   Not acquired, cannot be waited
+  @retval TAL_ERROR    Failure (OOM)
 */
 
-MDL_lock* MDL_map::find_or_insert(LF_PINS *pins, const MDL_key *mdl_key)
+enum tal_status MDL_map::try_acquire_lock(LF_PINS *pins, MDL_key *mdl_key,
+                                          MDL_ticket *ticket,
+                                          bool wait)
 {
   MDL_lock *lock;
 
   if (mdl_key->mdl_namespace() == MDL_key::BACKUP)
   {
     /*
-      Return pointer to pre-allocated MDL_lock instance. Such an optimization
-      allows to save one hash lookup for any statement changing data.
+      Use m_backup_lock shortcut. Such optimization allows to save
+      one hash lookup for any statement changing data.
 
       It works since this namespace contains only one element so keys
       for them look like '<namespace-id>\0\0'.
     */
     DBUG_ASSERT(mdl_key->length() == 3);
-    mysql_prlock_wrlock(&m_backup_lock->m_rwlock);
-    return m_backup_lock;
+    DBUG_ASSERT(m_backup_lock->m_strategy);
+    return m_backup_lock->try_acquire_lock(ticket, wait);
   }
 
 retry:
   while (!(lock= (MDL_lock*) lf_hash_search(&m_locks, pins, mdl_key->ptr(),
                                             mdl_key->length())))
     if (lf_hash_insert(&m_locks, pins, (uchar*) mdl_key) == -1)
-      return NULL;
+      return TAL_ERROR;
 
-  mysql_prlock_wrlock(&lock->m_rwlock);
-  if (unlikely(!lock->m_strategy))
-  {
-    mysql_prlock_unlock(&lock->m_rwlock);
-    lf_hash_search_unpin(pins);
-    goto retry;
-  }
+  enum tal_status res= lock->try_acquire_lock(ticket, wait);
   lf_hash_search_unpin(pins);
+  if (res == TAL_ERROR)
+    goto retry;
 
-  return lock;
+  return res;
 }
 
 
@@ -2095,8 +2175,6 @@ bool
 MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
                                    MDL_ticket **out_ticket)
 {
-  MDL_lock *lock;
-  MDL_key *key= &mdl_request->key;
   MDL_ticket *ticket;
   enum_mdl_duration found_duration;
 
@@ -2150,42 +2228,25 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
   if (metadata_lock_info_plugin_loaded)
     ticket->m_time= microsecond_interval_timer();
 
-  /* The below call implicitly locks MDL_lock::m_rwlock on success. */
-  if (!(lock= mdl_locks.find_or_insert(m_pins, key)))
-  {
+  switch (mdl_locks.try_acquire_lock(m_pins, &mdl_request->key, ticket,
+                                     out_ticket != nullptr)) {
+  case TAL_ACQUIRED:
+    m_tickets[mdl_request->duration].push_front(ticket);
+    mdl_request->ticket= ticket;
+    mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
+    break;
+  case TAL_WAIT:
+    DBUG_ASSERT(out_ticket);
+    *out_ticket= ticket;
+    break;
+  case TAL_NOWAIT:
+    DBUG_PRINT("mdl", ("Nowait: <ticket->m_lock unavailable>"));
+    delete ticket;
+    break;
+  default:
     delete ticket;
     return TRUE;
   }
-
-  ticket->m_lock= lock;
-
-  if (lock->can_grant_lock(mdl_request->type, this, false))
-  {
-    lock->m_granted.add_ticket(ticket);
-    mysql_prlock_unlock(&lock->m_rwlock);
-
-    m_tickets[mdl_request->duration].push_front(ticket);
-
-    mdl_request->ticket= ticket;
-
-    mysql_mdl_set_status(ticket->m_psi, MDL_ticket::GRANTED);
-  }
-  else if (out_ticket)
-    *out_ticket= ticket;
-  else
-  {
-    /*
-      Our attempt to acquire lock without waiting has failed.
-      Let us release resources which were acquired in the process.
-      We can't get here if we allocated a new lock object so there
-      is no need to release it.
-    */
-    DBUG_ASSERT(!ticket->m_lock->is_empty());
-    DBUG_PRINT("mdl", ("Nowait:  %s", dbug_print_mdl(ticket)));
-    mysql_prlock_unlock(&ticket->m_lock->m_rwlock);
-    delete ticket;
-  }
-
   return FALSE;
 }
 
@@ -2370,29 +2431,6 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 #endif /* WITH_WSREP */
 
   lock= ticket->m_lock;
-  lock->m_waiting.add_ticket(ticket);
-
-  /*
-    Don't break conflicting locks if timeout is 0 as 0 is used
-    to check if there is any conflicting locks...
-  */
-  if (lock->needs_notification(ticket) && lock_wait_timeout)
-    lock->notify_conflicting_locks(this, false);
-
-  /*
-    Ensure that if we are trying to get an exclusive lock for a slave
-    running parallel replication, then we are not blocked by another
-    parallel slave thread that is not committed. This should never happen as
-    the parallel replication scheduler should never schedule a DDL while
-    DML's are still running.
-  */
-  DBUG_SLOW_ASSERT((mdl_request->type != MDL_INTENTION_EXCLUSIVE &&
-                    mdl_request->type != MDL_EXCLUSIVE) ||
-                   !(get_thd()->rgi_slave &&
-                     get_thd()->rgi_slave->is_parallel_exec &&
-                     lock->check_if_conflicting_replication_locks(this)));
-
-  mysql_prlock_unlock(&lock->m_rwlock);
 
 #ifdef HAVE_PSI_INTERFACE
   PSI_metadata_locker_state state __attribute__((unused));
