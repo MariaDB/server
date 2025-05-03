@@ -1,0 +1,50 @@
+# Interactions with --dump-slave; based on `main.rpl_mysqldump_slave`
+
+--source include/have_log_bin.inc
+--let $status_items= Slave_SQL_Running
+--let $slave_name= 'inactive'
+
+--connect (active_master,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (inactive_master,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root'
+START SLAVE SQL_THREAD;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+--eval CHANGE MASTER $slave_name TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2
+# wait for the default '' connection only
+--source include/wait_for_slave_sql_to_start.inc
+
+--echo # Basic
+--echo  MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+--replace_regex /MASTER_LOG_POS=[0-9]++/MASTER_LOG_POS=BINLOG_START/
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+--exec $MYSQL_DUMP --compact --dump-slave --include-master-host-port test
+
+--echo # MDEV-7611 mysqldump --dump-slave always starts stopped slave
+--echo  MYSQL_DUMP --compact --dump-slave test
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP --compact --dump-slave test
+# The 'inactive' connection should remain stopped ...
+--source include/show_slave_status.inc
+# ... while the default '' connection should restart.
+--source include/wait_for_slave_sql_to_start.inc
+
+--echo # MDEV-5624 mysqldump --dump-slave option does not restart the replication if the dump has failed
+--echo  MYSQL_DUMP --compact --dump-slave no_such_db
+--replace_regex /MASTER_LOG_POS=[0-9]++/MASTER_LOG_POS=BINLOG_START/
+--error 2
+--exec $MYSQL_DUMP --compact --dump-slave no_such_db
+# The 'inactive' connection should remain stopped ...
+--source include/show_slave_status.inc
+# ... while the default '' connection should restart.
+--source include/wait_for_slave_sql_to_start.inc
+
+--echo # Cleanup
+STOP SLAVE SQL_THREAD;
+--eval RESET SLAVE $slave_name ALL
+--disconnect active_master
+--disconnect inactive_master
+--source include/wait_for_slave_sql_to_stop.inc
+--disconnect slave
