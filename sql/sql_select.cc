@@ -4858,7 +4858,7 @@ int JOIN::exec_inner()
   DBUG_ENTER("JOIN::exec_inner");
   DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
 
-  THD_STAGE_INFO(thd, stage_executing);
+  THD_STAGE_INFO(thd, stage_prepare_for_executing);
 
   /*
     Enable LIMIT ROWS EXAMINED during query execution if:
@@ -5050,7 +5050,7 @@ int JOIN::exec_inner()
     DBUG_RETURN(error);
   }
 
-  THD_STAGE_INFO(thd, stage_sending_data);
+  THD_STAGE_INFO(thd, stage_executing);
   DBUG_PRINT("info", ("%s", thd->proc_info));
   result->send_result_set_metadata(
                  procedure ? procedure_fields_list : *fields,

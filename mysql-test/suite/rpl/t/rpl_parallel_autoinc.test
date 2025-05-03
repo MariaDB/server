@@ -100,7 +100,7 @@ DELETE FROM t2 WHERE a=30;
 # but it is not yet waiting for a row lock held by T2.
 --connection slave2
 ROLLBACK;
---let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state='Sending data' and info LIKE 'INSERT INTO t1(b, c) SELECT 3, t2.b%' and time_ms > 500 and command LIKE 'Slave_worker';
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state='Executing' and info LIKE 'INSERT INTO t1(b, c) SELECT 3, t2.b%' and time_ms > 500 and command LIKE 'Slave_worker';
 --source include/wait_condition.inc
 
 # Now let T1 continue, while T3 is holding the autoinc lock but before
