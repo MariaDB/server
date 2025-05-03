@@ -28,3 +28,6 @@ WHERE variable_name = 'innodb_encryption_n_temp_blocks_encrypted';
 SELECT CAST(variable_value AS INT) > @old_decrypted
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_temp_blocks_decrypted';
+
+select * from information_schema.INNODB_TABLESPACES_ENCRYPTION
+WHERE SPACE=4294967294;

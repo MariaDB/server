@@ -7041,6 +7041,39 @@ i_s_dict_fill_tablespaces_encryption(
 skip:
 	DBUG_RETURN(0);
 }
+
+/** Function to fill INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
+for temporary tablespace
+@param  thd             thread handle
+@param  space           Tablespace
+@param  table_to_fill   I_S table to fill
+@return 0 on success */
+static
+int i_s_dict_fill_temp_tablespace_encryption(THD* thd,
+                                              fil_space_t *space,
+                                              TABLE *table_to_fill)
+{
+  DBUG_ENTER("i_s_dict_fill_temp_tablespaces_encryption");
+  if (!innodb_encrypt_temporary_tables)
+    DBUG_RETURN(0);
+
+  Field **fields= table_to_fill->field;
+  OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id, true));
+  OK(field_store_string(fields[TABLESPACES_ENCRYPTION_NAME],
+                        space->name));
+  OK(fields[TABLESPACES_ENCRYPTION_ENCRYPTION_SCHEME]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_KEYSERVER_REQUESTS]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_MIN_KEY_VERSION]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_VERSION]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_ID]->store(1, true));
+  OK(fields[TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING]->store(1, true));
+
+  fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->set_null();
+  fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_MAX_PAGE_NUMBER]->set_null();
+  OK(schema_table_store_record(thd, table_to_fill));
+  DBUG_RETURN(0);
+}
+
 /*******************************************************************//**
 Function to populate INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION table.
 Loop through each record in TABLESPACES_ENCRYPTION, and extract the column
@@ -7084,6 +7117,8 @@ i_s_tablespaces_encryption_fill_table(
 
 	fil_system.freeze_space_list--;
 	mutex_exit(&fil_system.mutex);
+	i_s_dict_fill_temp_tablespace_encryption(
+		thd, fil_system.temp_space, tables->table);
 	DBUG_RETURN(err);
 }
 /*******************************************************************//**
