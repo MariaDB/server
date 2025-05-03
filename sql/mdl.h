@@ -730,7 +730,7 @@ public:
   const LEX_STRING *get_type_name() const;
   const LEX_STRING *get_type_name(enum_mdl_type type) const;
   MDL_lock *get_lock() const { return m_lock; }
-  MDL_key *get_key() const;
+  const MDL_key *get_key() const;
   void downgrade_lock(enum_mdl_type type);
 
   bool has_stronger_or_equal_type(enum_mdl_type type) const;

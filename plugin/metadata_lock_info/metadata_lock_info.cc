@@ -75,7 +75,7 @@ int i_s_metadata_lock_info_fill_row(
   TABLE *table = param->table;
   DBUG_ENTER("i_s_metadata_lock_info_fill_row");
   MDL_context *mdl_ctx = mdl_ticket->get_ctx();
-  MDL_key *mdl_key = mdl_ticket->get_key();
+  const MDL_key *mdl_key = mdl_ticket->get_key();
   MDL_key::enum_mdl_namespace mdl_namespace = mdl_key->mdl_namespace();
   if (!granted)
     DBUG_RETURN(0);

@@ -670,7 +670,7 @@ int MHNSW_Trx::do_commit(THD *thd, bool)
     trx_next= trx->next;
     if (trx->table_id)
     {
-      MDL_key *key= trx->table_id->get_key();
+      const MDL_key *key= trx->table_id->get_key();
       LEX_CSTRING db=  {key->db_name(), key->db_name_length()},
                   tbl= {key->name(), key->name_length()};
       TABLE_LIST tl;
