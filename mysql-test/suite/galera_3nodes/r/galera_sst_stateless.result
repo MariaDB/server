@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_3;
+connection node_2;
+connection node_3;
+# restart
+include/assert_grep.inc [DONOR]
+include/assert_grep.inc [DONOR]
