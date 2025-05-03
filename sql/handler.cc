@@ -2863,7 +2863,12 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
             char buf[XIDDATASIZE*4+6];
             _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
-          xid_cache_insert(info->list + i);
+          /*
+            TODO: the xa crash recovery is not ready yet. The passed `true`
+            parameter value assumes the xid is found in binlog
+            which is of course "optimistic".
+          */
+          xid_cache_insert(info->list + i, true);
           info->found_foreign_xids++;
           continue;
         }

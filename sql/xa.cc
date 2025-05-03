@@ -83,6 +83,13 @@ public:
   uint rm_error;
   enum xa_states xa_state;
   XA_data xid;
+  /*
+    The flag memorizes the fact of the prepared XA has been binlogged.
+    It gets dropped with binlogging of the transaction's XA-COMPLETE.
+    FIXME: alternatively, could we use bit 32 of m_state or,
+    TODO:  better, XID::formatID highest bit (also required by MDEV-21777).
+  */
+  bool xap_binlogged_awaiting_xac;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -110,6 +117,7 @@ public:
       old&= ACQUIRED | RECOVERED;
       (void) LF_BACKOFF();
     }
+    xap_binlogged_awaiting_xac= FALSE;
   }
   void acquired_to_recovered()
   {
@@ -130,6 +138,18 @@ public:
     }
     return true;
   }
+  void notify_xap_binlogged()
+  {
+    DBUG_ASSERT(opt_bin_log);
+
+    xap_binlogged_awaiting_xac= TRUE;
+  }
+  void notify_xac_binlogged()
+  {
+    DBUG_ASSERT(opt_bin_log);
+
+    xap_binlogged_awaiting_xac= FALSE;
+  }
   static void lf_hash_initializer(LF_HASH *, void *el, const void *ie)
   {
     XID_cache_element *element= static_cast<XID_cache_element*>(el);
@@ -139,6 +159,7 @@ public:
     element->rm_error= 0;
     element->xa_state= new_element->xa_state;
     element->xid.set(new_element->xid);
+    element->xap_binlogged_awaiting_xac= FALSE;
     new_element->xid_cache_element= element;
   }
   static void lf_alloc_constructor(uchar *ptr)
@@ -288,8 +309,7 @@ static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
   return element;
 }
 
-
-bool xid_cache_insert(XID *xid)
+bool xid_cache_insert(XID *xid, bool is_binlogged)
 {
   XID_cache_insert_element new_element(XA_PREPARED, xid);
   LF_PINS *pins;
@@ -302,6 +322,8 @@ bool xid_cache_insert(XID *xid)
   {
   case 0:
     new_element.xid_cache_element->set(XID_cache_element::RECOVERED);
+    if (is_binlogged)
+      new_element.xid_cache_element->notify_xap_binlogged();
     break;
   case 1:
     res= 0;
@@ -352,6 +374,30 @@ void xid_cache_delete(THD *thd, XID_STATE *xid_state)
 void xid_cache_delete(THD *thd)
 {
   xid_cache_delete(thd, &thd->transaction->xid_state);
+}
+
+
+void xid_cache_update_xa_binlog_state(THD *thd, XID_STATE *xid_state,
+                                      bool is_xap)
+{
+  DBUG_ASSERT(xid_state->is_explicit_XA());
+  if (is_xap)
+  {
+    DBUG_ASSERT(!xid_state->xid_cache_element->xap_binlogged_awaiting_xac);
+
+    xid_state->xid_cache_element->notify_xap_binlogged();
+  }
+  else
+  {
+    /*
+      The flag may not be set by ineffective XA-PREPARE groups
+      that logged on master in few exceptional cases.
+    */
+    DBUG_ASSERT(xid_state->xid_cache_element->xap_binlogged_awaiting_xac ||
+                thd->transaction->all.ha_list == 0);
+
+    xid_state->xid_cache_element->notify_xac_binlogged();
+  }
 }
 
 
