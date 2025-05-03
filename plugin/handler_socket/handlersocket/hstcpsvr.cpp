@@ -133,6 +133,7 @@ hstcpsvr::stop_workers()
   vshared.shutdown = 1;
   for (size_t i = 0; i < threads.size(); ++i) {
     threads[i]->join();
+    delete threads[i];
   }
   threads.clear();
 }

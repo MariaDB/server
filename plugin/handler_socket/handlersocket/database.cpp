@@ -103,15 +103,20 @@ struct tablevec_entry {
 
 struct expr_user_lock : private noncopyable {
   expr_user_lock(THD *thd, int timeout)
-    : lck_key(thd, "handlersocket_wr", 16, &my_charset_latin1),
-      lck_timeout(thd, timeout),
-      lck_func_get_lock(thd, &lck_key, &lck_timeout),
-      lck_func_release_lock(thd, &lck_key)
+      : lck_key(thd, &my_charset_latin1,
+                (const char *) STRING_WITH_LEN("handlersocket_wr")),
+        lck_timeout(thd, timeout),
+        lck_func_get_lock(thd, &lck_key, &lck_timeout),
+        lck_func_release_lock(thd, &lck_key)
   {
     lck_key.fix_fields(thd, 0);
     lck_timeout.fix_fields(thd, 0);
     lck_func_get_lock.fix_fields(thd, 0);
     lck_func_release_lock.fix_fields(thd, 0);
+  }
+  void cleanup()
+  {
+    lck_key.val_str(NULL)->free();
   }
   long long get_lock() {
     return lck_func_get_lock.val_int();
@@ -138,6 +143,7 @@ struct dbcontext : public dbcontext_i, private noncopyable {
   bool get_commit_error() override;
   void clear_error() override;
   void close_tables_if() override;
+  void init_thd_for_query() override;
   void table_addref(size_t tbl_id) override;
   void table_release(size_t tbl_id) override;
   void cmd_open(dbcallback_i& cb, const cmd_open_args& args) override;
@@ -335,6 +341,8 @@ dbcontext::term_thread()
 {
   DBG_THR(fprintf(stderr, "HNDSOCK thread end %p\n", thd));
   close_tables_if();
+  user_lock->cleanup();
+  unlink_thd(thd);
   set_current_thd(nullptr);
   {
     delete thd;
@@ -476,6 +484,13 @@ dbcontext::close_tables_if()
 }
 
 void
+dbcontext::init_thd_for_query()
+{
+  thd->set_time();
+  thd->set_query_id(next_query_id());
+}
+
+void
 dbcontext::table_addref(size_t tbl_id)
 {
   table_vec[tbl_id].refcount += 1;
@@ -549,9 +564,16 @@ dbcontext::modify_record(dbcallback_i& cb, TABLE *const table,
   const prep_stmt& pst, const cmd_exec_args& args, char mod_op,
   size_t& modified_count)
 {
+  if (!thd->is_current_stmt_binlog_format_row())
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_WRONG_VALUE_FOR_VAR,
+                        ER_THD(thd, ER_WRONG_VALUE_FOR_VAR),
+                        "binlog_format", "statement");
   if (mod_op == 'U') {
     /* update */
     handler *const hnd = table->file;
+    table->mark_columns_needed_for_update();
+    hnd->prepare_for_row_logging();
     uchar *const buf = table->record[0];
     store_record(table, record[1]);
     const prep_stmt::fields_type& rf = pst.get_ret_fields();
@@ -576,6 +598,8 @@ dbcontext::modify_record(dbcallback_i& cb, TABLE *const table,
   } else if (mod_op == 'D') {
     /* delete */
     handler *const hnd = table->file;
+    table->mark_columns_needed_for_delete();
+    hnd->prepare_for_row_logging();
     table_vec[pst.get_table_id()].modified = true;
     const int r = hnd->ha_delete_row(table->record[0]);
     if (r != 0) {
@@ -585,6 +609,8 @@ dbcontext::modify_record(dbcallback_i& cb, TABLE *const table,
   } else if (mod_op == '+' || mod_op == '-') {
     /* increment/decrement */
     handler *const hnd = table->file;
+    table->mark_columns_needed_for_update();
+    hnd->prepare_for_row_logging();
     uchar *const buf = table->record[0];
     store_record(table, record[1]);
     const prep_stmt::fields_type& rf = pst.get_ret_fields();
@@ -658,6 +684,8 @@ dbcontext::cmd_insert_internal(dbcallback_i& cb, const prep_stmt& pst,
   }
   table->next_number_field = table->found_next_number_field;
     /* FIXME: test */
+  table->mark_columns_needed_for_insert();
+  hnd->prepare_for_row_logging();
   const int r = hnd->ha_write_row(buf);
   const ulonglong insert_id = table->file->insert_id_for_cur_row;
   table->next_number_field = 0;
@@ -1148,8 +1176,10 @@ dbcontext::cmd_exec(dbcallback_i& cb, const cmd_exec_args& args)
   case db_write_op_none:
     return cmd_find_internal(cb, p, find_flag, args);
   case db_write_op_insert:
+    init_thd_for_query();
     return cmd_insert_internal(cb, p, args.kvals, args.kvalslen);
   case db_write_op_sql:
+    init_thd_for_query();
     return cmd_sql_internal(cb, p, args.kvals, args.kvalslen);
   }
 }
