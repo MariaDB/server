@@ -187,7 +187,7 @@ C file names use the `.c` extension, C++ files use the `.cc` extension and heade
 
 ### Language standards
 
-For pure-C files we use C99 and for C++ we use C++11.
+For pure-C files we use C99 (starting with 10.4.25) and for C++ we use C++17 (starting with 11.8.1).
 The code need to be able to compile on multiple platforms using different compilers (for example: Windows / Linux, x86_64 / ARM).
 
 ### Line lengths
