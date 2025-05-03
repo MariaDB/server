@@ -1,4 +1,8 @@
+--source include/have_sequence.inc
+# have show_slave_status
 --source include/not_embedded.inc
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root';
+--let $status_items= Replicate_Ignore_Table
 
 --echo #
 --echo # Basic testing of replicate_ignore_table.
@@ -32,11 +36,23 @@ SET @@GLOBAL.replicate_ignore_table="test.t1, t2";
 --error ER_WRONG_ARGUMENTS
 SET @@GLOBAL.replicate_ignore_table="test.,t1";
 
+# MDEV-35693 Replicate_* fields of Show-Slave-Status display truncated
+--echo # Argument size acceptance.
+
+SELECT GROUP_CONCAT(CONCAT("database_name.long_table_name_", seq) SEPARATOR ",")
+  INTO @name FROM seq_1_to_8;
+SELECT LENGTH(@name);
+SET @@GLOBAL.replicate_ignore_table= @name;
+SELECT @@GLOBAL.replicate_ignore_table;
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_ignore_table';
+--source include/show_slave_status.inc
+
 --echo # Argument syntax.
 
 SET @@GLOBAL.replicate_ignore_table="test.t1,,,,,test.t3";
 SELECT @@GLOBAL.replicate_ignore_table;
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_ignore_table';
+--source include/show_slave_status.inc
 
 SET @@GLOBAL.replicate_ignore_table="test.t1,,,test2.t2,,,test.t3";
 SELECT @@GLOBAL.replicate_ignore_table;
@@ -45,6 +61,9 @@ SET @@GLOBAL.replicate_ignore_table="";
 SELECT @@GLOBAL.replicate_ignore_table;
 
 SET @@GLOBAL.replicate_ignore_table=null;
+SELECT @@GLOBAL.replicate_ignore_table;
+
+SET @@GLOBAL.replicate_ignore_table=DEFAULT;
 SELECT @@GLOBAL.replicate_ignore_table;
 
 --echo # Cleanup.
