@@ -682,6 +682,7 @@ typedef struct st_plugin_vio_info
   enum { MYSQL_VIO_INVALID, MYSQL_VIO_TCP, MYSQL_VIO_SOCKET,
          MYSQL_VIO_PIPE, MYSQL_VIO_MEMORY } protocol;
   int socket;
+  int tls;
 } MYSQL_PLUGIN_VIO_INFO;
 typedef struct st_plugin_vio
 {
