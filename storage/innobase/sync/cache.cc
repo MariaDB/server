@@ -82,7 +82,7 @@ static void pmem_cvap(const void* buf, size_t size)
   for (uintptr_t u= uintptr_t(buf) & ~(CPU_LEVEL1_DCACHE_LINESIZE),
          end= uintptr_t(buf) + size;
        u < end; u+= CPU_LEVEL1_DCACHE_LINESIZE)
-    __asm__ __volatile__(".arch armv8.2-a\n dc cvap, %0" :: "r"(u) : "memory");
+    __asm__ __volatile__(".arch armv9.4-a\n dc cvap, %0" :: "r"(u) : "memory");
   __asm__ __volatile__("dmb ishst" ::: "memory");
 }
 
