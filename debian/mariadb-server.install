@@ -36,6 +36,7 @@ usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
 usr/bin/wsrep_sst_rsync_wan
 usr/lib/mysql/plugin/auth_ed25519.so
+usr/lib/mysql/plugin/auth_mysql_sha2.so
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
 usr/lib/mysql/plugin/auth_pam_v1.so
