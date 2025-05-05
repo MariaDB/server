@@ -7299,19 +7299,26 @@ static bool has_auth(LEX_USER *user, LEX *lex)
          lex->account_options.specified_limits;
 }
 
-static bool check_if_auth_can_be_changed(LEX_USER *user, THD *thd)
+/**
+  @brief Check if the user can be changed
+  @param user The user to check
+  @param thd  THD
+
+  Return 0 if can be changed, or else can't be changed
+ */
+static int check_if_auth_can_be_changed(LEX_USER *user, THD *thd)
 {
   // if changing auth for an existing user
   if (has_auth(user, thd->lex) &&
       find_user_exact(user->host, user->user))
   {
     mysql_mutex_unlock(&acl_cache->lock);
-    bool res= check_alter_user(thd, user->host, user->user);
+    int err = check_alter_user(thd, user->host, user->user);
     mysql_mutex_lock(&acl_cache->lock);
-    return res;
+    return err;
   }
 
-  return false;
+  return 0;
 }
 
 
