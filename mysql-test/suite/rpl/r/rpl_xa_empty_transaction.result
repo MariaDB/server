@@ -20,7 +20,7 @@ XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -56,7 +56,7 @@ XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -96,7 +96,7 @@ XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -132,7 +132,7 @@ XA START 'x';
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -177,7 +177,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -215,7 +215,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -257,7 +257,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -295,7 +295,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -344,7 +344,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -384,7 +384,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -426,7 +426,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -466,7 +466,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -516,7 +516,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -556,7 +556,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -600,7 +600,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 include/save_master_gtid.inc
 FLUSH LOGS;
@@ -640,7 +640,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -693,7 +693,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -735,7 +735,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -779,7 +779,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -821,7 +821,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -877,7 +877,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -919,7 +919,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -963,7 +963,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -1005,7 +1005,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -1059,7 +1059,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -1101,7 +1101,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;
@@ -1145,7 +1145,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'x';;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -1187,7 +1187,7 @@ ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 XA END 'x';
 XA PREPARE 'x';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1;
 connection server_1;
 XA RECOVER;

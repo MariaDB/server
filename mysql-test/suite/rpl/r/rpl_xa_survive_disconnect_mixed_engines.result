@@ -23,7 +23,7 @@ INSERT INTO tm VALUES (3);
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'xa_trx' ;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -97,7 +97,7 @@ ROW_COUNT()
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
 connection master;
@@ -204,7 +204,7 @@ INSERT INTO tm VALUES (3);
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback 'xa_trx' ;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -288,7 +288,7 @@ ROW_COUNT()
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
 connection master;

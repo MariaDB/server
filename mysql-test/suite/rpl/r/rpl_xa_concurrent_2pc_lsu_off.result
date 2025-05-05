@@ -132,9 +132,20 @@ connection slave;
 include/stop_slave_io.inc
 set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
 set @@global.slave_transaction_retries= @save_trans_retries;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-303
 # Ensure on slave restart, we can re-execute the XA transaction
 include/start_slave.inc
-include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+select * from t1;
+a	b
+-1	1
+0	0
+1	0
+2	1
+3	2
 include/stop_slave.inc
 set @@global.debug_dbug= @save_debug;
 # Case b)
@@ -148,6 +159,9 @@ set @@global.slave_transaction_retries= 0;
 connection master;
 XA START 'x';
 update t1 set b=b+1 where a=-1;
+select * from t1    where a=-1;
+a	b
+-1	2
 XA END 'x';
 XA PREPARE 'x';
 XA COMMIT 'x';
@@ -170,7 +184,7 @@ ROLLBACK;
 # There should not be any prepared rows seen by XA RECOVER
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-# Ensuring data from second XAP isn't visible..
+# Ensuring data from second XAP *isn't* visible..
 # ..done
 connection slave;
 include/stop_slave_io.inc
@@ -178,11 +192,17 @@ set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
 set @@global.slave_transaction_retries= @save_trans_retries;
 # Ensure on slave restart, we can re-execute the XA transaction
 include/start_slave.inc
-include/save_master_gtid.inc
-include/stop_slave.inc
-set @@global.debug_dbug= @save_debug;
-include/start_slave.inc
-# Ensuring data from second XAP is visible..
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+select * from t1;
+a	b
+-1	2
+0	0
+1	0
+2	1
+3	2
+4	0
+# Ensuring data from second XAP *is* visible..
 # ..done
 # Cleanup
 connection slave;
@@ -387,9 +407,16 @@ connection slave;
 include/stop_slave_io.inc
 set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
 set @@global.slave_transaction_retries= @save_trans_retries;
+select @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-1303
 # Ensure on slave restart, we can re-execute the XA transaction
 include/start_slave.inc
-include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+select * from t1;
+a	b
+-1	0
 include/stop_slave.inc
 set @@global.debug_dbug= @save_debug;
 # Case b)
@@ -403,6 +430,9 @@ set @@global.slave_transaction_retries= 0;
 connection master;
 XA START 'x';
 update t1 set b=b+1 where a=-1;
+select * from t1    where a=-1;
+a	b
+-1	1
 XA END 'x';
 XA PREPARE 'x';
 XA ROLLBACK 'x';
@@ -425,7 +455,7 @@ ROLLBACK;
 # There should not be any prepared rows seen by XA RECOVER
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-# Ensuring data from second XAP isn't visible..
+# Ensuring data from second XAP *isn't* visible..
 # ..done
 connection slave;
 include/stop_slave_io.inc
@@ -433,11 +463,12 @@ set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
 set @@global.slave_transaction_retries= @save_trans_retries;
 # Ensure on slave restart, we can re-execute the XA transaction
 include/start_slave.inc
-include/save_master_gtid.inc
-include/stop_slave.inc
-set @@global.debug_dbug= @save_debug;
-include/start_slave.inc
-# Ensuring data from second XAP is visible..
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1, slave:t1]
+select * from t1;
+a	b
+-1	0
+# Ensuring data from second XAP *is* visible..
 # ..done
 # Cleanup
 connection slave;

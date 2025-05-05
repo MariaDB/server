@@ -6,7 +6,7 @@ XA END 'xid_a';
 XA PREPARE 'xid_a';
 Warnings:
 Warning	1030	Got error 131 "Command not supported by the engine" from storage engine Aria
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 LOAD INDEX INTO CACHE c KEY(PRIMARY);
 Table	Op	Msg_type	Msg_text
 test.c	preload_keys	Error	XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state

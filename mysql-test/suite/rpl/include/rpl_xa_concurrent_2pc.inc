@@ -224,9 +224,15 @@ ROLLBACK;
 set @@global.innodb_lock_wait_timeout= @save_lock_wait_timeout;
 set @@global.slave_transaction_retries= @save_trans_retries;
 
+select @@global.gtid_slave_pos;
+
 --echo # Ensure on slave restart, we can re-execute the XA transaction
 --source include/start_slave.inc
---source include/save_master_gtid.inc
+--source include/sync_with_master_gtid.inc
+let $diff_tables= master:t1, slave:t1;
+--source include/diff_tables.inc
+select * from t1;
+
 --source include/stop_slave.inc
 set @@global.debug_dbug= @save_debug;
 
@@ -243,6 +249,7 @@ set @@global.slave_transaction_retries= 0;
 --connection master
 XA START 'x';
 --eval update t1 set b=b+1 where a=$hold_row
+--eval select * from t1    where a=$hold_row
 XA END 'x';
 XA PREPARE 'x';
 --eval XA $xa_complete_sym 'x'
@@ -272,7 +279,7 @@ ROLLBACK;
 --echo # There should not be any prepared rows seen by XA RECOVER
 XA RECOVER;
 
---echo # Ensuring data from second XAP isn't visible..
+--echo # Ensuring data from second XAP *isn't* visible..
 if (`select count(*) from t1 where a=$new_row_idx`)
 {
     --die Failed, row exists
@@ -286,12 +293,12 @@ set @@global.slave_transaction_retries= @save_trans_retries;
 
 --echo # Ensure on slave restart, we can re-execute the XA transaction
 --source include/start_slave.inc
---source include/save_master_gtid.inc
---source include/stop_slave.inc
-set @@global.debug_dbug= @save_debug;
---source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+let $diff_tables= master:t1, slave:t1;
+--source include/diff_tables.inc
+select * from t1;
 
---echo # Ensuring data from second XAP is visible..
+--echo # Ensuring data from second XAP *is* visible..
 if ($is_xac)
 {
     --let $expected_row_count= 1
@@ -302,7 +309,7 @@ if ($is_xar)
 }
 if (`select count(*) != $expected_row_count from t1 where a=$new_row_idx`)
 {
-    --die Failed, XA $xa_complete_sym was not observed
+  --die Failed, XA $xa_complete_sym was not observed
 }
 --echo # ..done
 

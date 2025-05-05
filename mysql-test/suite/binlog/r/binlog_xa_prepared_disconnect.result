@@ -4,6 +4,9 @@ CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where typ
 call mtr.add_suppression("Found 10 prepared XA transactions");
 CREATE TABLE t (a INT) ENGINE=innodb;
 INSERT INTO t VALUES(100);
+#
+# A. The temp table only prepared XA recovers only formally to
+#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -12,7 +15,7 @@ INSERT INTO tmp1 SET a=1;
 XA END     'trx1tmp';
 XA PREPARE 'trx1tmp';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -21,7 +24,7 @@ INSERT INTO tmp1 SET a=1;
 XA END     'trx2tmp';
 XA PREPARE 'trx2tmp';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -30,7 +33,10 @@ INSERT INTO tmp1 SET a=1;
 XA END     'trx3tmp';
 XA PREPARE 'trx3tmp';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
+#
+# Various prohibited XA state changes to test here:
+#
 connection default;
 XA COMMIT 'trx1tmp';
 ERROR XAE04: XAER_NOTA: Unknown XID
@@ -39,7 +45,7 @@ ERROR XAE04: XAER_NOTA: Unknown XID
 XA START 'trx1tmp';
 ERROR XAE08: XAER_DUPID: The XID already exists
 connection default;
-*** 3 prepared transactions must be in the list ***
+*** 0 transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 connection conn1tmp;
@@ -48,6 +54,9 @@ connection default;
 XA COMMIT 'trx1tmp';
 KILL connection CONN_ID;
 XA COMMIT 'trx3tmp';
+#
+# B. "Read-only" (select) prepared XA recovers only formally to
+#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1ro';
 SELECT * from t ORDER BY a;
@@ -56,7 +65,7 @@ a
 XA END     'trx1ro';
 XA PREPARE 'trx1ro';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2ro';
 SELECT * from t ORDER BY a;
@@ -65,7 +74,7 @@ a
 XA END     'trx2ro';
 XA PREPARE 'trx2ro';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3ro';
 SELECT * from t ORDER BY a;
@@ -74,9 +83,9 @@ a
 XA END     'trx3ro';
 XA PREPARE 'trx3ro';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connection default;
-*** 4 prepared transactions must be in the list ***
+*** 0 transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 connection conn1ro;
@@ -85,26 +94,30 @@ connection default;
 XA ROLLBACK 'trx1ro';
 KILL connection CONN_ID;
 XA ROLLBACK 'trx3ro';
+#
+# C. Empty prepared XA recovers only formally to
+#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
+#
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1empty';
 XA END     'trx1empty';
 XA PREPARE 'trx1empty';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2empty';
 XA END     'trx2empty';
 XA PREPARE 'trx2empty';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3empty';
 XA END     'trx3empty';
 XA PREPARE 'trx3empty';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connection default;
-*** 5 prepared transactions must be in the list ***
+*** 0 transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 connection conn1empty;
@@ -113,6 +126,11 @@ connection default;
 XA COMMIT 'trx1empty';
 KILL connection CONN_ID;
 XA COMMIT 'trx3empty';
+#
+# D. Not prepared XA disconnects to be cleared out,
+#    no effect on data left as well.
+#    Few more prohibited XA state transactions is checked out.
+#
 connect conn1$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1unprepared';
 INSERT INTO t set a=0;
@@ -127,6 +145,12 @@ disconnect conn1unprepared;
 connection default;
 XA COMMIT 'trx1unprepared';
 ERROR XAE04: XAER_NOTA: Unknown XID
+#
+# II. Regular case.
+#
+# Prepared transactions get disconnected in three ways:
+# actively, being killed and by the server shutdown.
+#
 connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@binlog_format = STATEMENT;
 XA START   'trx_0';
@@ -287,18 +311,27 @@ XA END     'trx_19';
 XA PREPARE 'trx_19';
 connection default;
 KILL CONNECTION CONN_ID;
+# [0, 5 - 1] are rolled back now
 connection default;
 XA ROLLBACK 'trx_0';
 XA ROLLBACK 'trx_1';
 XA ROLLBACK 'trx_2';
 XA ROLLBACK 'trx_3';
 XA ROLLBACK 'trx_4';
+# [5, 5 + 5 - 1] get committed
 XA COMMIT 'trx_5';
 XA COMMIT 'trx_6';
 XA COMMIT 'trx_7';
 XA COMMIT 'trx_8';
 XA COMMIT 'trx_9';
 # restart
+#
+# III. Post server-restart verification.
+# It concludes survived XA:s with a number of commits and rollbacks
+# as configured in the 1st part to check expected results in the end.
+# Cleanup section consists of explicit disconnect (for killed, or
+# not disconnected before shutdown).
+#
 connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'new_trx_0';
 INSERT INTO t SET a=0;
@@ -380,6 +413,11 @@ XA COMMIT  'new_trx_6';
 XA COMMIT  'new_trx_7';
 XA COMMIT  'new_trx_8';
 XA COMMIT  'new_trx_9';
+#
+# Symmetrically to the pre-restart, the resurrected trx:s are committed
+# [10, 10 + 5 - 1]
+# and the rest is rolled back.
+#
 XA START 'trx_10';
 ERROR XAE08: XAER_DUPID: The XID already exists
 XA COMMIT 'trx_10';
@@ -410,6 +448,9 @@ XA ROLLBACK 'trx_18';
 XA START 'trx_19';
 ERROR XAE08: XAER_DUPID: The XID already exists
 XA ROLLBACK 'trx_19';
+#
+# Verification of correct results of recovered XA transaction handling:
+#
 SELECT * FROM t;
 a
 100
@@ -479,6 +520,9 @@ connection default;
 XA ROLLBACK 'trx_11';
 ERROR XAE04: XAER_NOTA: Unknown XID
 disconnect conn10;
+#
+# A. The temp table only prepared XA recovers only formally to
+#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -487,7 +531,7 @@ INSERT INTO tmp1 SET a=1;
 XA END     'trx1tmp';
 XA PREPARE 'trx1tmp';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -496,7 +540,7 @@ INSERT INTO tmp1 SET a=1;
 XA END     'trx2tmp';
 XA PREPARE 'trx2tmp';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -505,7 +549,10 @@ INSERT INTO tmp1 SET a=1;
 XA END     'trx3tmp';
 XA PREPARE 'trx3tmp';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
+#
+# Various prohibited XA state changes to test here:
+#
 connection default;
 XA COMMIT 'trx1tmp';
 ERROR XAE04: XAER_NOTA: Unknown XID
@@ -514,7 +561,7 @@ ERROR XAE04: XAER_NOTA: Unknown XID
 XA START 'trx1tmp';
 ERROR XAE08: XAER_DUPID: The XID already exists
 connection default;
-*** 3 prepared transactions must be in the list ***
+*** 0 transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 connection conn1tmp;
@@ -523,6 +570,9 @@ connection default;
 XA COMMIT 'trx1tmp';
 KILL connection CONN_ID;
 XA COMMIT 'trx3tmp';
+#
+# B. "Read-only" (select) prepared XA recovers only formally to
+#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1ro';
 SELECT * from t ORDER BY a;
@@ -551,7 +601,7 @@ a
 XA END     'trx1ro';
 XA PREPARE 'trx1ro';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2ro';
 SELECT * from t ORDER BY a;
@@ -580,7 +630,7 @@ a
 XA END     'trx2ro';
 XA PREPARE 'trx2ro';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3ro';
 SELECT * from t ORDER BY a;
@@ -609,9 +659,9 @@ a
 XA END     'trx3ro';
 XA PREPARE 'trx3ro';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connection default;
-*** 4 prepared transactions must be in the list ***
+*** 0 transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 connection conn1ro;
@@ -620,26 +670,30 @@ connection default;
 XA ROLLBACK 'trx1ro';
 KILL connection CONN_ID;
 XA ROLLBACK 'trx3ro';
+#
+# C. Empty prepared XA recovers only formally to
+#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
+#
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1empty';
 XA END     'trx1empty';
 XA PREPARE 'trx1empty';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2empty';
 XA END     'trx2empty';
 XA PREPARE 'trx2empty';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3empty';
 XA END     'trx3empty';
 XA PREPARE 'trx3empty';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 connection default;
-*** 5 prepared transactions must be in the list ***
+*** 0 transactions must be in the list ***
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
 connection conn1empty;
@@ -648,6 +702,11 @@ connection default;
 XA COMMIT 'trx1empty';
 KILL connection CONN_ID;
 XA COMMIT 'trx3empty';
+#
+# D. Not prepared XA disconnects to be cleared out,
+#    no effect on data left as well.
+#    Few more prohibited XA state transactions is checked out.
+#
 connect conn1$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1unprepared';
 INSERT INTO t set a=0;
@@ -662,6 +721,12 @@ disconnect conn1unprepared;
 connection default;
 XA COMMIT 'trx1unprepared';
 ERROR XAE04: XAER_NOTA: Unknown XID
+#
+# II. Regular case.
+#
+# Prepared transactions get disconnected in three ways:
+# actively, being killed and by the server shutdown.
+#
 connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@binlog_format = STATEMENT;
 XA START   'trx_0';
@@ -822,18 +887,27 @@ XA END     'trx_19';
 XA PREPARE 'trx_19';
 connection default;
 KILL CONNECTION CONN_ID;
+# [0, 5 - 1] are rolled back now
 connection default;
 XA ROLLBACK 'trx_0';
 XA ROLLBACK 'trx_1';
 XA ROLLBACK 'trx_2';
 XA ROLLBACK 'trx_3';
 XA ROLLBACK 'trx_4';
+# [5, 5 + 5 - 1] get committed
 XA COMMIT 'trx_5';
 XA COMMIT 'trx_6';
 XA COMMIT 'trx_7';
 XA COMMIT 'trx_8';
 XA COMMIT 'trx_9';
 # Kill and restart
+#
+# III. Post server-restart verification.
+# It concludes survived XA:s with a number of commits and rollbacks
+# as configured in the 1st part to check expected results in the end.
+# Cleanup section consists of explicit disconnect (for killed, or
+# not disconnected before shutdown).
+#
 connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'new_trx_0';
 INSERT INTO t SET a=0;
@@ -915,6 +989,11 @@ XA COMMIT  'new_trx_6';
 XA COMMIT  'new_trx_7';
 XA COMMIT  'new_trx_8';
 XA COMMIT  'new_trx_9';
+#
+# Symmetrically to the pre-restart, the resurrected trx:s are committed
+# [10, 10 + 5 - 1]
+# and the rest is rolled back.
+#
 XA START 'trx_10';
 ERROR XAE08: XAER_DUPID: The XID already exists
 XA COMMIT 'trx_10';
@@ -945,6 +1024,9 @@ XA ROLLBACK 'trx_18';
 XA START 'trx_19';
 ERROR XAE08: XAER_DUPID: The XID already exists
 XA ROLLBACK 'trx_19';
+#
+# Verification of correct results of recovered XA transaction handling:
+#
 SELECT * FROM t;
 a
 100

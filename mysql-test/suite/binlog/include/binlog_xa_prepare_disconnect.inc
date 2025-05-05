@@ -10,7 +10,12 @@
 #
 --connection default
 
---echo *** $num_trx_prepared prepared transactions must be in the list ***
+--let $num_of_recovered = 0
+if (`select '$type' <> 'ro' and '$type' <> 'empty' and '$type' <> 'tmp'`)
+{
+  --let $num_of_recovered = $num_trx_prepared
+}
+--echo *** $num_of_recovered transactions must be in the list ***
 --replace_column 2 LEN1 3 LEN2 4 TRX_N
 XA RECOVER;
 
