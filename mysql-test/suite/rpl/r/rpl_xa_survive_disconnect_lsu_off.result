@@ -100,7 +100,7 @@ a
 XA END '4';
 XA PREPARE '4';
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master2;
 connect  master_bulk_conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START 'bulk_trx_10';

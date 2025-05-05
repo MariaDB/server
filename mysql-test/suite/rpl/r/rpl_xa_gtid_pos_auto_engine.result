@@ -69,7 +69,7 @@ select count(*) into @s2 from t1;
 xa end 'ro_2';
 xa prepare 'ro_2';;
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master_ro_2;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -80,7 +80,7 @@ select 1;
 xa end 'ro_1';
 xa prepare 'ro_1';;
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master_ro_1;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -89,7 +89,7 @@ select count(*) into @s2 from t1;
 xa end 'ro_2';
 xa prepare 'ro_2';;
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master_ro_2;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -100,7 +100,7 @@ select 1;
 xa end 'ro_1';
 xa prepare 'ro_1';;
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master_ro_1;
 *** Zero prepared xa:s must be in the list:
 connection master;
@@ -189,7 +189,7 @@ insert into tm set a=1;
 xa end 'rw_myisam';
 xa prepare 'rw_myisam';;
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master_rw_myisam;
 connection master;
 connect  master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,;
@@ -198,7 +198,7 @@ insert into tm set a=1;
 xa end 'rw_myisam';
 xa prepare 'rw_myisam';;
 Warnings:
-Note	4183	Found to be read-only XA transaction is rolled back
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect master_rw_myisam;
 *** rw_myisam prepared must be in the list:
 connection master;
