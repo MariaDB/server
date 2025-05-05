@@ -1728,7 +1728,6 @@ void THD::cleanup(void)
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-
   mysql_ull_cleanup(this);
   stmt_map.reset();
   /* All metadata locks must have been released by now. */

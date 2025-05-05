@@ -93,7 +93,7 @@
 #include "mysql/psi/mysql_sp.h"
 
 #include "my_json_writer.h" 
-
+#include "opt_trace_ddl_info.h"
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -5882,6 +5882,7 @@ wsrep_error_label:
   res= true;
 
 finish:
+  store_table_definitions_in_trace(thd);
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||

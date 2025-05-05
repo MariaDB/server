@@ -1,0 +1,203 @@
+set store_ddls_in_optimizer_trace=ON;
+# 
+show variables like 'store_ddls_in_optimizer_trace';
+Variable_name	Value
+store_ddls_in_optimizer_trace	ON
+# 
+set store_ddls_in_optimizer_trace=OFF;
+# 
+show variables like 'store_ddls_in_optimizer_trace';
+Variable_name	Value
+store_ddls_in_optimizer_trace	OFF
+# 
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+# 
+create table t2 (a int);
+insert into t2 values (1),(2);
+# 
+create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+# 
+# disable both optimizer_trace and store_ddls_in_optimizer_trace
+# there should be no trace
+# 
+set optimizer_trace=0;
+set store_ddls_in_optimizer_trace=OFF;
+# 
+select * from t1 where t1.a = 3;
+a	b
+# 
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+#
+# disable optimizer_trace, but enable store_ddls_in_optimizer_trace
+# there should be no trace here as well
+#
+set store_ddls_in_optimizer_trace=ON;
+# 
+select * from t1 where t1.a = 3;
+a	b
+# 
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+# 
+# enable optimizer_trace, but disable store_ddls_in_optimizer_trace
+# trace result should be empty
+# 
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=OFF;
+# 
+select * from t1 where t1.a = 3;
+a	b
+# 
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+NULL
+# 
+# enable both optimizer_trace and store_ddls_in_optimizer_trace
+# trace result should have 1 ddl statement for table t1
+# 
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=ON;
+# 
+select * from t1 where t1.a = 3;
+a	b
+# 
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# 
+# enable both optimizer_trace and store_ddls_in_optimizer_trace
+# test for view
+# trace result should have 3 ddl statements
+# 
+set store_ddls_in_optimizer_trace=ON;
+select * from view1 where view1.a = 3;
+a	b	c
+# 
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW test.view1 AS (select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `c` from (`test`.`t1` join `test`.`t2`) where `test`.`t1`.`a` = `test`.`t2`.`a`)
+# 
+# enable both optimizer_trace and store_ddls_in_optimizer_trace
+# test for temp table
+# trace result should have 1 ddl statement for table t1
+# 
+create temporary table temp1(col1 int);
+insert into temp1 select * from t2;
+# 
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TEMPORARY TABLE `temp1` (
+  `col1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# there should be no duplicate ddls
+# there should be only 1 ddl for table t2
+#
+select * from t2 union select * from t2 union select * from t2;
+a
+1
+2
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# there should be no duplicate ddls
+# there should be only 3 ddls for tables t1, t2, and view1
+#
+select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
+a	b	c
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW test.view1 AS (select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `c` from (`test`.`t1` join `test`.`t2`) where `test`.`t1`.`a` = `test`.`t2`.`a`)
+#
+# test for insert
+# there should be no trace for insert with values
+# 
+insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+#
+# test for delete
+# trace result should have 1 ddl statement for table t1
+# 
+delete from t1 where t1.a=3;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# test for update
+# trace result should have 1 ddl statement for table t1
+# 
+update t1 set t1.b = t1.a;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# test for insert as select
+# trace result should have 2 ddl statements for tables t1, t2
+# 
+insert into t1 (select t2.a as a, t2.a as b from t2);
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table temp1;
+drop view view1;
+drop table t1;
+drop table t2;
