@@ -588,7 +588,7 @@ static void nullify_outer_context_for_on_clauses(List<TABLE_LIST>& join_list)
   while (TABLE_LIST *table= li++)
   {
     if (table->on_context)
-      table->on_context->outer_context= NULL;
+      table->on_context->set_outer_context(nullptr);
     if (table->nested_join)
       nullify_outer_context_for_on_clauses(table->nested_join->join_list);
   }
@@ -776,7 +776,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
   {
     // Prevent it for the WHERE clause
-    sl->context.outer_context= 0;
+    sl->context.set_outer_context(nullptr);
 
     // And for ON clauses, if there are any
     nullify_outer_context_for_on_clauses(*sl->join_list);
@@ -805,7 +805,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   // Prevent it for possible ORDER BY clause
   if (unit->fake_select_lex)
-    unit->fake_select_lex->context.outer_context= 0;
+    unit->fake_select_lex->context.set_outer_context(nullptr);
 
   if (unlikely(thd->trace_started()))
   {

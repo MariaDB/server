@@ -1356,3 +1356,172 @@ drop table t1,t2,t3;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-32294 2nd execution problem with inconsistent outer context paths
+#
+SELECT
+(
+WITH x AS
+(
+WITH RECURSIVE x ( x ) AS
+(
+SELECT 1 UNION SELECT x FROM x
+)
+SELECT * FROM x WHERE x IN
+(
+SELECT x FROM x WHERE
+(
+SELECT 1 GROUP BY x HAVING ( x )
+)
+)
+)
+SELECT * FROM x
+) AS R;
+R
+1
+SELECT * FROM (
+WITH RECURSIVE x ( a ) AS ( SELECT 1 UNION SELECT a FROM x )
+SELECT * FROM x
+WHERE a IN (
+SELECT a FROM x WHERE ( SELECT 1 GROUP BY a HAVING ( a ) )
+)
+) as dt ;
+a
+1
+create table t1 (a int) engine=myisam;
+insert into t1 values (1), (2);
+create table t2 (b int) engine=myisam;
+insert into t2 values (3), (1);
+create table t3 (c int) select a as c from t1;
+select * from
+(
+with recursive x as ( select a from t1 union select a+1 from x where a < 4 )
+select * from x where a in
+(
+select a from x where
+(
+select b from t2 where b < 3 group by a having a > 0
+) <> 0
+)
+) dt;
+a
+1
+2
+3
+4
+select * from
+(
+with x as ( select distinct a from t1 )
+select * from x where a in
+(
+select a from x where
+(
+select b from t2 where b < 3 group by a having a > 0
+) <> 0
+)
+) dt;
+a
+1
+2
+select * from
+(
+select * from t1 where a in
+(
+select a from t1 where
+(
+select b from t2 where b < 3 group by a having a > 0
+) <> 0
+)
+) dt;
+a
+1
+2
+select * from
+(
+select * from t1 where a in
+(
+select a from t1 where
+(
+select b from t2 where b < 3 group by a
+) <> 0
+)
+) dt;
+a
+1
+2
+select * from
+(
+select * from t3 where c in
+(
+select a from t1 where
+(
+select b from t2 where b < 3 group by a
+) <> 0
+)
+) dt;
+c
+1
+2
+select * from
+(
+select * from t3 where c in
+(
+select a from t1 where
+(
+select b from t2 where a > 0 and b < 3
+) <> 0
+)
+) dt;
+c
+1
+2
+select * from
+(
+select * from t3 where c in
+(
+select a from t1 where
+(
+select b from t2 where a > 0 and b < 3
+) <> 0
+)
+) dt
+where dt.c  > 1;
+c
+2
+select * from
+(
+select * from t3 where c in
+(
+select a from t1 where
+(
+select b from t2
+where a > 0 and b < 3
+) <> 0
+)
+) dt;
+c
+1
+2
+prepare stmt from "with cte as
+( select * from t3 where c in
+(
+select a from t1 where
+(
+select b from t2 where a > 0 and b < 3
+) <> 0
+)
+)
+select * from cte";
+execute stmt;
+c
+1
+2
+execute stmt;
+c
+1
+2
+deallocate prepare stmt;
+drop table t1, t2, t3;
+#
+# End of 10.11 tests
+#
