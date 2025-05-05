@@ -82,7 +82,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);
-
+int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                          const char * forced_db, const char *forced_name,
                          String *packet,
