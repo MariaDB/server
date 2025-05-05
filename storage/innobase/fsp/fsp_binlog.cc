@@ -135,8 +135,6 @@ fsp_binlog_page_fifo::create_page(uint64_t file_no, uint32_t page_no)
   e->page_buf= static_cast<byte*>(aligned_malloc(ibb_page_size, ibb_page_size));
   ut_a(e->page_buf);
   memset(e->page_buf, 0, ibb_page_size);
-  e->file_no= file_no;
-  e->page_no= page_no;
   e->last_page= (page_no + 1 == size_in_pages(file_no));
   e->latched= 1;
   e->complete= false;
@@ -171,8 +169,6 @@ fsp_binlog_page_fifo::get_page(uint64_t file_no, uint32_t page_no)
     if (page_no == entry_page_no)
     {
       /* Found the page. */
-      ut_ad(p->file_no == file_no);
-      ut_ad(p->page_no == page_no);
       ++p->latched;
       res= p;
       break;
@@ -483,8 +479,6 @@ fsp_binlog_page_fifo::create_tablespace(uint64_t file_no,
         static_cast<byte*>(aligned_malloc(ibb_page_size, ibb_page_size));
       ut_a(e->page_buf);
       memcpy(e->page_buf, partial_page, ibb_page_size);
-      e->file_no= file_no;
-      e->page_no= init_page;
       e->last_page= (init_page + 1 == size_in_pages);
       e->latched= 0;
       e->complete= false;
@@ -1019,10 +1013,9 @@ fsp_binlog_extract_header_page(const byte *page_buf,
 
 void
 fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
+                     uint64_t file_no, uint32_t page_no,
                      uint32_t page_offset, uint32_t len)
 {
-  uint64_t file_no= page->file_no;
-  uint32_t page_no= page->page_no;
   ut_ad(page->latched);
   if (page_offset + len >= ibb_page_size - BINLOG_PAGE_DATA_END)
     page->complete= true;
@@ -1044,14 +1037,12 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
 
 
 void
-fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page, uint32_t len)
+fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page, uint64_t file_no,
+                    uint32_t len)
   noexcept
 {
-  uint64_t file_no= page->file_no;
-  uint32_t page_no= page->page_no;
-  ut_ad(page_no == 0);
   page->complete= true;
-  mtr->write_binlog((file_no & 1), page_no, 0, &page->page_buf[0], len);
+  mtr->write_binlog((file_no & 1), 0, 0, &page->page_buf[0], len);
 }
 
 
@@ -1364,7 +1355,8 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
       if (UNIV_LIKELY(page_remain > 0))
       {
         memset(ptr, FSP_BINLOG_TYPE_FILLER,  page_remain);
-        fsp_log_binlog_write(mtr, block, page_offset, page_remain);
+        fsp_log_binlog_write(mtr, block, file_no, page_no, page_offset,
+                             page_remain);
       }
       binlog_page_fifo->release_page_mtr(block, mtr);
       block= nullptr;
@@ -1400,7 +1392,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
     ptr[2]= (byte)(size >> 8);
     ut_ad(size <= 0xffff);
 
-    fsp_log_binlog_write(mtr, block, page_offset, size + 3);
+    fsp_log_binlog_write(mtr, block, file_no, page_no, page_offset, size + 3);
     cont_flag= FSP_BINLOG_FLAG_CONT;
     if (page_remain == 0) {
       binlog_page_fifo->release_page_mtr(block, mtr);
