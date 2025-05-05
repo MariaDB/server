@@ -106,10 +106,10 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
         pack_ptr= field->pack(pack_ptr, field->ptr + offset,
                               field->max_data_length());
         fprintf(stderr, "\n\tpacked field: %s; real_type: %d, pack_ptr: %p;"
-                             " pack_ptr':%p; bytes: %d\n",
+                             " pack_ptr':%p; bytes: %lu\n",
                              field->field_name.str, field->real_type(),
                              old_pack_ptr,pack_ptr,
-                             (int) (pack_ptr - old_pack_ptr));
+                             pack_ptr - old_pack_ptr);
         DBUG_PRINT("debug", ("field: %s; real_type: %d, pack_ptr: %p;"
                              " pack_ptr':%p; bytes: %d",
                              field->field_name.str, field->real_type(),
@@ -260,9 +260,9 @@ static bool unpack_field(const table_def *tabledef, Field *f,
     st->pack_ptr= f->unpack(f->ptr, st->pack_ptr, st->row_end, metadata);
     fprintf(stderr,
             "\n\tunpack field: %s; metadata: 0x%x;"
-            " oldpack_ptr: %p; pack_ptr': %p; bytes: %d\n",
+            " oldpack_ptr: %p; pack_ptr': %p; bytes: %lu\n",
             f->field_name.str, metadata, old_pack_ptr, st->pack_ptr,
-            (int) (st->pack_ptr - old_pack_ptr));
+            st->pack_ptr - old_pack_ptr);
     DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
                          " pack_ptr: %p; pack_ptr': %p; bytes: %d",
                          f->field_name.str, metadata,

@@ -698,11 +698,6 @@ int Log_event_writer::write_internal(const uchar *pos, size_t len)
       cache_data->write_prepare(len))
     return 1;
 
-  fprintf(stderr, "\n\tWrite_internal to offset %zu of len %zu\n", (file->write_pos - file->write_buffer), len);
-  if (len==8)
-  {
-    fprintf(stderr, "\n\tgot an 8\n");
-  }
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -5714,6 +5709,24 @@ bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
             "last_fragment_seen+1 (%u) \n",
             partial_ev->seq_no, this->last_fragment_seen);
     return 1;
+  }
+
+  if (this->last_fragment_seen == 0)
+  {
+    /*
+      Alloc the size of the string (overestimating the size, as the last
+      fragment likely won't use the full length)
+
+      TODO Error handling if fail to alloc
+    */
+    bool err= rows_ev_buf_builder.alloc(total_fragments * partial_ev->rows_chunk_len);
+    if (err)
+    {
+      fprintf(stderr,
+              "\n\tFailed to allocate memory for assembling row event (needed "
+              "%zu bytes)\n",
+              total_fragments * (size_t) partial_ev->rows_chunk_len);
+    }
   }
 
   fprintf(stderr,

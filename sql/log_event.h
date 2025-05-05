@@ -2406,6 +2406,7 @@ public:
     Mutable, extended once per event
   */
   uint64_t event_size;
+
   uint32_t total_fragments;
 
   Rows_log_event_assembler(uint32_t total_fragments)
@@ -5765,6 +5766,7 @@ public:
   */
   void fragment(Rows_log_event_fragmenter::Indirect_partial_rows_log_event **outs)
   {
+
     uchar width_tmp_buf[MAX_INT_WIDTH];
     uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
     width_size= (width_tmp_buf_end - width_tmp_buf);
@@ -5792,6 +5794,16 @@ public:
     uint32_t last_chunk_size= (total_size % data_size_per_chunk); /* TODO Should last_chunk_size be uint64? */
     uint32_t last_chunk= last_chunk_size ? 1 : 0;
     uint32_t num_chunks= (total_size / data_size_per_chunk) + last_chunk;
+
+    /*
+      TODO make outs a member variable, and to all the above calculation in the
+           constructor so we can alloc memory for the member outs.
+
+      TODO make a new event type for pending to take over, which writes all of
+           the member outs. Then we probably don't need this `fragment`
+           function at all, but it would all be done in th new event's write
+           function.
+    */
 
     /*
       TODO First chunk here doesn't account row the real Rows_log_event
