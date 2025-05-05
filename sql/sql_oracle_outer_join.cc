@@ -590,53 +590,55 @@ static bool put_after(THD *thd,
 
 
 #ifndef DBUG_OFF
-static void dbug_print_tab_pos(table_pos *t)
+static void dbug_trace_table_pos(table_pos *t)
 {
-  DBUG_PRINT("XXXX", ("Table: %s", t->table->alias.str));
+  DBUG_ENTER("dbug_trace_table_pos");
+  DBUG_PRINT("table_pos", ("Table: %s", t->table->alias.str));
   List_iterator_fast iti(t->on_conds);
   Item *item;
   while ((item= iti++))
   {
-    StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
-    String expr(buf);
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> expr;
     item->print(&expr, QT_ORDINARY);
-    DBUG_PRINT("INFO", ("  On: %s", expr.c_ptr()));
+    DBUG_PRINT("INFO", ("  On_conds: %s", expr.c_ptr()));
   }
   List_iterator_fast itot(t->outer_side);
   table_pos *tbl;
   while ((tbl= itot++))
-  {
-    DBUG_PRINT("INFO", ("  Inner side: %s",
-               tbl->table->alias.str));
-  }
+    DBUG_PRINT("INFO", ("  Outer side: %s", tbl->table->alias.str));
+
   List_iterator_fast itit(t->inner_side);
   while ((tbl= itit++))
-  {
-    DBUG_PRINT("INFO", ("  Outer side: %s",
-               tbl->table->alias.str));
-  }
+    DBUG_PRINT("INFO", ("  Inner side: %s", tbl->table->alias.str));
+
+  DBUG_VOID_RETURN;
 }
 
 
-static void dbug_print_table_name(const char *prefix,
-                                  const char *legend, TABLE_LIST *t)
+static void dbug_trace_table_entry(const char *prefix,
+                                   const char *legend, TABLE_LIST *t)
 {
-  // TODO: dbug_print_item is Single-threaded! It's only for gdb!
-  // one can't use it when writing to debug trace!
   if (t)
-    DBUG_PRINT(prefix, ("%s Table: '%s' %p  outer: %s  on: %s", legend,
-                        (t->alias.str?t->alias.str:""), t,
-                        (t->outer_join ? "YES" : "no"),
-                        (t->on_expr ? dbug_print_item(t->on_expr) : "NULL")));
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> expr;
+    if (t->on_expr)
+      t->on_expr->print(&expr, QT_ORDINARY);
 
+    DBUG_PRINT(prefix, ("%s Table: '%s' %p  outer: %s  on_expr: %s", legend,
+                        (t->alias.str ? t->alias.str : ""), t,
+                        (t->outer_join ? "YES" : "no"),
+                        (t->on_expr ? expr.c_ptr() : "NULL")));
+  }
   else
     DBUG_PRINT(prefix, ("%s Table: NULL", legend));
 }
 
-static void dbug_print_table(TABLE_LIST *t)
+
+static void dbug_trace_table_list(TABLE_LIST *t)
 {
-  dbug_print_table_name("XXX", "---", t);
-  dbug_print_table_name("INFO", "Embedding", t->embedding);
+  DBUG_ENTER("dbug_trace_table_list");
+  dbug_trace_table_entry("TABLE_LIST", "---", t);
+  dbug_trace_table_entry("INFO", "Embedding", t->embedding);
   if (t->join_list)
   {
     DBUG_PRINT("INFO", ("Join list: %p elements %d",
@@ -645,11 +647,13 @@ static void dbug_print_table(TABLE_LIST *t)
     TABLE_LIST *tbl;
     while ((tbl= it++))
     {
-      dbug_print_table_name("INFO", "join_list", tbl);
+      dbug_trace_table_entry("INFO", "join_list", tbl);
     }
   }
   else
     DBUG_PRINT("INFO", ("Join list: NULL"));
+
+  DBUG_VOID_RETURN;
 }
 #endif
 
@@ -784,8 +788,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
        bubble_sort<table_pos>(&tab[i].inner_side, table_pos_sort, NULL);
 
 #ifndef DBUG_OFF
-    dbug_print_tab_pos(tab + i);
-    dbug_print_table(tab[i].table);
+    dbug_trace_table_pos(tab + i);
+    dbug_trace_table_list(tab[i].table);
 #endif
   }
   // order tables
@@ -833,10 +837,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
   }
 
 #ifndef DBUG_OFF
-  for(table_pos *t= list; t != NULL; t= t->next)
-  {
-    dbug_print_tab_pos(t);
-  }
+  for (table_pos *t= list; t != NULL; t= t->next)
+    dbug_trace_table_pos(t);
 #endif
 
 
@@ -959,7 +961,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
 #ifndef DBUG_OFF
   for (TABLE_LIST *t= new_from; t; t= t->next_local)
   {
-    dbug_print_table(t);
+    dbug_trace_table_list(t);
   }
 #endif
 
