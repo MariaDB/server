@@ -1814,7 +1814,7 @@ ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
   const uint32_t payload= IBB_HEADER_PAGE_SIZE - BINLOG_PAGE_CHECKSUM;
   int4store(ptr + payload, my_crc32c(0, ptr, payload));
 
-  fsp_log_header_page(mtr, block, used_bytes);
+  fsp_log_header_page(mtr, block, file_no, used_bytes);
   binlog_page_fifo->release_page_mtr(block, mtr);
 
   return false;  // No error
@@ -1927,7 +1927,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       ptr[2] = (byte)(chunk >> 8);
       ut_ad(chunk <= 0xffff);
       memcpy(ptr+3, buf, chunk);
-      fsp_log_binlog_write(mtr, block, page_offset, (uint32)(chunk+3));
+      fsp_log_binlog_write(mtr, block, file_no, block_page_no, page_offset,
+                           (uint32)(chunk+3));
       page_offset+= chunk + 3;
       buf+= chunk;
       used_bytes-= chunk;
