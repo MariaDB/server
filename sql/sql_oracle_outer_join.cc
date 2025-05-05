@@ -683,9 +683,9 @@ bool setup_oracle_join(THD *thd, Item **conds,
   TABLE_LIST *table= tables;
   uint i= 0;
 
-  // Setup the original table order (TODO: what is this)
   /*
-    Create hypergraph vertices for each table.
+    Create a hypergraph vertex for each table.
+    Also note the original order of tables in the FROM clause.
   */
   for (;table; i++, t++, table= table->next_local)
   {
@@ -773,21 +773,16 @@ bool setup_oracle_join(THD *thd, Item **conds,
       tab[i].on_conds.empty();
     }
     /*
-      we do not need inner side sorted, becouse it always processed ba
-      inserts with order check
-
-    if (tab[i].outer_side.elements > 1)
-       bubble_sort<table_pos>(&tab[i].outer_side,
-                              table_pos_sort, NULL);
-    */
-
-    /*
-      we have to sort this backward becouse after insert the list will be
+      we have to sort this backward because after insert the list will be
       reverted
+      (we will do:
+        for each T in tab[i].inner_side
+          put_after(tab[i], T);
+       after which we will end up elements in the same order)
     */
     if (tab[i].inner_side.elements > 1)
-       bubble_sort<table_pos>(&tab[i].inner_side,
-                              table_pos_sort, NULL);
+       bubble_sort<table_pos>(&tab[i].inner_side, table_pos_sort, NULL);
+
 #ifndef DBUG_OFF
     dbug_print_tab_pos(tab + i);
     dbug_print_table(tab[i].table);
@@ -935,7 +930,6 @@ bool setup_oracle_join(THD *thd, Item **conds,
       // prepare fake table
       nest_table_lists[i].alias= {STRING_WITH_LEN("(nest_last_join)")};
       nest_table_lists[i].embedding= next_embedding;
-      //nest_table_lists[i].nested_join= nested_joins + i;
 
       if (next_embedding)
       {
