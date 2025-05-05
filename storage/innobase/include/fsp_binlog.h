@@ -115,8 +115,6 @@ static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS),
 struct fsp_binlog_page_entry {
   fsp_binlog_page_entry *next;
   byte *page_buf;
-  uint64_t file_no;
-  uint32_t page_no;
   uint32_t latched;
   /* Flag set for the last page in a file. */
   bool last_page;
@@ -431,9 +429,10 @@ extern void fsp_binlog_extract_header_page(const byte *page_buf,
                                            binlog_header_data *out_header_data)
   noexcept;
 extern void fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
+                                 uint64_t file_no, uint32_t page_no,
                                  uint32_t page_offset, uint32_t len);
 extern void fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page,
-                                uint32_t len) noexcept;
+                                uint64_t file_no, uint32_t len) noexcept;
 extern void fsp_binlog_init();
 extern void fsp_binlog_shutdown();
 extern dberr_t fsp_binlog_tablespace_close(uint64_t file_no);
