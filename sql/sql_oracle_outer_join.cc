@@ -221,7 +221,7 @@ struct table_pos: public Sql_alloc
 };
 
 static bool add_conditions_to_where(THD *thd, Item **conds,
-                                    List<Item> &return_to_where);
+                                    List<Item> &&return_to_where);
 
 /*
   Order the tables:
@@ -969,7 +969,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
   }
 #endif
 
-  if (add_conditions_to_where(thd, conds, return_to_where))
+  if (add_conditions_to_where(thd, conds, std::move(return_to_where)))
     DBUG_RETURN(1);
 
   // TODO: the only thing that has WITH_ORA_JOIN flag at this point is the
@@ -981,8 +981,19 @@ bool setup_oracle_join(THD *thd, Item **conds,
 }
 
 
+/*
+  @brief
+    Add conditions from return_to_where into *conds.
+    Then, normalize *conds: it can be an Item_cond_and with one or zero
+    children.
+
+  @return
+    false  OK
+    true   Fatal error
+*/
+
 static bool add_conditions_to_where(THD *thd, Item **conds,
-                                    List<Item> &return_to_where)
+                                    List<Item> &&return_to_where)
 {
   // Make changes on statement's mem_root
   Query_arena_stmt on_stmt_arena(thd);
