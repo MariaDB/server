@@ -164,7 +164,7 @@ GRANT ALL ON p2 TO test_2@localhost;
 ERROR HY000: Table 'tables_priv' was not locked with LOCK TABLES
 INSERT INTO t2 VALUES ("GRANT ALL ON p2 TO test_2 with table locked");
 GRANT USAGE ON *.* TO test_2@localhost;
-ERROR HY000: Table 'db' was not locked with LOCK TABLES
+ERROR HY000: Table 'global_priv' was not locked with LOCK TABLES
 INSERT INTO t2 VALUES ("GRANT USAGE ON *.* TO test_2 with table locked");
 REVOKE ALL PRIVILEGES ON f2 FROM test_2@localhost;
 ERROR HY000: Table 'tables_priv' was not locked with LOCK TABLES
@@ -176,7 +176,7 @@ REVOKE ALL PRIVILEGES ON t1 FROM test_2@localhost;
 ERROR HY000: Table 'tables_priv' was not locked with LOCK TABLES
 INSERT INTO t2 VALUES ("REVOKE ALL PRIVILEGES on table to user with table locked");
 REVOKE USAGE ON *.* FROM test_2@localhost;
-ERROR HY000: Table 'db' was not locked with LOCK TABLES
+ERROR HY000: Table 'global_priv' was not locked with LOCK TABLES
 INSERT INTO t2 VALUES ("REVOKE USAGE ON *.* TO test_2 with table locked");
 RENAME USER test_2@localhost TO test_3@localhost;
 ERROR HY000: Table 'db' was not locked with LOCK TABLES
