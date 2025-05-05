@@ -1434,11 +1434,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_unit_op();
 
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_prepare(thd, "join_preparation");
-  trace_prepare.add_select_number(select_lex->select_number);
-  Json_writer_array trace_steps(thd, "steps");
-
   // simple check that we got usable conds
   dbug_print_item(conds);
 
@@ -1485,6 +1480,37 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
   if (select_lex->vers_setup_conds(thd, tables_list) < 0)
     DBUG_RETURN(-1);
+
+  Json_writer_object wrapper(thd);
+
+  if (thd->lex->sql_command != SQLCOM_SHOW_CREATE &&
+      thd->variables.store_ddls_in_optimizer_trace &&
+      !list_has_optimizer_trace_table(tables_list))
+  {
+    List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
+    Json_writer_array ddl_list(thd, "list_ddls");
+    while (TABLE_LIST *tbl= li++)
+    {
+      char buf[2048];
+      String ddl(buf, sizeof(buf), system_charset_info);
+      ddl.length(0);
+      if (tbl->view)
+      {
+        show_create_view(thd, tbl, &ddl);
+      }
+      else
+      {
+        show_create_table(thd, tbl, &ddl, NULL, WITHOUT_DB_NAME);
+      }
+      Json_writer_object ddl_wrapper(thd);
+      ddl_wrapper.add("name", tbl->table_name);
+      ddl_wrapper.add("ddl", buf);
+    }
+  }
+
+  Json_writer_object trace_prepare(thd, "join_preparation");
+  trace_prepare.add_select_number(select_lex->select_number);
+  Json_writer_array trace_steps(thd, "steps");
 
   /*
     mixed_implicit_grouping will be set to TRUE if the SELECT list

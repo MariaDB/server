@@ -115,7 +115,7 @@ void print_best_access_for_table(THD *thd, POSITION *pos);
 void trace_condition(THD * thd, const char *name, const char *transform_type,
                     Item *item, const char *table_name= nullptr);
 
-
+bool list_has_optimizer_trace_table(const TABLE_LIST *tbl);
 /*
   Security related (need to add a proper comment here)
 */
