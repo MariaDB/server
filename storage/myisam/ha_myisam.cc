@@ -2228,6 +2228,9 @@ THR_LOCK_DATA **ha_myisam::store_lock(THD *thd,
 
 void ha_myisam::update_create_info(HA_CREATE_INFO *create_info)
 {
+  if (!this->is_open())
+    return;
+
   ha_myisam::info(HA_STATUS_AUTO | HA_STATUS_CONST);
   if (!(create_info->used_fields & HA_CREATE_USED_AUTO))
   {

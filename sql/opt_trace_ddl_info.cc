@@ -76,10 +76,10 @@ static bool is_base_table(TABLE_LIST *tbl)
      tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
 
-static bool dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)
+static bool dump_name_ddl_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt,
+                                   Json_writer_object &ctx_wrapper)
 {
-  Json_writer_object ddl_wrapper(thd);
-  ddl_wrapper.add("name", ddl_key->name);
+  ctx_wrapper.add("name", ddl_key->name);
   size_t non_esc_stmt_len= stmt->length();
   /*
     making escape_stmt size to be 4 times the non_esc_stmt
@@ -101,8 +101,31 @@ static bool dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)
     return true;
 
   escaped_stmt[act_escape_stmt_len]= 0;
-  ddl_wrapper.add("ddl", escaped_stmt);
+  ctx_wrapper.add("name", ddl_key->name);
   return false;
+}
+
+static void dump_stats_to_trace(THD *thd, TABLE_LIST *tbl,
+                                Json_writer_object &ctx_wrapper)
+{
+  ctx_wrapper.add("num_of_records", tbl->table->stat_records());
+  TABLE *table= tbl->table;
+  if (table->key_info)
+  {
+    Json_writer_array indexes(thd, "indexes");
+    for (uint idx= 0; idx < table->s->keys; idx++)
+    {
+      KEY key= table->key_info[idx];
+      uint num_key_parts= key.user_defined_key_parts;
+      Json_writer_object index_wrapper(thd);
+      index_wrapper.add("index_name", key.name);
+      Json_writer_array rpk_wrapper(thd, "rec_per_key");
+      for (uint i= 0; i < num_key_parts; i++)
+      {
+        rpk_wrapper.add(key.actual_rec_per_key(i));
+      }
+    }
+  }
 }
 
 static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
@@ -118,12 +141,13 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
 
 /*
   @brief
-    Dump definitions of all tables and view used by the statement into
-    the optimizer trace. The goal is to eventually save everything that
-    is needed to reproduce the query execution
+    Dump definitions, basic stats of all tables and views used by the
+    statement into the optimizer trace.
+    The goal is to eventually save everything that is needed to
+    reproduce the query execution
 
   @detail
-    Stores the ddls of the tables, and views that are used
+    Stores the ddls, stats of the tables, and views that are used
     in either SELECT, INSERT, DELETE, and UPDATE queries,
     into the optimizer trace.
     Global query_tables are read in reverse order from the thd->lex,
@@ -136,7 +160,7 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
   @return
     false when no error occurred during the computation
 */
-bool store_table_definitions_in_trace(THD *thd)
+bool store_tables_context_in_trace(THD *thd)
 {
   LEX *lex= thd->lex;
   if (!(thd->variables.optimizer_trace &&
@@ -152,9 +176,9 @@ bool store_table_definitions_in_trace(THD *thd)
   if (lex->query_tables == *(lex->query_tables_last))
     return false;
 
-  Json_writer_object ddls_wrapper(thd);
-  ddls_wrapper.add("current_database", thd->get_db());
-  Json_writer_array ddl_list(thd, "list_ddls");
+  Json_writer_object main_wrapper(thd);
+  main_wrapper.add("current_database", thd->get_db());
+  Json_writer_array context_list(thd, "list_contexts");
   HASH hash;
   List<TABLE_LIST> tables_list;
 
@@ -217,12 +241,16 @@ bool store_table_definitions_in_trace(THD *thd)
     ddl_key->name= name_copy;
     ddl_key->name_len= name.length();
     my_hash_insert(&hash, (uchar *) ddl_key);
+    Json_writer_object ctx_wrapper(thd);
 
-    if (dump_record_to_trace(thd, ddl_key, &ddl))
+    if (dump_name_ddl_to_trace(thd, ddl_key, &ddl, ctx_wrapper))
     {
       res= true;
       break;
     }
+
+    if (!tbl->is_view())
+      dump_stats_to_trace(thd, tbl, ctx_wrapper);
   }
   my_hash_free(&hash);
   return res;
