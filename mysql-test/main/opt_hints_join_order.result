@@ -34,7 +34,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4222	Hint JOIN_PREFIX() is ignored as malformed
+Warning	4224	Hint JOIN_PREFIX() is ignored as malformed
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 EXPLAIN EXTENDED
 SELECT /*+ QB_NAME(q1) JOIN_PREFIX(@q1)*/ count(*) FROM t1, t2;
@@ -42,7 +42,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4222	Hint JOIN_PREFIX(@`q1` ) is ignored as malformed
+Warning	4224	Hint JOIN_PREFIX(@`q1` ) is ignored as malformed
 Note	1003	select /*+ QB_NAME(`q1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # Hint must be ignored as malformed (table names are not allowed for the fixed order)
 EXPLAIN EXTENDED
@@ -51,7 +51,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4222	Hint JOIN_FIXED_ORDER(`t2`) is ignored as malformed
+Warning	4224	Hint JOIN_FIXED_ORDER(`t2`) is ignored as malformed
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # Hint is applied: QB name is allowed for the fixed order
 EXPLAIN EXTENDED
@@ -68,7 +68,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4218	Query block name `qb3` is not found for JOIN_FIXED_ORDER hint
+Warning	4220	Query block name `qb3` is not found for JOIN_FIXED_ORDER hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_FIXED_ORDER()*/ STRAIGHT_JOIN count(*) FROM t1, t2;
@@ -84,7 +84,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_FIXED_ORDER() JOIN_PREFIX(t2)*/ count(*) FROM t1, t2;
@@ -92,7 +92,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_FIXED_ORDER(@`select#1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # Multiple join order hints of same type are not allowed (except JOIN_ORDER())
 EXPLAIN EXTENDED
@@ -101,7 +101,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_SUFFIX(t1) JOIN_SUFFIX(t2)*/ count(*) FROM t1, t2;
@@ -109,7 +109,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t2`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # Multiple JOIN_ORDER() hints are applied
 EXPLAIN EXTENDED
@@ -166,7 +166,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4219	Unresolved table name `t3` for JOIN_SUFFIX hint
+Warning	4221	Unresolved table name `t3` for JOIN_SUFFIX hint
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 # Invalid query block name
 EXPLAIN EXTENDED
@@ -175,7 +175,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4218	Query block name `qbXXX` is not found for JOIN_SUFFIX hint
+Warning	4220	Query block name `qbXXX` is not found for JOIN_SUFFIX hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 EXPLAIN EXTENDED
 SELECT /*+ QB_NAME(qb1) JOIN_SUFFIX(t1, t2@qb3)*/ count(*) FROM t1, t2;
@@ -183,7 +183,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4219	Unresolved table name `t2`@`qb3` for JOIN_SUFFIX hint
+Warning	4221	Unresolved table name `t2`@`qb3` for JOIN_SUFFIX hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2`
 EXPLAIN EXTENDED
 SELECT /*+ QB_NAME(qb1) JOIN_FIXED_ORDER(@qbXXX)*/ count(*) FROM t2, t1;
@@ -191,7 +191,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Warning	4218	Query block name `qbXXX` is not found for JOIN_FIXED_ORDER hint
+Warning	4220	Query block name `qbXXX` is not found for JOIN_FIXED_ORDER hint
 Note	1003	select /*+ QB_NAME(`qb1`) */ count(0) AS `count(*)` from `test`.`t2` join `test`.`t1`
 # Warning expected as the hint must not confuse `t2` in the subquery
 # with `t2` in the join
@@ -202,7 +202,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	
 Warnings:
-Warning	4219	Unresolved table name `t2`@`subq` for JOIN_PREFIX hint
+Warning	4221	Unresolved table name `t2`@`subq` for JOIN_PREFIX hint
 Note	1003	/* select#1 */ select (/* select#2 */ select /*+ QB_NAME(`subq`) */ max(`test`.`t2`.`f1`) from `test`.`t2`) AS `SQ`,`test`.`t2`.`f1` AS `f1` from `test`.`t2`
 # No more than 64 join order hints are allowed. It is hard to construct
 # a test case where 64 hints will be applicable and only one, exceeding
@@ -240,39 +240,39 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t1`,`t2`,`t3`,`t4`,`t5`,`t6`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_SUFFIX(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t1`,`t2`,`t3`,`t4`,`t5`,`t6`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t3`,`t2`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) JOIN_ORDER(@`select#1` `t2`,`t1`) */ count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3`
 # Original query with no hints
 SELECT count(*) FROM t1 JOIN t2 JOIN t3
@@ -315,7 +315,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t2`,`t1`) is ignored as conflicting/duplicated
 explain extended SELECT /*+ JOIN_PREFIX(t3, t2, t1) JOIN_PREFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
@@ -327,7 +327,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t2`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_PREFIX(@`select#1` `t3`,`t2`,`t1`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t5`.`f1` = `test`.`t2`.`f1`
 # Second JOIN_SUFFIX is conflicting
 SELECT /*+ JOIN_SUFFIX(t3, t2) JOIN_SUFFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
@@ -336,7 +336,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
 explain extended SELECT /*+ JOIN_SUFFIX(t3, t2) JOIN_SUFFIX(t2, t1) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
@@ -347,7 +347,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t2`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_SUFFIX(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # Both JOIN_ORDERs applicable
 SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t1, t2, t5@subq2) */ count(*)
@@ -375,7 +375,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4219	Unresolved table name `t7` for JOIN_ORDER hint
+Warning	4221	Unresolved table name `t7` for JOIN_ORDER hint
 explain extended SELECT /*+ JOIN_ORDER(t1, t7, t5) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
@@ -386,7 +386,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Warning	4219	Unresolved table name `t7` for JOIN_ORDER hint
+Warning	4221	Unresolved table name `t7` for JOIN_ORDER hint
 Note	1003	select count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # All hints are applicable
 SELECT /*+ JOIN_PREFIX(t2, t5@subq2, t4@subq1)
@@ -416,7 +416,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
 explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_ORDER(t2, t3) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
@@ -427,7 +427,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # JOIN_SUFFIX is ignored
 SELECT /*+ JOIN_ORDER(t3, t2) JOIN_SUFFIX(t3) */ count(*) FROM t1 JOIN t2 JOIN t3
@@ -436,7 +436,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`t3`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t3`) is ignored as conflicting/duplicated
 explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_SUFFIX(t3) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
@@ -447,7 +447,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`t3`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t3`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # JOIN_PREFIX is ignored
 SELECT /*+ JOIN_ORDER(t3, t2) JOIN_PREFIX(t2) */ count(*) FROM t1 JOIN t2 JOIN t3
@@ -456,7 +456,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
 explain extended SELECT /*+ JOIN_ORDER(t3, t2) JOIN_PREFIX(t2) */ count(*) FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
@@ -467,7 +467,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t2`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t2`) */ count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # All hints are applicable
 SELECT /*+ JOIN_ORDER(t4@subq1, t3) JOIN_SUFFIX(t1) JOIN_PREFIX(t2, t5@subq2, t4@subq1) */ count(*)
@@ -576,7 +576,7 @@ AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t2`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t2`,`t1`) is ignored as conflicting/duplicated
 explain extended SELECT /*+  QB_NAME(q1) JOIN_ORDER(t2, t1) */ STRAIGHT_JOIN count(*)
 FROM t1 JOIN t2 JOIN t3
 WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
@@ -588,7 +588,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	MATERIALIZED	t5	ALL	PRIMARY	NULL	NULL	NULL	1	100.00	
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t2`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t2`,`t1`) is ignored as conflicting/duplicated
 Note	1003	/* select#1 */ select /*+ QB_NAME(`q1`) */ straight_join count(0) AS `count(*)` from `test`.`t1` join `test`.`t2` join `test`.`t3` where <expr_cache><`test`.`t1`.`f1`>(<in_optimizer>(`test`.`t1`.`f1`,<exists>(/* select#2 */ select /*+ QB_NAME(`subq1`) */ `test`.`t4`.`f1` from `test`.`t4` where <cache>(`test`.`t1`.`f1`) = `test`.`t4`.`f1`))) and <expr_cache><`test`.`t2`.`f1`>(<in_optimizer>(`test`.`t2`.`f1`,`test`.`t2`.`f1` in ( <materialize> (/* select#3 */ select /*+ QB_NAME(`subq2`) */ `test`.`t5`.`f1` from `test`.`t5` ), <primary_index_lookup>(`test`.`t2`.`f1` in <temporary table> on distinct_key where `test`.`t2`.`f1` = `<subquery3>`.`f1`))))
 # Test JOIN_FIXED_ORDER.
 SELECT /*+  QB_NAME(q1) JOIN_FIXED_ORDER(@q1) */ count(*) FROM t1 JOIN t2 JOIN t3
@@ -660,7 +660,7 @@ WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
 count(*)
 10
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t3`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t3`,`t1`) is ignored as conflicting/duplicated
 explain extended SELECT /*+ JOIN_PREFIX(t3, t1) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
 WHERE t1.f1 IN (SELECT f1 FROM t4) AND t2.f1 IN (SELECT f1 FROM t5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -670,7 +670,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	4	test.t5.f1	20	11.11	Using where; Using join buffer (incremental, BNLH join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t3`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t3`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select count(0) AS `count(*)` from `test`.`t5` semi join (`test`.`t4`) join `test`.`t1` join `test`.`t2` straight_join `test`.`t3` where `test`.`t4`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f1` = `test`.`t5`.`f1`
 # Hint is applicable
 SELECT /*+ JOIN_PREFIX(t1, t2, t3) */ count(*) FROM t1 JOIN t2 STRAIGHT_JOIN t3
@@ -777,7 +777,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t2`,`t4`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t2`,`t4`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
 EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t2, t1, t4)  */ 1  FROM t1
 JOIN t2 ON 1
@@ -922,7 +922,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`ta2`,`t3`,`ta1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`ta2`,`t3`,`ta1`) is ignored as conflicting/duplicated
 Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Both hints are ignored
 EXPLAIN EXTENDED DELETE /*+ JOIN_PREFIX(ta1, t2, t3) JOIN_SUFFIX(t3, ta2) */
@@ -935,8 +935,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`ta1`,`t2`,`t3`) is ignored as conflicting/duplicated
-Warning	4217	Hint JOIN_SUFFIX(`t3`,`ta2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`ta1`,`t2`,`t3`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t3`,`ta2`) is ignored as conflicting/duplicated
 Note	1003	delete  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 DROP TABLE t1, t2, t3;
 # Const table behavior, table order is not changed, hint is applicable.
@@ -980,7 +980,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	Using where
 Warnings:
-Warning	4217	Hint JOIN_SUFFIX(`t1`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_SUFFIX(`t1`,`t2`) is ignored as conflicting/duplicated
 DROP TABLE t1, t2;
 CREATE TABLE t1
 (
@@ -1008,7 +1008,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t1	ref	f1	f1	5	test.t3.f1	1	100.00	Using where; Using index
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t1`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t1`,`t2`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_ORDER(@`select#1` `t2`,`t3`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t2` join `test`.`t3` left join `test`.`t1` on(`test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t3`.`f1` is not null) where `test`.`t2`.`f1` < 7 and convert(`test`.`t3`.`f2` using utf8mb3) = `test`.`t2`.`f2`
 EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t1, t2)  JOIN_ORDER(t2, t3) */ t3.f1
 FROM ( t2 INNER JOIN t3 ON t3.f2 = t2.f2 LEFT JOIN t1 ON t1.f1 = t3.f1 )
@@ -1018,7 +1018,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	f1	f1	5	test.t3.f1	1	100.00	Using where; Using index
 1	SIMPLE	t2	ref	f2,f1	f2	768	func	1	100.00	Using index condition; Using where
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t2`,`t3`) is ignored as conflicting/duplicated
 Note	1003	select /*+ JOIN_ORDER(@`select#1` `t1`,`t2`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t2` join `test`.`t3` left join `test`.`t1` on(`test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t3`.`f1` is not null) where `test`.`t2`.`f1` < 7 and convert(`test`.`t3`.`f2` using utf8mb3) = `test`.`t2`.`f2`
 DROP TABLE t1, t2, t3;
 CREATE TABLE t1 (
@@ -1035,7 +1035,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.f2	1	100.00	
 Warnings:
-Warning	4217	Hint JOIN_PREFIX(`t1`,`t1`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_PREFIX(`t1`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select `test`.`t2`.`f1` AS `f1` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f2`
 DROP TABLE t1, t2;
 CREATE TABLE t1
@@ -1069,7 +1069,7 @@ WHERE ('i','b') IN (SELECT f3, f1 FROM t2 WHERE f2 <> f2 AND als2.f2 IS NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
-Warning	4217	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
 Note	1276	Field or reference 'test.als2.f2' of SELECT #2 was resolved in SELECT #1
 Note	1003	update /*+ JOIN_ORDER(@`select#1` `t2`,`als1`,`als3`) */ (`test`.`t2`) join `test`.`t3` `als4` left join (`test`.`t3` `als1` join `test`.`t1` `als2` join `test`.`t1` `als3`) on(`test`.`als1`.`f3` = `test`.`als4`.`f2` and multiple equal(`test`.`als1`.`f1`, `test`.`als3`.`f3`) and multiple equal(`test`.`als1`.`f3`, `test`.`als2`.`f1`)) set `test`.`als1`.`f4` = 'eogqjvbhzodzimqahyzlktkbexkhdwxwgifikhcgblhgswxyutepc' where 0
 DROP TABLE t1, t2, t3;
@@ -1238,7 +1238,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ref	f2	f2	5	const	1	100.00	Using index condition; Using where
 1	SIMPLE	t1	ref	f2	f2	5	test.t2.f3	1	100.00	Using index
 Warnings:
-Warning	4219	Unresolved table name `alias1` for JOIN_PREFIX hint
+Warning	4221	Unresolved table name `alias1` for JOIN_PREFIX hint
 Note	1003	select `test`.`t2`.`f3` AS `field1` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`f2` = `test`.`t2`.`f3` and `test`.`t2`.`f2` is null having `f3` <> 3 and `f3` >= 8
 DROP TABLE t1, t2;
 #
@@ -1352,7 +1352,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
 1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	3	33.33	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Warning	4217	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_FIXED_ORDER() is ignored as conflicting/duplicated
 Note	1003	insert into `test`.`tn`(fn_1,fn_2) select /*+ JOIN_ORDER(@`select#2` `t2`,`t1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2` from `test`.`t2` join `test`.`t1` where `test`.`t1`.`id` = `test`.`t2`.`id` order by `test`.`t1`.`f1`,`test`.`t2`.`f2`
 EXPLAIN EXTENDED
 INSERT INTO tn (fn_1, fn_2)
@@ -1362,7 +1362,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
 1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.id	1	100.00	Using where
 Warnings:
-Warning	4217	Hint JOIN_ORDER(`t1`,`t2`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_ORDER(`t1`,`t2`) is ignored as conflicting/duplicated
 Note	1003	insert into `test`.`tn`(fn_1,fn_2) select `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`id` = `test`.`t2`.`id` and `test`.`t2`.`id` is not null) where 1 order by `test`.`t1`.`f1`,`test`.`t2`.`f2`
 DROP TABLE tn;
 DROP TABLE t1, t2;

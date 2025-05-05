@@ -230,7 +230,7 @@ a
 1
 2
 Warnings:
-Warning	4217	Hint BKA("A") is ignored as conflicting/duplicated
+Warning	4219	Hint BKA("A") is ignored as conflicting/duplicated
 DROP TABLE t1;
 #
 # End of 11.7 tests
