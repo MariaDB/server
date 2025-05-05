@@ -187,6 +187,7 @@ SET (SQL_SOURCE
                rowid_filter.cc rowid_filter.h
                optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
+               opt_trace_ddl_info.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc

@@ -3108,6 +3108,13 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+static Sys_var_mybool Sys_store_ddls_in_optimizer_trace(
+    "store_ddls_in_optimizer_trace",
+    "Controls storing of DDLs of all the tables "
+    "that are referenced in a query",
+    SESSION_VAR(store_ddls_in_optimizer_trace), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
     UNUSED_HELP,

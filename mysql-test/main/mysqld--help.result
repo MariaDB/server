@@ -1505,6 +1505,9 @@ The following specify which files/extra groups are read (specified before remain
  --standard-compliant-cte 
  Allow only CTEs compliant to SQL standard
  (Defaults to on; use --skip-standard-compliant-cte to disable.)
+ --store-ddls-in-optimizer-trace 
+ Controls storing of DDLs of all the tables that are
+ referenced in a query
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection
@@ -2040,6 +2043,7 @@ sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_E
 sql-safe-updates FALSE
 stack-trace TRUE
 standard-compliant-cte TRUE
+store-ddls-in-optimizer-trace FALSE
 stored-program-cache 256
 strict-password-validation TRUE
 symbolic-links FALSE
