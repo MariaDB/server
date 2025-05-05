@@ -7840,7 +7840,7 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
       By default we assume that it is usual subselect and we have outer name
       resolution context, if no we will assign it to 0 later
     */
-    select_lex->context.outer_context= &select_lex->outer_select()->context;
+    select_lex->context.set_outer_context(&select_lex->outer_select()->context);
   }
   else
   {
@@ -7876,8 +7876,8 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
       DBUG_RETURN(1);
     if (!unit->fake_select_lex && unit->add_fake_select_lex(lex->thd))
       DBUG_RETURN(1);
-    select_lex->context.outer_context= 
-                unit->first_select()->context.outer_context;
+    select_lex->context.set_outer_context(
+                unit->first_select()->context.get_outer_context());
   }
 
   if (new_select)
@@ -9119,10 +9119,10 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
 
   fake_select_lex->no_table_names_allowed= 1;
 
-  fake_select_lex->context.outer_context=first_sl->context.outer_context;
+  fake_select_lex->context.set_outer_context(first_sl->context.get_outer_context());
   /* allow item list resolving in fake select for ORDER BY */
   fake_select_lex->context.resolve_in_select_list= TRUE;
-  fake_select_lex->context.select_lex= fake_select_lex;  
+  fake_select_lex->context.set_select_lex(fake_select_lex);
 
   fake_select_lex->nest_level_base= first_select()->nest_level_base;
   if (fake_select_lex->set_nest_level(first_select()->nest_level))
@@ -9179,9 +9179,9 @@ push_new_name_resolution_context(THD *thd,
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
   LEX *lex= thd->lex;
-  on_context->select_lex = lex->current_select;
+  on_context->set_select_lex(lex->current_select);
   st_select_lex *outer_sel= lex->parser_current_outer_select();
-  on_context->outer_context = outer_sel ? &outer_sel->context : 0;
+  on_context->set_outer_context(outer_sel ? &outer_sel->context : nullptr);
   return lex->push_context(on_context);
 }
 

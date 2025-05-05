@@ -1288,7 +1288,7 @@ bool With_element::prepare_unreferenced(THD *thd)
   for (st_select_lex *sl= first_sl;
        sl;
        sl= sl->next_select())
-    sl->context.outer_context= 0;
+    sl->context.set_outer_context(nullptr);
 
   uint8 save_context_analysys_only= thd->lex->context_analysis_only;
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;

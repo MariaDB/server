@@ -1977,6 +1977,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
     goto restore_tl_and_exit;
 
+  /* We may need this during fix_after_pullout below */
+  subq_lex->merged_into= parent_lex;
+
   /*
     Walk through sj nest's WHERE and ON expressions and call
     item->fix_table_changes() for all items.

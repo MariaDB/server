@@ -6837,7 +6837,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
       */
       if (!table_ref->belong_to_view && !table_ref->belong_to_derived)
       {
-        SELECT_LEX *current_sel= item->context->select_lex;
+        SELECT_LEX *current_sel= item->context->get_select_lex();
         SELECT_LEX *last_select= table_ref->select_lex;
         bool all_merged= TRUE;
         for (SELECT_LEX *sl= current_sel; sl && sl!=last_select;
@@ -7306,7 +7306,7 @@ set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
   if (!(context= new (thd->mem_root) Name_resolution_context))
     return TRUE;
   context->init();
-  context->select_lex= table_ref->select_lex;
+  context->set_select_lex(table_ref->select_lex);
   context->first_name_resolution_table=
     context->last_name_resolution_table= table_ref;
   item->context= context;
@@ -7924,7 +7924,7 @@ static bool setup_natural_join_row_types(THD *thd,
      1) for stored procedures,
      2) for multitable update after lock failure and table reopening.
   */
-  if (!context->select_lex->first_natural_join_processing)
+  if (!context->get_select_lex()->first_natural_join_processing)
   {
     context->first_name_resolution_table= context->natural_join_first_table;
     DBUG_PRINT("info", ("using cached setup_natural_join_row_types"));
@@ -7974,7 +7974,7 @@ static bool setup_natural_join_row_types(THD *thd,
     change on re-execution
   */
   context->natural_join_first_table= context->first_name_resolution_table;
-  context->select_lex->first_natural_join_processing= false;
+  context->get_select_lex()->first_natural_join_processing= false;
   DBUG_RETURN (false);
 }
 

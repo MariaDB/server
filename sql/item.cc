@@ -3390,7 +3390,7 @@ void Item_ident::print(String *str, enum_query_type query_type)
     */
     if (!context)
       use_db_name= use_table_name= false;
-    else if (context->outer_context)
+    else if (context->outer_select())
       use_table_name= true;
     else if (context->last_name_resolution_table == context->first_name_resolution_table)
       use_db_name= use_table_name= false;
@@ -3674,9 +3674,9 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
       If we find that the select we've been pulled out to is up there, we
       create the new name resolution context. Otherwise, we don't.
     */
-    for (Name_resolution_context *ct= context; ct; ct= ct->outer_context)
+    for (Name_resolution_context *ct= context; ct; ct= ct->get_outer_context())
     {
-      if (new_parent == ct->select_lex)
+      if (new_parent == ct->get_select_lex())
       {
         need_change= true;
         break;
@@ -3701,23 +3701,23 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
     Name_resolution_context *ctx= new Name_resolution_context();
     if (!ctx)
       return;                                   // Fatal error set
-    if (context->select_lex == new_parent)
+    if (context->get_select_lex() == new_parent)
     {
       /*
         This field was pushed in then pulled out
         (for example left part of IN)
       */
-      ctx->outer_context= context->outer_context;
+      ctx->set_outer_context(context->get_outer_context());
     }
-    else if (context->outer_context)
+    else if (context->get_outer_context())
     {
       /* just pull to the upper context */
-      ctx->outer_context= context->outer_context->outer_context;
+      ctx->set_outer_context(context->get_outer_context()->get_outer_context());
     }
     ctx->table_list= context->first_name_resolution_table;
-    ctx->select_lex= new_parent;
-    if (context->select_lex == NULL)
-      ctx->select_lex= NULL;
+    ctx->set_select_lex(new_parent);
+    if (context->get_select_lex() == NULL)
+      ctx->set_select_lex(NULL);
     ctx->first_name_resolution_table= context->first_name_resolution_table;
     ctx->last_name_resolution_table=  context->last_name_resolution_table;
     ctx->error_processor=             context->error_processor;
@@ -5546,8 +5546,8 @@ void mark_select_range_as_dependent(THD *thd, SELECT_LEX *last_select,
     resolving)
   */
   SELECT_LEX *previous_select= current_sel;
-  for (; previous_select->context.outer_select() != last_select;
-       previous_select= previous_select->context.outer_select())
+  for (; previous_select->outer_select() != last_select;
+       previous_select= previous_select->outer_select())
   {
     Item_subselect *prev_subselect_item=
       previous_select->master_unit()->item;
@@ -5917,12 +5917,12 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
-  SELECT_LEX *current_sel= context->select_lex;
+  SELECT_LEX *current_sel= context->get_select_lex();
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
 
   if (current_sel->master_unit()->outer_select())
-    outer_context= context->outer_context;
+    outer_context= context->get_outer_context();
 
   /*
     This assert is to ensure we have an outer contex when *from_field
@@ -5934,11 +5934,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               *from_field == not_found_field);
   for (;
        outer_context;
-       outer_context= outer_context->outer_context)
+       outer_context= outer_context->get_outer_context())
   {
-    select= outer_context->select_lex;
+    select= outer_context->get_select_lex();
     Item_subselect *prev_subselect_item=
-      last_checked_context->select_lex->master_unit()->item;
+      last_checked_context->get_select_lex()->master_unit()->item;
     last_checked_context= outer_context;
     upward_lookup= TRUE;
 
@@ -5947,7 +5947,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       If outer_field is set, field was already found by first call
       to find_field_in_tables(). Only need to find appropriate context.
     */
-    if (field_found && outer_context->select_lex !=
+    if (field_found && outer_context->get_select_lex() !=
         table_list->select_lex)
       continue;
     /*
@@ -6000,7 +6000,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
           prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
           prev_subselect_item->const_item_cache= 0;
           set_field(*from_field);
-          if (!last_checked_context->select_lex->having_fix_field &&
+          if (!last_checked_context->get_select_lex()->having_fix_field &&
               select->group_list.elements &&
               (place == SELECT_LIST || place == IN_HAVING))
           {
@@ -6054,8 +6054,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             max_arg_level for the function if it's needed.
           */
           if (thd->lex->in_sum_func &&
-              last_checked_context->select_lex->parent_lex ==
-              context->select_lex->parent_lex &&
+              last_checked_context->get_select_lex()->parent_lex ==
+              context->get_select_lex()->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
@@ -6063,8 +6063,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                           select->nest_level);
             set_field(*from_field);
             base_flags|= item_base_t::FIXED;
-            mark_as_dependent(thd, last_checked_context->select_lex,
-                              context->select_lex, this,
+            mark_as_dependent(thd, last_checked_context->get_select_lex(),
+                              context->get_select_lex(), this,
                               ((ref_type == REF_ITEM ||
                                 ref_type == FIELD_ITEM) ?
                                (Item_ident*) (*reference) : 0), false);
@@ -6075,14 +6075,14 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         {
           Item::Type ref_type= (*reference)->type();
           prev_subselect_item->used_tables_and_const_cache_join(*reference);
-          mark_as_dependent(thd, last_checked_context->select_lex,
-                            context->select_lex, this,
+          mark_as_dependent(thd, last_checked_context->get_select_lex(),
+                            context->get_select_lex(), this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
           if (thd->lex->in_sum_func &&
-              last_checked_context->select_lex->parent_lex ==
-              context->select_lex->parent_lex &&
+              last_checked_context->get_select_lex()->parent_lex ==
+              context->get_select_lex()->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -6195,7 +6195,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       {
         if (place != IN_HAVING && select->group_list.elements)
         {
-          outer_context->select_lex->inner_refs_list.push_back(
+          outer_context->get_select_lex()->inner_refs_list.push_back(
                                      (Item_outer_ref*)rf, thd->mem_root);
           ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
         }
@@ -6222,8 +6222,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       its arguments are not defined.
     */
     set_max_sum_func_level(thd, select);
-    mark_as_dependent(thd, last_checked_context->select_lex,
-                      context->select_lex, rf,
+    mark_as_dependent(thd, last_checked_context->get_select_lex(),
+                      context->get_select_lex(), rf,
                       rf, false);
 
     return 0;
@@ -6235,10 +6235,10 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       its arguments are not defined.
     */
     set_max_sum_func_level(thd, select);
-    mark_as_dependent(thd, last_checked_context->select_lex,
-                      context->select_lex,
+    mark_as_dependent(thd, last_checked_context->get_select_lex(),
+                      context->get_select_lex(),
                       this, (Item_ident*)*reference, false);
-    if (last_checked_context->select_lex->having_fix_field)
+    if (last_checked_context->get_select_lex()->having_fix_field)
     {
       /*
         This Item_field represents a reference to a column in having clause
@@ -6338,7 +6338,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   SELECT_LEX *select;
   if (context)
   {
-    select= context->select_lex;
+    select= context->get_select_lex();
   }
   else
   {
@@ -6468,10 +6468,10 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
                  from_field != view_ref_found ?
                  from_field->table->pos_in_table_list : 0);
     if (!outer_fixed && table_list && table_list->select_lex &&
-        context->select_lex &&
-        table_list->select_lex != context->select_lex &&
-        !context->select_lex->is_merged_child_of(table_list->select_lex) &&
-        is_outer_table(table_list, context->select_lex))
+        context->get_select_lex() &&
+        table_list->select_lex->context.get_select_lex() !=
+          context->get_select_lex() &&
+        is_outer_table(table_list, context->get_select_lex()))
     {
       int ret;
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -6583,7 +6583,7 @@ mark_non_agg_field:
         safe for use because it's either the SELECT we want to use 
         (the current level) or a stub added by non-SELECT queries.
       */
-      select_lex= context->select_lex;
+      select_lex= context->get_select_lex();
     }
     if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
@@ -8286,8 +8286,8 @@ public:
     st_select_lex *sel;
     for (sel= current_select;
          sel ;
-         sel= (sel->context.outer_context ?
-               sel->context.outer_context->select_lex:
+         sel= (sel->context.get_outer_context() ?
+               sel->context.outer_select():
                NULL))
     {
       List_iterator<TABLE_LIST> li(sel->leaf_tables);
@@ -8388,7 +8388,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
 {
   enum_parsing_place place= NO_MATTER;
   DBUG_ASSERT(fixed() == 0);
-  SELECT_LEX *current_sel= context->select_lex;
+  SELECT_LEX *current_sel= context->get_select_lex();
 
   if (set_properties_only)
   {
@@ -8397,13 +8397,14 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   else if (!ref || ref == not_found_item)
   {
     DBUG_ASSERT(reference_trough_name != 0);
-    if (!(ref= resolve_ref_in_select_and_group(thd, this, context->select_lex)))
+    if (!(ref= resolve_ref_in_select_and_group(thd, this,
+                                               context->get_select_lex())))
       goto error;             /* Some error occurred (e.g. ambiguous names). */
 
     if (ref == not_found_item) /* This reference was not resolved. */
     {
       Name_resolution_context *last_checked_context= context;
-      Name_resolution_context *outer_context= context->outer_context;
+      Name_resolution_context *outer_context= context->get_outer_context();
       Field *from_field;
       ref= 0;
 
@@ -8427,9 +8428,9 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
 
       do
       {
-        SELECT_LEX *select= outer_context->select_lex;
+        SELECT_LEX *select= outer_context->get_select_lex();
         Item_subselect *prev_subselect_item=
-          last_checked_context->select_lex->master_unit()->item;
+          last_checked_context->get_select_lex()->master_unit()->item;
         last_checked_context= outer_context;
 
         /* Search in the SELECT and GROUP lists of the outer select. */
@@ -8487,8 +8488,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
             Item::Type refer_type= (*reference)->type();
             prev_subselect_item->used_tables_and_const_cache_join(*reference);
             DBUG_ASSERT((*reference)->type() == REF_ITEM);
-            mark_as_dependent(thd, last_checked_context->select_lex,
-                              context->select_lex, this,
+            mark_as_dependent(thd, last_checked_context->get_select_lex(),
+                              context->get_select_lex(), this,
                               ((refer_type == REF_ITEM ||
                                 refer_type == FIELD_ITEM) ?
                                (Item_ident*) (*reference) :
@@ -8502,8 +8503,8 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           if (from_field != not_found_field)
           {
             if (cached_table && cached_table->select_lex &&
-                outer_context->select_lex &&
-                cached_table->select_lex != outer_context->select_lex)
+                outer_context->get_select_lex() &&
+                cached_table->select_lex != outer_context->get_select_lex())
             {
               /*
                 Due to cache, find_field_in_tables() can return field which
@@ -8512,13 +8513,13 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
               */
               do
               {
-                outer_context= outer_context->outer_context;
-                select= outer_context->select_lex;
+                outer_context= outer_context->get_outer_context();
+                select= outer_context->get_select_lex();
                 prev_subselect_item=
-                  last_checked_context->select_lex->master_unit()->item;
+                  last_checked_context->get_select_lex()->master_unit()->item;
                 last_checked_context= outer_context;
-              } while (outer_context && outer_context->select_lex &&
-                       cached_table->select_lex != outer_context->select_lex);
+              } while (outer_context && outer_context->get_select_lex() &&
+                       cached_table->select_lex != outer_context->get_select_lex());
             }
             prev_subselect_item->used_tables_cache|= from_field->table->map;
             prev_subselect_item->const_item_cache= 0;
@@ -8531,7 +8532,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
         prev_subselect_item->const_item_cache= 0;
 
-        outer_context= outer_context->outer_context;
+        outer_context= outer_context->get_outer_context();
       } while (outer_context);
 
       DBUG_ASSERT(from_field != 0 && from_field != view_ref_found);
@@ -8541,7 +8542,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
-        mark_as_dependent(thd, last_checked_context->select_lex,
+        mark_as_dependent(thd, last_checked_context->get_select_lex(),
                           current_sel, fld, fld, false);
         /*
           A reference is resolved to a nest level that's outer or the same as
@@ -8549,12 +8550,12 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           max_arg_level for the function if it's needed.
         */
         if (thd->lex->in_sum_func &&
-            last_checked_context->select_lex->parent_lex ==
-            context->select_lex->parent_lex &&
+            last_checked_context->get_select_lex()->parent_lex ==
+            context->get_select_lex()->parent_lex &&
             thd->lex->in_sum_func->nest_level >= 
-            last_checked_context->select_lex->nest_level)
+            last_checked_context->get_select_lex()->nest_level)
           set_if_bigger(thd->lex->in_sum_func->max_arg_level,
-                        last_checked_context->select_lex->nest_level);
+                        last_checked_context->get_select_lex()->nest_level);
         return FALSE;
       }
       if (unlikely(ref == 0))
@@ -8566,20 +8567,20 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       }
       /* Should be checked in resolve_ref_in_select_and_group(). */
       DBUG_ASSERT(*ref && (*ref)->fixed());
-      mark_as_dependent(thd, last_checked_context->select_lex,
-                        context->select_lex, this, this, false);
+      mark_as_dependent(thd, last_checked_context->get_select_lex(),
+                        context->get_select_lex(), this, this, false);
       /*
         A reference is resolved to a nest level that's outer or the same as
         the nest level of the enclosing set function : adjust the value of
         max_arg_level for the function if it's needed.
       */
       if (thd->lex->in_sum_func &&
-          last_checked_context->select_lex->parent_lex ==
-          context->select_lex->parent_lex &&
+          last_checked_context->get_select_lex()->parent_lex ==
+          context->get_select_lex()->parent_lex &&
           thd->lex->in_sum_func->nest_level >= 
-          last_checked_context->select_lex->nest_level)
+          last_checked_context->get_select_lex()->nest_level)
         set_if_bigger(thd->lex->in_sum_func->max_arg_level,
-                      last_checked_context->select_lex->nest_level);
+                      last_checked_context->get_select_lex()->nest_level);
     }
   }
 
@@ -11178,6 +11179,39 @@ void dummy_error_processor(THD *thd, void *data)
 void view_error_processor(THD *thd, void *data)
 {
   ((TABLE_LIST *)data)->replace_view_error_with_generic(thd);
+}
+
+
+st_select_lex *Name_resolution_context::outer_select()
+{
+  if (outer_context)
+  {
+    st_select_lex *outer_sl= outer_context->select_lex;
+    while (outer_sl->merged_into)
+      outer_sl= outer_sl->merged_into;
+
+    return outer_sl;
+  }
+  else
+    return NULL;
+}
+
+
+st_select_lex *Name_resolution_context::get_select_lex()
+{
+  /*
+    Name resolution context, and it's associated select_lex shouldn't escape
+    from a derived table
+  */
+  if (select_lex)
+  {
+    while (select_lex->merged_into &&
+           (!select_lex->merged_into->master_unit()->derived ||
+            !select_lex->merged_into->master_unit()->derived->is_derived()))
+      select_lex= select_lex->merged_into;
+  }
+
+  return select_lex;
 }
 
 

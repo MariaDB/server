@@ -1134,7 +1134,7 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc)
   Name_resolution_context *ctx;
   while ((ctx= it++))
   {
-    if (ctx->select_lex && ctx == &ctx->select_lex->context)
+    if (ctx->get_select_lex() && ctx == &ctx->get_select_lex()->context)
       break;
   }
   DBUG_ASSERT(ctx);

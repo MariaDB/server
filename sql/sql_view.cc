@@ -1806,7 +1806,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       /* prepare view context */
       lex->first_select_lex()->
         context.resolve_in_table_list_only(view_main_select_tables);
-      lex->first_select_lex()->context.outer_context= 0;
+      lex->first_select_lex()->context.set_outer_context(nullptr);
       lex->first_select_lex()->select_n_having_items+=
         table->select_lex->select_n_having_items;
 
