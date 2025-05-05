@@ -220,6 +220,8 @@ struct table_pos: public Sql_alloc
    }
 };
 
+static bool add_conditions_to_where(THD *thd, Item **conds,
+                                    List<Item> &return_to_where);
 
 /*
   Order the tables:
@@ -665,7 +667,7 @@ static void dbug_print_table(TABLE_LIST *t)
     FALSE  Ok, conversion is either done or not needed.
 */
 
-bool setup_oracle_join(THD *thd, COND **conds,
+bool setup_oracle_join(THD *thd, Item **conds,
                        TABLE_LIST *tables,
                        SQL_I_List<TABLE_LIST> &select_table_list,
                        List<TABLE_LIST> *select_join_list)
@@ -958,68 +960,7 @@ bool setup_oracle_join(THD *thd, COND **conds,
     select_table_list.first= new_from;
     select_table_list.next= &prev_table->next_local;
   }
-  // make conds looks nice;
-  {
-    // changes are permanent
-    Query_arena_stmt on_stmt_arena(thd);
-    uint number_of_cond_parts= return_to_where.elements;
-    if ((*conds) != NULL)
-    {
-       if (is_cond_and(*conds))
-       {
-          uint elements= ((Item_cond_and *)(*conds))->argument_list()->elements;
-          switch (elements)
-          {
-            case 0:
-              (*conds)= NULL;
-              break;
-            case 1:
-              (*conds)=  ((Item_cond_and *)(*conds))->argument_list()->head();
-              number_of_cond_parts++;
-              break;
-             default:
-               number_of_cond_parts+= elements;
-          }
-       }
-       else
-        number_of_cond_parts++;
-    }
 
-    if (number_of_cond_parts == 0)
-    {
-      DBUG_ASSERT((*conds) == NULL);
-      // all is at its place
-    }
-    else if (number_of_cond_parts == 1)
-    {
-      if ((*conds) == NULL)
-      {
-        DBUG_ASSERT(return_to_where.elements == 1);
-        (*conds)= return_to_where.head();
-      }
-      else
-      {
-        DBUG_ASSERT(return_to_where.elements == 0);
-        DBUG_ASSERT((*conds) != NULL);
-        // all is at its place
-      }
-    }
-    else
-    {
-      if ((*conds) == NULL || !is_cond_and(*conds))
-      {
-        if (*conds)
-          return_to_where.push_back(*conds);
-      }
-      else
-      {
-        return_to_where.append(((Item_cond_and *)(*conds))->argument_list());
-      }
-      (*conds)= new(thd->mem_root) Item_cond_and(thd, return_to_where);
-      if (!(*conds) || (*conds)->fix_fields(thd, conds))
-        DBUG_RETURN(TRUE);
-    }
-  }
   DBUG_PRINT("YYY", ("new from %p", new_from));
 #ifndef DBUG_OFF
   for (TABLE_LIST *t= new_from; t; t= t->next_local)
@@ -1028,8 +969,79 @@ bool setup_oracle_join(THD *thd, COND **conds,
   }
 #endif
 
+  if (add_conditions_to_where(thd, conds, return_to_where))
+    DBUG_RETURN(1);
+
+  // TODO: the only thing that has WITH_ORA_JOIN flag at this point is the
+  // top-level Item_cond_and... However, that one can have other attributes
+  // out-ofdate like with_subselect() or used_tables()?
   if ((*conds)) // remove flags because we converted them
     (*conds)->walk(&Item::remove_ora_join_processor, 0, 0);
   DBUG_RETURN(FALSE);
+}
+
+
+static bool add_conditions_to_where(THD *thd, Item **conds,
+                                    List<Item> &return_to_where)
+{
+  // Make changes on statement's mem_root
+  Query_arena_stmt on_stmt_arena(thd);
+  uint number_of_cond_parts= return_to_where.elements;
+  if ((*conds) != NULL)
+  {
+    if (is_cond_and(*conds))
+    {
+      uint elements= ((Item_cond_and *)(*conds))->argument_list()->elements;
+      switch (elements)
+      {
+        case 0:
+          (*conds)= NULL;
+          break;
+        case 1:
+          (*conds)= ((Item_cond_and *)(*conds))->argument_list()->head();
+          number_of_cond_parts++;
+          break;
+        default:
+          number_of_cond_parts+= elements;
+      }
+    }
+    else
+      number_of_cond_parts++;
+  }
+
+  if (number_of_cond_parts == 0)
+  {
+    /* Nothing is left in the WHERE */
+    DBUG_ASSERT((*conds) == NULL);
+  }
+  else if (number_of_cond_parts == 1)
+  {
+    if ((*conds) == NULL)
+    {
+      DBUG_ASSERT(return_to_where.elements == 1);
+      (*conds)= return_to_where.head();
+    }
+    else
+    {
+      // There is one remaining condition, it's in *conds.
+      DBUG_ASSERT(return_to_where.elements == 0);
+      DBUG_ASSERT((*conds) != NULL);
+    }
+  }
+  else
+  {
+    if ((*conds) == NULL || !is_cond_and(*conds))
+    {
+      if (*conds)
+        return_to_where.push_back(*conds);
+    }
+    else
+      return_to_where.append(((Item_cond_and *)(*conds))->argument_list());
+
+    (*conds)= new(thd->mem_root) Item_cond_and(thd, return_to_where);
+    if (!(*conds) || (*conds)->fix_fields(thd, conds))
+      return true;
+  }
+  return false;
 }
 
