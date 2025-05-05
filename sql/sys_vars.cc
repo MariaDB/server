@@ -3108,6 +3108,13 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+static Sys_var_mybool Sys_optimizer_record_context(
+    "optimizer_record_context",
+    "Controls storing of optmizer context of all the tables "
+    "that are referenced in a query",
+    SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));
+
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
     UNUSED_HELP,
