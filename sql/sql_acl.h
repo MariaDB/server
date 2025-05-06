@@ -94,10 +94,10 @@ void grant_free(void);
 bool grant_reload(THD *thd);
 bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
-bool check_grant_column (THD *thd, GRANT_INFO *grant,
-                         const char *db_name, const char *table_name,
-                         const Lex_ident_column &name,
-                         Security_context *sctx);
+bool check_grant_column(const Security_context *sctx, GRANT_INFO *grant,
+                        const LEX_CSTRING &db_name,
+                        const LEX_CSTRING &table_name,
+                        const Lex_ident_column &column_name);
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const Lex_ident_column &name, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
