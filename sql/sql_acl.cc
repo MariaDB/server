@@ -8950,10 +8950,8 @@ err:
 }
 
 
-static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
+static bool check_grant_db_routine(Security_context *sctx, const char *db, HASH *hash)
 {
-  Security_context *sctx= thd->security_ctx;
-
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
@@ -8982,9 +8980,8 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
   Return 1 if access is denied
 */
 
-bool check_grant_db(THD *thd, const char *db)
+bool check_grant_db(Security_context *sctx, const char *db)
 {
-  Security_context *sctx= thd->security_ctx;
   constexpr size_t key_data_size= SAFE_NAME_LEN + USERNAME_LENGTH + 1;
   // See earlier comments on MY_CS_MBMAXLEN above
   CharBuffer<key_data_size + MY_CS_MBMAXLEN> key, key2;
@@ -9034,10 +9031,10 @@ bool check_grant_db(THD *thd, const char *db)
   }
 
   if (error)
-    error= check_grant_db_routine(thd, db, &proc_priv_hash) &&
-           check_grant_db_routine(thd, db, &func_priv_hash) &&
-           check_grant_db_routine(thd, db, &package_spec_priv_hash) &&
-           check_grant_db_routine(thd, db, &package_body_priv_hash);
+    error= check_grant_db_routine(sctx, db, &proc_priv_hash) &&
+           check_grant_db_routine(sctx, db, &func_priv_hash) &&
+           check_grant_db_routine(sctx, db, &package_spec_priv_hash) &&
+           check_grant_db_routine(sctx, db, &package_body_priv_hash);
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -12633,7 +12630,7 @@ bool Sql_cmd_grant_table::execute_grant_database(THD *thd)
   grant_version++;
 
   result= mysql_grant_db(thd, tables,
-                         m_resolved_users, db,
+                         m_resolved_users, &db_name,
                          {m_gp.object_privilege(), is_revoke()},
                          m_create_new_users, no_auto_create_users);
 
@@ -15510,7 +15507,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access && check_grant_db(thd, dst_db_name))
+    if (!thd->col_access && check_grant_db(thd->security_ctx, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0), thd->security_ctx->priv_user,
