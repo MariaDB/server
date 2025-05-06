@@ -43,6 +43,45 @@ END;
 $$
 ERROR HY000: 'associative_array' is not allowed in this context
 #
+# Bad key data type
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DOUBLE;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type double for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY POINT;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type point for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DATE;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type datetime for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY ROW(a INT, b INT);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT, b INT);
+assoc assoc_t;
+BEGIN
+NULL;
+END' at line 2
+#
 # RECORD element type
 #
 DECLARE
@@ -207,6 +246,48 @@ BEGIN
 NULL;
 END' at line 3
 #
+# Wrong use: assoc_array_var;
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+assoc0;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'assoc0;
+END' at line 5
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+`assoc0`;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`assoc0`;
+END' at line 5
+#
+# Wrong use: assoc_array_var(1);
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+assoc0(1);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'assoc0(1);
+END' at line 5
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+`assoc0`(1);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`assoc0`(1);
+END' at line 5
+#
 # Wrong use: assoc_array_var.x(1)
 #
 CREATE PROCEDURE p1 AS
@@ -354,9 +435,9 @@ END LOOP;
 END;
 $$
 Warnings:
-Warning	1366	Incorrect double value: 'Klaus' for column ``.``.`` at row 0
-Warning	1366	Incorrect double value: 'Lee' for column ``.``.`` at row 0
-Warning	1366	Incorrect double value: 'Arun' for column ``.``.`` at row 0
+Warning	1366	Incorrect double value: 'Klaus' for column ``.``.`marks` at row 0
+Warning	1366	Incorrect double value: 'Lee' for column ``.``.`marks` at row 0
+Warning	1366	Incorrect double value: 'Arun' for column ``.``.`marks` at row 0
 #
 # Anchored ROWTYPE for array element
 #
@@ -662,6 +743,45 @@ $$
 marks.EXISTS(4)
 0
 #
+# Make sure DELETE does not work as a method-function
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.DELETE;
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+DO marks.DELETE;
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.DELETE(0);
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+DO marks.DELETE(0);
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+#
 # DELETE
 #
 DECLARE
@@ -671,18 +791,14 @@ BEGIN
 marks(0) := 62;
 marks(1) := 78;
 marks(2) := 99;
-SELECT marks.DELETE(1);
+marks.DELETE(1);
 SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
-SELECT marks.DELETE;
+marks.DELETE;
 SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
 END;
 $$
-marks.DELETE(1)
-0
 marks.EXISTS(0)	marks.EXISTS(1)	marks.EXISTS(2)
 1	0	1
-marks.DELETE
-0
 marks.EXISTS(0)	marks.EXISTS(1)	marks.EXISTS(2)
 0	0	0
 #
@@ -695,7 +811,7 @@ BEGIN
 marks(0) := 62;
 marks(1) := 78;
 marks(2) := 99;
-SELECT marks.DELETE(1, 2);
+marks.DELETE(1, 2);
 END;
 $$
 ERROR 42000: Incorrect number of arguments for DELETE ; expected 1, got 2
@@ -707,21 +823,40 @@ TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
 BEGIN
 marks(0) := 62;
-SELECT marks.DELETE(NULL);
+marks.DELETE(NULL);
 END;
 $$
-marks.DELETE(NULL)
-0
 #
 # DELETE on scalar
 #
 DECLARE
 marks INTEGER;
 BEGIN
-SELECT marks.DELETE(1);
+marks.DELETE(1);
 END;
 $$
-ERROR 42000: FUNCTION marks.DELETE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+ERROR 42000: PROCEDURE marks.DELETE does not exist
+#
+# Make sure COUNT does not work as a method-procedure
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.COUNT;
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'COUNT'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.COUNT();
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'COUNT'
 #
 # COUNT
 #
@@ -735,7 +870,7 @@ marks(2) := 99;
 SELECT marks.COUNT;
 marks(3) := 44;
 SELECT marks.COUNT;
-SELECT marks.DELETE(1);
+marks.DELETE(1);
 SELECT marks.COUNT;
 END;
 $$
@@ -743,8 +878,6 @@ marks.COUNT
 3
 marks.COUNT
 4
-marks.DELETE(1)
-0
 marks.COUNT
 3
 #
@@ -767,7 +900,7 @@ BEGIN
 marks('Clementine Montgomery') := 99;
 END;
 $$
-ERROR 42000: Specified key was too long; max key length is 10 bytes
+ERROR HY000: String 'Clementine Montgomery' is too long for INDEX BY (should be no longer than 10)
 #
 # VARCHAR2 key fix
 #
@@ -2069,7 +2202,7 @@ BEGIN
 NULL;
 END;
 $$
-ERROR 42000: This version of MariaDB doesn't yet support 'nested associative arrays'
+ERROR HY000: Illegal parameter data type associative_array for operation '<array element data type>'
 #
 # Ensure that nested assoc array types cannot be used for record field
 #
@@ -2138,7 +2271,7 @@ person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'))
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select ('Michael','Widenius') = person_by_nickname['Monty']@0['Monty'] AS "person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'))"
+Note	1003	select ('Michael','Widenius') = person_by_nickname@0['Monty'] AS "person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'))"
 #
 # EXPLAIN SELECT for field of element of array
 #
@@ -2158,7 +2291,7 @@ $$
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select person_by_nickname['Monty'].first_name@0['Monty'].0 AS "person_by_nickname('Monty').first_name"
+Note	1003	select person_by_nickname@0['Monty'].first_name AS "person_by_nickname('Monty').first_name"
 #
 # EXPLAIN SELECT for IS NULL with array argument
 #
@@ -2233,17 +2366,25 @@ m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
 m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
 0	1	0	1
 #
-# Call associative array method directly
+# Call an associative array procedure method directly
 #
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
-m1 marks_t:= marks_t(1 => 62);
+m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
 BEGIN
+SELECT m1.count;
+m1.delete(2);
+SELECT m1.count, m1(1), m1(3);
 m1.delete;
+SELECT m1.count;
 END;
 $$
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'm1.delete;
-END' at line 5
+m1.count
+3
+m1.count	m1(1)	m1(3)
+2	61	63
+m1.count
+0
 #
 # Create an associative array type sharing the same name as a built-in function
 # TODO: This should be allowed
@@ -2591,3 +2732,134 @@ END;
 $$
 ERROR HY000: 'count("t1"."a")' is not allowed in this context
 DROP TABLE t1;
+#
+# Non-constant expressions are not allowed as a key: a scalar value
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT marks(rand());
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT marks(78+rand());
+END;
+$$
+CALL p1;
+ERROR HY000: '78 + rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(rand()) := 78;
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT 79 INTO marks(rand());
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+#
+# Non-constant expressions are not allowed as a key: a row value field
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+assoc assoc_t:= assoc_t (1 => person_t('Iqbal','Hassan'));
+BEGIN
+SELECT assoc(rand()).first_name;
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+assoc assoc_t:= assoc_t(1 => person_t('Iqbal','Hassan'));
+BEGIN
+assoc(rand()).first_name:= 'John';
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+assoc assoc_t:= assoc_t(1 => person_t('Iqbal','Hassan'));
+BEGIN
+SELECT 'John' INTO assoc(rand()).first_name;
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+#
+# The below script with a scalar element produces a warning.
+# Make sure the variable name is correct in the warning.
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+assoc0(1):= 10e10;
+SELECT assoc0(1) AS c1;
+END;
+$$
+CALL p1;
+c1
+2147483647
+Warnings:
+Warning	1264	Out of range value for column 'assoc0' at row 0
+DROP PROCEDURE p1;
+#
+# The below script with a record element produces a warning.
+# Make sure the variable name is correct in the warning.
+#
+CREATE PROCEDURE p1 AS
+TYPE rec_t IS RECORD (i INT);
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+assoc0 assoc0_t := assoc0_t(1 => rec_t(0));
+BEGIN
+assoc0(1).i := 10e10;
+SELECT assoc0(1).i AS c1;
+END;
+$$
+CALL p1;
+c1
+2147483647
+Warnings:
+Warning	1264	Out of range value for column 'i' at row 0
+DROP PROCEDURE p1;

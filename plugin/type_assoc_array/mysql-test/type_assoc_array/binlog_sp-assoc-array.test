@@ -45,6 +45,13 @@ DECLARE
   first_names first_names_t;
   nick VARCHAR(64):= 'Monty';
 BEGIN
+  -- Make sure the method "DELETE" is not bin-logged per se
+  first_names('Liv') := 'Liver';
+  first_names('Sly') := 'Sylvester';
+  first_names.DELETE('Liv');
+  first_names.DELETE;
+
+  -- Only DML statements are bin-logged
   first_names('Monty') := 'Michael';
   
   INSERT INTO t1 VALUES (first_names('Monty'));

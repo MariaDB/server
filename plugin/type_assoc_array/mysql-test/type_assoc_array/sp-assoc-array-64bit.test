@@ -1,0 +1,58 @@
+--source include/have_64bit.inc
+
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+
+--echo #
+--echo # Checking memory_used increment when inserting into an assoc array.
+--echo # Checking that when the routine execution leaves
+--echo # a DECLARE..BEGIN..END block with an assoc array declared,
+--echo # the memory used by the assoc array is freed.
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION memory_used() RETURN BIGINT AS
+BEGIN
+  RETURN (SELECT variable_value FROM INFORMATION_SCHEMA.SESSION_STATUS
+          WHERE variable_name='memory_used');
+END;
+/
+CREATE PROCEDURE p1 AS
+  memory_used0 BIGINT:= memory_used();
+BEGIN
+  DECLARE
+    TYPE person_t IS RECORD
+    (
+      first_name VARCHAR(2048),
+      last_name VARCHAR(2048)
+    );
+    TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+    person_by_nickname table_of_peson_t;
+  BEGIN
+    person_by_nickname('p0'):= person_t('','');
+    SELECT 'p0' AS id, memory_used()-memory_used0 AS diff;
+
+    person_by_nickname('p1'):= person_t('first_name', 'last_name');
+    SELECT 'p1' AS id, memory_used()-memory_used0 AS diff;
+
+    person_by_nickname('p2'):= person_t(CONCAT('first_name', REPEAT('a',1024)),
+                                        CONCAT('last_name',  REPEAT('a',1024)));
+    SELECT 'p2' AS id, memory_used()-memory_used0 AS diff;
+
+    person_by_nickname('p2'):= person_t('first_name', 'last_name');
+    SELECT 'p2upd' AS id, memory_used()-memory_used0 AS diff;
+
+    person_by_nickname.delete('p2');
+    SELECT 'p2del' AS id, memory_used()-memory_used0 AS diff;
+  END;
+  SELECT memory_used()-memory_used0 AS diff1;
+END;
+/
+DELIMITER ;/
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION memory_used;

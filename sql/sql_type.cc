@@ -5297,7 +5297,7 @@ raise_bad_data_type_for_functor(const Qualified_ident &ident,
   DBUG_ASSERT(ident.defined_parts() > 0 && ident.defined_parts() <= 3);
 
   char param[MYSQL_ERRMSG_SIZE];
-  uint used= 0;
+  size_t used= 0;
   for (uint i= 0; i < ident.defined_parts() && used < sizeof(param); i++)
   {
     used+= my_snprintf(param + used,
