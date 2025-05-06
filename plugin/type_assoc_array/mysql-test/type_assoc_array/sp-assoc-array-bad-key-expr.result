@@ -1,0 +1,188 @@
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+#
+# Passing an expression of a wrong type as a key: POINT
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+BEGIN
+SELECT marks(POINT(1,1));
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1 INTO marks(POINT(1,1));
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(POINT(1,1)) := 1;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PROCEDURE p1;
+#
+# Passing an expression of a wrong type as a key: ROW
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+BEGIN
+SELECT marks(ROW(1,1));
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '<subscript expression>'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1 INTO marks(ROW(1,1));
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '<subscript expression>'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(ROW(1,1)) := 1;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '<subscript expression>'
+DROP PROCEDURE p1;
+#
+# Passing an expression of a wrong type as a key: anchored POINT
+#
+CREATE TABLE t1 (a POINT(1,1));
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+idx t1.a%TYPE;
+BEGIN
+SELECT marks(idx);
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a POINT(1,1));
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+idx t1.a%TYPE;
+BEGIN
+SELECT 1 INTO marks(idx);
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a POINT(1,1));
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+idx t1.a%TYPE;
+BEGIN
+marks(idx):= 1;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Passing an expression of a wrong type as a key: anchored ROW
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+idx t1%ROWTYPE;
+BEGIN
+SELECT marks(idx);
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '<subscript expression>'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT);
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+idx t1%ROWTYPE;
+BEGIN
+SELECT 1 INTO marks(idx);
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '<subscript expression>'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT);
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+idx t1%ROWTYPE;
+BEGIN
+marks(idx):= 1;
+END;
+$$
+CALL p1;
+ERROR HY000: Illegal parameter data type row for operation '<subscript expression>'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Passing a stored function as a key
+#
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+BEGIN
+SELECT marks(f1());
+END;
+$$
+ERROR HY000: '"f1"()' is not allowed in this context
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1 INTO marks(f1());
+END;
+$$
+ERROR HY000: '"f1"()' is not allowed in this context
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(f1()) := 1;
+END;
+$$
+ERROR HY000: '"f1"()' is not allowed in this context
+DROP FUNCTION f1;

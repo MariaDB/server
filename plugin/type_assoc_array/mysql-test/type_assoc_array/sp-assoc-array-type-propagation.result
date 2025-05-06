@@ -1,0 +1,140 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb4;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+#
+# Disallow VARCHAR->TEXT propagation for the INDEX BY field
+# Even for non-strict sql_mode.
+#
+SET @sql_mode_old=@@sql_mode;
+SET sql_mode=REPLACE(@@sql_mode,'STRING_ALL_TABLES','');
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF INT INDEX BY VARCHAR(100000) COLLATE latin1_bin;
+assoc assoc_t:= assoc_t('a'=>1,'b'=>2);
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+ERROR 42000: Column length too big for column '' (max = 65532); use BLOB or TEXT instead
+DROP PROCEDURE p1;
+SET sql_mode=@sql_mode_old;
+#
+# Check that TEXT works in an array of scalars
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF TEXT INDEX BY INT;
+assoc assoc_t:= assoc_t(1=>'val1',2=>'val2');
+BEGIN
+SELECT assoc(1) AS a1, assoc(2) AS a2;
+CREATE TABLE t1 AS SELECT assoc(1) AS a1, assoc(2) AS a2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+a1	a2
+val1	val2
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a1" text DEFAULT NULL,
+  "a2" text DEFAULT NULL
+)
+a1	a2
+val1	val2
+DROP PROCEDURE p1;
+#
+# VARCHAR->TEXT propagation is ok for the data scalar value
+#
+SET @sql_mode_old=@@sql_mode;
+SET sql_mode=REPLACE(@@sql_mode,'STRING_ALL_TABLES','');
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR(100000) INDEX BY VARCHAR(20);
+assoc assoc_t := assoc_t(1=>'val1',2=>'val2');
+BEGIN
+SELECT assoc(1) AS a1, assoc(2) AS a2;
+CREATE TABLE t1 AS SELECT assoc(1) AS a1, assoc(2) AS a2;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+Warnings:
+Note	1246	Converting column 'assoc_t' from VARCHAR to TEXT
+CALL p1;
+a1	a2
+val1	val2
+a1	a2
+val1	val2
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a1" mediumtext DEFAULT NULL,
+  "a2" mediumtext DEFAULT NULL
+)
+Warnings:
+Note	1246	Converting column 'assoc_t' from VARCHAR to TEXT
+DROP PROCEDURE p1;
+SET sql_mode=@sql_mode_old;
+#
+# Check that TEXT record fields work in an array of records
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE rec_t IS RECORD (a TEXT, b LONGTEXT);
+TYPE assoc_t IS TABLE OF rec_t INDEX BY INT;
+assoc assoc_t:= assoc_t(1=>rec_t('a1','b1'),2=>rec_t('a2','b2'));
+BEGIN
+CREATE TABLE t1 AS
+SELECT assoc(1).a AS a1a, assoc(1).b AS a1b, assoc(2).a AS a2a, assoc(2).b AS a2b;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a1a" text DEFAULT NULL,
+  "a1b" longtext DEFAULT NULL,
+  "a2a" text DEFAULT NULL,
+  "a2b" longtext DEFAULT NULL
+)
+a1a	a1b	a2a	a2b
+a1	b1	a2	b2
+DROP PROCEDURE p1;
+#
+# VARCHAR->TEXT propagation is ok for the data fields
+#
+SET @sql_mode_old=@@sql_mode;
+SET sql_mode=REPLACE(@@sql_mode,'STRING_ALL_TABLES','');
+CREATE PROCEDURE p1 AS
+TYPE rec_t IS RECORD (a VARCHAR(100000), b VARCHAR(100000000));
+TYPE assoc_t IS TABLE OF rec_t INDEX BY VARCHAR(20) COLLATE latin1_bin;
+assoc assoc_t := assoc_t(1=>rec_t('a1','b1'),2=>rec_t('a2','b2'));
+BEGIN
+SELECT assoc(1).a, assoc(1).b, assoc(2).a, assoc(2).b;
+CREATE TABLE t1 AS
+SELECT assoc(1).a AS a1a, assoc(1).b AS a1b, assoc(2).a AS a2a, assoc(2).b AS a2b;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+Warnings:
+Note	1246	Converting column 'a' from VARCHAR to TEXT
+Note	1246	Converting column 'b' from VARCHAR to TEXT
+CALL p1;
+assoc(1).a	assoc(1).b	assoc(2).a	assoc(2).b
+a1	b1	a2	b2
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a1a" mediumtext DEFAULT NULL,
+  "a1b" longtext DEFAULT NULL,
+  "a2a" mediumtext DEFAULT NULL,
+  "a2b" longtext DEFAULT NULL
+)
+Warnings:
+Note	1246	Converting column 'a' from VARCHAR to TEXT
+Note	1246	Converting column 'b' from VARCHAR to TEXT
+DROP PROCEDURE p1;
+SET sql_mode=@sql_mode_old;

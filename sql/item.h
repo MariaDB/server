@@ -3234,6 +3234,11 @@ protected:
   sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
   Item_field *get_variable(sp_rcontext *ctx) const;
 
+  sp_rcontext_addr rcontext_addr() const
+  {
+    return sp_rcontext_addr(m_rcontext_handler, m_var_idx);
+  }
+
 public:
   Item_splocal(THD *thd, const Sp_rcontext_handler *rh,
                const LEX_CSTRING *sp_var_name, uint sp_var_idx,

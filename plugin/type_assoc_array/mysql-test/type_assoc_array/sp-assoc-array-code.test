@@ -1,6 +1,7 @@
 -- source include/have_debug.inc
 
 SET sql_mode=ORACLE;
+SET NAMES utf8mb4;
 
 --echo # 
 --echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
@@ -86,4 +87,91 @@ END;
 $$
 DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Call an associative array procedure method directly
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
+BEGIN
+  SELECT m1.count;
+  m1.delete(2);
+  SELECT m1.count, m1(1), m1(3);
+  m1.delete;
+  SELECT m1.count;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Item_method_func::print()
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE salary IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  salary_list salary;
+  name VARCHAR2(20);
+BEGIN
+  WHILE name IS NOT NULL
+  LOOP
+    name:= salary_list.NEXT(name);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Item_splocal_assoc_array_element::print()
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE salary IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  salary_list salary:= salary('Rajnisj'=> 62000);
+  v0 NUMBER;
+BEGIN
+  v0:= salary_list('Rajnisj');
+  SELECT salary_list('Rajnisj') AS c0, v0;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Item_splocal_assoc_array_element_field::print()
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE list_t IS TABLE OF person_t INDEX BY INT;
+  list list_t := list_t(1=>person_t('Agnetha', 'Faltskog'));
+BEGIN
+  list(1).last_name:= REPLACE(list(1).last_name,'Fa','Fä');
+  SELECT list(1).first_name AS first_name, list(1).last_name AS last_name;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
 DROP PROCEDURE p1;

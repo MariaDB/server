@@ -1,0 +1,89 @@
+SET sql_mode=ORACLE;
+SET NAMES utf8mb4;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+SET debug_dbug='d,assoc_array';
+CREATE DATABASE test1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+USE test1;
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR(10) INDEX BY VARCHAR(20);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+Warnings:
+Note	1003	create_fields: key: len=  80 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: val: len=  40 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: key: len=  80 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: val: len=  40 cs=utf8mb4_uca1400_ai_ci
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+field_name VARCHAR(100),
+last_name VARCHAR(100)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY VARCHAR(20);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+Warnings:
+Note	1003	create_fields: key: len=  80 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: val: len=   0 cs=binary
+Note	1003	create_fields: [0]: len= 400 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: [1]: len= 400 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: key: len=  80 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: val: len=   0 cs=binary
+Note	1003	create_fields: [0]: len= 400 cs=utf8mb4_uca1400_ai_ci
+Note	1003	create_fields: [1]: len= 400 cs=utf8mb4_uca1400_ai_ci
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+CREATE DATABASE test1 CHARACTER SET latin1;
+USE test1;
+CREATE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR(10) INDEX BY VARCHAR(20);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+Warnings:
+Note	1003	create_fields: key: len=  20 cs=latin1_swedish_ci
+Note	1003	create_fields: val: len=  10 cs=latin1_swedish_ci
+Note	1003	create_fields: key: len=  20 cs=latin1_swedish_ci
+Note	1003	create_fields: val: len=  10 cs=latin1_swedish_ci
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+field_name VARCHAR(100),
+last_name VARCHAR(100)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY VARCHAR(20);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+CALL p1;
+Warnings:
+Note	1003	create_fields: key: len=  20 cs=latin1_swedish_ci
+Note	1003	create_fields: val: len=   0 cs=binary
+Note	1003	create_fields: [0]: len= 100 cs=latin1_swedish_ci
+Note	1003	create_fields: [1]: len= 100 cs=latin1_swedish_ci
+Note	1003	create_fields: key: len=  20 cs=latin1_swedish_ci
+Note	1003	create_fields: val: len=   0 cs=binary
+Note	1003	create_fields: [0]: len= 100 cs=latin1_swedish_ci
+Note	1003	create_fields: [1]: len= 100 cs=latin1_swedish_ci
+DROP PROCEDURE p1;
+DROP DATABASE test1;
+USE test;
+SET debug_dbug=DEFAULT;

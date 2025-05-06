@@ -3914,6 +3914,15 @@ public:
   bool call_statement_start(THD *thd, const Qualified_ident *ident);
   bool call_statement_start_or_lvalue_assign(THD *thd,
                                              Qualified_ident *ident);
+  /*
+    Create instructions for a direct call (without the CALL keyword):
+      sp1;               - a schema procedure call
+      db1.sp1;           - a schema procedure call
+      pkg1.sp1;          - a package procedure call
+      db1.pkg1.sp1;      - a package procedure call
+      assoc_array.delete - an SP variable procedure method call
+  */
+  bool direct_call(THD *thd, const Qualified_ident *ident, List<Item> *args);
 
   bool assoc_assign_start(THD *thd, Qualified_ident *ident);
   sp_variable *find_variable(const LEX_CSTRING *name,
@@ -4984,10 +4993,19 @@ public:
   bool set_cast_type_udt(Lex_cast_type_st *type,
                          const LEX_CSTRING &name);
 
-  bool set_field_type_composite(Lex_field_type_st *type,
-                                const LEX_CSTRING &name,
-                                bool with_collection,
-                                bool *is_composite);
+  bool declare_type_record(THD *thd,
+                           const Lex_ident_sys_st &type_name,
+                           Row_definition_list *fields);
+  bool declare_type_assoc_array(THD *thd,
+                                const Lex_ident_sys_st &type_name,
+                                Spvar_definition *key,
+                                Spvar_definition *value);
+  bool set_field_type_typedef(Lex_field_type_st *type,
+                              const LEX_CSTRING &name,
+                              bool *is_typedef);
+  bool set_field_type_udt_or_typedef(Lex_field_type_st *type,
+                                     const LEX_CSTRING &name,
+                                     const Lex_length_and_dec_st &attr);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;
