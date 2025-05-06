@@ -3289,7 +3289,7 @@ public:
       void reset(THD *thd)
       {
         tv_sec= thd->query_start();
-        tv_usec= (long) thd->query_start_sec_part();
+        tv_usec= (__darwin_suseconds_t) thd->query_start_sec_part();
       }
     } start_time;
 
