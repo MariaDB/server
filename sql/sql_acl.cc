@@ -15502,12 +15502,13 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     const char *dst_db_name= table->schema_select_lex->db.str;
 
     DBUG_ASSERT(dst_db_name);
+    privilege_t cur_access;
 
-    if (check_access(thd, SELECT_ACL, dst_db_name, &thd->col_access, NULL,
+    if (check_access(thd, SELECT_ACL, dst_db_name, &cur_access, NULL,
                      FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access && check_grant_db(thd->security_ctx, dst_db_name))
+    if (!cur_access && check_grant_db(thd->security_ctx, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0), thd->security_ctx->priv_user,
