@@ -2,6 +2,17 @@
 # MDEV-34319 DECLARE TYPE type_name IS RECORD (..) with scalar members in stored routines
 #
 #
+# UUID is not allowed as an assoc array key type
+#
+SET sql_mode=ORACLE;
+DECLARE
+TYPE assoc_t IS TABLE OF INTEGER INDEX BY UUID;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type uuid for operation '<array index data type>'
+#
 # Demonstrate UDT field type for associative array element
 #
 SET sql_mode=ORACLE;

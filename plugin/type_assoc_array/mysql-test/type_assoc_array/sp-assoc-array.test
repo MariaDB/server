@@ -67,6 +67,58 @@ DELIMITER ;$$
 
 
 --echo #
+--echo # Bad key data type
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DOUBLE;
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY POINT;
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DATE;
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY ROW(a INT, b INT);
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
 --echo # RECORD element type
 --echo #
 DELIMITER $$;
@@ -219,6 +271,62 @@ DECLARE
   id INTEGER;
 BEGIN
   NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Wrong use: assoc_array_var;
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  assoc0 assoc0_t;
+BEGIN
+  assoc0;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  assoc0 assoc0_t;
+BEGIN
+  `assoc0`;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Wrong use: assoc_array_var(1);
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  assoc0 assoc0_t;
+BEGIN
+  assoc0(1);
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  assoc0 assoc0_t;
+BEGIN
+  `assoc0`(1);
 END;
 $$
 DELIMITER ;$$
@@ -718,6 +826,60 @@ END;
 $$
 DELIMITER ;$$
 
+
+--echo #
+--echo # Make sure DELETE does not work as a method-function
+--echo #
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  SELECT marks.DELETE;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  DO marks.DELETE;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  SELECT marks.DELETE(0);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  DO marks.DELETE(0);
+END;
+$$
+DELIMITER ;$$
+
+
 --echo #
 --echo # DELETE
 --echo #
@@ -729,10 +891,10 @@ BEGIN
   marks(0) := 62;
   marks(1) := 78;
   marks(2) := 99;
-  SELECT marks.DELETE(1);
+  marks.DELETE(1);
   SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
 
-  SELECT marks.DELETE;
+  marks.DELETE;
   SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
 END;
 $$
@@ -750,7 +912,7 @@ BEGIN
   marks(0) := 62;
   marks(1) := 78;
   marks(2) := 99;
-  SELECT marks.DELETE(1, 2);
+  marks.DELETE(1, 2);
 END;
 $$
 DELIMITER ;$$
@@ -764,7 +926,7 @@ DECLARE
   marks marks_t;
 BEGIN
   marks(0) := 62;
-  SELECT marks.DELETE(NULL);
+  marks.DELETE(NULL);
 END;
 $$
 DELIMITER ;$$
@@ -773,14 +935,45 @@ DELIMITER ;$$
 --echo # DELETE on scalar
 --echo #
 DELIMITER $$;
---error ER_FUNC_INEXISTENT_NAME_COLLISION
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   marks INTEGER;
 BEGIN
-  SELECT marks.DELETE(1);
+  marks.DELETE(1);
 END;
 $$
 DELIMITER ;$$
+
+
+--echo #
+--echo # Make sure COUNT does not work as a method-procedure
+--echo #
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks.COUNT;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks.COUNT();
+END;
+$$
+DELIMITER ;$$
+
 
 --echo #
 --echo # COUNT
@@ -798,7 +991,7 @@ BEGIN
   marks(3) := 44;
   SELECT marks.COUNT;
 
-  SELECT marks.DELETE(1);
+  marks.DELETE(1);
   SELECT marks.COUNT;
 END;
 $$
@@ -822,7 +1015,7 @@ DELIMITER ;$$
 --echo # VARCHAR2 key length error
 --echo #
 DELIMITER $$;
---error ER_TOO_LONG_KEY
+--error ER_WRONG_STRING_LENGTH
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(10);
   marks marks_t;
@@ -2380,7 +2573,7 @@ SET sql_mode=ORACLE;
 --echo # Ensure that nested assoc array types are properly parsed (without crash, etc)
 --echo #
 DELIMITER $$;
---error ER_NOT_SUPPORTED_YET
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 DECLARE
    TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
    TYPE classes_t IS TABLE OF marks_t INDEX BY INTEGER;
@@ -2546,15 +2739,18 @@ DELIMITER ;$$
 
 
 --echo #
---echo # Call associative array method directly
+--echo # Call an associative array procedure method directly
 --echo #
 DELIMITER $$;
---error ER_PARSE_ERROR
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
-  m1 marks_t:= marks_t(1 => 62);
+  m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
 BEGIN
+  SELECT m1.count;
+  m1.delete(2);
+  SELECT m1.count, m1(1), m1(3);
   m1.delete;
+  SELECT m1.count;
 END;
 $$
 DELIMITER ;$$
@@ -2946,3 +3142,163 @@ $$
 DELIMITER ;$$
 
 DROP TABLE t1;
+
+
+--echo #
+--echo # Non-constant expressions are not allowed as a key: a scalar value
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 78;
+  SELECT marks(rand());
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 78;
+  SELECT marks(78+rand());
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(rand()) := 78;
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 78;
+  SELECT 79 INTO marks(rand());
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Non-constant expressions are not allowed as a key: a row value field
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+  assoc assoc_t:= assoc_t (1 => person_t('Iqbal','Hassan'));
+BEGIN
+  SELECT assoc(rand()).first_name;
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+  assoc assoc_t:= assoc_t(1 => person_t('Iqbal','Hassan'));
+BEGIN
+  assoc(rand()).first_name:= 'John';
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+  assoc assoc_t:= assoc_t(1 => person_t('Iqbal','Hassan'));
+BEGIN
+  SELECT 'John' INTO assoc(rand()).first_name;
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # The below script with a scalar element produces a warning.
+--echo # Make sure the variable name is correct in the warning.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+  assoc0 assoc0_t;
+BEGIN
+  assoc0(1):= 10e10;
+  SELECT assoc0(1) AS c1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # The below script with a record element produces a warning.
+--echo # Make sure the variable name is correct in the warning.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE rec_t IS RECORD (i INT);
+  TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+  assoc0 assoc0_t := assoc0_t(1 => rec_t(0));
+BEGIN
+  assoc0(1).i := 10e10;
+  SELECT assoc0(1).i AS c1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;

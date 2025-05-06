@@ -3924,6 +3924,13 @@ protected:
                                                     enum_field_types type)
                                                     const;
 public:
+
+  enum class object_method_type_t
+  {
+    FUNCTION,
+    PROCEDURE
+  };
+
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
                                                       const LEX_CSTRING &name);
@@ -4690,7 +4697,7 @@ public:
     DBUG_ASSERT(0); // Should have checked has_functors().
     return nullptr;
   }
-  virtual Item *create_item_method(THD *thd,
+  virtual Item *create_item_method(THD *thd, object_method_type_t type,
                                    const Lex_ident_sys &ca,
                                    const Lex_ident_sys &cb,
                                    List<Item> *args,

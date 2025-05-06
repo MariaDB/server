@@ -8950,7 +8950,7 @@ bool Qualified_column_ident::append_to(THD *thd, String *str) const
 
 
 Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a)
- :m_cli_pos(a.pos()),
+ :m_pos(Lex_ident_cli(a.pos(), a.end() - a.pos())),
   m_spvar(nullptr),
   m_defined_parts(1)
 {
@@ -8960,32 +8960,34 @@ Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a)
 
 
 Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a,
-                                 const Lex_ident_sys_st &b)
- :m_cli_pos(a.pos()),
+                                 const Lex_ident_cli_st &b)
+ :m_pos(Lex_ident_cli(a.pos(), b.end() - a.pos())),
   m_spvar(nullptr),
   m_defined_parts(2)
 {
+  DBUG_ASSERT(a.pos() < b.end());
   m_parts[0]= Lex_ident_sys(thd, &a);
-  m_parts[1]= b;
+  m_parts[1]= Lex_ident_sys(thd, &b);
   m_parts[2]= Lex_ident_sys();
 }
 
 
 Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a,
-                                 const Lex_ident_sys_st &b,
-                                 const Lex_ident_sys_st &c)
- :m_cli_pos(a.pos()),
+                                 const Lex_ident_cli_st &b,
+                                 const Lex_ident_cli_st &c)
+ :m_pos(Lex_ident_cli(a.pos(), c.end() - a.pos())),
   m_spvar(nullptr),
   m_defined_parts(3)
 {
+  DBUG_ASSERT(a.pos() < c.end());
   m_parts[0]= Lex_ident_sys(thd, &a);
-  m_parts[1]= b;
-  m_parts[2]= c;
+  m_parts[1]= Lex_ident_sys(thd, &b);
+  m_parts[2]= Lex_ident_sys(thd, &c);
 }
 
 
 Qualified_ident::Qualified_ident(const Lex_ident_sys_st &a)
- :m_cli_pos(nullptr),
+ :m_pos(Lex_ident_cli((const char *) nullptr, 0)),
   m_spvar(nullptr),
   m_defined_parts(1)
 {

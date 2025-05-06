@@ -8966,8 +8966,10 @@ Item *LEX::create_item_ident(THD *thd,
       const Lex_ident_cli query_fragment(start, end - start);
       if (sys_a.is_null() || sys_b.is_null())
         return nullptr; // EOM
-      return spv->type_handler()->create_item_method(thd, sys_a, sys_b,
-                                                     NULL, query_fragment);
+      return spv->type_handler()->
+               create_item_method(thd,
+                                  Type_handler::object_method_type_t::FUNCTION,
+                                  sys_a, sys_b, NULL, query_fragment);
     }
   }
 
@@ -9291,7 +9293,7 @@ bool LEX::set_variable(const Qualified_ident *ident,
 {
   if (unlikely(ident->part(2).length))
   {
-    thd->parse_error(ER_SYNTAX_ERROR, ident->pos());
+    thd->parse_error(ER_SYNTAX_ERROR, ident->pos().str);
     return true;
   }
 
@@ -10124,6 +10126,51 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
 }
 
 
+bool LEX::direct_call(THD *thd, const Qualified_ident *ident,
+                      List<Item> *args)
+{
+  DBUG_ASSERT(ident);
+  if (!ident->spvar())
+    return false; // A procedure call
+
+  /*
+    ident->part(0) is a known SP variable.
+    Search for a procedure method of the variable, e.g.:
+      assoc_array_var.delete('key');
+  */
+  Item *item;
+  if (!ident->spvar()->type_handler()->has_methods() ||
+      ident->part(1).is_null() ||
+      !ident->part(2).is_null())
+  {
+    /*
+      E.g.:
+        spvar_int.method();  -- The SP variable data type does not have methods
+        spvar.step1.step2(); -- A 3-step method call of an SP variable
+                                (we don't have 3-step methods yet)
+    */
+    thd->parse_error(ER_SYNTAX_ERROR, ident->pos().str);
+    return true;
+  }
+
+  if (!(item= ident->spvar()->type_handler()->
+               create_item_method(thd,
+                                  Type_handler::object_method_type_t::PROCEDURE,
+                                  ident->part(0), ident->part(1),
+                                  args, ident->pos())))
+  {
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
+  sql_command= SQLCOM_DO;
+  DBUG_ASSERT(insert_list == nullptr);
+  if (!(insert_list= List<Item>::make(thd->mem_root, item)))
+    return true;
+
+  return false;
+}
+
+
 bool LEX::assoc_assign_start(THD *thd, Qualified_ident *ident)
 {
   if (unlikely(ident->spvar() == NULL))
@@ -10134,7 +10181,7 @@ bool LEX::assoc_assign_start(THD *thd, Qualified_ident *ident)
 
   LEX *lex= this;
   lex->set_stmt_init();
-  if (sp_create_assignment_lex(thd, ident->pos()))
+  if (sp_create_assignment_lex(thd, ident->pos().str))
    return true;
 
   return false;
@@ -10523,9 +10570,10 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
       (spv= spcont->find_variable(&sys_a, false)) &&
       spv->type_handler()->has_methods())
   {
-    if (Item *item= spv->type_handler()->create_item_method(thd,
-                                                            sys_a, sys_b, args,
-                                                            query_fragment))
+    if (Item *item= spv->type_handler()->
+               create_item_method(thd,
+                                  Type_handler::object_method_type_t::FUNCTION,
+                                  sys_a, sys_b, args, query_fragment))
     {
       item->set_name(thd, query_fragment, thd->charset());
       return item;
@@ -12766,6 +12814,60 @@ Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
 }
 
 
+bool LEX::declare_type_record(THD *thd,
+                              const Lex_ident_sys_st &type_name,
+                              Row_definition_list *fields)
+{
+  sp_type_def *tdef=
+    new (thd->mem_root) sp_type_def_record(Lex_ident_column(type_name), fields);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true;
+  return false;
+}
+
+
+bool LEX::declare_type_assoc_array(THD *thd,
+                                   const Lex_ident_sys_st &type_name,
+                                   Spvar_definition *key,
+                                   Spvar_definition *value)
+{
+  const auto aa= "associative_array"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, aa);
+  if (unlikely(!th))
+    return true;
+
+  sp_type_def *tdef=
+    new (thd->mem_root) sp_type_def_composite2(Lex_ident_column(type_name),
+                                               th, key, value);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true;
+
+  Column_definition def;
+  def.set_handler(th);
+  def.set_attr_const_void_ptr(0, tdef);
+  Lex_field_type_st ltype;
+  ltype.set(th);
+  return def.type_handler()->
+          Column_definition_set_attributes(thd, &def, ltype,
+                                           COLUMN_DEFINITION_ROUTINE_LOCAL);
+}
+
+
+bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
+                                        const LEX_CSTRING &name,
+                                        const Lex_length_and_dec_st &attr)
+{
+  bool is_typedef= false;
+  if (unlikely(set_field_type_typedef(type, name, &is_typedef)))
+    return true;
+
+  if (is_typedef)
+    return false;
+
+  return set_field_type_udt(type, name, attr);
+}
+
+
 bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const LEX_CSTRING &name,
                              const Lex_length_and_dec_st &attr)
@@ -12789,34 +12891,21 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
 }
 
 
-bool LEX::set_field_type_composite(Lex_field_type_st *type,
-                                   const LEX_CSTRING &name,
-                                   bool with_collection,
-                                   bool *is_composite)
+bool LEX::set_field_type_typedef(Lex_field_type_st *type,
+                                 const LEX_CSTRING &name,
+                                 bool *is_typedef)
 {
   DBUG_ASSERT(type);
-  DBUG_ASSERT(is_composite);
+  DBUG_ASSERT(is_typedef);
 
-  sp_type_def *composite= NULL;
-
-  *is_composite= false;
+  *is_typedef= false;
   if (spcont)
   {
-    if ((composite= spcont->find_type_def(name, false)))
+    if (const sp_type_def *composite= spcont->find_type_def(name, false))
     {
-      if (with_collection ||
-          likely(composite->type_handler() == &type_handler_row))
-      {
-        type->set(composite->type_handler(), NULL);
-        last_field->set_attr_const_void_ptr(0, composite);
-      }
-      else
-      {
-        my_error(ER_NOT_SUPPORTED_YET, MYF(0), "nested associative arrays");
-        return true;
-      }
-
-      *is_composite= true;
+      type->set(composite->type_handler(), NULL);
+      last_field->set_attr_const_void_ptr(0, composite);
+      *is_typedef= true;
     }
   }
 
