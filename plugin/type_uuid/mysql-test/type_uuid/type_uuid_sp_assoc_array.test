@@ -2,6 +2,21 @@
 --echo # MDEV-34319 DECLARE TYPE type_name IS RECORD (..) with scalar members in stored routines
 --echo #
 
+--echo #
+--echo # UUID is not allowed as an assoc array key type
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+DECLARE
+  TYPE assoc_t IS TABLE OF INTEGER INDEX BY UUID;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
 
 --echo #
 --echo # Demonstrate UDT field type for associative array element

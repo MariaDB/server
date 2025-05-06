@@ -26,6 +26,7 @@
 
 
 class Item_field_packable;
+class Assoc_array_data;
 
 
 /*
@@ -35,7 +36,11 @@ class Type_handler_assoc_array: public Type_handler_composite
 {
 public:
   static const Type_handler_assoc_array *singleton();
-
+  static bool check_key_expression_type(Item *key);
+  static bool check_functor_args(THD *thd, List<Item> *args,
+                                 const char *opname);
+  static bool check_subscript_expression(const Type_handler *formal_th,
+                                         Item *key);
 public:
   bool has_methods() const override { return true; }
   bool has_functors() const override { return true; }
@@ -59,22 +64,7 @@ public:
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
                                         column_definition_type_t type)
-                                        const override
-  {
-    /*
-      Disallow wrong use of associative_array:
-        CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
-        CREATE FUNCTION .. RETURN ASSOCIATEIVE ARRAY ..;
-    */
-    if (!def->get_attr_const_void_ptr(0))
-    {
-      my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), name().ptr());
-      return true;
-    }
-    return Type_handler_composite::Column_definition_set_attributes(thd, def,
-                                                                    attr,
-                                                                    type);
-  }
+                                                       const override;
 
   bool sp_variable_declarations_finalize(THD *thd,
                                          LEX *lex, int nvars,
@@ -194,18 +184,36 @@ public:
                                             Item *item,
                                             const LEX_CSTRING &expr_str)
                                                          const override;
+protected:
+  Item *create_item_method_func(THD *thd,
+                                const Lex_ident_sys &ca,
+                                const Lex_ident_sys &cb,
+                                List<Item> *args,
+                                const Lex_ident_cli_st &query_fragment)
+                                                                 const;
+  Item *create_item_method_proc(THD *thd,
+                                const Lex_ident_sys &ca,
+                                const Lex_ident_sys &cb,
+                                List<Item> *args,
+                                const Lex_ident_cli_st &query_fragment)
+                                                                 const;
+public:
   virtual
   Item *create_item_method(THD *thd,
+                           object_method_type_t type,
                            const Lex_ident_sys &ca,
                            const Lex_ident_sys &cb,
                            List<Item> *args,
                            const Lex_ident_cli_st &query_fragment)
-                                                   const override;
+                                                   const override
+  {
+    return type == object_method_type_t::PROCEDURE ?
+           create_item_method_proc(thd, ca, cb, args, query_fragment) :
+           create_item_method_func(thd, ca, cb, args, query_fragment);
+  }
 
-  bool key_to_lex_cstring(THD *thd,
-                          Item **key,
-                          const LEX_CSTRING& name,
-                          LEX_CSTRING& out_key) const override;
+  LEX_CSTRING key_to_lex_cstring(THD *thd, const sp_rcontext_addr &var,
+                                 Item **key, String *buffer) const override;
 
   bool get_item_index(THD *thd,
                       const Item_field *item,
@@ -242,10 +250,14 @@ protected:
   Item_field_packable *m_item_pack;
   Item *m_item;
 
-  /*
-    Modified copy of the key definition
-  */
-  Spvar_definition m_key_def;
+  // A helper method
+  Assoc_array_data *assoc_tree_search(String *key) const
+  {
+    return reinterpret_cast<Assoc_array_data *>(tree_search((TREE*) &m_tree,
+                                                            key,
+                                                            m_key_field));
+  }
+
 public:
   Field_assoc_array(uchar *ptr_arg,
                     const LEX_CSTRING *field_name_arg);
@@ -261,6 +273,11 @@ public:
   const Row_definition_list *get_array_def() const
   {
     return m_def;
+  }
+
+  const Spvar_definition *get_key_def() const
+  {
+    return m_def->head();
   }
 
   Item_field *make_item_field_spvar(THD *thd,
@@ -292,7 +309,7 @@ public:
   Field *get_key_field() const { return m_key_field; }
 
 protected:
-  bool copy_and_convert_key(const String *key, String &key_copy) const;
+  bool copy_and_convert_key(const String &key, String *key_copy) const;
   bool unpack_key(const Binary_string &key, String *key_dst) const;
   bool create_fields(THD *thd);
 
@@ -303,7 +320,7 @@ protected:
   bool init_element_base(THD *thd);
 
   bool create_element_buffer(THD *thd, Binary_string *buffer);
-  bool insert_element(String &&key, Binary_string &&element);
+  bool insert_element(THD *thd, Assoc_array_data *data, bool warn_on_dup_key);
   bool get_next_or_prior_key(const String *curr_key,
                              String *new_key,
                              bool is_next);
@@ -403,7 +420,17 @@ class Item_splocal_assoc_array_base :public Item_composite_base
 {
 protected:
   Item *m_key;
-
+  /*
+    In expressions:
+      - assoc_array(key_expr)
+      - assoc_array(key_expr).field
+    execute "fix_fields_if_needed" for the key_expr and check if it's
+    compatible with the "INDEX_BY key_type" clause of the assoc array
+    definition.
+    @param thd        - Current thd
+    @param array_addr - The run-time address of the assoc array variable.
+  */
+  bool fix_key(THD *thd, const sp_rcontext_addr &array_addr);
 public:
   Item_splocal_assoc_array_base(Item *key);
 };

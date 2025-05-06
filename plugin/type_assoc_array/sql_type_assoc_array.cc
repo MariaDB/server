@@ -33,6 +33,15 @@
 
 
 /*
+  A helper class: a buffer to pass to val_str() to get key values.
+*/
+class StringBufferKey: public StringBuffer<STRING_BUFFER_USUAL_SIZE>
+{
+public:
+  using StringBuffer::StringBuffer;
+};
+
+/*
   Support class to rollback the change list when append_to_log is called.
   The following query for example:
     INSERT INTO t1 VALUES (first_names(TRIM(nick || ' ')));
@@ -71,6 +80,8 @@ public:
 
   void set_buffer(Binary_string *buffer)
   {
+    DBUG_ASSERT(buffer);
+    DBUG_ASSERT(buffer->get_thread_specific());
     m_buffer= buffer;
   }
 
@@ -285,7 +296,7 @@ public:
       auto end= item_elem->unpack();
       if (unlikely(!end))
         return nullptr;
-      offset= end - ptr();
+      offset= (uint) (end - ptr());
     }
 
     return ptr() + offset;
@@ -311,7 +322,7 @@ public:
       if (unlikely(!end))
         return true;
 
-      offset= end - ptr();
+      offset= (uint) (end - ptr());
     }
 
     return false;
@@ -407,7 +418,7 @@ public:
     T::traverse_cond(invalidate_rqp, nullptr, Item::traverse_order::PREFIX);
 
     pos_in_query= query_fragment.pos() - m_thd->lex->sphead->m_tmp_query;
-    len_in_query= query_fragment.length;
+    len_in_query= (uint) query_fragment.length;
 
     return false;
   }
@@ -457,7 +468,7 @@ public:
     if (str->append(m_var_name) ||
         str->append('@'))
       return;
-    str->qs_append(m_var_idx);
+    str->append_ulonglong(m_var_idx);
     if (str->append('.'))
       return;
     T::print(str, query_type);
@@ -544,7 +555,8 @@ class Func_handler_assoc_array_next:
     auto var_field= get_composite_field(item);
     DBUG_ASSERT(var_field);
 
-    auto curr_key= item->arguments()[0]->val_str();
+    StringBufferKey buffer;
+    auto curr_key= item->arguments()[0]->val_str(&buffer);
     if ((item->null_value= !curr_key ||
                            var_field->get_next_key(curr_key, tmp)))
       return NULL;
@@ -564,7 +576,8 @@ class Func_handler_assoc_array_prior:
     auto var_field= get_composite_field(item);
     DBUG_ASSERT(var_field);
 
-    auto curr_key= item->arguments()[0]->val_str();
+    StringBufferKey buffer;
+    auto curr_key= item->arguments()[0]->val_str(&buffer);
     if ((item->null_value= !curr_key ||
                             var_field->get_prior_key(curr_key, tmp)))
       return NULL;
@@ -676,6 +689,7 @@ public:
   longlong val_int() override
   {
     DBUG_ASSERT(fixed());
+    DBUG_ASSERT(!null_value);
 
     auto *array= get_composite_field();
     DBUG_ASSERT(array);
@@ -686,7 +700,6 @@ public:
   {
     decimals= 0;
     max_length= 10;
-    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -709,14 +722,16 @@ public:
   bool val_bool() override
   {
     DBUG_ASSERT(fixed());
-
-    if (args[0]->null_value)
+    DBUG_ASSERT(!null_value);
+    StringBufferKey buffer;
+    String *str= args[0]->val_str(&buffer);
+    if (!str)
       return false;
 
     auto *array= get_composite_field();
     DBUG_ASSERT(array);
 
-    return array->element_by_key(current_thd, args[0]->val_str()) != NULL;
+    return array->element_by_key(current_thd, str) != NULL;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -727,7 +742,6 @@ public:
   {
     decimals= 0;
     max_length= 1;
-    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -762,7 +776,10 @@ public:
     if (arg_count == 0)
       return field->delete_all_elements();
     else if (arg_count == 1)
-      return field->delete_element_by_key(args[0]->val_str());
+    {
+      StringBufferKey buffer;
+      return field->delete_element_by_key(args[0]->val_str(&buffer));
+    }
 
     return false;
   }
@@ -913,12 +930,25 @@ Item_method_base *sp_get_assoc_array_delete(THD *thd,
   The data structure used to store the key-value pairs in the
   associative array (TREE)
 */
-struct Assoc_array_data :public Sql_alloc
+class Assoc_array_data :public Sql_alloc
 {
-  Assoc_array_data(String &&key, Binary_string &&value)
+  void set_thread_specific()
   {
-    m_key.swap(key);
-    m_value.swap(value);
+    m_key.set_thread_specific();
+    m_value.set_thread_specific();
+  }
+
+public:
+  Assoc_array_data()
+  {
+    set_thread_specific();
+  }
+
+  void release()
+  {
+    m_key.release();
+    m_value.release();
+    set_thread_specific();
   }
 
   String m_key;
@@ -962,6 +992,7 @@ Field_assoc_array::Field_assoc_array(uchar *ptr_arg,
    m_table(nullptr),
    m_table_share(nullptr),
    m_def(nullptr),
+   m_key_field(nullptr),
    m_element_field(nullptr)
 {
   init_alloc_root(PSI_NOT_INSTRUMENTED, &m_mem_root, 512, 0, MYF(0));
@@ -979,6 +1010,9 @@ Field_assoc_array::Field_assoc_array(uchar *ptr_arg,
             sizeof(Assoc_array_data), assoc_array_tree_cmp,
 	          assoc_array_tree_del, NULL,
             MYF(MY_THREAD_SPECIFIC | MY_TREE_WITH_DELETE));
+
+  // Make sure that we cannot insert elements with duplicate keys
+  m_tree.flag|= TREE_NO_DUPS;
 }
 
 
@@ -989,6 +1023,9 @@ Field_assoc_array::~Field_assoc_array()
   delete_tree(&m_tree, 0);
 
   free_root(&m_mem_root, MYF(0));
+
+  delete m_element_field;
+  delete m_key_field;
 }
 
 
@@ -1030,18 +1067,17 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
       if (m_element_field->sp_prepare_and_store_item(thd, src_elem))
         goto error;
 
-      Binary_string pack_buffer;
-      if (create_element_buffer(thd, &pack_buffer))
+      Assoc_array_data data;
+      if (create_element_buffer(thd, &data.m_value))
         goto error;
 
-      m_item_pack->set_buffer(&pack_buffer);
+      m_item_pack->set_buffer(&data.m_value);
       m_item_pack->pack();
 
-      String key_copy;
-      if (copy_and_convert_key(&src_key, key_copy))
+      if (copy_and_convert_key(src_key, &data.m_key))
         goto error;
 
-      if (insert_element(std::move(key_copy), std::move(pack_buffer)))
+      if (insert_element(thd, &data, true))
         goto error;
 
       set_notnull();
@@ -1056,15 +1092,28 @@ error:
 }
 
 
-bool Field_assoc_array::insert_element(String &&key, Binary_string &&element)
+bool Field_assoc_array::insert_element(THD *thd, Assoc_array_data *data,
+                                       bool warn_on_dup_key)
 {
-  Assoc_array_data data(std::move(key), std::move(element));
+  DBUG_ASSERT(data->m_key.get_thread_specific());
+  DBUG_ASSERT(data->m_value.get_thread_specific());
 
-  if (unlikely(!tree_insert(&m_tree, &data, 0, m_key_field)))
-    return true;
+  if (unlikely(!tree_insert(&m_tree, data, 0, m_key_field)))
+  {
+    if (warn_on_dup_key && !thd->is_error())
+      push_warning_printf(thd,Sql_condition::WARN_LEVEL_WARN,
+                          ER_DUP_UNKNOWN_IN_INDEX,
+                          ER_THD(thd, ER_DUP_UNKNOWN_IN_INDEX),
+                          ErrConvString(data->m_key.ptr(),
+                                        data->m_key.length(),
+                                        m_key_field->charset()).ptr());
+    return thd->is_error(); // We want to return false on duplicate key
+  }
 
-  data.m_key.release();
-  data.m_value.release();
+  data->release();
+
+  DBUG_ASSERT(data->m_key.get_thread_specific());
+  DBUG_ASSERT(data->m_value.get_thread_specific());
 
   return false;
 }
@@ -1075,31 +1124,34 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
   if (!key)
     return NULL;
 
-  String key_copy;
-  if (copy_and_convert_key(key, key_copy))
+  Assoc_array_data data;
+  if (copy_and_convert_key(*key, &data.m_key))
     return nullptr;
 
   bool is_inserted= false;
-  Assoc_array_data *tree_data= (Assoc_array_data *)
-                               tree_search(&m_tree, &key_copy,
-                               m_key_field);
+  Assoc_array_data *tree_data= assoc_tree_search(&data.m_key);
   if (!tree_data)
   {
+    /*
+      copy_and_convert_key() alloced key->length()*mbmaxlen bytes for the
+      longest possible result of the character set conversion. Let's shrink
+      the buffer to the actual length().
+    */
+    data.m_key.shrink(data.m_key.length());
     // Create an element for the key if not found
-    Binary_string pack_buffer;
-    if (create_element_buffer(thd, &pack_buffer))
+    if (create_element_buffer(thd, &data.m_value))
       return nullptr;
 
-    if (insert_element(std::move(key_copy), std::move(pack_buffer)))
+    if (insert_element(thd, &data, false))
       return nullptr;
     set_notnull();
-  
+
     is_inserted= true;
 
-    if (copy_and_convert_key(key, key_copy))
+    // "data" is now released. Copy/convert the key again.
+    if (copy_and_convert_key(*key, &data.m_key))
       return nullptr;
-    tree_data= (Assoc_array_data *) tree_search(&m_tree, &key_copy,
-                                                m_key_field);
+    tree_data= assoc_tree_search(&data.m_key);
     DBUG_ASSERT(tree_data);
   }
 
@@ -1118,13 +1170,10 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key) const
     return NULL;
 
   String key_copy;
-  if (copy_and_convert_key(key, key_copy))
+  if (copy_and_convert_key(*key, &key_copy))
     return NULL;
 
-  Assoc_array_data *data= (Assoc_array_data *)
-                           tree_search((TREE *)&m_tree,
-                                        &key_copy,
-                                        m_key_field);
+  Assoc_array_data *data= assoc_tree_search(&key_copy);
   if (!data)
     return NULL;
 
@@ -1135,27 +1184,70 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key) const
 }
 
 
-bool Field_assoc_array::copy_and_convert_key(const String *key,
-                                             String &key_copy) const
+static bool convert_charset_with_error(CHARSET_INFO *tocs, String *to,
+                                       const String &from,
+                                       const char *op,
+                                       size_t nchars)
 {
-  DBUG_ASSERT(key);
+  String_copier copier;
+  const char *pos;
 
-  uint errors;
-  auto &key_def= *m_def->begin();
+  if (to->copy(tocs, from.charset(), from.ptr(), from.length(),
+               nchars, &copier))
+    return true; // EOM
 
-  if (unlikely(key_copy.copy(key, key_def.charset, &errors)))
-      return true;
-
-  if (key_def.type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
+  if (unlikely(pos= copier.well_formed_error_pos()))
   {
-    if (key_copy.length() > key_def.length)
-    {
-      my_error(ER_TOO_LONG_KEY, MYF(0), key_def.length);
+    ErrConvString err(pos, from.length() - (pos - from.ptr()),
+                      &my_charset_bin);
+    my_error(ER_INVALID_CHARACTER_STRING, MYF(0),
+             from.charset() == &my_charset_bin ?
+             tocs->cs_name.str : from.charset()->cs_name.str,
+             err.ptr());
+    return true;
+  }
+
+  if (unlikely(pos= copier.cannot_convert_error_pos()))
+  {
+    char buf[16];
+    int mblen= from.charset()->charlen(pos, from.end());
+    DBUG_ASSERT(mblen > 0 && mblen * 2 + 1 <= (int) sizeof(buf));
+    octet2hex(buf, (uchar*)pos, mblen);
+    my_error(ER_CANNOT_CONVERT_CHARACTER, MYF(0),
+             from.charset()->cs_name.str, buf,
+             tocs->cs_name.str);
+    return true;
+  }
+
+  if (copier.source_end_pos() < from.end())
+  {
+    my_error(ER_WRONG_STRING_LENGTH, MYF(0),
+             ErrConvString(&from).ptr(), op, (int) nchars);
+    return true;
+  }
+  return false;
+}
+
+
+bool Field_assoc_array::copy_and_convert_key(const String &key,
+                                             String *key_copy) const
+{
+  if (m_key_field->type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
+  {
+    if (convert_charset_with_error(m_key_field->charset(), key_copy, key,
+                                   "INDEX BY", m_key_field->char_length()))
       return true;
-    }
   }
   else
   {
+    uint errors;
+
+    if (unlikely(key_copy->copy(&key, &my_charset_numeric, &errors)))
+      return true;
+    /*
+      Use the non-prepared key_def with the original type handlers.
+    */
+    auto &key_def= *m_def->begin();
     auto type_handler= dynamic_cast<const Type_handler_general_purpose_int*>
                                                     (key_def.type_handler());
     DBUG_ASSERT(type_handler);
@@ -1172,14 +1264,14 @@ bool Field_assoc_array::copy_and_convert_key(const String *key,
     bool is_unsigned= type_handler->is_unsigned();
     auto cs= m_key_field->charset();
 
-    key_ull= cs->strntoull10rnd(key_copy.ptr(), key_copy.length(),
+    key_ull= cs->strntoull10rnd(key_copy->ptr(), key_copy->length(),
                                 is_unsigned, &endptr, &error);
     key_ll= (longlong) key_ull;
 
-    if (error || (endptr != key_copy.end()))
+    if (error || (endptr != key_copy->end()))
     {
       my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
-               key_copy.c_ptr());
+               key_copy->c_ptr());
       return true;
     }
 
@@ -1198,18 +1290,18 @@ bool Field_assoc_array::copy_and_convert_key(const String *key,
     if (error)
     {
       my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
-               key_copy.c_ptr());
+               key_copy->c_ptr());
       return true;
     }
 
-    key_copy.length(0);
-    if (unlikely(key_copy.alloc(8)))
+    key_copy->length(0);
+    if (unlikely(key_copy->alloc(8)))
       return true;
     
     if (is_unsigned)
-      key_copy.q_append_int64((longlong)key_ull);
+      key_copy->q_append_int64((longlong)key_ull);
     else
-      key_copy.q_append_int64(key_ll);
+      key_copy->q_append_int64(key_ll);
   }
 
   return false;
@@ -1256,60 +1348,114 @@ bool Field_assoc_array::unpack_key(const Binary_string &key,
 }
 
 
+#ifndef DBUG_OFF
+static void dbug_print_defs(THD *thd, const char *prefix,
+                            const Spvar_definition &key,
+                            const Spvar_definition &val)
+{
+  DBUG_EXECUTE_IF("assoc_array",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                    ER_YES, "%skey: len=%-4u cs=%s", prefix,
+                    (uint) key.length, key.charset->coll_name.str););
+  DBUG_EXECUTE_IF("assoc_array",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                    ER_YES, "%sval: len=%-4u cs=%s", prefix,
+                    (uint) val.length,
+                    val.charset->coll_name.str););
+
+  if (Row_definition_list *row= val.row_field_definitions())
+  {
+    uint i= 0;
+    List_iterator<Spvar_definition> it(*row);
+    for (Spvar_definition *def= it++; def; def= it++, i++)
+    {
+      DBUG_EXECUTE_IF("assoc_array",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                    ER_YES, "%s[%u]: len=%-4u cs=%s", prefix, i,
+                    (uint) def->length,
+                    def->charset->coll_name.str););
+    }
+  }
+}
+#endif // DBUG_OFF
+
+
 bool Field_assoc_array::create_fields(THD *thd)
 {
   /*
     Initialize the element field
   */
   auto &value_def= *(++m_def->begin());
+  List<Spvar_definition> value_field_list;
+  Spvar_definition value_rdef; // A resolved definition, for %ROWTYPE
+
   if (value_def.is_column_type_ref())
   {
-    Column_definition cdef;
-    if (value_def.column_type_ref()->resolve_type_ref(thd, &cdef))
+    if (value_def.column_type_ref()->resolve_type_ref(thd, &value_rdef) ||
+        value_field_list.push_back(&value_rdef))
       return true;
-
-    m_element_field= cdef.make_field(m_table_share,
-                                     thd->mem_root,
-                                     &empty_clex_str);
   }
   else
-    m_element_field= value_def.make_field(m_table_share,
-                                          thd->mem_root,
-                                          &empty_clex_str);
+  {
+    if (value_field_list.push_back(&value_def))
+      return true;
+  }
 
-  if (!m_element_field)
+  if (!(m_table= create_virtual_tmp_table(thd, value_field_list)))
     return true;
 
-  if (!(m_table= create_virtual_tmp_table(thd, m_element_field)))
-    return true;
+  m_element_field= m_table->field[0];
+  DBUG_ASSERT(m_element_field);
 
-  Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
-  if (field_row)
-    field_row->field_name= field_name;
+  /*
+    Assign the array's field name to it's element field. We want
+    any error messages that uses the field_name to use the array's
+    name.
+  */
+  m_element_field->field_name= field_name;
 
   /*
     Initialize the key field
   */
-  m_key_def= *m_def->begin();
+  Spvar_definition key_def= *m_def->begin();
 
-  if (m_key_def.type_handler()->field_type() != MYSQL_TYPE_VARCHAR)
+  if (key_def.type_handler()->field_type() != MYSQL_TYPE_VARCHAR)
   {
     DBUG_ASSERT(dynamic_cast<const Type_handler_general_purpose_int*>
-                                        (m_key_def.type_handler()));
+                                        (key_def.type_handler()));
 
-    if (m_key_def.type_handler()->is_unsigned())
-      m_key_def.set_handler(&type_handler_ulonglong);
+    if (key_def.type_handler()->is_unsigned())
+      key_def.set_handler(&type_handler_ulonglong);
     else
-      m_key_def.set_handler(&type_handler_slonglong);
-
-    /*
-      We need the key_def.pack_flag to be valid so that signedness can be
-      determined
-    */
-    m_key_def.sp_prepare_create_field(thd, thd->mem_root);
+      key_def.set_handler(&type_handler_slonglong);
   }
 
-  m_key_field= m_key_def.make_field(m_table_share,
+  /*
+    Now call sp_prepare_create_field().
+    - for integer types it'll set the key_def.pack_flag to be valid
+      so that signedness can be determined
+    - for varchar it'll evaluate charset and set max octet length according
+      to the charset mbmaxlen and the character length
+  */
+  {
+    /*
+      Disallow VARCHAR->TEXT conversion for the INDEX BY field.
+      Let's have warnings always escalated to errors during
+      sp_prepare_create_field().
+    */
+    Abort_on_warning_instant_set frame_abort_on_warning(thd, true);
+    Sql_mode_instant_set frame_sql_mode(thd, thd->variables.sql_mode |
+                                        MODE_STRICT_ALL_TABLES);
+    DBUG_ASSERT(thd->really_abort_on_warning());
+    if (key_def.sp_prepare_create_field(thd, thd->mem_root))
+      return true; // E.g. VARCHAR size is too large
+  }
+
+  DBUG_EXECUTE_IF("assoc_array",
+                  dbug_print_defs(thd, "create_fields: ",
+                                  key_def, value_def););
+
+  m_key_field= key_def.make_field(m_table_share,
                                   thd->mem_root,
                                   &empty_clex_str);
   if (!m_key_field)
@@ -1377,6 +1523,7 @@ bool Field_assoc_array::create_element_buffer(THD *thd, Binary_string *buffer)
 {
   DBUG_ASSERT(m_element_field);
   DBUG_ASSERT(buffer);
+  DBUG_ASSERT(buffer->get_thread_specific());
 
   Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
   if (field_row)
@@ -1397,13 +1544,10 @@ Item **Field_assoc_array::element_addr_by_key(THD *thd, String *key)
     return NULL;
 
   String key_copy;
-  if (copy_and_convert_key(key, key_copy))
+  if (copy_and_convert_key(*key, &key_copy))
     return NULL;
 
-  Assoc_array_data *data= (Assoc_array_data *)
-                          tree_search(&m_tree,
-                                      &key_copy,
-                                      m_key_field);
+  Assoc_array_data *data= assoc_tree_search(&key_copy);
   if (!data)
     return NULL;
 
@@ -1428,7 +1572,7 @@ bool Field_assoc_array::delete_element_by_key(String *key)
     return false; // We do not care if the key is NULL
   
   String key_copy;
-  if (copy_and_convert_key(key, key_copy))
+  if (copy_and_convert_key(*key, &key_copy))
     return NULL;
 
   (void) tree_delete(&m_tree, &key_copy, 0, m_key_field);
@@ -1488,7 +1632,7 @@ bool Field_assoc_array::get_next_or_prior_key(const String *curr_key,
     return true;
   
   String key_copy;
-  if (copy_and_convert_key(curr_key, key_copy))
+  if (copy_and_convert_key(*curr_key, &key_copy))
     return true;
 
   Assoc_array_data *data= (Assoc_array_data *)
@@ -1612,7 +1756,7 @@ bool Item_assoc_array::get_key(String *key, bool is_first)
 
   key->set(args[current_arg]->name.str,
            args[current_arg]->name.length,
-           &my_charset_bin);
+           system_charset_info);
   return false;
 }
 
@@ -1634,7 +1778,7 @@ bool Item_assoc_array::get_next_key(const String *curr_key, String *next_key)
         return true;
       next_key->set(args[i + 1]->name.str,
                     args[i + 1]->name.length,
-                    &my_charset_bin);
+                    system_charset_info);
       return false;
     }
   }
@@ -1706,14 +1850,27 @@ Item_splocal_assoc_array_element::Item_splocal_assoc_array_element(THD *thd,
 }
 
 
+bool Item_splocal_assoc_array_base::fix_key(THD *thd,
+                                            const sp_rcontext_addr &array_addr)
+{
+  Field *generic_field= thd->get_variable(array_addr)->field;
+  auto field= dynamic_cast<const Field_assoc_array*>(generic_field);
+  return m_key->fix_fields_if_needed(thd, &m_key) ||
+         Type_handler_assoc_array::
+            check_subscript_expression(field->get_key_def()->type_handler(),
+                                       m_key);
+}
+
+
 bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
-  if (m_key->fix_fields_if_needed(thd, &m_key))
+  if (fix_key(thd, rcontext_addr()))
     return true;
 
-  if (!m_key->val_str())
+  StringBufferKey buffer;
+  if (!m_key->val_str(&buffer))
   {
     my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
              m_name.str);
@@ -1737,8 +1894,9 @@ Item_splocal_assoc_array_element::this_item()
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
+  StringBufferKey buffer;
   return get_composite_variable(m_thd->spcont)->
-            element_by_key(m_thd, m_key->val_str());
+            element_by_key(m_thd, m_key->val_str(&buffer));
 }
 
 
@@ -1748,8 +1906,9 @@ Item_splocal_assoc_array_element::this_item() const
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
+  StringBufferKey buffer;
   return get_composite_variable(m_thd->spcont)->
-            element_by_key(m_thd, m_key->val_str());
+            element_by_key(m_thd, m_key->val_str(&buffer));
 }
 
 
@@ -1759,8 +1918,9 @@ Item_splocal_assoc_array_element::this_item_addr(THD *thd, Item **ref)
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
+  StringBufferKey buffer;
   return get_composite_variable(thd->spcont)->
-           element_addr_by_key(m_thd, ref, m_key->val_str());
+           element_addr_by_key(m_thd, ref, m_key->val_str(&buffer));
 }
 
 
@@ -1769,11 +1929,8 @@ void Item_splocal_assoc_array_element::print(String *str, enum_query_type type)
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   str->append(prefix);
   str->append(&m_name);
-  str->append('[');
-  m_key->print(str, type);
-  str->append(']');
   str->append('@');
-  str->qs_append(m_var_idx);
+  str->append_ulonglong(m_var_idx);
   str->append('[');
   m_key->print(str, type);
   str->append(']');
@@ -1784,9 +1941,10 @@ bool Item_splocal_assoc_array_element::set_value(THD *thd,
                                                  sp_rcontext *ctx,
                                                  Item **it)
 {
-  LEX_CSTRING key;
-  if (Type_handler_assoc_array::singleton()->
-        key_to_lex_cstring(thd, &m_key, name, key))
+  StringBufferKey buffer;
+  const LEX_CSTRING key= Type_handler_assoc_array::singleton()->
+        key_to_lex_cstring(thd, rcontext_addr(), &m_key, &buffer);
+  if (!key.str)
     return true;
 
   return get_rcontext(ctx)->set_variable_composite_by_name(thd, m_var_idx, key,
@@ -1822,10 +1980,12 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
-  if (m_key->fix_fields_if_needed(thd, &m_key))
+  if (fix_key(thd, rcontext_addr()))
     return true;
-  
-  if (!m_key->val_str())
+
+  StringBufferKey buffer;
+  String *str;
+  if (!(str= m_key->val_str(&buffer)))
   {
     my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
              m_name.str);
@@ -1845,8 +2005,7 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
                                       m_field_name,
                                       m_field_idx))
   {
-    my_error(ER_BAD_FIELD_ERROR, MYF(0),
-             m_key->val_str()->c_ptr(), thd_where(thd));
+    my_error(ER_BAD_FIELD_ERROR, MYF(0), str->c_ptr(), thd_where(thd));
     return true;
   }
 
@@ -1863,8 +2022,9 @@ Item_splocal_assoc_array_element_field::this_item()
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
+  StringBufferKey buffer;
   auto elem= get_composite_variable(m_thd->spcont)->
-                element_by_key(m_thd, m_key->val_str());
+                element_by_key(m_thd, m_key->val_str(&buffer));
   if (!elem)
     return nullptr;
 
@@ -1878,8 +2038,9 @@ Item_splocal_assoc_array_element_field::this_item() const
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
+  StringBufferKey buffer;
   auto elem= get_composite_variable(m_thd->spcont)->
-                element_by_key(m_thd, m_key->val_str());
+                element_by_key(m_thd, m_key->val_str(&buffer));
   if (!elem)
     return nullptr;
 
@@ -1893,9 +2054,9 @@ Item_splocal_assoc_array_element_field::this_item_addr(THD *thd, Item **)
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
-
+  StringBufferKey buffer;
   auto elem= get_composite_variable(m_thd->spcont)->
-                element_by_key(m_thd, m_key->val_str());
+                element_by_key(m_thd, m_key->val_str(&buffer));
   if (!elem)
     return nullptr;
 
@@ -1909,18 +2070,13 @@ void Item_splocal_assoc_array_element_field::print(String *str,
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   str->append(prefix);
   str->append(&m_name);
+  str->append('@');
+  str->append_ulonglong(m_var_idx);
   str->append('[');
   m_key->print(str, type);
   str->append(']');
   str->append('.');
   str->append(&m_field_name);
-  str->append('@');
-  str->qs_append(m_var_idx);
-  str->append('[');
-  m_key->print(str, type);
-  str->append(']');
-  str->append('.');
-  str->qs_append(m_field_idx);
 }
 
 
@@ -1933,8 +2089,9 @@ bool Item_splocal_assoc_array_element::append_for_log(THD *thd, String *str)
   
   if (this_item() == NULL)
   {
+    StringBufferKey buffer;
     my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             m_key->val_str()->c_ptr());
+             m_key->val_str(&buffer)->c_ptr());
     return true;
   }
 
@@ -1962,8 +2119,9 @@ bool Item_splocal_assoc_array_element_field::append_for_log(THD *thd,
   
   if (this_item() == NULL)
   {
+    StringBufferKey buffer;
     my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             m_key->val_str()->c_ptr());
+             m_key->val_str(&buffer)->c_ptr());
     return true;
   }
 
@@ -2023,9 +2181,10 @@ public:
 
   bool set(THD *thd, Item *item) override
   {
-    LEX_CSTRING key;
-    if (Type_handler_assoc_array::singleton()->
-          key_to_lex_cstring(thd, &m_key, name, key))
+    StringBufferKey buffer;
+    const LEX_CSTRING key= Type_handler_assoc_array::singleton()->
+        key_to_lex_cstring(thd, *this, &m_key, &buffer);
+    if (!key.str)
       return true;
 
     return get_rcontext(thd->spcont)->
@@ -2072,9 +2231,10 @@ public:
   }
   bool set(THD *thd, Item *item) override
   {
-    LEX_CSTRING key;
-    if (Type_handler_assoc_array::singleton()->
-          key_to_lex_cstring(thd, &m_key, name, key))
+    StringBufferKey buffer;
+    const LEX_CSTRING key= Type_handler_assoc_array::singleton()->
+        key_to_lex_cstring(thd, *this, &m_key, &buffer);
+    if (!key.str)
       return true;
 
     return get_rcontext(thd->spcont)->
@@ -2146,6 +2306,69 @@ bool Type_handler_assoc_array::Spvar_definition_with_complex_data_types(
 
 
 bool Type_handler_assoc_array::
+       check_subscript_expression(const Type_handler *formal_th, Item *key)
+{
+  Type_handler_hybrid_field_type th(formal_th);
+  if (th.aggregate_for_result(key->type_handler()))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             key->type_handler()->name().ptr(), "<subscript expression>");
+    return true;
+  }
+  if (!key->can_eval_in_optimize())
+  {
+    Item::Print tmp(key, QT_ORDINARY);
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    return true;
+  }
+  return false;
+}
+
+
+bool Type_handler_assoc_array::
+       Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                                 const
+{
+  const sp_type_def_composite2 *tdef;
+  /*
+    Disallow wrong use of associative_array:
+      CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
+      CREATE FUNCTION .. RETURN ASSOCIATEIVE ARRAY ..;
+  */
+  if (!(tdef= reinterpret_cast<const sp_type_def_composite2*>
+                           (def->get_attr_const_void_ptr(0))))
+  {
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), name().ptr());
+    return true;
+  }
+
+  if (unlikely(tdef->m_def[1]->type_handler() == this))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tdef->m_def[1]->type_handler()->name().ptr(),
+             "<array element data type>");
+    return true;
+  }
+  if (unlikely(tdef->m_def[0]->type_handler() != &type_handler_varchar &&
+               !dynamic_cast<const Type_handler_general_purpose_int*>
+                                            (tdef->m_def[0]->type_handler())))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tdef->m_def[0]->type_handler()->name().ptr(),
+             "<array index data type>");
+    return true;
+  }
+
+  return Type_handler_composite::Column_definition_set_attributes(thd, def,
+                                                                  attr,
+                                                                  type);
+}
+
+
+bool Type_handler_assoc_array::
   sp_variable_declarations_finalize(THD *thd, LEX *lex, int nvars,
                                     const Column_definition &def)
                                                             const
@@ -2158,10 +2381,6 @@ bool Type_handler_assoc_array::
   DBUG_ASSERT(spaa->m_def[1]);
   Spvar_definition *key_def= spaa->m_def[0];
   Spvar_definition *value_def= spaa->m_def[1];
-
-  // Set the default charset to be the database charset
-  if (!key_def->charset)
-    key_def->charset= thd->variables.collation_database;
 
   value_def= new (thd->mem_root) Spvar_definition(*value_def);
   if (value_def->type_handler() == &type_handler_row)
@@ -2233,6 +2452,42 @@ String *Type_handler_assoc_array::
   return str;
 }
 
+bool Type_handler_assoc_array::check_key_expression_type(Item *key)
+{
+  Item_func::Functype func_sp= Item_func::FUNC_SP;
+  if (bool(key->with_flags & (item_with_t::WINDOW_FUNC |
+                              item_with_t::FIELD |
+                              item_with_t::SUM_FUNC |
+                              item_with_t::SUBQUERY |
+                              item_with_t::ROWNUM_FUNC)) ||
+      key->walk(&Item::find_function_processor, FALSE, &func_sp))
+  {
+    Item::Print tmp(key, QT_ORDINARY);
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    return true;
+  }
+  return false;
+}
+
+
+/*
+  Check arguments for:
+    assoc_array_var(key)
+    assoc_array_var(key).field
+*/
+bool Type_handler_assoc_array::check_functor_args(THD *thd, List<Item> *args,
+                                                  const char *op)
+{
+  if (!args || args->elements != 1 || !args->head())
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), op,
+             ErrConvDQName(thd->lex->sphead).ptr(),
+             1, !args ? 0 : args->elements);
+    return true;
+  }
+  return check_key_expression_type(args->head());
+}
+
 
 Item_splocal *
 Type_handler_assoc_array::create_item_functor(THD *thd,
@@ -2243,24 +2498,11 @@ Type_handler_assoc_array::create_item_functor(THD *thd,
                                               const Lex_ident_cli_st &name_cli)
                                                                           const
 {
-  if (!args || args->elements != 1 || !args->head())
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT",
-             ErrConvDQName(thd->lex->sphead).ptr(),
-             1, !args ? 0 : args->elements);
-    return NULL;
-  }
+  DBUG_ASSERT(!varname.is_null());
+  if (check_functor_args(thd, args, "ASSOC_ARRAY_ELEMENT"))
+    return nullptr;
 
   Item *key= args->head();
-  if (bool(key->with_flags & (item_with_t::WINDOW_FUNC |
-                              item_with_t::FIELD |
-                              item_with_t::SUM_FUNC |
-                              item_with_t::SUBQUERY |
-                              item_with_t::ROWNUM_FUNC)))
-  {
-    Item::Print tmp(key, QT_ORDINARY);
-    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
-  }
 
   Query_fragment pos(thd, thd->lex->sphead, name_cli.pos(), name_cli.end());
   if (!member.is_null())
@@ -2304,15 +2546,8 @@ Type_handler_assoc_array::
     return nullptr;
   }
 
-  if (!args || args->elements != 1 || !args->head())
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY KEY",
-             ErrConvDQName(thd->lex->sphead).ptr(),
-             1, args ? args->elements : 0);
+  if (check_functor_args(thd, args, "ASSOC_ARRAY KEY"))
     return nullptr;
-  }
-
-  DBUG_ASSERT(args->head());
 
   if (member.is_null())
     return new (thd->mem_root) set_element(lex->sphead->instructions(),
@@ -2327,12 +2562,12 @@ Type_handler_assoc_array::
 }
 
 
-Item *Type_handler_assoc_array::create_item_method(THD *thd,
-                                                   const Lex_ident_sys &a,
-                                                   const Lex_ident_sys &b,
-                                                   List<Item> *args,
-                                                   const Lex_ident_cli_st
-                                                     &query_fragment) const
+Item *Type_handler_assoc_array::create_item_method_func(THD *thd,
+                                                        const Lex_ident_sys &a,
+                                                        const Lex_ident_sys &b,
+                                                        List<Item> *args,
+                                                        const Lex_ident_cli_st
+                                                          &query_fragment) const
 {
   Item_method_base *item= nullptr;
   if (b.length == 5)
@@ -2355,7 +2590,32 @@ Item *Type_handler_assoc_array::create_item_method(THD *thd,
   {
     if (Lex_ident_column(b).streq("EXISTS"_Lex_ident_column))
       item= sp_get_assoc_array_exists(thd, args);
-    else if (Lex_ident_column(b).streq("DELETE"_Lex_ident_column))
+  }
+
+  if (!item)
+  {
+    my_error(ER_BAD_FIELD_ERROR, MYF(0), a.str, b.str);
+    return nullptr;
+  }
+
+  if (item->init_method(a, query_fragment))
+    return nullptr;
+
+  return dynamic_cast<Item *>(item);
+}
+
+
+Item *Type_handler_assoc_array::create_item_method_proc(THD *thd,
+                                                        const Lex_ident_sys &a,
+                                                        const Lex_ident_sys &b,
+                                                        List<Item> *args,
+                                                        const Lex_ident_cli_st
+                                                          &query_fragment) const
+{
+  Item_method_base *item= nullptr;
+  if (b.length == 6)
+  {
+    if (Lex_ident_column(b).streq("DELETE"_Lex_ident_column))
       item= sp_get_assoc_array_delete(thd, args);
   }
 
@@ -2372,31 +2632,48 @@ Item *Type_handler_assoc_array::create_item_method(THD *thd,
 }
 
 
-bool Type_handler_assoc_array::key_to_lex_cstring(THD *thd,
-                                                  Item **key,
-                                                  const LEX_CSTRING& name,
-                                                  LEX_CSTRING& out_key) const
+LEX_CSTRING
+Type_handler_assoc_array::key_to_lex_cstring(THD *thd,
+                                             const sp_rcontext_addr &var,
+                                             Item **key,
+                                             String *buffer) const
 {
   DBUG_ASSERT(key);
   DBUG_ASSERT(*key);
 
-  if ((*key)->fix_fields_if_needed(thd, key))
-    return true;
+  auto const item_field= thd->get_variable(var);
+  auto const field= dynamic_cast<const Field_assoc_array*>(item_field->field);
+  const Field *key_field= field->get_key_field();
 
-  if ((*key)->null_value)
+  if ((*key)->fix_fields_if_needed(thd, key) ||
+      check_subscript_expression(key_field->type_handler(), *key))
+    return Lex_cstring();
+
+  if (key_field->type_handler()->field_type() != MYSQL_TYPE_VARCHAR)
   {
-    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX,
-             MYF(0),
-             name.str ? name.str : "unknown");
-    return true;
+    auto str= (*key)->val_str(buffer);
+    if (!str)
+    {
+     my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0), field->field_name.str);
+     return Lex_cstring();
+    }
+    return str->to_lex_cstring();
   }
 
-  auto str= (*key)->val_str();
-  if (!str)
-    return true;
+  StringBufferKey tmp;
+  auto str= (*key)->val_str(&tmp);
 
-  out_key= str->to_lex_cstring();
-  return false;
+  if (!str)
+  {
+    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0), field->field_name.str);
+    return Lex_cstring();
+  }
+
+  if (convert_charset_with_error(key_field->charset(), buffer, *str,
+                                 "INDEX BY",
+                                 key_field->char_length()))
+    return Lex_cstring();
+  return buffer->to_lex_cstring();
 }
 
 
@@ -2410,11 +2687,19 @@ Item_field *Type_handler_assoc_array::get_item(THD *thd,
   if (!item_assoc)
     return nullptr;
 
-  const Field_composite *field= item_assoc->get_composite_field();
+  const Field_assoc_array *field= dynamic_cast<const Field_assoc_array*>
+                                                     (item_assoc->field);
   if (!field)
     return nullptr;
 
-  String key(name.str, name.length, &my_charset_bin);
+  /*
+    The key passed in "name" must be in the character set
+    explicitly or implicitly specified in the INDEX BY clause.
+  */
+  CHARSET_INFO *key_cs= field->get_key_field()->charset();
+  DBUG_ASSERT(name.length == Well_formed_prefix(key_cs, name).length());
+
+  String key(name.str, name.length, key_cs);
   auto elem= field->element_by_key(thd, &key);
   if (!elem)
   {
@@ -2438,11 +2723,19 @@ Type_handler_assoc_array::get_or_create_item(THD *thd,
   if (!item_assoc)
     return nullptr;
 
-  Field_composite *field= item_assoc->get_composite_field();
+  Field_assoc_array *field= dynamic_cast<Field_assoc_array*>
+                                         (item_assoc->field);
   if (!field)
     return nullptr;
 
-  String key(name.str, name.length, &my_charset_bin);
+  /*
+    The key passed in "name" must be in the character set
+    explicitly or implicitly specified in the INDEX BY clause.
+  */
+  CHARSET_INFO *key_cs= field->get_key_field()->charset();
+  DBUG_ASSERT(name.length == Well_formed_prefix(key_cs, name).length());
+
+  String key(name.str, name.length, key_cs);
   return field->element_by_key(thd, &key);
 }
 
@@ -2483,6 +2776,9 @@ my_var *Type_handler_assoc_array::
   auto def= spvar->field_def.row_field_definitions();
   DBUG_ASSERT(def);
   DBUG_ASSERT(def->elements == 2);
+
+  if (check_key_expression_type(arg))
+    return nullptr;
 
   if (!field_name.str) // SELECT .. INTO spvar_assoc_array('key');
   {

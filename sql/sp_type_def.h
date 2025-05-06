@@ -108,14 +108,10 @@ public:
     }
     return nullptr;
   }
-
-  bool type_defs_add_record(THD *thd, const Lex_ident_column &name,
-                            Row_definition_list *field);
-  bool type_defs_add_composite2(THD *thd,
-                                const Lex_ident_column &name,
-                                const Type_handler *th,
-                                Spvar_definition *key,
-                                Spvar_definition *value);
+  bool type_defs_add(sp_type_def *def)
+  {
+    return m_type_defs.append(def);
+  }
 };
 
 
