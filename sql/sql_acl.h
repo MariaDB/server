@@ -170,7 +170,8 @@ inline bool check_table_access(THD *thd, privilege_t requirements,
 
 privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
-                             const char *db_name, const char *table_name,
+                             const Lex_ident_db &db_name,
+                             const Lex_ident_table &table_name,
                              const Lex_ident_column &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
                    const char **hostname, const char **rolename);
