@@ -3063,6 +3063,7 @@ void st_select_lex::init_query()
   prep_leaf_list_state= UNINIT;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   select_list_tables= 0;
+  merged_into= 0;
   rownum_in_field_list= 0;
 
   window_specs.empty();
@@ -3072,6 +3073,9 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  outer_references_resolved_here.empty();
+#endif
 }
 
 void st_select_lex::init_select()
@@ -3125,6 +3129,9 @@ void st_select_lex::init_select()
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
   fields_added_by_fix_inner_refs= 0;
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  outer_references_resolved_here.empty();
+#endif
 }
 
 /*
@@ -3352,18 +3359,42 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
-      /*
-        We are excluding a SELECT_LEX from the hierarchy of
-        SELECT_LEX_UNITs and SELECT_LEXes. Since this level is
-        removed, we must also exclude the Name_resolution_context
-        belonging to this level. Do this by looping through inner
-        subqueries and changing their contexts' outer context pointers
-        to point to the outer select's context.
-      */
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
       for (SELECT_LEX *s= u->first_select(); s; s= s->next_select())
       {
-        if (s->context.outer_context == &sl->context)
-          s->context.outer_context = &sl->outer_select()->context;
+        if (&sl->context == inner_sel->context.outer_context)
+        {
+#if 0
+          // sl->context is being removed, we can't just make the tables
+          // associated with these contexts inaccessible.
+          // this chunk of code adds the name resolution tables of the context
+          // being excluded onto the end of the context of the outer select
+          //
+          // this doesn't work because prior to a merge, we can get away with
+          // 2 derived tables with the same name as they occupy a different
+          // select, but when we merge, and jam these lists together, we can
+          // end up with 2 tables with the same name after the merge, which
+          // stuffs up name resolution on the 2nd execution.
+
+          if (sl->outer_select())
+          {
+            TABLE_LIST *last= sl->outer_select()->context.
+                                                    first_name_resolution_table;
+            // go to the last table in the outer context
+            while (last->next_name_resolution_table !=
+                         sl->outer_select()->context.last_name_resolution_table)
+              last= last->next_name_resolution_table;
+
+            last->next_name_resolution_table= 
+                                        sl->context.first_name_resolution_table;
+            sl->outer_select()->context.last_name_resolution_table=
+                                         sl->context.last_name_resolution_table;
+          }
+
+#endif
+          inner_sel->context.outer_context = &sl->outer_select()->context;
+        }
       }
       if (u->fake_select_lex &&
           u->fake_select_lex->context.outer_context == &sl->context)
@@ -3445,6 +3476,10 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
 
   DBUG_ASSERT(this != last);
 
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  if (dependency)
+    last->add_outer_reference_resolved_here(thd, dependency);
+#endif
   /*
     Mark all selects from resolved to 1 before select where was
     found table as depended (of select where was found table)
@@ -5298,6 +5333,14 @@ void st_select_lex::remap_tables(TABLE_LIST *derived, table_map map,
   }
 }
 
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+extern
+void remove_outer_references_to(List<Item_ident>*list,
+                                 SELECT_LEX *remove_me);
+#endif
+
+
 /**
   @brief
   Merge a subquery into this select.
@@ -5363,7 +5406,38 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
   /* Walk through child's tables and adjust table map, tablenr,
    * parent_lex */
   subq_select->remap_tables(derived, map, table_no, this);
+  /*
+    We rely on nest_level_base being the same within everything inside
+    this->unit.  Now that we have merged subq_select into this select,
+    we need to walk into subq_select, correcting this for all enclosed
+    select_lex
+  */
+  subq_select->nest_level_base= nest_level_base;
+  for (SELECT_LEX_UNIT *u= subq_select->first_inner_unit(); u;
+       u= u->next_unit())
+  {
+    for (SELECT_LEX *inner_sel= u->first_select(); inner_sel;
+         inner_sel= inner_sel->next_select())
+      inner_sel->nest_level_base= nest_level_base;
+  }
   subq_select->merged_into= this;
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  /*
+    References in this->outer_references_resolved_here that are resolved in
+    subq_select need to be removed as they are no longer outer references
+  */
+  remove_outer_references_to(&this->outer_references_resolved_here, subq_select);
+  if (subq_select->outer_references_resolved_here.elements)
+  {
+    DBUG_PRINT("info",
+        ("shifting outer_references_resolved_here from select #%d to #%d",
+          subq_select->select_number,
+          this->select_number) );
+    this->outer_references_resolved_here.append(
+                                  &subq_select->outer_references_resolved_here);
+  }
+#endif
 
   replace_leaf_table(derived, subq_select->leaf_tables);
 
@@ -5918,7 +5992,7 @@ void st_select_lex::set_unique_exclude()
   }
 }
 
-
+#if 0
 /*
   Return true if this select_lex has been converted into a semi-join nest
   within 'ancestor'.
@@ -5965,6 +6039,7 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   }
   return all_merged;
 }
+#endif
 
 /* 
   This is used by SHOW EXPLAIN|ANALYZE. It assumes query plan has been already
@@ -12374,3 +12449,61 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
     return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
 }
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+/**
+  Add an outer reference to the SELECT_LEX in which it is resolved.
+
+  @param        thd           Thread Handle
+                original      Item on which we are calling fix_outer_field
+                translated    Item that is used to fetch data for results.
+
+  @details
+  Adds an Item pointer to the maintained list of outer references that are
+  resolved in this SELECT_LEX.  We pass in both the item which causes the
+  outer reference (on which fix_outer_field is called) and the result of
+  name resolution on this item.  We need both as we need an item we can call
+  real_item() on to get Field information, as well as contextual information
+  which for an Item_ref will need saving.
+
+  @retval FALSE  no error
+          TRUE   an error occurred
+*/
+
+bool SELECT_LEX::add_outer_reference_resolved_here(THD *thd,
+                                                   Item_ident *dependency)
+{
+  bool ret= FALSE;
+
+  /*
+    Only populate outer reference during either conventional execution or
+    on first execution of a prepared statement/stored procedure
+  */
+  if (thd->stmt_arena->state == Query_arena::STMT_CONVENTIONAL_EXECUTION ||
+      thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP ||
+      thd->stmt_arena->state == Query_arena::STMT_PREPARED)
+  {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+#ifndef BAD_IDEA
+    ret= outer_references_resolved_here.push_back(dependency, thd->mem_root);
+#else
+    Item_ident *nr= nullptr;
+
+    // this item might be on execution memory, reverse it at the end of
+    // execution while this might theoretically work, the way the iterator is
+    // used means it doesnt work at all and we end up with what looks like an
+    // empty list because there is a nullptr at the beginning and we igore the
+    // other structures
+    ret= outer_references_resolved_here.push_front(nr, thd->mem_root);
+    thd->change_item_tree(
+                    (Item **)&outer_references_resolved_here.first_node()->info,
+                    dependency);
+
+#endif
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  }
+  return ret;
+}
+#endif          // NEW_ITEM_SUBSELECT_RECALC_USED_TABLES

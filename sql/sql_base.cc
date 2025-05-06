@@ -6830,12 +6830,16 @@ find_field_in_tables(THD *thd, Item_ident *item,
     {
       if (found == WRONG_GRANT)
 	return (Field*) 0;
-
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+      if (thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+          thd->stmt_arena->is_conventional())
+#else
       /*
         Only views fields should be marked as dependent, not an underlying
         fields.
       */
       if (!table_ref->belong_to_view && !table_ref->belong_to_derived)
+#endif
       {
         SELECT_LEX *current_sel= item->context->select_lex;
         SELECT_LEX *last_select= table_ref->select_lex;

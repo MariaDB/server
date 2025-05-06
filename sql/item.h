@@ -3041,6 +3041,30 @@ public:
   Field_enumerator() = default;                       /* Remove gcc warning */
 };
 
+#define NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+
+class Field_fixer: public Field_enumerator
+{
+public:
+  table_map used_tables;             /* Collect used_tables here */
+  st_select_lex *select;             /* the select_lex we're confined to */
+  bool not_ready;                    /* if we hit an unfixed field, set this */
+  void visit_field(Item_field *item) override;
+};
+
+
+class Used_tables: public Field_enumerator
+{
+public:
+  table_map used_tables;             /* Collect used_tables here */
+  st_select_lex *select;             /* the select_lex we're confined to */
+  bool not_ready;                    /* if we hit an unfixed field, set this */
+  void visit_field(Item_field *item) override;
+};
+
+#endif
+
 class Item_string;
 
 
@@ -5575,24 +5599,29 @@ public:
     (even internally in Item_func_* code).
   */
   table_map used_tables_cache;
+  table_map new_used_tables_cache;
   bool const_item_cache;
 
   Used_tables_and_const_cache()
    :used_tables_cache(0),
+    new_used_tables_cache(0),
     const_item_cache(true)
   { }
   Used_tables_and_const_cache(const Used_tables_and_const_cache *other)
    :used_tables_cache(other->used_tables_cache),
+    new_used_tables_cache(other->new_used_tables_cache),
     const_item_cache(other->const_item_cache)
   { }
   inline void used_tables_and_const_cache_init()
   {
     used_tables_cache= 0;
+    new_used_tables_cache= 0;
     const_item_cache= true;
   }
   inline void used_tables_and_const_cache_join(const Item *item)
   {
     used_tables_cache|= item->used_tables();
+    new_used_tables_cache|= item->used_tables();
     const_item_cache&= item->const_item();
   }
   inline void used_tables_and_const_cache_update_and_join(Item *item)

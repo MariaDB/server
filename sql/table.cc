@@ -7229,9 +7229,13 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+  Name_resolution_context *context= &thd->lex->current_select->context;
+#else
   Name_resolution_context *context= (view->view ?
                                      &view->view->first_select_lex()->context:
                                      &thd->lex->first_select_lex()->context);
+#endif
   Item *item= (new (thd->mem_root)
                Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     *name, view));

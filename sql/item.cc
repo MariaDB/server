@@ -727,8 +727,16 @@ bool Item_ident::remove_dependence_processor(void * arg)
 {
   DBUG_ENTER("Item_ident::remove_dependence_processor");
   if (get_depended_from() == (st_select_lex *) arg)
+  {
     depended_from= 0;
-  context= &((st_select_lex *) arg)->context;
+
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+    context= &((st_select_lex *) arg)->context;
+#endif
+  }
+#ifndef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+    context= &((st_select_lex *) arg)->context;
+#endif
   DBUG_RETURN(0);
 }
 
@@ -3697,7 +3705,6 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
       this->context= &new_parent->context;
       return;
     }
-
     Name_resolution_context *ctx= new Name_resolution_context();
     if (!ctx)
       return;                                   // Fatal error set
@@ -5811,7 +5818,53 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
 }
 
 
-/*
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+void Field_fixer::visit_field(Item_field *item)
+{
+  if (item->fixed())                            // item may not yet be (re)fixed
+  {
+    st_select_lex *cmp= select;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list &&
+        (item->field->table->pos_in_table_list->select_lex == cmp))
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
+  }
+  else
+    not_ready= TRUE;
+}
+
+void Used_tables::visit_field(Item_field *item)
+{
+  if (item->fixed())                            // item may not yet be (re)fixed
+  {
+    TABLE_LIST *tr= item->field->table->pos_in_table_list;
+
+    if (tr)
+    {
+      st_select_lex *cmp= select;
+
+      while (cmp->merged_into)
+        cmp= cmp->merged_into;
+
+      if (tr->select_lex == cmp)
+        used_tables|= tr->map;
+      else
+      {
+        if (cmp->nest_level > tr->select_lex->nest_level)
+          used_tables|= OUTER_REF_TABLE_BIT;
+      }
+    }
+  }
+  else
+    not_ready= TRUE;
+}
+#endif
+
+
+/**
   @brief
   Whether a table belongs to an outer select.
 
@@ -5906,6 +5959,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   table_list= (cached_table ? cached_table :
                field_found && (*from_field) != view_ref_found ?
                (*from_field)->table->pos_in_table_list : 0);
+
   /*
     If there are outer contexts (outer selects, but current select is
     not derived table or view) try to resolve this reference in the
@@ -5924,6 +5978,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   if (current_sel->master_unit()->outer_select())
     outer_context= context->outer_context;
 
+  // if we found this item before, depended_from is where we found it.
+  // start looking there instead.  It will work even if the select is merged.
+  if (!table_list && !cached_table && depended_from)
+    outer_context= &depended_from->context;
+
   /*
     This assert is to ensure we have an outer contex when *from_field
     is set.
@@ -5936,13 +5995,29 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
        outer_context;
        outer_context= outer_context->outer_context)
   {
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+    // we have merged to the top select, this field is no longer outer
+    bool at_top= (outer_context->select_lex == select);
+#endif
     select= outer_context->select_lex;
     Item_subselect *prev_subselect_item=
       last_checked_context->select_lex->master_unit()->item;
     last_checked_context= outer_context;
     upward_lookup= TRUE;
 
-    place= prev_subselect_item->parsing_place;
+    /*
+      if something has been merged to the top level, during 2nd execution
+      prev_subselect_item can be a null pointer, i.e. the unit from the top
+      select_lex
+    */
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+    if (!at_top)
+#endif
+      place= prev_subselect_item->parsing_place;
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+    else
+      place= NO_MATTER;
+#endif
     /*
       If outer_field is set, field was already found by first call
       to find_field_in_tables(). Only need to find appropriate context.
@@ -5997,8 +6072,15 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         if (*from_field != view_ref_found)
         {
-          prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
-          prev_subselect_item->const_item_cache= 0;
+#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+          if (!at_top)
+#endif
+          {
+            prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
+            prev_subselect_item->new_used_tables_cache|= (*from_field)->table->
+                                                                            map;
+            prev_subselect_item->const_item_cache= 0;
+          }
           set_field(*from_field);
           if (!last_checked_context->select_lex->having_fix_field &&
               select->group_list.elements &&
@@ -6073,13 +6155,29 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         else
         {
-          Item::Type ref_type= (*reference)->type();
+//#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+#if 0
+          // ignore the wrapper, directly collect used tables from Item_fields.
+          Used_tables collector;
+          collector.used_tables= 0;
+          collector.select= prev_subselect_item->parent_select;
+          collector.not_ready= FALSE;
+          (*reference)->walk(&Item::enumerate_field_refs_processor, 0,
+                                &collector);
+          prev_subselect_item->used_tables_cache|= collector.used_tables;
+          prev_subselect_item->new_used_tables_cache|= collector.used_tables;
+          prev_subselect_item->const_item_cache&= (*reference)->const_item();
+#else
           prev_subselect_item->used_tables_and_const_cache_join(*reference);
+#endif
+          Item::Type ref_type= (*reference)->type();
           mark_as_dependent(thd, last_checked_context->select_lex,
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
+          if (ref_type == FIELD_ITEM)
+            set_field(((Item_field*)(*reference))->field);
           if (thd->lex->in_sum_func &&
               last_checked_context->select_lex->parent_lex ==
               context->select_lex->parent_lex &&
@@ -6108,7 +6206,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (ref != not_found_item)
       {
         DBUG_ASSERT(*ref && (*ref)->fixed());
+#ifndef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
         prev_subselect_item->used_tables_and_const_cache_join(*ref);
+#endif
         break;
       }
     }
@@ -6119,6 +6219,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       case it does not matter which used tables bits we set)
     */
     prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+    prev_subselect_item->new_used_tables_cache|= OUTER_REF_TABLE_BIT;
     prev_subselect_item->const_item_cache= 0;
   }
 
@@ -6464,14 +6565,18 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
+    st_select_lex *context_sl= context->select_lex;
+    if (context_sl)
+      while (context_sl->merged_into)
+        context_sl= context_sl->merged_into;
+
     table_list= (cached_table ? cached_table :
                  from_field != view_ref_found ?
                  from_field->table->pos_in_table_list : 0);
     if (!outer_fixed && table_list && table_list->select_lex &&
-        context->select_lex &&
-        table_list->select_lex != context->select_lex &&
-        !context->select_lex->is_merged_child_of(table_list->select_lex) &&
-        is_outer_table(table_list, context->select_lex))
+        context_sl &&
+        table_list->select_lex != context_sl &&
+        is_outer_table(table_list, context_sl))
     {
       int ret;
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -6628,7 +6733,7 @@ void Item_field::cleanup()
 {
   DBUG_ENTER("Item_field::cleanup");
   Item_ident::cleanup();
-  depended_from= NULL;
+//  depended_from= NULL;
   /*
     Even if this object was created by direct link to field in setup_wild()
     it will be linked correctly next time by name of field and table alias.
@@ -8538,9 +8643,49 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
+//#ifdef NEW_ITEM_SUBSELECT_RECALC_USED_TABLES
+#if 1
+        if (thd->stmt_arena->is_conventional() ||
+            thd->stmt_arena->state == Query_arena::STMT_PREPARED ||
+            thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP)
+        {
+          // during the first execution, this item needs to be on statement
+          // memory, as it can appear in outer_references_resolved_here
+          Query_arena *arena, backup;
+          arena= thd->activate_stmt_arena_if_needed(&backup);
+
+          if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
+          {
+            if (arena)
+              thd->restore_active_arena(arena, &backup);
+            goto error;
+          }
+          if (arena)
+            thd->restore_active_arena(arena, &backup);
+
+          *reference= fld;
+        }
+        else
+        {
+          // if we have already executed this statement, pick up the reference
+          if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
+          {
+            fld= (Item_field *)*reference;
+            // how do we reset this at the end of execution?
+            // if we don't then Item_field::fix_fields misbehaves.
+          }
+          else
+          {
+            if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
+              goto error;
+            thd->change_item_tree(reference, fld);
+          }
+        }
+#else
         if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
+#endif
         mark_as_dependent(thd, last_checked_context->select_lex,
                           current_sel, fld, fld, false);
         /*
