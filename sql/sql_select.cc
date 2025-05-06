@@ -372,6 +372,7 @@ bool join_limit_shortcut_is_applicable(const JOIN *join);
 POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
 
 static bool find_indexes_matching_order(JOIN *, TABLE *, ORDER *, key_map *);
+static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex);
 
 #ifndef DBUG_OFF
 
@@ -1395,6 +1396,32 @@ static bool check_list_for_field(ORDER *order)
   return false;
 }
 
+static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
+  List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
+  Json_writer_object ddls_wrapper(thd);
+  Json_writer_array ddl_list(thd, "list_ddls");
+  char buf[2048];
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+  while (TABLE_LIST *tbl= li++)
+  {
+    String ddl(buf, sizeof(buf), system_charset_info);
+    ddl.length(0);
+    if (tbl->view)
+    {
+      show_create_view(thd, tbl, &ddl);
+    }
+    else
+    {
+      show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME);
+    }
+    Json_writer_object ddl_wrapper(thd);
+    ddl_wrapper.add("name", tbl->table_name);
+    ddl_wrapper.add("ddl", buf);
+    //ddl_wrapper.add("ddl", "123");
+  }
+  thd->variables.option_bits= save_option_bits;
+}
 
 /**
   Prepare of whole select (including sub queries in future).
@@ -1475,26 +1502,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
       thd->variables.store_ddls_in_optimizer_trace &&
       !list_has_optimizer_trace_table(tables_list))
   {
-    List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
-    Json_writer_object ddls_wrapper(thd);
-    Json_writer_array ddl_list(thd, "list_ddls");
-    char buf[2048];
-    while (TABLE_LIST *tbl= li++)
-    {
-      String ddl(buf, sizeof(buf), system_charset_info);
-      ddl.length(0);
-      if (tbl->view)
-      {
-        show_create_view(thd, tbl, &ddl);
-      }
-      else
-      {
-        show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME);
-      }
-      Json_writer_object ddl_wrapper(thd);
-      ddl_wrapper.add("name", tbl->table_name);
-      ddl_wrapper.add("ddl", buf);
-    }
+    trace_table_definitions(thd, select_lex);
   }
 
   if (thd->lex->opt_hints_global && select_lex->select_number == 1)
