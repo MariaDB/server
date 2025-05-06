@@ -7611,8 +7611,7 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
                                 List <LEX_USER> &user_list, privilege_t rights,
                                 bool revoke_grant, bool write_to_binlog)
 {
-  List_iterator <LEX_USER> str_list (user_list);
-  LEX_USER *Str, *tmp_Str;
+  List_iterator<LEX_USER> it(user_list);
   bool create_new_users= 0;
   int result;
   const char *db_name, *table_name;
@@ -7647,22 +7646,15 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 
   DBUG_PRINT("info",("now time to iterate and add users"));
 
-  while ((tmp_Str= str_list++))
+  for (LEX_USER *user= it++; user != NULL; user= it++)
   {
     GRANT_NAME *grant_name;
-    if (!(Str= get_current_user(thd, tmp_Str, false)))
-    {
-      result= TRUE;
-      continue;
-    }
-    Str->auth= tmp_Str->auth;
-    /* Create user if needed */
-    if (check_if_auth_can_be_changed(Str, thd) ||
-        replace_user_table(thd, tables.user_table(), Str,
+    if (check_if_auth_can_be_changed(user, thd) ||
+        replace_user_table(thd, tables.user_table(), user,
                            {NO_ACL, revoke_grant},
                            create_new_users,
-                           !is_public(Str) && (thd->variables.sql_mode &
-                                               MODE_NO_AUTO_CREATE_USER)))
+                           !is_public(user) && (thd->variables.sql_mode &
+                                                MODE_NO_AUTO_CREATE_USER)))
     {
       result= TRUE;
       continue;
@@ -7670,20 +7662,20 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 
     db_name= table_list->db.str;
     table_name= table_list->table_name.str;
-    grant_name= routine_hash_search(Str->host.str, NullS, db_name,
-                                    Str->user.str, table_name, sph, 1);
+    grant_name= routine_hash_search(user->host.str, NullS, db_name,
+                                    user->user.str, table_name, sph, 1);
     if (revoke_grant && (!grant_name || !grant_name->init_privs))
     {
       my_error(ER_NONEXISTING_PROC_GRANT, MYF(0),
-               Str->user.str, Str->host.str, table_name);
+               user->user.str, user->host.str, table_name);
       result= TRUE;
       continue;
     }
     if (!grant_name)
     {
       DBUG_ASSERT(!revoke_grant);
-      grant_name= new GRANT_NAME(Str->host.str, db_name,
-                                 Str->user.str, table_name,
+      grant_name= new GRANT_NAME(user->host.str, db_name,
+                                 user->user.str, table_name,
                                  rights, TRUE);
       if (!grant_name ||
           my_hash_insert(sph->get_priv_hash(), (uchar*) grant_name))
@@ -7694,13 +7686,13 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
     }
 
     if (replace_routine_table(thd, grant_name, tables.procs_priv_table().table(),
-          *Str, db_name, table_name, sph, rights, revoke_grant) != 0)
+          *user, db_name, table_name, sph, rights, revoke_grant) != 0)
     {
       result= TRUE;
       continue;
     }
-    if (Str->is_role())
-      propagate_role_grants(find_acl_role(Str->user, true),
+    if (user->is_role())
+      propagate_role_grants(find_acl_role(user->user, true),
                             sp_privs_to_merge(sph->type()),
                             db_name, table_name);
   }
@@ -8066,27 +8058,16 @@ static bool mysql_grant_global(THD *thd,
   /* go through users in user_list */
   for (LEX_USER *user= it++; user != NULL; user= it++)
   {
-    /* Resolve if it the proxy is "CURRENT_USER" or "CURRENT_ROLE" or
-       a username / rolename without a hostname specified. */
-    LEX_USER *resolved_user= get_current_user(thd, user, false);
-    if (!resolved_user)
-    {
-      result= true;
-      continue;
-    }
-    /* TODO(cvicentiu) This might actually not be necessary for grant_proxy.
-       Carry over auth information. */
-    resolved_user->auth= user->auth;
-    if (check_if_auth_can_be_changed(resolved_user, thd) ||
+    if (check_if_auth_can_be_changed(user, thd) ||
         replace_user_table(thd, tables.user_table(),
-                           resolved_user,
+                           user,
                            priv_spec,
                            create_new_users,
-                           !is_public(resolved_user) && no_auto_create_users))
+                           !is_public(user) && no_auto_create_users))
       result= true;
 
-    if (resolved_user->is_role())
-      propagate_role_grants(find_acl_role(resolved_user->user, true),
+    if (user->is_role())
+      propagate_role_grants(find_acl_role(user->user, true),
                             PRIVS_TO_MERGE::GLOBAL);
   }
   DBUG_RETURN(result);
@@ -8108,29 +8089,18 @@ static bool mysql_grant_db(THD *thd,
   /* go through users in user_list */
   for (LEX_USER *user= it++; user != NULL; user= it++)
   {
-    /* Resolve if it the proxy is "CURRENT_USER" or "CURRENT_ROLE" or
-       a username / rolename without a hostname specified. */
-    LEX_USER *resolved_user= get_current_user(thd, user, false);
-    if (!resolved_user)
-    {
-      result= true;
-      continue;
-    }
-    /* TODO(cvicentiu) This might actually not be necessary for grant_proxy.
-       Carry over auth information. */
-    resolved_user->auth= user->auth;
-    if (check_if_auth_can_be_changed(resolved_user, thd) ||
+    if (check_if_auth_can_be_changed(user, thd) ||
         replace_user_table(thd, tables.user_table(),
-                           resolved_user,
+                           user,
                            {NO_ACL, priv_spec.revoke},
                            create_new_users,
-                           !is_public(resolved_user) && no_auto_create_users) ||
+                           !is_public(user) && no_auto_create_users) ||
         replace_db_table(tables.db_table().table(),
-                         db->str, *resolved_user, priv_spec.access, priv_spec.revoke))
+                         db->str, *user, priv_spec.access, priv_spec.revoke))
       result= true;
 
-    if (resolved_user->is_role())
-      propagate_role_grants(find_acl_role(resolved_user->user, true),
+    if (user->is_role())
+      propagate_role_grants(find_acl_role(user->user, true),
                             PRIVS_TO_MERGE::DB, db->str);
   }
   DBUG_RETURN(result);
@@ -8151,32 +8121,17 @@ static bool mysql_grant_proxy(THD *thd,
   DBUG_ASSERT(!(priv_spec.access & ~GRANT_ACL)); // Only WITH GRANT OPTION
   DBUG_ENTER("mysql_grant_proxy");
 
-
-  proxied_user= get_current_user(thd, proxied_user, false);
-  if (!proxied_user)
-    DBUG_RETURN(true);
-
   /* go through users in user_list */
   for (LEX_USER *proxy= it++; proxy != NULL; proxy= it++)
   {
-    /* Resolve if it the proxy is "CURRENT_USER" or "CURRENT_ROLE" or
-       a username / rolename without a hostname specified. */
-    LEX_USER *resolved_user= get_current_user(thd, proxy, false);
-    if (!resolved_user)
-    {
-      result= true;
-      continue;
-    }
-    /* Carry over auth information. */
-    resolved_user->auth= proxy->auth;
-    if (check_if_auth_can_be_changed(resolved_user, thd) ||
+    if (check_if_auth_can_be_changed(proxy, thd) ||
         replace_user_table(thd, tables.user_table(),
-                           resolved_user,
+                           proxy,
                            priv_spec,
                            create_new_users,
-                           !is_public(resolved_user) && no_auto_create_users) ||
+                           !is_public(proxy) && no_auto_create_users) ||
         replace_proxies_priv_table(thd, tables.proxies_priv_table().table(),
-                                   resolved_user, proxied_user,
+                                   proxy, proxied_user,
                                    with_grant_option, priv_spec.revoke))
       result= true;
   }
@@ -12112,7 +12067,7 @@ bool sp_grant_privileges(THD *thd,
   Security_context *sctx= thd->security_ctx;
   LEX_USER *combo;
   TABLE_LIST tables[1];
-  List<LEX_USER> user_list;
+  List<LEX_USER> resolved_user_list;
   bool result;
   ACL_USER *au;
   Dummy_error_handler error_handler;
@@ -12136,7 +12091,7 @@ bool sp_grant_privileges(THD *thd,
   mysql_mutex_unlock(&acl_cache->lock);
 
   bzero((char*)tables, sizeof(TABLE_LIST));
-  user_list.empty();
+  resolved_user_list.empty();
 
   tables->db= sp_db;
   tables->table_name= tables->alias= Lex_ident_table(sp_name);
@@ -12144,9 +12099,16 @@ bool sp_grant_privileges(THD *thd,
   thd->make_lex_string(&combo->user, sctx_user.str, sctx_user.length);
   thd->make_lex_string(&combo->host, sctx_host.str, sctx_host.length);
 
+
+  combo->user.str= (char *) sctx->priv_user;
+  if (!thd->make_lex_string(&combo->user, sctx->priv_user, strlen(sctx->priv_user)) ||
+      !thd->make_lex_string(&combo->host, sctx->priv_host, strlen(sctx->priv_host)))
+    DBUG_RETURN(TRUE);
+
+  combo= get_current_user(thd, combo);
   combo->auth= NULL;
 
-  if (user_list.push_back(combo, thd->mem_root))
+  if (resolved_user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
 
   thd->lex->account_options.reset();
@@ -12156,7 +12118,7 @@ bool sp_grant_privileges(THD *thd,
     as all errors will be handled later.
   */
   thd->push_internal_handler(&error_handler);
-  result= mysql_routine_grant(thd, tables, sph, user_list,
+  result= mysql_routine_grant(thd, tables, sph, resolved_user_list,
                               DEFAULT_CREATE_PROC_ACLS, FALSE, FALSE);
   thd->pop_internal_handler();
   DBUG_RETURN(result);
@@ -12204,7 +12166,7 @@ acl_find_proxy_user(const char *user, const char *host, const char *ip,
 }
 
 
-bool
+static bool
 acl_check_proxy_grant_access(THD *thd,
                              const LEX_CSTRING &host,
                              const LEX_CSTRING &user,
@@ -12511,36 +12473,51 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
 }
 
 
-void Sql_cmd_grant::grant_stage0(THD *thd)
+bool Sql_cmd_grant::grant_stage0(THD *thd)
 {
   thd->binlog_invoker(false);   // Replicate current user as grantor
   if (thd->security_ctx->user)  // If not replication
     warn_hostname_requires_resolving(thd, thd->lex->users_list);
-}
 
+  /*
+    Resolve all users (current_user, current_role,
+    user_without_host_specified).
 
-bool Sql_cmd_grant::user_list_reset_mqh(THD *thd, List<LEX_USER> &users)
-{
-  List_iterator <LEX_USER> it(users);
-  LEX_USER *user, *tmp_user;
-  while ((tmp_user= it++))
+    This resolved list is needed within all grant ops so we store it as
+    a class member.
+  */
+  List_iterator<LEX_USER> it(thd->lex->users_list);
+  m_resolved_users.empty();
+  for (LEX_USER *tmp_user= it++; tmp_user != NULL; tmp_user= it++)
   {
-    if (!(user= get_current_user(thd, tmp_user)))
+    LEX_USER *resolved_user= get_current_user(thd, tmp_user);
+    if (!resolved_user) // OOM
       return true;
-    reset_mqh(user, 0);
+    /* Propagate if there are any auth specs. */
+    resolved_user->auth= tmp_user->auth;
+    m_resolved_users.push_back(resolved_user);
   }
   return false;
 }
 
 
-bool Sql_cmd_grant_proxy::check_access_proxy(THD *thd, List<LEX_USER> &users)
+void Sql_cmd_grant::user_list_reset_mqh()
+{
+  List_iterator <LEX_USER> it(m_resolved_users);
+  for (LEX_USER *user= it++; user != NULL; user= it++)
+    reset_mqh(user, 0);
+}
+
+
+bool Sql_cmd_grant_proxy::check_access_proxy(THD *thd,
+                                             List<LEX_USER> &resolved_users)
 {
   LEX_USER *user;
-  List_iterator <LEX_USER> it(users);
+  List_iterator <LEX_USER> it(resolved_users);
   if ((user= it++))
   {
     // GRANT/REVOKE PROXY has the target user as a first entry in the list
-    if (!(user= get_current_user(thd, user)) || !user->host.str)
+    if (!user->host.str)
       return true;
     if (acl_check_proxy_grant_access(thd, user->host, user->user,
                                      m_grant_option & GRANT_ACL))
@@ -12552,20 +12529,20 @@ bool Sql_cmd_grant_proxy::check_access_proxy(THD *thd, List<LEX_USER> &users)
 
 bool Sql_cmd_grant_proxy::execute(THD *thd)
 {
-  LEX  *lex= thd->lex;
   bool result;
   bool create_new_users= false;
   bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
                                        MODE_NO_AUTO_CREATE_USER);
   Grant_tables tables;
 
-  DBUG_ASSERT(lex->first_select_lex()->table_list.first == NULL);
+  DBUG_ASSERT(thd->lex->first_select_lex()->table_list.first == NULL);
   DBUG_ASSERT((m_grant_option & ~GRANT_ACL) == NO_ACL); // only WITH GRANT OPTION
 
-  grant_stage0(thd);
+  if (grant_stage0(thd))
+    return true;
 
   if (thd->security_ctx->user /* If not replication */ &&
-      check_access_proxy(thd, lex->users_list))
+      check_access_proxy(thd, m_resolved_users))
     return true;
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
@@ -12584,7 +12561,7 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
   grant_version++;
 
   result= mysql_grant_proxy(thd, tables,
-                            lex->users_list,
+                            m_resolved_users,
                             {m_grant_option, is_revoke()},
                             create_new_users, no_auto_create_users);
 
@@ -12597,7 +12574,10 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
   if (!result)
     my_ok(thd);
 
-  return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
+  if (!is_revoke())
+    user_list_reset_mqh();
+
+  return false;
 
 #ifdef WITH_WSREP
 wsrep_error_label:
@@ -12613,9 +12593,9 @@ bool Sql_cmd_grant_object::grant_stage0_exact_object(THD *thd,
                     GRANT_ACL;
   if (check_access(thd, priv, table->db.str,
                    &table->grant.privilege, &table->grant.m_internal,
-                   0, 0))
+                   0, 0) ||
+      grant_stage0(thd))
     return true;
-  grant_stage0(thd);
   return false;
 }
 
@@ -12667,7 +12647,7 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
   /* Conditionally writes to binlog */
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   if (mysql_routine_grant(thd, lex->query_tables, &m_sph,
-                          lex->users_list, grants,
+                          m_resolved_users, grants,
                           is_revoke(), true))
     return true;
   my_ok(thd);
@@ -12696,7 +12676,8 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
   if (check_access(thd, required_access, m_gp.db().str, NULL, NULL, 1, 0))
     return true;
 
-  grant_stage0(thd);
+  if (grant_stage0(thd))
+    return true;
 
   if (!is_revoke())
     create_new_users= test_if_create_new_users(thd);
@@ -12738,7 +12719,8 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
     mysql_mutex_lock(&acl_cache->lock);
     grant_version++;
 
-    result= mysql_grant_db(thd, tables, lex->users_list, &db_name,
+    result= mysql_grant_db(thd, tables,
+                           m_resolved_users, &db_name,
                            {m_gp.object_privilege(), is_revoke()},
                            create_new_users, no_auto_create_users);
 
@@ -12762,7 +12744,7 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
     grant_version++;
     /* Conditionally writes to binlog */
     result= mysql_grant_global(thd, tables,
-                               lex->users_list,
+                               m_resolved_users,
                                {m_gp.object_privilege(), is_revoke()},
                                create_new_users,
                                no_auto_create_users);
@@ -12776,7 +12758,10 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
       my_ok(thd);
   }
 
-  return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
+  if (!is_revoke())
+    user_list_reset_mqh();
+
+  return false;
 
 #ifdef WITH_WSREP
 wsrep_error_label:
