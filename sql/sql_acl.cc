@@ -8805,7 +8805,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
         thd->lex->sql_command == SQLCOM_SHOW_FIELDS)
     {
       view_privs= get_column_grant(thd, grant,
-                                   db_name->str, table_name->str, name);
+                                   *db_name, *table_name, name);
       if (view_privs & VIEW_ANY_ACL)
       {
         table_ref->belong_to_view->allowed_show= TRUE;
@@ -9203,8 +9203,9 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
 */
 
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
-                        const char *db_name, const char *table_name,
-                        const Lex_ident_column &field_name)
+                             const Lex_ident_db &db_name,
+                             const Lex_ident_table &table_name,
+                             const Lex_ident_column &field_name)
 {
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role;
@@ -9214,7 +9215,7 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
 
   mysql_rwlock_rdlock(&LOCK_grant);
   /* reload table if someone has modified any grants */
-  grant->refresh(thd->security_ctx, db_name, table_name);
+  grant->refresh(thd->security_ctx, db_name.str, table_name.str);
 
   grant_table= grant->grant_table_user;
   grant_table_role= grant->grant_table_role;
@@ -12370,8 +12371,8 @@ bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
 { return 0; }
 inline privilege_t public_access()
 { return NO_ACL; }
-privilege_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
-                             const Lex_ident_column &)
+privilege_t get_column_grant(THD *, GRANT_INFO *, const Lex_ident_db &,
+                            const Lex_ident_table &, const Lex_ident_column &)
 { return ALL_KNOWN_ACL; }
 int acl_check_setrole(THD *, const LEX_CSTRING &, privilege_t *) { return 0; }
 int acl_setrole(THD *, const LEX_CSTRING &, privilege_t) { return 0; }
