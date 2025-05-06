@@ -362,6 +362,7 @@ class Sql_cmd_grant: public Sql_cmd
 {
 protected:
   enum_sql_command m_command;
+  bool m_create_new_users;
   List<LEX_USER> m_resolved_users;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
@@ -370,7 +371,7 @@ protected:
 #endif
 public:
   Sql_cmd_grant(enum_sql_command command)
-   :m_command(command)
+   :m_command(command), m_create_new_users(false)
   { }
   bool is_revoke() const { return m_command == SQLCOM_REVOKE; }
   enum_sql_command sql_command_code() const override { return m_command; }
@@ -408,8 +409,10 @@ public:
 class Sql_cmd_grant_table: public Sql_cmd_grant_object
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  bool execute_table_mask(THD *thd);
-  bool execute_exact_table(THD *thd, TABLE_LIST *table);
+  bool execute_grant_database_or_global(THD *thd);
+  bool execute_grant_global(THD *thd);
+  bool execute_grant_database(THD *thd);
+  bool execute_grant_table(THD *thd, TABLE_LIST *table);
 #endif
 public:
   Sql_cmd_grant_table(enum_sql_command command, Grant_privilege &grant)
