@@ -2355,3 +2355,37 @@ $$
 DELIMITER ;$$
 
 DROP TABLE t1;
+
+
+--echo #
+--echo # Non-constant expressions are not allowed as a key
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 78;
+  SELECT marks(rand());
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 78;
+  SELECT marks(78+rand());
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CALL p1;
+DROP PROCEDURE p1;

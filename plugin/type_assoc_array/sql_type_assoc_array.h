@@ -35,7 +35,11 @@ class Type_handler_assoc_array: public Type_handler_composite
 {
 public:
   static const Type_handler_assoc_array *singleton();
-
+  static bool check_key_expression_type(Item *key);
+  static bool check_functor_args(THD *thd, List<Item> *args,
+                                 const char *opname);
+  static bool check_subscript_expression(const Type_handler *formal_th,
+                                         Item *key);
 public:
   bool has_methods() const override { return true; }
   bool has_functors() const override { return true; }
@@ -198,6 +202,7 @@ public:
                                                    const override;
 
   bool key_to_lex_cstring(THD *thd,
+                          const Row_definition_list *def,
                           Item **key,
                           const LEX_CSTRING& name,
                           LEX_CSTRING& out_key) const override;
@@ -250,6 +255,11 @@ public:
   const Row_definition_list *get_array_def() const
   {
     return m_def;
+  }
+
+  const Spvar_definition *get_key_def() const
+  {
+    return m_def->head();
   }
 
   Item_field *make_item_field_spvar(THD *thd,
@@ -390,7 +400,17 @@ class Item_splocal_assoc_array_base :public Item_composite_base
 {
 protected:
   Item *m_key;
-
+  /*
+    In expressions:
+      - assoc_array(key_expr)
+      - assoc_array(key_expr).field
+    execute "fix_fields_if_needed" for the key_expr and check if it's
+    compatible with the "INDEX_BY key_type" clause of the assoc array
+    definition.
+    @param thd        - Current thd
+    @param array_addr - The run-time address of the assoc array variable.
+  */
+  bool fix_key(THD *thd, const sp_rcontext_addr &array_addr);
 public:
   Item_splocal_assoc_array_base(Item *key);
 };

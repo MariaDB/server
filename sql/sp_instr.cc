@@ -1298,11 +1298,14 @@ sp_instr_set_composite_field_by_name::exec_core(THD *thd, uint *nextp)
 {
   if (m_key)
   {
+    auto pvar= m_ctx->get_pvariable(*this);
     auto var= get_rcontext(thd)->get_variable(m_offset);
     auto handler= var->type_handler()->to_composite();
     DBUG_ASSERT(handler);
 
-    if (handler->key_to_lex_cstring(thd, &m_key, var->name, m_field_name))
+    if (handler->key_to_lex_cstring(thd,
+                                    pvar->field_def.row_field_definitions(),
+                                    &m_key, var->name, m_field_name))
       return true;
   }
 
@@ -1364,12 +1367,14 @@ sp_instr_set_composite_field_by_name::print(String *str)
 int
 sp_instr_set_composite_field_by_key::exec_core(THD *thd, uint *nextp)
 {
+  auto pvar= m_ctx->get_pvariable(*this);
   auto var= get_rcontext(thd)->get_variable(m_offset);
   auto handler= var->type_handler()->to_composite();
   DBUG_ASSERT(handler);
 
   LEX_CSTRING key;
-  if (handler->key_to_lex_cstring(thd, &m_key, var->name, key))
+  if (handler->key_to_lex_cstring(thd, pvar->field_def.row_field_definitions(),
+                                  &m_key, var->name, key))
     return true;
 
   int res= get_rcontext(thd)->set_variable_composite_field_by_key(thd,

@@ -33,6 +33,12 @@ Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
 Sp_rcontext_handler_statement sp_rcontext_handler_statement;
 
 
+const sp_variable *
+Sp_rcontext_handler_local::get_pvariable(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->find_variable(i);
+}
+
 sp_cursor *Sp_rcontext_handler::get_open_cursor_or_error(THD *thd,
                                                  const sp_rcontext_ref &ref)
 {
@@ -47,6 +53,14 @@ sp_cursor *Sp_rcontext_handler::get_open_cursor_or_error(THD *thd,
 sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
 {
   return ctx;
+}
+
+const sp_variable *
+Sp_rcontext_handler_package_body::get_pvariable(const sp_pcontext *pctx, uint i)
+                                                                           const
+{
+  DBUG_ASSERT(0);
+  return nullptr;
 }
 
 sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) const

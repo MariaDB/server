@@ -2093,3 +2093,28 @@ END;
 $$
 ERROR HY000: 'count("t1"."a")' is not allowed in this context
 DROP TABLE t1;
+#
+# Non-constant expressions are not allowed as a key
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT marks(rand());
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT marks(78+rand());
+END;
+$$
+CALL p1;
+ERROR HY000: '78 + rand()' is not allowed in this context
+DROP PROCEDURE p1;

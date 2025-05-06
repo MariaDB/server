@@ -1605,11 +1605,23 @@ Item_splocal_assoc_array_element::Item_splocal_assoc_array_element(THD *thd,
 }
 
 
+bool Item_splocal_assoc_array_base::fix_key(THD *thd,
+                                            const sp_rcontext_addr &array_addr)
+{
+  Field *generic_field= thd->get_variable(array_addr)->field;
+  auto field= dynamic_cast<const Field_assoc_array*>(generic_field);
+  return m_key->fix_fields_if_needed(thd, &m_key) ||
+         Type_handler_assoc_array::
+            check_subscript_expression(field->get_key_def()->type_handler(),
+                                       m_key);
+}
+
+
 bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
-  if (m_key->fix_fields_if_needed(thd, &m_key))
+  if (fix_key(thd, rcontext_addr()))
     return true;
 
   if (!m_key->val_str())
@@ -1684,8 +1696,10 @@ bool Item_splocal_assoc_array_element::set_value(THD *thd,
                                                  Item **it)
 {
   LEX_CSTRING key;
+  const Item_field *item_field= thd->get_variable(rcontext_addr());
+  auto field= dynamic_cast<const Field_assoc_array*>(item_field->field);
   if (Type_handler_assoc_array::singleton()->
-        key_to_lex_cstring(thd, &m_key, name, key))
+        key_to_lex_cstring(thd, field->get_array_def(), &m_key, name, key))
     return true;
 
   return get_rcontext(ctx)->set_variable_composite_by_name(thd, m_var_idx, key,
@@ -1721,7 +1735,7 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
-  if (m_key->fix_fields_if_needed(thd, &m_key))
+  if (fix_key(thd, rcontext_addr()))
     return true;
   
   if (!m_key->val_str())
@@ -1916,8 +1930,10 @@ public:
   bool set(THD *thd, Item *item) override
   {
     LEX_CSTRING key;
+    const Item_field *item_field= thd->get_variable(*this);
+    auto field= dynamic_cast<const Field_assoc_array*>(item_field->field);
     if (Type_handler_assoc_array::singleton()->
-          key_to_lex_cstring(thd, &m_key, name, key))
+          key_to_lex_cstring(thd, field->get_array_def(), &m_key, name, key))
       return true;
 
     return get_rcontext(thd->spcont)->
@@ -1984,6 +2000,26 @@ bool Type_handler_assoc_array::Spvar_definition_with_complex_data_types(
     declaring this variable.
   */
   return true;
+}
+
+
+bool Type_handler_assoc_array::
+       check_subscript_expression(const Type_handler *formal_th, Item *key)
+{
+  Type_handler_hybrid_field_type th(formal_th);
+  if (th.aggregate_for_result(key->type_handler()))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             key->type_handler()->name().ptr(), "<subscript expression>");
+    return true;
+  }
+  if (!key->can_eval_in_optimize())
+  {
+    Item::Print tmp(key, QT_ORDINARY);
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    return true;
+  }
+  return false;
 }
 
 
@@ -2075,6 +2111,42 @@ String *Type_handler_assoc_array::
   return str;
 }
 
+bool Type_handler_assoc_array::check_key_expression_type(Item *key)
+{
+  Item_func::Functype func_sp= Item_func::FUNC_SP;
+  if (bool(key->with_flags & (item_with_t::WINDOW_FUNC |
+                              item_with_t::FIELD |
+                              item_with_t::SUM_FUNC |
+                              item_with_t::SUBQUERY |
+                              item_with_t::ROWNUM_FUNC)) ||
+      key->walk(&Item::find_function_processor, FALSE, &func_sp))
+  {
+    Item::Print tmp(key, QT_ORDINARY);
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    return true;
+  }
+  return false;
+}
+
+
+/*
+  Check arguments for:
+    assoc_array_var(key)
+    assoc_array_var(key).field
+*/
+bool Type_handler_assoc_array::check_functor_args(THD *thd, List<Item> *args,
+                                                  const char *op)
+{
+  if (!args || args->elements != 1 || !args->head())
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), op,
+             ErrConvDQName(thd->lex->sphead).ptr(),
+             1, !args ? 0 : args->elements);
+    return true;
+  }
+  return check_key_expression_type(args->head());
+}
+
 
 Item_splocal *
 Type_handler_assoc_array::create_item_functor(THD *thd,
@@ -2085,24 +2157,11 @@ Type_handler_assoc_array::create_item_functor(THD *thd,
                                               const Lex_ident_cli_st &name_cli)
                                                                           const
 {
-  if (!args || args->elements != 1 || !args->head())
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT",
-             ErrConvDQName(thd->lex->sphead).ptr(),
-             1, !args ? 0 : args->elements);
-    return NULL;
-  }
+  DBUG_ASSERT(!varname.is_null());
+  if (check_functor_args(thd, args, "ASSOC_ARRAY_ELEMENT"))
+    return nullptr;
 
   Item *key= args->head();
-  if (bool(key->with_flags & (item_with_t::WINDOW_FUNC |
-                              item_with_t::FIELD |
-                              item_with_t::SUM_FUNC |
-                              item_with_t::SUBQUERY |
-                              item_with_t::ROWNUM_FUNC)))
-  {
-    Item::Print tmp(key, QT_ORDINARY);
-    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
-  }
 
   Query_fragment pos(thd, thd->lex->sphead, name_cli.pos(), name_cli.end());
   if (!member.is_null())
@@ -2146,15 +2205,8 @@ Type_handler_assoc_array::
     return nullptr;
   }
 
-  if (!args || args->elements != 1 || !args->head())
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY KEY",
-             ErrConvDQName(thd->lex->sphead).ptr(),
-             1, args ? args->elements : 0);
+  if (check_functor_args(thd, args, "ASSOC_ARRAY KEY"))
     return nullptr;
-  }
-
-  DBUG_ASSERT(args->head());
 
   if (member.is_null())
     return new (thd->mem_root) set_element(lex->sphead->instructions(),
@@ -2214,28 +2266,29 @@ Item *Type_handler_assoc_array::create_item_method(THD *thd,
 }
 
 
-bool Type_handler_assoc_array::key_to_lex_cstring(THD *thd,
-                                                  Item **key,
-                                                  const LEX_CSTRING& name,
-                                                  LEX_CSTRING& out_key) const
+bool
+Type_handler_assoc_array::key_to_lex_cstring(THD *thd,
+                                             const Row_definition_list *def,
+                                             Item **key,
+                                             const LEX_CSTRING& name,
+                                             LEX_CSTRING& out_key) const
 {
   DBUG_ASSERT(key);
   DBUG_ASSERT(*key);
 
-  if ((*key)->fix_fields_if_needed(thd, key))
+  if ((*key)->fix_fields_if_needed(thd, key) ||
+      check_subscript_expression(def->head()->type_handler(), *key))
     return true;
 
-  if ((*key)->null_value)
+  auto str= (*key)->val_str();
+
+  if (!str)
   {
     my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX,
              MYF(0),
              name.str ? name.str : "unknown");
     return true;
   }
-
-  auto str= (*key)->val_str();
-  if (!str)
-    return true;
 
   out_key= str->to_lex_cstring();
   return false;
@@ -2318,6 +2371,8 @@ my_var *Type_handler_assoc_array::
 {
   if (validate_only)
     return nullptr; // e.g. EXPLAIN SELECT .. INTO spvar_assoc_array('key');
+  if (check_key_expression_type(arg))
+    return nullptr;
   return new (thd->mem_root) my_var_sp_assoc_array_element(name, arg, addr,
                                                            sphead);
 }

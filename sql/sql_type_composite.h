@@ -396,7 +396,9 @@ public:
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
 
-  virtual bool key_to_lex_cstring(THD *thd, Item **key,
+  virtual bool key_to_lex_cstring(THD *thd,
+                                  const Row_definition_list *def,
+                                  Item **key,
                                   const LEX_CSTRING& name,
                                   LEX_CSTRING& out_key) const
   {

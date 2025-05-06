@@ -22,6 +22,7 @@
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
 #include "sp_type_def.h"
+#include "sp_rcontext_handler.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -540,6 +541,11 @@ public:
   /// @param n The number of variables to skip.
   void declare_var_boundary(uint n)
   { m_pboundary= n; }
+
+  const sp_variable *get_pvariable(const sp_rcontext_addr &addr) const
+  {
+    return addr.rcontext_handler()->get_pvariable(this, addr.offset());
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
