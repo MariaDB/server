@@ -432,19 +432,6 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
 }
 
 
-bool sp_type_def_list::type_defs_add_record(THD *thd,
-                                            const Lex_ident_column &name,
-                                            Row_definition_list *field)
-{
-  auto p= new (thd->mem_root) sp_type_def_record(name, field);
-
-  if (p == nullptr)
-    return true;
-
-  return m_type_defs.append(p);
-}
-
-
 sp_type_def *sp_pcontext::find_type_def(const LEX_CSTRING &name,
                                         bool current_scope_only) const
 {
@@ -455,21 +442,6 @@ sp_type_def *sp_pcontext::find_type_def(const LEX_CSTRING &name,
   return (!current_scope_only && m_parent) ?
     m_parent->find_type_def(name, false) :
     NULL;
-}
-
-
-bool sp_type_def_list::type_defs_add_composite2(THD *thd,
-                                                const Lex_ident_column &name,
-                                                const Type_handler *th,
-                                                Spvar_definition *key,
-                                                Spvar_definition *value)
-{
-  auto p= new (thd->mem_root) sp_type_def_composite2(name, th, key, value);
-
-  if (p == nullptr)
-    return true;
-
-  return m_type_defs.append(p);
 }
 
 

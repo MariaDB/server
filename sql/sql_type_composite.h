@@ -392,11 +392,34 @@ public:
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
 
-  virtual bool key_to_lex_cstring(THD *thd, Item **key,
-                                  const LEX_CSTRING& name,
-                                  LEX_CSTRING& out_key) const
+  /*
+    Get a key value from an expression and convert it into the internal form
+    suitable for the variable.
+
+    @param thd    - Current thd
+    @param var    - The variable aaddress
+    @param key    - The expression
+    @param buffer - The string buffer, e.g. used for val_str().
+
+    @retutns        - An null LEX_CSTRING {0,0} in case if key->val_str()
+                      returned NULL, or if could not convert the value to
+                      the internal form
+                    - A non-null LEX_CSTRING, usually pointing to "buffer",
+                      with an internal key representation
+
+    In case of an VARCHAR-key asssoc array, the key value is converted
+    to the character set explicitlye or implicitly specified in the
+    INDEX BY clause.
+    In case of an integer-key assoc array, the key value is checked to
+    be inside the allowed range according to the integer type specified
+    in the INDEX BY clause.
+  */
+  virtual LEX_CSTRING key_to_lex_cstring(THD *thd,
+                                         const sp_rcontext_addr &var,
+                                         Item **key,
+                                         String *buffer) const
   {
-    return false;
+    return Lex_cstring();
   }
 
   /*

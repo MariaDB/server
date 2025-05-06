@@ -489,6 +489,10 @@ public:
     if (!alloced)
       thread_specific= 1;
   }
+  bool get_thread_specific() const
+  {
+    return thread_specific;
+  }
   bool is_alloced() const { return alloced; }
   inline uint32 alloced_length() const { return Alloced_length;}
   inline uint32 extra_allocation() const { return extra_alloc;}

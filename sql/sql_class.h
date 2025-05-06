@@ -7405,28 +7405,29 @@ public:
 class Qualified_ident: public Sql_alloc
 {
 protected:
-  const char *m_cli_pos;
-  Lex_ident_sys_st m_parts[3];
+  Lex_ident_cli_st m_pos;
+  Lex_ident_sys m_parts[3];
   sp_variable *m_spvar;
   uint m_defined_parts;
 public:
   Qualified_ident(THD *thd, const Lex_ident_cli_st &a);
   Qualified_ident(THD *thd,
                   const Lex_ident_cli_st &a,
-                  const Lex_ident_sys_st &b);
+                  const Lex_ident_cli_st &b);
   Qualified_ident(THD *thd,
                   const Lex_ident_cli_st &a,
-                  const Lex_ident_sys_st &b,
-                  const Lex_ident_sys_st &c);
-  
+                  const Lex_ident_cli_st &b,
+                  const Lex_ident_cli_st &c);
+
   Qualified_ident(const Lex_ident_sys_st &a);
   /*
-    Returns the position of the first character of the identifier in
-    the client string.
+    Returns the client query fragment starting at the first character
+    of the leftmost identifier and ending at after the last character
+    of the rightmist identifier.
   */
-  const char *pos() const
+  const Lex_ident_cli_st &pos() const
   {
-    return m_cli_pos;
+    return m_pos;
   }
 
   sp_variable *spvar() const
@@ -7434,7 +7435,7 @@ public:
     return m_spvar;
   }
 
-  const Lex_ident_sys_st &part(uint i) const
+  const Lex_ident_sys &part(uint i) const
   {
     DBUG_ASSERT(i < array_elements(m_parts));
     return m_parts[i];
@@ -7445,9 +7446,23 @@ public:
     return m_defined_parts;
   }
 
-  void set_cli_pos(const char *pos)
+  /*
+    When initializing m_parts[n] in the constructor, a EOM could happen.
+    This method checks that all defined parts were initialized without error.
+  */
+  bool is_sane() const
   {
-    m_cli_pos= pos;
+    for (uint i= 0; i < m_defined_parts; i++)
+    {
+      if (m_parts[i].is_null())
+        return false; // E.g. EOM happened in the constructor
+    }
+    return true;
+  }
+
+  void set_pos(const Lex_ident_cli_st &pos)
+  {
+    m_pos= pos;
   }
   void set_spvar(sp_variable *spvar)
   {
