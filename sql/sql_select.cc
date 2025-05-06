@@ -13276,8 +13276,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     */
     if (cond)                /* Because of QUICK_GROUP_MIN_MAX_SELECT */
     {                        /* there may be a select without a cond. */    
-      if (join->table_count > 1)
-        cond->update_used_tables();		// Tablenr may have changed
+      cond->update_used_tables();		// Tablenr may have changed
 
       /*
         Extract expressions that depend on constant tables

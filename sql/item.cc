@@ -727,8 +727,10 @@ bool Item_ident::remove_dependence_processor(void * arg)
 {
   DBUG_ENTER("Item_ident::remove_dependence_processor");
   if (get_depended_from() == (st_select_lex *) arg)
+  {
     depended_from= 0;
-  context= &((st_select_lex *) arg)->context;
+    context= &((st_select_lex *) arg)->context;
+  }
   DBUG_RETURN(0);
 }
 
@@ -3615,7 +3617,9 @@ bool Item_field::eq(const Item *item, bool binary_cmp) const
 
 table_map Item_field::used_tables() const
 {
-  if (field->table->const_table)
+  if (!field ||
+      !field->table ||
+      field->table->const_table)
     return 0;					// const item
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
 }
@@ -3718,7 +3722,12 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
     ctx->select_lex= new_parent;
     if (context->select_lex == NULL)
       ctx->select_lex= NULL;
-    ctx->first_name_resolution_table= context->first_name_resolution_table;
+
+    /*
+      we have already fixed this Item_field, why not hardwire this to prevent
+      later problems.
+    */
+    ctx->first_name_resolution_table= field->table->pos_in_table_list;
     ctx->last_name_resolution_table=  context->last_name_resolution_table;
     ctx->error_processor=             context->error_processor;
     ctx->error_processor_data=        context->error_processor_data;
@@ -5811,7 +5820,25 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
 }
 
 
-/*
+void Field_fixer::visit_field(Item_field *item)
+{
+  if (item->fixed())                            // item may not yet be (re)fixed
+  {
+    st_select_lex *cmp= select;
+    while (cmp->merged_into)
+      cmp= cmp->merged_into;
+    if (item->field->table->pos_in_table_list &&
+        (item->field->table->pos_in_table_list->select_lex == cmp))
+      used_tables|= item->field->table->map;
+    else
+      used_tables|= OUTER_REF_TABLE_BIT;
+  }
+  else
+    not_ready= TRUE;
+}
+
+
+/**
   @brief
   Whether a table belongs to an outer select.
 
@@ -5924,6 +5951,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   if (current_sel->master_unit()->outer_select())
     outer_context= context->outer_context;
 
+  // if we found this item before, depended_from is where we found it.
+  // start looking there instead.  It will work even if the select is merged.
+  if (!table_list && !cached_table && depended_from)
+    outer_context= &depended_from->context;
+
   /*
     This assert is to ensure we have an outer contex when *from_field
     is set.
@@ -5939,10 +5971,20 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     select= outer_context->select_lex;
     Item_subselect *prev_subselect_item=
       last_checked_context->select_lex->master_unit()->item;
+    // we have merged to the top select, this field is no longer outer
+    bool at_top= !prev_subselect_item;
     last_checked_context= outer_context;
     upward_lookup= TRUE;
 
-    place= prev_subselect_item->parsing_place;
+    /*
+      if something has been merged to the top level, during 2nd execution
+      prev_subselect_item can be a null pointer, i.e. the unit from the top
+      select_lex
+    */
+    if (!at_top)
+      place= prev_subselect_item->parsing_place;
+    else
+      place= NO_MATTER;
     /*
       If outer_field is set, field was already found by first call
       to find_field_in_tables(). Only need to find appropriate context.
@@ -5997,8 +6039,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         if (*from_field != view_ref_found)
         {
-          prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
-          prev_subselect_item->const_item_cache= 0;
+          if (!at_top)
+          {
+            prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
+            prev_subselect_item->const_item_cache= 0;
+          }
           set_field(*from_field);
           if (!last_checked_context->select_lex->having_fix_field &&
               select->group_list.elements &&
@@ -6073,13 +6118,16 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         else
         {
+          if (!at_top)
+            prev_subselect_item->used_tables_and_const_cache_join(*reference);
           Item::Type ref_type= (*reference)->type();
-          prev_subselect_item->used_tables_and_const_cache_join(*reference);
           mark_as_dependent(thd, last_checked_context->select_lex,
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
+          if (ref_type == FIELD_ITEM)
+            set_field(((Item_field*)(*reference))->field);
           if (thd->lex->in_sum_func &&
               last_checked_context->select_lex->parent_lex ==
               context->select_lex->parent_lex &&
@@ -6108,7 +6156,8 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       if (ref != not_found_item)
       {
         DBUG_ASSERT(*ref && (*ref)->fixed());
-        prev_subselect_item->used_tables_and_const_cache_join(*ref);
+        if (!at_top)
+          prev_subselect_item->used_tables_and_const_cache_join(*ref);
         break;
       }
     }
@@ -6118,8 +6167,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       outer select (or we just trying to find wrong identifier, in this
       case it does not matter which used tables bits we set)
     */
-    prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
-    prev_subselect_item->const_item_cache= 0;
+    if (!at_top)
+    {
+      prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+      prev_subselect_item->const_item_cache= 0;
+    }
   }
 
   DBUG_ASSERT(ref != 0);
@@ -6336,9 +6388,18 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
   SELECT_LEX *select;
-  if (context)
+  Name_resolution_context *ctx= context;
+
+  if (depended_from)        // this is outer reference and we have fixed before
   {
-    select= context->select_lex;
+    if (!alias_name_used)   // short circuit fix_outer_refs if this wasn't alias
+      ctx= &depended_from->context;
+    depended_from->add_outer_reference_resolved_here(thd, this);
+  }
+
+  if (ctx)
+  {
+    select= ctx->select_lex;
   }
   else
   {
@@ -6362,11 +6423,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       expression to 'reference', i.e. it substitute that expression instead
       of this Item_field
     */
-    DBUG_ASSERT(context);
+    DBUG_ASSERT(ctx);
     if ((from_field= find_field_in_tables(thd, this,
-                                          context->first_name_resolution_table,
-                                          context->last_name_resolution_table,
-                                          context->ignored_tables,
+                                          ctx->first_name_resolution_table,
+                                          ctx->last_name_resolution_table,
+                                          ctx->ignored_tables,
                                           reference,
                                           thd->lex->use_only_table_context ?
                                             REPORT_ALL_ERRORS : 
@@ -6417,6 +6478,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             */
             set_max_sum_func_level(thd, select);
             set_field(new_field);
+            if (resolution == RESOLVED_AGAINST_ALIAS)
+              alias_name_used= TRUE;
             depended_from= (*((Item_field**)res))->depended_from;
             return 0;
           }
@@ -6428,7 +6491,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               Item_field created by the parser with the new Item_ref.
             */
             Item_ref *rf= new (thd->mem_root)
-              Item_ref(thd, context, db_name, table_name, field_name);
+              Item_ref(thd, ctx, db_name, table_name, field_name);
             if (!rf)
               return 1;
             bool err= rf->fix_fields(thd, (Item **) &rf) || rf->check_cols(1);
@@ -6464,14 +6527,18 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
+    st_select_lex *context_sl= ctx->select_lex;
+    if (context_sl)
+      while (context_sl->merged_into)
+        context_sl= context_sl->merged_into;
+
     table_list= (cached_table ? cached_table :
                  from_field != view_ref_found ?
                  from_field->table->pos_in_table_list : 0);
     if (!outer_fixed && table_list && table_list->select_lex &&
-        context->select_lex &&
-        table_list->select_lex != context->select_lex &&
-        !context->select_lex->is_merged_child_of(table_list->select_lex) &&
-        is_outer_table(table_list, context->select_lex))
+        context_sl &&
+        table_list->select_lex != context_sl &&
+        is_outer_table(table_list, context_sl))
     {
       int ret;
       if ((ret= fix_outer_field(thd, &from_field, reference)) < 0)
@@ -6483,8 +6550,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
     if (select && (thd->stmt_arena->state != Query_arena::STMT_EXECUTED) &&
         thd->lex->in_sum_func &&
-        thd->lex->in_sum_func->nest_level == 
-        select->nest_level)
+        thd->lex->in_sum_func->nest_level >= select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                     select->nest_level);
     /*
@@ -6583,7 +6649,7 @@ mark_non_agg_field:
         safe for use because it's either the SELECT we want to use 
         (the current level) or a stub added by non-SELECT queries.
       */
-      select_lex= context->select_lex;
+      select_lex= ctx->select_lex;
     }
     if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
@@ -6599,7 +6665,7 @@ mark_non_agg_field:
   return FALSE;
 
 error:
-  context->process_error(thd);
+  ctx->process_error(thd);
   return TRUE;
 }
 
@@ -6628,7 +6694,6 @@ void Item_field::cleanup()
 {
   DBUG_ENTER("Item_field::cleanup");
   Item_ident::cleanup();
-  depended_from= NULL;
   /*
     Even if this object was created by direct link to field in setup_wild()
     it will be linked correctly next time by name of field and table alias.
@@ -8538,9 +8603,44 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
-        if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
-          goto error;
-        thd->change_item_tree(reference, fld);
+        if (thd->stmt_arena->is_conventional() ||
+            thd->stmt_arena->state == Query_arena::STMT_PREPARED ||
+            thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP)
+        {
+          /*
+            During the first execution, this item needs to be on statement
+            memory, as it can appear in outer_references_resolved_here
+            We do not reverse this Item_field creation.
+          */
+          Query_arena *arena, backup;
+          arena= thd->activate_stmt_arena_if_needed(&backup);
+
+          if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
+          {
+            if (arena)
+              thd->restore_active_arena(arena, &backup);
+            goto error;
+          }
+          if (arena)
+            thd->restore_active_arena(arena, &backup);
+
+          *reference= fld;
+        }
+        else
+        {
+          // if we have already executed this statement, pick up the reference
+          if (thd->stmt_arena->state == Query_arena::STMT_EXECUTED)
+          {
+            DBUG_ASSERT( reference && *reference );
+            fld= (Item_field *)*reference;
+          }
+          else
+          {
+            if (!(fld= new (thd->mem_root) Item_field(thd, context, from_field)))
+              goto error;
+            thd->change_item_tree(reference, fld);
+          }
+        }
         mark_as_dependent(thd, last_checked_context->select_lex,
                           current_sel, fld, fld, false);
         /*
@@ -11211,7 +11311,8 @@ void Item_direct_view_ref::update_used_tables()
 
 table_map Item_direct_view_ref::used_tables() const
 {
-  DBUG_ASSERT(fixed());
+  if(!fixed())
+    return (table_map) 0;
 
   if (get_depended_from())
     return OUTER_REF_TABLE_BIT;

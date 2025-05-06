@@ -77,7 +77,7 @@ create table t1 (a int);
 insert into t1 values (2);
 select (select a from t1 where t1.a=t2.a), a from t1 as t2;
 drop table t1;
---replace_result 8 4
+--replace_result 8 5
 show status like "feature_subquery";
 
 --echo #

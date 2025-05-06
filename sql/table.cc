@@ -7228,9 +7228,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  Name_resolution_context *context= (view->view ?
-                                     &view->view->first_select_lex()->context:
-                                     &thd->lex->first_select_lex()->context);
+  Name_resolution_context *context= &thd->lex->current_select->context;
   Item *item= (new (thd->mem_root)
                Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     *name, view));

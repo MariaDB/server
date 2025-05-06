@@ -244,6 +244,7 @@ public:
   bool mark_as_eliminated_processor(void *arg) override;
   bool eliminate_subselect_processor(void *arg) override;
   bool enumerate_field_refs_processor(void *arg) override;
+  bool select_update_base_processor(void *arg) override;
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function("select ...", arg, VCOL_IMPOSSIBLE);
