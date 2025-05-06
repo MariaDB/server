@@ -7342,13 +7342,12 @@ static int check_if_auth_can_be_changed(LEX_USER *user, THD *thd)
 static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                              List <LEX_USER> &user_list,
                              List <LEX_COLUMN> &columns, privilege_t rights,
-                             bool revoke_grant)
+                             bool revoke_grant, bool create_new_users)
 {
   privilege_t column_priv(NO_ACL);
   int result, res;
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
-  bool create_new_users=0;
   Lex_ident_db db_name;
   Lex_ident_table table_name;
   DBUG_ENTER("mysql_table_grant");
@@ -7447,8 +7446,6 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(result != 1);
   }
 
-  if (!revoke_grant)
-    create_new_users= test_if_create_new_users(thd);
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   MEM_ROOT *old_root= thd->mem_root;
@@ -7609,10 +7606,10 @@ static int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
                                 const Sp_handler *sph,
                                 List <LEX_USER> &user_list, privilege_t rights,
-                                bool revoke_grant, bool write_to_binlog)
+                                bool revoke_grant, bool write_to_binlog,
+                                bool create_new_users)
 {
   List_iterator<LEX_USER> it(user_list);
-  bool create_new_users= 0;
   int result;
   const char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
@@ -7637,8 +7634,6 @@ static bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list,
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
-  if (!revoke_grant)
-    create_new_users= test_if_create_new_users(thd);
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
   MEM_ROOT *old_root= thd->mem_root;
@@ -12069,6 +12064,7 @@ bool sp_grant_privileges(THD *thd,
   TABLE_LIST tables[1];
   List<LEX_USER> resolved_user_list;
   bool result;
+  bool create_new_users;
   ACL_USER *au;
   Dummy_error_handler error_handler;
   DBUG_ENTER("sp_grant_privileges");
@@ -12112,6 +12108,7 @@ bool sp_grant_privileges(THD *thd,
     DBUG_RETURN(TRUE);
 
   thd->lex->account_options.reset();
+  create_new_users= test_if_create_new_users(thd);
 
   /*
     Only care about whether the operation failed or succeeded
@@ -12119,7 +12116,8 @@ bool sp_grant_privileges(THD *thd,
   */
   thd->push_internal_handler(&error_handler);
   result= mysql_routine_grant(thd, tables, sph, resolved_user_list,
-                              DEFAULT_CREATE_PROC_ACLS, FALSE, FALSE);
+                              DEFAULT_CREATE_PROC_ACLS, FALSE, FALSE,
+                              create_new_users);
   thd->pop_internal_handler();
   DBUG_RETURN(result);
 }
@@ -12497,6 +12495,9 @@ bool Sql_cmd_grant::grant_stage0(THD *thd)
     resolved_user->auth= tmp_user->auth;
     m_resolved_users.push_back(resolved_user);
   }
+
+  m_create_new_users= is_revoke() ? false : test_if_create_new_users(thd);
+
   return false;
 }
 
@@ -12530,9 +12531,8 @@ bool Sql_cmd_grant_proxy::check_access_proxy(THD *thd,
 bool Sql_cmd_grant_proxy::execute(THD *thd)
 {
   bool result;
-  bool create_new_users= false;
-  bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
-                                       MODE_NO_AUTO_CREATE_USER);
+  const bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
+                                           MODE_NO_AUTO_CREATE_USER);
   Grant_tables tables;
 
   DBUG_ASSERT(thd->lex->first_select_lex()->table_list.first == NULL);
@@ -12552,8 +12552,6 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
-  if (!is_revoke())
-    create_new_users= test_if_create_new_users(thd);
 
 
   mysql_rwlock_wrlock(&LOCK_grant);
@@ -12563,7 +12561,7 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
   result= mysql_grant_proxy(thd, tables,
                             m_resolved_users,
                             {m_grant_option, is_revoke()},
-                            create_new_users, no_auto_create_users);
+                            m_create_new_users, no_auto_create_users);
 
   mysql_mutex_unlock(&acl_cache->lock);
   /* Write to binlog if statement succeeded. */
@@ -12577,7 +12575,7 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
   if (!is_revoke())
     user_list_reset_mqh();
 
-  return false;
+  return result;
 
 #ifdef WITH_WSREP
 wsrep_error_label:
@@ -12600,7 +12598,64 @@ bool Sql_cmd_grant_object::grant_stage0_exact_object(THD *thd,
 }
 
 
-bool Sql_cmd_grant_table::execute_exact_table(THD *thd, TABLE_LIST *table)
+bool Sql_cmd_grant_table::execute_grant_database(THD *thd)
+{
+  Grant_tables tables;
+  bool result;
+  const bool no_auto_create_users= thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER;
+  IdentBuffer<SAFE_NAME_LEN + 1> db_name_buff;
+  Lex_cstring db_name= m_gp.db();
+  if (lower_case_table_names)
+  {
+    if (m_gp.db().length >= SAFE_NAME_LEN + 1)
+    {
+      my_error(ER_WRONG_DB_NAME, MYF(0), m_gp.db().str);
+      return true;
+    }
+    /* Convert database to lower case for comparison */
+    db_name= db_name_buff.copy_casedn(db_name).to_lex_cstring();
+  }
+
+  /* Only allow DB level grants. */
+  if ((m_gp.object_privilege() & DB_ACLS) != m_gp.object_privilege())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "DB GRANT", "GLOBAL PRIVILEGES");
+    return true;
+  }
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+  if (tables.open_and_lock(thd, Table_user | Table_db, TL_WRITE))
+    return true;
+
+  mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  grant_version++;
+
+  result= mysql_grant_db(thd, tables,
+                         m_resolved_users, db,
+                         {m_gp.object_privilege(), is_revoke()},
+                         m_create_new_users, no_auto_create_users);
+
+  mysql_mutex_unlock(&acl_cache->lock);
+  /* Write to binlog if statement succeeded. */
+  if (!result)
+    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  mysql_rwlock_unlock(&LOCK_grant);
+
+  if (!result)
+    my_ok(thd);
+
+  return result;
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
+
+bool Sql_cmd_grant_table::execute_grant_table(THD *thd, TABLE_LIST *table)
 {
   LEX  *lex= thd->lex;
   privilege_t priv= m_gp.object_privilege() | m_gp.column_privilege_total() |
@@ -12612,7 +12667,7 @@ bool Sql_cmd_grant_table::execute_exact_table(THD *thd, TABLE_LIST *table)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   return mysql_table_grant(thd, lex->query_tables, lex->users_list,
                            m_gp.columns(), m_gp.object_privilege(),
-                           is_revoke());
+                           is_revoke(), m_create_new_users);
 #ifdef WITH_WSREP
 wsrep_error_label:
   return true;
@@ -12646,10 +12701,12 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
 
   /* Conditionally writes to binlog */
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
   if (mysql_routine_grant(thd, lex->query_tables, &m_sph,
                           m_resolved_users, grants,
-                          is_revoke(), true))
+                          is_revoke(), true, m_create_new_users))
     return true;
+
   my_ok(thd);
   return false;
 #ifdef WITH_WSREP
@@ -12659,28 +12716,58 @@ wsrep_error_label:
 }
 
 
-bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
+bool Sql_cmd_grant_table::execute_grant_global(THD *thd)
 {
-  LEX  *lex= thd->lex;
   Grant_tables tables;
   bool result;
-  bool create_new_users= false;
-  bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
-                                       MODE_NO_AUTO_CREATE_USER);
+  const bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
+                                           MODE_NO_AUTO_CREATE_USER);
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+
+  if (tables.open_and_lock(thd, Table_user, TL_WRITE))
+    return true;
+
+  mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  grant_version++;
+  result= mysql_grant_global(thd, tables,
+                             m_resolved_users,
+                             {m_gp.object_privilege(), is_revoke()},
+                             m_create_new_users,
+                             no_auto_create_users);
+  mysql_mutex_unlock(&acl_cache->lock);
+  /* Write to binlog if statement succeeded. */
+  if (!result)
+    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  mysql_rwlock_unlock(&LOCK_grant);
+
+  if (!result)
+    my_ok(thd);
+
+  return result;
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
+bool Sql_cmd_grant_table::execute_grant_database_or_global(THD *thd)
+{
+  bool result;
   privilege_t required_access= m_gp.object_privilege() |
                                m_gp.column_privilege_total() |
                                GRANT_ACL;
 
-  DBUG_ASSERT(lex->first_select_lex()->table_list.first == NULL);
+  DBUG_ASSERT(thd->lex->first_select_lex()->table_list.first == NULL);
 
   if (check_access(thd, required_access, m_gp.db().str, NULL, NULL, 1, 0))
     return true;
 
   if (grant_stage0(thd))
     return true;
-
-  if (!is_revoke())
-    create_new_users= test_if_create_new_users(thd);
 
   if (m_gp.columns().elements) // e.g. GRANT SELECT (a) ON *.*
   {
@@ -12689,92 +12776,27 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
     return true;
   }
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   if (m_gp.db().length)
-  {
-    IdentBuffer<SAFE_NAME_LEN+1> db_name_buff;
-    Lex_cstring db_name= m_gp.db();
-    if (lower_case_table_names)
-    {
-      if (m_gp.db().length >= SAFE_NAME_LEN+1)
-      {
-        my_error(ER_WRONG_DB_NAME ,MYF(0), m_gp.db().str);
-        return true;
-      }
-      /* Convert database to lower case for comparison */
-      db_name= db_name_buff.copy_casedn(db_name).to_lex_cstring();
-    }
-
-    /* Only allow DB level grants. */
-    if ((m_gp.object_privilege() & DB_ACLS) != m_gp.object_privilege())
-    {
-        my_error(ER_WRONG_USAGE, MYF(0), "DB GRANT", "GLOBAL PRIVILEGES");
-        return true;
-    }
-
-    if (tables.open_and_lock(thd, Table_user | Table_db, TL_WRITE))
-      return true;
-
-    mysql_rwlock_wrlock(&LOCK_grant);
-    mysql_mutex_lock(&acl_cache->lock);
-    grant_version++;
-
-    result= mysql_grant_db(thd, tables,
-                           m_resolved_users, &db_name,
-                           {m_gp.object_privilege(), is_revoke()},
-                           create_new_users, no_auto_create_users);
-
-    mysql_mutex_unlock(&acl_cache->lock);
-    /* Write to binlog if statement succeeded. */
-    if (!result)
-      result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-    mysql_rwlock_unlock(&LOCK_grant);
-
-    if (!result)
-      my_ok(thd);
-  }
+    result= execute_grant_database(thd);
   else
-  {
+    result= execute_grant_global(thd);
 
-    if (tables.open_and_lock(thd, Table_user, TL_WRITE))
-      return true;
+  if (result)
+    return true;
 
-    mysql_rwlock_wrlock(&LOCK_grant);
-    mysql_mutex_lock(&acl_cache->lock);
-    grant_version++;
-    /* Conditionally writes to binlog */
-    result= mysql_grant_global(thd, tables,
-                               m_resolved_users,
-                               {m_gp.object_privilege(), is_revoke()},
-                               create_new_users,
-                               no_auto_create_users);
-    mysql_mutex_unlock(&acl_cache->lock);
-    /* Write to binlog if statement succeeded. */
-    if (!result)
-      result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-    mysql_rwlock_unlock(&LOCK_grant);
-
-    if (!result)
-      my_ok(thd);
-  }
-
-  if (!is_revoke())
+  if (!result && !is_revoke())
     user_list_reset_mqh();
 
   return false;
-
-#ifdef WITH_WSREP
-wsrep_error_label:
-  return true;
-#endif // WITH_WSREP
 }
-
 
 bool Sql_cmd_grant_table::execute(THD *thd)
 {
   TABLE_LIST *table= thd->lex->first_select_lex()->table_list.first;
-  return table ? execute_exact_table(thd, table) :
-                 execute_table_mask(thd);
+  if (table)
+    return execute_grant_table(thd, table);
+  return execute_grant_database_or_global(thd);
+
 }
 
 
