@@ -1424,7 +1424,7 @@ code_name(int code)
   case Q_HRNOW: return "Q_HRNOW";
   case Q_XID: return "XID";
   }
-  sprintf(buf, "CODE#%d", code);
+  snprintf(buf, sizeof(buf), "CODE#%d", code);
   return buf;
 }
 #endif
