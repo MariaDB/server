@@ -29,98 +29,52 @@ Created 2007/5/9 Sunny Bains
 
 #include "fts0priv.h"
 
-/******************************************************************//**
-Callback function for fetching the config value.
-@return always returns TRUE */
-static
-ibool
-fts_config_fetch_value(
-/*===================*/
-	void*		row,			/*!< in: sel_node_t* */
-	void*		user_arg)		/*!< in: pointer to
-						 ib_vector_t */
+/** Callback function for fetching the config value. */
+void read_fts_config(const rec_t *rec, const rec_offs *offsets,
+                     void *user_arg)
 {
-	sel_node_t*	node = static_cast<sel_node_t*>(row);
-	fts_string_t*	value = static_cast<fts_string_t*>(user_arg);
-
-	dfield_t*	dfield = que_node_get_val(node->select_list);
-	dtype_t*	type = dfield_get_type(dfield);
-	ulint		len = dfield_get_len(dfield);
-	void*		data = dfield_get_data(dfield);
-
-	ut_a(dtype_get_mtype(type) == DATA_VARCHAR);
-
-	if (len != UNIV_SQL_NULL) {
-		ulint	max_len = ut_min(value->f_len - 1, len);
-
-		memcpy(value->f_str, data, max_len);
-		value->f_len = max_len;
-		value->f_str[value->f_len] = '\0';
-	}
-
-	return(TRUE);
+  ulint len;
+  fts_string_t *value= static_cast<fts_string_t*>(user_arg);
+  const byte *data= rec_get_nth_field(rec, offsets, 3, &len);
+  if (len != UNIV_SQL_NULL)
+  {
+    ulint max_len= ut_min(value->f_len - 1, len);
+    memcpy(value->f_str, data, max_len);
+    value->f_len= max_len;
+    value->f_str[value->f_len]= '\0';
+  }
 }
 
-/******************************************************************//**
-Get value from the config table. The caller must ensure that enough
+/** Get value from the config table. The caller must ensure that enough
 space is allocated for value to hold the column contents.
+@param trx        transaction
+@param fts_table  indexed FTS table
+@param name       get config value for this parameter name
+@param value      Value read from config table
 @return DB_SUCCESS or error code */
-dberr_t
-fts_config_get_value(
-/*=================*/
-	trx_t*		trx,			/*!< transaction */
-	fts_table_t*	fts_table,		/*!< in: the indexed
-						FTS table */
-	const char*	name,			/*!< in: get config value for
-						this parameter name */
-	fts_string_t*	value)			/*!< out: value read from
-						config table */
+dberr_t fts_config_get_value(trx_t *trx, fts_table_t *fts_table,
+                             const char *name, fts_string_t *value)
 {
-	pars_info_t*	info;
-	que_t*		graph;
-	dberr_t		error;
-	ulint		name_len = strlen(name);
-	char		table_name[MAX_FULL_NAME_LEN];
-
-	info = pars_info_create();
-
-	*value->f_str = '\0';
-	ut_a(value->f_len > 0);
-
-	pars_info_bind_function(info, "my_func", fts_config_fetch_value,
-				value);
-
-	/* The len field of value must be set to the max bytes that
-	it can hold. On a successful read, the len field will be set
-	to the actual number of bytes copied to value. */
-	pars_info_bind_varchar_literal(info, "name", (byte*) name, name_len);
-
-	fts_table->suffix = "CONFIG";
-	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		fts_table,
-		info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS SELECT value FROM $table_name"
-		" WHERE key = :name;\n"
-		"BEGIN\n"
-		""
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	trx->op_info = "getting FTS config value";
-
-	error = fts_eval_sql(trx, graph);
-	que_graph_free(graph);
-	return(error);
+  FTSQueryExecutor executor(trx);
+  fts_table->suffix = "CONFIG";
+  dict_table_t *table= nullptr;
+  dberr_t err= executor.open_table(fts_table, &table);
+  if (err == DB_SUCCESS)
+  {
+    err= executor.prepare_for_read(table);
+    if (err == DB_SUCCESS)
+    {
+      executor.build_tuple(table, 1, 1);
+      executor.assign_config_fields(name);
+      *value->f_str = '\0';
+      ut_a(value->f_len > 0);
+      err= executor.search_tuple(table, &read_fts_config, value);
+      if (err == DB_END_OF_INDEX || err == DB_RECORD_NOT_FOUND)
+        err= DB_SUCCESS;
+    }
+  }
+  if (table) table->release();
+  return err;
 }
 
 /*********************************************************************//**

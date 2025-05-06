@@ -58,25 +58,22 @@ struct fts_get_doc_t {
 	fts_cache_t*	cache;		/*!< The parent cache */
 };
 
+class FTSQueryExecutor;
+
 /** Since we can have multiple FTS indexes on a table, we keep a
 per index cache of words etc. */
-struct fts_index_cache_t {
-	dict_index_t*	index;		/*!< The FTS index instance */
-
-	ib_rbt_t*	words;		/*!< Nodes; indexed by fts_string_t*,
-					cells are fts_tokenizer_word_t*.*/
-
-	ib_vector_t*	doc_stats;	/*!< Array of the fts_doc_stats_t
-					contained in the memory buffer.
-					Must be in sorted order (ascending).
-					The  ideal choice is an rb tree but
-					the rb tree imposes a space overhead
-					that we can do without */
-
-	que_t**		ins_graph;	/*!< Insert query graphs */
-
-	que_t**		sel_graph;	/*!< Select query graphs */
-	CHARSET_INFO*	charset;	/*!< charset */
+struct fts_index_cache_t
+{
+  /* FTS index instance */
+  dict_index_t *index;
+  /* Nodes; indexed by fts_string_t*, cells are fts_tokenizer_word_t*. */
+  ib_rbt_t  *words;
+  /* Array of fts_doc_stats_t contained in memory buffer. Must be in
+  ascending sorted order. Ideal choice is an rb tree but rb tree imposes
+  a space overhead that we can do without */
+  ib_vector_t *doc_stats;
+  /* charset */
+  CHARSET_INFO*	charset;
 };
 
 /** Stop word control infotmation. */
@@ -85,6 +82,10 @@ struct fts_stopword_t {
 	ib_alloc_t*	heap;		/*!< The memory allocator to use */
 	ib_rbt_t*	cached_stopword;/*!< This stores all active stopwords */
 	CHARSET_INFO*	charset;	/*!< charset for stopword */
+	bool		versioned;      /*!< Versioned table */
+	bool		versioned_by_id;/*!< Versioned table by id */
+	uint32_t	value_field;    /*!< Field no for column "value" */
+	uint32_t	row_vers_end_field;/*!< Field no for row_end vers */
 };
 
 /** The SYNC state of the cache. There is one instance of this struct
