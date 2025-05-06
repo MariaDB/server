@@ -1478,9 +1478,9 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
     Json_writer_object ddls_wrapper(thd);
     Json_writer_array ddl_list(thd, "list_ddls");
+    char buf[2048];
     while (TABLE_LIST *tbl= li++)
     {
-      char buf[2048];
       String ddl(buf, sizeof(buf), system_charset_info);
       ddl.length(0);
       if (tbl->view)
