@@ -634,7 +634,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       float fl;
       float4get(fl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-20g", (double) fl);
+      snprintf(tmp, sizeof(tmp), "%-20g", (double) fl);
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
       return 4;
     }
@@ -648,7 +648,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
 
       float8get(dbl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
+      snprintf(tmp, sizeof(tmp), "%-.20g", dbl); /* strmake doesn't support %-20g */
       my_b_printf(file, tmp, "%s");
       return 8;
     }
@@ -2463,7 +2463,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
       float8get(real_val, val);
-      sprintf(real_buf, "%.14g", real_val);
+      snprintf(real_buf, sizeof(real_buf), "%.14g", real_val);
       if (my_b_printf(&cache, ":=%s%s\n", real_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2871,6 +2871,7 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     sizeof(fmt_delim)  + sizeof(fmt_n_delim)               +
     sizeof(fmt_binlog2) +
     3*PRINT_EVENT_INFO::max_delimiter_size;
+  char * str_end;
 
   if (reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE))
     goto err;
@@ -2882,6 +2883,7 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
            "copy_cache_to_string_wrapped().");
     goto err;
   }
+  str_end= to->str + (size_t)cache->end_of_file + fmt_size;
 
   if (!do_wrap)
   {
@@ -2906,36 +2908,36 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     char *str= to->str;
     size_t add_to_len;
 
-    str += (to->length= sprintf(str, fmt_frag, 0));
+    str += (to->length= snprintf(str, str_end - str, fmt_frag, 0));
     if (my_b_read(cache, (uchar*) str, (uint32) (cache_size/2 + 1)))
       goto err;
     str += (add_to_len = (uint32) (cache_size/2 + 1));
     to->length += add_to_len;
-    str += (add_to_len= sprintf(str, fmt_n_delim, delimiter));
+    str += (add_to_len= snprintf(str, str_end - str, fmt_n_delim, delimiter));
     to->length += add_to_len;
 
-    str += (add_to_len= sprintf(str, fmt_frag, 1));
+    str += (add_to_len= snprintf(str, str_end - str, fmt_frag, 1));
     to->length += add_to_len;
     if (my_b_read(cache, (uchar*) str, uint32(cache->end_of_file - (cache_size/2 + 1))))
       goto err;
     str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
     to->length += add_to_len;
     {
-      str += (add_to_len= sprintf(str , fmt_delim, delimiter));
+      str += (add_to_len= snprintf(str, str_end - str, fmt_delim, delimiter));
       to->length += add_to_len;
     }
-    to->length += sprintf(str, fmt_binlog2, delimiter);
+    to->length += snprintf(str, str_end - str, fmt_binlog2, delimiter);
   }
   else
   {
     char *str= to->str;
 
-    str += (to->length= sprintf(str, str_binlog));
+    str += (to->length= snprintf(str, str_end - str, str_binlog));
     if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
       goto err;
     str += cache->end_of_file;
     to->length += (size_t)cache->end_of_file;
-      to->length += sprintf(str , fmt_delim, delimiter);
+      to->length += snprintf(str, str_end - str, fmt_delim, delimiter);
   }
 
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);

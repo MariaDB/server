@@ -2440,7 +2440,7 @@ int ha_federated::index_read_idx_with_result_set(uchar *buf, uint index,
 
   if (real_query(sql_query.ptr(), sql_query.length()))
   {
-    sprintf(error_buffer, "error: %d '%s'",
+    snprintf(error_buffer, sizeof(error_buffer), "error: %d '%s'",
             mysql_errno(mysql), mysql_error(mysql));
     retval= ER_QUERY_ON_FOREIGN_DATA_SOURCE;
     goto error;

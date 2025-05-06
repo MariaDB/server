@@ -1167,7 +1167,7 @@ dberr_t srv_start(bool create_new_db)
 					strlen(fil_path_to_mysql_datadir)
 					+ 20 + sizeof "/innodb_status."));
 
-			sprintf(srv_monitor_file_name,
+			snprintf(srv_monitor_file_name, FN_LEN,
 				"%s/innodb_status." ULINTPF,
 				fil_path_to_mysql_datadir,
 				static_cast<ulint>
