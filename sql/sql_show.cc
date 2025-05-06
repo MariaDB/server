@@ -6420,8 +6420,8 @@ static void store_variable_type(THD *thd,
 
 static int store_schema_period_record(THD *thd, TABLE_LIST *tl,
                                       TABLE *schema_table,
-                                      const LEX_CSTRING *db_name,
-                                      const LEX_CSTRING *table_name,
+                                      const Lex_ident_db &db_name,
+                                      const Lex_ident_table &table_name,
                                       const TABLE_SHARE::period_info_t &period)
 {
   TABLE_SHARE *s= tl->table->s;
@@ -6450,7 +6450,7 @@ static int store_schema_period_record(THD *thd, TABLE_LIST *tl,
   {
     /* Reveal the value only if the user has any privilege on this column */
     bool col_granted= get_column_grant(thd, &tl->grant, 
-                                        db_name->str, table_name->str,
+                                        db_name, table_name,
                                         field->field_name) & COL_DML_ACLS;
     if (col_granted)
     {
@@ -6485,11 +6485,11 @@ get_schema_period_records(THD *thd, TABLE_LIST *tl,
 #endif
   int err= 0;
   if (table->versioned())
-    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
-                                    table->s->vers);
+    err= store_schema_period_record(thd, tl, schema_table, Lex_ident_db(*db_name),
+                                    Lex_ident_table(*table_name), table->s->vers);
   if (!err && table->s->period.name)
-    err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
-                                    table->s->period);
+    err= store_schema_period_record(thd, tl, schema_table, Lex_ident_db(*db_name),
+                                    Lex_ident_table(*table_name), table->s->period);
 
   return err;
 }
@@ -6545,8 +6545,8 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     ulonglong col_access=
-      get_column_grant(thd, &tables->grant, db_name->str, table_name->str,
-                       field->field_name) & COL_ACLS;
+        get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name), Lex_ident_table(*table_name),
+                         field->field_name) & COL_ACLS;
 
     if (!col_access && !tables->schema_table)
       continue;
@@ -7382,8 +7382,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
+          auto access= get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name),
+                                        Lex_ident_table(*table_name),
                                         key_part->field->field_name);
 
           if (!access)
@@ -7905,8 +7905,8 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
         uint j;
         for (j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
+          auto access= get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name),
+                                        Lex_ident_table(*table_name),
                                         key_part->field->field_name);
 
           if (!access)
@@ -7947,8 +7947,8 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
       {
         while ((r_info= it1++))
         {
-          auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
+          auto access= get_column_grant(thd, &tables->grant, Lex_ident_db(*db_name),
+                                        Lex_ident_table(*table_name),
                                         Lex_ident_column(*r_info));
 
           if (!access)

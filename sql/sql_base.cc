@@ -8671,8 +8671,8 @@ insert_fields(THD *thd, Name_resolution_context *context,
                     tables->is_natural_join);
         DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
         Item_field *fld= (Item_field*) item;
-        const char *field_db_name= field_iterator.get_db_name().str;
-        const char *field_table_name= field_iterator.get_table_name().str;
+        const Lex_ident_db field_db_name= field_iterator.get_db_name();
+        const Lex_ident_table field_table_name= field_iterator.get_table_name();
 
         if (!tables->schema_table && 
             !(fld->have_privileges=
@@ -8684,7 +8684,7 @@ insert_fields(THD *thd, Name_resolution_context *context,
           my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0), "ANY",
                    thd->security_ctx->priv_user,
                    thd->security_ctx->host_or_ip,
-                   field_db_name, field_table_name);
+                   field_db_name.str, field_table_name.str);
           DBUG_RETURN(TRUE);
         }
       }
