@@ -6206,8 +6206,6 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     item_name                   name of item if it will be created (VIEW)
     ref				expression substituted in VIEW should be passed
                                 using this reference (return view_ref_found)
-    register_tree_change        TRUE if ref is not stack variable and we
-                                need register changes in item tree
 
   RETURN
     0			field is not found
@@ -6218,8 +6216,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
 static Field *
 find_field_in_view(THD *thd, TABLE_LIST *table_list,
                    const char *name, size_t length,
-                   const char *item_name, Item **ref,
-                   bool register_tree_change)
+                   const char *item_name, Item **ref)
 {
   DBUG_ENTER("find_field_in_view");
   DBUG_PRINT("enter",
@@ -6262,8 +6259,7 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
       }
       if (item != *ref)
       {
-        if (register_tree_change &&
-            !thd->is_first_query_execution())
+        if( !thd->is_first_query_execution())
           thd->change_item_tree(ref, item);
         else
           *ref= item;
@@ -6594,8 +6590,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
   if (table_list->field_translation)
   {
     /* 'table_list' is a view or an information schema table. */
-    if ((fld= find_field_in_view(thd, table_list, name, length, item_name, ref,
-                                 register_tree_change)))
+    if ((fld= find_field_in_view(thd, table_list, name, length, item_name, ref)))
       *actual_table= table_list;
   }
   else if (!table_list->nested_join)
@@ -6847,12 +6842,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
     {
       if (found == WRONG_GRANT)
 	return (Field*) 0;
-
-      /*
-        Only views fields should be marked as dependent, not an underlying
-        fields.
-      */
-      if (!table_ref->belong_to_view && !table_ref->belong_to_derived)
+      if (thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+          thd->stmt_arena->is_conventional())
       {
         SELECT_LEX *current_sel= item->context->select_lex;
         SELECT_LEX *last_select= table_ref->select_lex;
@@ -6882,6 +6873,52 @@ find_field_in_tables(THD *thd, Item_ident *item,
         {
           mark_select_range_as_dependent(thd, last_select, current_sel,
                                          found, *ref, item, true);
+          if (found &&
+              found != view_ref_found &&
+              (thd->lex->in_sum_func ?
+                thd->lex->in_sum_func->nest_level != current_sel->nest_level:
+                true) &&
+              last_select->having_fix_field)
+          {
+            /*
+              See comment in Item_field::fix_outer_field  after
+              mark_as_dependent()
+            */
+            Item_ref *rf;
+            Query_arena *arena= 0, backup;
+            bool is_first_execution= thd->is_first_query_execution();
+            if (is_first_execution &&
+                !thd->stmt_arena->is_conventional())
+              arena= thd->activate_stmt_arena_if_needed(&backup);
+            if ((rf= new (thd->mem_root) Item_ref(thd, &current_sel->context,
+                                             found->table->s->db,
+                                             Lex_cstring_strlen(found->
+                                                        table->alias.c_ptr()),
+                                             item->field_name)))
+            {
+              if (is_first_execution)
+                *ref= rf;
+              else
+                thd->change_item_tree(ref, rf);
+            }
+            if (arena)
+              thd->restore_active_arena(arena, &backup);
+            if (!rf)
+            {
+              thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
+              return (Field*) 0;
+            }
+            /*
+              rf is Item_ref => never substitute other items (in this case)
+              during fix_fields() => we can use rf after fix_fields()
+            */
+            DBUG_ASSERT(!rf->fixed());                // Assured by Item_ref()
+            if (rf->fix_fields(thd, ref) || rf->check_cols(1))
+            {
+              thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
+              return (Field*) 0;
+            }
+          }
         }
       }
       return found;
@@ -8163,6 +8200,9 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       ref[0]= item;
       ref.pop_front();
     }
+    // update command causes problems
+    if (thd->lex->sql_command == SQLCOM_SELECT)
+      item->update_used_tables();
     lex->current_select->select_list_tables|= item->used_tables();
     lex->used_tables|= item->used_tables();
     lex->current_select->cur_pos_in_select_list++;

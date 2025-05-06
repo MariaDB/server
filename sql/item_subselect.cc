@@ -173,6 +173,8 @@ void Item_subselect::cleanup()
   my_free(sortbuffer.str);
   sortbuffer.str= 0;
 
+  used_tables_cache= 0;
+  base_flags&= ~item_base_t::FIXED;
   value_assigned= 0;
   expr_cache= 0;
   forced_const= FALSE;
@@ -409,8 +411,7 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
   is_correlated= TRUE;
   if (thd->lex->is_ps_or_view_context_analysis())
     return FALSE;
-  if (!thd->is_first_query_execution())
-    return FALSE;
+
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   /*
     This is needed only for the first execution of the query.
@@ -480,24 +481,38 @@ void Item_subselect::fix_after_pullout(st_select_lex *new_parent,
 }
 
 
-class Field_fixer: public Field_enumerator
+/**
+  Check whether a Field Item 'belongs' to a unit.
+  The Field Item is an outer reference, we search from the SELECT_LEX
+  where the item is defined, outwards until a limit, checking whether
+  that select_lex is part of a unit.
+
+  @param item    search item
+  @param search  test unit
+  @param limit   outermost select_lex to search
+
+  @return
+    FALSE if item doesn't belong to unit
+    TRUE  if it does
+*/
+
+
+bool Item_belongs_to( Item_ident *item, 
+                      SELECT_LEX_UNIT *search,
+                      SELECT_LEX *limit )
 {
-public:
-  table_map used_tables; /* Collect used_tables here */
-  st_select_lex *new_parent; /* Select we're in */
-  void visit_field(Item_field *item) override
+  SELECT_LEX *defined= item->context->select_lex;
+
+  do
   {
-    //for (TABLE_LIST *tbl= new_parent->leaf_tables; tbl; tbl= tbl->next_local)
-    //{
-    //  if (tbl->table == field->table)
-    //  {
-        used_tables|= item->field->table->map;
-    //    return;
-    //  }
-    //}
-    //used_tables |= OUTER_REF_TABLE_BIT;
-  }
-};
+    if (defined->master_unit() == search)
+      return TRUE;
+
+    defined= defined->outer_select();
+  } while (defined && (defined != limit));
+
+  return FALSE;
+}
 
 
 /*
@@ -507,71 +522,74 @@ public:
 void Item_subselect::recalc_used_tables(st_select_lex *new_parent, 
                                         bool after_pullout)
 {
-  List_iterator_fast<Ref_to_outside> it(upper_refs);
-  Ref_to_outside *upper;
+  table_map res= 0;
   DBUG_ENTER("recalc_used_tables");
-  
-  if (!unit->thd->is_first_query_execution())
-    DBUG_VOID_RETURN;
+  // New implementation (MDEV-32294)
 
-  used_tables_cache= 0;
-  while ((upper= it++))
+  /*
+    Only Items resolved in the parent are involved the calculation of
+    used_tables_cache, these are populated and maintained
+    in SELECT_LEX::outer_references_resolved_here
+  */
+  st_select_lex *parent= new_parent;
+  while (parent->merged_into)
+    parent= parent->merged_into;
+
+  if (parent->outer_references_resolved_here.elements)
   {
-    bool found= FALSE;
-    /*
-      Check if
-        1. the upper reference refers to the new immediate parent select, or
-        2. one of the further ancestors.
-
-      We rely on the fact that the tree of selects is modified by some kind of
-      'flattening', i.e. a process where child selects are merged into their
-      parents.
-      The merged selects are removed from the select tree but keep pointers to
-      their parents.
-    */
-    for (st_select_lex *sel= upper->select; sel; sel= sel->outer_select())
+    List_iterator<Item_ident> it(parent->outer_references_resolved_here);
+    Item_ident* item;
+    while ((item= it++))
     {
-      /* 
-        If we've reached the new parent select by walking upwards from
-        reference's original select, this means that the reference is now 
-        referring to the direct parent:
-      */
-      if (sel == new_parent)
+      // Only items that 'belong' within this->unit are to be used in the map
+      if (Item_belongs_to( item, unit, parent))
       {
-        found= TRUE;
-        /* 
-          upper->item may be NULL when we've referred to a grouping function,
-          in which case we don't care about what it's table_map really is,
-          because item->with_sum_func==1 will ensure correct placement of the
-          item.
-        */
-        if (upper->item)
+        // extract the field from the Item
+        item= (Item_ident *)item->real_item();
+        // collect usage of Item_fields within this expression
+        Field_fixer collector;
+        collector.used_tables= 0;
+        collector.select= parent;
+        collector.not_ready= FALSE;
+        item->walk(&Item::enumerate_field_refs_processor, 0, &collector);
+        if (collector.not_ready)
         {
-          // Now, iterate over fields and collect used_tables() attribute:
-          Field_fixer fixer;
-          fixer.used_tables= 0;
-          fixer.new_parent= new_parent;
-          upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
-          used_tables_cache |= fixer.used_tables;
-          upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
-/*
-          if (after_pullout)
-            upper->item->fix_after_pullout(new_parent, &(upper->item));
-          upper->item->update_used_tables();
-*/          
+          res= 0;
+          break;
+        }
+        res|= collector.used_tables;
+        item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+      }
+    }
+  }
+
+  /*
+    Now we need to check if any items further outward reference this
+    Item_subselect, if they do, set OUTER_REF_TABLE_BIT
+  */
+  for (st_select_lex *outer= parent->outer_select();
+       outer;
+       outer= outer->outer_select())
+  {
+    if (outer->outer_references_resolved_here.elements)
+    {
+      List_iterator<Item_ident> it(outer->outer_references_resolved_here);
+      Item_ident* item;
+      while ((item= it++))
+      {
+        // this item, which is defined outwards from parent, 'belongs'
+        // within this Item_subselect
+        if (Item_belongs_to( item, unit, nullptr))
+        {
+          res|= OUTER_REF_TABLE_BIT;
+          break;
         }
       }
     }
-    if (!found)
-      used_tables_cache|= OUTER_REF_TABLE_BIT;
   }
-  /* 
-    Don't update const_tables_cache yet as we don't yet know which of the
-    parent's tables are constant. Parent will call update_used_tables() after
-    he has done const table detection, and that will be our chance to update
-    const_tables_cache.
-  */
-  DBUG_PRINT("exit", ("used_tables_cache: %llx", used_tables_cache));
+
+  used_tables_cache= res;
+  DBUG_PRINT("info", ("used_tables_cache: %llx", used_tables_cache));
   DBUG_VOID_RETURN;
 }
 
@@ -1248,8 +1266,17 @@ void Item_singlerow_subselect::reset()
 bool
 Item_singlerow_subselect::select_transformer(JOIN *join)
 {
+  /*
+    We cannot perform this transform for query preparation, for example
+    prepare s from 'select * from t6, v2 where ( select t6a*t6b=v2a ) != 0';
+    v2a is substituted during prepare, but being an outer reference, when
+    it is substituted again during the 1st execution, it's context is wrong.
+  */
+  if (!thd->is_first_query_execution())
+    return false;
+
   DBUG_ENTER("Item_singlerow_subselect::select_transformer");
-  if (changed)
+  if ((thd->stmt_arena->state == Query_arena::STMT_EXECUTED) && changed)
     DBUG_RETURN(false);
   DBUG_ASSERT(join->thd == thd);
 
@@ -1287,8 +1314,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       !join->conds && !join->having &&
       need_to_pull_out_item(
         join->select_lex->outer_select()->context_analysis_place,
-        select_lex->item_list.head()) &&
-      thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP)
+        select_lex->item_list.head())/* &&
+       thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP*/)
   {
     have_to_be_excluded= 1;
     if (thd->lex->describe)
@@ -1305,6 +1332,10 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     */
     substitution->fix_after_pullout(select_lex->outer_select(),
                                     &substitution, TRUE);
+    select_lex->nest_level_base= select_lex->outer_select()->nest_level_base;
+    select_lex->merged_into= select_lex->outer_select();
+    if(parent_select)                                    // can happen with SP
+      recalc_used_tables(parent_select, true);
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -7207,6 +7238,26 @@ Item_subselect::subselect_table_finder_processor(void *arg)
     {
       param->dup= dup;
       return TRUE;
+    }
+  }
+  return FALSE;
+};
+
+
+/*
+  See SELECT_LEX::merge_subquery for details of usage
+*/
+
+bool
+Item_subselect::select_update_base_processor(void *arg)
+{
+  nest_updater *update= (nest_updater*) arg;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    if (sl->nest_level_base != update->base)
+    {
+      sl->nest_level_base= update->base;
+      sl->nest_level+= update->inc;
     }
   }
   return FALSE;
