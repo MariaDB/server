@@ -323,14 +323,6 @@ public:
   static const ACL_internal_schema_access *lookup(const char *name);
 };
 
-const ACL_internal_schema_access *
-get_cached_schema_access(GRANT_INTERNAL_INFO *grant_internal_info,
-                         const char *schema_name);
-
-const ACL_internal_table_access *
-get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
-                        const char *schema_name,
-                        const char *table_name);
 int acl_setauthorization(THD *thd, const LEX_USER *user);
 int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access);
 int acl_check_setrole(THD *thd,
