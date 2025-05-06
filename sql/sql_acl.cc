@@ -8723,8 +8723,8 @@ void GRANT_INFO::read(const Security_context *sctx,
 
 bool check_grant_column(const Security_context *sctx,
                         GRANT_INFO *grant,
-                        const LEX_CSTRING &db_name,
-                        const LEX_CSTRING &table_name,
+                        const Lex_ident_db &db_name,
+                        const Lex_ident_table &table_name,
                         const Lex_ident_column &column_name)
 {
   privilege_t want_access(grant->want_privilege & ~grant->privilege);
@@ -8786,8 +8786,8 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      Field *fld)
 {
   GRANT_INFO *grant;
-  LEX_CSTRING *db_name;
-  LEX_CSTRING *table_name;
+  Lex_ident_db *db_name;
+  Lex_ident_table *table_name;
   Security_context *sctx= table_ref->security_ctx ?
                           table_ref->security_ctx : thd->security_ctx;
   if (fld && fld != not_found_field && fld != view_ref_found
