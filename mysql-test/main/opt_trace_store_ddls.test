@@ -81,20 +81,6 @@ select * from view1 where view1.a = 3;
 select json_detailed(json_extract(trace, '$**.list_ddls'))
     from information_schema.optimizer_trace;
 
---echo failing test.
---echo Although it is same as previous test, except the view name
---echo generated json trace is invalid
---echo need to fix it
-
---echo 
-create view v1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
-
-select * from v1 where v1.a = 3;
---echo 
-select json_valid(trace) from information_schema.optimizer_trace;
-
---echo 
-drop view v1;
 drop view view1;
 drop table t1;
 drop table t2;

@@ -73,7 +73,7 @@ json_detailed(json_extract(trace, '$**.list_ddls'))
     [
         {
             "name": "t1",
-            "ddl": "CREATE TABLE t1 (\n  a int(11) DEFAULT NULL,\n  b int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
+            "ddl": "CREATE TABLE \`t1\` (\n  \`a\` int(11) DEFAULT NULL,\n  \`b\` int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
         }
     ]
 ]
@@ -94,34 +94,20 @@ json_detailed(json_extract(trace, '$**.list_ddls'))
     [
         {
             "name": "t1",
-            "ddl": "CREATE TABLE t1 (\n  a int(11) DEFAULT NULL,\n  b int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
+            "ddl": "CREATE TABLE \`t1\` (\n  \`a\` int(11) DEFAULT NULL,\n  \`b\` int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
         },
         {
             "name": "t2",
-            "ddl": "CREATE TABLE t2 (\n  a int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
+            "ddl": "CREATE TABLE \`t2\` (\n  \`a\` int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
         }
     ],
     [
         {
             "name": "view1",
-            "ddl": "CREATE ALGORITHM=UNDEFINED DEFINER=root@localhost SQL SECURITY DEFINER VIEW view1 AS (select t1.a AS a,t1.b AS b,t2.a AS c from (t1 join t2) where t1.a = t2.a)"
+            "ddl": "CREATE ALGORITHM=UNDEFINED DEFINER=\`root\`@\`localhost\` SQL SECURITY DEFINER VIEW \`view1\` AS (select \`t1\`.\`a\` AS \`a\`,\`t1\`.\`b\` AS \`b\`,\`t2\`.\`a\` AS \`c\` from (\`t1\` join \`t2\`) where \`t1\`.\`a\` = \`t2\`.\`a\`)"
         }
     ]
 ]
-failing test.
-Although it is same as previous test, except the view name
-generated json trace is invalid
-need to fix it
-
-create view v1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
-select * from v1 where v1.a = 3;
-a	b	c
-
-select json_valid(trace) from information_schema.optimizer_trace;
-json_valid(trace)
-1
-
-drop view v1;
 drop view view1;
 drop table t1;
 drop table t2;

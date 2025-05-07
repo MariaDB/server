@@ -1400,8 +1400,8 @@ static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
   List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
   Json_writer_object ddls_wrapper(thd);
   Json_writer_array ddl_list(thd, "list_ddls");
-  ulonglong save_option_bits= thd->variables.option_bits;
-  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+  //ulonglong save_option_bits= thd->variables.option_bits;
+  //thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
   while (TABLE_LIST *tbl= li++)
   {
     char buf[2048];
@@ -1419,7 +1419,7 @@ static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
     ddl_wrapper.add("name", tbl->table_name);
     ddl_wrapper.add_with_escapes("ddl", buf);
   }
-  thd->variables.option_bits= save_option_bits;
+  //thd->variables.option_bits= save_option_bits;
 }
 
 /**
