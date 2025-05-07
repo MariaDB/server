@@ -2401,6 +2401,8 @@ private:
 public:
 
   String rows_ev_buf_builder;
+  char *rows_ev_buf_builder_ptr;
+  uint64_t ev_len;
 
   /*
     Mutable, extended once per event
@@ -4783,9 +4785,10 @@ public:
 
   virtual ~Rows_log_event();
 
-  my_bool is_too_big()
+  my_bool is_too_big(uint too_big_size)
   {
-    static uint too_big_size= 700000000;
+
+    
     /*
       TODO needs to use max_packet_size
       TODO needs to take into account header, data_header, body header, footer
@@ -5644,18 +5647,7 @@ inline int Log_event_writer::write(Log_event *ev)
 }
 class Rows_log_event_fragmenter
 {
-private:
-  uint32_t fragment_size;
-  Rows_log_event *rows_event;
-  uint32_t width_size;
-  uint32_t cols_size;
-
 public:
-  Rows_log_event_fragmenter(uint32_t fragment_size, Rows_log_event *rows_event)
-      : fragment_size(fragment_size), rows_event(rows_event)
-  {
-  }
-  ~Rows_log_event_fragmenter() {}
 
   /**
     @class Indirect_partial_rows_log_event
@@ -5760,13 +5752,96 @@ public:
   };
 
   /*
-    TODO Hardcoded to length of 12...
-
-    TODO : Move to .cc
+    TODO Write
   */
-  void fragment(Rows_log_event_fragmenter::Indirect_partial_rows_log_event **outs)
+  class Fragmented_rows_log_event : public Log_event
   {
+  private:
+    Indirect_partial_rows_log_event *fragments;
+    uint32_t n_fragments;
+  public:
+    Fragmented_rows_log_event(Indirect_partial_rows_log_event *fragments,
+                              uint32_t n_fragments)
+        : fragments(fragments), n_fragments(n_fragments){};
 
+    Fragmented_rows_log_event(
+        const uchar *buf, uint event_len,
+        const Format_description_log_event *description_event,
+        Log_event_type type_code)
+    {
+      /* This class is write only, Partial_rows_log_event is read-in */
+      DBUG_ASSERT(0);
+    };
+
+    ~Fragmented_rows_log_event() { my_free(fragments); }
+
+    bool write(Log_event_writer *writer) override {
+      for (uint32_t i= 0; i < n_fragments; i++)
+      {
+        bool res= writer->write(&fragments[i]);
+        if (res)
+          return res;
+      }
+      return 0;
+    }
+
+    /* TODO */
+    bool is_valid() const override {
+      return true;
+    }
+
+    /*
+      TODO
+    */
+    Log_event_type get_type_code() override {
+      DBUG_ASSERT(0);
+      return PARTIAL_ROW_DATA_EVENT;
+    }
+
+    /*
+      TODO
+    */
+    int get_data_size() override
+    {
+      DBUG_ASSERT(0);
+      return 0;
+    }
+
+#ifdef MYSQL_SERVER
+    bool write_data_header(Log_event_writer *writer) override
+    {
+      DBUG_ASSERT(0);
+      return 1;
+    }
+    bool write_data_body(Log_event_writer *writer) override
+    {
+      DBUG_ASSERT(0);
+      return 1;
+    }
+#endif
+  };
+
+public:
+  uint32_t fragment_size;
+  Rows_log_event *rows_event;
+  uint32_t width_size;
+  uint32_t cols_size;
+
+  uint32_t metadata_size;
+  uint32_t num_chunks;
+  uint32_t last_chunk_size;
+  uint8_t last_chunk;
+  uint64_t data_size;
+  uint64_t total_size;
+  uint64_t data_size_per_chunk;
+
+  Rows_log_event_fragmenter::Indirect_partial_rows_log_event *fragments;
+  Fragmented_rows_log_event fragmented_ev= {NULL, 0};
+
+public:
+  Rows_log_event_fragmenter(uint32_t fragment_size, Rows_log_event *rows_event)
+      : fragment_size(fragment_size), rows_event(rows_event)
+  {
     uchar width_tmp_buf[MAX_INT_WIDTH];
     uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
     width_size= (width_tmp_buf_end - width_tmp_buf);
@@ -5778,22 +5853,67 @@ public:
         no_bytes_in_export_map(&rows_event->m_cols) *
         ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
 
-    uint32_t metadata_size=
+    metadata_size=
         LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
 
     fprintf(stderr, "\n\tFragmenter acounting for data body header %" PRIu32 "\n\tTotal metadata size: %" PRIu32 "\n", cols_size + width_size,  metadata_size);
 
-    uint64_t const data_size=
+    data_size=
         static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
 
     // TODO Update rows size
-    uint64_t const total_size= metadata_size + data_size;
+    total_size= metadata_size + data_size;
 
-    uint64_t data_size_per_chunk= get_payload_size_per_chunk();
+    data_size_per_chunk= get_payload_size_per_chunk();
 
-    uint32_t last_chunk_size= (total_size % data_size_per_chunk); /* TODO Should last_chunk_size be uint64? */
-    uint32_t last_chunk= last_chunk_size ? 1 : 0;
-    uint32_t num_chunks= (total_size / data_size_per_chunk) + last_chunk;
+    last_chunk_size= (total_size % data_size_per_chunk); /* TODO Should last_chunk_size be uint64? */
+    last_chunk= last_chunk_size ? 1 : 0;
+    num_chunks= (total_size / data_size_per_chunk) + last_chunk;
+
+    fragments= (Rows_log_event_fragmenter::Indirect_partial_rows_log_event *)
+        my_malloc(
+            PSI_INSTRUMENT_ME,
+            sizeof(
+                Rows_log_event_fragmenter::Indirect_partial_rows_log_event) *
+                num_chunks,
+            MYF(MY_WME));
+  }
+  ~Rows_log_event_fragmenter() {}
+
+  /*
+    TODO Hardcoded to length of 12...
+
+    TODO : Move to .cc
+  */
+  Fragmented_rows_log_event* fragment()
+  {
+    //uchar width_tmp_buf[MAX_INT_WIDTH];
+    //uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
+    //width_size= (width_tmp_buf_end - width_tmp_buf);
+
+    ///*
+    //  Update row events write another bitmap
+    //*/
+    //cols_size=
+    //    no_bytes_in_export_map(&rows_event->m_cols) *
+    //    ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
+
+    //uint32_t metadata_size=
+    //    LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
+
+    //fprintf(stderr, "\n\tFragmenter acounting for data body header %" PRIu32 "\n\tTotal metadata size: %" PRIu32 "\n", cols_size + width_size,  metadata_size);
+
+    //uint64_t const data_size=
+    //    static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
+
+    //// TODO Update rows size
+    //uint64_t const total_size= metadata_size + data_size;
+
+    //uint64_t data_size_per_chunk= get_payload_size_per_chunk();
+
+    //uint32_t last_chunk_size= (total_size % data_size_per_chunk); /* TODO Should last_chunk_size be uint64? */
+    //uint32_t last_chunk= last_chunk_size ? 1 : 0;
+    //uint32_t num_chunks= (total_size / data_size_per_chunk) + last_chunk;
 
     /*
       TODO make outs a member variable, and to all the above calculation in the
@@ -5833,11 +5953,11 @@ public:
       //                        : ((chunk_start + data_size_per_chunk) - 1 -
       //                           (is_first_chunk ? metadata_size : 0));
 
-      Indirect_partial_rows_log_event *fragment=
-          new Indirect_partial_rows_log_event(
-              i + 1, num_chunks, is_first_chunk ? metadata_size : 0,
-              chunk_start, chunk_end, rows_event);
-      outs[i]= fragment;
+      Indirect_partial_rows_log_event *fragment= new (&fragments[i])
+          Indirect_partial_rows_log_event(i + 1, num_chunks,
+                                          is_first_chunk ? metadata_size : 0,
+                                          chunk_start, chunk_end, rows_event);
+      //outs[i]= fragment;
       /*
 TODO I forget how to call a constructor on existing zeroed memory
 */
@@ -5858,6 +5978,8 @@ TODO I forget how to call a constructor on existing zeroed memory
 
     fprintf(stderr, "\n\tfragmenter: data_size is %" PRIu64 "\n", total_size);
     fprintf(stderr, "\n\tfragmenter:chunks %" PRIu32 " with last %" PRIu32 "(size %" PRIu32 "\n", num_chunks, last_chunk, last_chunk_size);
+    new (&fragmented_ev) Fragmented_rows_log_event(fragments, num_chunks);
+    return &fragmented_ev;
   }
 
   uint64_t get_payload_size_per_chunk()
@@ -5877,10 +5999,20 @@ TODO I forget how to call a constructor on existing zeroed memory
            BINLOG_CHECKSUM_LEN;
   }
 
+  /*
+    TODO Make a new event class to abstract all "indirect_..." so we don't
+    write them individually/separately, but rather as the existing
+    "pending" logic does
+  */
+  Rows_log_event_fragmenter::Indirect_partial_rows_log_event *get_fragment(size_t i)
+  {
+    return &fragments[i];
+  }
+
   uint32 get_num_fragments()
   {
     // TODO
-    return 0;
+    return num_chunks;
   }
 
   uint32 get_fragment_at(int index)

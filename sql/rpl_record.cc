@@ -260,9 +260,13 @@ static bool unpack_field(const table_def *tabledef, Field *f,
     st->pack_ptr= f->unpack(f->ptr, st->pack_ptr, st->row_end, metadata);
     fprintf(stderr,
             "\n\tunpack field: %s; metadata: 0x%x;"
-            " oldpack_ptr: %p; pack_ptr': %p; bytes: %lu\n",
+            " oldpack_ptr: %p; pack_ptr': %p; bytes: %lu, row_end: %p (%llu)\n",
             f->field_name.str, metadata, old_pack_ptr, st->pack_ptr,
-            st->pack_ptr - old_pack_ptr);
+            st->pack_ptr - old_pack_ptr, st->row_end, (unsigned long long) st->row_end);
+    if (strncmp(f->field_name.str, "a", 1) == 0)
+    {
+      fprintf(stderr, "\n\tHere\n");
+    }
     DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
                          " pack_ptr: %p; pack_ptr': %p; bytes: %d",
                          f->field_name.str, metadata,

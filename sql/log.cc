@@ -6942,17 +6942,23 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
       the following writing/error checking should be abstracted.
     */
     bool skip= false;
-    if (pending->is_too_big())
+    ulong takeoff_sz= LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + PARTIAL_ROWS_HEADER_LEN + BINLOG_CHECKSUM_LEN + 32;
+    if (pending->is_too_big(thd->variables.max_allowed_packet - takeoff_sz))
     {
+      //fprintf(stderr, "\n\tPre-write full\n");
       //writer.write(pending);
-#define N_FRAGS 4
-      Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[N_FRAGS];
-      Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(700000000, pending); // 0.5 GB?
-      fragmenter.fragment(fraggers);
-      for (int i= 0; i < N_FRAGS; i++)
-      {
-        writer.write(fraggers[i]);
-      }
+//#define N_FRAGS 4
+      //Rows_log_event_fragmenter::Indirect_partial_rows_log_event* fraggers[N_FRAGS];
+      Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(
+          thd->variables.max_allowed_packet - takeoff_sz, pending); // 0.5 GB?
+      Rows_log_event_fragmenter::Fragmented_rows_log_event *fragmented_ev=
+          fragmenter.fragment();
+      fprintf(stderr, "\n\tPre-write fragmented\n");
+      writer.write(fragmented_ev);
+      //for (uint32_t i= 0; i < fragmenter.get_num_fragments(); i++)
+      //{
+      //  writer.write(fragmenter.get_fragment(i));
+      //}
 
       skip= true;
     }
