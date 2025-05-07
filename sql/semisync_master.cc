@@ -68,6 +68,12 @@ static ulonglong timespec_to_usec(const struct timespec *ts)
   return (ulonglong) ts->tv_sec * TIME_MILLION + ts->tv_nsec / TIME_THOUSAND;
 }
 
+/** @return Should we revert to async because there not enough slaves? */
+static bool is_no_slave()
+{
+  return !rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave;
+}
+
 int signal_waiting_transaction(THD *waiting_thd, const char *binlog_file,
                                 my_off_t binlog_pos)
 {
@@ -157,6 +163,17 @@ int Active_tranx::compare(const char *log_file_name1, my_off_t log_file_pos1,
   return 0;
 }
 
+Tranx_node *
+Active_tranx::get_tranx_node(const char *log_file_name, my_off_t log_file_pos)
+{
+  Tranx_node *entry;
+  mysql_mutex_assert_owner(m_lock);
+  for (entry= m_trx_htb[get_hash_value(log_file_name, log_file_pos)];
+       entry && compare(entry, log_file_name, log_file_pos);
+       entry= entry->hash_next);
+  return entry;
+}
+
 int Active_tranx::insert_tranx_node(THD *thd_to_wait,
                                     const char *log_file_name,
                                     my_off_t log_file_pos)
@@ -230,23 +247,7 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
                                     my_off_t    log_file_pos)
 {
   DBUG_ENTER("Active_tranx::is_tranx_end_pos");
-
-  unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
-  Tranx_node *entry = m_trx_htb[hash_val];
-
-  while (entry != NULL)
-  {
-    if (compare(entry, log_file_name, log_file_pos) == 0)
-      break;
-
-    entry = entry->hash_next;
-  }
-
-  DBUG_PRINT("semisync", ("%s: probe (%s, %lu) in entry(%u)",
-                          "Active_tranx::is_tranx_end_pos",
-                          log_file_name, (ulong)log_file_pos, hash_val));
-
-  DBUG_RETURN(entry != NULL);
+  DBUG_RETURN(get_tranx_node(log_file_name, log_file_pos));
 }
 
 void Active_tranx::clear_active_tranx_nodes(
@@ -341,43 +342,12 @@ void Active_tranx::unlink_thd_as_waiter(const char *log_file_name,
                                         my_off_t log_file_pos)
 {
   DBUG_ENTER("Active_tranx::unlink_thd_as_waiter");
-  mysql_mutex_assert_owner(m_lock);
 
-  unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
-  Tranx_node *entry = m_trx_htb[hash_val];
-
-  while (entry != NULL)
-  {
-    if (compare(entry, log_file_name, log_file_pos) == 0)
-      break;
-
-    entry = entry->hash_next;
-  }
-
+  Tranx_node *entry= get_tranx_node(log_file_name, log_file_pos);
   if (entry)
     entry->thd= NULL;
 
   DBUG_VOID_RETURN;
-}
-
-bool Active_tranx::is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                                 my_off_t log_file_pos)
-{
-  DBUG_ENTER("Active_tranx::assert_thd_is_waiter");
-  mysql_mutex_assert_owner(m_lock);
-
-  unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
-  Tranx_node *entry = m_trx_htb[hash_val];
-
-  while (entry != NULL)
-  {
-    if (compare(entry, log_file_name, log_file_pos) == 0)
-      break;
-
-    entry = entry->hash_next;
-  }
-
-  DBUG_RETURN(static_cast<bool>(entry));
 }
 
 /*******************************************************************************
@@ -565,7 +535,8 @@ void Repl_semi_sync_master::remove_slave()
 {
   lock();
   DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
-  if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave)
+  --rpl_semi_sync_master_clients;
+  if (is_no_slave())
   {
     /*
       Signal transactions waiting in commit_trx() that they do not have to
@@ -859,7 +830,7 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
   bool success= 0;
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
-  if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
+  if (is_no_slave())
   {
     rpl_semi_sync_master_no_transactions++;
     DBUG_RETURN(0);
@@ -895,7 +866,7 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
     while (is_on() && !(aborted= thd_killed(thd)))
     {
       /* We have to check these again as things may have changed */
-      if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
+      if (is_no_slave())
       {
         aborted= 1;
         break;
@@ -930,8 +901,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
        * rpl_semi_sync_master_yes/no_tx consistent with it, we check for a
        * semi-sync restart _after_ checking the reply state.
        */
-      if (unlikely(!m_active_tranxs->is_thd_waiter(thd, trx_wait_binlog_name,
-                                                   trx_wait_binlog_pos)))
+      if (unlikely(!m_active_tranxs->is_tranx_end_pos(trx_wait_binlog_name,
+                                                      trx_wait_binlog_pos)))
       {
         DBUG_EXECUTE_IF(
             "semisync_log_skip_trx_wait",
