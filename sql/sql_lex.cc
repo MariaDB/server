@@ -8861,8 +8861,10 @@ Item *LEX::create_item_ident(THD *thd,
       const Lex_ident_cli query_fragment(start, end - start);
       if (sys_a.is_null() || sys_b.is_null())
         return nullptr; // EOM
-      return spv->type_handler()->create_item_method(thd, sys_a, sys_b,
-                                                     NULL, query_fragment);
+      return spv->type_handler()->
+               create_item_method(thd,
+                                  Type_handler::object_method_type_t::FUNCTION,
+                                  sys_a, sys_b, NULL, query_fragment);
     }
   }
 
@@ -10019,6 +10021,52 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
 }
 
 
+bool LEX::direct_call(THD *thd, const Qualified_ident *ident,
+                      List<Item> *args)
+{
+  DBUG_ASSERT(ident);
+  if (!ident->spvar())
+    return false; // A procedure call
+
+  /*
+    ident->part(0) is a known SP variable.
+    Search for a procedure method of the variable, e.g.:
+      assoc_array_var.delete('key');
+  */
+  Item *item;
+  if (!ident->spvar()->type_handler()->has_methods() ||
+      !ident->part(2).is_null())
+  {
+    /*
+      E.g.:
+        spvar_int.method();  -- The SP variable data type does not have methods
+        spvar.step1.step2(); -- A 3-step method call of an SP variable
+                                (we don't have 3-step methods yet)
+    */
+    thd->parse_error(ER_SYNTAX_ERROR, ident->pos());
+    return true;
+  }
+
+  // The name of the created item is not important:
+  Lex_ident_cli query_fragment(ident->pos(), 0);
+  if (!(item= ident->spvar()->type_handler()->
+               create_item_method(thd,
+                                  Type_handler::object_method_type_t::PROCEDURE,
+                                  ident->part(0), ident->part(1),
+                                  args, query_fragment)))
+  {
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
+  sql_command= SQLCOM_DO;
+  DBUG_ASSERT(insert_list == nullptr);
+  if (!(insert_list= List<Item>::make(thd->mem_root, item)))
+    return true;
+
+  return false;
+}
+
+
 bool LEX::assoc_assign_start(THD *thd, Qualified_ident *ident)
 {
   if (unlikely(ident->spvar() == NULL))
@@ -10418,9 +10466,10 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
       (spv= spcont->find_variable(&sys_a, false)) &&
       spv->type_handler()->has_methods())
   {
-    if (Item *item= spv->type_handler()->create_item_method(thd,
-                                                            sys_a, sys_b, args,
-                                                            query_fragment))
+    if (Item *item= spv->type_handler()->
+               create_item_method(thd,
+                                  Type_handler::object_method_type_t::FUNCTION,
+                                  sys_a, sys_b, args, query_fragment))
     {
       item->set_name(thd, query_fragment, thd->charset());
       return item;

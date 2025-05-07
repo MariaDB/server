@@ -194,13 +194,33 @@ public:
                                             Item *item,
                                             const LEX_CSTRING &expr_str)
                                                          const override;
+protected:
+  Item *create_item_method_func(THD *thd,
+                                const Lex_ident_sys &ca,
+                                const Lex_ident_sys &cb,
+                                List<Item> *args,
+                                const Lex_ident_cli_st &query_fragment)
+                                                                 const;
+  Item *create_item_method_proc(THD *thd,
+                                const Lex_ident_sys &ca,
+                                const Lex_ident_sys &cb,
+                                List<Item> *args,
+                                const Lex_ident_cli_st &query_fragment)
+                                                                 const;
+public:
   virtual
   Item *create_item_method(THD *thd,
+                           object_method_type_t type,
                            const Lex_ident_sys &ca,
                            const Lex_ident_sys &cb,
                            List<Item> *args,
                            const Lex_ident_cli_st &query_fragment)
-                                                   const override;
+                                                   const override
+  {
+    return type == object_method_type_t::PROCEDURE ?
+           create_item_method_proc(thd, ca, cb, args, query_fragment) :
+           create_item_method_func(thd, ca, cb, args, query_fragment);
+  }
 
   bool key_to_lex_cstring(THD *thd,
                           const Row_definition_list *def,

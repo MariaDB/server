@@ -36,7 +36,7 @@ CONCAT('last_name',  REPEAT('a',1024)));
 SELECT 'p2' AS id, memory_used()-memory_used0 AS diff;
 person_by_nickname('p2'):= person_t('first_name', 'last_name');
 SELECT 'p2upd' AS id, memory_used()-memory_used0 AS diff;
-DO person_by_nickname.delete('p2');
+person_by_nickname.delete('p2');
 SELECT 'p2del' AS id, memory_used()-memory_used0 AS diff;
 END;
 SELECT memory_used()-memory_used0 AS diff1;

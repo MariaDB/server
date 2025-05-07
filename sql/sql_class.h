@@ -7373,7 +7373,7 @@ class Qualified_ident: public Sql_alloc
 {
 protected:
   const char *m_cli_pos;
-  Lex_ident_sys_st m_parts[3];
+  Lex_ident_sys m_parts[3];
   sp_variable *m_spvar;
   uint m_defined_parts;
 public:
@@ -7401,7 +7401,7 @@ public:
     return m_spvar;
   }
 
-  const Lex_ident_sys_st &part(uint i) const
+  const Lex_ident_sys &part(uint i) const
   {
     DBUG_ASSERT(i < array_elements(m_parts));
     return m_parts[i];

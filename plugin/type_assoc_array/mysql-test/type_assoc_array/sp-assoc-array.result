@@ -662,6 +662,45 @@ $$
 marks.EXISTS(4)
 0
 #
+# Make sure DELETE does not work as a method-function
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.DELETE;
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+DO marks.DELETE;
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.DELETE(0);
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+DO marks.DELETE(0);
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'DELETE'
+#
 # DELETE
 #
 DECLARE
@@ -671,18 +710,14 @@ BEGIN
 marks(0) := 62;
 marks(1) := 78;
 marks(2) := 99;
-SELECT marks.DELETE(1);
+marks.DELETE(1);
 SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
-SELECT marks.DELETE;
+marks.DELETE;
 SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
 END;
 $$
-marks.DELETE(1)
-0
 marks.EXISTS(0)	marks.EXISTS(1)	marks.EXISTS(2)
 1	0	1
-marks.DELETE
-0
 marks.EXISTS(0)	marks.EXISTS(1)	marks.EXISTS(2)
 0	0	0
 #
@@ -695,7 +730,7 @@ BEGIN
 marks(0) := 62;
 marks(1) := 78;
 marks(2) := 99;
-SELECT marks.DELETE(1, 2);
+marks.DELETE(1, 2);
 END;
 $$
 ERROR 42000: Incorrect number of arguments for DELETE ; expected 1, got 2
@@ -707,21 +742,40 @@ TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
 BEGIN
 marks(0) := 62;
-SELECT marks.DELETE(NULL);
+marks.DELETE(NULL);
 END;
 $$
-marks.DELETE(NULL)
-0
 #
 # DELETE on scalar
 #
 DECLARE
 marks INTEGER;
 BEGIN
-SELECT marks.DELETE(1);
+marks.DELETE(1);
 END;
 $$
-ERROR 42000: FUNCTION marks.DELETE does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+ERROR 42000: PROCEDURE marks.DELETE does not exist
+#
+# Make sure COUNT does not work as a method-procedure
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.COUNT;
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'COUNT'
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.COUNT();
+END;
+$$
+ERROR 42S22: Unknown column 'marks' in 'COUNT'
 #
 # COUNT
 #
@@ -735,7 +789,7 @@ marks(2) := 99;
 SELECT marks.COUNT;
 marks(3) := 44;
 SELECT marks.COUNT;
-SELECT marks.DELETE(1);
+marks.DELETE(1);
 SELECT marks.COUNT;
 END;
 $$
@@ -743,8 +797,6 @@ marks.COUNT
 3
 marks.COUNT
 4
-marks.DELETE(1)
-0
 marks.COUNT
 3
 #
@@ -1735,17 +1787,25 @@ m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
 m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
 0	1	0	1
 #
-# Call associative array method directly
+# Call an associative array procedure method directly
 #
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
-m1 marks_t:= marks_t(1 => 62);
+m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
 BEGIN
+SELECT m1.count;
+m1.delete(2);
+SELECT m1.count, m1(1), m1(3);
 m1.delete;
+SELECT m1.count;
 END;
 $$
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'm1.delete;
-END' at line 5
+m1.count
+3
+m1.count	m1(1)	m1(3)
+2	61	63
+m1.count
+0
 #
 # Create an associative array type sharing the same name as a built-in function
 # TODO: This should be allowed

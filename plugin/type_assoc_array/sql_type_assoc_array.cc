@@ -2230,12 +2230,12 @@ Type_handler_assoc_array::
 }
 
 
-Item *Type_handler_assoc_array::create_item_method(THD *thd,
-                                                   const Lex_ident_sys &a,
-                                                   const Lex_ident_sys &b,
-                                                   List<Item> *args,
-                                                   const Lex_ident_cli_st
-                                                     &query_fragment) const
+Item *Type_handler_assoc_array::create_item_method_func(THD *thd,
+                                                        const Lex_ident_sys &a,
+                                                        const Lex_ident_sys &b,
+                                                        List<Item> *args,
+                                                        const Lex_ident_cli_st
+                                                          &query_fragment) const
 {
   Item_method_base *item= nullptr;
   if (b.length == 5)
@@ -2258,7 +2258,32 @@ Item *Type_handler_assoc_array::create_item_method(THD *thd,
   {
     if (Lex_ident_column(b).streq("EXISTS"_Lex_ident_column))
       item= sp_get_assoc_array_exists(thd, args);
-    else if (Lex_ident_column(b).streq("DELETE"_Lex_ident_column))
+  }
+
+  if (!item)
+  {
+    my_error(ER_BAD_FIELD_ERROR, MYF(0), a.str, b.str);
+    return nullptr;
+  }
+
+  if (item->init_method(a, query_fragment))
+    return nullptr;
+
+  return dynamic_cast<Item *>(item);
+}
+
+
+Item *Type_handler_assoc_array::create_item_method_proc(THD *thd,
+                                                        const Lex_ident_sys &a,
+                                                        const Lex_ident_sys &b,
+                                                        List<Item> *args,
+                                                        const Lex_ident_cli_st
+                                                          &query_fragment) const
+{
+  Item_method_base *item= nullptr;
+  if (b.length == 6)
+  {
+    if (Lex_ident_column(b).streq("DELETE"_Lex_ident_column))
       item= sp_get_assoc_array_delete(thd, args);
   }
 

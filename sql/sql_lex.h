@@ -3871,6 +3871,15 @@ public:
   bool call_statement_start(THD *thd, const Qualified_ident *ident);
   bool call_statement_start_or_lvalue_assign(THD *thd,
                                              Qualified_ident *ident);
+  /*
+    Create instructions for a direct call (without the CALL keyword):
+      sp1;               - a schema procedure call
+      db1.sp1;           - a schema procedure call
+      pkg1.sp1;          - a package procedure call
+      db1.pkg1.sp1;      - a package procedure call
+      assoc_array.delete - an SP variable procedure method call
+  */
+  bool direct_call(THD *thd, const Qualified_ident *ident, List<Item> *args);
 
   bool assoc_assign_start(THD *thd, Qualified_ident *ident);
   sp_variable *find_variable(const LEX_CSTRING *name,

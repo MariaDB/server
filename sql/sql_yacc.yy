@@ -19385,13 +19385,8 @@ direct_call_or_lvalue_assign:
 direct_call_statement:
           direct_call_or_lvalue_assign opt_parenthesized_opt_sp_cparams
           {
-            if (unlikely($1->spvar()))
-            {
-              thd->parse_error(ER_SYNTAX_ERROR, $1->pos());
-              MYSQL_YYABORT;
-            }
-
-            if (Lex->check_cte_dependencies_and_resolve_references())
+            if (Lex->direct_call(thd, $1, $2) ||
+                Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
         ;

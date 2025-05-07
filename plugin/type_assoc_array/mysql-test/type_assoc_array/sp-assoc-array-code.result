@@ -105,3 +105,27 @@ Pos	Instruction
 18	destruct associative_array assoc_of_record_0@0
 19	stmt 0 "SELECT '<block#0' AS comment"
 DROP PROCEDURE p1;
+#
+# Call an associative array procedure method directly
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
+BEGIN
+SELECT m1.count;
+m1.delete(2);
+SELECT m1.count, m1(1), m1(3);
+m1.delete;
+SELECT m1.count;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set m1@0 marks_t('1'=>61,'2'=>62,'3'=>63)
+1	stmt 0 "SELECT m1.count"
+2	stmt 74 "m1.delete(2)"
+3	stmt 0 "SELECT m1.count, m1(1), m1(3)"
+4	stmt 74 "m1.delete"
+5	stmt 0 "SELECT m1.count"
+6	destruct associative_array m1@0
+DROP PROCEDURE p1;
