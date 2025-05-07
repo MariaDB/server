@@ -19662,19 +19662,22 @@ ident_cli_directly_assignable:
 optionally_qualified_directly_assignable:
           ident_cli_directly_assignable
           {
-            if (unlikely(!($$= new (thd->mem_root) Qualified_ident(thd, $1))))
+            if (unlikely(!($$= new (thd->mem_root) Qualified_ident(thd, $1)) ||
+                         $$->part(0).is_null()))
               MYSQL_YYABORT;
           }
         | ident_cli_directly_assignable '.' ident
           {
             if (unlikely(!($$= new (thd->mem_root) Qualified_ident(thd, $1,
-                                                                   $3))))
+                                                                   $3)) ||
+                         $$->part(0).is_null()))
               MYSQL_YYABORT;
           }
         | ident_cli_directly_assignable '.' ident '.' ident
           {
             if (unlikely(!($$= new (thd->mem_root) Qualified_ident(thd, $1,
-                                                                   $3, $5))))
+                                                                   $3, $5))||
+                         $$->part(0).is_null()))
               MYSQL_YYABORT;
           }
         ;
