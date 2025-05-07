@@ -1,0 +1,20 @@
+# restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log --innodb-log-file-disabled
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+# restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log
+SET GLOBAL innodb_log_file_disabled=ON,innodb_log_file_size=10485761;
+ERROR 42000: Variable 'innodb_log_file_size' can't be set to the value of '10485761'
+SET GLOBAL innodb_log_file_disabled=ON,
+innodb_log_file_size=@@innodb_log_file_size + 4096;
+CREATE TABLE t ENGINE=InnoDB SELECT 1;
+SET GLOBAL innodb_log_file_disabled=OFF,
+innodb_log_file_size=@@innodb_log_file_size - 4096;
+# restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log
+SELECT * FROM t;
+1
+1
+DROP TABLE t;
+# restart
