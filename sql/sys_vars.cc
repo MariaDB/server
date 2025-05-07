@@ -3826,6 +3826,12 @@ static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
   return false;
 }
 
+static bool fix_rpl_semi_sync_master_wait_for_slave_count
+  (sys_var *self, THD *thd, enum_var_type type)
+{
+  return false;
+}
+
 static Sys_var_on_access_global<Sys_var_mybool,
                         PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED>
 Sys_semisync_master_enabled(
@@ -3852,8 +3858,8 @@ static Sys_var_on_access_global<Sys_var_mybool,
                   PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE>
 Sys_semisync_master_wait_no_slave(
        "rpl_semi_sync_master_wait_no_slave",
-       "Wait until timeout when no semi-synchronous replication slave is "
-       "available",
+       "Wait until timeout when less than `rpl_semi_sync_master_wait_for_"
+       "slave_count` semi-synchronous replication slaves are available",
        GLOBAL_VAR(rpl_semi_sync_master_wait_no_slave),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0));
@@ -3882,6 +3888,18 @@ Sys_semisync_master_wait_point(
        repl_semisync_wait_point, DEFAULT(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
        ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
+
+static Sys_var_on_access_global<Sys_var_uint,
+           PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_FOR_SLAVE_COUNT>
+Sys_semisync_master_wait_for_slave_count(
+       "rpl_semi_sync_master_wait_for_slave_count",
+       "The number of slaves that need to acknowledge that they have received "
+       "a transaction before the transaction can complete on the master",
+       GLOBAL_VAR(rpl_semi_sync_master_wait_for_slave_count),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(1, 0xFFFF),
+       DEFAULT(rpl_semi_sync_master_wait_for_slave_count), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_wait_for_slave_count));
 
 static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
                                                 enum_var_type type)

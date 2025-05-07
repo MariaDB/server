@@ -34,6 +34,7 @@ struct Tranx_node {
   THD               *thd;                   /* The thread awaiting an ACK */
   struct Tranx_node *next;            /* the next node in the sorted list */
   struct Tranx_node *hash_next;    /* the next node during hash collision */
+  unsigned int      acks;                    ///< number of ACKs received
 };
 
 /**
@@ -707,6 +708,7 @@ extern Ack_receiver ack_receiver;
 /* System and status variables for the master component */
 extern my_bool rpl_semi_sync_master_enabled;
 extern my_bool rpl_semi_sync_master_status;
+extern unsigned int rpl_semi_sync_master_wait_for_slave_count;
 extern ulong rpl_semi_sync_master_wait_point;
 extern ulong rpl_semi_sync_master_clients;
 extern ulong rpl_semi_sync_master_timeout;
