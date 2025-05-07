@@ -1,0 +1,75 @@
+#
+#
+# References:
+#   MDEV-:
+#
+
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+#--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+--connection server_2
+--source include/stop_slave.inc
+--connection server_3
+--source include/stop_slave.inc
+
+# 20 minute timeout..
+--let $slave_timeout= `select 60 * 20`
+
+--echo #
+--echo # Initialize test data
+--connection server_1
+create table t1 (a int, b longblob) engine=innodb;
+BEGIN;
+--disable_query_log
+--echo # Inserting query..
+insert into t1 select seq,repeat(seq,512) from seq_1_to_10;
+#insert into t1 select seq,repeat("a",10) from seq_1_to_5;
+COMMIT;
+--echo # Now inserting insert .. select
+BEGIN;
+insert into t1 select 6 as a, group_concat(b) as b from t1;
+COMMIT;
+#update t1 set a=a+1 where a=7;
+--enable_query_log
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--connection server_3
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+#select * from t1;
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+#select * from t1;
+
+--echo # Diffing tables..
+--let $diff_tables= server_1:test.t1, server_2:test.t1, server_3:test.t1
+--source include/diff_tables.inc
+#sleep 2;
+
+--echo #
+--echo # Cleanup
+--connection server_2
+--source include/start_slave.inc
+--connection server_3
+--source include/start_slave.inc
+--connection server_1
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of .test
