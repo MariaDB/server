@@ -371,11 +371,6 @@ Deadlock_detection_visitor::opt_change_victim_to(MDL_context *new_victim)
 
 
 /**
-  Get a bit corresponding to enum_mdl_type value in a granted/waiting bitmaps
-  and compatibility matrices.
-*/
-
-/**
   The lock context. Created internally for an acquired lock.
   For a given name, there exists only one MDL_lock instance,
   and it exists only when the lock has been granted.
@@ -620,8 +615,6 @@ class MDL_lock
   void remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*queue,
                      MDL_ticket *ticket);
 
-  bool needs_notification(const MDL_ticket *ticket) const
-  { return m_strategy->needs_notification(ticket); }
   void notify_conflicting_locks(MDL_context *ctx, bool abort_blocking)
   {
     for (const auto &conflicting_ticket : m_granted)
@@ -639,9 +632,6 @@ class MDL_lock
     }
   }
 
-  bitmap_t hog_lock_types_bitmap() const
-  { return m_strategy->hog_lock_types_bitmap(); }
-
 #ifndef DBUG_OFF
   bool check_if_conflicting_replication_locks(MDL_context *ctx);
 #endif
@@ -652,7 +642,24 @@ public:
   const bitmap_t *incompatible_waiting_types_bitmap() const
   { return m_strategy->incompatible_waiting_types_bitmap(); }
 
-  bool has_pending_conflicting_lock(enum_mdl_type type);
+
+  /**
+    Check if we have any pending locks which conflict with existing
+    shared lock.
+
+    @pre The ticket must match an acquired lock.
+
+    @return TRUE if there is a conflicting lock request, FALSE otherwise.
+  */
+  bool has_pending_conflicting_lock(enum_mdl_type type)
+  {
+    bool result;
+    mysql_prlock_rdlock(&m_rwlock);
+    result= (m_waiting.bitmap() & incompatible_granted_types_bitmap()[type]);
+    mysql_prlock_unlock(&m_rwlock);
+    return result;
+  }
+
 
   bool visit_subgraph(MDL_ticket *waiting_ticket,
                       MDL_wait_for_graph_visitor *gvisitor);
@@ -800,7 +807,7 @@ end:
 
   void notify_conflicting_locks_if_needed(MDL_ticket *ticket, bool abort_blocking)
   {
-    if (needs_notification(ticket))
+    if (m_strategy->needs_notification(ticket))
     {
       mysql_prlock_wrlock(&m_rwlock);
       notify_conflicting_locks(ticket->get_ctx(), abort_blocking);
@@ -867,7 +874,7 @@ end:
           res= TAL_WAIT;
           m_waiting.add_ticket(ticket);
 
-          if (needs_notification(ticket))
+          if (m_strategy->needs_notification(ticket))
             notify_conflicting_locks(mdl_context, false);
 
            DBUG_SLOW_ASSERT((ticket->get_type() != MDL_INTENTION_EXCLUSIVE &&
@@ -1449,7 +1456,7 @@ void MDL_lock::Ticket_list::remove_ticket(MDL_ticket *ticket)
 void MDL_lock::reschedule_waiters()
 {
   bool skip_high_priority= false;
-  bitmap_t hog_lock_types= hog_lock_types_bitmap();
+  bitmap_t hog_lock_types= m_strategy->hog_lock_types_bitmap();
 
   if (m_hog_lock_count >= max_write_lock_count)
   {
@@ -1989,26 +1996,6 @@ void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
     reschedule_waiters();
   }
   mysql_prlock_unlock(&m_rwlock);
-}
-
-
-/**
-  Check if we have any pending locks which conflict with existing
-  shared lock.
-
-  @pre The ticket must match an acquired lock.
-
-  @return TRUE if there is a conflicting lock request, FALSE otherwise.
-*/
-
-bool MDL_lock::has_pending_conflicting_lock(enum_mdl_type type)
-{
-  bool result;
-
-  mysql_prlock_rdlock(&m_rwlock);
-  result= (m_waiting.bitmap() & incompatible_granted_types_bitmap()[type]);
-  mysql_prlock_unlock(&m_rwlock);
-  return result;
 }
 
 
