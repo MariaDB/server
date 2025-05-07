@@ -32,6 +32,8 @@ Created 2011/09/02 Sunny Bains
 #include "que0que.h"
 #include "que0types.h"
 #include "fts0types.h"
+#include "lock0lock.h"
+#include "row0ins.h"
 
 /* The various states of the FTS sub system pertaining to a table with
 FTS indexes defined on it. */
@@ -198,18 +200,17 @@ fts_query_expansion_fetch_doc(
 	void*		row,		/*!< in: sel_node_t* */
 	void*		user_arg)	/*!< in: fts_doc_t* */
 	MY_ATTRIBUTE((nonnull));
-/********************************************************************
-Write out a single word's data as new entry/entries in the INDEX table.
+
+/** Write out a single word's data as new entry/entries in the INDEX table.
+@param fts_table FTS auxiliary table information
+@param word word in UTF-8
+@param node node columns
+@param executor Executor to do query in FTS SYSTEM TABLES
 @return DB_SUCCESS if all OK. */
 dberr_t
-fts_write_node(
-/*===========*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		graph,		/*!< in: query graph */
-	fts_table_t*	fts_table,	/*!< in: the FTS aux index */
-	fts_string_t*	word,		/*!< in: word in UTF-8 */
-	fts_node_t*	node)		/*!< in: node columns */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+fts_write_node(dict_table_t *table, fts_string_t *word,
+               fts_node_t* node, FTSQueryExecutor *executor)
+	       MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Check if a fts token is a stopword or less than fts_min_token_size
 or greater than fts_max_token_size.
@@ -459,6 +460,132 @@ fts_config_create_index_param_name(
 	const dict_index_t*	index)	/*!< in: index for config */
 	MY_ATTRIBUTE((nonnull, malloc, warn_unused_result));
 
+/** Function definition for search query in FTSQueryExecutor class.
+This function process each record based on offsets and given user
+argument */
+typedef void read_record(const rec_t* rec, const rec_offs* offsets,
+                         void *user_arg);
+
+/** This class does insert, delete, search in all FTS internal tables.*/
+class FTSQueryExecutor
+{
+private:
+  /* Query thread */
+  que_thr_t *m_thr= nullptr;
+  /* Transaction to do the operation on FTS interal table */
+  trx_t *m_trx= nullptr;
+  /* Tuple to do DML operation on FTS internal table */
+  dtuple_t *m_tuple= nullptr;
+  /* system buffer to create DB_ROLL_PTR and DB_TRX_ID */
+  byte *m_sys_buf= nullptr;
+  /* Savepoint in case of rollback operation */
+  undo_no_t *m_savept= nullptr;
+  /* Persistent cursor for search operation */
+  btr_pcur_t *m_search_pcur= nullptr;
+  /* Heap to allocate query thread */
+  mem_heap_t *m_heap= nullptr;
+
+  /** Create a query thread for executing the query */
+  void create_query_thread();
+
+  /** Build a tuple based on index */
+  void build_tuple(dict_index_t *index, uint32_t n_fields, uint32_t n_uniq);
+
+  /** Handle the error while doing any operation on FTS internal table */
+  bool handle_error(dberr_t *err);
+public:
+
+  /** Build a tuple based on clustered index of the table */
+  void build_tuple(dict_table_t * table, uint32_t n_fields, uint32_t n_uniq);
+
+  /** Build a tuple based on clustered index of the table */
+  void build_tuple(dict_table_t *table);
+
+  /** Assign the FTS config fields for the tuple
+  @param name key for the field
+  @param value value for the field */
+  void assign_config_fields(const char* name, const char *value= nullptr);
+
+  /** Assign the FTS common table fields
+  @param doc_id doc_id to be assigned */
+  void assign_common_table_fields(doc_id_t *doc_id);
+
+  /** Assign the auxiliary table fields
+  @param word word to be initialized
+  @param node information about word where it stored */
+  void assign_aux_table_fields(fts_string_t *word, fts_node_t *node);
+
+  /** Open the table based on fts_auxiliary table name
+  @param fts_table    fts table internal name
+  @param table        object of fts internal table
+  @param dict_locked  dictionary locked
+  @retval DB_TABLE_NOT_FOUND in case if table has been dropped
+  @retval DB_SUCCESS in case of success */
+  dberr_t open_table(fts_table_t *fts_table, dict_table_t **table,
+                     bool dict_locked= false);
+
+  /** Open table based on table name
+  @param tbl_name table name
+  @param table object of table
+  @param dict_locked dictionary locked while opening the table
+  @retval DB_TABLE_NOT_FOUND in case if table has been dropped
+  @retval DB_SUCCESS in case of success */
+  dberr_t open_table(const char *tbl_name, dict_table_t **table,
+                     bool dict_locked= false);
+
+  /** Prepare the table for write operation
+  @param table table to be prepared
+  @retval DB_SUCCESS In case of success
+  @retrun error code for failure */
+  dberr_t prepare_for_write(dict_table_t *table);
+
+  /** Prepare the table for read operation
+  @param table table to be prepared
+  @retval DB_SUCCESS In case of success
+  @retrun error code for failure */
+  dberr_t prepare_for_read(dict_table_t *table);
+
+  /** Insert the record in the given table.
+  @param table table where insert is going to happen
+  @return error code or DB_SUCCESS */
+  dberr_t insert_rec(dict_table_t *table);
+
+  /** Delete the record in the given table.
+  @param table table where delete operation is going to happen
+  @return error code or DB_SUCCESS */
+  dberr_t delete_rec(dict_table_t *table);
+
+  /** Search the tuple in the given table
+  @param table table where search is going to happen
+  @param func callback function for each record read
+  @param arg user given argument
+  @return error code or DB_SUCCESS */
+  dberr_t search_tuple(dict_table_t *table, read_record* func, void *arg);
+
+  /** Read all the record in the given table
+  @param table table where search is going to happen
+  @param func callback function for each record read
+  @param arg user given argument
+  @return error code or DB_SUCCESS */
+  dberr_t read_all(dict_table_t *table, read_record* func, void *arg);
+
+  /** Delete all the records in the given table
+  @param table table where delete is going to happen
+  @return error code or DB_SUCCESS */
+  dberr_t delete_all(dict_table_t *table);
+
+  FTSQueryExecutor() {}
+
+  FTSQueryExecutor(trx_t *trx): m_trx(trx)
+  {
+    m_heap= mem_heap_create(100);
+  }
+
+  ~FTSQueryExecutor()
+  {
+    mem_heap_free(m_heap);
+  }
+};
 #include "fts0priv.inl"
 
 #endif /* INNOBASE_FTS0PRIV_H */
