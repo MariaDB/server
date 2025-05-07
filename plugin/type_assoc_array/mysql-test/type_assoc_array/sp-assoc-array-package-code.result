@@ -1,0 +1,88 @@
+SET @code=1;
+SET sql_mode=ORACLE;
+SET names utf8mb4;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+#
+# Using a package body variable as a key: a wrong data type: POINT
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+v POINT := POINT(1,1);
+PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+BEGIN
+SELECT marks(v);
+marks(v):= 'x43a';
+END;
+END;
+$$
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE pkg.p1';
+Pos	Instruction
+0	set marks@0 marks_t('1'=>'x43','2'=>'x99')
+1	stmt 0 "SELECT marks(v)"
+2	set marks@0[PACKAGE_BODY.v@0] 'x43a'
+3	destruct associative_array marks@0
+CALL pkg.p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PACKAGE pkg;
+#
+# Using a package body variable as a key
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+v1 INT := 1;
+v2 INT := 2;
+PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x01', 2 => 'x02');
+BEGIN
+SELECT marks(v1);
+marks(v1):= 'x01a';
+SELECT marks(v1);
+SELECT 'x01b' INTO marks(v1);
+SELECT marks(v1);
+SELECT marks(v2);
+marks(v2):= 'x02a';
+SELECT marks(v2);
+SELECT 'x02b' INTO marks(v2);
+SELECT marks(v2);
+END;
+END;
+$$
+EXECUTE IMMEDIATE 'SHOW PROCEDURE CODE pkg.p1';
+Pos	Instruction
+0	set marks@0 marks_t('1'=>'x01','2'=>'x02')
+1	stmt 0 "SELECT marks(v1)"
+2	set marks@0[PACKAGE_BODY.v1@0] 'x01a'
+3	stmt 0 "SELECT marks(v1)"
+4	stmt 0 "SELECT 'x01b' INTO marks(v1)"
+5	stmt 0 "SELECT marks(v1)"
+6	stmt 0 "SELECT marks(v2)"
+7	set marks@0[PACKAGE_BODY.v2@1] 'x02a'
+8	stmt 0 "SELECT marks(v2)"
+9	stmt 0 "SELECT 'x02b' INTO marks(v2)"
+10	stmt 0 "SELECT marks(v2)"
+11	destruct associative_array marks@0
+CALL pkg.p1;
+marks(v1)
+x01
+marks(v1)
+x01a
+marks(v1)
+x01b
+marks(v2)
+x02
+marks(v2)
+x02a
+marks(v2)
+x02b
+DROP PACKAGE pkg;

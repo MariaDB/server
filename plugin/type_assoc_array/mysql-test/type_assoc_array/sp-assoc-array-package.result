@@ -1,0 +1,67 @@
+SET sql_mode=oracle;
+SET NAMES utf8mb4;
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+#
+# Using a package body variable as a key: a wrong data type: POINT
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+v POINT := POINT(1,1);
+PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x43', 2 => 'x99');
+BEGIN
+SELECT marks(v);
+marks(v):= 'x43a';
+END;
+END;
+$$
+CALL pkg.p1;
+ERROR HY000: Illegal parameter data type point for operation '<subscript expression>'
+DROP PACKAGE pkg;
+#
+# Using a package body variable as a key
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+v1 INT := 1;
+v2 INT := 2;
+PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF VARCHAR(20) INDEX BY INT;
+marks marks_t:= marks_t(1 => 'x01', 2 => 'x02');
+BEGIN
+SELECT marks(v1);
+marks(v1):= 'x01a';
+SELECT marks(v1);
+SELECT 'x01b' INTO marks(v1);
+SELECT marks(v1);
+SELECT marks(v2);
+marks(v2):= 'x02a';
+SELECT marks(v2);
+SELECT 'x02b' INTO marks(v2);
+SELECT marks(v2);
+END;
+END;
+$$
+CALL pkg.p1;
+marks(v1)
+x01
+marks(v1)
+x01a
+marks(v1)
+x01b
+marks(v2)
+x02
+marks(v2)
+x02a
+marks(v2)
+x02b
+DROP PACKAGE pkg;
