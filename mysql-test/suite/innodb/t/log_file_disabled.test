@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+
+let $bugdir= $MYSQLTEST_VARDIR/tmp/log;
+--mkdir $bugdir
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+--let $ibp=--innodb-log-group-home-dir=$bugdir --innodb-data-home-dir=$bugdir
+
+--let $restart_parameters= $ibp --innodb-log-file-disabled
+--source include/restart_mysqld.inc
+eval $check_no_innodb;
+--rmdir $bugdir
+--mkdir $bugdir
+--let $restart_parameters= $ibp
+--source include/restart_mysqld.inc
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_log_file_disabled=ON,innodb_log_file_size=10485761;
+SET GLOBAL innodb_log_file_disabled=ON,
+innodb_log_file_size=@@innodb_log_file_size + 4096;
+CREATE TABLE t ENGINE=InnoDB SELECT 1;
+SET GLOBAL innodb_log_file_disabled=OFF,
+innodb_log_file_size=@@innodb_log_file_size - 4096;
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+DROP TABLE t;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+--rmdir $bugdir

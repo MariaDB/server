@@ -64,11 +64,13 @@ COUNT(*)	LENGTH(b)
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880
-SET GLOBAL innodb_log_file_size=6291456;
+SET GLOBAL innodb_log_file_size=6291456,
+innodb_log_group_home_dir='test';
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	6291456
-SET GLOBAL innodb_log_file_size=5242880;
+SET GLOBAL innodb_log_file_size=5242880,
+innodb_log_group_home_dir='./';
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880

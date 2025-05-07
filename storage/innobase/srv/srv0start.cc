@@ -161,7 +161,8 @@ static PSI_stage_info*	srv_stages[] =
 static void delete_log_files()
 {
   for (size_t i= 1; i < 102; i++)
-    delete_log_file(std::to_string(i).c_str());
+    os_file_delete_if_exists_func(get_log_file_path(LOG_FILE_NAME_PREFIX).
+                                  append(std::to_string(i)).c_str(), nullptr);
 }
 
 /** Creates log file.
@@ -169,7 +170,7 @@ static void delete_log_files()
 @param lsn             log sequence number
 @param logfile0        name of the log file
 @return DB_SUCCESS or error code */
-static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
+static dberr_t create_log_file(bool create_new_db, lsn_t lsn) noexcept
 {
 	ut_ad(!srv_read_only_mode);
 
@@ -195,11 +196,15 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 
 	std::string logfile0{get_log_file_path("ib_logfile101")};
 	bool ret;
-	os_file_t file{
-          os_file_create_func(logfile0.c_str(),
-                              OS_FILE_CREATE,
-                              OS_LOG_FILE, false, &ret)
-        };
+	os_file_t file;
+
+	if (UNIV_UNLIKELY(log_sys.disabled)) {
+		file = OS_FILE_CLOSED;
+		goto file_created;
+	}
+
+	file = os_file_create_func(logfile0.c_str(), OS_FILE_CREATE,
+				   OS_LOG_FILE, false, &ret);
 
 	if (!ret) {
 		sql_print_error("InnoDB: Cannot create %.*s",
@@ -218,6 +223,7 @@ close_and_exit:
 		goto err_exit;
 	}
 
+file_created:
 	log_sys.set_latest_format(srv_encrypt_log);
 	if (!log_sys.attach(file, srv_log_file_size)) {
 		goto close_and_exit;
@@ -266,7 +272,7 @@ close_and_exit:
 @return whether an error occurred */
 bool log_t::resize_rename() noexcept
 {
-  std::string old_name{get_log_file_path("ib_logfile101")};
+  std::string old_name{get_log_file_path("ib_logfile101", log_sys.resize_dir)};
   std::string new_name{get_log_file_path()};
 
   if (IF_WIN(MoveFileEx(old_name.c_str(), new_name.c_str(),
@@ -274,10 +280,15 @@ bool log_t::resize_rename() noexcept
              !rename(old_name.c_str(), new_name.c_str())))
     return false;
 
+  const int err= IF_WIN(int(GetLastError()), errno);
+  std::string &remove= err == IF_WIN(ERROR_NOT_SAME_DEVICE, EXDEV)
+    ? old_name : new_name;
+  IF_WIN(DeleteFile(remove.c_str()), unlink(remove.c_str()));
+  if (log_sys.disabled)
+    return false;
   sql_print_error("InnoDB: Failed to rename log from %.*s to %.*s (error %d)",
                   int(old_name.size()), old_name.data(),
-                  int(new_name.size()), new_name.data(),
-                  IF_WIN(int(GetLastError()), errno));
+                  int(new_name.size()), new_name.data(), err);
   return true;
 }
 

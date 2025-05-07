@@ -21,11 +21,15 @@ let $shutdown_timeout=;
 --echo #
 --let $restart_parameters=--innodb-force-recovery=6
 --source include/restart_mysqld.inc
+--error ER_READ_ONLY_MODE
 SET GLOBAL innodb_log_checkpoint_now=1;
 --let $restart_parameters=--innodb-read-only=1
 --source include/restart_mysqld.inc
+--error ER_READ_ONLY_MODE
 SET GLOBAL innodb_log_checkpoint_now=1;
 let $restart_parameters=;
 --source include/restart_mysqld.inc
+
+SET GLOBAL innodb_log_checkpoint_now=1;
 
 DROP TABLE t1;
