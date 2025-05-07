@@ -34,6 +34,7 @@ struct Tranx_node {
   THD               *thd;                   /* The thread awaiting an ACK */
   struct Tranx_node *next;            /* the next node in the sorted list */
   struct Tranx_node *hash_next;    /* the next node during hash collision */
+  unsigned int      acks;                    ///< number of ACKs received
 };
 
 /**
@@ -348,6 +349,9 @@ public:
                unsigned long trace_level);
   ~Active_tranx();
 
+  /** Find (if any) the active transaction node with the specified position */
+  Tranx_node *get_tranx_node(const char *log_file_name, my_off_t log_file_pos);
+
   /* Insert an active transaction node with the specified position.
    *
    * Return:
@@ -376,13 +380,6 @@ public:
    * as is done by SHUTDOWN WAIT FOR ALL SLAVES.
    */
   void unlink_thd_as_waiter(const char *log_file_name, my_off_t log_file_pos);
-
-  /* Uses DBUG_ASSERT statements to ensure that the argument thd_to_check
-   * matches the thread of the respective Tranx_node::thd of the passed in
-   * log_file_name and log_file_pos.
-   */
-  bool is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                     my_off_t log_file_pos);
 
   /* Given a position, check to see whether the position is an active
    * transaction's ending position by probing the hash table.
@@ -711,6 +708,7 @@ extern Ack_receiver ack_receiver;
 /* System and status variables for the master component */
 extern my_bool rpl_semi_sync_master_enabled;
 extern my_bool rpl_semi_sync_master_status;
+extern unsigned int rpl_semi_sync_master_wait_for_slave_count;
 extern ulong rpl_semi_sync_master_wait_point;
 extern ulong rpl_semi_sync_master_clients;
 extern ulong rpl_semi_sync_master_timeout;
