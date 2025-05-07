@@ -31,6 +31,12 @@ class MDL_lock;
 class MDL_ticket;
 
 typedef unsigned short mdl_bitmap_t;
+
+
+/**
+  Get a bit corresponding to enum_mdl_type value in a granted/waiting bitmaps
+  and compatibility matrices.
+*/
 #define MDL_BIT(A) static_cast<mdl_bitmap_t>(1U << A)
 
 
