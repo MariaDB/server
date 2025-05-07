@@ -3,7 +3,8 @@
 [mysqld.1]
 gtid_domain_id=0
 server_id=1
-max_allowed_packet=4GB
+max_allowed_packet=1GB
+slave_max_allowed_packet=1GB
 group_concat_max_len=12GB
 innodb-buffer-pool-size=32G
 
@@ -11,7 +12,8 @@ innodb-buffer-pool-size=32G
 gtid_domain_id=1
 server_id=2
 log_slave_updates
-max_allowed_packet=4GB
+max_allowed_packet=1GB
+slave_max_allowed_packet=1GB
 group_concat_max_len=12GB
 innodb-buffer-pool-size=32G
 
@@ -19,7 +21,8 @@ innodb-buffer-pool-size=32G
 gtid_domain_id=2
 server_id=3
 log_slave_updates
-max_allowed_packet=4GB
+max_allowed_packet=1GB
+slave_max_allowed_packet=1GB
 group_concat_max_len=12GB
 innodb-buffer-pool-size=32G
 

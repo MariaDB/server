@@ -11,31 +11,48 @@
 --let $rpl_topology=1->2, 2->3
 --source include/rpl_init.inc
 
-#--connection server_2
-#--source include/stop_slave.inc
-#--connection server_3
-#--source include/stop_slave.inc
+--connection server_2
+--source include/stop_slave.inc
+--connection server_3
+--source include/stop_slave.inc
+
+# 20 minute timeout..
+--let $slave_timeout= `select 60 * 20`
 
 --echo #
 --echo # Initialize test data
 --connection server_1
-create table t1 (a int, b longblob) engine=innodb;
+create table t1 (a int, b longblob, c longblob) engine=innodb;
+set sql_log_bin= 0;
 BEGIN;
 --disable_query_log
 --echo # Inserting query..
 # GB
-insert into t1 select seq,repeat(seq,500000000) from seq_1_to_5;
+insert into t1 select seq,repeat(seq,400000000),repeat(seq,400000000) from seq_1_to_6;
+
+#insert into t1 select seq,repeat(seq,400000000),repeat(seq,400000000) from seq_1_to_3;
 
 #insert into t1 select seq,repeat(seq,512) from seq_1_to_5;
 #insert into t1 select seq,repeat("a",10) from seq_1_to_5;
 COMMIT;
+set sql_log_bin= 1;
 --echo # Now inserting insert .. select
 BEGIN;
-insert into t1 select 6 as a, group_concat(b) as b from t1;
+insert into t1 select 6 as a, group_concat(b) as b, group_concat(c) as c from t1;
 COMMIT;
 #update t1 set a=a+1 where a=7;
 --enable_query_log
 --source include/save_master_gtid.inc
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+
+--connection server_3
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
 
 #select * from t1;
 
