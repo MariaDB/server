@@ -1282,9 +1282,14 @@ The following specify which files/extra groups are read (specified before remain
  replication in the master
  --rpl-semi-sync-master-trace-level=# 
  The tracing level for semi-sync replication
+ --rpl-semi-sync-master-wait-for-slave-count=# 
+ The number of slaves that need to acknowledge that they
+ have received a transaction before the transaction can
+ complete on the master
  --rpl-semi-sync-master-wait-no-slave 
- Wait until timeout when no semi-synchronous replication
- slave is available
+ Wait until timeout when less than
+ `rpl_semi_sync_master_wait_for_slave_count`
+ semi-synchronous replication slaves are available
  (Defaults to on; use --skip-rpl-semi-sync-master-wait-no-slave to disable.)
  --rpl-semi-sync-master-wait-point=name 
  Should transaction wait for semi-sync ack after having
@@ -1991,6 +1996,7 @@ rowid-merge-buff-size 8388608
 rpl-semi-sync-master-enabled FALSE
 rpl-semi-sync-master-timeout 10000
 rpl-semi-sync-master-trace-level 32
+rpl-semi-sync-master-wait-for-slave-count 1
 rpl-semi-sync-master-wait-no-slave TRUE
 rpl-semi-sync-master-wait-point AFTER_COMMIT
 rpl-semi-sync-slave-delay-master FALSE
