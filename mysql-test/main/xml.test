@@ -822,5 +822,17 @@ DROP TABLE t1;
 SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS f;
 
 --echo #
---echo # Start of 10.5 tests
+--echo # End of 10.5 tests
 --echo #
+
+--echo # Start of 11.4 tests
+
+--echo #
+--echo # MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit
+--echo #
+
+SET NAMES latin1;
+SELECT  lcase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+SELECT  ucase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+
+--echo # End of 11.4 tests

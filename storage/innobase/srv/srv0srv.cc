@@ -948,13 +948,13 @@ srv_export_innodb_status(void)
 
 	mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 
-	log_sys.latch.rd_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	export_vars.innodb_lsn_current = log_sys.get_lsn();
 	export_vars.innodb_lsn_flushed = log_sys.get_flushed_lsn();
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
-	log_sys.latch.rd_unlock();
+	log_sys.latch.wr_unlock();
 	export_vars.innodb_os_log_written = export_vars.innodb_lsn_current
 		- recv_sys.lsn;
 
@@ -1041,7 +1041,7 @@ void srv_monitor_task(void*)
 	/* Try to track a strange bug reported by Harald Fuchs and others,
 	where the lsn seems to decrease at times */
 
-	lsn_t new_lsn = log_sys.get_lsn();
+	lsn_t new_lsn = log_get_lsn();
 	ut_a(new_lsn >= old_lsn);
 	old_lsn = new_lsn;
 

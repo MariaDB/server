@@ -1149,11 +1149,8 @@ static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
   return (cs1->cs_name.str == cs2->cs_name.str);
 }
 extern my_bool init_compiled_charsets(myf flags);
-extern void add_compiled_collation(struct charset_info_st *cs);
+extern int add_compiled_collation(struct charset_info_st *cs);
 extern void add_compiled_extra_collation(struct charset_info_st *cs);
-extern my_bool add_alias_for_collation(LEX_CSTRING *collation_name,
-                                       uint collation_id,
-                                       LEX_CSTRING *alias, uint alias_id);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length,
