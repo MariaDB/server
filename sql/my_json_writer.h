@@ -242,6 +242,7 @@ public:
   /* Note: the add_str methods do not do escapes. Should this change? */
   void add_str(const char* val);
   void add_str(const char* val, size_t num_bytes);
+  void add_str_with_escapes(const char *val);
   void add_str(const String &str);
   void add_str(Item *item);
   void add_table_name(const JOIN_TAB *tab);
@@ -518,6 +519,16 @@ public:
     {
       add_member(name);
       context.add_str(value);
+    }
+    return *this;
+  }
+  Json_writer_object& add_with_escapes(const char *name, const char *value)
+  {
+    DBUG_ASSERT(!closed);
+    if (my_writer)
+    {
+      add_member(name);
+      my_writer->add_str_with_escapes(value);
     }
     return *this;
   }

@@ -308,6 +308,30 @@ void Json_writer::add_str(const String &str)
   add_str(str.ptr(), str.length());
 }
 
+void Json_writer::add_str_with_escapes(const char *val)
+{
+  std::string buf;
+  size_t len = strlen(val);
+  size_t pos = 0;
+  for (const char *c= val; pos < len; c++, pos++)
+  {
+    if (*c == '\'')
+      buf.append("\\\'");
+    else if (*c == '\"')
+      buf.append("\\\"");
+    else if (*c == '\n')
+      buf.append("\\n");
+    else if (*c == '`')
+      buf.append("\\`");
+    else
+    {
+      char ch= *c;
+      buf.push_back(ch);
+    }
+  }
+  add_str(buf.c_str());
+}
+
 #ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
 thread_local std::vector<bool> Json_writer_struct::named_items_expectation;
 #endif
