@@ -9318,7 +9318,14 @@ const uchar *Field_blob::unpack(uchar *to, const uchar *from,
   uint const master_packlength=
     param_data > 0 ? param_data & 0xFF : packlength;
   if (from + master_packlength > from_end)
-    DBUG_RETURN(0);                             // Error in data
+  {
+    fprintf(stderr,
+            "blob::unpack() from %p (%llu) master_packlenth: %u; "
+            "from_end %p (%llu)\n",
+            from, (unsigned long long) from, master_packlength,
+            from_end, (unsigned long long) from_end);
+    DBUG_RETURN(0); // Error in data
+  }
   uint32 const length= get_length(from, master_packlength);
   DBUG_DUMP("packed", from, length + master_packlength);
   fprintf(stderr,

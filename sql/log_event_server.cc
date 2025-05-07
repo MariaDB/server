@@ -4803,6 +4803,8 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     }
     size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
+    
+    fprintf(stderr, "\n\tCreated new_alloc: %zu cur_size: %zu, length %zu, block_size: %zu\n", new_alloc, cur_size, length, block_size);
 
     uchar* const new_buf= (uchar*)my_realloc(PSI_INSTRUMENT_ME, m_rows_buf,
                                     new_alloc, MYF(MY_ALLOW_ZERO_PTR|MY_WME));
@@ -4821,6 +4823,11 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
        the allocated memory.
     */
     m_rows_end= m_rows_buf + new_alloc;
+    fprintf(
+        stderr,
+        "\n\tdo_add_row_data: m_rows_end %p (%llu), m_rows_buf: %p (%llu),\n",
+        m_rows_end, (unsigned long long) m_rows_end, m_rows_buf,
+        (unsigned long long) m_rows_buf);
   }
 
   DBUG_ASSERT(m_rows_cur + length <= m_rows_end);
@@ -5246,7 +5253,23 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     {
       DBUG_ASSERT(table->in_use);
 
+      fprintf(stderr,
+              "\n\tdo_apply_event() Starting new row\n\tstart %p "
+              "(%llu)\n\tcurr %p (%llu)\n\tend %p (%llu)\n\tm_curr_row %p "
+              "(%llu)\n",
+              m_rows_buf, (unsigned long long) m_rows_buf, m_rows_cur,
+              (unsigned long long) m_rows_cur, m_rows_end,
+              (unsigned long long) m_rows_end, m_curr_row,
+              (unsigned long long) m_curr_row);
+
       error= do_exec_row(rgi);
+
+      fprintf(stderr,
+              "\n\tdo_apply_event() Did row\n\tstart %p "
+              "(%llu)\n\tcurr %p (%llu)\n\tend %p (%llu)\n",
+              m_rows_buf, (unsigned long long) m_rows_buf, m_rows_cur,
+              (unsigned long long) m_rows_cur, m_rows_end,
+              (unsigned long long) m_rows_end);
 
       if (unlikely(error))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
@@ -5295,6 +5318,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         error= unpack_current_row(rgi);
 
       m_curr_row= m_curr_row_end;
+
+      fprintf(stderr, "\n\tdo_apply_event() End m_curr_row %p (%llu)\n", m_curr_row, (unsigned long long) m_curr_row);
  
       if (likely(error == 0) && !transactional_table)
         thd->transaction->all.modified_non_trans_table=
@@ -5761,7 +5786,7 @@ bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
             (size_t) total_fragments * (size_t) partial_ev->rows_chunk_len);
     rows_ev_buf_builder_ptr= (char *) my_malloc(
         PSI_INSTRUMENT_ME,
-        ((size_t) total_fragments * (size_t) partial_ev->rows_chunk_len) + 1,
+        ((size_t) total_fragments * (size_t) partial_ev->rows_chunk_len),
         MYF(MY_WME));
     ev_len= 0;
   }
@@ -5829,7 +5854,7 @@ Log_event *Rows_log_event_assembler::create_rows_event(
     TODO the buffer ptr should just be a uchar* from the get go
   */
   if ((res= Log_event::read_log_event((uchar *) rows_ev_buf_builder_ptr,
-                                      ev_len+1, &error, fdle, false, true)))
+                                      ev_len, &error, fdle, false, true)))
   {
     fprintf(stderr, "\n\tAssembler says ev buf is %zu long\n", ev_len);
     res->register_temp_buf((uchar *) rows_ev_buf_builder_ptr, true);
