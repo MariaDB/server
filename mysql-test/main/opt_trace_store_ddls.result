@@ -1,0 +1,127 @@
+set store_ddls_in_optimizer_trace=ON;
+
+show variables like 'store_ddls_in_optimizer_trace';
+Variable_name	Value
+store_ddls_in_optimizer_trace	ON
+
+set store_ddls_in_optimizer_trace=OFF;
+
+show variables like 'store_ddls_in_optimizer_trace';
+Variable_name	Value
+store_ddls_in_optimizer_trace	OFF
+
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+
+create table t2 (a int);
+insert into t2 values (1),(2);
+
+create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+
+optimizer_trace=OFF, and store_ddls_in_optimizer_trace=OFF
+there should be no trace
+
+set optimizer_trace=0;
+set store_ddls_in_optimizer_trace=OFF;
+
+select * from t1 where t1.a = 3;
+a	b
+
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+
+optimizer_trace=OFF, and store_ddls_in_optimizer_trace=ON
+there should be no trace here as well
+
+set store_ddls_in_optimizer_trace=ON;
+
+select * from t1 where t1.a = 3;
+a	b
+
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+
+optimizer_trace=ON, and store_ddls_in_optimizer_trace=OFF
+trace result should be empty
+
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=OFF;
+
+select * from t1 where t1.a = 3;
+a	b
+
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+NULL
+
+optimizer_trace=ON, and store_ddls_in_optimizer_trace=ON
+trace result should have 1 ddl statement
+
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=ON;
+
+select * from t1 where t1.a = 3;
+a	b
+
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+[
+    [
+        {
+            "name": "t1",
+            "ddl": "CREATE TABLE t1 (\n  a int(11) DEFAULT NULL,\n  b int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
+        }
+    ]
+]
+
+optimizer_trace=ON, and store_ddls_in_optimizer_trace=ON
+trace result should have 3 ddl statements
+
+
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=ON;
+select * from view1 where view1.a = 3;
+a	b	c
+
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.list_ddls'))
+[
+    [
+        {
+            "name": "t1",
+            "ddl": "CREATE TABLE t1 (\n  a int(11) DEFAULT NULL,\n  b int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
+        },
+        {
+            "name": "t2",
+            "ddl": "CREATE TABLE t2 (\n  a int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
+        }
+    ],
+    [
+        {
+            "name": "view1",
+            "ddl": "CREATE ALGORITHM=UNDEFINED DEFINER=root@localhost SQL SECURITY DEFINER VIEW view1 AS (select t1.a AS a,t1.b AS b,t2.a AS c from (t1 join t2) where t1.a = t2.a)"
+        }
+    ]
+]
+failing test.
+Although it is same as previous test, except the view name
+generated json trace is invalid
+need to fix it
+
+create view v1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+select * from v1 where v1.a = 3;
+a	b	c
+
+select json_valid(trace) from information_schema.optimizer_trace;
+json_valid(trace)
+1
+
+drop view v1;
+drop view view1;
+drop table t1;
+drop table t2;
