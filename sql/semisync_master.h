@@ -348,6 +348,9 @@ public:
                unsigned long trace_level);
   ~Active_tranx();
 
+  /** Find (if any) the active transaction node with the specified position */
+  Tranx_node *get_tranx_node(const char *log_file_name, my_off_t log_file_pos);
+
   /* Insert an active transaction node with the specified position.
    *
    * Return:
@@ -376,13 +379,6 @@ public:
    * as is done by SHUTDOWN WAIT FOR ALL SLAVES.
    */
   void unlink_thd_as_waiter(const char *log_file_name, my_off_t log_file_pos);
-
-  /* Uses DBUG_ASSERT statements to ensure that the argument thd_to_check
-   * matches the thread of the respective Tranx_node::thd of the passed in
-   * log_file_name and log_file_pos.
-   */
-  bool is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                     my_off_t log_file_pos);
 
   /* Given a position, check to see whether the position is an active
    * transaction's ending position by probing the hash table.
