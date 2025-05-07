@@ -71,6 +71,8 @@ public:
 
   void set_buffer(Binary_string *buffer)
   {
+    DBUG_ASSERT(buffer);
+    DBUG_ASSERT(buffer->get_thread_specific());
     m_buffer= buffer;
   }
 
@@ -913,12 +915,25 @@ Item_method_base *sp_get_assoc_array_delete(THD *thd,
   The data structure used to store the key-value pairs in the
   associative array (TREE)
 */
-struct Assoc_array_data :public Sql_alloc
+class Assoc_array_data :public Sql_alloc
 {
-  Assoc_array_data(String &&key, Binary_string &&value)
+  void set_thread_specific()
   {
-    m_key.swap(key);
-    m_value.swap(value);
+    m_key.set_thread_specific();
+    m_value.set_thread_specific();
+  }
+
+public:
+  Assoc_array_data()
+  {
+    set_thread_specific();
+  }
+
+  void release()
+  {
+    m_key.release();
+    m_value.release();
+    set_thread_specific();
   }
 
   String m_key;
@@ -1032,18 +1047,17 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
       if (m_element_field->sp_prepare_and_store_item(thd, src_elem))
         goto error;
 
-      Binary_string pack_buffer;
-      if (create_element_buffer(thd, &pack_buffer))
+      Assoc_array_data data;
+      if (create_element_buffer(thd, &data.m_value))
         goto error;
 
-      m_item_pack->set_buffer(&pack_buffer);
+      m_item_pack->set_buffer(&data.m_value);
       m_item_pack->pack();
 
-      String key_copy;
-      if (copy_and_convert_key(thd, &src_key, key_copy))
+      if (copy_and_convert_key(thd, &src_key, data.m_key))
         goto error;
 
-      if (insert_element(std::move(key_copy), std::move(pack_buffer)))
+      if (insert_element(&data))
         goto error;
 
       set_notnull();
@@ -1058,15 +1072,18 @@ error:
 }
 
 
-bool Field_assoc_array::insert_element(String &&key, Binary_string &&element)
+bool Field_assoc_array::insert_element(Assoc_array_data *data)
 {
-  Assoc_array_data data(std::move(key), std::move(element));
+  DBUG_ASSERT(data->m_key.get_thread_specific());
+  DBUG_ASSERT(data->m_value.get_thread_specific());
 
-  if (unlikely(!tree_insert(&m_tree, &data, 0, (void *) key_charset())))
+  if (unlikely(!tree_insert(&m_tree, data, 0, (void *) key_charset())))
     return true;
 
-  data.m_key.release();
-  data.m_value.release();
+  data->release();
+
+  DBUG_ASSERT(data->m_key.get_thread_specific());
+  DBUG_ASSERT(data->m_value.get_thread_specific());
 
   return false;
 }
@@ -1077,46 +1094,37 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
   if (!key)
     return NULL;
 
-  Item_field *item= NULL;
-
-  String key_copy;
-  if (copy_and_convert_key(thd, key, key_copy))
+  Assoc_array_data data;
+  if (copy_and_convert_key(thd, key, data.m_key))
     return nullptr;
 
   bool is_inserted= false;
-  Assoc_array_data *data= (Assoc_array_data *)
-                          tree_search(&m_tree, &key_copy,
-                          (void *)key_charset());
-  if (!data)
+  Assoc_array_data *tree_data= (Assoc_array_data *)
+                               tree_search(&m_tree, &data.m_key,
+                               (void *) key_charset());
+  if (!tree_data)
   {
     // Create an element for the key if not found
-    Binary_string pack_buffer;
-    if (create_element_buffer(thd, &pack_buffer))
-      goto error;
+    if (create_element_buffer(thd, &data.m_value))
+      return nullptr;
 
-    if (insert_element(std::move(key_copy), std::move(pack_buffer)))
-      goto error;
+    if (insert_element(&data))
+      return nullptr;
     set_notnull();
   
     is_inserted= true;
 
-    data= (Assoc_array_data *) tree_search(&m_tree, key,
-                                           (void *)key_charset());
-    DBUG_ASSERT(data);
+    tree_data= (Assoc_array_data *) tree_search(&m_tree, key,
+                                                (void *) key_charset());
+    DBUG_ASSERT(tree_data);
   }
 
-  m_item_pack->set_buffer(&data->m_value);
+  m_item_pack->set_buffer(&tree_data->m_value);
 
   if (!is_inserted)
     m_item_pack->unpack();
 
   return dynamic_cast<Item_field *>(m_item_pack);
-
-error:
-  if (item)
-    my_free(item);
-
-  return NULL;
 }
 
 
@@ -1276,6 +1284,7 @@ bool Field_assoc_array::create_element_buffer(THD *thd, Binary_string *buffer)
 {
   DBUG_ASSERT(m_element_field);
   DBUG_ASSERT(buffer);
+  DBUG_ASSERT(buffer->get_thread_specific());
 
   Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
   if (field_row)

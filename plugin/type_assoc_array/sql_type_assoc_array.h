@@ -26,6 +26,7 @@
 
 
 class Item_field_packable;
+class Assoc_array_data;
 
 
 /*
@@ -303,7 +304,7 @@ protected:
   bool init_element_base(THD *thd);
 
   bool create_element_buffer(THD *thd, Binary_string *buffer);
-  bool insert_element(String &&key, Binary_string &&element);
+  bool insert_element(Assoc_array_data *data);
 };
 
 
