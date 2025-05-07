@@ -49,6 +49,7 @@ ulonglong rpl_semi_sync_master_net_wait_num = 0;
 ulong rpl_semi_sync_master_clients          = 0;
 ulonglong rpl_semi_sync_master_net_wait_time = 0;
 ulonglong rpl_semi_sync_master_trx_wait_time = 0;
+unsigned int rpl_semi_sync_master_wait_for_slave_count = 1;
 
 Repl_semi_sync_master repl_semisync_master;
 Ack_receiver ack_receiver;
@@ -71,7 +72,9 @@ static ulonglong timespec_to_usec(const struct timespec *ts)
 /** @return Should we revert to async because there not enough slaves? */
 static bool is_no_slave()
 {
-  return !rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave;
+  return rpl_semi_sync_master_clients <
+    rpl_semi_sync_master_wait_for_slave_count &&
+    !rpl_semi_sync_master_wait_no_slave;
 }
 
 int signal_waiting_transaction(THD *waiting_thd, const char *binlog_file,
@@ -676,16 +679,23 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
 
   if (need_copy_send_pos)
   {
-    strmake_buf(m_reply_file_name, log_file_name);
-    m_reply_file_pos = log_file_pos;
-    m_reply_file_name_inited = true;
+    DBUG_ASSERT(m_active_tranxs);
+    Tranx_node *entry=
+      m_active_tranxs->get_tranx_node(log_file_name, log_file_pos);
+    DBUG_ASSERT(entry);
 
-    /* Remove all active transaction nodes before this point. */
-    DBUG_ASSERT(m_active_tranxs != NULL);
-    m_active_tranxs->clear_active_tranx_nodes(log_file_name, log_file_pos,
-                                              signal_waiting_transaction);
-    if (m_active_tranxs->is_empty())
-      m_wait_file_name_inited= false;
+    if (++(entry->acks) >= rpl_semi_sync_master_wait_for_slave_count)
+    {
+      strmake_buf(m_reply_file_name, log_file_name);
+      m_reply_file_pos = log_file_pos;
+      m_reply_file_name_inited = true;
+
+      /* Remove all active transaction nodes before this point. */
+      m_active_tranxs->clear_active_tranx_nodes(log_file_name, log_file_pos,
+                                                signal_waiting_transaction);
+      if (m_active_tranxs->is_empty())
+        m_wait_file_name_inited= false;
+    }
 
     DBUG_PRINT("semisync", ("%s: Got reply at (%s, %lu)",
                             "Repl_semi_sync_master::report_reply_binlog",
