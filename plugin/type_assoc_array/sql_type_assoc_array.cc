@@ -287,7 +287,7 @@ public:
       auto end= item_elem->unpack();
       if (unlikely(!end))
         return nullptr;
-      offset= end - ptr();
+      offset= (uint) (end - ptr());
     }
 
     return ptr() + offset;
@@ -313,7 +313,7 @@ public:
       if (unlikely(!end))
         return true;
 
-      offset= end - ptr();
+      offset= (uint) (end - ptr());
     }
 
     return false;
@@ -409,7 +409,7 @@ public:
     T::traverse_cond(invalidate_rqp, nullptr, Item::traverse_order::PREFIX);
 
     pos_in_query= query_fragment.pos() - m_thd->lex->sphead->m_tmp_query;
-    len_in_query= query_fragment.length;
+    len_in_query= (uint) query_fragment.length;
 
     return false;
   }
