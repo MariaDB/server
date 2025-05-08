@@ -1444,7 +1444,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <json_on_response> json_on_response
 
 %type <Lex_field_type> field_type field_type_all field_type_all_builtin
-        field_type_all_with_composites
+        field_type_all_with_typedefs
         qualified_field_type
         field_type_numeric
         field_type_string
@@ -1455,8 +1455,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %ifdef ORACLE
 %type <spvar_definition> assoc_array_table_types
-%type <spvar_definition> assoc_array_index_type
-%type <Lex_field_type> field_type_all_with_record assoc_array_index_types
 %endif
 
 %type <ident_cli>
@@ -3636,7 +3634,7 @@ sp_decl_idents_init_vars:
 
 sp_decl_variable_list:
           sp_decl_idents_init_vars
-          field_type_all_with_composites
+          field_type_all_with_typedefs
           {
             if (Lex->last_field->set_attributes(thd, $2,
                                               COLUMN_DEFINITION_ROUTINE_LOCAL))
@@ -6536,28 +6534,14 @@ field_type_all:
           }
         ;
 
-%ifdef ORACLE
-field_type_all_with_record:
+field_type_all_with_typedefs:
           field_type_all_builtin
           {
             Lex->map_data_type(Lex_ident_sys(), &($$= $1));
           }
         | udt_name float_options srid_option
           {
-            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2,false)))
-              MYSQL_YYABORT;
-          }
-        ;
-%endif
-
-field_type_all_with_composites:
-          field_type_all_builtin
-          {
-            Lex->map_data_type(Lex_ident_sys(), &($$= $1));
-          }
-        | udt_name float_options srid_option
-          {
-            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2, true)))
+            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2)))
               MYSQL_YYABORT;
           }
         ;
@@ -20277,7 +20261,7 @@ typed_ident:
         ;
 
 assoc_array_table_types:
-          field_type_all_with_record
+          field_type_all_with_typedefs
           {
             if (Lex->last_field->set_attributes(thd, $1,
                                               COLUMN_DEFINITION_ROUTINE_LOCAL))
@@ -20313,31 +20297,6 @@ assoc_array_table_types:
                                                                        $$,
                                                                        $1, $3)))
               MYSQL_YYABORT;
-          }
-        ;
-
-assoc_array_index_types:
-          int_type opt_field_length last_field_options
-          {
-            $$.set_handler_length_flags($1, $2, (uint32) $3);
-          }
-        | varchar opt_field_length opt_binary_and_compression
-          {
-            $$.set(&type_handler_varchar, $2, $3);
-          }
-        | VARCHAR2_ORACLE_SYM opt_field_length opt_binary_and_compression
-          {
-            $$.set(&type_handler_varchar, $2, $3);
-          }
-        ;
-
-assoc_array_index_type:
-          INDEX_SYM BY assoc_array_index_types
-          {
-            if (Lex->last_field->set_attributes(thd, $3,
-                                              COLUMN_DEFINITION_ROUTINE_LOCAL))
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) Spvar_definition(*Lex->last_field);
           }
         ;
 
@@ -20381,27 +20340,22 @@ sp_decl_non_handler:
           }
         | typed_ident IS RECORD_SYM rec_type_body
           {
-            if (unlikely(Lex->spcont->
-                  type_defs_declare_record(thd, Lex_ident_column($1), $4)))
+            if (unlikely(Lex->declare_type_record(thd, $1, $4)))
               MYSQL_YYABORT;
-
             $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
           }
         | typed_ident IS TABLE_SYM OF_SYM assoc_array_table_types
           {
-            Lex->init_last_field(new (thd->mem_root) Column_definition(),
+            Lex->init_last_field(new (thd->mem_root) Spvar_definition(),
                                  &empty_clex_str);
           }
-          assoc_array_index_type
+          INDEX_SYM BY field_type
           {
-            const auto aa= "associative_array"_Lex_ident_plugin;
-            const Type_handler *th=
-               Type_handler::handler_by_name_or_error(thd, aa);
-            if (unlikely(!th ||
-                         Lex->spcont->
-                           type_defs_declare_composite2(thd,
-                                                        Lex_ident_column($1),
-                                                        th, $7, $5)))
+            if (Lex->last_field->set_attributes(thd, $9,
+                                              COLUMN_DEFINITION_ROUTINE_LOCAL))
+              MYSQL_YYABORT;
+            auto def= static_cast<Spvar_definition*>(Lex->last_field);
+            if (unlikely(Lex->declare_type_assoc_array(thd, $1, def, $5)))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
           }

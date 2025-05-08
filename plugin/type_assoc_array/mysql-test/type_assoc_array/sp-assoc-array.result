@@ -43,6 +43,45 @@ END;
 $$
 ERROR HY000: 'associative_array' is not allowed in this context
 #
+# Bad key data type
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DOUBLE;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type double for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY POINT;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type point for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DATE;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type datetime for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY ROW(a INT, b INT);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT, b INT);
+assoc assoc_t;
+BEGIN
+NULL;
+END' at line 2
+#
 # RECORD element type
 #
 DECLARE
@@ -1623,7 +1662,7 @@ BEGIN
 NULL;
 END;
 $$
-ERROR 42000: This version of MariaDB doesn't yet support 'nested associative arrays'
+ERROR HY000: Illegal parameter data type associative_array for operation '<array element data type>'
 #
 # Ensure that nested assoc array types cannot be used for record field
 #

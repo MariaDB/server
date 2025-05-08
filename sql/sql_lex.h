@@ -4949,14 +4949,19 @@ public:
   bool set_cast_type_udt(Lex_cast_type_st *type,
                          const LEX_CSTRING &name);
 
-  bool set_field_type_composite(Lex_field_type_st *type,
-                                const LEX_CSTRING &name,
-                                bool with_collection,
-                                bool *is_composite);
+  bool declare_type_record(THD *thd,
+                           const Lex_ident_sys_st &type_name,
+                           Row_definition_list *fields);
+  bool declare_type_assoc_array(THD *thd,
+                                const Lex_ident_sys_st &type_name,
+                                Spvar_definition *key,
+                                Spvar_definition *value);
+  bool set_field_type_typedef(Lex_field_type_st *type,
+                              const LEX_CSTRING &name,
+                              bool *is_typedef);
   bool set_field_type_udt_or_typedef(Lex_field_type_st *type,
                                      const LEX_CSTRING &name,
-                                     const Lex_length_and_dec_st &attr,
-                                     bool with_collection);
+                                     const Lex_length_and_dec_st &attr);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;

@@ -739,37 +739,14 @@ public:
   sp_type_def *find_type_def(const LEX_CSTRING &name,
                              bool current_scope_only) const;
 
-  /////////////////////////////////////////////////////////////////////////
-  // Record.
-  /////////////////////////////////////////////////////////////////////////
-
-  bool type_defs_declare_record(THD *thd,
-                                const Lex_ident_column &name,
-                                Row_definition_list *field)
+  bool type_defs_add(THD *thd, sp_type_def *def)
   {
-    if (unlikely(find_type_def(name, true)))
+    if (unlikely(find_type_def(def->get_name(), true)))
     {
-      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      my_error(ER_SP_DUP_DECL, MYF(0), def->get_name().str);
       return true;
     }
-    return type_defs_add_record(thd, name, field);
-  }
-
-  /////////////////////////////////////////////////////////////////////////
-  // Composites, e.g. associative arrays.
-  /////////////////////////////////////////////////////////////////////////
-  bool type_defs_declare_composite2(THD *thd,
-                                    const Lex_ident_column &name,
-                                    const Type_handler *th,
-                                    Spvar_definition *key,
-                                    Spvar_definition *value)
-  {
-    if (unlikely(find_type_def(name, true)))
-    {
-      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
-      return true;
-    }
-    return type_defs_add_composite2(thd, name, th, key, value);
+    return sp_type_def_list::type_defs_add(def);
   }
 
 private:

@@ -67,6 +67,58 @@ DELIMITER ;$$
 
 
 --echo #
+--echo # Bad key data type
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DOUBLE;
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY POINT;
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DATE;
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY ROW(a INT, b INT);
+  assoc assoc_t;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
 --echo # RECORD element type
 --echo #
 DELIMITER $$;
@@ -1874,7 +1926,7 @@ SET sql_mode=ORACLE;
 --echo # Ensure that nested assoc array types are properly parsed (without crash, etc)
 --echo #
 DELIMITER $$;
---error ER_NOT_SUPPORTED_YET
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 DECLARE
    TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
    TYPE classes_t IS TABLE OF marks_t INDEX BY INTEGER;

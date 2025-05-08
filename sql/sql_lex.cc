@@ -12701,17 +12701,54 @@ Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
 }
 
 
-bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
-                                        const LEX_CSTRING &name,
-                                        const Lex_length_and_dec_st &attr,
-                                        bool with_collection)
+bool LEX::declare_type_record(THD *thd,
+                              const Lex_ident_sys_st &type_name,
+                              Row_definition_list *fields)
 {
-  bool is_composite= false;
-  if (unlikely(set_field_type_composite(type, name, with_collection,
-                                        &is_composite)))
+  sp_type_def *tdef=
+    new (thd->mem_root) sp_type_def_record(Lex_ident_column(type_name), fields);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true;
+  return false;
+}
+
+
+bool LEX::declare_type_assoc_array(THD *thd,
+                                   const Lex_ident_sys_st &type_name,
+                                   Spvar_definition *key,
+                                   Spvar_definition *value)
+{
+  const auto aa= "associative_array"_Lex_ident_plugin;
+  const Type_handler *th= Type_handler::handler_by_name_or_error(thd, aa);
+  if (unlikely(!th))
     return true;
 
-  if (is_composite)
+  sp_type_def *tdef=
+    new (thd->mem_root) sp_type_def_composite2(Lex_ident_column(type_name),
+                                               th, key, value);
+  if (unlikely(!tdef || spcont->type_defs_add(thd, tdef)))
+    return true;
+
+  Column_definition def;
+  def.set_handler(th);
+  def.set_attr_const_void_ptr(0, tdef);
+  Lex_field_type_st ltype;
+  ltype.set(th);
+  return def.type_handler()->
+          Column_definition_set_attributes(thd, &def, ltype,
+                                           COLUMN_DEFINITION_ROUTINE_LOCAL);
+}
+
+
+bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
+                                        const LEX_CSTRING &name,
+                                        const Lex_length_and_dec_st &attr)
+{
+  bool is_typedef= false;
+  if (unlikely(set_field_type_typedef(type, name, &is_typedef)))
+    return true;
+
+  if (is_typedef)
     return false;
 
   return set_field_type_udt(type, name, attr);
@@ -12741,34 +12778,21 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
 }
 
 
-bool LEX::set_field_type_composite(Lex_field_type_st *type,
-                                   const LEX_CSTRING &name,
-                                   bool with_collection,
-                                   bool *is_composite)
+bool LEX::set_field_type_typedef(Lex_field_type_st *type,
+                                 const LEX_CSTRING &name,
+                                 bool *is_typedef)
 {
   DBUG_ASSERT(type);
-  DBUG_ASSERT(is_composite);
+  DBUG_ASSERT(is_typedef);
 
-  sp_type_def *composite= NULL;
-
-  *is_composite= false;
+  *is_typedef= false;
   if (spcont)
   {
-    if ((composite= spcont->find_type_def(name, false)))
+    if (const sp_type_def *composite= spcont->find_type_def(name, false))
     {
-      if (with_collection ||
-          likely(composite->type_handler() == &type_handler_row))
-      {
-        type->set(composite->type_handler(), NULL);
-        last_field->set_attr_const_void_ptr(0, composite);
-      }
-      else
-      {
-        my_error(ER_NOT_SUPPORTED_YET, MYF(0), "nested associative arrays");
-        return true;
-      }
-
-      *is_composite= true;
+      type->set(composite->type_handler(), NULL);
+      last_field->set_attr_const_void_ptr(0, composite);
+      *is_typedef= true;
     }
   }
 

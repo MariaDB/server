@@ -2033,6 +2033,49 @@ bool Type_handler_assoc_array::
 
 
 bool Type_handler_assoc_array::
+       Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        column_definition_type_t type)
+                                                                 const
+{
+  const sp_type_def_composite2 *tdef;
+  /*
+    Disallow wrong use of associative_array:
+      CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
+      CREATE FUNCTION .. RETURN ASSOCIATEIVE ARRAY ..;
+  */
+  if (!(tdef= reinterpret_cast<const sp_type_def_composite2*>
+                           (def->get_attr_const_void_ptr(0))))
+  {
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), name().ptr());
+    return true;
+  }
+
+  if (unlikely(tdef->m_def[1]->type_handler() == this))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tdef->m_def[1]->type_handler()->name().ptr(),
+             "<array element data type>");
+    return true;
+  }
+  if (unlikely(tdef->m_def[0]->type_handler() != &type_handler_varchar &&
+               !dynamic_cast<const Type_handler_general_purpose_int*>
+                                            (tdef->m_def[0]->type_handler())))
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             tdef->m_def[0]->type_handler()->name().ptr(),
+             "<array index data type>");
+    return true;
+  }
+
+  return Type_handler_composite::Column_definition_set_attributes(thd, def,
+                                                                  attr,
+                                                                  type);
+}
+
+
+bool Type_handler_assoc_array::
   sp_variable_declarations_finalize(THD *thd, LEX *lex, int nvars,
                                     const Column_definition &def)
                                                             const

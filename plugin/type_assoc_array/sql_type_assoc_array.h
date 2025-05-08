@@ -64,22 +64,7 @@ public:
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
                                         column_definition_type_t type)
-                                        const override
-  {
-    /*
-      Disallow wrong use of associative_array:
-        CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
-        CREATE FUNCTION .. RETURN ASSOCIATEIVE ARRAY ..;
-    */
-    if (!def->get_attr_const_void_ptr(0))
-    {
-      my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), name().ptr());
-      return true;
-    }
-    return Type_handler_composite::Column_definition_set_attributes(thd, def,
-                                                                    attr,
-                                                                    type);
-  }
+                                                       const override;
 
   bool sp_variable_declarations_finalize(THD *thd,
                                          LEX *lex, int nvars,
