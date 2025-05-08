@@ -14,7 +14,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
 explain select c + 1 from t order by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
 explain select c + 1 from t order by vc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
@@ -29,5 +29,5 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
 explain select c from t order by c + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
 drop table t;
