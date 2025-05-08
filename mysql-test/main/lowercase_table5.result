@@ -189,3 +189,28 @@ DROP DATABASE MYSQL;
 #
 # End of 10.5 tests
 #
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-33281 Implement optimizer hints like in MySQL
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT /*+BKA(a) BKA(å)*/ a.a, å.a FROM t1 a, t1 å;
+a	a
+1	1
+2	1
+1	2
+2	2
+SELECT /*+BKA(a) BKA(A)*/ a.a, A.a FROM t1 a, t1 A;
+a	a
+1	1
+2	1
+1	2
+2	2
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

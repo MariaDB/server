@@ -722,10 +722,10 @@ DROP USER mysqltest_1@localhost;
 
 USE mysqltest;
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 CALL bug13198_p1();
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 SELECT bug13198_f1();
 
 # Cleanup.

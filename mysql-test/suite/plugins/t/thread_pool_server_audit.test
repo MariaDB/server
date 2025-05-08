@@ -27,7 +27,7 @@ connection default;
 --sleep 2
 set global server_audit_incl_users='odin, dva, tri';
 create table t1 (id int);
-set global server_audit_incl_users='odin, root, dva, tri';
+set global server_audit_incl_users='odin, root, dva, tri'; 
 create table t2 (id int);
 set global server_audit_excl_users='odin, dva, tri';
 insert into t1 values (1), (2);
@@ -144,8 +144,11 @@ uninstall plugin server_audit;
 --enable_ps2_protocol
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
-# replace the timestamp and the hostname with constant values
---replace_regex /[0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9][0-9]*\,/,1,/ /\,[1-9][0-9]*/,ID/
+if ($MARIADB_UPGRADE_EXE) { # windows
+  let $replace_port= /localhost:\d+/localhost/;
+}
+# replace the timestamp, hostname, and port number with constant values
+--replace_regex /\d* \d\d:\d\d:\d\d\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9]\d*\,/,1,/ /\,[1-9]\d*/,ID/ $replace_port
 cat_file $MYSQLD_DATADIR/server_audit.log;
 remove_file $MYSQLD_DATADIR/server_audit.log;
 

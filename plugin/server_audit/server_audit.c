@@ -15,8 +15,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.14"
+#define PLUGIN_VERSION 0x105
+#define PLUGIN_STR_VERSION "1.5.0"
 
 #define _my_thread_var loc_thread_var
 
@@ -329,11 +329,14 @@ struct connection_info
   int host_length;
   char ip[64];
   int ip_length;
+  char tls_version[64];
+  int tls_version_length;
   const char *query;
   int query_length;
   char query_buffer[1024];
   time_t query_time;
   int log_always;
+  unsigned int port;
   char proxy[USERNAME_CHAR_LENGTH+1];
   int proxy_length;
   char proxy_host[HOSTNAME_LENGTH+1];
@@ -1011,6 +1014,7 @@ static struct connection_info *get_loc_info(MYSQL_THD thd)
     ci->user_length= 0;
     ci->host_length= 0;
     ci->ip_length= 0;
+    ci->tls_version_length= 0;
   }
   return ci;
 }
@@ -1192,9 +1196,11 @@ static void setup_connection_simple(struct connection_info *ci)
   ci->user_length= 0;
   ci->host_length= 0;
   ci->ip_length= 0;
+  ci->tls_version_length= 0;
   ci->query_length= 0;
   ci->header= 0;
   ci->proxy_length= 0;
+  ci->port= 0;
 }
 
 
@@ -1215,6 +1221,8 @@ static void setup_connection_connect(MYSQL_THD thd,struct connection_info *cn,
             event->host, event->host_length);
   get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
             event->ip, event->ip_length);
+  get_str_n(cn->tls_version, &cn->tls_version_length, sizeof(cn->tls_version),
+          event->tls_version, event->tls_version_length);
   cn->header= 0;
   if (event->proxy_user && event->proxy_user[0])
   {
@@ -1381,6 +1389,8 @@ static void change_connection(struct connection_info *cn,
             event->user, event->user_length);
   get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
             event->ip, event->ip_length);
+  get_str_n(cn->tls_version, &cn->tls_version_length, sizeof(cn->tls_version),
+          event->tls_version, event->tls_version_length);
 }
 
 /*
@@ -1437,15 +1447,20 @@ static size_t log_header(char *message, size_t message_len,
                       const char *username, unsigned int username_len,
                       const char *host, unsigned int host_len,
                       const char *userip, unsigned int userip_len,
-                      unsigned int connection_id, long long query_id,
-                      const char *operation)
+                      unsigned int connection_id, unsigned int port,
+                      long long query_id, const char *operation)
 {
   struct tm tm_time;
-
+  char port_str[16];
   if (host_len == 0 && userip_len != 0)
   {
     host_len= userip_len;
     host= userip;
+  }
+  if (port == 0) {
+    port_str[0] = '\0';
+  } else {
+    my_snprintf(port_str, sizeof(port_str), ":%u", port);
   }
 
   /*
@@ -1460,23 +1475,34 @@ static size_t log_header(char *message, size_t message_len,
 
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
-        "%.*s,%.*s,%.*s,%d,%lld,%s",
+        "%.*s,%.*s,%.*s%s,%d,%lld,%s",
         (int) serverhost_len, serverhost,
         username_len, username,
-        host_len, host,
+        host_len, host, port_str,
         connection_id, query_id, operation);
 
   (void) localtime_r(ts, &tm_time);
   return my_snprintf(message, message_len,
-      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s,%d,%lld,%s",
+      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s%s,%d,%lld,%s",
       tm_time.tm_year+1900, tm_time.tm_mon+1, tm_time.tm_mday,
       tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec,
       (int) serverhost_len, serverhost,
       username_len, username,
-      host_len, host,
+      host_len, host, port_str,
       connection_id, query_id, operation);
 }
 
+static size_t create_tls_obj(const struct mysql_event_connection *ev, char *obj_str, size_t len) {
+  size_t obj_len;
+
+  obj_len= 0;
+  memset(obj_str, 0, len);
+  if (ev->tls_version_length > 0) {
+    obj_len= my_snprintf(obj_str, len,
+      "%.*s", ev->tls_version_length, ev->tls_version);
+  }
+  return obj_len;
+}
 
 static int log_proxy(const struct connection_info *cn,
                      const struct mysql_event_connection *event)
@@ -1492,7 +1518,8 @@ static int log_proxy(const struct connection_info *cn,
                     cn->user, cn->user_length,
                     cn->host, cn->host_length,
                     cn->ip, cn->ip_length,
-                    event->thread_id, 0, "PROXY_CONNECT");
+                    event->thread_id, event->port,
+                    0, "PROXY_CONNECT");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
     ",%.*s,`%.*s`@`%.*s`,%d", cn->db_length, cn->db,
                      cn->proxy_length, cn->proxy,
@@ -1510,6 +1537,8 @@ static int log_connection(const struct connection_info *cn,
   time_t ctime;
   size_t csize;
   char message[1024];
+  char tls_obj[32];
+  size_t obj_len;
 
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
@@ -1517,9 +1546,12 @@ static int log_connection(const struct connection_info *cn,
                     cn->user, cn->user_length,
                     cn->host, cn->host_length,
                     cn->ip, cn->ip_length,
-                    event->thread_id, 0, type);
+                    event->thread_id, event->port, 0, type);
+
+  obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", cn->db_length, cn->db, event->status);
+    ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
+    event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1531,6 +1563,8 @@ static int log_connection_event(const struct mysql_event_connection *event,
   time_t ctime;
   size_t csize;
   char message[1024];
+  char tls_obj[32];
+  size_t obj_len;
 
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
@@ -1538,9 +1572,11 @@ static int log_connection_event(const struct mysql_event_connection *event,
                     event->user, event->user_length,
                     event->host, event->host_length,
                     event->ip, event->ip_length,
-                    event->thread_id, 0, type);
+                    event->thread_id, event->port, 0, type);
+  obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", (int) event->database.length, event->database.str, event->status);
+    ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
+    (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1925,7 +1961,7 @@ do_log_query:
   csize= log_header(message, message_size-1, &ev_time,
                     servhost, servhost_len,
                     cn->user, cn->user_length,cn->host, cn->host_length,
-                    cn->ip, cn->ip_length, thd_id, query_id, type);
+                    cn->ip, cn->ip_length, thd_id, cn->port, query_id, type);
 
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
       ",%.*s,\'", db_length, db);
@@ -2017,7 +2053,7 @@ static int log_table(const struct connection_info *cn,
                     event->user, SAFE_STRLEN_UI(event->user),
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
-                    event->thread_id, cn->query_id, type);
+                    event->thread_id, event->port, cn->query_id, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize, ",%.*s,%.*s,",
                      (int) event->database.length, event->database.str,
                      (int) event->table.length, event->table.str);
@@ -2039,7 +2075,8 @@ static int log_rename(const struct connection_info *cn,
                     event->user, SAFE_STRLEN_UI(event->user),
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
-                    event->thread_id, cn->query_id, "RENAME");
+                    event->thread_id, event->port, 
+                    cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
                       ",%.*s,%.*s|%.*s.%.*s,",
                       (int) event->database.length, event->database.str,
@@ -2098,6 +2135,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
+    cn->port= event->port;
     switch (event->event_subclass) {
       case MYSQL_AUDIT_GENERAL_LOG:
       {
@@ -2181,6 +2219,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
+    cn->port= event->port;
     if (ci_needs_setup(cn))
       setup_connection_table(cn, event);
 
@@ -2206,6 +2245,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_connection *event =
       (const struct mysql_event_connection *) ev;
+    cn->port= event->port;
     switch (event->event_subclass)
     {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
@@ -2828,7 +2868,7 @@ static void log_current_query(MYSQL_THD thd)
   {
     cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
-		     cn->query, cn->query_length, 0, "QUERY", 0);
+		cn->query, cn->query_length, 0, "QUERY", 0);
     cn->log_always= 0;
   }
 }

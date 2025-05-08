@@ -1713,22 +1713,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   case COM_RESET_CONNECTION:
   {
     thd->status_var.com_other++;
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_after_command_ignore_result(thd);
-      wsrep_close(thd);
-    }
-#endif /* WITH_WSREP */
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_open(thd);
-      wsrep_before_command(thd);
-    }
-#endif /* WITH_WSREP */
     /* Restore original charset from client authentication packet.*/
     if(thd->org_charset)
       thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
@@ -1740,21 +1726,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     int auth_rc;
     status_var_increment(thd->status_var.com_other);
 
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_after_command_ignore_result(thd);
-      wsrep_close(thd);
-    }
-#endif /* WITH_WSREP */
     thd->change_user();
-#ifdef WITH_WSREP
-    if (unlikely(wsrep_service_started))
-    {
-      wsrep_open(thd);
-      wsrep_before_command(thd);
-    }
-#endif /* WITH_WSREP */
     thd->clear_error();                         // if errors from rollback
 
     /* acl_authenticate() takes the data from net->read_pos */
@@ -2882,7 +2854,7 @@ bool sp_process_definer(THD *thd)
   if (!is_acl_user(lex->definer->host, lex->definer->user))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
+                        ER_MALFORMED_DEFINER, ER_THD(thd, ER_MALFORMED_DEFINER),
                         lex->definer->user.str, lex->definer->host.str);
   }
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
@@ -3850,7 +3822,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     thd->query_plan_flags|= QPLAN_ADMIN;
 
   /* Start timeouts */
-  thd->set_query_timer();
+  thd->set_query_timer_if_needed();
 
 #ifdef WITH_WSREP
   /* Check wsrep_mode rules before command execution. */
@@ -10029,7 +10001,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 
   if (role && definer->user.length == 0)
   {
-    my_error(ER_MALFORMED_DEFINER, MYF(0));
+    my_error(ER_INVALID_ROLE, MYF(0), "NONE");
     return 0;
   }
   else

@@ -68,6 +68,7 @@
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
+#include "opt_hints.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1467,8 +1468,19 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (!(select_options & OPTION_SETUP_TABLES_DONE) &&
       setup_tables_and_check_access(thd, &select_lex->context, join_list,
                                     tables_list, select_lex->leaf_tables,
-                                    FALSE, SELECT_ACL, SELECT_ACL, FALSE))
+                                    false, SELECT_ACL, SELECT_ACL, false))
       DBUG_RETURN(-1);
+
+  if (thd->lex->opt_hints_global && select_lex->select_number == 1)
+  {
+    thd->lex->opt_hints_global->fix_hint(thd);
+    /*
+      There's no need to call opt_hints_global->check_unresolved(),
+      this is done for each query block individually
+    */
+  }
+  if (select_lex->opt_hints_qb)
+    select_lex->opt_hints_qb->check_unfixed(thd);
 
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
   if (select_lex->vers_setup_conds(thd, tables_list) < 0)
@@ -2192,6 +2204,9 @@ JOIN::optimize_inner()
   Json_writer_object trace_prepare(thd, "join_optimization");
   trace_prepare.add_select_number(select_lex->select_number);
   Json_writer_array trace_steps(thd, "steps");
+
+  if (select_lex->opt_hints_qb)
+    select_lex->opt_hints_qb->trace_hints(thd);
 
   /*
     Needed in case optimizer short-cuts,
@@ -5600,6 +5615,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   DBUG_ENTER("make_join_statistics");
 
   table_count=join->table_count;
+  const uint sj_nests= join->select_lex->sj_nests.elements; // Changed by pull-out
 
   /*
     best_extension_by_limited_search need sort space for 2POSITIION
@@ -5760,54 +5776,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   stat_vector[i]=0;
   join->outer_join=outer_join;
 
-  if (join->outer_join)
+  if (join->propagate_dependencies(stat))
   {
-    /* 
-       Build transitive closure for relation 'to be dependent on'.
-       This will speed up the plan search for many cases with outer joins,
-       as well as allow us to catch illegal cross references/
-       Warshall's algorithm is used to build the transitive closure.
-       As we use bitmaps to represent the relation the complexity
-       of the algorithm is O((number of tables)^2).
-
-       The classic form of the Warshall's algorithm would look like: 
-       for (i= 0; i < table_count; i++)
-       {
-         for (j= 0; j < table_count; j++)
-         {
-           for (k= 0; k < table_count; k++)
-           {
-             if (bitmap_is_set(stat[j].dependent, i) &&
-                 bitmap_is_set(stat[i].dependent, k))
-               bitmap_set_bit(stat[j].dependent, k);
-           }
-         }
-       }  
-    */
-    
-    for (s= stat ; s < stat_end ; s++)
-    {
-      TABLE *table= s->table;
-      for (JOIN_TAB *t= stat ; t < stat_end ; t++)
-      {
-        if (t->dependent & table->map)
-          t->dependent |= table->reginfo.join_tab->dependent;
-      }
-      if (outer_join & s->table->map)
-        s->table->maybe_null= 1;
-    }
-    /* Catch illegal cross references for outer joins */
-    for (i= 0, s= stat ; i < table_count ; i++, s++)
-    {
-      if (s->dependent & s->table->map)
-      {
-        join->table_count=0;			// Don't use join->table
-        my_message(ER_WRONG_OUTER_JOIN,
-                   ER_THD(join->thd, ER_WRONG_OUTER_JOIN), MYF(0));
-        goto error;
-      }
-      s->key_dependent= s->dependent;
-    }
+    // Illegal cross-references found
+    table_count= 0;
+    my_message(ER_WRONG_OUTER_JOIN, ER_THD(thd, ER_WRONG_OUTER_JOIN), MYF(0));
+    goto error;
   }
 
   {
@@ -5820,9 +5794,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
     }
   }
-
-  if (unlikely(thd->trace_started()))
-    trace_table_dependencies(thd, stat, join->table_count);
 
   if (join->conds || outer_join)
   {
@@ -6315,6 +6286,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->const_tables=const_count;
   join->found_const_table_map=found_const_table_map;
 
+  if (join->select_lex->opt_hints_qb)
+    join->select_lex->opt_hints_qb->apply_join_order_hints(join);
+  join->update_key_dependencies();
+
+  if (unlikely(thd->trace_started()))
+    trace_table_dependencies(thd, join->join_tab, join->table_count);
+
+  if (sj_nests)
+    join->select_lex->update_available_semijoin_strategies(thd);
+
   if (join->const_tables != join->table_count)
     optimize_keyuse(join, keyuse_array);
    
@@ -6402,6 +6383,102 @@ error:
       tmp_table->table->reginfo.join_tab= NULL;
   }
   DBUG_RETURN (1);
+}
+
+
+/*
+  Propagate dependencies between tables.
+
+  @returns false if success, true if error
+
+   Build transitive closure for relation 'to be dependent on'.
+   This will speed up the plan search for many cases with outer joins,
+   as well as allow us to catch illegal cross references/
+   Warshall's algorithm is used to build the transitive closure.
+   As we use bitmaps to represent the relation the complexity
+   of the algorithm is O((number of tables)^2).
+
+   The classic form of the Warshall's algorithm would look like:
+   for (i= 0; i < table_count; i++)
+   {
+     for (j= 0; j < table_count; j++)
+     {
+       for (k= 0; k < table_count; k++)
+       {
+         if (bitmap_is_set(stat[j].dependent, i) &&
+             bitmap_is_set(stat[i].dependent, k))
+           bitmap_set_bit(stat[j].dependent, k);
+       }
+     }
+   }
+*/
+
+bool JOIN::propagate_dependencies(JOIN_TAB *stat)
+{
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
+  {
+    TABLE *table= s->table;
+    if (outer_join & s->table->map)
+      s->table->maybe_null= 1;
+
+    if (!table->reginfo.join_tab->dependent)
+      continue;
+    // Add my dependencies to other tables depending on me
+    for (JOIN_TAB *t= stat; t < stat + table_count; t++)
+    {
+      if (t->dependent & table->map)
+        t->dependent |= table->reginfo.join_tab->dependent;
+    }
+  }
+  // Catch illegal cross references
+  for (JOIN_TAB *s= stat; s < stat + table_count; s++)
+  {
+    if (s->dependent & s->table->map)
+      return true;
+  }
+  return false;
+}
+
+
+void JOIN::update_key_dependencies()
+{
+  for (JOIN_TAB *tab= join_tab; tab < join_tab + table_count; tab++)
+    tab->key_dependent |= tab->dependent;
+}
+
+
+/*
+  Export dependencies of the JOIN tables to a newly allocated array of bitmaps
+  (table_map's).
+  This array may be used to restore the original dependencies
+  (see restore_table_dependencies())
+*/
+
+table_map *JOIN::export_table_dependencies() const
+{
+  table_map *orig_dep_array=
+      (table_map *)thd->alloc(sizeof(table_map) * table_count);
+
+  if (orig_dep_array == nullptr)
+    return nullptr;
+
+  for (uint i= 0; i < table_count; i++)
+    orig_dep_array[i]= join_tab[i].dependent;
+
+  return orig_dep_array;
+}
+
+
+/*
+  Restore dependencies of the JOIN tables from a previously exported array
+  of bitmaps (table_map's) (see export_table_dependencies()).
+  This function overwrites the existing dependencies with those from the array.
+*/
+
+void JOIN::restore_table_dependencies(table_map *orig_dep_array)
+{
+  for (uint i = 0; i < table_count; i++)
+    join_tab[i].dependent= orig_dep_array[i];
 }
 
 
@@ -6661,7 +6738,7 @@ add_key_field(JOIN *join,
 {
   uint optimize= 0;  
   if (eq_func &&
-      ((join->is_allowed_hash_join_access() &&
+      ((join->is_allowed_hash_join_access(field->table) &&
         field->hash_join_is_possible() && 
         !(field->table->pos_in_table_list->is_materialized_derived() &&
           field->table->is_created())) ||
@@ -9427,8 +9504,7 @@ best_access_path(JOIN      *join,
     (2) s is inner table of outer join -> join cache is allowed for outer joins
   */  
   if (idx > join->const_tables && best.key == 0 &&
-      (join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
-      join->max_allowed_join_cache_level > 2 &&
+      join->is_allowed_hash_join_access(table) &&
      !bitmap_is_clear_all(eq_join_set) &&  !disable_jbuf &&
       (!s->emb_sj_nest ||                     
        join->allowed_semijoin_with_cache) &&    // (1)
@@ -11467,15 +11543,19 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
   JOIN_TAB *s;
   table_map found_tables= 0;
   bool found_eq_ref= 0;
-  bool disable_jbuf= join->thd->variables.join_cache_level == 0;
   DBUG_ENTER("get_plans_for_tables");
 
+  table_map remaining_allowed_tables=
+       (join->emb_sjm_nest ?
+                    (join->emb_sjm_nest->sj_inner_tables &
+                     ~join->const_table_map & remaining_tables):
+                    remaining_tables);
   s= *pos;
   do
   {
     table_map real_table_bit= s->table->map;
     if ((*allowed_tables & real_table_bit) &&
-        !(remaining_tables & s->dependent))
+        !(remaining_allowed_tables & s->dependent))
     {
 #ifdef DBUG_ASSERT_EXISTS
       DBUG_ASSERT(!check_interleaving_with_nj(s));
@@ -11484,6 +11564,11 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
       sort_end->join_tab= pos;
       sort_end->position= sort_position;
 
+      bool hint_forces_jbuf=
+        hint_table_state(join->thd, s->table, BNL_HINT_ENUM, false);
+
+      bool disable_jbuf=
+        (join->thd->variables.join_cache_level == 0) && !hint_forces_jbuf;
 
       Json_writer_object wrapper(thd);
       /* Find the best access method from 's' to the current partial plan */
@@ -14470,11 +14555,17 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           add_cond_and_fix(thd, &tmp, tab->select_cond);
       }
 
+      uint max_jcl= join->max_allowed_join_cache_level;
+      bool is_hash_allowed= join->allowed_join_cache_types &
+                            JOIN_CACHE_HASHED_BIT;
+      bool is_bnlh_enabled= ((max_jcl == 3 || max_jcl == 4) &&
+                              is_hash_allowed) ||
+          hint_table_state(thd, tab->table, BNL_HINT_ENUM, false);
+      bool is_bkah_enabled= (max_jcl > 4 && is_hash_allowed) ||
+          hint_table_state(thd, tab->table, BKA_HINT_ENUM, false);
       is_hj= (tab->type == JT_REF || tab->type == JT_EQ_REF) &&
-             (join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
-	     ((join->max_allowed_join_cache_level+1)/2 == 2 ||
-              ((join->max_allowed_join_cache_level+1)/2 > 2 &&
-	       is_hash_join_key_no(tab->ref.key))) &&
+             (is_bnlh_enabled ||
+               (is_bkah_enabled && is_hash_join_key_no(tab->ref.key))) &&
               (!tab->emb_sj_nest ||                     
                join->allowed_semijoin_with_cache) && 
               (!(tab->table->map & join->outer_join) ||
@@ -15548,11 +15639,13 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
           join_cache_hashed, join_cache_bka,
         are set on or off
       - the join cache level set for the query
-      - the join 'options'.
+      - the join 'options'
+      - combination of optimizer hints (see section "Optimizer hints" below).
 
     In any case join buffer is not used if the number of the joined table is
-    greater than 'no_jbuf_after'. It's also never used if the value of
-    join_cache_level is equal to 0.
+    greater than 'no_jbuf_after'. It's also not used if the value of
+    join_cache_level is equal to 0 and BNL() hint is not specified for
+    the table (see section below).
     If the optimizer switch outer_join_with_cache is off no join buffer is
     used for outer join operations.
     If the optimizer switch semijoin_with_cache is off no join buffer is used
@@ -15562,10 +15655,12 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     If the optimizer switch join_cache_hashed is off then the optimizer uses
     neither BNLH algorithm, nor BKAH algorithm to perform join operations.
 
-    If the optimizer switch join_cache_bka is off then the optimizer uses
-    neither BKA algorithm, nor BKAH algorithm to perform join operation.
+    If the optimizer switch join_cache_bka is off and BKA() hint is
+    not specified then, the optimizer uses neither BKA algorithm,
+    nor BKAH algorithm to perform join operation.
     The valid settings for join_cache_level lay in the interval 0..8.
-    If it set to 0 no join buffers are used to perform join operations.
+    If it set to 0 and BNL() hint is not specified, no join buffers are used
+    to perform join operations.
     Currently we differentiate between join caches of 8 levels:
       1 : non-incremental join cache used for BNL join algorithm
       2 : incremental join cache used for BNL join algorithm
@@ -15583,14 +15678,18 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     the following rules are applied.
     If join_cache_level==1|2 then join buffer is used for inner joins, outer
     joins and semi-joins with 'JT_ALL' access method. In this case a
-    JOIN_CACHE_BNL object is employed.
+    JOIN_CACHE_BNL object is employed (unless NO_BNL() hint is specified
+    for the table).
     If join_cache_level==3|4 and then join buffer is used for a join operation
     (inner join, outer join, semi-join) with 'JT_REF'/'JT_EQREF' access method
-    then a JOIN_CACHE_BNLH object is employed. 
+    then a JOIN_CACHE_BNLH object is employed (unless NO_BNL() hint
+    is specified).
     If an index is used to access rows of the joined table and the value of
-    join_cache_level==5|6 then a JOIN_CACHE_BKA object is employed. 
+    join_cache_level==5|6 then a JOIN_CACHE_BKA object is employed (unless
+    NO_BKA() hint is specified).
     If an index is used to access rows of the joined table and the value of
-    join_cache_level==7|8 then a JOIN_CACHE_BKAH object is employed. 
+    join_cache_level==7|8 then a JOIN_CACHE_BKAH object is employed (unless
+    NO_BKA() hint is specified).
     If the value of join_cache_level is odd then creation of a non-linked 
     join cache is forced.
 
@@ -15618,6 +15717,27 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     The functions changes the value the fields tab->icp_other_tables_ok and
     tab->idx_cond_fact_out to FALSE if the chosen join cache algorithm 
     requires it.
+
+  OPTIMIZER_HINTS
+    The following hints may influence the choice of join buffering:
+    BNL(t1,t2,..):    enables BNL and BNLH buffers for the specified tables
+                      when join_cache_level < 4. It effectively increases
+                      join_cache_level to 4 for given tables.
+    NO_BNL(t1,t2,..): disables BNL/BNLH join buffers, which could have been
+                      chosen for the specified tables otherwise. Does not
+                      prevent employing of BKA/BKAH buffers
+    BKA(t1,t2,..):    enables BKA and BKAH buffers for the specified tables
+                      when join_cache_level < 5 and/or
+                      optimizer switch join_cache_bka=off.
+    NO_BKA(t1,t2,..): disables BKA/BKAH join buffers, which could have been
+                      chosen for the specified tables otherwise. However,
+                      does not prevent employing of BNL/BNLH buffers.
+
+    Optimizer hints do not break the rules of join buffer application, such as
+    a chain of linked buffers or applying buffers to an outer join tables like
+    in the case described in Notes below.
+    If a hint cannot be applied it is either ignored or other tables' join
+    buffering choices are revised to ensure the consistency of buffers chains.
  
   NOTES
     An inner table of a nested outer join or a nested semi-join can be currently
@@ -15677,20 +15797,51 @@ uint check_join_cache_usage(JOIN_TAB *tab,
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT);
-  bool no_bka_cache= 
-         !(join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
-
+  bool hint_disables_bnl= !hint_table_state(join->thd, tab->tab_list->table,
+                                            BNL_HINT_ENUM, true);
+  bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
+          BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
+  bool hint_forces_bnl= hint_table_state(join->thd, tab->tab_list->table,
+                                         BNL_HINT_ENUM, false);
+  bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
+                                         BKA_HINT_ENUM, false);
   join->return_tab= 0;
 
-  if (tab->no_forced_join_cache)
+  if (tab->no_forced_join_cache || (hint_disables_bnl && no_bka_cache))
     goto no_join_cache;
+
+  // Hints BNL() and BKA() cannot be both specified for a single table
+  DBUG_ASSERT(!(hint_forces_bnl && hint_forces_bka));
+
+  if (cache_level < 4 && hint_forces_bnl)
+  {
+    // BNL() hint present, raise join_cache_level to BNLH-incremental
+    cache_level= 4;
+  }
+  else if (hint_forces_bka && !(cache_level >= 5 && cache_level <= 8))
+  {
+    /*
+      BKA() hint present. If join_cache_level is already set to BKA or BKAH,
+      just ignore the hint. For other join_cache_levels raise the level to
+      maximum possible (BKAH incremental) as there is no such granularity
+      in hints as there is in join cache levels
+    */
+    cache_level= 8;
+  }
 
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
   */
   if (cache_level == 0 || !prev_tab)
-    return 0;
+  {
+    /*
+      We could have cache_level==0 but join cache was forced for some previous
+      table (PT) with a hint. Proceed to cancel join cache for PT if it is not
+      allowed to use join cache for PT without using it for this table.
+    */
+    goto no_join_cache;
+  }
 
   if (force_unlinked_cache && (cache_level%2 == 0))
     cache_level--;
@@ -15769,6 +15920,12 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->loosescan_match_tab || tab->bush_children)
     goto no_join_cache;
 
+  /*
+    An inner table of an outer join nest must not use join buffering if
+    the first inner table of that outer join nest does not use join buffering
+    or if the tables in the embedding outer join nest do not use join buffering.
+    Also see revise_cache_usage()
+  */
   for (JOIN_TAB *first_inner= tab->first_inner; first_inner;
        first_inner= first_inner->first_upper)
   {
@@ -15806,6 +15963,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_NEXT:
   case JT_ALL:
   case JT_RANGE:
+    if (hint_disables_bnl)
+      goto no_join_cache;
     if (cache_level == 1)
       prev_cache= 0;
     if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
@@ -15823,6 +15982,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_EQ_REF:
     if (cache_level <=2 || (no_hashed_cache && no_bka_cache))
       goto no_join_cache;
+
     if (tab->ref.is_access_triggered())
       goto no_join_cache;
 
@@ -15840,8 +16000,12 @@ uint check_join_cache_usage(JOIN_TAB *tab,
 
     if ((cache_level <=4 && !no_hashed_cache) || no_bka_cache ||
         tab->is_ref_for_hash_join() ||
-	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
+        ((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6) ||
+        (hint_forces_bnl && !no_hashed_cache))
     {
+      // Only BNLH cache is applicable for the conditions given
+      if (hint_disables_bnl)
+        goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
           tab->make_scan_filter())
         goto no_join_cache;
@@ -15854,11 +16018,13 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       }
       goto no_join_cache;
     }
+
+    // Check and apply BKA/BKAH cache if possible
     if (cache_level < 5 || no_bka_cache)
       goto no_join_cache;
-    
+
     if ((flags & HA_MRR_NO_ASSOCIATION) &&
-	(cache_level <= 6 || no_hashed_cache))
+       (cache_level <= 6 || no_hashed_cache))
       goto no_join_cache;
 
     if ((rows != HA_POS_ERROR) && !(flags & HA_MRR_USE_DEFAULT_IMPL))
@@ -32100,6 +32266,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
+  if (sel_type == SELECT_CMD ||
+      sel_type == INSERT_CMD ||
+      sel_type == REPLACE_CMD)
+    print_hints(thd, str);
+
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)
     str->append(STRING_WITH_LEN("straight_join "));
@@ -32153,7 +32324,10 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
                  query_type);
     }
     if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
+    {
       str->append(get_explainable_cmd_name(sel_type));
+      print_hints(thd, str);
+    }
     if (sel_type == DELETE_CMD)
     {
       str->append(STRING_WITH_LEN(" from "));
@@ -32279,6 +32453,36 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 }
 
 
+void st_select_lex::print_hints(THD *thd,
+                                String *str)
+{
+  if (!thd->lex->opt_hints_global)
+    return;
+
+  constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
+  str->append(header);
+  uint32 len_before_hints= str->length();
+  if (select_number == 1)
+  {
+    if (opt_hints_qb)
+      opt_hints_qb->append_qb_hint(thd, str);
+    thd->lex->opt_hints_global->print(thd, str);
+  }
+  else if (opt_hints_qb)
+    opt_hints_qb->append_qb_hint(thd, str);
+
+  if (str->length() > len_before_hints)
+  {
+    // Some hints were printed, close the hint string
+    str->append(STRING_WITH_LEN("*/ "));
+  }
+  else
+  {
+    // No hints were added, rollback the previouly added header
+    str->length(len_before_hints - header.length);
+  }
+}
+
 /**
   Change the select_result object of the JOIN.
 
@@ -32342,6 +32546,22 @@ void JOIN::set_allowed_join_cache_types()
   max_allowed_join_cache_level= thd->variables.join_cache_level;
 }
 
+bool JOIN::is_allowed_hash_join_access(const TABLE *table)
+{
+  /*
+    If both NO_BNL() and NO_BKA() hints are specified then
+    hash join is not allowed
+  */
+  if (!hint_table_state(thd, table, BNL_HINT_ENUM, true) &&
+      !hint_table_state(thd, table, BKA_HINT_ENUM, true))
+  {
+    return false;
+  }
+  return allowed_join_cache_types & JOIN_CACHE_HASHED_BIT &&
+         (max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT ||
+           hint_table_state(thd, table, BNL_HINT_ENUM, false) ||
+           hint_table_state(thd, table, BKA_HINT_ENUM, false));
+}
 
 /**
   Save a query execution plan so that the caller can revert to it if needed,

@@ -65,6 +65,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "opt_hints.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -8266,6 +8267,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
                                    0);
   SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
+  Opt_hints_qb *qb_hints= select_lex->opt_hints_qb;
   if (select_lex->first_cond_optimization)
   {
     leaves.empty();
@@ -8282,18 +8284,23 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         leaves.push_back(table_list, thd->mem_root);
     }
 
-    bool is_insert_tables_num_set= false;
+    /*
+      This variable is only used for INSERT..SELECT's:
+        true:  processing the INSERT part of an INSERT..SELECT
+        false: processing the SELECT part of it
+    */
+    bool is_insert_part= true;
     while ((table_list= ti++))
     {
       TABLE *table= table_list->table;
       if (table && !table->pos_in_table_list)
         table->pos_in_table_list= table_list;
-      if (select_insert && !is_insert_tables_num_set &&
+      if (select_insert && is_insert_part &&
           table_list->top_table() == first_select_table)
       {
         /* new counting for SELECT of INSERT ... SELECT command */
         thd->lex->first_select_lex()->insert_tables= tablenr;
-        is_insert_tables_num_set= true;
+        is_insert_part= false;
         tablenr= 0;
       }
       if(table_list->jtbm_subselect)
@@ -8317,8 +8324,23 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
         DBUG_RETURN(1);
       }
+
+      /*
+        Conditions to meet for optimizer hints resolution:
+        (1)  QB hints initialized
+        (2)  Table hints are not adjusted yet
+        (3)  Table is not in the INSERT part of INSERT..SELECT
+      */
+      if (qb_hints &&                          // (1)
+          !table_list->opt_hints_table &&      // (2)
+          !(select_insert && is_insert_part))  // (3)
+      {
+        table_list->opt_hints_table=
+            qb_hints->fix_hints_for_table(table_list->table,
+                                          table_list->alias);
+      }
     }
-    if (select_insert && !is_insert_tables_num_set)
+    if (select_insert && is_insert_part)
     {
       /*
         This happens for statements like `INSERT INTO t1 SELECT 1`,

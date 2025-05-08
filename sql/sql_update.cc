@@ -1672,7 +1672,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 
   if (setup_tables_and_check_access(thd, &select_lex->context,
       &select_lex->top_join_list, table_list, select_lex->leaf_tables,
-      FALSE, UPDATE_ACL, SELECT_ACL, TRUE))
+      false, UPDATE_ACL, SELECT_ACL, true))
     DBUG_RETURN(1);
 
   if (table_list->has_period() &&

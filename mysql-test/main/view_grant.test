@@ -848,7 +848,7 @@ INSERT INTO t1 VALUES (1), (2), (3);
 CREATE DEFINER = 'no-such-user'@localhost VIEW v AS SELECT a from t1;
 #--warning ER_VIEW_OTHER_USER
 SHOW CREATE VIEW v;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 SELECT * FROM v;
 DROP VIEW v;
 DROP TABLE t1;
@@ -1013,13 +1013,13 @@ connection inv2;
 SHOW GRANTS;
 SELECT CURRENT_USER, SYSTEM_USER(), USER();
 --echo for a user with SET USER
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 SELECT * FROM v1;
 disconnect inv2;
 
 connection root;
 --echo for a superuser
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 SELECT * FROM v1;
 DROP USER inv_17254@localhost;
 DROP DATABASE db17254;
@@ -1937,7 +1937,7 @@ DROP VIEW IF EXISTS v1;
 --enable_warnings
 
 CREATE DEFINER=`unknown`@`unknown` SQL SECURITY DEFINER VIEW v1 AS SELECT 1;
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 LOCK TABLES v1 READ;
 DROP VIEW v1;
 

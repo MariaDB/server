@@ -163,6 +163,9 @@ connect foo,localhost,root;
 -- redirect_url: 
 -- time_zone: SYSTEM
 
+-- Tracker : SESSION_TRACK_SCHEMA
+-- 
+
 connection default;
 disconnect foo;
 # End of tests 11.5

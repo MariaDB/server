@@ -85,21 +85,26 @@ public:
 struct Lex_ident_cli_st: public Lex_string_with_metadata_st
 {
 public:
-  void set_keyword(const char *s, size_t len)
+  Lex_ident_cli_st & set_keyword(const char *s, size_t len)
   {
     set(s, len, false, '\0');
+    return *this;
   }
-  void set_ident(const char *s, size_t len, bool is_8bit)
+  Lex_ident_cli_st & set_ident(const char *s, size_t len, bool is_8bit)
   {
     set(s, len, is_8bit, '\0');
+    return *this;
   }
-  void set_ident_quoted(const char *s, size_t len, bool is_8bit, char quote)
+  Lex_ident_cli_st & set_ident_quoted(const char *s, size_t len,
+                                      bool is_8bit, char quote)
   {
     set(s, len, is_8bit, quote);
+    return *this;
   }
-  void set_unquoted(const LEX_CSTRING *s, bool is_8bit)
+  Lex_ident_cli_st & set_unquoted(const LEX_CSTRING *s, bool is_8bit)
   {
     set(s, is_8bit, '\0');
+    return *this;
   }
   const char *pos() const { return str - is_quoted(); }
   const char *end() const { return str + length + is_quoted(); }

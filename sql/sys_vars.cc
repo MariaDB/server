@@ -3043,7 +3043,8 @@ export const char *optimizer_switch_names[]=
   "index_merge_intersection","index_merge_sort_intersection",
   "index_condition_pushdown",
   "derived_merge", "derived_with_keys",
-  "firstmatch","loosescan","materialization","in_to_exists","semijoin",
+  "firstmatch","loosescan","duplicateweedout","materialization",
+  "in_to_exists","semijoin",
   "partial_match_rowid_merge",
   "partial_match_table_scan",
   "subquery_cache",
@@ -4511,7 +4512,7 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0), "TRANSACTION ISOLATION");
     return TRUE;
   }
   return FALSE;
@@ -4542,7 +4543,9 @@ static bool check_tx_read_only(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    my_error(ER_CANT_SET_IN_TRANSACTION, MYF(0),
+             var->save_result.ulonglong_value ? "TRANSACTION READ ONLY"
+             : "TRANSACTION READ WRITE");
     return true;
   }
   return false;
@@ -6515,6 +6518,7 @@ static const char *wsrep_mode_names[]=
   "REPLICATE_ARIA",
   "DISALLOW_LOCAL_GTID",
   "BF_ABORT_MARIABACKUP",
+  "APPLIER_SKIP_FK_CHECKS_IN_IST",
   NullS
 };
 static Sys_var_set Sys_wsrep_mode(

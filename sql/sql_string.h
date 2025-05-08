@@ -1015,7 +1015,6 @@ public:
   {
     return Binary_string::append(s);
   }
-
   inline bool append(char chr)
   {
     return Binary_string::append_char(chr);

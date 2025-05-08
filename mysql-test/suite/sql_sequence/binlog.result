@@ -23,7 +23,7 @@ Table	Op	Msg_type	Msg_text
 test.s1	repair	status	OK
 check table s1;
 Table	Op	Msg_type	Msg_text
-test.s1	check	note	The storage engine for the table doesn't support check
+test.s1	check	status	OK
 rename table s1 to tmp_s;
 rename table tmp_s to s1;
 drop sequence s1;

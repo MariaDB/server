@@ -49,7 +49,7 @@ ERROR HY000: Operation DROP USER failed for 'r1'@'%'
 drop role r1;
 create role r1 with admin u1;
 Warnings:
-Note	1449	The user specified as a definer ('u1'@'%') does not exist
+Note	1446	The user specified as a definer ('u1'@'%') does not exist
 create user foo@bar;
 drop user foo@bar;
 drop role r1;

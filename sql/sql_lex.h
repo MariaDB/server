@@ -48,6 +48,17 @@ typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
 /* YACC and LEX Definitions */
 
 
+struct Lex_comment_st: public LEX_CSTRING
+{
+  uint lineno;
+  void init()
+  {
+    LEX_CSTRING::operator=({nullptr, 0});
+    lineno= 0;
+  }
+};
+
+
 struct Lex_column_list_privilege_st
 {
   List<Lex_ident_sys> *m_columns;
@@ -167,6 +178,9 @@ class With_clause;
 class my_var;
 class select_handler;
 class Pushdown_select;
+class Opt_hints_global;
+class Opt_hints_qb;
+class Optimizer_hint_parser_output;
 
 #define ALLOC_ROOT_SET 1024
 
@@ -1246,6 +1260,15 @@ public:
   */
   table_map select_list_tables;
 
+  /*
+    Parse tree of optimizer hints that were specified in this SELECT. Note
+    that hints specified in one select can prescribe how to execute another.
+  */
+  const Optimizer_hint_parser_output *parsed_optimizer_hints;
+
+  /* Optimizer hints that prescribe how to execute this SELECT */
+  Opt_hints_qb *opt_hints_qb;
+
   /* Set to 1 if any field in field list has ROWNUM() */
   bool rownum_in_field_list;
 
@@ -1255,8 +1278,8 @@ public:
   index_clause_map current_index_hint_clause;
 
   /* it is for correct printing SELECT options */
-  thr_lock_type lock_type;
-  
+  thr_lock_type lock_type;  
+
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);
   /* push new Item_field into item_list */
@@ -1372,6 +1395,7 @@ public:
   uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_lock_type(String *str);
+  void print_hints(THD *thd, String *hint_str);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
   void print_set_clause(THD *thd, String *str, enum_query_type query_type);
   void print_on_duplicate_key_clause(THD *thd, String *str,
@@ -1553,6 +1577,13 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+  void set_optimizer_hints(Optimizer_hint_parser_output *hl)
+  { 
+    parsed_optimizer_hints= hl;
+  }
+  uint subquery_strategies_allowed(THD *thd) const;
+  bool semijoin_enabled(THD *thd) const;
+  void update_available_semijoin_strategies(THD *thd);
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -2824,6 +2855,11 @@ public:
   */
   bool multi_statements:1;
 
+  /**
+    TRUE if hint comments should be returned as a token.
+  */
+  bool hint_comment:1;
+
   /** Current line number. */
   uint yylineno;
 
@@ -3182,6 +3218,9 @@ public:
   LEX_USER *grant_user;
   XID *xid;
   THD *thd;
+  
+  /* Optimizer hints */
+  Opt_hints_global *opt_hints_global;
 
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
@@ -3716,6 +3755,10 @@ public:
 
     DBUG_RETURN(select_lex);
   }
+
+  void resolve_optimizer_hints_in_last_select();
+
+  bool discard_optimizer_hints_in_last_select();
 
   SELECT_LEX *current_select_or_default()
   {
@@ -4959,6 +5002,9 @@ public:
   {
     return nullptr;
   }
+
+  std::pair<bool, Optimizer_hint_parser_output *>
+    parse_optimizer_hints(const Lex_comment_st &hint);
 };
 
 

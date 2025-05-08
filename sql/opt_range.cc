@@ -116,6 +116,7 @@
 #include "sql_statistics.h"
 #include "uniques.h"
 #include "my_json_writer.h"
+#include "opt_hints.h"
 
 #ifndef EXTRA_DEBUG
 #define test_rb_tree(A,B) {}
@@ -2852,6 +2853,13 @@ SQL_SELECT::test_quick_select(THD *thd,
           trace_idx_details.
             add("usable", false).
             add("cause", "not applicable");
+        continue;
+      }
+      if (hint_key_state(thd, head, idx, NO_RANGE_HINT_ENUM, 0))
+      {
+        trace_idx_details.
+            add("usable", false).
+            add("cause", "no_range_optimization hint");
         continue;
       }
       if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)

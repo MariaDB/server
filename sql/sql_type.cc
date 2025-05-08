@@ -232,8 +232,13 @@ public:
                                                const Type_handler *b)
                                                const override
   {
-    DBUG_ASSERT(a == &type_handler_row);
-    DBUG_ASSERT(b == &type_handler_row);
+    /*
+      Allowed combinations:
+        ROW+ROW, NULL+ROW, ROW+NULL
+    */
+    DBUG_ASSERT(a == &type_handler_row || a == &type_handler_null);
+    DBUG_ASSERT(b == &type_handler_row || b == &type_handler_null);
+    DBUG_ASSERT(a == &type_handler_row || b == &type_handler_row);
     return &type_handler_row;
   }
   const Type_handler *aggregate_for_min_max(const Type_handler *a,
@@ -1893,19 +1898,16 @@ aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
                      bool treat_bit_as_number)
 {
   bool bit_and_non_bit_mixture_found= false;
-  uint32 max_display_length;
-  if (!nitems || items[0]->result_type() == ROW_RESULT)
+  if (!nitems)
   {
     DBUG_ASSERT(0);
     set_handler(&type_handler_null);
     return true;
   }
   set_handler(items[0]->type_handler());
-  max_display_length= items[0]->max_display_length();
   for (uint i= 1 ; i < nitems ; i++)
   {
     const Type_handler *cur= items[i]->type_handler();
-    set_if_bigger(max_display_length, items[i]->max_display_length());
     uint bit_count= (type_handler() == &type_handler_bit) +
                     (cur == &type_handler_bit);
     uint null_count= (type_handler() == &type_handler_null) +
@@ -1926,7 +1928,12 @@ aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
     }
   }
   if (bit_and_non_bit_mixture_found && type_handler() == &type_handler_slonglong)
+  {
+    uint32 max_display_length= items[0]->max_display_length();
+    for (uint i= 1; i < nitems ; i++)
+      set_if_bigger(max_display_length, items[i]->max_display_length());
     set_handler(Type_handler::bit_and_int_mixture_handler(max_display_length));
+  }
   return false;
 }
 
@@ -4897,6 +4904,20 @@ bool Type_handler_timestamp_common::
 {
   func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
   return false;
+}
+
+
+bool Type_handler_row::
+       Item_hybrid_func_fix_attributes(THD *thd,
+                                       const LEX_CSTRING &opname,
+                                       Type_handler_hybrid_field_type *,
+                                       Type_all_attributes *atrr,
+                                       Item **items, uint nitems)
+                                       const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           name().ptr(), opname.str);
+  return true;
 }
 
 /*************************************************************************/

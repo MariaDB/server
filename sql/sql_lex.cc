@@ -38,6 +38,7 @@
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 #include "event_parse_data.h"
+#include "opt_hints.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
@@ -855,6 +856,7 @@ Lex_input_stream::reset(char *buffer, size_t length)
   found_semicolon= NULL;
   ignore_space= MY_TEST(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
   stmt_prepare_mode= FALSE;
+  hint_comment= FALSE;
   multi_statements= TRUE;
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
@@ -1337,6 +1339,7 @@ void LEX::start(THD *thd_arg)
 
   table_count_update= 0;
   needs_reprepare= false;
+  opt_hints_global= 0;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
   DBUG_VOID_RETURN;
@@ -2493,10 +2496,21 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       else
       {
         in_comment= PRESERVE_COMMENT;
+        yylval->lex_comment.lineno= yylineno;
+        yylval->lex_comment.str= m_ptr;
         yySkip();                  // Accept /
         yySkip();                  // Accept *
-        comment_closed= ! consume_comment(0);
         /* regular comments can have zero comments inside. */
+        if ((comment_closed= ! consume_comment(0)) && hint_comment)
+        {
+          if (yylval->lex_comment.str[2] == '+')
+          {
+            next_state= MY_LEX_START;
+            yylval->lex_comment.length= m_ptr - yylval->lex_comment.str;
+            restore_in_comment_state();
+            return HINT_COMMENT;
+          }
+        }
       }
       /*
         Discard:
@@ -3097,6 +3111,8 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+  opt_hints_qb= 0;
+  parsed_optimizer_hints= 0;
 }
 
 void st_select_lex::init_select()
@@ -3150,6 +3166,8 @@ void st_select_lex::init_select()
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
   item_list_usage= MARK_COLUMNS_READ;
+  opt_hints_qb= 0;
+  parsed_optimizer_hints= 0;
 }
 
 /*
@@ -4073,9 +4091,9 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
-    default_used(0),
+  : explain(NULL), result(0), opt_hints_global(NULL), part_info(NULL),
+    arena_for_set_stmt(0), mem_root_for_set_stmt(0), json_table(NULL),
+    analyze_stmt(0), default_used(0),
     with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
     limit_rows_examined_cnt(ULONGLONG_MAX)
@@ -5965,6 +5983,84 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   }
   return all_merged;
 }
+
+/**
+  Returns which subquery execution strategies can be used for this query block.
+
+  @param thd  Pointer to THD object for session.
+              Used to access optimizer_switch
+
+  @retval SUBS_MATERIALIZATION  Subquery Materialization should be used
+  @retval SUBS_IN_TO_EXISTS     In-to-exists execution should be used
+  @retval SUBS_MATERIALIZATION | SUBS_IN_TO_EXISTS  A cost-based decision
+                                                    should be made
+*/
+uint st_select_lex::subquery_strategies_allowed(THD *thd) const
+{
+  if (opt_hints_qb && opt_hints_qb->subquery_strategy != SUBS_NOT_TRANSFORMED)
+    return opt_hints_qb->subquery_strategy;
+
+  // No SUBQUERY hint given, base possible strategies on optimizer_switch
+  uint strategy = SUBS_NOT_TRANSFORMED;
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
+    strategy |= SUBS_MATERIALIZATION;
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS))
+    strategy |= SUBS_IN_TO_EXISTS;
+  return strategy;
+}
+
+/**
+  Returns whether semi-join is enabled for this query block
+
+  @see @c Opt_hints_qb::semijoin_enabled for details on how hints
+  affect this decision.  If there are no hints for this query block,
+  optimizer_switch setting determines whether semi-join is used.
+
+  @param thd  Pointer to THD object for session.
+              Used to access optimizer_switch
+
+  @return true if semijoin is enabled,
+          false otherwise
+*/
+bool st_select_lex::semijoin_enabled(THD *thd) const
+{
+  return opt_hints_qb ?
+    opt_hints_qb->semijoin_enabled(thd) :
+    optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN);
+}
+
+/**
+  Update available semijoin strategies for semijoin nests.
+
+  Available semijoin strategies needs to be updated on every execution since
+  optimizer_switch setting may have changed.
+
+  @param thd  Pointer to THD object for session.
+              Used to access optimizer_switch
+*/
+void st_select_lex::update_available_semijoin_strategies(THD *thd)
+{
+  uint sj_strategy_mask= OPTIMIZER_SWITCH_FIRSTMATCH |
+    OPTIMIZER_SWITCH_LOOSE_SCAN | OPTIMIZER_SWITCH_MATERIALIZATION |
+    OPTIMIZER_SWITCH_DUPSWEEDOUT;
+
+  uint opt_switches= thd->variables.optimizer_switch & sj_strategy_mask;
+
+  List_iterator<TABLE_LIST> sj_list_it(sj_nests);
+  TABLE_LIST *sj_nest;
+  while ((sj_nest= sj_list_it++))
+  {
+    /*
+      After semi-join transformation, original SELECT_LEX with hints is lost.
+      Fetch hints from first table in semijoin nest.
+    */
+    List_iterator<TABLE_LIST> table_list(sj_nest->nested_join->join_list);
+    TABLE_LIST *table= table_list++;
+    sj_nest->nested_join->sj_enabled_strategies= table->opt_hints_qb ?
+      table->opt_hints_qb->sj_enabled_strategies(opt_switches) : opt_switches;
+  }
+}
+
 
 /* 
   This is used by SHOW EXPLAIN|ANALYZE. It assumes query plan has been already
@@ -11089,9 +11185,17 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
+  if (discard_optimizer_hints_in_last_select())
+  {
+    // Hints were specified at the INSERT part of an INSERT..SELECT
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT,
+                 ER_THD(thd, ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT));
+  }
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
+
   return false;
 }
 
@@ -12829,4 +12933,96 @@ bool SELECT_LEX_UNIT::is_derived_eliminated() const
   if (!derived->table)
     return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
+}
+
+
+/*
+  Parse optimizer hints and return as Hint_list allocated on thd->mem_root.
+
+  The caller should check both parts of the return value
+  to know what happened, as follows:
+
+  Retval.first   Retval.second    Meaning
+  ------------   ---------------  -------
+  false          != nullptr       the hints were parsed without errors
+  true           != nullptr       impossible combination
+  false          == nullptr       no hints, empty hints, hint parse error
+  true           == nullptr       fatal error, such as EOM
+*/
+std::pair<bool, Optimizer_hint_parser_output *>
+LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
+{
+  DBUG_ASSERT(!hints_str.str || hints_str.length >= 5);
+  if (!hints_str.str)
+    return {false, nullptr}; // There were no a hint comment
+
+  //  Instantiate the query hint parser.
+  //  Remove the leading '/*+' and trailing '*/'
+  //  when passing hints to the parser.
+  Optimizer_hint_parser p(thd, thd->charset(),
+                          Lex_cstring(hints_str.str + 3, hints_str.length - 5));
+  // Parse hints
+  Optimizer_hint_parser_output hints(&p);
+  DBUG_ASSERT(!p.is_error() || !hints);
+
+  if (p.is_fatal_error())
+  {
+    /*
+      Fatal error (e.g. EOM), have the caller fail.
+      The SQL error should be in DA already.
+    */
+    DBUG_ASSERT(thd->is_error());
+    return {true, nullptr}; // Set the flag of fatal error
+  }
+
+  if (!hints) // Hint parsing failed with a syntax error
+  {
+    p.push_warning_syntax_error(thd, hints_str.lineno);
+    return {false, nullptr}; // Continue and ignore hints.
+  }
+
+  // Hints were not empty and were parsed without errors
+  return {false, new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints))};
+}
+
+
+void LEX::resolve_optimizer_hints_in_last_select()
+{
+  SELECT_LEX *select_lex;
+  if (likely(select_stack_top))
+    select_lex= select_stack[select_stack_top - 1];
+  else
+    select_lex= nullptr;
+  if (select_lex && select_lex->parsed_optimizer_hints)
+  {
+    Parse_context pc(thd, select_lex);
+    select_lex->parsed_optimizer_hints->resolve(&pc);
+  }
+}
+
+/*
+  This method discards previously parsed optimizer hints attached to
+  the last select_lex without their resolving, which may be required
+  in some scenarios (for example, ignoring hints at the INSERT part of a
+  INSERT..SELECT statement).
+
+  Also see resolve_optimizer_hints_in_last_select().
+
+  Return value:
+  - false  optimizer hints were not found
+  - true   optimizer hints were found and discarded
+*/
+bool LEX::discard_optimizer_hints_in_last_select()
+{
+  SELECT_LEX *select_lex;
+  if (likely(select_stack_top))
+    select_lex= select_stack[select_stack_top - 1];
+  else
+    select_lex= nullptr;
+  if (select_lex && select_lex->parsed_optimizer_hints)
+  {
+    select_lex->parsed_optimizer_hints= nullptr;
+    return true;
+  }
+  return false;
 }

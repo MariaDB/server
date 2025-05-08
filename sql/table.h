@@ -84,6 +84,8 @@ class Table_function_json_table;
 class Open_table_context;
 class MYSQL_LOG;
 struct rpl_group_info;
+class Opt_hints_qb;
+class Opt_hints_table;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -2992,6 +2994,11 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
+  /** Table level optimizer hints for this table.  */
+  Opt_hints_table *opt_hints_table;
+  /* Hints for query block of this table. */
+  Opt_hints_qb *opt_hints_qb;
+
   void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
@@ -3440,6 +3447,10 @@ typedef struct st_nested_join
   table_map         sj_corr_tables;
   table_map         direct_children_map;
   List<Item_ptr>    sj_outer_expr_list;
+
+  /// Bitmap of which strategies are enabled for this semi-join nest
+  uint sj_enabled_strategies;
+
   /**
      True if this join nest node is completely covered by the query execution
      plan. This means two things.

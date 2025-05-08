@@ -206,6 +206,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 
   /* structs */
   LEX_CSTRING lex_str;
+  Lex_comment_st lex_comment;
   Lex_ident_cli_st kwd;
   Lex_ident_cli_st ident_cli;
   Lex_ident_sys_st ident_sys;
@@ -278,6 +279,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   TABLE_LIST *table_list;
   Table_ident *table;
   Qualified_column_ident *qualified_column_ident;
+  Optimizer_hint_parser_output *opt_hints;
   char *simple_string;
   const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;
@@ -358,9 +360,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 62
-%else
 %expect 63
+%else
+%expect 64
 %endif
 
 /*
@@ -384,6 +386,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 
 %token <lex_str> '@'
+
+%token HINT_COMMENT
 
 /*
   Special purpose tokens
@@ -764,6 +768,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  AT_SYM                        /* SQL-2003-R */
 %token  <kwd>  ATOMIC_SYM                    /* SQL-2003-R */
 %token  <kwd>  AUTHORS_SYM
+%token  <kwd>  AUTHORIZATION_SYM             /* SQL-2003-R */
 %token  <kwd>  AUTO_INC
 %token  <kwd>  AUTO_SYM
 %token  <kwd>  AVG_ROW_LENGTH
@@ -1319,6 +1324,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left EMPTY_FROM_CLAUSE
 %right INTO
 
+%type <lex_comment>
+        HINT_COMMENT opt_hint_comment
+
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
         HEX_NUM HEX_STRING
@@ -1583,6 +1591,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <expr_lex>
         expr_lex
 
+%type <opt_hints>
+        opt_optimizer_hint
+
 %destructor
 {
   /*
@@ -1702,6 +1713,7 @@ rule:
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role role_name
+                 user_name
 
 %type <user_auth> opt_auth_str auth_expression auth_token
                   text_or_password
@@ -8949,14 +8961,32 @@ table_value_constructor:
 	  }
 	;
 
+opt_hint_comment:
+          /*empty */   { $$.init(); }
+        | HINT_COMMENT { $$= $1; }
+        ;
+
+opt_optimizer_hint:
+          { YYLIP->hint_comment= true; }
+          opt_hint_comment
+          {
+            YYLIP->hint_comment= false;
+            std::pair<bool, Optimizer_hint_parser_output *> parse_res=
+              Lex->parse_optimizer_hints($2);
+            if (!($$= parse_res.second) && parse_res.first)
+              MYSQL_YYABORT;
+          }
+        ;
+
 query_specification_start:
-          SELECT_SYM
+          SELECT_SYM opt_optimizer_hint
           {
             SELECT_LEX *sel;
             LEX *lex= Lex;
             if (!(sel= lex->alloc_select(TRUE)) || lex->push_select(sel))
               MYSQL_YYABORT;
             sel->init_select();
+            sel->set_optimizer_hints($2);
             sel->braces= FALSE;
           }
           select_options
@@ -8977,6 +9007,7 @@ query_specification:
           opt_having_clause
           opt_window_clause
           {
+            Lex->resolve_optimizer_hints_in_last_select();
             $$= Lex->pop_select();
           }
         ;
@@ -8990,6 +9021,7 @@ select_into_query_specification:
           opt_having_clause
           opt_window_clause
           {
+            Lex->resolve_optimizer_hints_in_last_select();
             $$= Lex->pop_select();
           }
         ;
@@ -13560,7 +13592,7 @@ opt_temporary:
 */
 
 insert:
-          INSERT
+          INSERT opt_optimizer_hint
           {
             Lex->sql_command= SQLCOM_INSERT;
             Lex->duplicates= DUP_ERROR;
@@ -13569,18 +13601,20 @@ insert:
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
-            Select->set_lock_for_tables($4, true, false);
+            Lex->first_select_lex()->set_optimizer_hints($2);
+            Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_insert_update opt_returning
-          stmt_end
+          insert_stmt_end
           {
+            Lex->resolve_optimizer_hints_in_last_select();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
           ;
 
 replace:
-          REPLACE
+          REPLACE opt_optimizer_hint
           {
             Lex->sql_command = SQLCOM_REPLACE;
             Lex->duplicates= DUP_REPLACE;
@@ -13589,11 +13623,13 @@ replace:
           }
           insert_start replace_lock_option opt_into insert_table
           {
-            Select->set_lock_for_tables($4, true, false);
+            Lex->first_select_lex()->set_optimizer_hints($2);
+            Select->set_lock_for_tables($5, true, false);
           }
           insert_field_spec opt_returning
-          stmt_end
+          insert_stmt_end
           {
+            Lex->resolve_optimizer_hints_in_last_select();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13609,6 +13645,14 @@ insert_start: {
               ;
 
 stmt_end: {
+              Lex->resolve_optimizer_hints_in_last_select();
+              Lex->pop_select(); //main select
+              if (Lex->check_main_unit_semantics())
+                MYSQL_YYABORT;
+            }
+            ;
+
+insert_stmt_end: {
               Lex->pop_select(); //main select
               if (Lex->check_main_unit_semantics())
                 MYSQL_YYABORT;
@@ -13864,12 +13908,13 @@ update_table_list:
 /* Update rows in a table */
 
 update:
-          UPDATE_SYM
+          UPDATE_SYM opt_optimizer_hint
           {
             LEX *lex= Lex;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
             lex->init_select();
+            Lex->first_select_lex()->set_optimizer_hints($2);
             lex->sql_command= SQLCOM_UPDATE;
             lex->duplicates= DUP_ERROR; 
           }
@@ -13899,12 +13944,12 @@ update:
               be too pessimistic. We will decrease lock level if possible
               later while processing the statement.
             */
-            slex->set_lock_for_tables($3, slex->table_list.elements == 1, false);
+            slex->set_lock_for_tables($4, slex->table_list.elements == 1, false);
           }
           opt_where_clause opt_order_clause delete_limit_clause
           {
-            if ($10)
-              Select->order_list= *($10);
+            if ($11)
+              Select->order_list= *($11);
           } stmt_end {}
         ;
 
@@ -13951,7 +13996,7 @@ opt_low_priority:
 /* Delete rows from a table */
 
 delete:
-          DELETE_SYM
+          DELETE_SYM opt_optimizer_hint
           {
             LEX *lex= Lex;
             YYPS->m_lock_type= TL_WRITE_DEFAULT;
@@ -13961,11 +14006,13 @@ delete:
             mysql_init_delete(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
+            lex->first_select_lex()->set_optimizer_hints($2);
           }
           delete_part2
           {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
+            Lex->resolve_optimizer_hints_in_last_select();
           }
           ;
 
@@ -16078,30 +16125,7 @@ user_maybe_role:
                                                   system_charset_info, 0)))
               MYSQL_YYABORT;
           }
-        | ident_or_text '@' ident_or_text
-          {
-            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
-              MYSQL_YYABORT;
-            $$->user = $1; $$->host=$3;
-
-            if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length,
-                                                 system_charset_info, 0)) ||
-                unlikely(check_host_name(&$$->host)))
-              MYSQL_YYABORT;
-            if ($$->host.str[0])
-            {
-              $$->host= thd->make_ident_casedn($$->host);
-            }
-            else
-            {
-              /*
-                fix historical undocumented convention that empty host is the
-                same as '%'
-              */
-              $$->host= host_not_specified;
-            }
-          }
+        | user_name { $$= $1; }
         | CURRENT_USER optional_braces
           {
             if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
@@ -16110,6 +16134,24 @@ user_maybe_role:
             $$->auth= new (thd->mem_root) USER_AUTH();
           }
         ;
+
+user_name:
+          ident_or_text '@' ident_or_text
+          {
+            if (!($$= thd->calloc<LEX_USER>(1)))
+              MYSQL_YYABORT;
+            $$->user = $1;
+            $$->host=$3;
+
+            if (check_string_char_length(&$$->user, ER_USERNAME,
+                  username_char_length, system_charset_info, 0) ||
+                check_host_name(&$$->host))
+              MYSQL_YYABORT;
+            if ($$->host.str[0])
+              $$->host= thd->make_ident_casedn($$->host);
+            else
+              $$->host= host_not_specified;
+          }
 
 user_or_role: user_maybe_role | current_role;
 
@@ -16332,6 +16374,7 @@ keyword_verb_clause:
 
 keyword_set_special_case:
           NAMES_SYM
+        | AUTHORIZATION_SYM
         | ROLE_SYM
         | PASSWORD_SYM
         ;
@@ -17002,6 +17045,20 @@ set_param:
           transaction_characteristics
           {
             if (unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+              MYSQL_YYABORT;
+          }
+        | SESSION_SYM AUTHORIZATION_SYM user_name
+          {
+            if (Lex->sphead)
+            {
+              my_error(ER_SP_BADSTATEMENT, MYF(0), "SET SESSION AUTHORIZATION");
+              MYSQL_YYABORT;
+            }
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+            auto var= new (thd->mem_root) set_var_authorization($3);
+            if (var == NULL || Lex->var_list.push_back(var, thd->mem_root) ||
+                sp_create_assignment_instr(thd, yychar == YYEMPTY))
               MYSQL_YYABORT;
           }
         | option_type

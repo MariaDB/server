@@ -378,8 +378,9 @@ typedef struct st_join_table {
   */
   table_map	dependent;
   /*
-    key_dependent is dependent but add those tables that are used to compare
-    with a key field in a simple expression. See add_key_field().
+    Normally `key_dependent` is the same as `dependent` but may also include
+    tables that are used to compare with a key field in a simple expression
+    (see add_key_field()).
     It is only used to prune searches in best_extension_by_limited_search()
   */
   table_map     key_dependent;
@@ -805,6 +806,12 @@ public:
 
   virtual void mark_used() = 0;
 
+  /*
+     Returns TRUE if the strategy is disabled by either optimizer switch
+     setting or an optimizer hint
+  */
+  virtual bool is_disabled() const { return false; }
+
   virtual ~Semi_join_strategy_picker() = default;
 };
 
@@ -825,12 +832,15 @@ class Duplicate_weedout_picker : public Semi_join_strategy_picker
   table_map dupsweedout_tables;
   
   bool is_used;
+
+  bool disabled; // See comment for Semi_join_strategy_picker::is_disabled()
 public:
   void set_empty() override
   {
     dupsweedout_tables= 0;
     first_dupsweedout_table= MAX_TABLES;
     is_used= FALSE;
+    disabled= FALSE;
   }
   void set_from_prev(POSITION *prev) override;
   
@@ -845,6 +855,9 @@ public:
                  POSITION *loose_scan_pos) override;
 
   void mark_used() override { is_used= TRUE; }
+
+  bool is_disabled() const override { return disabled; }
+
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -1885,11 +1898,7 @@ public:
                            ulonglong curr_space,
                            ulonglong needed_space);
   void set_allowed_join_cache_types();
-  bool is_allowed_hash_join_access()
-  { 
-    return MY_TEST(allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
-           max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT;
-  }
+  bool is_allowed_hash_join_access(const TABLE *table);
   /*
     Check if we need to create a temporary table.
     This has to be done if all tables are not already read (const tables)
@@ -1947,6 +1956,10 @@ public:
   bool optimize_upper_rownum_func();
   void calc_allowed_top_level_tables(SELECT_LEX *lex);
   table_map get_allowed_nj_tables(uint idx);
+  bool propagate_dependencies(JOIN_TAB *stat);
+  void update_key_dependencies();
+  table_map *export_table_dependencies() const;
+  void restore_table_dependencies(table_map *orig_dep_array);
 
 private:
   /**

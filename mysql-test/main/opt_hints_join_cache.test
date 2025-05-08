@@ -1,0 +1,530 @@
+--disable_view_protocol # Since optimizer hints are not supported inside views
+
+set @tmp_jcl= @@join_cache_level;
+set @tmp_opt= @@optimizer_switch;
+
+CREATE TABLE t10(a INT);
+INSERT INTO t10 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t12(a INT, b INT);
+INSERT INTO t12 SELECT a,a from t10;
+CREATE TABLE t13(a INT, b INT, c INT, filler CHAR(100), key (a,b));
+INSERT INTO t13 select a,a,a, 'filler-data' FROM t10;
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'join_cache_hashed=on,join_cache_bka=on,mrr=on';
+
+--echo
+--echo ***********************************************
+set join_cache_level = 0;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 1;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 2;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 3;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 4;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 5;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 6;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 7;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 8;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'join_cache_hashed=off,join_cache_bka=on,mrr=on';
+
+--echo
+--echo ***********************************************
+set join_cache_level = 0;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 1;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 2;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 3;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 4;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 5;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 6;
+--source opt_hints_join_cache.inc
+
+set join_cache_level = 7;
+--source opt_hints_join_cache.inc
+
+set join_cache_level = 8;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'join_cache_hashed=on,join_cache_bka=off,mrr=on';
+
+--echo
+--echo ***********************************************
+set join_cache_level = 0;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 1;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 2;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 3;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 4;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 5;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 6;
+--source opt_hints_join_cache.inc
+
+set join_cache_level = 7;
+--source opt_hints_join_cache.inc
+
+set join_cache_level = 8;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'join_cache_hashed=off,join_cache_bka=off,mrr=on';
+
+--echo
+--echo ***********************************************
+set join_cache_level = 0;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 1;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 2;
+--source opt_hints_join_cache.inc
+
+set join_cache_level = 3;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 4;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 5;
+--source opt_hints_join_cache.inc
+
+set join_cache_level = 6;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 7;
+--source opt_hints_join_cache.inc
+
+--echo
+--echo ***********************************************
+set join_cache_level = 8;
+--source opt_hints_join_cache.inc
+
+drop tables t10, t12, t13;
+
+--echo
+--echo ================================================================
+set optimizer_switch= 'join_cache_hashed=on,join_cache_bka=on,mrr=on';
+
+--echo #
+--echo # BNL and NO_BNL hint testing
+--echo #
+
+set optimizer_switch=default;
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (1,1),(2,2);
+CREATE TABLE t3 (a INT, b INT);
+INSERT INTO t3 VALUES (1,1),(2,2);
+
+--disable_ps2_protocol
+--disable_cursor_protocol
+--echo # Check statistics without hint
+FLUSH STATUS;
+SELECT t1.* FROM t1,t2,t3;
+SHOW STATUS LIKE 'handler_read%';
+
+--echo # Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ NO_BNL() */t1.* FROM t1,t2,t3;
+SHOW STATUS LIKE 'handler_read%';
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+EXPLAIN EXTENDED SELECT t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ NO_BNL() */t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ NO_BNL(t2, t3) */t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ NO_BNL(t1, t3) */t1.* FROM t1,t2,t3;
+
+--echo # Make sure query results are the same for any hints combination
+--sorted_result
+SELECT * FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ BNL() */t1.* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ BNL(t1, t2) */t1.* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ BNL(t1, t3) */t1.* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ BNL(t2, t3) */t1.* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ BNL(t2) BNL(t3) */t1.* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ NO_BNL() */* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ NO_BNL(t1, t2) */* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ NO_BNL(t1, t3) */* FROM t1,t2,t3;
+--sorted_result
+SELECT /*+ NO_BNL(t2, t3) */* FROM t1,t2,t3;
+
+--echo # BNL() overrides current join_cache_level setting
+set join_cache_level = 0;
+EXPLAIN EXTENDED SELECT t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ BNL() */t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ BNL(t1, t2) */t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ BNL(t1, t3) */t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ BNL(t2, t3) */t1.* FROM t1,t2,t3;
+EXPLAIN EXTENDED SELECT /*+ BNL(t2) BNL(t3) */t1.* FROM t1,t2,t3;
+
+DROP TABLE t1, t2, t3;
+set join_cache_level = 8;
+
+--echo # BNL in subquery
+set optimizer_switch = DEFAULT;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (a));
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT, b INT, INDEX a (a,b));
+INSERT INTO t1 VALUES (1,10), (2,20), (3,30), (4,40);
+INSERT INTO t2 VALUES (2), (3), (4), (5);
+INSERT INTO t3 VALUES (10,3), (20,4), (30,5);
+ANALYZE TABLE t1, t2, t3;
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) */ * FROM t1 JOIN t2 ON t1.a = t2.a WHERE
+t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) NO_BNL() */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) NO_BNL(t1, t2) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) NO_BNL(@subq1) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) NO_BNL(t4@subq1) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) NO_BNL(t3@subq1,t4@subq1) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) NO_BNL(@subq1 t3, t4) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(q) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1)  NO_BNL(t3, t4) */ t3.b
+    FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+--echo # Make sure query results are the same for any hints combination
+# --sorted_result
+SELECT * FROM t1 JOIN t2 ON t1.a = t2.a WHERE
+t2.a IN (SELECT t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+# --sorted_result
+SELECT /*+ QB_NAME(q) */ * FROM t1 JOIN t2 ON t1.a = t2.a WHERE
+t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) NO_BNL() */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) NO_BNL(t1, t2) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) NO_BNL(@subq1) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) NO_BNL(t4@subq1) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) NO_BNL(t3@subq1,t4@subq1) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) NO_BNL(@subq1 t3, t4) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1) */ t3.b FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+--sorted_result
+SELECT /*+ QB_NAME(q) */ *
+  FROM t1 JOIN t2 ON t1.a = t2.a
+  WHERE t2.a IN (SELECT /*+ QB_NAME(subq1)  NO_BNL(t3, t4) */ t3.b
+    FROM t3 JOIN t1 t4 ON t3.a = t4.b);
+
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # BNL() and NO_BNL() for LEFT JOINs
+--echo #
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE TABLE t3 (a int);
+CREATE TABLE t4 (a int);
+
+INSERT INTO t1 VALUES (null), (2), (null), (1);
+
+set join_cache_level = 8;
+
+--echo # Two join buffers are employed by default (without hints):
+EXPLAIN SELECT t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.a) ON 0
+    WHERE t1.a OR t3.a;
+
+--echo # Disabling either of join buffers disables another one automatically due
+--echo # to join buffer employment rules:
+EXPLAIN SELECT /*+ NO_BNL(t2) */ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.a) ON 0
+    WHERE t1.a OR t3.a;
+
+EXPLAIN SELECT /*+ NO_BNL(t3) */ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.a) ON 0
+    WHERE t1.a OR t3.a;
+
+--echo # Three join buffers are employed here by default (without hints):
+EXPLAIN SELECT t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+
+--echo # Disabling either of join buffers disables others automatically due
+--echo # to join buffer employment rules:
+EXPLAIN SELECT /*+ NO_BNL(t2)*/ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+EXPLAIN SELECT /*+ NO_BNL(t3)*/ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+EXPLAIN SELECT /*+ NO_BNL(t4)*/ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+
+set join_cache_level=0;
+--echo # It is not allowed to enable join buffers on some subset of inner tables
+--echo # of an outer join. Either all tables should use join buffers or none:
+EXPLAIN SELECT /*+ BNL(t2)*/ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+EXPLAIN SELECT /*+ BNL(t2, t3)*/ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+EXPLAIN SELECT /*+ BNL(t2, t3, t4)*/ t1.a
+  FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
+    WHERE t1.a OR t4.a;
+
+set join_cache_level=8;
+INSERT INTO t2 VALUES (1), (2), (null), (1);
+--echo # BNLH buffer is used when allowed by JCL setting
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a;
+
+--echo # Make sure the hint enables BNL even when JCL=0:
+set join_cache_level=0;
+EXPLAIN SELECT /*+BNL(t2) */ * FROM t1, t2 WHERE t1.a=t2.a;
+
+set join_cache_level=2;
+EXPLAIN SELECT /*+BNL(t2) */ * FROM t1, t2 WHERE t1.a=t2.a;
+
+DROP TABLE t1,t2,t3,t4;
+
+
+--echo #
+--echo # Mix of BNL/BKA flat and incremental join buffers for OUTER JOINs
+--echo #
+
+set optimizer_switch='outer_join_with_cache=on,mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+
+CREATE TABLE t1 (a1 varchar(32)) ;
+INSERT INTO t1 VALUES ('s'),('k');
+
+CREATE TABLE t2 (a2 int PRIMARY KEY, b2 varchar(32)) ;
+INSERT INTO t2 VALUES (7,'s');
+
+CREATE TABLE t3 (a3 int PRIMARY KEY, b3 varchar(32)) ;
+INSERT INTO t3 VALUES (7,'s');
+
+CREATE TABLE t4 (a4 int);
+INSERT INTO t4 VALUES (9);
+
+CREATE TABLE t5(a5 int PRIMARY KEY, b5 int) ;
+INSERT INTO t5 VALUES (7,0);
+--disable_result_log
+ANALYZE TABLES t1, t2, t3, t4, t5;
+--enable_result_log
+
+--echo # Disable join buffering to enable it selectively on particular tables
+SET SESSION join_cache_level = 0;
+EXPLAIN
+SELECT t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT t4.a4, t5.b5 
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+EXPLAIN
+SELECT /*+ BNL(t4) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT /*+ BNL(t4) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+EXPLAIN
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+--echo # BNL() hint overrides join_cache_levels from 0 to 3 increasing it to 4
+set join_cache_level = 1;
+EXPLAIN
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+set join_cache_level = 2;
+EXPLAIN
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+set join_cache_level = 3;
+EXPLAIN
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+--echo # Enable all join buffering capabilities:
+SET SESSION join_cache_level = 8;
+EXPLAIN
+SELECT t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+EXPLAIN
+SELECT /*+ NO_BNL(t4)*/ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT /*+ NO_BNL(t4)*/ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+--echo # Disable BKA so the BNLH join buffer will be employed:
+EXPLAIN
+SELECT /*+ NO_BKA(t5)*/ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT /*+ NO_BKA(t5)*/ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+EXPLAIN
+SELECT /*+ NO_BKA(t5) NO_BNL(t5)*/ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT /*+ NO_BKA(t5) NO_BNL(t5)*/ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+DROP TABLE t1,t2,t3,t4,t5;
+
+set @@join_cache_level= @tmp_jcl;
+set @@optimizer_switch= @tmp_opt;

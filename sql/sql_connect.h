@@ -89,8 +89,11 @@ void reset_mqh(LEX_USER *lu, bool get_them);
 bool check_mqh(THD *thd, uint check_command);
 void time_out_user_resource_limits(THD *thd, USER_CONN *uc);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+int get_or_create_user_conn(THD *thd, const char *user,
+                            const char *host, const USER_RESOURCES *mqh);
 void decrease_user_connections(USER_CONN *uc);
 #else
+#define get_or_create_user_conn(A,B,C,D) 0
 #define decrease_user_connections(X) do { } while(0)       /* nothing */
 #endif
 bool thd_init_client_charset(THD *thd, uint cs_number);
@@ -105,8 +108,6 @@ int thd_set_peer_addr(THD *thd, sockaddr_storage *addr,
 void prepare_new_connection_state(THD* thd);
 void end_connection(THD *thd);
 void update_global_user_stats(THD* thd, bool create_user, time_t now);
-int get_or_create_user_conn(THD *thd, const char *user,
-                            const char *host, const USER_RESOURCES *mqh);
 int check_for_max_user_connections(THD *thd, USER_CONN *uc);
 
 extern HASH global_user_stats;
