@@ -12701,6 +12701,23 @@ Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
 }
 
 
+bool LEX::set_field_type_udt_or_typedef(Lex_field_type_st *type,
+                                        const LEX_CSTRING &name,
+                                        const Lex_length_and_dec_st &attr,
+                                        bool with_collection)
+{
+  bool is_composite= false;
+  if (unlikely(set_field_type_composite(type, name, with_collection,
+                                        &is_composite)))
+    return true;
+
+  if (is_composite)
+    return false;
+
+  return set_field_type_udt(type, name, attr);
+}
+
+
 bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const LEX_CSTRING &name,
                              const Lex_length_and_dec_st &attr)

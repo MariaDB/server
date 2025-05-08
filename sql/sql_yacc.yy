@@ -6544,16 +6544,8 @@ field_type_all_with_record:
           }
         | udt_name float_options srid_option
           {
-            bool is_composite= false;
-            if (unlikely(Lex->set_field_type_composite(&$$, $1, false,
-                                                       &is_composite)))
+            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2,false)))
               MYSQL_YYABORT;
-            
-            if (!is_composite)
-            {
-              if (Lex->set_field_type_udt(&$$, $1, $2))
-                MYSQL_YYABORT;
-            }
           }
         ;
 %endif
@@ -6565,16 +6557,8 @@ field_type_all_with_composites:
           }
         | udt_name float_options srid_option
           {
-            bool is_composite= false;
-            if (unlikely(Lex->set_field_type_composite(&$$, $1, true,
-                                                       &is_composite)))
+            if (unlikely(Lex->set_field_type_udt_or_typedef(&$$, $1, $2, true)))
               MYSQL_YYABORT;
-
-            if (!is_composite)
-            {
-              if (Lex->set_field_type_udt(&$$, $1, $2))
-                MYSQL_YYABORT;
-            }
           }
         ;
 
