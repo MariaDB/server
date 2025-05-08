@@ -1604,6 +1604,12 @@ public:
                                    const Format_description_log_event
                                    *description_event, my_bool crc_check,
                                    my_bool print_errors= 1);
+  /*
+    TODO
+  */
+  static Log_event *read_log_event_no_checksum(
+      const uchar *buf, size_t event_len, const char **error,
+      const Format_description_log_event *description_event);
   /**
     Returns the human readable name of the given event type.
   */
@@ -2372,6 +2378,9 @@ public:
   /* TODO */
   bool is_valid() const override
   {
+    /*
+      Integrate with rows_event check for writing-based usage
+    */
     return total_fragments && seq_no && seq_no <= total_fragments;
   }
 
