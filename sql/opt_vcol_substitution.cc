@@ -115,6 +115,12 @@ class Vcol_subst_context
   Vcol_subst_context(THD *thd_arg) : thd(thd_arg) {}
 };
 
+static Field *is_vcol_expr(Vcol_subst_context *ctx, const Item *item);
+static
+void subst_vcol_if_compatible(Vcol_subst_context *ctx,
+                              Item_bool_func *cond,
+                              Item **vcol_expr_ref,
+                              Field *vcol_field);
 
 static
 bool collect_indexed_vcols_for_table(TABLE *table, List<Field> *vcol_fields)
@@ -192,6 +198,21 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 }
 
 
+static
+void subst_vcols_in_order(Vcol_subst_context *ctx,
+                          ORDER *order,
+                          const char *location)
+{
+  int i= 0;
+  Field *vcol_field;
+  while (Item* item= order->item[i])
+  {
+    if ((vcol_field= is_vcol_expr(ctx, item)))
+      subst_vcol_if_compatible(ctx, NULL, &order->item[i], vcol_field);
+    i++;
+  }
+}
+
 /*
   @brief
     Do substitution for all condition in a JOIN. This is the primary entry
@@ -211,6 +232,8 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     subst_vcols_in_item(&ctx, join->conds, "WHERE");
   if (join->join_list)
     subst_vcols_in_join_list(&ctx, join->join_list);
+  if (join->order)
+    subst_vcols_in_order(&ctx, join->order, "ORDER BY");
 
   if (join->thd->is_error())
     return true; // Out of memory
@@ -345,9 +368,12 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
       (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
     fail_cause="type mismatch";
   else
-  if (vcol_expr->collation.collation != vcol_field->charset() &&
-      cond->compare_collation() != vcol_field->charset())
-    fail_cause="collation mismatch";
+  {
+    CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
+    if (vcol_expr->collation.collation != vcol_field->charset() &&
+        cs != vcol_field->charset())
+      fail_cause="collation mismatch";
+  }
 
   if (fail_cause)
   {

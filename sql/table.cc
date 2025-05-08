@@ -1129,6 +1129,38 @@ Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
   return new (mem_root) Item_func_hash(thd, *field_list);
 }
 
+static void update_vcol_key_covering(Field *vcol_field)
+{
+  Item *item;
+  key_map part_of_key;
+  bool part_of_key_set;
+  /*
+    TODO: for now just processing Item_fields that are immediate
+    arguments. Will need to walk the tree and process all Item_fields
+  */
+  item= vcol_field->vcol_info->expr;
+  if (item->type() == Item::FUNC_ITEM)
+  {
+    uint argc= ((Item_func *) item)->argument_count();
+    Item **args= ((Item_func *) item)->arguments();
+    part_of_key.clear_all();
+    part_of_key_set= false;
+    for (uint i= 0; i < argc; i++)
+    {
+      if (args[i]->type() == Item::FIELD_ITEM)
+      {
+        if (!part_of_key_set)
+        {
+          part_of_key_set= true;
+          part_of_key= ((Item_field *) args[i])->field->part_of_key;
+        }
+        else
+          part_of_key.intersect(((Item_field *) args[i])->field->part_of_key);
+      }
+    }
+    vcol_field->part_of_key.merge(part_of_key);
+  }
+}
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1268,6 +1300,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         goto end;
       }
       table->map= 0;
+      if (vcol)
+        update_vcol_key_covering(*field_ptr);
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
