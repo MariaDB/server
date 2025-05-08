@@ -2348,99 +2348,6 @@ public:        /* !!! Public in this patch to allow old usage */
   virtual bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
 };
 
-class Partial_rows_log_event : public Log_event
-{
-public:
-  uchar flags2;
-
-  /*
-    Starts at 1 for consistency with GTID seq_no
-  */
-  uint32_t seq_no;
-  uint32_t total_fragments;
-
-  uint32_t rows_offset_in_temp_buf;
-  uint32_t rows_chunk_len;
-
-  Partial_rows_log_event(uint32 seq_no, uint32 total_fragments)
-      : seq_no(seq_no), total_fragments(total_fragments),
-        rows_offset_in_temp_buf(0), rows_chunk_len(0)
-  {
-  }
-
-  Partial_rows_log_event() {};
-  Partial_rows_log_event(
-      const uchar *buf, uint event_len,
-      const Format_description_log_event *description_event);
-
-  ~Partial_rows_log_event() {}
-
-  /* TODO */
-  bool is_valid() const override
-  {
-    /*
-      Integrate with rows_event check for writing-based usage
-    */
-    return total_fragments && seq_no && seq_no <= total_fragments;
-  }
-
-  Log_event_type get_type_code() override { return PARTIAL_ROW_DATA_EVENT; }
-
-#ifdef MYSQL_SERVER
-    //bool write_data_header(Log_event_writer *writer) override;
-    //bool write_data_body(Log_event_writer *writer) override;
-  //bool write(Log_event_writer *writer) override;
-#ifdef HAVE_REPLICATION
-  //void pack_info(Protocol* protocol) override;
-#endif /* HAVE_REPLICATION */
-#else
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override
-  {
-    fprintf(stderr, "\n\tPrinting some partial rows log event\n");
-    return 0;
-  }
-#endif
-};
-
-class Rows_log_event_assembler
-{
-private:
-  uint32_t last_fragment_seen;
-
-public:
-
-  String rows_ev_buf_builder;
-  char *rows_ev_buf_builder_ptr;
-  uint64_t ev_len;
-
-  /*
-    Mutable, extended once per event
-  */
-  uint64_t event_size;
-
-  uint32_t total_fragments;
-
-  Rows_log_event_assembler(uint32_t total_fragments)
-      : last_fragment_seen(0), total_fragments(total_fragments){};
-
-  ~Rows_log_event_assembler() {};
-
-  bool all_fragments_assembled()
-  {
-    fprintf(stderr, "\n\tassembler done? %u == %u : %s\n", last_fragment_seen,
-            total_fragments,
-            last_fragment_seen == total_fragments ? "Yes!" : "No");
-    return last_fragment_seen == total_fragments;
-  }
-
-  bool append(Partial_rows_log_event *partial_ev);
-
-  Log_event *create_rows_event(const Format_description_log_event *fdle,
-                                    my_bool crc_check, my_bool print_errors
-
-  );
-};
-
 
 class Query_compressed_log_event:public Query_log_event{
 protected:
@@ -5612,6 +5519,134 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
                                 bool is_verbose);
 #endif
 
+/**
+  @class Partial_rows_log_event
+
+  TODO
+
+  @section General
+
+  This class is an alias for the Partial_rows_log_event to write it from an
+  existing Rows_log_event.
+
+  @section Partial_rows_log_event Binary Format
+
+  <table>
+  <caption>Post-Header</caption>
+
+  TODO
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>count</td>
+    <td>4 byte unsigned integer</td>
+    <td>The lower 28 bits are the number of elements. The upper 4 bits are
+        flags bits.</td>
+  </tr>
+  </table>
+
+  All derivations of @c List_log_events have COUNT elements in the list.
+*/
+/*
+  References a chunk of a large Rows_log_event (ie with the original event
+  row data larger than <TODO>), where the content is to be written in a
+  Partial_rows_log_event. These Partial_rows_log_events re-build the data of
+  the original Rows_log_event.
+
+  TODO extend this description once everything works.
+
+  TODO Should have this extent Partial_rows_log_event and have abstract classes that this
+   impl pulls from an existing Rows_log_event, and the other one pulls from its own memory
+*/
+class Partial_rows_log_event : public Log_event
+{
+public:
+  uchar flags2;
+
+  /*
+    Starts at 1 for consistency with GTID seq_no
+  */
+  uint32_t seq_no;
+  uint32_t total_fragments;
+  uint32_t metadata_written;
+  uint64_t start_offset;
+  uint64_t end_offset;
+
+  /*
+    TODO Write
+     1. On fragment, it is rows_event baes
+     2. On assembly, it is temp_buf
+  */
+  const uchar *ev_buffer_base;
+
+private:
+  Rows_log_event *rows_event;
+
+public:
+  Partial_rows_log_event(uint32 seq_no, uint32 total_fragments,
+                                  uint32 metadata_written,
+                                  uint64_t start_offset, uint64_t end_offset,
+                                  Rows_log_event *rows_event)
+      : flags2(0), seq_no(seq_no), total_fragments(total_fragments),
+        metadata_written(metadata_written), start_offset(start_offset),
+        end_offset(end_offset), rows_event(rows_event){};
+
+  Partial_rows_log_event(
+      const uchar *buf, uint event_len,
+      const Format_description_log_event *description_event);
+
+  Partial_rows_log_event(
+      const uchar *buf, uint event_len,
+      const Format_description_log_event *description_event,
+      Log_event_type type_code)
+  {
+    /* This class is write only, Partial_rows_log_event is read-in */
+    DBUG_ASSERT(0);
+  };
+
+  ~Partial_rows_log_event() {}
+
+  /* TODO */
+  bool is_valid() const override {
+    return true;
+  }
+
+  Log_event_type get_type_code() override {
+    return PARTIAL_ROW_DATA_EVENT;
+  }
+
+  int get_data_size() override
+  {
+    return (int) get_rows_size() + metadata_written +
+           PARTIAL_ROWS_HEADER_LEN;
+  }
+
+  size_t get_rows_size()
+  {
+    return end_offset - start_offset;
+  }
+
+#ifdef MYSQL_SERVER
+  bool write_data_header(Log_event_writer *writer) override;
+  bool write_data_body(Log_event_writer *writer) override;
+#ifdef HAVE_REPLICATION
+  //void pack_info(Protocol* protocol) override;
+#endif /* HAVE_REPLICATION */
+#else
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override
+  {
+    fprintf(stderr, "\n\tPrinting some partial rows log event\n");
+    return 0;
+  }
+#endif
+};
+
+
 #ifdef MYSQL_SERVER
 /*****************************************************************************
 
@@ -5657,119 +5692,16 @@ inline int Log_event_writer::write(Log_event *ev)
 class Rows_log_event_fragmenter
 {
 public:
-
-  /**
-    @class Indirect_partial_rows_log_event
- 
-    TODO
-
-    @section General
-
-    This class is an alias for the Partial_rows_log_event to write it from an
-    existing Rows_log_event.
-
-    @section Partial_rows_log_event Binary Format
-
-    <table>
-    <caption>Post-Header</caption>
-
-    TODO
-
-    <tr>
-      <th>Name</th>
-      <th>Format</th>
-      <th>Description</th>
-    </tr>
-
-    <tr>
-      <td>count</td>
-      <td>4 byte unsigned integer</td>
-      <td>The lower 28 bits are the number of elements. The upper 4 bits are
-          flags bits.</td>
-    </tr>
-    </table>
-
-    All derivations of @c List_log_events have COUNT elements in the list.
-  */
-  /*
-    References a chunk of a large Rows_log_event (ie with the original event
-    row data larger than <TODO>), where the content is to be written in a
-    Partial_rows_log_event. These Partial_rows_log_events re-build the data of
-    the original Rows_log_event.
-
-    TODO extend this description once everything works.
-
-    TODO Should have this extent Partial_rows_log_event and have abstract classes that this
-     impl pulls from an existing Rows_log_event, and the other one pulls from its own memory
-  */
-  class Indirect_partial_rows_log_event : public Log_event
-  {
-  public:
-    uchar flags2;
-
-    /*
-      Starts at 1 for consistency with GTID seq_no
-    */
-    uint32_t seq_no;
-    uint32_t total_fragments;
-    uint32_t metadata_written;
-    uint64_t start_offset;
-    uint64_t end_offset;
-
-  private:
-    Rows_log_event *rows_event;
-
-  public:
-    Indirect_partial_rows_log_event(uint32 seq_no, uint32 total_fragments,
-                                    uint32 metadata_written,
-                                    uint64_t start_offset, uint64_t end_offset,
-                                    Rows_log_event *rows_event)
-        : flags2(0), seq_no(seq_no), total_fragments(total_fragments),
-          metadata_written(metadata_written), start_offset(start_offset),
-          end_offset(end_offset), rows_event(rows_event){};
-
-    Indirect_partial_rows_log_event(
-        const uchar *buf, uint event_len,
-        const Format_description_log_event *description_event,
-        Log_event_type type_code)
-    {
-      /* This class is write only, Partial_rows_log_event is read-in */
-      DBUG_ASSERT(0);
-    };
-
-    ~Indirect_partial_rows_log_event() {}
-
-    /* TODO */
-    bool is_valid() const override {
-      return true;
-    }
-
-    Log_event_type get_type_code() override {
-      return PARTIAL_ROW_DATA_EVENT;
-    }
-
-    int get_data_size() override
-    {
-      return (int) end_offset - start_offset + metadata_written +
-             PARTIAL_ROWS_HEADER_LEN;
-    }
-
-#ifdef MYSQL_SERVER
-    bool write_data_header(Log_event_writer *writer) override;
-    bool write_data_body(Log_event_writer *writer) override;
-#endif
-  };
-
   /*
     TODO Write
   */
   class Fragmented_rows_log_event : public Log_event
   {
   private:
-    Indirect_partial_rows_log_event *fragments;
+    Partial_rows_log_event *fragments;
     uint32_t n_fragments;
   public:
-    Fragmented_rows_log_event(Indirect_partial_rows_log_event *fragments,
+    Fragmented_rows_log_event(Partial_rows_log_event *fragments,
                               uint32_t n_fragments)
         : fragments(fragments), n_fragments(n_fragments){};
 
@@ -5844,7 +5776,7 @@ public:
   uint64_t total_size;
   uint64_t data_size_per_chunk;
 
-  Rows_log_event_fragmenter::Indirect_partial_rows_log_event *fragments;
+  Partial_rows_log_event *fragments;
   Fragmented_rows_log_event fragmented_ev= {NULL, 0};
 
 public:
@@ -5879,11 +5811,11 @@ public:
     last_chunk= last_chunk_size ? 1 : 0;
     num_chunks= (total_size / data_size_per_chunk) + last_chunk;
 
-    fragments= (Rows_log_event_fragmenter::Indirect_partial_rows_log_event *)
+    fragments= (Partial_rows_log_event *)
         my_malloc(
             PSI_INSTRUMENT_ME,
             sizeof(
-                Rows_log_event_fragmenter::Indirect_partial_rows_log_event) *
+                Partial_rows_log_event) *
                 num_chunks,
             MYF(MY_WME));
   }
@@ -5962,8 +5894,8 @@ public:
       //                        : ((chunk_start + data_size_per_chunk) - 1 -
       //                           (is_first_chunk ? metadata_size : 0));
 
-      Indirect_partial_rows_log_event *fragment= new (&fragments[i])
-          Indirect_partial_rows_log_event(i + 1, num_chunks,
+      Partial_rows_log_event *fragment= new (&fragments[i])
+          Partial_rows_log_event(i + 1, num_chunks,
                                           is_first_chunk ? metadata_size : 0,
                                           chunk_start, chunk_end, rows_event);
       //outs[i]= fragment;
@@ -6013,7 +5945,7 @@ TODO I forget how to call a constructor on existing zeroed memory
     write them individually/separately, but rather as the existing
     "pending" logic does
   */
-  Rows_log_event_fragmenter::Indirect_partial_rows_log_event *get_fragment(size_t i)
+  Partial_rows_log_event *get_fragment(size_t i)
   {
     return &fragments[i];
   }
@@ -6029,6 +5961,45 @@ TODO I forget how to call a constructor on existing zeroed memory
     // TODO
     return 0;
   }
+};
+
+class Rows_log_event_assembler
+{
+private:
+  uint32_t last_fragment_seen;
+
+public:
+
+  String rows_ev_buf_builder;
+  char *rows_ev_buf_builder_ptr;
+  uint64_t ev_len;
+
+  /*
+    Mutable, extended once per event
+  */
+  uint64_t event_size;
+
+  uint32_t total_fragments;
+
+  Rows_log_event_assembler(uint32_t total_fragments)
+      : last_fragment_seen(0), total_fragments(total_fragments){};
+
+  ~Rows_log_event_assembler() {};
+
+  bool all_fragments_assembled()
+  {
+    fprintf(stderr, "\n\tassembler done? %u == %u : %s\n", last_fragment_seen,
+            total_fragments,
+            last_fragment_seen == total_fragments ? "Yes!" : "No");
+    return last_fragment_seen == total_fragments;
+  }
+
+  bool append(Partial_rows_log_event *partial_ev);
+
+  Log_event *create_rows_event(const Format_description_log_event *fdle,
+                                    my_bool crc_check, my_bool print_errors
+
+  );
 };
 
 /**

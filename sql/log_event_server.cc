@@ -5684,8 +5684,7 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
   return res;
 }
 
-bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
-    write_data_body(Log_event_writer *writer)
+bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
 {
   uint64_t cur_offset= start_offset;
   /*
@@ -5733,8 +5732,7 @@ bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
                                           row_data_len_to_write);
 }
 
-bool Rows_log_event_fragmenter::Indirect_partial_rows_log_event::
-    write_data_header(Log_event_writer *writer)
+bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
 {
   /*
     TODO: Need to write rows_event->write_data_header() in after metadata
@@ -5783,10 +5781,10 @@ bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
     */
     //bool err= rows_ev_buf_builder.alloc(total_fragments * partial_ev->rows_chunk_len);
     fprintf(stderr, "\n\tAllocating memory size %zu\n",
-            (size_t) total_fragments * (size_t) partial_ev->rows_chunk_len);
+            (size_t) total_fragments * (size_t) partial_ev->get_rows_size());
     rows_ev_buf_builder_ptr= (char *) my_malloc(
         PSI_INSTRUMENT_ME,
-        ((size_t) total_fragments * (size_t) partial_ev->rows_chunk_len),
+        ((size_t) total_fragments * (size_t) partial_ev->get_rows_size()),
         MYF(MY_WME));
     ev_len= 0;
   }
@@ -5795,22 +5793,22 @@ bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
     fprintf(stderr,
             "\n\tFailed to allocate memory for assembling row event (needed "
             "%zu bytes)\n",
-            total_fragments * (size_t) partial_ev->rows_chunk_len);
+            total_fragments * (size_t) partial_ev->get_rows_size());
   }
 
   fprintf(stderr,
           "\n\tRows_log_event_assembler::append adding in fragment %u / %u\n",
           partial_ev->seq_no, partial_ev->total_fragments);
 
-  fprintf(stderr, "\n\tWriting to %p from %p of len %u\n",
+  fprintf(stderr, "\n\tWriting to %p from %p of len %zu\n",
           rows_ev_buf_builder_ptr + ev_len,
-          partial_ev->temp_buf + partial_ev->rows_offset_in_temp_buf,
-          partial_ev->rows_chunk_len);
+          partial_ev->ev_buffer_base + partial_ev->start_offset,
+          partial_ev->get_rows_size());
 
   memcpy(rows_ev_buf_builder_ptr + ev_len,
-         partial_ev->temp_buf + partial_ev->rows_offset_in_temp_buf,
-         partial_ev->rows_chunk_len);
-  ev_len+= partial_ev->rows_chunk_len;
+         partial_ev->ev_buffer_base + partial_ev->start_offset,
+         partial_ev->get_rows_size());
+  ev_len+= partial_ev->get_rows_size();
   fprintf(stderr, "\n\tnew ev_len is %lu, ptr at %p\n", ev_len,
           rows_ev_buf_builder_ptr + ev_len);
 

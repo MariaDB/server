@@ -4037,8 +4037,11 @@ Partial_rows_log_event::Partial_rows_log_event(
   flags2= *(post_start++);
   VALIDATE_BYTES_READ(post_start, buf, event_len);
 
-  rows_offset_in_temp_buf= common_header_len + PARTIAL_ROWS_HEADER_LEN;
-  rows_chunk_len= (buf + event_len) - post_start;
+  ev_buffer_base= buf;
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  end_offset= event_len;
+
+  fprintf(stderr, "\n\tnew Partial_rows_log_event size %zu\n", end_offset - start_offset);
 
   DBUG_VOID_RETURN;
 }
