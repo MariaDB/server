@@ -85,6 +85,7 @@ struct extra2_fields
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
   LEX_CUSTRING index_flags;
+  LEX_CUSTRING autoinc_spec;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1250,6 +1251,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
+      (*field_ptr)->generated_always= true;
       DBUG_ASSERT(table->map == 0);
       /*
         We need Item_field::const_item() to return false, so
@@ -1664,6 +1666,9 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
           break;
         case EXTRA2_INDEX_FLAGS:
           fail= read_extra2_section_once(extra2, length, &fields->index_flags);
+          break;
+        case EXTRA2_AUTOINC_SPEC:
+          fail= read_extra2_section_once(extra2, length, &fields->autoinc_spec);
           break;
         default:
           /* abort frm parsing if it's an unknown but important extra2 value */
@@ -2475,6 +2480,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                        extra2.field_data_type_info))
     goto err;
 
+  if (extra2.autoinc_spec.str)
+  {
+    if (extra2.autoinc_spec.length != Autoinc_spec::stored_size())
+      goto err;
+    autoinc_spec->from_binary(extra2.autoinc_spec.str);
+    DBUG_ASSERT(found_next_number_field);
+    if (autoinc_spec->generated_always)
+      (*found_next_number_field)->generated_always= true;
+    // IDENTITY does not use older code paths and is instead implemented
+    // as Field::default_value
+    found_next_number_field= NULL;
+    next_number_index= next_number_key_offset= next_number_keypart= 0;
+  }
+
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
     uint interval_nr= 0, recpos;
@@ -2784,6 +2803,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
     reg_field->flags|= flags;
+    reg_field->generated_always|= reg_field->flags & VERS_SYSTEM_FIELD;
     if (extra2.field_flags.str)
     {
       uchar flags= *extra2.field_flags.str++;
@@ -3385,6 +3405,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         uint recpos;
         reg_field->vcol_info= vcol_info;
+        reg_field->generated_always= true;
         share->virtual_fields++;
         share->stored_fields--;
         if (reg_field->flags & BLOB_FLAG)
@@ -3400,6 +3421,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       case VCOL_GENERATED_STORED:
         DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
+        reg_field->generated_always= true;
         share->virtual_fields++;
         break;
       case VCOL_DEFAULT:

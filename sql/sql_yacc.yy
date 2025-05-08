@@ -302,6 +302,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class Window_frame_bound *window_frame_bound;
   udf_func *udf;
   st_trg_execution_order trg_execution_order;
+  Autoinc_spec *autoinc_spec;
 
   /* enums */
   enum enum_sp_suid_behaviour sp_suid;
@@ -723,6 +724,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> XOR
 %token  <kwd> YEAR_MONTH_SYM
 %token  <kwd> ZEROFILL
+%token  <kwd> IDENTITY
 
 
 /*
@@ -995,6 +997,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NOMAXVALUE_SYM
 %token  <kwd>  NOMINVALUE_SYM
 %token  <kwd>  NO_WAIT_SYM
+%token  <kwd>  NOORDER_SYM
+%token  <kwd>  NOSHARE_SYM
 %token  <kwd>  NOWAIT_SYM
 %token  <kwd>  NUMBER_MARIADB_SYM            /* SQL-2003-N  */
 %token  <kwd>  NUMBER_ORACLE_SYM             /* Oracle-R, PLSQL-R */
@@ -1978,6 +1982,9 @@ rule:
 %type <NONE>
         sp_package_function_body
         sp_package_procedure_body
+
+%type <autoinc_spec> identity_specs
+%type <num> opt_on_null opt_double
 
 
 %ifdef MARIADB
@@ -6317,12 +6324,114 @@ field_def:
               MYSQL_YYABORT;
             $$.init();
           }
+        | opt_generated_always AS IDENTITY identity_specs
+          opt_serial_attribute
+          {
+            if (Lex->last_field_identity())
+              MYSQL_YYABORT;
+            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
+            $4->generated_always= true;
+            Lex->alter_info.autoinc_spec= $4;
+          }
+        | GENERATED_SYM BY DEFAULT opt_on_null AS IDENTITY identity_specs
+          opt_serial_attribute
+          {
+            $7->no_auto_value_on_zero= $4;
+            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
+            Lex->alter_info.autoinc_spec= $7;
+          }
         ;
 
 opt_generated_always:
           /* empty */ {}
         | GENERATED_SYM ALWAYS_SYM {}
         ;
+
+opt_on_null:
+          /* empty */ { $$= 0; }
+        | ON NULL_SYM { $$= 1; }
+
+identity_specs:
+    /* empty */
+    {
+      /* The user wrote "IDENTITY" but no immediate sub‐clauses yet. */
+      $$ = new Autoinc_spec();
+      /* That’s the single aggregator object we’ll keep reusing. */
+    }
+  | identity_specs START_SYM WITH expr
+    {
+      /* $1 is the same Autoinc_spec pointer from prior expansions. */
+      $1->start = $4->val_int();
+      $$ = $1;
+    }
+  | identity_specs INCREMENT_SYM BY expr
+    {
+      $1->step = $4->val_int();
+      $$ = $1;
+    }
+  | identity_specs MINVALUE_SYM expr
+    {
+      $1->minvalue = $3->val_int();
+      $1->has_minvalue = true;
+      $$ = $1;
+    }
+  | identity_specs NOMINVALUE_SYM
+    {
+      $1->has_minvalue = false;
+      $$ = $1;
+    }
+  | identity_specs MAXVALUE_SYM expr
+    {
+      $1->maxvalue = $3->val_int();
+      $1->has_maxvalue = true;
+      $$ = $1;
+    }
+  | identity_specs NOMAXVALUE_SYM
+    {
+      $1->has_maxvalue = false;
+      $$ = $1;
+    }
+  | identity_specs CYCLE_SYM
+    {
+      $1->cycle = true;
+      $$ = $1;
+    }
+  | identity_specs NOCYCLE_SYM
+    {
+      $1->cycle = false;
+      $$ = $1;
+    }
+  | identity_specs ORDER_SYM
+    {
+      $1->order= true;
+      $$ = $1;
+    }
+  | identity_specs NOORDER_SYM
+    {
+      $1->order= false;
+      $$ = $1;
+    }
+  | identity_specs CACHE_SYM expr opt_double
+    {
+      $1->cache = (unsigned int)$3->val_int();
+      $1->double_cache= $4;
+      $$ = $1;
+    }
+  | identity_specs NOCACHE_SYM
+    {
+      $1->cache = 0;
+      $$ = $1;
+    }
+  | identity_specs NOSHARE_SYM
+    {
+      /* Example placeholder: user wrote "NOSHARE" */
+      $$ = $1;
+    }
+  ;
+
+opt_double:
+    /* empty */ { $$= false; }
+  | DOUBLE_SYM  { $$= true; }
 
 vcol_opt_specifier:
           /* empty */

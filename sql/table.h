@@ -925,7 +925,7 @@ struct TABLE_SHARE
 
   /* For sequence tables, the current sequence state */
   SEQUENCE *sequence;
-
+  Autoinc_spec *identity_field_spec;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
   bool auto_partitioned;
@@ -938,6 +938,7 @@ struct TABLE_SHARE
 #ifdef HAVE_REPLICATION
   Cache_flip_event_log *online_alter_binlog;
 #endif
+  Autoinc_spec *autoinc_spec;
 
   /**
     System versioning and application-time periods support.

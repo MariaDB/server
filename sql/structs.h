@@ -1161,4 +1161,67 @@ protected:
 };
 
 
+struct Autoinc_spec
+{
+  ulonglong start;
+  ulonglong step;
+  ulonglong minvalue;
+  ulonglong maxvalue;
+  unsigned int cache;
+  unsigned int field_index;
+  bool has_minvalue:1;
+  bool has_maxvalue:1;
+  bool cycle:1;
+  bool order:1;
+  bool no_auto_value_on_zero:1;
+  bool generated_always:1;
+  bool double_cache:1;
+
+  static ushort stored_size()
+  { return 8+8+8+8+4+1+1; /* extra byte is reserved */ }
+  uchar* to_binary(uchar *ptr)
+  {
+    int8store(ptr, start);
+    ptr += 8;
+    int8store(ptr, step);
+    ptr += 8;
+    int8store(ptr, minvalue);
+    ptr += 8;
+    int8store(ptr, maxvalue);
+    ptr += 8;
+    int4store(ptr, cache);
+    ptr += 4;
+    int flags= has_minvalue | has_maxvalue << 1 | cycle << 2 | order << 3
+             | no_auto_value_on_zero << 4 | generated_always << 5
+             | double_cache << 6;
+    *ptr++= (uchar)flags;
+    ptr++; // reserved byte
+    return ptr;
+  }
+  const uchar* from_binary(const uchar *ptr)
+  {
+    start= uint8korr(ptr);
+    ptr += 8;
+    step= uint8korr(ptr);
+    ptr += 8;
+    minvalue= uint8korr(ptr);
+    ptr += 8;
+    maxvalue= uint8korr(ptr);
+    ptr += 8;
+    cache = uint4korr(ptr);
+    ptr += 4;
+    int flags= *ptr++;
+    has_minvalue= flags & 1;
+    has_maxvalue= flags & 2;
+    cycle= flags & 4;
+    order= flags & 8;
+    no_auto_value_on_zero= flags & 16;
+    generated_always= flags & 32;
+    double_cache= flags & 64;
+
+    ptr++; // reserved byte
+    return ptr;
+  }
+};
+
 #endif /* STRUCTS_INCLUDED */

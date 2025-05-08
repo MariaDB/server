@@ -417,6 +417,11 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     extra2_size+= 1 + extra2_str_size(create_fields.elements);
   }
 
+  if (create_info->alter_info->autoinc_spec)
+  {
+    extra2_size+= 1 + Autoinc_spec::stored_size();
+  }
+
   /*
     To store the ignorability flag for each key.
     Here 1 bytes is reserved to store the extra index flags for keys.
@@ -544,6 +549,14 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (keys)
     pos= extra2_write_index_properties(pos, key_info, keys);
+
+  if (create_info->alter_info->autoinc_spec)
+  {
+    *pos++= EXTRA2_AUTOINC_SPEC;
+    pos= extra2_write_len(pos,
+                          create_info->alter_info->autoinc_spec->stored_size());
+    pos= create_info->alter_info->autoinc_spec->to_binary(pos);
+  }
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;

@@ -15962,7 +15962,7 @@ int ha_mroonga::final_drop_index(TABLE *table_arg)
 }
 #endif
 
-int ha_mroonga::wrapper_update_auto_increment()
+int ha_mroonga::wrapper_update_auto_increment(const Autoinc_spec *spec)
 {
   int res;
   MRN_DBUG_ENTER_METHOD();
@@ -15974,24 +15974,24 @@ int ha_mroonga::wrapper_update_auto_increment()
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::storage_update_auto_increment()
+int ha_mroonga::storage_update_auto_increment(const Autoinc_spec *spec)
 {
   MRN_DBUG_ENTER_METHOD();
-  int res = handler::update_auto_increment();
+  int res = handler::update_auto_increment(spec);
   DBUG_PRINT("info", ("mroonga: auto_inc_value=%llu",
     table->next_number_field->val_int()));
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::update_auto_increment()
+int ha_mroonga::update_auto_increment(const Autoinc_spec *spec)
 {
   MRN_DBUG_ENTER_METHOD();
   int res;
   if (share->wrapper_mode)
   {
-    res = wrapper_update_auto_increment();
+    res = wrapper_update_auto_increment(spec);
   } else {
-    res = storage_update_auto_increment();
+    res = storage_update_auto_increment(spec);
   }
   DBUG_RETURN(res);
 }

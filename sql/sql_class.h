@@ -6182,7 +6182,7 @@ public:
              (variables.note_verbosity & NOTE_VERBOSITY_EXPLAIN)));
   }
 
-  bool vers_insert_history_fast(const TABLE *table)
+  bool vers_insert_history_fast(const TABLE *table) const
   {
     DBUG_ASSERT(table->versioned());
     return table->versioned(VERS_TIMESTAMP) &&

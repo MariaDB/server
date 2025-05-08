@@ -10543,6 +10543,17 @@ bool LEX::last_field_generated_always_as_row_end()
                                                          VERS_ROW_END);
 }
 
+bool LEX::last_field_identity()
+{
+
+  Virtual_column_info *v= add_virtual_expression(thd,
+                            // TODO rebase the new(thd) patch set
+                            new (thd->mem_root) Item_identity_next(thd,
+                                                                last_table()));
+  last_field->default_value= v;
+  return v != NULL;
+}
+
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;

@@ -3698,7 +3698,21 @@ public:
   int ha_rename_partitions(const char *path);
 
   void adjust_next_insert_id_after_explicit_value(ulonglong nr);
+  void adjust_next_insert_id_after_explicit_value(ulonglong nr,
+                                                  const Autoinc_spec *spec);
+
+  int update_auto_increment(const Autoinc_spec *spec);
   int update_auto_increment();
+
+  int auto_increment_prepare(const Autoinc_spec *spec);
+  int get_next_auto_increment(const Autoinc_spec *spec, int *error,
+                                     ulonglong *out_nb_reserved_values,
+                                     bool *append);
+
+  int save_auto_increment(const Autoinc_spec *spec, ulonglong nr) const;
+  void update_auto_increment_finalize(const Autoinc_spec *spec, ulonglong nr,
+                                      ulonglong nb_reserved_values,
+                                      int result, bool append);
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);

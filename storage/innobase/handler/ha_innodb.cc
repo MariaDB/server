@@ -171,7 +171,7 @@ static const long AUTOINC_NEW_STYLE_LOCKING = 1;
 static const long AUTOINC_NO_LOCKING = 2;
 
 static ulong innobase_open_files;
-static long innobase_autoinc_lock_mode;
+static int innobase_autoinc_lock_mode;
 
 /** Percentage of the buffer pool to reserve for 'old' blocks.
 Connected to buf_LRU_old_ratio. */
@@ -7607,6 +7607,14 @@ no_icp:
 	}
 }
 
+int innobase_get_autoinc_lock_mode(Autoinc_spec *autoinc_spec)
+{
+  return autoinc_spec
+	 ? autoinc_spec->order
+	   ? AUTOINC_OLD_STYLE_LOCKING : AUTOINC_NO_LOCKING
+         : innobase_autoinc_lock_mode;
+}
+
 /********************************************************************//**
 This special handling is really to overcome the limitations of MySQL's
 binlogging. We need to eliminate the non-determinism that will arise in
@@ -7621,10 +7629,11 @@ ha_innobase::innobase_lock_autoinc(void)
 {
 	DBUG_ENTER("ha_innobase::innobase_lock_autoinc");
 	dberr_t		error = DB_SUCCESS;
+	auto *autoinc_spec= table_share->identity_field_spec;
 
 	ut_ad(!srv_read_only_mode);
 
-	switch (innobase_autoinc_lock_mode) {
+	switch (innobase_get_autoinc_lock_mode(autoinc_spec)) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
 		m_prebuilt->table->autoinc_mutex.wr_lock();
@@ -16874,9 +16883,12 @@ ha_innobase::get_auto_increment(
 
 	*nb_reserved_values = trx->n_autoinc_rows;
 
+	auto *autoinc_spec= table_share->identity_field_spec;
+	int autoinc_lock_mode= innobase_get_autoinc_lock_mode(autoinc_spec);
+
 	/* With old style AUTOINC locking we only update the table's
 	AUTOINC counter after attempting to insert the row. */
-	if (innobase_autoinc_lock_mode != AUTOINC_OLD_STYLE_LOCKING) {
+	if (autoinc_lock_mode != AUTOINC_OLD_STYLE_LOCKING) {
 		ulonglong	current;
 		ulonglong	next_value;
 
@@ -19644,7 +19656,7 @@ static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   "Enable or Disable Truncate of UNDO tablespace",
   NULL, innodb_undo_log_truncate_update, FALSE);
 
-static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
+static MYSQL_SYSVAR_INT(autoinc_lock_mode, innobase_autoinc_lock_mode,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The AUTOINC lock modes supported by InnoDB:"
   " 0 => Old style AUTOINC locking (for backward compatibility);"

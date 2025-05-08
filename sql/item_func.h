@@ -4500,6 +4500,32 @@ public:
   { return get_item_copy<Item_func_setval>(thd, this); }
 };
 
+class Item_identity_next: public Item_longlong_func
+{
+protected:
+  TABLE_LIST *table_list;
+public:
+  Item_identity_next(THD *thd, TABLE_LIST *table_list_arg):
+  Item_longlong_func(thd), table_list(table_list_arg) {}
+
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("IDENTITY") };
+    return name;
+  }
+  longlong val_int() override;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    max_length= MAX_BIGINT_WIDTH;
+    unsigned_flag= true; // Limitation: only positive numbers for now
+    return FALSE;
+  }
+  bool const_item() const override { return false; }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_identity_next>(thd, this); }
+
+};
+
 class Interruptible_wait;
 
 Item *get_system_var(THD *thd, enum_var_type var_type,

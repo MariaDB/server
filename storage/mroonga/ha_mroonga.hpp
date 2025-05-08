@@ -559,7 +559,7 @@ public:
   int prepare_drop_index(TABLE *table_arg, uint *key_num, uint num_of_keys);
   int final_drop_index(TABLE *table_arg);
 #endif
-  int update_auto_increment();
+  int update_auto_increment(const Autoinc_spec *spec);
   void set_next_insert_id(ulonglong id);
   void get_auto_increment(ulonglong offset, ulonglong increment, ulonglong nb_desired_values,
                           ulonglong *first_value, ulonglong *nb_reserved_values) mrn_override;
@@ -1220,8 +1220,8 @@ private:
   int wrapper_final_drop_index(TABLE *table_arg);
   int storage_final_drop_index(TABLE *table_arg);
 #endif
-  int wrapper_update_auto_increment();
-  int storage_update_auto_increment();
+  int wrapper_update_auto_increment(const Autoinc_spec *spec);
+  int storage_update_auto_increment(const Autoinc_spec *spec);
   void wrapper_set_next_insert_id(ulonglong id);
   void storage_set_next_insert_id(ulonglong id);
   void wrapper_get_auto_increment(ulonglong offset, ulonglong increment,

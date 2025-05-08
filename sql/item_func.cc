@@ -7424,3 +7424,19 @@ void pause_execution(THD *thd, double timeout)
 
   do_pause(thd, &timed_cond, &cond, timeout);
 }
+
+longlong Item_identity_next::val_int()
+{
+  TABLE *table= table_list->table;
+  Autoinc_spec *spec= table->s->autoinc_spec;
+  DBUG_ASSERT(spec);
+  int error;
+  ulonglong values_reserved;
+  bool update_interval;
+  int nr= table->file->get_next_auto_increment(spec, &error, &values_reserved,
+                                               &update_interval);
+  table->file->update_auto_increment_finalize(spec, nr, values_reserved, error,
+                                              update_interval);
+  return nr;
+}
+
