@@ -916,17 +916,16 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
   {
   got_ex:
     const uint64_t l= write_lsn_offset.load(std::memory_order_relaxed);
-    const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
-    ut_d(lsn_t ll= lsn + (l & (WRITE_BACKOFF - 1)));
-    ut_ad(is_mmap()
-          ? ll - get_flushed_lsn(std::memory_order_relaxed) < capacity()
-          : ll - write_lsn - ((write_size - 1) & (write_lsn - first_lsn)) <
-          buf_size);
+    const lsn_t lsn= base_lsn.load(std::memory_order_relaxed) +
+      (l & (WRITE_BACKOFF - 1));
     waits++;
 #ifdef HAVE_PMEM
     const bool is_pmem{is_mmap()};
     if (is_pmem)
-      persist(lsn + (l & (WRITE_BACKOFF - 1)));
+    {
+      ut_ad(lsn - get_flushed_lsn(std::memory_order_relaxed) < capacity());
+      persist(lsn);
+    }
 #endif
     latch.wr_unlock();
     /* write_buf() or persist() will clear the WRITE_BACKOFF flag,
@@ -934,7 +933,7 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
 #ifdef HAVE_PMEM
     if (!is_pmem)
 #endif
-    log_write_up_to(lsn + (l & (WRITE_BACKOFF - 1)), false);
+    log_write_up_to(lsn, false);
     if (ex)
     {
       latch.wr_lock(SRW_LOCK_CALL);
