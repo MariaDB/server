@@ -61,6 +61,8 @@ SET SESSION wsrep_sync_wait=0;
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1001 FROM t1;
+--source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
@@ -71,6 +73,8 @@ SELECT COUNT(*) AS EXPECT_1001 FROM t1;
 --let $wait_condition = SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1001 FROM t1;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
