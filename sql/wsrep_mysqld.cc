@@ -1446,7 +1446,8 @@ bool wsrep_check_mode_after_open_table (THD *thd,
       }
 
       // Check are we inside a transaction
-      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true);
+      bool not_used;
+      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true, &not_used);
       bool changes= wsrep_has_changes(thd);
 
       // Roll back current stmt if exists

@@ -1586,6 +1586,12 @@ uint ha_count_rw_2pc(THD *thd, bool all)
 /**
   Check if we can skip the two-phase commit.
 
+  @param thd           Thread handler
+  @param ha_list       List of all engines participating on the commit
+  @param all           True if this is final commit (not statement commit)
+  @param no_rollback   Set to 1 if one of the engines doing writes does
+                       not support rollback
+
   A helper function to evaluate if two-phase commit is mandatory.
   As a side effect, propagates the read-only/read-write flags
   of the statement transaction to its enclosing normal transaction.
@@ -1604,16 +1610,21 @@ uint ha_count_rw_2pc(THD *thd, bool all)
 
 uint
 ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                    bool all)
+                                    bool all, bool *no_rollback)
 {
   /* The number of storage engines that have actual changes. */
   unsigned rw_ha_count= 0;
   Ha_trx_info *ha_info;
 
+  *no_rollback= false;
   for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write())
+    {
       ++rw_ha_count;
+      if (ha_info->is_trx_no_rollback())
+        *no_rollback= true;
+    }
 
     if (! all)
     {
@@ -1636,7 +1647,18 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
         information up, and the need for two-phase commit has been
         already established. Break the loop prematurely.
       */
-      break;
+      if (*no_rollback == 0)
+      {
+        while ((ha_info= ha_info->next()))
+        {
+          if (ha_info->is_trx_read_write() && ha_info->is_trx_no_rollback())
+          {
+            *no_rollback= 1;
+            break;
+          }
+        }
+        break;
+      }
     }
   }
   return rw_ha_count;
@@ -1771,7 +1793,9 @@ int ha_commit_trans(THD *thd, bool all)
   if (is_real_trans)                          /* not a statement commit */
     thd->stmt_map.close_transient_cursors();
 
-  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool no_rollback;
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
+                                                        &no_rollback);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
   MDL_request mdl_backup;
@@ -1784,7 +1808,7 @@ int ha_commit_trans(THD *thd, bool all)
     calling ha_commit_trans() from spader_commit().
   */
 
-  if (rw_trans && !thd->backup_commit_lock)
+  if ((rw_trans || no_rollback) && !thd->backup_commit_lock)
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -2114,7 +2138,9 @@ int ha_commit_one_phase(THD *thd, bool all)
 static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
                             bool is_real_trans)
 {
-  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool no_rollback;
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
+                                                        &no_rollback);
   bool rw_trans= is_real_trans &&
     (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
 
@@ -5145,6 +5171,9 @@ void handler::mark_trx_read_write_internal()
     */
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
+    /* Mark if we are using a table that cannot do rollback */
+    if (ht->flags & HTON_NO_ROLLBACK)
+      ha_info->set_trx_no_rollback();
   }
 }
 

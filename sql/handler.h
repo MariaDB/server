@@ -2014,6 +2014,16 @@ public:
     DBUG_ASSERT(is_started());
     return m_flags & (int) TRX_READ_WRITE;
   }
+  void set_trx_no_rollback()
+  {
+    DBUG_ASSERT(is_started());
+    m_flags|= (int) TRX_NO_ROLLBACK;
+  }
+  bool is_trx_no_rollback() const
+  {
+    DBUG_ASSERT(is_started());
+    return m_flags & (int) TRX_NO_ROLLBACK;
+  }
   bool is_started() const { return m_ht != NULL; }
   /** Mark this transaction read-write if the argument is read-write. */
   void coalesce_trx_with(const Ha_trx_info *stmt_trx)
@@ -2038,7 +2048,7 @@ public:
     return m_ht;
   }
 private:
-  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1 };
+  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1, TRX_NO_ROLLBACK= 2 };
   /** Auxiliary, used for ha_list management */
   Ha_trx_info *m_next;
   /**
@@ -5531,7 +5541,7 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                         bool all);
+                                         bool all, bool *no_rollback);
 
 int get_select_field_pos(Alter_info *alter_info, int select_field_count,
                          bool versioned);
