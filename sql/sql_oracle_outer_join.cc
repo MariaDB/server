@@ -133,7 +133,7 @@
 
   == 2.1 Parser ==
   The parser recognizes the "(+)" operator. After parsing, Item objects that
-  have a (+) operator somewhere inside them have 
+  have a (+) operator somewhere inside them have
   (item->with_flags() & ORA_JOIN) flag set.
 
   == 2.2 Building the hypergraph ==
@@ -234,15 +234,12 @@ static bool add_conditions_to_where(THD *thd, Item **conds,
                                     List<Item> &&return_to_where);
 
 /*
-  Order the tables:
+  Order the tables (which are inner_side peers of some table)
    - INNER table comes before its OUTER
-     (TODO why do we just check immediate neighbors in outer_side,
-      without checking a->outer_side[IDX1]->outer_side[IDX2]==b ?)
    - then, tables that were later in the FROM clause come first
 */
 
-static int
-table_pos_sort(table_pos *a, table_pos *b, void *arg)
+static int table_pos_sort(table_pos *a, table_pos *b, void *arg)
 {
   if (a->is_outer_of(b))
     return -1;
@@ -382,6 +379,16 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
       reachable from "beginning"
 
       TODO: try to make such test
+      The loop of interest would like this:
+
+       t1->t2->t3->t4->-+
+               ^        |
+               |        |
+               +--------+
+      However for such graph we would first call
+      check_directed_cycle(tab=t3,beginning=t3) and detect the loop.
+      We won't get to the point where we we would call
+      check_directed_cycle(tab=t3,beginning=t1)
     */
     return FALSE;
   }
