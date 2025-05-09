@@ -860,6 +860,14 @@ CREATE TABLE t3
 f1 INT(11) DEFAULT NULL
 );
 INSERT INTO t3 VALUES (0),(1),(2);
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
 # Original query
 EXPLAIN EXTENDED DELETE
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -882,7 +890,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
 Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Applicable hint
@@ -895,7 +903,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	Using where
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
 Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta1`,`ta2`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Applicable hint
@@ -908,7 +916,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	ta2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	PRIMARY	ta1	eq_ref	PRIMARY	PRIMARY	4	test.t2.f1	1	100.00	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
 Note	1003	delete /*+ JOIN_PREFIX(@`select#1` `t2`,`t3`,`ta2`,`ta1`) */  from `test`.`t1` `ta1` using `test`.`t2` semi join (`test`.`t3`) left join (`test`.`t1` `ta1` join `test`.`t1` `ta2`) on(`test`.`ta1`.`f1` = `test`.`t2`.`f1` and 1 and `test`.`t2`.`f1` is not null) where `test`.`t3`.`f1` = 9
 # Hint should be ignored
@@ -974,6 +982,12 @@ f2 varchar(255) CHARACTER SET utf8mb3 DEFAULT NULL,
 f3 varchar(10) DEFAULT NULL,
 PRIMARY KEY (f1),
 KEY f3(f3));
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 EXPLAIN SELECT /*+ JOIN_SUFFIX(t1, t2) */ t2.f3 FROM t2 LEFT JOIN t1
 ON t2.f1 = t1.f1 WHERE t1.f2 NOT LIKE ('FMGAU') OR t2.f2 > 't';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1000,6 +1014,14 @@ f2 varchar(255) CHARACTER SET cp932 DEFAULT NULL,
 KEY f1 (f1),
 KEY f2 (f2)
 );
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
 EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t2, t3) JOIN_ORDER(t1, t2)  */ t3.f1
 FROM ( t2 INNER JOIN t3 ON t3.f2 = t2.f2 LEFT JOIN t1 ON t1.f1 = t3.f1 )
 WHERE NOT (t2.f1 >= 7);
@@ -1059,6 +1081,14 @@ f2 DATE,
 f3 DATETIME,
 f4 INT
 ) ENGINE=myisam;
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
 EXPLAIN EXTENDED
 UPDATE /*+ JOIN_ORDER(t2, als1, als3) JOIN_FIXED_ORDER() */ t3 AS als1
 JOIN t1 AS als2 ON (als1.f3 = als2 .f1)
@@ -1099,6 +1129,18 @@ CREATE TABLE t5(
 f1 VARCHAR(1),
 KEY(f1) ) ENGINE=myisam;
 INSERT INTO t5 VALUES  (NULL), ('s'), ('c'), ('x'), ('z');
+ANALYZE TABLE t1, t2, t3, t4, t5;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+test.t5	analyze	status	Engine-independent statistics collected
+test.t5	analyze	status	OK
 EXPLAIN EXTENDED UPDATE /*+ JOIN_ORDER(t4, alias1, alias3)  */ t3 AS alias1
 JOIN t5 ON (alias1.f3 = t5.f1)
 JOIN t3 AS alias3 ON (alias1.f2 = alias3.f2 )
@@ -1126,6 +1168,14 @@ f1 VARCHAR(1) DEFAULT NULL,
 f2 VARCHAR(1) DEFAULT NULL,
 KEY (f2)
 ) ENGINE=InnoDB;
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
 EXPLAIN EXTENDED UPDATE /*+ JOIN_SUFFIX(ta1, t2) */
 t1 AS ta1 JOIN t1 AS ta2 ON ta1.f1 = ta2.f1 RIGHT JOIN t2 ON (ta1.f1 = t2.f1)
 SET ta1.f2 = '', ta2.f3 = ''
@@ -1150,6 +1200,22 @@ CREATE TABLE t10(f1 INT(11) NOT NULL AUTO_INCREMENT,f2 INT(11) DEFAULT NULL,f3 V
 PRIMARY KEY (f1),KEY (f2),KEY (f3)) charset latin1 ENGINE=MyISAM;
 CREATE TABLE t11(f1 INT(11) DEFAULT NULL,f2 VARCHAR(10) DEFAULT NULL,
 KEY (f1),KEY (f2)) charset latin1 ENGINE=InnoDB;
+ANALYZE TABLE t2, t4, t5, t6, t7, t10, t11;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+test.t5	analyze	status	Engine-independent statistics collected
+test.t5	analyze	status	OK
+test.t6	analyze	status	Engine-independent statistics collected
+test.t6	analyze	status	OK
+test.t7	analyze	status	Engine-independent statistics collected
+test.t7	analyze	status	OK
+test.t10	analyze	status	Engine-independent statistics collected
+test.t10	analyze	status	Table is already up to date
+test.t11	analyze	status	Engine-independent statistics collected
+test.t11	analyze	status	OK
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_ORDER(alias11, alias8) */ 1
 FROM t4 AS alias4
@@ -1189,6 +1255,24 @@ CREATE TABLE t6(f1 INT(11) NOT NULL AUTO_INCREMENT, PRIMARY KEY (f1)) ENGINE=Inn
 CREATE TABLE t7 (f1 VARCHAR(255) DEFAULT NULL) ENGINE=InnoDB;
 CREATE TABLE t10(f1 INT(11) NOT NULL AUTO_INCREMENT,f2 INT(11) DEFAULT NULL,f3 VARCHAR(10) DEFAULT NULL,
 PRIMARY KEY (f1),KEY (f2),KEY (f3)) ENGINE=InnoDB;
+ANALYZE TABLE t1, t2, t3, t4, t5, t6, t7, t10;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+test.t5	analyze	Error	Table 'test.t5' doesn't exist
+test.t5	analyze	status	Operation failed
+test.t6	analyze	status	Engine-independent statistics collected
+test.t6	analyze	status	OK
+test.t7	analyze	status	Engine-independent statistics collected
+test.t7	analyze	status	OK
+test.t10	analyze	status	Engine-independent statistics collected
+test.t10	analyze	status	OK
 EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(alias8, alias6) */ 1
 FROM t1 AS alias1
 LEFT JOIN t7 alias7
@@ -1203,7 +1287,7 @@ ON alias5.f3 = alias7.f1
 ON alias1.f2 = alias7.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	alias1	index	NULL	f2	1023	NULL	1	100.00	Using index
-1	SIMPLE	alias7	ALL	NULL	NULL	NULL	NULL	1	10.00	Using where
+1	SIMPLE	alias7	ALL	NULL	NULL	NULL	NULL	1	0.00	Using where
 1	SIMPLE	alias2	ref	f2	f2	5	test.alias7.f1	1	100.00	Using where
 1	SIMPLE	alias4	ref	f1	f1	5	test.alias2.f1	1	100.00	Using where
 1	SIMPLE	alias3	eq_ref	PRIMARY	PRIMARY	4	test.alias4.f2	1	100.00	
@@ -1230,6 +1314,12 @@ f3 int(11) DEFAULT NULL,
 PRIMARY KEY (f1),
 KEY f2 (f2))
 ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1;
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(alias1) */ alias2.f3 AS field1
 FROM ( SELECT * FROM t1 ) AS alias1 JOIN ( SELECT * FROM t2 ) AS alias2
 ON alias1.f2 = alias2.f3
@@ -1257,6 +1347,14 @@ CREATE TABLE t3
 (
 f1 VARCHAR(1) DEFAULT NULL
 ) ENGINE=MyISAM;
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
 EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(t2, t1) */ t1.f1 FROM t1, t2
 WHERE t2.f1 IN (SELECT t3.f1 FROM t3) AND t1.f1 = 183;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra

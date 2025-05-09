@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/innodb_stable_estimates.inc
 --enable_prepare_warnings
 --disable_view_protocol # Since optimizer hints are not supported inside views
 
@@ -394,6 +395,8 @@ CREATE TABLE t3
 );
 INSERT INTO t3 VALUES (0),(1),(2);
 
+ANALYZE TABLE t1, t2, t3;
+
 --echo # Original query
 EXPLAIN EXTENDED DELETE
 FROM ta1.* USING t1 AS ta1 JOIN t1 AS ta2 ON 1
@@ -466,6 +469,8 @@ f3 varchar(10) DEFAULT NULL,
 PRIMARY KEY (f1),
 KEY f3(f3));
 
+ANALYZE TABLE t1, t2;
+
 EXPLAIN SELECT /*+ JOIN_SUFFIX(t1, t2) */ t2.f3 FROM t2 LEFT JOIN t1
  ON t2.f1 = t1.f1 WHERE t1.f2 NOT LIKE ('FMGAU') OR t2.f2 > 't';
 
@@ -492,6 +497,8 @@ CREATE TABLE t3 (
   KEY f1 (f1),
   KEY f2 (f2)
 );
+
+ANALYZE TABLE t1, t2, t3;
 
 EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(t2, t3) JOIN_ORDER(t1, t2)  */ t3.f1
   FROM ( t2 INNER JOIN t3 ON t3.f2 = t2.f2 LEFT JOIN t1 ON t1.f1 = t3.f1 )
@@ -542,6 +549,8 @@ CREATE TABLE t3
   f4 INT
 ) ENGINE=myisam;
 
+ANALYZE TABLE t1, t2, t3;
+
 # Warning "Field or reference 'test.als2.f2' of SELECT #2 was resolved in SELECT #1"
 # is generated during both PREPARE and EXECUTE of a prepared statement, so disable
 # the PS protocol for this test
@@ -585,6 +594,8 @@ f1 VARCHAR(1),
 KEY(f1) ) ENGINE=myisam;
 INSERT INTO t5 VALUES  (NULL), ('s'), ('c'), ('x'), ('z');
 
+ANALYZE TABLE t1, t2, t3, t4, t5;
+
 EXPLAIN EXTENDED UPDATE /*+ JOIN_ORDER(t4, alias1, alias3)  */ t3 AS alias1
   JOIN t5 ON (alias1.f3 = t5.f1)
     JOIN t3 AS alias3 ON (alias1.f2 = alias3.f2 )
@@ -612,6 +623,8 @@ CREATE TABLE t3 (
   f2 VARCHAR(1) DEFAULT NULL,
   KEY (f2)
 ) ENGINE=InnoDB;
+
+ANALYZE TABLE t1, t2, t3;
 
 
 # Warning "Field or reference 'test.ta2.f3' of SELECT #2 was resolved in SELECT #1"
@@ -644,6 +657,8 @@ CREATE TABLE t10(f1 INT(11) NOT NULL AUTO_INCREMENT,f2 INT(11) DEFAULT NULL,f3 V
 
 CREATE TABLE t11(f1 INT(11) DEFAULT NULL,f2 VARCHAR(10) DEFAULT NULL,
   KEY (f1),KEY (f2)) charset latin1 ENGINE=InnoDB;
+
+ANALYZE TABLE t2, t4, t5, t6, t7, t10, t11;
 
 EXPLAIN EXTENDED
 SELECT /*+ JOIN_ORDER(alias11, alias8) */ 1
@@ -682,6 +697,8 @@ CREATE TABLE t7 (f1 VARCHAR(255) DEFAULT NULL) ENGINE=InnoDB;
 CREATE TABLE t10(f1 INT(11) NOT NULL AUTO_INCREMENT,f2 INT(11) DEFAULT NULL,f3 VARCHAR(10) DEFAULT NULL,
   PRIMARY KEY (f1),KEY (f2),KEY (f3)) ENGINE=InnoDB;
 
+ANALYZE TABLE t1, t2, t3, t4, t5, t6, t7, t10;
+
 EXPLAIN EXTENDED SELECT /*+ JOIN_ORDER(alias8, alias6) */ 1
 FROM t1 AS alias1
   LEFT JOIN t7 alias7
@@ -718,6 +735,8 @@ PRIMARY KEY (f1),
 KEY f2 (f2))
 ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1;
 
+ANALYZE TABLE t1, t2;
+
 EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(alias1) */ alias2.f3 AS field1
   FROM ( SELECT * FROM t1 ) AS alias1 JOIN ( SELECT * FROM t2 ) AS alias2
     ON alias1.f2 = alias2.f3
@@ -745,6 +764,8 @@ CREATE TABLE t3
 (
   f1 VARCHAR(1) DEFAULT NULL
 ) ENGINE=MyISAM;
+
+ANALYZE TABLE t1, t2, t3;
 
 EXPLAIN EXTENDED SELECT /*+ JOIN_PREFIX(t2, t1) */ t1.f1 FROM t1, t2
 WHERE t2.f1 IN (SELECT t3.f1 FROM t3) AND t1.f1 = 183;
