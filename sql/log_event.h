@@ -5714,7 +5714,11 @@ public:
       DBUG_ASSERT(0);
     };
 
-    ~Fragmented_rows_log_event() { my_free(fragments); }
+    ~Fragmented_rows_log_event()
+    {
+      DBUG_ASSERT(n_fragments);
+      my_free(fragments);
+    }
 
     bool write(Log_event_writer *writer) override {
       for (uint32_t i= 0; i < n_fragments; i++)
@@ -5819,7 +5823,11 @@ public:
                 num_chunks,
             MYF(MY_WME));
   }
-  ~Rows_log_event_fragmenter() {}
+  ~Rows_log_event_fragmenter() {
+    /*
+      Fragments are freed by the Fragmented_rows_log_event itself
+    */
+  }
 
   /*
     TODO Hardcoded to length of 12...
@@ -5828,6 +5836,7 @@ public:
   */
   Fragmented_rows_log_event* fragment()
   {
+    Fragmented_rows_log_event *ev;
     //uchar width_tmp_buf[MAX_INT_WIDTH];
     //uchar *const width_tmp_buf_end= net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
     //width_size= (width_tmp_buf_end - width_tmp_buf);
@@ -5919,8 +5928,11 @@ TODO I forget how to call a constructor on existing zeroed memory
 
     fprintf(stderr, "\n\tfragmenter: data_size is %" PRIu64 "\n", total_size);
     fprintf(stderr, "\n\tfragmenter:chunks %" PRIu32 " with last %" PRIu32 "(size %" PRIu32 "\n", num_chunks, last_chunk, last_chunk_size);
-    new (&fragmented_ev) Fragmented_rows_log_event(fragments, num_chunks);
-    return &fragmented_ev;
+
+    ev= (Fragmented_rows_log_event *) my_malloc(
+        PSI_INSTRUMENT_ME, sizeof(Fragmented_rows_log_event), MYF(MY_WME));
+    new (ev) Fragmented_rows_log_event(fragments, num_chunks);
+    return ev;
   }
 
   uint64_t get_payload_size_per_chunk()
