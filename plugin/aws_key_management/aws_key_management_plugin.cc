@@ -46,6 +46,9 @@
 #include <aws/kms/model/GenerateDataKeyWithoutPlaintextRequest.h>
 #include <aws/kms/model/GenerateDataKeyWithoutPlaintextResult.h>
 #include <aws/core/utils/Outcome.h>
+#include <aws/core/utils/logging/DefaultLogSystem.h>
+#include <aws/core/utils/logging/LogMacros.h>
+#include <aws/core/utils/logging/AWSLogging.h>
 
 using namespace std;
 using namespace Aws::KMS;
