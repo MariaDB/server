@@ -147,12 +147,15 @@
   Then, we analyze the WHERE clause and construct hypergraph's edges.
 
   == 2.3 From hypergraph to outer joins ==
-  Then, we do an analog of topological sorting: build a linked list of
-  table_pos entries (connected via table_pos::{next,prev}) that goes in the
-  order that is
-    1. Required by use of LEFT JOIN syntax: outer tables before their inner.
-    2. (after satisfying #1) follows the order the tables were listed in in the
-      original FROM clause.
+
+  Then, we walk the graph and construct a linked list of table_pos structures
+  (connected via table_pos::{next,prev}) so that they come in what we call
+  "LEFT JOIN syntax order". In decreasing order of importance, the criteria
+  are:
+  1. Outer tables must come before their inner tables.
+  2. Tables that are connected to the tables already in the order must come
+     before those who are not
+  3. Tables that were listed earlier in the original FROM clause come before.
 
   == 2.4 Building the TABLE_LIST structure ==
   Then, we walk through the table_pos objects via {table_pos::next} edges and
@@ -175,8 +178,8 @@
   Each pair of () brackets is a TABLE_LIST object representing a join nest. It
   has a NESTED_JOIN object which includes its two children.
 
-  Some of these are redundant, this is not a problem because simplify_joins()
-  will remove them.
+  Some of the brackets are redundant, this is not a problem because
+  simplify_joins() will remove them.
 
   == 3. Debugging ==
   One can examine the conversion result by doing this:
@@ -187,14 +190,19 @@
   Unlike regular EXPLAIN, this bypasses simplify_joins() call.
 */
 
+
 /**
   Structure to collect oracle outer join relations and order tables
 */
 
 struct table_pos: public Sql_alloc
 {
-  table_pos *next; // user to order tables correctly
+  /*
+    Links the tables in the "LEFT JOIN syntax order"
+  */
+  table_pos *next;
   table_pos *prev;
+
   List<table_pos> inner_side;
   List<table_pos> outer_side;
   List<Item> on_conds;
@@ -203,8 +211,10 @@ struct table_pos: public Sql_alloc
   /* Ordinal number of the table in the original FROM clause */
   int order;
 
-  /* TRUE <=> this table is already a part of prev<=>next chain. */
+  /* TRUE <=> this table is already linked (in the prev<=>next chain) */
   bool processed;
+
+  /* TRUE <=> All tables in outer_side are already linked */
   bool outer_processed;
 
   bool is_outer_of(table_pos *tab)
@@ -317,9 +327,11 @@ ora_join_process_expression(THD *thd, Item *cond,
 
 
 /**
-  Put table in the table order list
+  @brief
+    Put the table @t into "LEFT JOIN syntax order" list after table @end.
 
-  Note: the table should not be in the list
+  @detail
+    @t must not be already in that list.
 */
 
 static void process_tab(table_pos *t, table_pos *end, uint &processed)
@@ -390,11 +402,17 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
 
 
 /**
-  Process inner relation of the table just added to the order list
+  @brief
+    Table @tab has been added to the "LEFT JOIN syntax ordering". Add its
+    inner-side neighbors and all their connections.
 
   @param  tab        Table for which to process
-  param   processed  Counter.
+  param   processed  Counter of processed tables.
   @param  n_tables   Total number of tables in the join
+
+  @return
+    FALSE  OK
+    TRUE   Error, found a circular loop in outer join relationships.
 */
 
 static bool process_inner_relations(THD* thd,
@@ -404,9 +422,10 @@ static bool process_inner_relations(THD* thd,
 {
   if (tab->inner_side.elements > 0)
   {
-    // process this "sub-graph"
     List_iterator_fast<table_pos> it(tab->inner_side);
     table_pos *t;
+
+    /* First, add all inner_side neighbors */
     while ((t= it++))
     {
       if (t->processed)
@@ -414,27 +433,24 @@ static bool process_inner_relations(THD* thd,
         /*
           it is case of "non-cyclic" loop (or just processed already
           branch)
-           for example: here tab=t2, t=t3, t3->processed=true already:
 
-           t1-> t3
-                 ^
-                 |
-              t2-+
-          (it would be t1 then t3 then t2 and again probe t3 (from t2)
+             tab->t
+                  ^
+                  |
+              t1--+
+          (it would be t1 then t then tab and again probe t (from tab))
 
-          Check if it is directional loop also:
+          Check if it is also directional loop:
         */
         if (check_directed_cycle(thd, t, t, 0, n_tables))
         {
           /*
-             "round" cyclic reference happened
+             Found a circular dependency:
 
-              t1 -> t2 -> t3 -+
-                    ^         |
-                    |         |
-                    +---------+
-
-              t2 is "processed" in the example
+              t1->tab -> t -+
+                   ^        |
+                   |        |
+                   +--....--+
           */
           my_error(ER_INVALID_USE_OF_ORA_JOIN_CYCLE, MYF(0));
           return TRUE;
@@ -446,6 +462,8 @@ static bool process_inner_relations(THD* thd,
           return TRUE;
       }
     }
+
+    /* Second, process the connections of each neighbor */
     it.rewind();
     while ((t= it++))
     {
@@ -461,10 +479,10 @@ static bool process_inner_relations(THD* thd,
 
 
 /*
-  Put "tab" between "first_in_this_subgraph" and "last_in_the_subgraph".
+  Put "tab" between @first and @last.
 
   Used to process OUTER tables of "last_in_the_subgraph" inserted as
-  INNER table of "first_in_this_subgraph".
+  INNER table of "first_in_this_subgraph". TODO
 */
 
 static bool put_between(THD *thd,
@@ -491,6 +509,19 @@ static bool put_between(THD *thd,
 }
 
 
+/*
+  @brief
+    Table @tab has been added to the "LEFT JOIN syntax ordering". Add its
+    outer-side neighbors and all their connections.
+
+  @param tab    Examine tab->outer_side and their connection.
+  @param first  All outer-side connections must be added after "first" and
+                before the "tab".
+
+  @detail
+    Also add their inner tables, recursively.
+*/
+
 static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
                                     table_pos *first,
@@ -510,12 +541,12 @@ static bool process_outer_relations(THD* thd,
       if (!t->processed)
       {
         /*
-          This (t3 in the example) table serve as inner table for several
+          This (t3 in the example) table serves as inner table for several
           others.
 
-          For example we have such dependences (outer to the right and inner
+          For example we have such dependencies (outer to the right and inner
           to the left):
-          SELECT *
+            SELECT *
             FROM t1,t2,t3,t4
             WHERE t1.a=t2.a(+) AND t2.a=t3.a(+) AND
                   t4.a=t3.a(+);
@@ -539,16 +570,16 @@ static bool process_outer_relations(THD* thd,
 
           Now we go by list of unprocessed outer relation of t3 and put
           them  before t3.
-          So we have to put t4 somewhere between t1 and t2 or
-          between t2 and t3 (depends on its original position because we
+          So we have to put t4 between t1 and t2 or between t2 and t3
+          (depends on its original position because we
           are trying to keep original order where it is possible).
 
              t1 => t2 => t4 => t3
 
-          SELECT *
+            SELECT *
             FROM t1 left join t2 on (t1.a=t2.a),
                  t4
-                 left join t3 on (t2.a=t3.a and t1.a=t3)
+                 left join t3 on (t2.a=t3.a and t4.a=t3.a)
 
           We can also put it before t1, but as far as we have found t1 first
           it have definitely early position in the original list of tables
@@ -568,7 +599,7 @@ static bool process_outer_relations(THD* thd,
   TODO:WRONG:Put tab after prev and process its OUTER side relations
 
   @brief
-    Add @tab into the ordering after @first.
+    Add @tab into the linked list after the @first.
 */
 
 static bool put_after(THD *thd,
@@ -577,14 +608,7 @@ static bool put_after(THD *thd,
                       uint &processed,
                       uint n_tables)
 {
-  //TODO: why check for stack overrun here, we are just going to call a trivial
-  //      function?
-  uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
-  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
-    return(TRUE);// Fatal error flag is set!
-
   process_tab(tab, first, processed);
-
   return FALSE;
 }
 
@@ -745,9 +769,12 @@ bool setup_oracle_join(THD *thd, Item **conds,
     }
   }
 
+  /*
+    Check for inner tables that don't have outer tables;
+    prepare for producing the ordering.
+  */
   List<Item> return_to_where;
   return_to_where.empty();
-  // Sort relations if needed and check sainles
   for (i= 0; i < n_tables; i++)
   {
     if (tab[i].on_conds.elements > 0 &&
@@ -777,12 +804,13 @@ bool setup_oracle_join(THD *thd, Item **conds,
       tab[i].on_conds.empty();
     }
     /*
-      we have to sort this backward because after insert the list will be
-      reverted
-      (we will do:
+      Sort the outgoing edges in reverse order (those that should come
+      first are the last). This is because we will do this:
+
         for each T in tab[i].inner_side
           put_after(tab[i], T);
-       after which we will end up elements in the same order)
+
+      after which the elements will be in the right order.
     */
     if (tab[i].inner_side.elements > 1)
        bubble_sort<table_pos>(&tab[i].inner_side, table_pos_sort, NULL);
@@ -792,21 +820,24 @@ bool setup_oracle_join(THD *thd, Item **conds,
     dbug_trace_table_list(tab[i].table);
 #endif
   }
-  // order tables
+
+  /*
+    Order the tables according to the "LEFT JOIN syntax order".
+  */
   table_pos *list= NULL;
   table_pos *end= NULL;
   uint processed= 0;
   i= 0;
   do
   {
-    // Find the first independent
+    // Find the first independent table
     for(;
         i < n_tables && (tab[i].processed || tab[i].outer_side.elements != 0);
         i++);
     if (i >= n_tables)
       break;
 
-    // Process "sub-graph" with this independent is top of one of branches
+    // Set (list, end) to point to the list we've collected so far
     if (list == NULL)
       list= tab + i;
     else
@@ -815,6 +846,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
         end= list;
       while(end->next) end= end->next; // go to the new end
     }
+
+    // Process "sub-graph" with this independent is top of one of branches
     process_tab(tab + i, end, processed);
     process_inner_relations(thd, tab + i, processed, n_tables);
   } while (i < n_tables);
@@ -822,15 +855,13 @@ bool setup_oracle_join(THD *thd, Item **conds,
   if (processed < n_tables)
   {
     /*
-      "round" cyclic dependence happened
+      Some tables are not processed but they all have incoming edges.
+      This can only happen if there are circular dependencies:
 
        t1 -> t2 -> t3 -+
         ^              |
         |              |
         +--------------+
-
-       there is no starting point for subgraph processing,
-       so this table are left not "processed"
     */
     my_error(ER_INVALID_USE_OF_ORA_JOIN_CYCLE, MYF(0));
     DBUG_RETURN(TRUE);
@@ -957,7 +988,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
     select_table_list.next= &prev_table->next_local;
   }
 
-  DBUG_PRINT("YYY", ("new from %p", new_from));
+  DBUG_PRINT("INFO", ("new FROM clause: %p", new_from));
 #ifndef DBUG_OFF
   for (TABLE_LIST *t= new_from; t; t= t->next_local)
   {
