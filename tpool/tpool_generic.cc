@@ -39,14 +39,14 @@ namespace tpool
 {
 
 #ifdef __linux__
-#if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
-  extern aio* create_linux_aio(thread_pool* tp, int max_io);
-#else
-  aio *create_linux_aio(thread_pool *, int) { return nullptr; };
-#endif
-#endif
-#ifdef _WIN32
-  extern aio* create_win_aio(thread_pool* tp, int max_io);
+# if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
+  aio *create_linux_aio(thread_pool* tp, int max_io, aio_implementation);
+# else
+  static aio *create_linux_aio(thread_pool *, int, aio_implementation)
+  { return nullptr; }
+# endif
+#elif defined _WIN32
+  aio *create_win_aio(thread_pool* tp, int max_io);
 #endif
 
   static const std::chrono::milliseconds LONG_TASK_DURATION = std::chrono::milliseconds(500);
@@ -299,12 +299,12 @@ public:
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
-  aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io, aio_implementation impl) override
   {
 #ifdef _WIN32
     return create_win_aio(this, max_io);
-#elif defined(__linux__)
-    return create_linux_aio(this,max_io);
+#elif defined __linux__
+    return create_linux_aio(this, max_io, impl);
 #else
     return nullptr;
 #endif
