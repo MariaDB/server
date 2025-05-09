@@ -1420,10 +1420,12 @@ row_upd_changes_ord_field_binary_func(
 					when the server had crashed before
 					storing the field. */
 					ut_ad(!thr
-					      || thr->graph->trx->is_recovered);
+					      || thr->graph->trx->is_recovered
+					      || thr->graph->trx->in_rollback);
 					ut_ad(!thr
 					      || thr->graph->trx
-					         == trx_roll_crash_recv_trx);
+					         == trx_roll_crash_recv_trx
+					      || thr->graph->trx->in_rollback);
 					return(TRUE);
 				}
 
