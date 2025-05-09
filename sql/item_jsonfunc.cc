@@ -1565,7 +1565,6 @@ bool Item_func_json_contains_path::val_bool()
   longlong result;
   json_path_t p;
   int n_found;
-  LINT_INIT(n_found);
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -1601,8 +1600,11 @@ bool Item_func_json_contains_path::val_bool()
     bzero(p_found, (arg_count-2) * sizeof(bool));
     n_found= arg_count - 2;
   }
+#if GCC_VERSION <= 13000
+  /* before this version gcc would see n_found as uninitialized */
   else
-    n_found= 0; /* Just to prevent 'uninitialized value' warnings */
+    n_found= 0;
+#endif
 
   result= 0;
   while (json_get_path_next(&je, &p) == 0)
@@ -2412,7 +2414,6 @@ String *Item_func_json_merge::val_str(String *str)
   String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
   uint n_arg;
   THD *thd= current_thd;
-  LINT_INIT(js2);
 
   if (args[0]->null_value)
     goto null_return;
