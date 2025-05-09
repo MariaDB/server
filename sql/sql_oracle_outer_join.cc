@@ -334,7 +334,7 @@ ora_join_process_expression(THD *thd, Item *cond,
     @t must not be already in that list.
 */
 
-static void insert_element_after(table_pos *end, table_pos *t, uint &processed)
+static void insert_element_after(table_pos *end, table_pos *t, uint *processed)
 {
   DBUG_ASSERT(t->next == NULL);
   DBUG_ASSERT(t->prev == NULL);
@@ -345,14 +345,14 @@ static void insert_element_after(table_pos *end, table_pos *t, uint &processed)
     t->prev= end;
   }
   t->processed= TRUE;
-  processed++;
+  (*processed)++;
 }
 
 
 static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
                                     table_pos *first,
-                                    uint &processed,
+                                    uint *processed,
                                     uint n_tables);
 
 
@@ -412,7 +412,7 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
 
 static bool process_inner_relations(THD* thd,
                                     table_pos *tab,
-                                    uint &processed,
+                                    uint *processed,
                                     uint n_tables)
 {
   if (tab->inner_side.elements > 0)
@@ -479,7 +479,7 @@ static bool process_inner_relations(THD* thd,
 static
 void insert_element_between(THD *thd, table_pos *tab,
                             table_pos *first, table_pos *last,
-                            uint &processed)
+                            uint *processed)
 {
   table_pos *curr= last;
 
@@ -509,7 +509,7 @@ void insert_element_between(THD *thd, table_pos *tab,
 static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
                                     table_pos *first,
-                                    uint &processed,
+                                    uint *processed,
                                     uint n_tables)
 {
   uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
@@ -815,8 +815,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
     }
 
     // Process "sub-graph" with this independent is top of one of branches
-    insert_element_after(end, tab + i, processed);
-    process_inner_relations(thd, tab + i, processed, n_tables);
+    insert_element_after(end, tab + i, &processed);
+    process_inner_relations(thd, tab + i, &processed, n_tables);
   } while (i < n_tables);
 
   if (processed < n_tables)
