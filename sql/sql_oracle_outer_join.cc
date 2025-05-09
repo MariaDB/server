@@ -334,7 +334,7 @@ ora_join_process_expression(THD *thd, Item *cond,
     @t must not be already in that list.
 */
 
-static void process_tab(table_pos *t, table_pos *end, uint &processed)
+static void insert_element_after(table_pos *end, table_pos *t, uint &processed)
 {
   DBUG_ASSERT(t->next == NULL);
   DBUG_ASSERT(t->prev == NULL);
@@ -399,7 +399,7 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
 /**
   @brief
     Table @tab has been added to the "LEFT JOIN syntax ordering". Add its
-    inner-side neighbors and all their connections.
+    inner-side neighbors first, then add all their connections.
 
   @param  tab        Table for which to process
   param   processed  Counter of processed tables.
@@ -452,7 +452,7 @@ static bool process_inner_relations(THD* thd,
         }
       }
       else
-        process_tab(t, tab, processed);
+        insert_element_after(tab, t, processed);
     }
 
     /* Second, process the connections of each neighbor */
@@ -471,16 +471,15 @@ static bool process_inner_relations(THD* thd,
 
 
 /*
-  Put "tab" between @first and @last.
-
-  Used to process OUTER tables of "last_in_the_subgraph" inserted as
-  INNER table of "first_in_this_subgraph". TODO
+  @brief
+    Insert @tab into the "LEFT JOIN syntax ordering" list between @first and
+    @last.
 */
 
-static void put_between(THD *thd,
-                        table_pos *tab,
-                        table_pos *first, table_pos *last,
-                        uint &processed)
+static
+void insert_element_between(THD *thd, table_pos *tab,
+                            table_pos *first, table_pos *last,
+                            uint &processed)
 {
   table_pos *curr= last;
 
@@ -490,7 +489,7 @@ static void put_between(THD *thd,
          !curr->is_outer_of(curr->prev))
     curr= curr->prev;
 
-  process_tab(tab, curr->prev, processed);
+  insert_element_after(curr->prev, tab, processed);
 }
 
 
@@ -504,7 +503,7 @@ static void put_between(THD *thd,
                 before the "tab".
 
   @detail
-    Also add their inner tables, recursively.
+    Outer-side neighbors need to be added *before* the table tab.
 */
 
 static bool process_outer_relations(THD* thd,
@@ -571,7 +570,7 @@ static bool process_outer_relations(THD* thd,
           it have definitely early position in the original list of tables
           than t4.
         */
-        put_between(thd, t, first, tab, processed);
+        insert_element_between(thd, t, first, tab, processed);
         if (process_inner_relations(thd, t, processed, n_tables))
           return TRUE;
       }
@@ -816,7 +815,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
     }
 
     // Process "sub-graph" with this independent is top of one of branches
-    process_tab(tab + i, end, processed);
+    insert_element_after(end, tab + i, processed);
     process_inner_relations(thd, tab + i, processed, n_tables);
   } while (i < n_tables);
 
