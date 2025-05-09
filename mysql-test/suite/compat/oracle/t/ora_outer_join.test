@@ -180,7 +180,11 @@ SELECT * FROM tj1, (SELECT * FROM tj1, tj2 d WHERE tj1.a = d.c(+)) b WHERE tj1.a
 --echo #
 # --error ER_INVALID_USE_OF_ORA_JOIN
 # it is legal, Oracle just ignore the operator if it is applied to all tabes
+
+# The WARN_ORA_JOIN_IGNORED is emitted only on PREPARE:
+--disable_ps_protocol
 SELECT * FROM tj1 WHERE tj1.a(+) = 1;
+--enable_ps_protocol
 
 --echo #
 --echo # Self outer join
@@ -200,9 +204,13 @@ SELECT * FROM tj1, tj2 WHERE tj1.a + 1 = tj1.a(+);
 --echo # ensures that the topological sort is working correctly.
 --echo #
 --echo # correct result in is empty result set (tj2.c = 1 filters all out)
+
+# The WARN_ORA_JOIN_IGNORED is emitted only on PREPARE:
+--disable_ps_protocol
 SELECT * FROM tj1, tj2 WHERE tj2.c(+) = 1;
 --echo # one row (there is tj1.a = 1)
 SELECT * FROM tj1, tj2 WHERE tj1.a(+) = 1;
+--enable_ps_protocol
 
 --echo #
 --echo # Outer join in 'IN' condition
@@ -376,10 +384,13 @@ insert into t1 values (1),(2),(3);
 create table t2 (b int);
 insert into t2 values (2),(1),(20);
 
+# The WARN_ORA_JOIN_IGNORED is emitted only on PREPARE:
+--disable_ps_protocol
 select t1.a, t2.b  from t1, t2 where 1 = t2.b(+);
 select t1.a, t2.b  from t2, t1 where 1 = t2.b(+);
 select t1.a,t2.b  from t2,t1 where t2.b(+) in (1,2);
 select t2.b  from t2 where 1 = t2.b(+);
+--enable_ps_protocol
 
 drop tables t1, t2;
 
