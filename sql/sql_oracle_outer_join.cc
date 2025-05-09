@@ -766,6 +766,9 @@ bool setup_oracle_join(THD *thd, Item **conds,
                             WARN_ORA_JOIN_IGNORED,
                             ER_THD(thd, WARN_ORA_JOIN_IGNORED),
                             expr.c_ptr());
+
+        // The item will be moved into the WHERE clause
+        item->walk(&Item::remove_ora_join_processor, 0, 0);
       }
       return_to_where.append(&tab[i].on_conds);
       tab[i].on_conds.empty();
@@ -964,13 +967,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
 #endif
 
   if (add_conditions_to_where(thd, conds, std::move(return_to_where)))
-    DBUG_RETURN(1);
+    DBUG_RETURN(TRUE);
 
-  // TODO: the only thing that has WITH_ORA_JOIN flag at this point is the
-  // top-level Item_cond_and... However, that one can have other attributes
-  // out-ofdate like with_subselect() or used_tables()?
-  if ((*conds)) // remove flags because we converted them
-    (*conds)->walk(&Item::remove_ora_join_processor, 0, 0);
   DBUG_RETURN(FALSE);
 }
 
