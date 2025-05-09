@@ -349,11 +349,6 @@ static void process_tab(table_pos *t, table_pos *end, uint &processed)
 }
 
 
-static bool put_after(THD *thd,
-                      table_pos *tab,
-                      table_pos *first,
-                      uint &processed,
-                      uint n_tables);
 static bool process_outer_relations(THD* thd,
                                     table_pos *tab,
                                     table_pos *first,
@@ -457,10 +452,7 @@ static bool process_inner_relations(THD* thd,
         }
       }
       else
-      {
-        if (put_after(thd, t, tab, processed, n_tables))
-          return TRUE;
-      }
+        process_tab(t, tab, processed);
     }
 
     /* Second, process the connections of each neighbor */
@@ -485,27 +477,20 @@ static bool process_inner_relations(THD* thd,
   INNER table of "first_in_this_subgraph". TODO
 */
 
-static bool put_between(THD *thd,
+static void put_between(THD *thd,
                         table_pos *tab,
                         table_pos *first, table_pos *last,
-                        uint &processed,
-                        uint n_tables)
+                        uint &processed)
 {
   table_pos *curr= last;
-  uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
-  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
-    return(TRUE);// Fatal error flag is set!
 
   DBUG_ASSERT(first != last);
   // find place to insert
   while (curr->prev != first && tab->order > curr->prev->order &&
          !curr->is_outer_of(curr->prev))
     curr= curr->prev;
+
   process_tab(tab, curr->prev, processed);
-
-  process_inner_relations(thd, tab, processed, n_tables);
-
-  return FALSE;
 }
 
 
@@ -531,6 +516,7 @@ static bool process_outer_relations(THD* thd,
   uchar buff[STACK_BUFF_ALLOC]; // Max argument in function
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     return(TRUE);// Fatal error flag is set!
+
   tab->outer_processed= TRUE;
   if (tab->outer_side.elements)
   {
@@ -585,31 +571,13 @@ static bool process_outer_relations(THD* thd,
           it have definitely early position in the original list of tables
           than t4.
         */
-        if (put_between(thd, t, first, tab,
-                        processed, n_tables))
+        put_between(thd, t, first, tab, processed);
+        if (process_inner_relations(thd, t, processed, n_tables))
           return TRUE;
       }
     }
   }
   return process_inner_relations(thd, tab, processed, n_tables);
-}
-
-
-/**
-  TODO:WRONG:Put tab after prev and process its OUTER side relations
-
-  @brief
-    Add @tab into the linked list after the @first.
-*/
-
-static bool put_after(THD *thd,
-                      table_pos *tab,
-                      table_pos *first,
-                      uint &processed,
-                      uint n_tables)
-{
-  process_tab(tab, first, processed);
-  return FALSE;
 }
 
 
@@ -808,7 +776,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
       first are the last). This is because we will do this:
 
         for each T in tab[i].inner_side
-          put_after(tab[i], T);
+          insert_element_after(tab[i], T);
 
       after which the elements will be in the right order.
     */
