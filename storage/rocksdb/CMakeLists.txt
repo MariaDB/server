@@ -76,15 +76,6 @@ IF(MSVC_ARM64)
  SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
 ENDIF()
 
-#
-# Also, disable on ARM64 when not Linux
-# Requires submodule update to v6.16.3
-# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
-#
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
-ENDIF()
-
 # This plugin needs recent C++ compilers (it is using C++11 features)
 # Skip build for the old compilers
 SET(CXX11_FLAGS)
