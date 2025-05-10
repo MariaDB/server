@@ -1,0 +1,1 @@
+--slave-type-conversions=all --binlog-row-metadata=full --binlog_format=row

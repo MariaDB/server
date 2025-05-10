@@ -233,13 +233,15 @@ unpack_row(rpl_group_info *rgi,
 
   RPL_TABLE_LIST *table_list= rgi->get_table_data(table);
   table_def *tabledef= &table_list->m_tabledef;
+  uint *master_to_slave_map= tabledef->master_to_slave_map;
   TABLE *conv_table= table_list->m_conv_table;
-  uint conv_table_idx= 0;
+  uint conv_table_idx= 0, null_pos= 0;
 
   for (uint master_idx= 0; master_idx < master_cols; master_idx++)
   {
+    bool null_value;
     uint slave_idx;
-    Field *field, *conv_field;
+    Field *field, *conv_field= 0;
     Copy_field copy;
 
     /*
@@ -247,25 +249,30 @@ unpack_row(rpl_group_info *rgi,
     */
     if (!bitmap_is_set(cols, master_idx))
     {
-      DBUG_ASSERT(!bitmap_is_set(table->write_set, master_idx));
-      if (!(table_list->m_tabledef.master_to_slave_error[master_idx]))
+      if (!(tabledef->master_to_slave_error[master_idx]))
+      {
+#ifdef NOT_YET
+        DBUG_ASSERT(!bitmap_is_set(table->write_set,
+                                   master_to_slave_map[master_idx]));
+#endif
         conv_table_idx++;
-      continue;
+        continue;
+      }
     }
-    DBUG_ASSERT(bitmap_is_set(table->write_set, master_idx) ||
-                bitmap_is_set(table->read_set, master_idx));
-
-    if (table_list->m_tabledef.master_to_slave_error[master_idx])
+    null_value= rpl_bitmap_is_set(null_ptr, null_pos++);
+    if (tabledef->master_to_slave_error[master_idx])
     {
       /* Column does not exist on slave, skip over it */
-      if (!rpl_bitmap_is_set(null_ptr, master_idx))
+      if (!null_value)
         pack_ptr+= tabledef->calc_field_size(master_idx, (uchar *) pack_ptr);
       continue;
     }
-    slave_idx= table_list->m_tabledef.master_to_slave_map[master_idx];
+    slave_idx= master_to_slave_map[master_idx];
+    DBUG_ASSERT(bitmap_is_set(table->write_set, slave_idx) ||
+                bitmap_is_set(table->read_set, slave_idx));
     field= table->field[slave_idx];
 
-    if (rpl_bitmap_is_set(null_ptr, master_idx))
+    if (null_value)
     {
       if (field->maybe_null())
       {
@@ -306,6 +313,14 @@ unpack_row(rpl_group_info *rgi,
     field->set_notnull();
 
     /*
+      If there is a conversion table, we pick up the field pointer to
+      the conversion table.  If the conversion table or the field
+      pointer is NULL, no conversions are necessary.
+     */
+    if (conv_table && (conv_field= conv_table->field[conv_table_idx++]))
+      field= conv_field;
+
+    /*
       Use the master's size information if available else call
       normal unpack operation.
     */
@@ -329,14 +344,10 @@ unpack_row(rpl_group_info *rgi,
       DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
     }
 
-    /*
-      If there is a conversion table, we pick up the field pointer to
-      the conversion table.  If the conversion table or the field
-      pointer is NULL, no conversions are necessary.
-     */
-    if (!conv_table || !(conv_field= conv_table->field[conv_table_idx++]))
+    if (!conv_field)
       continue;
 
+    field= table->field[slave_idx];             // Restore field
     DBUG_PRINT("rpl", ("Conversion required for field '%s' (#%ld)",
                        field->field_name.str, master_idx));
     /*
@@ -354,7 +365,7 @@ unpack_row(rpl_group_info *rgi,
     conv_field->sql_type(source_type);
     conv_field->val_str(&value_string);
     DBUG_PRINT("rpl", ("Copying field '%s' of type '%s' with value '%s'",
-                       (field)->field_name.str,
+                       field->field_name.str,
                        source_type.c_ptr_safe(), value_string.c_ptr_safe()));
 #endif
     copy.set(field, conv_field, TRUE);
@@ -362,10 +373,10 @@ unpack_row(rpl_group_info *rgi,
 #ifndef DBUG_OFF
     char target_buf[MAX_FIELD_WIDTH];
     String target_type(target_buf, sizeof(target_buf), system_charset_info);
-    (field)->sql_type(target_type);
-    (field)->val_str(&value_string);
+    field->sql_type(target_type);
+    field->val_str(&value_string);
     DBUG_PRINT("debug", ("Value of field '%s' of type '%s' is now '%s'",
-                         (field)->field_name.str,
+                         field->field_name.str,
                          target_type.c_ptr_safe(), value_string.c_ptr_safe()));
 #endif
   }
@@ -421,7 +432,7 @@ int prepare_record(TABLE *const table)
       continue;
 
     Field *const f= *field_ptr;
-    DBUG_ASSERT(!(f->flags & NO_DEFAULT_VALUE_FLAG) && f->vcol_info); // QQ
+    DBUG_ASSERT(!((f->flags & NO_DEFAULT_VALUE_FLAG) && f->vcol_info)); // QQ
     if ((f->flags & NO_DEFAULT_VALUE_FLAG) &&
         (f->real_type() != MYSQL_TYPE_ENUM) &&
         !f->vcol_info)

@@ -145,7 +145,8 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr=static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr))
+        if (ptr->create_column_mapping(rgi) ||
+            ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           ev_thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(ev_thd);
@@ -1439,7 +1440,8 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
           skipped above).
         */
         RPL_TABLE_LIST *ptr=static_cast<RPL_TABLE_LIST*>(table_list_ptr);
-        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr))
+        if (ptr->create_column_mapping(rgi) ||
+            ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(thd);
@@ -2133,7 +2135,9 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
   int error;
 
   /* fill table->record[0] with default values and then store the row */
-  if ((error= prepare_record(table)) || (error= unpack_current_row(rgi)))
+  restore_record(table, s->default_values);
+
+  if ((error= unpack_current_row(rgi)))
     DBUG_RETURN(error);
 
 #ifndef DBUG_OFF

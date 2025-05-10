@@ -941,15 +941,15 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
     slave_idx= master_to_slave_map[col];
 
     Field *const field= table->field[slave_idx];
-    const Type_handler *h= field_type_handler(col);
+    const Type_handler *field_handler= field_type_handler(col);
 
-    if (!h)
+    if (!field_handler)
     {
       master_to_slave_error[col]= SLAVE_FIELD_UNKNOWN_TYPE;
       continue;
     }
 
-    Conv_source source(h, field_metadata(col), field->charset());
+    Conv_source source(field_handler, field_metadata(col), field->charset());
     enum_conv_type convtype= can_convert_field_to(field, source, rli,
                                                   Conv_param(m_flags));
     if (is_conversion_ok(convtype, rli, slave_type_conversions_options))
@@ -1029,14 +1029,14 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
 bool RPL_TABLE_LIST::check_wrong_column_usage(rpl_group_info *rgi,
                                               MY_BITMAP *m_cols)
 {
-  DBUG_ENTER("RPL_TABLE_LIST::give_compatiblity_error");
+  DBUG_ENTER("RPL_TABLE_LIST::check_wrong_column_usage");
   for (uint col= 0 ; col < m_tabledef.size() ; col++)
   {
     if (!bitmap_is_set(m_cols, col))
       continue;
     if (m_tabledef.master_to_slave_error[col])
     {
-      if (give_compatiblity_error(rgi, col))
+      if (give_compatibility_error(rgi, col))
         DBUG_RETURN(1);
     }
   }
@@ -1050,7 +1050,7 @@ bool RPL_TABLE_LIST::check_wrong_column_usage(rpl_group_info *rgi,
   @return 1  error, abort replication
 */
 
-bool RPL_TABLE_LIST::give_compatiblity_error(rpl_group_info *rgi, uint col)
+bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
 {
   switch (m_tabledef.master_to_slave_error[col]) {
   case SLAVE_FIELD_NAME_MISSING:
@@ -1142,6 +1142,14 @@ public:
                          tmp->flags, tmp->pack_length()));
     return false;
   }
+  /* Make last inserted field not null */
+  void make_not_null()
+  {
+    DBUG_ASSERT(s->fields > 0);
+    /* Resetting flag and null_ptr makes the field not null */
+    field[s->fields-1]->flags |= NOT_NULL_FLAG;
+    field[s->fields-1]->null_ptr= 0;
+  }
 };
 
 
@@ -1164,7 +1172,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
   Virtual_conversion_table *conv_table;
   Relay_log_info *rli= rgi->rli;
   TABLE *target_table= table_list->table;
-  uint const cols_to_create= size();
+  uint const cols_to_create= MY_MIN(size(), target_table->s->fields);
   DBUG_ENTER("table_def::create_conversion_table");
 
   if (!(conv_table= new(thd) Virtual_conversion_table(thd)) ||
@@ -1183,11 +1191,11 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
     if (master_to_slave_error[col])
       continue;                                 // Slave does not have field
     const Type_handler *ha= field_type_handler(col);
-    DBUG_ASSERT(!ha);
     if (!ha)
     {
-      /* This should never fail as we already checked 'ha' in the caller */
-      goto err;
+      /* This can happen as we have not checked all columns in the caller */
+      master_to_slave_error[col]= SLAVE_FIELD_UNKNOWN_TYPE;
+      continue;
     }
 
     field= target_table->field[master_to_slave_map[col]];
@@ -1199,8 +1207,15 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
                            field->field_name.str));
       goto err;
     }
+    /*
+      We only use the conversion table for not null values
+      This also avoids a bug in Virtual_conversion_table where the null
+      pointer for created fields points to uninitialized memory.
+    */
+    conv_table->make_not_null();
   }
 
+  conv_table->fix_field_count();
   if (conv_table->open())
     goto err; // Could not allocate record buffer?
 
@@ -1299,13 +1314,12 @@ bool RPL_TABLE_LIST::create_column_mapping(rpl_group_info *rgi)
 
   if (!m_tabledef.optional_metadata.length)
   {
-    uint col, max_column= MY_MAX(master_cols, table->s->fields);
-    /* No metadata, map columns according to position */
-    for (col= 0; col < max_column; col++)
+default_column_mapping:
+    uint col, min_cols= MY_MIN(master_cols, table->s->fields);
+    for (col= 0; col < min_cols; col++)
       m_tabledef.master_to_slave_map[col]= col;
-    for ( ; col < table->s->fields; col++)
+    for ( ; col < master_cols ; col++)
     {
-      /* These should never be accessed */
       m_tabledef.master_to_slave_map[col]= INT_MAX32;
       m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NR_MISSING;
     }
@@ -1318,10 +1332,12 @@ bool RPL_TABLE_LIST::create_column_mapping(rpl_group_info *rgi)
 
   if (!opt_metadata.m_column_name.size())
   {
-    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
-                     "Cound not read column fieldnames from table '%s.%s",
-                     table->s->db.str, table->s->table_name.str);
-    DBUG_RETURN(true);
+    /*
+      If there are no column names provided in the optional metadata
+      use the default column mapping.
+      This can happen when reading an event from MySQL 8.
+    */
+    goto default_column_mapping;
   }
 
   for (uint col= 0; col < master_cols; col++)

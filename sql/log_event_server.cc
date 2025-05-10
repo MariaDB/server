@@ -5827,7 +5827,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
     else
     {
-
       if (rpl_table->create_column_mapping(rgi))
         DBUG_RETURN(1);                         // Internal errror
 
@@ -8073,7 +8072,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     Todo: fix wl3228 hld that requires defauls for all types of events
   */
   
-  prepare_record(table);
+  restore_record(table, s->default_values);
   error= unpack_current_row(rgi);
 
   m_vers_from_plain= false;

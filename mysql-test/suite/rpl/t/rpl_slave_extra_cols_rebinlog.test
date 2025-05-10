@@ -1,20 +1,7 @@
 #
-# Test to show that the slave doesn't re-binlog correctly if it has extra
-# columns. Note this is only broken in 10.6, 10.11 fixes it (as well as my
-# MDEV-36290 patch). The problem is that the slave doesn't set
-# table->rpl_write_set correctly. Also table->read_set and table->write_set
-# are not correct, but I haven't # yet looked into the implications of that..
-#
-# To show this, this test uses chain replication with slave-specific columns.
-# The default value for the column is different on each slave. The middle-slave
-# doesn't write its column to the binlog (despite being configured with
-# binlog_row_image=FULL), and so when the final slave in the chain sees the
-# event, it only sees one column being updated, and then uses its default for
-# its extra column, which is different than the middle slaves default. Then,
-# we use diff_tables.inc to show the difference between the tables.
-#
-# References:
-#   MDEV-36290: ALTER TABLE with multi-master can cause data loss
+# Test to show that if the slave re-binlog correctly if it has extra
+# columns.
+# Part of MDEV-36290: ALTER TABLE with multi-master can cause data loss
 #
 
 --source include/have_innodb.inc
@@ -66,4 +53,3 @@ drop table t1;
 --source include/sync_with_master_gtid.inc
 
 --source include/rpl_end.inc
---echo # End of rpl_slave_extra_cols_rebinlog.test

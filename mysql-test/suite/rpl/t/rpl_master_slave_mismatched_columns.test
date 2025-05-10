@@ -1,5 +1,5 @@
 #
-#   Test ensures that if slave tables have their columns organized differently
+# Test ensures that if slave tables have their columns organized differently
 # than their master, that the slave can still correctly replicate the events.
 # That is, the slave will use column names, if available (supplied when
 # binlog_row_metadata=FULL), to identify the correct columns to store the row
