@@ -1,0 +1,48 @@
+#
+# Test ensures that if slave tables have their columns organized differently
+# than their master, that the slave can still correctly replicate the events.
+# That is, the slave will use column names, if available (supplied when
+# binlog_row_metadata=FULL), to identify the correct columns to store the row
+# data.
+#
+#
+# The following use cases are tested:
+#
+#   1. ALTER TABLE adds a new column in the first position on the slave,
+#      default value is used for the new column during replication, and all
+#      other fields replicate correctly.
+#   2. ALTER TABLE adds a new column in the middle of the table on the slave,
+#      default value is used for the new column during replication, and all
+#      other fields replicate correctly.
+#   3. ALTER TABLE adds a new column in the last position on the slave,
+#      default value is used for the new column during replication, and all
+#      other fields replicate correctly.
+#   4. ALTER TABLE drops the first column on the slave, that column is not
+#      replicated, but all other fields replicate correctly.
+#   5. ALTER TABLE drops a middle column on the slave, that column is not
+#      replicated, but all other fields replicate correctly.
+#   6. ALTER TABLE drops the last column on the slave, that column is not
+#      replicated, but all other fields replicate correctly.
+#   7. Re-test use-cases 1-6 with type conversion.
+#   8. Re-test use-cases 1-6 with NULL columns.
+#
+# TODO:
+#   * BINLOG_ROW_IMAGE=MINIMAL and BINLOG_ROW_METADATA=FULL
+#   * ERROR Cases
+#     E1. Master and slave have matching table names but no matching column
+#         names
+#
+# References:
+#   MDEV-36290: ALTER TABLE with multi-master can cause data loss
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--let $rpl_topology=1->2, 2->3
+--source include/rpl_init.inc
+
+--source rpl_master_slave_mismatched_columns_full_null.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_master_slave_mismatched_columns_full.test

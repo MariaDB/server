@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+#
+# Setup
+create table t1 (a int primary key, b int) engine = innodb;
+insert into t1 values(100,100), (200,200);
+connection slave;
+# Add a column on the slave-side only which will change the index order,
+# i.e., b on master is at index 2; and b on slave will be at index 3.
+connection slave;
+alter table t1 add column c int after a;
+#
+# Test: Insert will put the b values in the correct field
+connection master;
+insert into t1 values(300,301), (400,401);
+select * from t1;
+a	b
+100	100
+200	200
+300	301
+400	401
+connection slave;
+select * from t1;
+a	c	b
+100	NULL	100
+200	NULL	200
+300	NULL	301
+400	NULL	401
+connection master;
+connection slave;
+# Ensuring slave inserts to the correct column it is in a different position than on the master..
+# ..PASS
+#
+# Cleanup
+connection master;
+drop table t1;
+include/rpl_end.inc

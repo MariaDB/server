@@ -4822,10 +4822,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ASSERT(rgi);
   Relay_log_info const *rli= rgi->rli;
   TABLE* table;
-  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
+  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
+
   /*
     If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5073,8 +5074,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
-        TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+
+        if (ptr->create_column_mapping(rgi))
+        {
+          thd->is_slave_error= 1;
+          error= ERR_BAD_TABLE_DEF;
+          goto err;
+        }
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -5088,11 +5095,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           error= ERR_BAD_TABLE_DEF;
           goto err;
         }
-        DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
-                             " - conv_table: %p",
-                             ptr->table->s->db.str,
-                             ptr->table->s->table_name.str, conv_table));
-        ptr->m_conv_table= conv_table;
       }
     }
 
@@ -5110,8 +5112,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Rows_log_event, we can invalidate the query cache for the
       associated table.
      */
-    TABLE_LIST *ptr= rgi->tables_to_lock;
-    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count); ptr= ptr->next_global, i++)
+    RPL_TABLE_LIST *ptr= rgi->tables_to_lock;
+    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count);
+         ptr= (RPL_TABLE_LIST*) ptr->next_global, i++)
     {
       /*
         Please see comment in above 'for' loop to know the reason
@@ -5178,38 +5181,92 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-
-    bitmap_set_all(table->read_set);
-    bitmap_set_all(table->write_set);
-    table->rpl_write_set= table->write_set;
-
-    if (rpl_data.copy_fields)
-      /* always full rows, all bits set */;
-    else
-    if (get_general_type_code() == WRITE_ROWS_EVENT)
-      bitmap_copy(table->write_set, &m_cols); // for sequences
-    else // If online alter, leave all columns set (i.e. skip intersects)
-    if (!thd->slave_thread || !table->s->online_alter_binlog)
     {
-      bitmap_intersect(table->read_set,&m_cols);
-      if (get_general_type_code() == UPDATE_ROWS_EVENT)
-        bitmap_intersect(table->write_set, &m_cols_ai);
+      RPL_TABLE_LIST *rpl_table= rgi->get_table_data(table);
+      Log_event_type type= get_general_type_code();
+      DBUG_ASSERT(rpl_table);
+
+      bitmap_set_all(table->read_set);
+      bitmap_set_all(table->write_set);
+      table->rpl_write_set= table->write_set;
+      if (rpl_data.copy_fields)
+      {
+        /* always full rows, all bits set */;
+      }
+      else if (!table->s->online_alter_binlog)
+      {
+        if (!rpl_table->m_tabledef.optional_metadata.length)
+        {
+          /*
+            Master did not use binlog_row_metadata=FULL, so identify fields
+            using index number.
+          */
+          MY_BITMAP *after_image;
+          if (type == DELETE_ROWS_EVENT || type == UPDATE_ROWS_EVENT)
+            bitmap_intersect(table->read_set, &m_cols);
+
+          /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
+          after_image= ((type == UPDATE_ROWS_EVENT) ? &m_cols_ai : &m_cols);
+          bitmap_intersect(table->write_set, after_image);
+          table->mark_columns_per_binlog_row_image();
+          if (type != WRITE_ROWS_EVENT && table->vfield)
+            table->mark_virtual_columns_for_write(0);
+        }
+        else
+        {
+          /*
+            The row event was logged with column names (i.e using
+            binlog_row_metadata=FULL) so fix the bitmaps to account for potential
+            column reorganizations on the slave using the master-to-slave
+            translations.
+          */
+          bitmap_clear_all(table->read_set);
+          bitmap_clear_all(table->write_set);
+
+          for (uint i= 0; i < m_cols.n_bits; i++)
+          {
+            if (bitmap_is_set(&m_cols, i) &&
+                !rpl_table->m_tabledef.master_to_slave_error[i])
+              bitmap_set_bit(table->read_set,
+                             rpl_table->m_tabledef.master_to_slave_map[i]);
+          }
+
+          if (get_general_type_code() != UPDATE_ROWS_EVENT)
+            bitmap_copy(table->write_set, table->read_set);
+          else
+          {
+            /*
+              Update rows events can have disjoint read vs write sets in the
+              before/after images (e.g. when logged with
+              binlog_row_image=MINIMAL), so we explicitly set the write set
+              from the after image.
+            */
+            for (uint i= 0; i < m_cols_ai.n_bits; i++)
+            {
+              if (bitmap_is_set(&m_cols_ai, i) &&
+                  !rpl_table->m_tabledef.master_to_slave_error[i])
+                bitmap_set_bit(table->write_set,
+                               rpl_table->m_tabledef.master_to_slave_map[i]);
+            }
+          }
+        }
+      }
+
+      if (table->versioned())
+      {
+        bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
+        bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
+        bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
+        bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+      }
+
+      if (rpl_table->check_wrong_column_usage(rgi, &m_cols))
+        DBUG_RETURN(1);
+
       table->mark_columns_per_binlog_row_image();
-      if (table->vfield)
-        table->mark_virtual_columns_for_write(0);
+      if (!rpl_data.is_online_alter())
+        this->slave_exec_mode= (enum_slave_exec_mode) slave_exec_mode_options;
     }
-
-    if (table->versioned())
-    {
-      bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
-      bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
-      bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
-      bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
-    }
-    m_table->mark_columns_per_binlog_row_image();
-
-    if (!rpl_data.is_online_alter())
-      this->slave_exec_mode= (enum_slave_exec_mode)slave_exec_mode_options;
 
     // Do event specific preparations 
     error= do_before_row_operations(rgi);
@@ -5964,9 +6021,9 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
 
 table_def Table_map_log_event::get_table_def()
 {
-  return table_def(m_coltype, m_colcnt,
-                   m_field_metadata, m_field_metadata_size,
-                   m_null_bits, m_flags);
+  return table_def(m_coltype, m_colcnt, m_field_metadata,
+                   m_field_metadata_size, m_null_bits, m_flags,
+                   m_optional_metadata, m_optional_metadata_len);
 }
 
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
@@ -6863,7 +6920,7 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   auto_afree_ptr<char> key(NULL);
 
-  prepare_record(table, m_width, true);
+  prepare_record(table);
 
   /* unpack row into table->record[0] */
   if (unlikely((error= unpack_current_row(rgi))))
@@ -7622,7 +7679,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     Todo: fix wl3228 hld that requires defauls for all types of events
   */
   
-  prepare_record(table, m_width, FALSE);
+  restore_record(table, s->default_values);
   error= unpack_current_row(rgi);
 
   m_vers_from_plain= false;

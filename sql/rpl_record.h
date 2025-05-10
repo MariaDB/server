@@ -36,7 +36,7 @@ int unpack_row(const rpl_group_info *rgi,
                uchar const *const row_end);
 
 // Fill table's record[0] with default values.
-int prepare_record(TABLE *const table, const uint skip, const bool check);
+int prepare_record(TABLE *const table);
 #endif
 
 #endif

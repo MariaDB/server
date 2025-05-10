@@ -1,0 +1,39 @@
+include/rpl_init.inc [topology=1->2, 2->3]
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# Server 2 uses '5' as its default for its slave-specific column
+connection server_2;
+set statement sql_log_bin=0 for alter table t1 add column b int default 5 after a;
+#
+# Server 3 uses '10' as its default for its slave-specific column
+connection server_3;
+set statement sql_log_bin=0 for alter table t1 add column b int default 10 after a;
+connection server_1;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Slave 3 t1 should match slave 2 t1
+connection server_2;
+select * from t1;
+a	b
+1	5
+connection server_3;
+select * from t1;
+a	b
+1	5
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+#
+# Cleanup
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
