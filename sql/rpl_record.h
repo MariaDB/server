@@ -36,8 +36,8 @@ int unpack_row(rpl_group_info *rgi,
                uchar const *const row_end);
 
 // Fill table's record[0] with default values.
-int prepare_record(TABLE *const table, const uint skip, const bool check);
-int fill_extra_persistent_columns(TABLE *table, int master_cols);
+int prepare_record(TABLE *const table);
+int fill_extra_persistent_columns(TABLE *table);
 #endif
 
 #endif

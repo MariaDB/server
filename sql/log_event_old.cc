@@ -145,18 +145,13 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr=static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
-        TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        if (ptr->create_column_mapping(rgi) ||
+            ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           ev_thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(ev_thd);
           DBUG_RETURN(Old_rows_log_event::ERR_BAD_TABLE_DEF);
         }
-        DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
-                             " - conv_table: %p",
-                             ptr->table->s->db.str,
-                             ptr->table->s->table_name.str, conv_table));
-        ptr->m_conv_table= conv_table;
       }
     }
 
@@ -230,6 +225,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     DBUG_ASSERT(sizeof(ev_thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
     table->rpl_write_set= table->write_set;
+    bitmap_copy(&table->cond_set, table->write_set);
 
     error= do_before_row_operations(table);
     while (error == 0 && row_start < ev->m_rows_end)
@@ -1444,14 +1440,13 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
           skipped above).
         */
         RPL_TABLE_LIST *ptr=static_cast<RPL_TABLE_LIST*>(table_list_ptr);
-        TABLE *conv_table;
-        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        if (ptr->create_column_mapping(rgi) ||
+            ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(thd);
           DBUG_RETURN(ERR_BAD_TABLE_DEF);
         }
-        ptr->m_conv_table= conv_table;
       }
     }
 
@@ -1540,6 +1535,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (!get_flags(COMPLETE_ROWS_F))
       bitmap_intersect(table->write_set,&m_cols);
     table->rpl_write_set= table->write_set;
+    bitmap_copy(&table->cond_set, table->write_set);
 
     // Do event specific preparations 
     
@@ -1929,15 +1925,8 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
   int keynum;
   auto_afree_ptr<char> key(NULL);
 
-  /* fill table->record[0] with default values */
-
-  if (unlikely((error=
-                prepare_record(table, m_width,
-                               TRUE /* check if columns have def. values */))))
-    DBUG_RETURN(error);
-  
-  /* unpack row into table->record[0] */
-  if ((error= unpack_current_row(rgi)))
+  /* fill table->record[0] with default values and then store the row */
+  if ((error= prepare_record(table)) || (error= unpack_current_row(rgi)))
     DBUG_RETURN(error);
   
 #ifndef DBUG_OFF
@@ -2145,11 +2134,11 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
   TABLE *table= m_table;
   int error;
 
-  /* unpack row - missing fields get default values */
+  /* fill table->record[0] with default values and then store the row */
+  restore_record(table, s->default_values);
 
-  // TODO: shall we check and report errors here?
-  prepare_record(table, m_width, FALSE /* don't check errors */); 
-  error= unpack_current_row(rgi);
+  if ((error= unpack_current_row(rgi)))
+    DBUG_RETURN(error);
 
 #ifndef DBUG_OFF
   DBUG_PRINT("info",("looking for the following record"));

@@ -1320,7 +1320,11 @@ public:
   MY_BITMAP     def_read_set, def_write_set, tmp_set;
   MY_BITMAP     def_rpl_write_set;
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
-  MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
+  /*
+    Used to mark fields in th optimizer from sargable conditions and by
+    replication to remember the original write set
+  */
+  MY_BITMAP     cond_set;
   /* Active column sets */
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* On INSERT: fields that the user specified a value for */

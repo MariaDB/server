@@ -1,0 +1,2761 @@
+include/rpl_init.inc [topology=1->2, 2->3]
+# No NULL columns
+connection server_2;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_3;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_1;
+# No type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	1000	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	1000	99	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	1000	aaa	2000	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	b	c
+1	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	c
+1	1000	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b
+1	1000	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+a	b	c
+1000	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	b
+1	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Simple type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	1000	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	1000	99	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	1000	aaa	2000	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	b	c
+1	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	c
+1	1000	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b
+1	1000	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+a	b	c
+1000	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	2000
+connection server_2;
+select * from t1;
+pk	b
+1	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+set global slave_type_conversions= @saved_slave_type_conversions;
+connection server_3;
+set global slave_type_conversions= @saved_slave_type_conversions;
+# Column a value is NULL
+connection server_2;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_3;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_1;
+# No type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	NULL	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	NULL	99	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	NULL	aaa	2000	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	b	c
+1	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	c
+1	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b
+1	NULL	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+a	b	c
+NULL	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	b
+1	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Simple type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	NULL	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	NULL	99	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	NULL	aaa	2000	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	b	c
+1	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	c
+1	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	a	b
+1	NULL	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+a	b	c
+NULL	aaa	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, NULL, 'aaa', 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	NULL	aaa	2000
+connection server_2;
+select * from t1;
+pk	b
+1	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+set global slave_type_conversions= @saved_slave_type_conversions;
+connection server_3;
+set global slave_type_conversions= @saved_slave_type_conversions;
+# Column b value is NULL
+connection server_2;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_3;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_1;
+# No type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	1000	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	1000	99	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	1000	NULL	2000	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	b	c
+1	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	c
+1	1000	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	b
+1	1000	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+a	b	c
+1000	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	b
+1	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Simple type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	1000	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	1000	99	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	1000	NULL	2000	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	b	c
+1	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	c
+1	1000	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	a	b
+1	1000	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+a	b	c
+1000	NULL	2000
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, NULL, 2000);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	NULL	2000
+connection server_2;
+select * from t1;
+pk	b
+1	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+set global slave_type_conversions= @saved_slave_type_conversions;
+connection server_3;
+set global slave_type_conversions= @saved_slave_type_conversions;
+# Column c value is NULL
+connection server_2;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_3;
+set @saved_slave_type_conversions = @@global.slave_type_conversions;
+set global slave_type_conversions='ALL_NON_LOSSY';
+connection server_1;
+# No type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	1000	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	1000	99	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	1000	aaa	NULL	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	b	c
+1	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	c
+1	1000	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	b
+1	1000	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+a	b	c
+1000	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b BLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	b
+1	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Simple type conversion
+# ALTER ADD COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 first;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+new_col	pk	a	b	c
+99	1	1000	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	new_col	b	c
+1	1000	99	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 add column new_col int default 99 after c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	b	c	new_col
+1	1000	aaa	NULL	99
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# ALTER DROP COLUMN tests
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	b	c
+1	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column b;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	c
+1	1000	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column b was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	a	b
+1	1000	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column pk;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+a	b	c
+1000	aaa	NULL
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column pk was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+connection server_1;
+create table t1(
+pk int not null primary key,
+a int,
+b TINYBLOB,
+c int
+) engine=MyISAM;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+alter table t1 modify b BLOB;
+alter table t1 drop column a;
+alter table t1 drop column c;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 (pk, a, b, c) VALUES(1, 1000, 'aaa', NULL);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure server_2 and server_3 are consistent with one another..
+include/diff_tables.inc [server_2:test.t1, server_3:test.t1]
+connection server_1;
+select * from t1;
+pk	a	b	c
+1	1000	aaa	NULL
+connection server_2;
+select * from t1;
+pk	b
+1	aaa
+# Ensure server_2 state is correct (server_3 is proven to be
+#   consistent, so we don't validate its data)..
+# Column a was dropped, skipping its validation
+# Column c was dropped, skipping its validation
+# ..done
+connection server_1;
+drop table t1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+set global slave_type_conversions= @saved_slave_type_conversions;
+connection server_3;
+set global slave_type_conversions= @saved_slave_type_conversions;
+#
+# Cleanup
+connection server_1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of .test
