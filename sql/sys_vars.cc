@@ -3467,7 +3467,8 @@ Slave_run_triggers_for_rbr(
        slave_run_triggers_for_rbr_names,
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
 
-static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
+static const char *slave_type_conversions_name[]=
+{"ALL_LOSSY", "ALL_NON_LOSSY", "ALLOW_MISSING_FIELDS" };
 static Sys_var_on_access_global<Sys_var_set,
                               PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
 Slave_type_conversions(

@@ -897,59 +897,58 @@ const Type_handler *table_def::field_type_handler(uint col) const
 /**
   Is the definition compatible with a table?
 
-  This function will compare the master table with an existing table
-  on the slave and see if they are compatible with respect to the
-  current settings of @c SLAVE_TYPE_CONVERSIONS.
+  Compare the master table with an existing table on the slave and
+  create a conversion map for fields that needs to be converted and
+  update master_to_slave_error[] map with fields that does not exist
+  on the slave or are not compatible with the field with the same name
+  on the slave.
 
-  If the tables are compatible and conversions are required, @c
-  *tmp_table_var will be set to a virtual temporary table with field
-  pointers for the fields that require conversions.  This allow simple
-  checking of whether a conversion are to be applied or not.
+  If any fields need to be converted, a temporary conversion table
+  is created with the fields that needs conversions
 
-  If tables are compatible, but no conversions are necessary, @c
-  *tmp_table_var will be set to NULL.
+  Compatibility checking will be done for each row event by calling
+  check_wrong_column_usage()
 
-  @param rli_arg[in]
-  Relay log info, for error reporting.
+  @param rli_arg[in] Relay log info, for error reporting.
+  @param table[in]   Table to compare with
 
-  @param table[in]
-  Table to compare with
+  The conversion table will be stored in table_list->conv_table
+  table_list->m_tabledef.master_to_slave_error[X] will hold the error to be
+  reported if the row_event will contain column master column X.
 
-  @param tmp_table_var[out]
-  Virtual temporary table for performing conversions, if necessary.
-
-  @retval true Master table is compatible with slave table.
-  @retval false Master table is not compatible with slave table.
+  @return 0 ok
+  @return 1 Something went wrong (OOM?)
 */
+
 bool
 table_def::compatible_with(THD *thd, rpl_group_info *rgi,
-                           TABLE *table, TABLE **conv_table_var)
+                           RPL_TABLE_LIST *table_list)
   const
 {
   /*
     We only check the initial columns for the tables.
   */
-  uint const cols_to_check= MY_MIN(table->s->fields, size());
   Relay_log_info *rli= rgi->rli;
-  TABLE *tmp_table= NULL;
+  TABLE *table= table_list->table, *tmp_table= NULL;
+  uint master_cols= size(), conv_table_idx= 0;
 
-  for (uint col= 0 ; col < cols_to_check ; ++col)
+  for (uint col= 0 ; col < master_cols ; ++col)
   {
-    Field *const field= table->field[col];
+    uint slave_idx;
+    /* Skip columns on the master that where not replicated */
+    if (master_to_slave_error[col])
+      continue;                       // Field is not usable on the slave
+    slave_idx= master_to_slave_map[col];
+
+    Field *const field= table->field[slave_idx];
     const Type_handler *h= field_type_handler(col);
+
     if (!h)
     {
-      sql_print_error("In RBR mode, Slave received unknown field type field %d "
-                      " for column Name: %s.%s.%s.",
-                      binlog_type(col),
-                      field->table->s->db.str,
-                      field->table->s->table_name.str,
-                      field->field_name.str);
-      return false;
+      master_to_slave_error[col]= SLAVE_FIELD_UNKNOWN_TYPE;
+      continue;
     }
 
-    if (!h)
-      return false; // An unknown data type found in the binary log
     Conv_source source(h, field_metadata(col), field->charset());
     enum_conv_type convtype= can_convert_field_to(field, source, rli,
                                                   Conv_param(m_flags));
@@ -968,18 +967,22 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
           This will create the full table with all fields. This is
           necessary to ge the correct field lengths for the record.
         */
-        tmp_table= create_conversion_table(thd, rgi, table);
+        tmp_table= create_conversion_table(thd, rgi, table_list);
         if (tmp_table == NULL)
-            return false;
+            return true;
         /*
-          Clear all fields up to, but not including, this column.
+          Clear all fields up to, but not including, this column, as
+          they do not need conversions.
+
+          The conversion table has one field for every used field on
+          the master that also exists on the slave in the master order.
         */
-        for (unsigned int i= 0; i < col; ++i)
+        for (uint i= 0; i < conv_table_idx; ++i)
           tmp_table->field[i]= NULL;
       }
-
       if (convtype == CONV_TYPE_PRECISE && tmp_table != NULL)
-        tmp_table->field[col]= NULL;
+        tmp_table->field[conv_table_idx]= NULL;
+      conv_table_idx++;
     }
     else
     {
@@ -989,21 +992,8 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       DBUG_ASSERT(col < size() && col < table->s->fields);
       DBUG_ASSERT(table->s->db.str && table->s->table_name.str);
       DBUG_ASSERT(table->in_use);
-      const char *db_name= table->s->db.str;
-      const char *tbl_name= table->s->table_name.str;
-      StringBuffer<MAX_FIELD_WIDTH> source_type(&my_charset_latin1);
-      StringBuffer<MAX_FIELD_WIDTH> target_type(&my_charset_latin1);
-      THD *thd= table->in_use;
 
-      show_sql_type(source, *field, &source_type);
-      field->sql_rpl_type(&target_type);
-      DBUG_ASSERT(source_type.length() > 0);
-      DBUG_ASSERT(target_type.length() > 0);
-      rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
-                  ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
-                  col, db_name, tbl_name,
-                  source_type.c_ptr_safe(), target_type.c_ptr_safe());
-      return false;
+      master_to_slave_error[col]= SLAVE_FIELD_WRONG_TYPE;
     }
   }
 
@@ -1027,8 +1017,97 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
   }
 #endif
 
-  *conv_table_var= tmp_table;
-  return true;
+  table_list->m_conv_table= tmp_table;
+  return false;
+}
+
+
+/*
+  Check if there are any not supported columns are used
+*/
+
+bool RPL_TABLE_LIST::check_wrong_column_usage(rpl_group_info *rgi,
+                                              MY_BITMAP *m_cols)
+{
+  DBUG_ENTER("RPL_TABLE_LIST::give_compatiblity_error");
+  for (uint col= 0 ; col < m_tabledef.size() ; col++)
+  {
+    if (!bitmap_is_set(m_cols, col))
+      continue;
+    if (m_tabledef.master_to_slave_error[col])
+    {
+      if (give_compatiblity_error(rgi, col))
+        DBUG_RETURN(1);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+/*
+  Give an error if we are trying to access a wrong column
+
+  @return 0  error was ignored
+  @return 1  error, abort replication
+*/
+
+bool RPL_TABLE_LIST::give_compatiblity_error(rpl_group_info *rgi, uint col)
+{
+  switch (m_tabledef.master_to_slave_error[col]) {
+  case SLAVE_FIELD_NAME_MISSING:
+    if (slave_type_conversions_options &
+        SLAVE_TYPE_CONVERSIONS_ALLOW_MISSING_FIELDS)
+      return 0;
+    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                     "Column '%s' missing from table '%s.%s",
+                     m_tabledef.master_column_name[col],
+                     table->s->db.str, table->s->table_name.str);
+    break;
+  case SLAVE_FIELD_NR_MISSING:
+  {
+    if (slave_type_conversions_options &
+        SLAVE_TYPE_CONVERSIONS_ALLOW_MISSING_FIELDS)
+      return 0;
+    char number[LONGLONG_BUFFER_SIZE];
+    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                     "Column %d missing from table '%s.%s",
+                     llstr(col+1, number),
+                     table->s->db.str, table->s->table_name.str);
+    break;
+  }
+  case SLAVE_FIELD_UNKNOWN_TYPE:
+  {
+    Field *field= table->field[m_tabledef.master_to_slave_map[col]];
+    sql_print_error("In RBR mode, Slave received unknown field type field %d "
+                    "for column Name: %s.%s.%s",
+                    m_tabledef.binlog_type(col),
+                    field->table->s->db.str,
+                    field->table->s->table_name.str,
+                    field->field_name.str);
+    break;
+  }
+  case SLAVE_FIELD_WRONG_TYPE:
+  {
+    Field *field= table->field[m_tabledef.master_to_slave_map[col]];
+    const char *db_name= table->s->db.str;
+    const char *tbl_name= table->s->table_name.str;
+    StringBuffer<MAX_FIELD_WIDTH> source_type(&my_charset_latin1);
+    StringBuffer<MAX_FIELD_WIDTH> target_type(&my_charset_latin1);
+    THD *thd= table->in_use;
+    const Type_handler *h= m_tabledef.field_type_handler(col);
+    Conv_source source(h, m_tabledef.field_metadata(col), field->charset());
+
+    show_sql_type(source, *field, &source_type);
+    field->sql_rpl_type(&target_type);
+    DBUG_ASSERT(source_type.length() > 0);
+    DBUG_ASSERT(target_type.length() > 0);
+    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
+                     ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
+                     col, db_name, tbl_name,
+                     source_type.c_ptr_safe(), target_type.c_ptr_safe());
+    break;
+  }
+  }
+  return 1;
 }
 
 
@@ -1067,41 +1146,57 @@ public:
 
 
 /**
-  Create a conversion table.
+  Create a conversion table
 
   If the function is unable to create the conversion table, an error
   will be printed and NULL will be returned.
 
   @return Pointer to conversion table, or NULL if unable to create
-  conversion table.
+          conversion table.
+
+  The conversion table contains one field for every field in the binlog
+  for which there exists a field on the slave.
  */
 
 TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
-                                          TABLE *target_table) const
+                                          RPL_TABLE_LIST *table_list) const
 {
-  DBUG_ENTER("table_def::create_conversion_table");
-
   Virtual_conversion_table *conv_table;
   Relay_log_info *rli= rgi->rli;
-  /*
-    At slave, columns may differ. So we should create
-    MY_MIN(columns@master, columns@slave) columns in the
-    conversion table.
-  */
-  uint const cols_to_create= MY_MIN(target_table->s->fields, size());
+  TABLE *target_table= table_list->table;
+  uint const cols_to_create= size();
+  DBUG_ENTER("table_def::create_conversion_table");
+
   if (!(conv_table= new(thd) Virtual_conversion_table(thd)) ||
       conv_table->init(cols_to_create))
     goto err;
-  for (uint col= 0 ; col < cols_to_create; ++col)
+
+  /*
+    Iterate through the number of columns logged on the master, and if
+    skip any that is missing on the slave. Skipped columns are not
+    added to the conv_table, as there is no column on the slave to use
+    as the reference for the target_field.
+  */
+  for (uint col= 0 ; col < cols_to_create; col++)
   {
+    Field *field;
+    if (master_to_slave_error[col])
+      continue;                                 // Slave does not have field
     const Type_handler *ha= field_type_handler(col);
-    DBUG_ASSERT(ha); // Checked at compatible_with() time
-    if (conv_table->add(ha, field_metadata(col), target_table->field[col]))
+    DBUG_ASSERT(!ha);
+    if (!ha)
+    {
+      /* This should never fail as we already checked 'ha' in the caller */
+      goto err;
+    }
+
+    field= target_table->field[master_to_slave_map[col]];
+    if (conv_table->add(ha, field_metadata(col), field))
     {
       DBUG_PRINT("debug", ("binlog_type: %d, metadata: %04X, target_field: '%s'"
                            " make_conversion_table_field() failed",
                            binlog_type(col), field_metadata(col),
-                           target_table->field[col]->field_name.str));
+                           field->field_name.str));
       goto err;
     }
   }
@@ -1183,5 +1278,69 @@ void Deferred_log_events::rewind()
   last_added= NULL;
 }
 
-#endif // defined(HAVE_REPLICATION)
 
+/*
+  Create column mapping from the master table to the slave table
+
+  Mapping stored in master_to_slave_map[].
+  Errors stored in master_to_slave_error[]. Error will be given
+  on usage.
+  Store master column names in master_column_name[].
+
+  Note that we map all columns as we at this point do not know which
+  columns will be used by the row events.
+*/
+
+bool RPL_TABLE_LIST::create_column_mapping(rpl_group_info *rgi)
+{
+  ulong master_cols= m_tabledef.size();
+  DBUG_ENTER("RPL_TABLE_LIST::create_column_mapping");
+  DBUG_ASSERT(table->s);
+
+  if (!m_tabledef.optional_metadata.length)
+  {
+    uint col, max_column= MY_MAX(master_cols, table->s->fields);
+    /* No metadata, map columns according to position */
+    for (col= 0; col < max_column; col++)
+      m_tabledef.master_to_slave_map[col]= col;
+    for ( ; col < table->s->fields; col++)
+    {
+      /* These should never be accessed */
+      m_tabledef.master_to_slave_map[col]= INT_MAX32;
+      m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NR_MISSING;
+    }
+    DBUG_RETURN(0);
+  }
+
+  Table_map_log_event::Optional_metadata_fields
+    opt_metadata((uchar*) m_tabledef.optional_metadata.str,
+                 m_tabledef.optional_metadata.length);
+
+  if (!opt_metadata.m_column_name.size())
+  {
+    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                     "Cound not read column fieldnames from table '%s.%s",
+                     table->s->db.str, table->s->table_name.str);
+    DBUG_RETURN(true);
+  }
+
+  for (uint col= 0; col < master_cols; col++)
+  {
+    std::string master_col_name_cppstr= opt_metadata.m_column_name[col];
+    LEX_CSTRING field_name=
+      { master_col_name_cppstr.c_str(), master_col_name_cppstr.length() };
+    Field *field= table->find_field_by_name(&field_name);
+    if (unlikely(!field))
+    {
+      m_tabledef.master_column_name[col]= field_name.str;
+      m_tabledef.master_to_slave_map[col]= INT_MAX32; // Not used
+      m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NAME_MISSING;
+      continue;                               // ok that field did not exists
+    }
+    m_tabledef.master_to_slave_map[col]= field->field_index;
+    DBUG_PRINT("info", ("Found mapping for %s", field_name.str));
+  }
+  DBUG_RETURN(false);
+}
+
+#endif // defined(HAVE_REPLICATION)

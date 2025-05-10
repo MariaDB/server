@@ -4850,7 +4850,7 @@ public:
   table_def *create_table_def()
   {
     return new table_def(m_coltype, m_colcnt, m_field_metadata,
-                         m_field_metadata_size, m_null_bits, m_flags);
+                         m_field_metadata_size, m_null_bits, m_flags, 0, 0);
   }
   int rewrite_db(const char* new_name, size_t new_name_len,
                  const Format_description_log_event*);
