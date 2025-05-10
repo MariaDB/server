@@ -3875,11 +3875,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_TYPE_CONVERSIONS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Set of slave type conversions that are enabled. If the variable is empty, no conversions are allowed and it is expected that the types match exactly
+VARIABLE_COMMENT	Set of slave type conversions that are enabled. If the variable is empty, no conversions are allowed and it is expected that the types match exactly. In this case one will also not get any warnings about missing columns on the slave
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	ALL_LOSSY,ALL_NON_LOSSY
+ENUM_VALUE_LIST	ALL_LOSSY,ALL_NON_LOSSY,ERROR_IF_MISSING_FIELD
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLOW_LAUNCH_TIME

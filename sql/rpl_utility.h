@@ -30,7 +30,9 @@
 
 class Relay_log_info;
 class Log_event;
+class Rows_log_event;
 struct rpl_group_info;
+class RPL_TABLE_LIST;
 
 /**
   A table definition from the master.
@@ -52,10 +54,13 @@ public:
     @param field_metadata Array of extra information about fields
     @param metadata_size Size of the field_metadata array
     @param null_bitmap The bitmap of fields that can be null
+    @param optional_metadata Optional metadata logged into Table Map Event
+                             when binlog_row_metadata=FULL on master
+    @param optional_metadata_len Length of optional_metadata
    */
   table_def(unsigned char *types, ulong size, uchar *field_metadata,
-            int metadata_size, uchar *null_bitmap, uint16 flags);
-
+            int metadata_size, uchar *null_bitmap, uint16 flags,
+            const uchar *optional_metadata, uint optional_metadata_len);
   ~table_def();
 
   /**
@@ -63,7 +68,7 @@ public:
 
     @return The number of fields that there is type data for.
    */
-  ulong size() const { return m_size; }
+  inline ulong size() const { return m_size; }
 
 
   /**
@@ -147,11 +152,10 @@ public:
     This function returns whether the field on the master can be null.
     This value is derived from field->maybe_null().
   */
-  my_bool maybe_null(uint index) const
+  inline my_bool maybe_null(uint index) const
   {
     DBUG_ASSERT(index < m_size);
-    return ((m_null_bits[(index / 8)] & 
-            (1 << (index % 8))) == (1 << (index %8)));
+    return (m_null_bits[(index / 8)] & (1 << (index % 8))) != 0;
   }
 
   /*
@@ -164,37 +168,35 @@ public:
   uint32 calc_field_size(uint col, uchar *master_data) const;
 
   /**
-    Decide if the table definition is compatible with a table.
+     Compare the master table with an existing table on the slave and
+     create a conversion map for fields that needs to be converted and
+     update master_to_slave_error[] map with fields that does not
+     exist on the slave or are not compatible with the field with the
+     same name on the slave.
 
-    Compare the definition with a table to see if it is compatible
-    with it.
+     If any fields need to be converted, a temporary conversion table
+     is created with the fields that needs conversions
 
-    A table definition is compatible with a table if:
-      - The columns types of the table definition is a (not
-        necessarily proper) prefix of the column type of the table.
+     @param thd
+     @param rgi   Pointer to relay log info
+     @param table Pointer to table to compare with.
 
-      - The other way around.
-
-      - Each column on the master that also exists on the slave can be
-        converted according to the current settings of @c
-        SLAVE_TYPE_CONVERSIONS.
-
-    @param thd
-    @param rli   Pointer to relay log info
-    @param table Pointer to table to compare with.
-
-    @param[out] tmp_table_var Pointer to temporary table for holding
-    conversion table.
-
-    @retval 1  if the table definition is not compatible with @c table
-    @retval 0  if the table definition is compatible with @c table
+     @return 0 ok
+     @return 1 Something went wrong (OOM?)
   */
 #ifndef MYSQL_CLIENT
-  bool compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
-                      TABLE **conv_table_var) const;
+  bool compatible_with(THD *thd, rpl_group_info *rgi,
+                       RPL_TABLE_LIST *table) const;
 
   /**
    Create a virtual in-memory temporary table structure.
+
+   @param thd Thread to allocate memory from.
+   @param rli Relay log info structure, for error reporting.
+   @param target_table Target table for fields.
+
+   @return A pointer to a temporary table with memory allocated in the
+           thread's memroot, NULL if the table could not be created
 
    The table structure has records and field array so that a row can
    be unpacked into the record for further processing.
@@ -208,17 +210,19 @@ public:
    field is going to be pushed into, so the target table that the data
    eventually need to be pushed into need to be supplied.
 
-   @param thd Thread to allocate memory from.
-   @param rli Relay log info structure, for error reporting.
-   @param target_table Target table for fields.
-
-   @return A pointer to a temporary table with memory allocated in the
-   thread's memroot, NULL if the table could not be created
+   Note that the fields generated in the conversion table are not guaranteed to
+   align with the fields from this table_def. If the slave doesn't have the
+   target field, we don't generate a field in the conversion_table, as it would
+   serve no purpose. If the conversion table is referenced while iterating
+   through this table_def, one needs a separate index to keep track of the
+   conv_table fields, which are only incremented when the slave has that
+   column. This can be checked by using RPL_TABLE_LIST::lookup_slave_column().
+   See other member function of table_def compatible_with() for an example of
+   this.
    */
   TABLE *create_conversion_table(THD *thd, rpl_group_info *rgi,
-                                 TABLE *target_table) const;
+                                 RPL_TABLE_LIST *target_table) const;
 #endif
-
 
 private:
   ulong m_size;           // Number of elements in the types array
@@ -228,8 +232,19 @@ private:
   uchar *m_null_bits;
   uint16 m_flags;         // Table flags
   uchar *m_memory;
+public:
+  LEX_CUSTRING optional_metadata;
+  uint *master_to_slave_map;
+  uint *master_to_slave_error;
+  char const **master_column_name;
 };
 
+/* Different errors when converting a field from master to slave */
+
+#define SLAVE_FIELD_NAME_MISSING  1
+#define SLAVE_FIELD_NR_MISSING    2
+#define SLAVE_FIELD_UNKNOWN_TYPE  3
+#define SLAVE_FIELD_WRONG_TYPE    4
 
 #ifndef MYSQL_CLIENT
 /**
@@ -240,9 +255,20 @@ struct RPL_TABLE_LIST
   : public TABLE_LIST
 {
   bool m_tabledef_valid;
+  bool master_had_triggers;
   table_def m_tabledef;
   TABLE *m_conv_table;
-  bool master_had_triggers;
+  LEX_CUSTRING optional_metadata;
+  void rpl_init()
+  {
+    m_tabledef_valid= 0;
+    master_had_triggers= 0;
+    m_conv_table= 0;
+    optional_metadata.length= 0;
+  }
+  bool create_column_mapping(rpl_group_info *rgi);
+  bool give_compatibility_error(rpl_group_info *rgi, uint col);
+  bool check_wrong_column_usage(rpl_group_info *rgi, MY_BITMAP *m_cols);
 };
 
 

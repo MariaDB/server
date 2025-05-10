@@ -5479,10 +5479,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   TABLE* table;
-  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
+  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
+
   /*
     If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5686,8 +5687,14 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
-        TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+
+        if (ptr->create_column_mapping(rgi))
+        {
+          thd->is_slave_error= 1;
+          error= ERR_BAD_TABLE_DEF;
+          goto err;
+        }
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -5701,11 +5708,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           error= ERR_BAD_TABLE_DEF;
           goto err;
         }
-        DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
-                             " - conv_table: %p",
-                             ptr->table->s->db.str,
-                             ptr->table->s->table_name.str, conv_table));
-        ptr->m_conv_table= conv_table;
       }
     }
 
@@ -5723,8 +5725,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Rows_log_event, we can invalidate the query cache for the
       associated table.
      */
-    TABLE_LIST *ptr= rgi->tables_to_lock;
-    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count); ptr= ptr->next_global, i++)
+    RPL_TABLE_LIST *ptr= rgi->tables_to_lock;
+    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count);
+         ptr= (RPL_TABLE_LIST*) ptr->next_global, i++)
     {
       /*
         Please see comment in above 'for' loop to know the reason
@@ -5803,19 +5806,63 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
 
-    bitmap_set_all(table->read_set);
-    if (get_general_type_code() == DELETE_ROWS_EVENT ||
-        get_general_type_code() == UPDATE_ROWS_EVENT)
-      bitmap_intersect(table->read_set,&m_cols);
+    RPL_TABLE_LIST *rpl_table= rgi->get_table_data(table);
+    DBUG_ASSERT(rpl_table);
 
-    bitmap_set_all(table->write_set);
-    table->rpl_write_set= table->write_set;
+    if (!rpl_table->m_tabledef.optional_metadata.length)
+    {
+      /* Master did not use binlog_row_metadata=FULL */
+      MY_BITMAP *after_image;
+      bitmap_set_all(table->read_set);
+      if (get_general_type_code() == DELETE_ROWS_EVENT ||
+          get_general_type_code() == UPDATE_ROWS_EVENT)
+        bitmap_intersect(table->read_set,&m_cols);
 
-    /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
-    MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
-                             &m_cols_ai : &m_cols);
-    bitmap_intersect(table->write_set, after_image);
+      bitmap_set_all(table->write_set);
 
+      /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
+      after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
+                    &m_cols_ai : &m_cols);
+      bitmap_intersect(table->write_set, after_image);
+    }
+    else
+    {
+      if (rpl_table->create_column_mapping(rgi))
+        DBUG_RETURN(1);                         // Internal errror
+
+      bitmap_clear_all(table->read_set);
+      bitmap_clear_all(table->write_set);
+
+      for (uint i=0; i < m_cols.n_bits; i++)
+      {
+        if (bitmap_is_set(&m_cols, i) &&
+            !rpl_table->m_tabledef.master_to_slave_error[i])
+          bitmap_set_bit(table->read_set,
+                         rpl_table->m_tabledef.master_to_slave_map[i]);
+      }
+      if (get_general_type_code() != UPDATE_ROWS_EVENT)
+        bitmap_copy(table->write_set, table->read_set);
+      else
+      {
+        /* Column changed by the update event */
+        for (uint i=0; i < m_cols_ai.n_bits; i++)
+        {
+          if (bitmap_is_set(&m_cols_ai, i) &&
+              !rpl_table->m_tabledef.master_to_slave_error[i])
+            bitmap_set_bit(table->write_set,
+                           rpl_table->m_tabledef.master_to_slave_map[i]);
+        }
+      }
+    }
+    if (rpl_table->check_wrong_column_usage(rgi, &m_cols))
+      DBUG_RETURN(1);
+
+    table->mark_columns_per_binlog_row_image();
+    /*
+      Store the original write_set in cond_set for
+      fill_extra_persistent_columns()
+    */
+    bitmap_copy(&table->cond_set, table->write_set);
     this->slave_exec_mode= slave_exec_mode_options; // fix the mode
 
     // Do event specific preparations 
@@ -6592,6 +6639,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   LEX_CSTRING tmp_tbl_name= {tname_mem, tname_mem_length };
 
   table_list->init_one_table(&tmp_db_name, &tmp_tbl_name, 0, TL_WRITE);
+  table_list->rpl_init();
   table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
   table_list->updating= 1;
   table_list->required_type= TABLE_TYPE_NORMAL;
@@ -6620,9 +6668,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
     new (&table_list->m_tabledef)
       table_def(m_coltype, m_colcnt,
                 m_field_metadata, m_field_metadata_size,
-                m_null_bits, m_flags);
-    table_list->m_tabledef_valid= TRUE;
-    table_list->m_conv_table= NULL;
+                m_null_bits, m_flags, m_optional_metadata,
+                m_optional_metadata_len);
+    table_list->m_tabledef_valid= 1;
     table_list->open_type= OT_BASE_ONLY;
 
     /*
@@ -7400,7 +7448,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   auto_afree_ptr<char> key(NULL);
 
-  prepare_record(table, m_width, true);
+  prepare_record(table);
 
   /* unpack row into table->record[0] */
   if (unlikely((error= unpack_current_row(rgi))))
@@ -8024,7 +8072,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     Todo: fix wl3228 hld that requires defauls for all types of events
   */
   
-  prepare_record(table, m_width, FALSE);
+  restore_record(table, s->default_values);
   error= unpack_current_row(rgi);
 
   m_vers_from_plain= false;
