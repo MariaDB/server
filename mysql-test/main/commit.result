@@ -524,6 +524,8 @@ DELETE FROM t1;
 ERROR 25006: Cannot execute statement in a READ ONLY transaction
 XA END 'test1';
 XA PREPARE 'test1';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'test1';
 DROP TABLE t1;
 #

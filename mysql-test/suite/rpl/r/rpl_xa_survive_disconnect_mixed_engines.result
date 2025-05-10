@@ -22,7 +22,11 @@ XA START 'xa_trx';
 INSERT INTO tm VALUES (3);
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 CREATE TEMPORARY TABLE tmp_i LIKE t;
 CREATE TEMPORARY TABLE tmp_m LIKE tm;
 XA START 'xa_trx';
@@ -87,8 +91,13 @@ XA PREPARE 'xa_trx';
 XA COMMIT 'xa_trx' ;
 XA START 'xa_trx';
 UPDATE t SET a = 99 where a = -1;
+SELECT ROW_COUNT();
+ROW_COUNT()
+0
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
 connection master;
@@ -166,6 +175,9 @@ XA END 'xa_trx';
 XA COMMIT 'xa_trx' ONE PHASE;
 XA START 'xa_trx';
 UPDATE t SET a = 99 where a = -1;
+SELECT ROW_COUNT();
+ROW_COUNT()
+0
 XA END 'xa_trx';
 XA COMMIT 'xa_trx' ONE PHASE;
 include/sync_slave_sql_with_master.inc
@@ -191,6 +203,8 @@ XA START 'xa_trx';
 INSERT INTO tm VALUES (3);
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback 'xa_trx' ;
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
@@ -268,8 +282,13 @@ Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 XA START 'xa_trx';
 UPDATE t SET a = 99 where a = -1;
+SELECT ROW_COUNT();
+ROW_COUNT()
+0
 XA END 'xa_trx';
 XA PREPARE 'xa_trx';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback 'xa_trx' ;
 include/sync_slave_sql_with_master.inc
 connection master;
@@ -363,6 +382,9 @@ Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
 XA START 'xa_trx';
 UPDATE t SET a = 99 where a = -1;
+SELECT ROW_COUNT();
+ROW_COUNT()
+0
 XA END 'xa_trx';
 xa rollback 'xa_trx' ;
 include/sync_slave_sql_with_master.inc

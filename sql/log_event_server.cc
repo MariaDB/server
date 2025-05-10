@@ -1467,7 +1467,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
       case SQLCOM_RELEASE_SAVEPOINT:
       case SQLCOM_ROLLBACK_TO_SAVEPOINT:
       case SQLCOM_SAVEPOINT:
-      case SQLCOM_XA_END:
+      case SQLCOM_XA_PREPARE:
         use_cache= trx_cache= TRUE;
         break;
       default:

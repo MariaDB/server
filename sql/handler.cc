@@ -1534,9 +1534,22 @@ int ha_prepare(THD *thd)
 
   if (ha_info)
   {
-    for (; ha_info; ha_info= ha_info->next())
+    int err;
+    bool is_rw, has_binlog;
+
+    for (is_rw= false, has_binlog= false; ha_info; ha_info= ha_info->next())
     {
       transaction_participant *ht= ha_info->ht();
+
+      if (ht == &binlog_tp)
+      {
+        /*
+          The marking may be optimistic when the transaction cache is empty.
+          However it's safe as binlog_prepare et al would return early.
+        */
+        has_binlog= true;
+        continue;
+      }
       if (ht->prepare)
       {
         if (unlikely(prepare_or_error(ht, thd, all)))
@@ -1546,6 +1559,7 @@ int ha_prepare(THD *thd)
           error=1;
           break;
         }
+	is_rw= is_rw || ha_info->is_trx_read_write();
       }
       else
       {
@@ -1556,17 +1570,27 @@ int ha_prepare(THD *thd)
 
       }
     }
-
-    DEBUG_SYNC(thd, "at_unlog_xa_prepare");
-
-    if (tc_log->unlog_xa_prepare(thd, all))
+    // engine read-only must proceed into binlogging by slave applier
+    if (!is_rw && !thd->rgi_slave)
+    {
+      goto ro_xa;
+    }
+    else if (has_binlog && (err= prepare_or_error(&binlog_tp, thd, all)))
     {
       ha_rollback_trans(thd, all);
-      error=1;
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
+      goto err;
     }
   }
-  else if (thd->rgi_slave)
+  else
   {
+ro_xa:
+    if (!thd->rgi_slave)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_XA_RDONLY, ER_THD(thd, ER_XA_RDONLY), "");
+    }
     /*
       Slave threads will always process XA COMMITs in the binlog handler (see
       MDEV-25616 and MDEV-30423), so if this is a slave thread preparing a
@@ -1578,10 +1602,14 @@ int ha_prepare(THD *thd)
       If the xid_cache is cleared before the completion event comes, before
       issuing ER_XAER_NOTA, first check if the event targets an ignored
       database, and ignore the error if so.
+
+      The above policy is generalized over any user read-only xa, de-facto
+      implementing the XA specs' read-only optimization.
     */
     thd->transaction->xid_state.set_rollback_only();
   }
 
+err:
   DBUG_RETURN(error);
 }
 
@@ -2170,7 +2198,7 @@ static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
   return !rw_trans;
 }
 
-static bool has_binlog_hton(Ha_trx_info *ha_info)
+bool has_binlog_hton(Ha_trx_info *ha_info)
 {
   bool rc;
   for (rc= false; ha_info && !rc; ha_info= ha_info->next())
@@ -2336,11 +2364,22 @@ int ha_rollback_trans(THD *thd, bool all)
     if (is_real_trans)                          /* not a statement commit */
       thd->stmt_map.close_transient_cursors();
 
+    int err;
+    bool has_binlog= has_binlog_hton(ha_info);
+
+    DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK ||
+                thd->transaction->xid_state.is_explicit_XA());
+
+    if (has_binlog && (err= binlog_tp.rollback(thd, all)))
+    {
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
+    }
     for (; ha_info; ha_info= ha_info_next)
     {
-      int err;
       transaction_participant *ht= ha_info->ht();
-      if ((err= ht->rollback(thd, all)))
+      if ((ht != &binlog_tp) &&
+          (err= ht->rollback(thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -2426,15 +2465,15 @@ int ha_rollback_trans(THD *thd, bool all)
   DBUG_RETURN(error);
 }
 
-
 struct xahton_st {
   XID *xid;
   int result;
 };
 
+/* Commit an engine branch of XA */
 static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  if (hton->recover)
+  if (hton->recover && hton != &binlog_tp)
   {
     hton->commit_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
@@ -2442,9 +2481,10 @@ static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
   return FALSE;
 }
 
-static bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
+/* Rollback an engine branch of XA */
+bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  if (hton->recover)
+  if (hton->recover && hton != &binlog_tp)
   {
     hton->rollback_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
@@ -2452,25 +2492,49 @@ static bool xarollback_handlerton(THD *, transaction_participant *hton, void *ar
   return FALSE;
 }
 
-
-int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
+/* completes xa transaction in engine */
+int commit_or_rollback_xa_engine(XID *xid, bool is_commit)
 {
-  struct xahton_st xaop;
-  xaop.xid= xid;
-  xaop.result= 1;
-
-  /*
-    When the binlogging service is enabled complete the transaction
-    by it first.
-  */
-  if (commit)
-    binlog_commit_by_xid(xid);
-  else
-    binlog_rollback_by_xid(xid);
-
-  tp_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton, &xaop);
+  struct xahton_st xaop= { xid, 1 };
+  tp_foreach(NULL, is_commit ? xacommit_handlerton : xarollback_handlerton,
+             &xaop);
 
   return xaop.result;
+}
+
+/*
+  The function completes a prepared XA transaction.
+  It consists of two disjoint branches.
+  When the transaction has a binlog branch the completion must be logged
+  before the Engine action. The binlog-enabled path executes the engine
+  actions as part of binlog-group-ordered commit.
+  When binlog is disabled on slave the completion has to wait for its
+  turn to commit/rollback.
+*/
+int ha_commit_or_rollback_by_xid(XID *xid, bool is_commit, THD *thd)
+{
+  int rc= 0;
+  bool skip_binlog=
+    thd->is_current_stmt_binlog_disabled() || !is_xap_binlogged(thd);
+
+  if (!skip_binlog)
+  {
+    // when binlog is ON start from its transaction branch
+    if (is_commit)
+      binlog_commit_by_xid(xid);
+    else
+      binlog_rollback_by_xid(xid);
+  }
+  else
+  {
+    int rc= !thd->rgi_slave ? 0 : thd->wait_for_prior_commit();
+    if (!rc)
+    {
+      rc= commit_or_rollback_xa_engine(xid, is_commit);
+    }
+  }
+
+  return rc;
 }
 
 
@@ -2834,7 +2898,12 @@ static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg
             char buf[XIDDATASIZE*4+6];
             _db_doprnt_("ignore xid %s", xid_to_str(buf, info->list[i]));
             });
-          xid_cache_insert(info->list + i);
+          /*
+            TODO: the xa crash recovery is not ready yet. The passed `true`
+            parameter value assumes the xid is found in binlog
+            which is of course "optimistic".
+          */
+          xid_cache_insert(info->list + i, true);
           info->found_foreign_xids++;
           continue;
         }

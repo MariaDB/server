@@ -1690,6 +1690,8 @@ update t set a = 0;
 ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
 xa end 'xid';
 xa prepare 'xid';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa commit 'xid';
 set debug_sync= 'now signal go';
 connection default;
@@ -1707,6 +1709,8 @@ update t set a = 0;
 ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
 xa end 'xid';
 xa prepare 'xid';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback 'xid';
 set debug_sync= 'now signal go';
 connection default;

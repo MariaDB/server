@@ -1,0 +1,50 @@
+RESET MASTER;
+CREATE TABLE ta (c INT KEY) engine=Aria;
+XA START 'xid_a';
+INSERT INTO ta VALUES (1);
+XA END 'xid_a';
+XA PREPARE 'xid_a';
+Warnings:
+Warning	1030	Got error 131 "Command not supported by the engine" from storage engine Aria
+Note	4226	Found to be read-only XA transaction is rolled back
+LOAD INDEX INTO CACHE c KEY(PRIMARY);
+Table	Op	Msg_type	Msg_text
+test.c	preload_keys	Error	XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+test.c	preload_keys	Error	XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+test.c	preload_keys	error	Corrupt
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA ROLLBACK 'xid_a';
+CREATE TABLE ti (c INT KEY) engine=Innodb;
+XA START 'xid_i';
+INSERT INTO ti VALUES (1);
+XA END 'xid_i';
+XA PREPARE 'xid_i';
+LOAD INDEX INTO CACHE c KEY(PRIMARY);
+Table	Op	Msg_type	Msg_text
+test.c	preload_keys	Error	XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+test.c	preload_keys	Error	XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+test.c	preload_keys	error	Corrupt
+XA COMMIT 'xid_i';
+SELECT * FROM ti;
+c
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE ta (c INT KEY) engine=Aria
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO ta VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.ta)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE ti (c INT KEY) engine=Innodb
+master-bin.000001	#	Gtid	#	#	XA START X'7869645f69',X'',1 GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO ti VALUES (1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.ti)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	XA END X'7869645f69',X'',1
+master-bin.000001	#	XA_prepare	#	#	XA PREPARE X'7869645f69',X'',1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	XA ROLLBACK X'7869645f69',X'',1
+drop table ta,ti;

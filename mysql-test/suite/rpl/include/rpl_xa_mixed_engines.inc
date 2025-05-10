@@ -169,6 +169,7 @@ if ($command == run)
 
   --eval XA START '$xid'
   UPDATE t SET a = 99 where a = -1;
+  SELECT ROW_COUNT();
   --eval XA END '$xid'
   if ($xa_prepare_opt)
   {

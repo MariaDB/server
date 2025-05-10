@@ -1,57 +1,146 @@
+#
+# MDEV-32830/MDEV-31949
+# The test proves Binlog-Checkpoint events are written upon binlog rotation
+# caused by XA-PREPARE (the case A) or XA-COMMIT (the case B).
+#
 --source include/have_innodb.inc
---source include/have_debug.inc
---source include/have_debug_sync.inc
 --source include/have_binlog_format_row.inc
 
 RESET MASTER;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 
-# Test that
-# 1. XA PREPARE is binlogged before the XA has been prepared in Engine
-# 2. While XA PREPARE already binlogged in an old binlog file which has been rotated,
-#    Binlog checkpoint is not generated for the latest log until
-#    XA PREPARE returns, e.g OK to the client.
+--echo # case A: Binlog CP after XAP
+# Test that XA PREPARE is binlogged to cause binlog rotation (Proof 1)
+# followed by Binlog checkpoint event (Proof 2) for the old log file,
+# to comply with the normal transaction commit pattern.
+# When the server crashes after that the prepared XA will be found
+# at restart in the engine as well.
 
-
-# con1 will hang before doing commit checkpoint, blocking RESET MASTER.
+--let $save_max_binlog_size= `SELECT @@global.max_binlog_size`
+set @@global.max_binlog_size=4096;
+--let $pk_ins= 1
+--let $binlog_0= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pre_xa_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
 connect(con1,localhost,root,,);
-SET DEBUG_SYNC= "at_unlog_xa_prepare SIGNAL con1_ready WAIT_FOR con1_go";
+SET SESSION binlog_annotate_row_events=OFF;
 XA START '1';
-INSERT INTO t1 SET a=1;
+--eval INSERT INTO t1 SET a=1,b=repeat('b',@@global.max_binlog_size);
 XA END '1';
---send XA PREPARE '1';
+XA PREPARE '1';
 
+--echo ### Repeatable check block in the cases A,B.
 
+#
+# Proof 1:
+#
 connection default;
-SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
-FLUSH LOGS;
-FLUSH LOGS;
-FLUSH LOGS;
+# the Rotate event signature in the SBE Info field
+--let $wait_binlog_event= ;pos=4
+--let $wait_binlog_file=$binlog_0
+--source include/wait_for_binlog_event.inc
 
+#
+# Proof 2:
+#
+# looping is very unlikely but treat it conservatively that is safe
+--let $_max_wait_count= 300
+let $binlog_1= $binlog_0;
+while (`select STRCMP("$binlog_0", "$binlog_1") = 0`)
+{
+  --dec $_max_wait_count
+  if (!$_max_wait_count)
+  {
+    --die Got $binlog_1 SHOW MASTER STATUS which is the old $binlog_0
+  }
+  --real_sleep 0.1
+  --let $binlog_1= query_get_value(SHOW MASTER STATUS, File, 1)
+}
+# new binlog reigns, prove/wait for its predessor's irrelevance for recovery
+--source include/wait_for_binlog_checkpoint.inc
+# .. so the server can crash-restart with the prepared XA:
+# list of the logs
+# events in the pre-ultimate and the current one follow.
 --source include/show_binary_logs.inc
---let $binlog_file= master-bin.000004
---let $binlog_start= 4
+--echo *** the old $binlog_file must show the prepared xa
+--let $binlog_file= $binlog_0
+--let $binlog_start= $pre_xa_pos
 --source include/show_binlog_events.inc
+--echo *** the current $binlog_file must show the checkpoint event with its name ***
+--let $binlog_start= 4
+--let $binlog_file= $binlog_1
+--source include/show_binlog_events.inc
+--echo ### end of check block
 
-SET DEBUG_SYNC= "now SIGNAL con1_go";
+--echo # case B: Binlog CP after XAC
+# Similar proof to XA COMMIT.
+# *estimate* the table map size and the row event header,
+# fill the rest of the following Rows_log_event with data, approaching
+# the end-of-binlog offset to its max, not overstepping though (!) (see -19).
+# This test is (practially) future-prove if when the estimate will turn out
+# too low later.
+--let $curr_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $gtid_size=40
+--let $tm_size=  60
+--let $rows_hdr= 10
+--let $xid_size= 50
+--let $insert_length= `select @@max_binlog_size - ($curr_pos + $gtid_size + $tm_size + $rows_hdr + 0 + $xid_size) - 19`
+connection default;
+--inc $pk_ins
+--eval SET STATEMENT  binlog_annotate_row_events=OFF FOR INSERT INTO t1 SET a=$pk_ins,b=repeat('b', $insert_length)
+--let $pre_xa_commit_file= query_get_value(SHOW MASTER STATUS, File, 1)
+if (`select strcmp("$binlog_1", "$pre_xa_commit_file")`)
+{
+  --die unxpected (rotated?) $pre_xa_commit_file end-of-binlog while the correct must be $binlog_1
+}
+--let $pre_xa_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
 
 connection con1;
-reap;
---echo *** master-bin.000004 checkpoint must show up now ***
+XA COMMIT '1';
+
+--echo ### Repeatable check block in the cases A,B.
+#
+# Proof 1:
+#
+connection default;
+--let $wait_binlog_event= ;pos=4
+--let $wait_binlog_file= $binlog_1
+--source include/wait_for_binlog_event.inc
+
+#
+# Proof 2 (ditto looping)
+#
+--let $_max_wait_count= 300
+--let $binlog_2= $binlog_1
+while (`select STRCMP("$binlog_1", "$binlog_2") = 0`)
+{
+  --dec $_max_wait_count
+  if (!$_max_wait_count)
+  {
+    --die Got $binlog_2 SHOW MASTER STATUS which is the old $binlog_1
+  }
+  --real_sleep 0.1
+  --let $binlog_2= query_get_value(SHOW MASTER STATUS, File, 1)
+}
+# another new binlog reigns, prove/wait for its predessor's irrelevance for recovery..
 --source include/wait_for_binlog_checkpoint.inc
 
-# Todo: think about the error code returned, move to an appropriate test, or remove
-# connection default;
-#--error 1399
-# DROP TABLE t1;
-
-connection con1;
-XA ROLLBACK '1';
-SET debug_sync = 'reset';
+# .. so the server can crash-restart with the committed XA
+# events in the pre-ultimate log. Display that.
+--source include/show_binary_logs.inc
+--echo *** the old $binlog_file must show the committed xa
+--let $binlog_file= $binlog_1
+--let $binlog_start= $pre_xa_pos
+--source include/show_binlog_events.inc
+--echo *** the current $binlog_file must show the checkpoint event with its name ***
+--let $binlog_start= 4
+--let $binlog_file= $binlog_2
+--source include/show_binlog_events.inc
+--echo ### end of check block
 
 # Clean up.
+--disconnect con1
 connection default;
 
 DROP TABLE t1;
-SET debug_sync = 'reset';
+--eval set @@global.max_binlog_size=$save_max_binlog_size

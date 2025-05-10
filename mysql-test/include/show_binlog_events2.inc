@@ -19,6 +19,9 @@
 #   $regexp_replace
 #     A user's custom addon to standard preexisting list.
 #
+#   $filter_cid
+#     boolean whether to filer out commit id (0) or not (1)
+#
 
 if ($binlog_start)
 {
@@ -26,6 +29,7 @@ if ($binlog_start)
 }
 if (!$binlog_start)
 {
+  # consider instead ./binlog_start_pos.inc
   --let $_binlog_start=256
 }
 if ($binlog_file)
@@ -36,4 +40,8 @@ if ($binlog_file)
 --replace_result "$_from_binlog_start" "from <binlog_start>" $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --replace_column 2 # 5 #
 --replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /file_id=[0-9]+/file_id=#/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ $replace_regexp
+if ($filter_cid)
+{
+--replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /file_id=[0-9]+/file_id=#/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ / cid=[0-9]+// $replace_regexp
+}
 --eval show binlog events $_in_binlog_file from $_binlog_start
