@@ -899,21 +899,13 @@ struct rpl_group_info
     }
   }
 
-  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
+  RPL_TABLE_LIST *get_table_data(TABLE *table_arg)
   {
-    DBUG_ASSERT(tabledef_var && conv_table_var);
-    for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
+    for (RPL_TABLE_LIST *ptr= tables_to_lock ; ptr ;
+         ptr= (RPL_TABLE_LIST*) ptr->next_global)
       if (ptr->table == table_arg)
-      {
-        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
-        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
-        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
-                             " tabledef: %p, conv_table: %p",
-                             table_arg->s->db.str, table_arg->s->table_name.str,
-                             *tabledef_var, *conv_table_var));
-        return true;
-      }
-    return false;
+        return ptr;
+    return (RPL_TABLE_LIST*) 0;
   }
 
   void clear_tables_to_lock();
