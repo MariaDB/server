@@ -257,12 +257,14 @@ RPL_TABLE_LIST::RPL_TABLE_LIST(const LEX_CSTRING *db_arg,
                                bool master_had_trigers):
   TABLE_LIST(db_arg, table_name_arg, NULL, thr_lock_type),
   m_tabledef(event->m_coltype, event->m_colcnt, event->m_field_metadata,
-             event->m_field_metadata_size, event->m_null_bits, event->m_flags),
+             event->m_field_metadata_size, event->m_null_bits, event->m_flags,
+             event->m_optional_metadata, event->m_optional_metadata_len),
   m_conv_table(NULL),
   m_online_alter_copy_fields(NULL), m_online_alter_copy_fields_end(NULL),
   cached_key_nr(~0U), m_tabledef_valid(true),
   master_had_triggers(master_had_trigers)
 {
+  optional_metadata.length= 0;
 }
 
 
@@ -273,12 +275,14 @@ RPL_TABLE_LIST::RPL_TABLE_LIST(TABLE *table, thr_lock_type lock_type,
                                const Copy_field *online_alter_copy_fields_end):
   TABLE_LIST(table, lock_type),
   m_tabledef(event->m_coltype, event->m_colcnt, event->m_field_metadata,
-             event->m_field_metadata_size, event->m_null_bits, event->m_flags),
+             event->m_field_metadata_size, event->m_null_bits, event->m_flags,
+             event->m_optional_metadata, event->m_optional_metadata_len),
   m_conv_table(conv_table),
   m_online_alter_copy_fields(online_alter_copy_fields),
   m_online_alter_copy_fields_end(online_alter_copy_fields_end),
   cached_key_nr(~0U), m_tabledef_valid(true), master_had_triggers(false)
 {
+  optional_metadata.length= 0;
 }
 
 
@@ -4912,15 +4916,55 @@ inline void restore_empty_query_table_list(LEX *lex)
 }
 
 
+/**
+  Updates a table's write_set to include slave-only fields that are
+  automatically filled in (either with a default or virtual column value). That
+  is, when replicating a rows log event, a table's write_set is initially
+  determined by the event's column bitmaps (in the case of an update rows
+  event, it is the after_image bitmap). However, if a field isn't present on
+  the master, the binlog event's column mapping won't be able to include it; so
+  we iterate through a table's fields which will be automatically populated,
+  and add them to the write_set.
+
+  @param table           Table to update the write_set for
+  @param field_start_ptr Pointer to the first automatically populatable field
+                         of the table (e.g. table->default_field or
+                         table->vfield).
+*/
+static void update_write_set_for_auto_filled_fields(TABLE *table,
+                                                    Field **field_start_ptr)
+{
+  DBUG_ENTER("update_write_set_for_auto_filled_fields");
+  DBUG_ASSERT(field_start_ptr && *field_start_ptr);
+
+  Field **field_ptr, *field;
+  for (field_ptr= field_start_ptr; *field_ptr; ++field_ptr)
+  {
+    field= *field_ptr;
+    /*
+      We only want to automatically populate the value of fields which don't
+      have values provided by the master; so we check that either no value was
+      provided, or the table's original write set accounts for the explicit
+      value.
+    */
+    DBUG_ASSERT(!field->has_explicit_value() ||
+                bitmap_is_set(table->write_set, field->field_index));
+    if (field->stored_in_db())
+      bitmap_set_bit(table->write_set, field->field_index);
+  }
+  DBUG_VOID_RETURN;
+}
+
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ASSERT(rgi);
   Relay_log_info const *rli= rgi->rli;
   TABLE* table;
-  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
+  DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
+
   /*
     If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5168,8 +5212,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
-        TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+
+        ptr->create_column_mapping(rgi);
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -5183,11 +5228,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           error= ERR_BAD_TABLE_DEF;
           goto err;
         }
-        DBUG_PRINT("debug", ("Table: %s.%s is compatible with master"
-                             " - conv_table: %p",
-                             ptr->table->s->db.str,
-                             ptr->table->s->table_name.str, conv_table));
-        ptr->m_conv_table= conv_table;
       }
     }
 
@@ -5205,8 +5245,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       Rows_log_event, we can invalidate the query cache for the
       associated table.
      */
-    TABLE_LIST *ptr= rgi->tables_to_lock;
-    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count); ptr= ptr->next_global, i++)
+    RPL_TABLE_LIST *ptr= rgi->tables_to_lock;
+    for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count);
+         ptr= (RPL_TABLE_LIST*) ptr->next_global, i++)
     {
       /*
         Please see comment in above 'for' loop to know the reason
@@ -5276,43 +5317,115 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-
-    bitmap_set_all(table->read_set);
-    bitmap_set_all(table->write_set);
-    table->rpl_write_set= table->write_set;
-
-    if (rpl_data.copy_fields)
-      /* always full rows, all bits set */;
-    else
-    if (get_general_type_code() == WRITE_ROWS_EVENT)
-      bitmap_copy(table->write_set, &m_cols); // for sequences
-    else // If online alter, leave all columns set (i.e. skip intersects)
-    if (!thd->slave_thread || !table->s->online_alter_binlog)
     {
-      bitmap_intersect(table->read_set,&m_cols);
-      if (get_general_type_code() == UPDATE_ROWS_EVENT)
+      RPL_TABLE_LIST *rpl_table= (RPL_TABLE_LIST*)table->pos_in_table_list;
+      Log_event_type type= get_general_type_code();
+      DBUG_ASSERT(rpl_table);
+      DBUG_ASSERT(rpl_table == rgi->get_table_data(table));
+
+      bitmap_set_all(table->read_set);
+      bitmap_set_all(table->write_set);
+      table->rpl_write_set= table->write_set;
+      if (rpl_data.is_online_alter())
       {
-        /* Must read also after-image columns to be able to update them. */
-        bitmap_union(m_table->read_set, &m_cols_ai);
-        bitmap_intersect(table->write_set, &m_cols_ai);
+        /*
+          We are executing online alter table. Always full rows, all bits set
+        */
       }
-      table->mark_columns_per_binlog_row_image();
-      if (table->vfield)
-        table->mark_virtual_columns_for_write(0);
-    }
+      else if (!table->s->online_alter_binlog)
+      {
+        if (!rpl_table->m_tabledef.optional_metadata.length)
+        {
+          /*
+            Master did not use binlog_row_metadata=FULL, so identify fields
+            using index number.
+          */
+          MY_BITMAP *after_image;
+          if (type == DELETE_ROWS_EVENT || type == UPDATE_ROWS_EVENT)
+          {
+            bitmap_intersect(table->read_set, &m_cols);
+            if (type == UPDATE_ROWS_EVENT)
+            {
+              bitmap_union(table->read_set, &m_cols_ai);
+              bitmap_intersect(table->write_set, &m_cols_ai);
+            }
+          }
 
-    if (table->versioned())
-    {
-      bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
-      bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
-      bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
-      bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+          /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
+          after_image= ((type == UPDATE_ROWS_EVENT) ? &m_cols_ai : &m_cols);
+          bitmap_intersect(table->write_set, after_image);
+          table->mark_columns_per_binlog_row_image();
+          if (type != WRITE_ROWS_EVENT && table->vfield)
+            table->mark_virtual_columns_for_write(0);
+        }
+        else
+        {
+          /*
+            The row event was logged with column names (i.e using
+            binlog_row_metadata=FULL) so fix the bitmaps to account for potential
+            column reorganizations on the slave using the master-to-slave
+            translations.
+          */
+          bitmap_clear_all(table->read_set);
+          bitmap_clear_all(table->write_set);
+
+          for (uint i= 0; i < m_cols.n_bits; i++)
+          {
+            if (bitmap_is_set(&m_cols, i) &&
+                !rpl_table->m_tabledef.master_to_slave_error[i])
+              bitmap_set_bit(table->read_set,
+                             rpl_table->m_tabledef.master_to_slave_map[i]);
+          }
+
+          if (type != UPDATE_ROWS_EVENT)
+            bitmap_copy(table->write_set, table->read_set);
+          else
+          {
+            /*
+              Update rows events can have disjoint read vs write sets in the
+              before/after images (e.g. when logged with
+              binlog_row_image=MINIMAL), so we explicitly set the write set
+              from the after image.
+            */
+            for (uint i= 0; i < m_cols_ai.n_bits; i++)
+            {
+              if (bitmap_is_set(&m_cols_ai, i) &&
+                  !rpl_table->m_tabledef.master_to_slave_error[i])
+                bitmap_set_bit(table->write_set,
+                               rpl_table->m_tabledef.master_to_slave_map[i]);
+            }
+          }
+        }
+      }
+
+      if (table->versioned())
+      {
+        bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
+        bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
+        bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
+        bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+      }
+
+      if ((error= rpl_table->check_wrong_column_usage(rgi, &m_cols)))
+        goto err;
+
+      table->mark_columns_per_binlog_row_image();
+
+      if (table->default_field && *(table->default_field) &&
+          (rpl_data.is_online_alter() ||
+           LOG_EVENT_IS_WRITE_ROW(rgi->current_event->get_type_code())))
+        update_write_set_for_auto_filled_fields(table, table->default_field);
+
+      if (table->vfield && *(table->vfield))
+        update_write_set_for_auto_filled_fields(table, table->vfield);
+
+      if (!rpl_data.is_online_alter())
+        this->slave_exec_mode= (enum_slave_exec_mode) slave_exec_mode_options;
     }
-    m_table->mark_columns_per_binlog_row_image();
 
     COPY_INFO copy_info;
     Write_record write_record;
-    // Do event specific preparations
+    // Do event specific preparations 
     error= do_before_row_operations(rgi, &copy_info, &write_record);
 
     /*
@@ -5325,8 +5438,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
-      thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)
-                               | MODE_NO_AUTO_VALUE_ON_ZERO;
+      thd->variables.sql_mode=
+          (rpl_data.is_online_alter() ? saved_sql_mode : 0) |
+          MODE_NO_AUTO_VALUE_ON_ZERO;
 
     // row processing loop
 
@@ -6523,7 +6637,6 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   DBUG_RETURN(res);
 }
 
-
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
   RPL_TABLE_LIST *table_list;
@@ -7459,7 +7572,7 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
   TABLE *table= m_table;  // pointer to event's table
   const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
 
-  prepare_record(table, m_width, true);
+  prepare_record(table);
 
   /* unpack row into table->record[0] */
   int error= unpack_current_row(rgi);
@@ -8060,7 +8173,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     Todo: fix wl3228 hld that requires defauls for all types of events
   */
   
-  prepare_record(table, m_width, FALSE);
+  restore_record(table, s->default_values);
   error= unpack_current_row(rgi);
 
   m_vers_from_plain= false;
