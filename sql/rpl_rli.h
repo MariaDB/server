@@ -1016,6 +1016,15 @@ struct rpl_group_info
     }
   }
 
+  RPL_TABLE_LIST *get_table_data(TABLE *table_arg)
+  {
+    for (RPL_TABLE_LIST *ptr= tables_to_lock ; ptr ;
+         ptr= (RPL_TABLE_LIST*) ptr->next_global)
+      if (ptr->table == table_arg)
+        return ptr;
+    return (RPL_TABLE_LIST*) 0;
+  }
+
   void clear_tables_to_lock();
   void cleanup_context(THD *, bool, bool keep_domain_owner= false);
   void slave_close_thread_tables(THD *);

@@ -175,24 +175,41 @@ PSI_memory_key key_memory_table_def_memory;
 
 table_def::table_def(unsigned char *types, ulong size,
                      uchar *field_metadata, int metadata_size,
-                     uchar *null_bitmap, uint16 flags)
+                     uchar *null_bitmap, uint16 flags,
+                     const uchar *optional_metadata_str,
+                     uint optional_metadata_len)
   : m_type(0), m_size(size), m_field_metadata_size(metadata_size),
     m_field_metadata(0), m_flags(flags), m_null_bits(0),
     m_memory(NULL)
 {
-  m_memory= (uchar *)my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
-                                     &m_type, size,
-                                     &m_field_metadata,
-                                     size * sizeof(uint16),
-                                     &m_null_bits, (size + 7) / 8,
-                                     NULL);
+  m_memory= (uchar *)
+    my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
+                    &m_type, size,
+                    &m_field_metadata,
+                    size * sizeof(uint16),
+                    &m_null_bits, (size + 7) / 8,
+                    &optional_metadata.str,
+                    optional_metadata_len,
+                    &master_to_slave_map,
+                    m_size * sizeof(*master_to_slave_map),
+                    &master_to_slave_error,
+                    m_size * sizeof(*master_to_slave_error),
+                    &master_column_name,
+                    m_size * sizeof(uchar*),
+                    NULL);
 
   bzero(m_field_metadata, size * sizeof(uint16));
+  bzero(master_to_slave_error, m_size * sizeof(*master_to_slave_error));
+  bzero(master_column_name, m_size * sizeof(uchar*));
 
   if (m_type)
     memcpy(m_type, types, size);
   else
     m_size= 0;
+  if ((optional_metadata.length= optional_metadata_len))
+    memcpy((char*) optional_metadata.str, optional_metadata_str,
+           optional_metadata_len);
+
   /*
     Extract the data from the table map into the field metadata array
     iff there is field metadata. The variable metadata_size will be
