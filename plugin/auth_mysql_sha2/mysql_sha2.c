@@ -14,7 +14,12 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#if _WIN32
+#include <io.h>
+#define access _access
+#else
 #include <unistd.h>
+#endif
 #include "mysql_sha2.h"
 #include <mysql/plugin_auth.h>
 #include <mysqld_error.h>
@@ -157,7 +162,7 @@ static int digest_to_binary(const char *hash, size_t hash_length,
   if (hash_length != PASSWORD_LEN)
   {
     my_printf_error(ER_PASSWD_LENGTH, "Password hash should be "
-                    "%lu characters long", 0, PASSWORD_LEN);
+                    "%zu characters long", 0, PASSWORD_LEN);
     return 1;
   }
   if (sscanf(hash, "$A$%X$%20c%43c", &authstr->iterations, authstr->salt,
