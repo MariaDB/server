@@ -28,9 +28,9 @@ WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
 MDL_BACKUP_DML	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t3 WRITE, t1 WRITE CONCURRENT;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
@@ -38,9 +38,9 @@ WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
 MDL_BACKUP_DML	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t3
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t1 WRITE, mysql.user WRITE;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
