@@ -14,7 +14,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#include <alloca.h>
+#include <my_alloca.h>
 #include "mysql_sha2.h"
 
 /* based on https://www.akkadia.org/drepper/SHA-crypt.txt */

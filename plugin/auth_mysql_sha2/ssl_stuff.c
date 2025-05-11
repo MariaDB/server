@@ -66,13 +66,13 @@ int ssl_genkeys()
   return 1;
 #else
   EVP_PKEY *pkey;
-  FILE *f;
-
-  if (!(f= fopen(private_key_path, "w")))
-    FILE_ERROR("write", private_key_path);
+  FILE *f= NULL;
 
   if (!(pkey= EVP_RSA_gen(2048)))
     goto err;
+
+  if (!(f= fopen(private_key_path, "w")))
+    FILE_ERROR("write", private_key_path);
 
   if (PEM_write_PrivateKey(f, pkey, NULL, NULL, 0, NULL, NULL) != 1)
     SSL_ERROR("write", private_key_path);

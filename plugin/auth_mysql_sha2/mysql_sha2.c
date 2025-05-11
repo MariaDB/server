@@ -176,15 +176,13 @@ static struct st_mysql_auth info=
   SELF, auth, password_hash, digest_to_binary
 };
 
-static const char * const private_key_path_default= "private_key.pem";
 static MYSQL_SYSVAR_STR(private_key_path, private_key_path, PLUGIN_VAR_READONLY,
     "A path to the private RSA key used for authentication",
-    NULL, NULL, private_key_path_default);
+    NULL, NULL, "private_key.pem");
 
-static const char * const public_key_path_default= "public_key.pem";
 static MYSQL_SYSVAR_STR(public_key_path, public_key_path, PLUGIN_VAR_READONLY,
     "A path to the public RSA key used for authentication",
-    NULL, NULL, public_key_path_default);
+    NULL, NULL, "public_key.pem");
 
 static MYSQL_SYSVAR_BOOL(auto_generate_rsa_keys, auto_generate_keys,
     PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
@@ -198,8 +196,8 @@ static MYSQL_SYSVAR_UINT(digest_rounds, digest_rounds, PLUGIN_VAR_READONLY,
 
 static int init_keys(void *p)
 {
-  if (private_key_path == private_key_path_default &&
-      public_key_path == public_key_path_default &&
+  if (private_key_path == MYSQL_SYSVAR_NAME(private_key_path).def_val &&
+      public_key_path == MYSQL_SYSVAR_NAME(public_key_path).def_val &&
       access(private_key_path, F_OK) && access(public_key_path, F_OK) &&
       auto_generate_keys)
     ssl_genkeys();
