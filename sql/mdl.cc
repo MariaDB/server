@@ -21,6 +21,7 @@
 #include "sql_array.h"
 #include "rpl_rli.h"
 #include <lf.h>
+#include "aligned.h"
 #include "unireg.h"
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
@@ -37,11 +38,13 @@
 static PSI_memory_key key_memory_MDL_context_acquire_locks;
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
+static PSI_mutex_key key_MDL_wait_LOCK_wait_status,
+                     key_MDL_lock_fast_lane_mutex;
 
 static PSI_mutex_info all_mdl_mutexes[]=
 {
-  { &key_MDL_wait_LOCK_wait_status, "MDL_wait::LOCK_wait_status", 0}
+  { &key_MDL_wait_LOCK_wait_status, "MDL_wait::LOCK_wait_status", 0 },
+  { &key_MDL_lock_fast_lane_mutex, "MDL_lock::Fast_lane::m_mutex", 0 }
 };
 
 static PSI_rwlock_key key_MDL_lock_rwlock;
@@ -161,6 +164,7 @@ void MDL_key::init_psi_keys()
 #endif
 
 static bool mdl_initialized= 0;
+uint mdl_instances;
 
 enum tal_status { TAL_ERROR, TAL_ACQUIRED, TAL_WAIT, TAL_NOWAIT };
 
@@ -414,6 +418,15 @@ class MDL_lock
     "backup" lock strategy for locks in BACKUP namespace, "scoped" lock
     strategy for locks in SCHEMA namespace and "object" lock strategy for
     all other namespaces.
+
+    fast_lane() - checks if provided lock type can be served by fast lanes.
+                  Fast lane lock types must be fully compatible between
+                  each other.
+    fast_lane_exception() - checks if provided lock type is compatible with
+                            fast lanes, but is not desired to be served by
+                            fast lanes for different reasons. Fast lane
+                            exception lock types must be fully compatible
+                            with fast lane lock types.
   */
   struct MDL_lock_strategy
   {
@@ -422,6 +435,9 @@ class MDL_lock
     virtual bool needs_notification(const MDL_ticket *ticket) const = 0;
     virtual bool conflicting_locks(const MDL_ticket *ticket) const = 0;
     virtual bitmap_t hog_lock_types_bitmap() const = 0;
+    virtual bool fast_lane(enum_mdl_type) const { return false; }
+    virtual bool fast_lane_exception(enum_mdl_type) const
+    { return false; }
     virtual ~MDL_lock_strategy() = default;
   };
 
@@ -543,9 +559,188 @@ class MDL_lock
     */
     bitmap_t hog_lock_types_bitmap() const override
     { return 0; }
+
+    bool fast_lane(enum_mdl_type type) const override final
+    {
+      return MDL_BIT(type) & (MDL_BIT(MDL_BACKUP_DML) |
+                              MDL_BIT(MDL_BACKUP_TRANS_DML) |
+                              MDL_BIT(MDL_BACKUP_SYS_DML) |
+                              MDL_BIT(MDL_BACKUP_COMMIT));
+    }
+
+    bool fast_lane_exception(enum_mdl_type type) const override final
+    {
+      return MDL_BIT(type) & (MDL_BIT(MDL_BACKUP_DDL) |
+                              MDL_BIT(MDL_BACKUP_ALTER_COPY));
+    }
   private:
     static const bitmap_t m_granted_incompatible[MDL_BACKUP_END];
     static const bitmap_t m_waiting_incompatible[MDL_BACKUP_END];
+  };
+
+
+  /**
+    Scalable handler for "lightweight" lock types.
+  */
+  class Fast_lane
+  {
+    alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable mysql_mutex_t m_mutex;
+    ilist<MDL_ticket> m_list;
+    uint32_t m_disable_count;
+
+    bool enabled() const { return m_disable_count == 0; }
+
+  public:
+    Fast_lane() noexcept: m_disable_count(0)
+    {
+      mysql_mutex_init(key_MDL_lock_fast_lane_mutex, &m_mutex,
+                       MY_MUTEX_INIT_FAST);
+    }
+
+    ~Fast_lane()
+    {
+      DBUG_ASSERT(m_disable_count <= 1);
+      DBUG_ASSERT(m_list.empty());
+      mysql_mutex_destroy(&m_mutex);
+    }
+
+    static void *operator new[](size_t size, const std::nothrow_t)
+    { return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE); }
+
+    static void operator delete[](void *ptr) { aligned_free(ptr); }
+
+
+    /**
+      Registers ticket in fast lane.
+
+      ticket->m_fast_lane has to be updated to point to this lane
+      either before critical section or inside critical section.
+      Before other threads can find it via m_list.
+
+      In most cases this method is called with fast lane enabled,
+      when there're no heavyweight locks in this MDL_lock. There is
+      no point in attempting to avoid mutex lock for disabled lanes
+      by pre-checking enabled().
+
+      @retval true  Lock granted
+      @retval false Lane disabled, try conventional lock
+    */
+    bool add_ticket(MDL_ticket *ticket)
+    {
+      DBUG_ASSERT(!ticket->m_fast_lane.load(std::memory_order_relaxed));
+      mysql_mutex_lock(&m_mutex);
+      bool res= enabled();
+      DBUG_ASSERT(res || m_list.empty());
+      if (likely(res))
+      {
+        m_list.push_back(*ticket);
+        ticket->m_fast_lane.store(this, std::memory_order_relaxed);
+      }
+      mysql_mutex_unlock(&m_mutex);
+      return res;
+    }
+
+
+    /**
+      Removes ticket from fast lane.
+
+      ticket->m_fast_lane has to be double checked under fast lane mutex
+      protection. Description in a comment to MDL_lock::release().
+
+      @retval true  Lock released
+      @retval false Lane disabled, try conventional unlock
+    */
+    bool remove_ticket(MDL_ticket *ticket)
+    {
+      mysql_mutex_lock(&m_mutex);
+      DBUG_ASSERT(enabled() || m_list.empty());
+      Fast_lane *lane= static_cast<Fast_lane *>(
+          ticket->m_fast_lane.load(std::memory_order_relaxed));
+      if (lane)
+      {
+        DBUG_ASSERT(enabled());
+        DBUG_ASSERT(lane == this);
+        m_list.remove(*ticket);
+      }
+      mysql_mutex_unlock(&m_mutex);
+      return lane != nullptr;
+    }
+
+
+    /**
+      Disables fast lane, moves tickets to MDL_lock::m_granted.
+
+      Disabled fast lane means:
+      - Fast_lane::add_ticket() has to try conventional lock
+      - Fast_lane::remove_ticket() has to try conventional unlock
+      - MDL_lock::release() has to try conventional unlock
+
+      Lane can be disabled multiple times.
+    */
+    void disable(MDL_lock *lock)
+    {
+      mysql_mutex_lock(&m_mutex);
+      DBUG_ASSERT(enabled() || m_list.empty());
+      m_disable_count++;
+      while (!m_list.empty())
+      {
+        MDL_ticket *ticket= &m_list.front();
+        m_list.pop_front();
+        lock->m_granted.add_ticket(ticket);
+        DBUG_ASSERT(ticket->m_fast_lane.load(std::memory_order_relaxed) == this);
+        ticket->m_fast_lane.store(nullptr, std::memory_order_relaxed);
+      }
+      mysql_mutex_unlock(&m_mutex);
+    }
+
+
+    /**
+      Re-enables fast lane.
+
+      Fast lane can be used again once all disablers are gone.
+    */
+    void enable()
+    {
+      mysql_mutex_lock(&m_mutex);
+      DBUG_ASSERT(m_disable_count);
+      DBUG_ASSERT(m_list.empty());
+      m_disable_count--;
+      mysql_mutex_unlock(&m_mutex);
+    }
+
+
+    /** MDL_lock::iterate helper. */
+    bool iterate(mdl_iterator_callback callback, void *argument) const
+    {
+      mysql_mutex_lock(&m_mutex);
+      DBUG_ASSERT(enabled() || m_list.empty());
+      bool res= std::any_of(m_list.begin(), m_list.end(),
+                            [callback, argument](MDL_ticket &ticket) {
+                              return callback(&ticket, argument, true);
+                            });
+      mysql_mutex_unlock(&m_mutex);
+      return res;
+    }
+
+
+    /** Checks if lane is enabled, used by assertions. */
+    bool is_enabled() const
+    {
+      mysql_mutex_lock(&m_mutex);
+      bool res= enabled();
+      mysql_mutex_unlock(&m_mutex);
+      return res;
+    }
+
+
+    /** Checks if lane is empty, used by assertions. */
+    bool is_empty() const
+    {
+      mysql_mutex_lock(&m_mutex);
+      bool res= m_list.empty();
+      mysql_mutex_unlock(&m_mutex);
+      return res;
+    }
   };
 
 
@@ -600,6 +795,8 @@ class MDL_lock
 
   const MDL_lock_strategy *m_strategy;
 
+  Fast_lane *m_fast_lane;
+
   static const MDL_backup_lock m_backup_lock_strategy;
   static const MDL_scoped_lock m_scoped_lock_strategy;
   static const MDL_object_lock m_object_lock_strategy;
@@ -619,6 +816,7 @@ class MDL_lock
 
   void notify_conflicting_locks(MDL_context *ctx, bool abort_blocking)
   {
+    DBUG_ASSERT(fast_lanes_all_disabled());
     for (const auto &conflicting_ticket : m_granted)
     {
       if (conflicting_ticket.get_ctx() != ctx &&
@@ -633,6 +831,53 @@ class MDL_lock
       }
     }
   }
+
+
+  void enable_fast_lanes()
+  {
+    DBUG_ASSERT(m_fast_lane);
+    for (uint i= 0; i < mdl_instances; i++)
+      m_fast_lane[i].enable();
+  }
+
+
+  void disable_fast_lanes()
+  {
+    DBUG_ASSERT(m_fast_lane);
+    for (uint i= 0; i < mdl_instances; i++)
+      m_fast_lane[i].disable(this);
+  }
+
+
+  /** Checks if fast lanes are disabled, used by assertions. */
+  bool fast_lanes_all_disabled() const
+  {
+    if (m_fast_lane)
+    {
+      for (uint i= 0; i < mdl_instances; i++)
+      {
+        if (m_fast_lane[i].is_enabled())
+          return false;
+      }
+    }
+    return true;
+  }
+
+
+  /** Checks if fast lanes are empty, used by assertions. */
+  bool fast_lanes_all_empty() const
+  {
+    if (m_fast_lane)
+    {
+      for (uint i= 0; i < mdl_instances; i++)
+      {
+        if (!m_fast_lane[i].is_empty())
+          return false;
+      }
+    }
+    return true;
+  }
+
 
 #ifndef DBUG_OFF
   bool check_if_conflicting_replication_locks(MDL_context *ctx);
@@ -656,6 +901,8 @@ public:
   bool has_pending_conflicting_lock(enum_mdl_type type)
   {
     bool result;
+    DBUG_ASSERT(key.mdl_namespace() == MDL_key::TABLE);
+    DBUG_ASSERT(!m_fast_lane);
     mysql_prlock_rdlock(&m_rwlock);
     result= (m_waiting.bitmap() & incompatible_granted_types_bitmap()[type]);
     mysql_prlock_unlock(&m_rwlock);
@@ -668,7 +915,8 @@ public:
 
   MDL_lock()
     : m_hog_lock_count(0),
-      m_strategy(0)
+      m_strategy(0),
+      m_fast_lane(nullptr)
   { mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock); }
 
   MDL_lock(const MDL_key *key_arg)
@@ -678,10 +926,15 @@ public:
   {
     DBUG_ASSERT(key_arg->mdl_namespace() == MDL_key::BACKUP);
     mysql_prlock_init(key_MDL_lock_rwlock, &m_rwlock);
+    m_fast_lane=
+        mdl_instances ? new (std::nothrow) Fast_lane[mdl_instances] : nullptr;
   }
 
   ~MDL_lock()
-  { mysql_prlock_destroy(&m_rwlock); }
+  {
+    mysql_prlock_destroy(&m_rwlock);
+    delete [] m_fast_lane;
+  }
 
   static void lf_alloc_constructor(uchar *arg)
   { new (arg + LF_HASH_OVERHEAD) MDL_lock(); }
@@ -725,6 +978,7 @@ public:
   {
     unsigned long res= 0;
     DBUG_ASSERT(key.mdl_namespace() == MDL_key::USER_LOCK);
+    DBUG_ASSERT(!m_fast_lane);
     mysql_prlock_rdlock(&m_rwlock);
     DBUG_ASSERT(m_strategy || is_empty());
     if (!m_granted.is_empty())
@@ -737,13 +991,34 @@ public:
   /**
     Callback for mdl_iterate()
 
-    We can skip check for m_strategy here, because m_granted
-    must be empty for such locks anyway.
+    Another thread may be deleting this MDL_lock concurrently.
+    Being deleted lock can still be iterated since it must have
+    valid empty granted/waiting lists and fast lanes.
+
+    Iterate fast lanes first, then go for conventional m_granted
+    and m_waiting lists. To make MDL_lock snapshot consistent, fast
+    lanes iteration has to be performed under m_rwlock protection.
+
+    Strictly speaking fast lanes iteration alone doesn't require
+    m_rwlock protection. However another thread may be moving the
+    ticket from fast lane to m_granted list concurrently.
+    If fast lanes are iterated before m_rwlock critical section,
+    then ticket iterator may see this ticket twice: once from fast
+    lane and once from m_granted list.
+    If fast lanes are iterated after m_rwlock critical section,
+    then ticket iterator may miss this ticket: it can be removed
+    from fast lane, but not yet inserted to m_granted list.
   */
   bool iterate(mdl_iterator_callback callback, void *argument)
   {
     mysql_prlock_rdlock(&m_rwlock);
     DBUG_ASSERT(m_strategy || is_empty());
+    DBUG_ASSERT(m_strategy || fast_lanes_all_empty());
+    if (m_fast_lane)
+    {
+      for (uint i= 0; i < mdl_instances; i++)
+        m_fast_lane[i].iterate(callback, argument);
+    }
     bool res= std::any_of(m_granted.begin(), m_granted.end(),
                           [callback, argument](MDL_ticket &ticket) {
                             return callback(&ticket, argument, true);
@@ -757,8 +1032,18 @@ public:
   }
 
 
+  /**
+    MDL_context::clone_ticket() helper
+
+    Cloned tickets don't seem to be used by performance critical
+    code, so they're always added to conventional m_granted list.
+    Support for fast lanes can be trivially implemented if needed.
+  */
   void add_cloned_ticket(MDL_ticket *ticket)
   {
+    if (m_fast_lane && !m_strategy->fast_lane(ticket->get_type()) &&
+        !m_strategy->fast_lane_exception(ticket->get_type()))
+      disable_fast_lanes();
     mysql_prlock_wrlock(&m_rwlock);
     m_granted.add_ticket(ticket);
     mysql_prlock_unlock(&m_rwlock);
@@ -770,10 +1055,19 @@ public:
 
     To update state of MDL_lock object correctly we need to temporarily
     exclude ticket from the granted queue and then include it back.
+
+    Downgradeable tickets are used by DDL or admin statements. They're
+    always served via conventional m_granted list. OTOH fast lane
+    exception tickets can somewhat benefit from fast lanes. Support for
+    fast lanes can be trivially implemented if needed.
   */
   template<typename Functor>
   void downgrade(MDL_ticket *ticket, Functor update_ticket_type)
   {
+    DBUG_ASSERT(!m_strategy->fast_lane(ticket->get_type()));
+    DBUG_ASSERT(!ticket->m_fast_lane.load(std::memory_order_relaxed));
+    DBUG_ASSERT(m_strategy->fast_lane_exception(ticket->get_type()) ||
+                fast_lanes_all_disabled());
     mysql_prlock_wrlock(&m_rwlock);
     m_granted.remove_ticket(ticket);
     update_ticket_type();
@@ -788,14 +1082,31 @@ public:
 
     To update state of MDL_lock object correctly we need to temporarily
     exclude ticket from the granted queue and then include it back.
+
+    Upgradeable tickets are used by DDL or admin statements. They're
+    always served via conventional m_granted list. OTOH fast lane
+    exception tickets can somewhat benefit from fast lanes. Support for
+    fast lanes can be trivially implemented if needed.
   */
   template<typename Functor>
   void upgrade(MDL_ticket *ticket, Functor update_ticket_type,
                MDL_ticket *remove)
   {
+    DBUG_ASSERT(!m_strategy->fast_lane(ticket->get_type()));
+    DBUG_ASSERT(!ticket->m_fast_lane.load(std::memory_order_relaxed));
+    DBUG_ASSERT(m_strategy->fast_lane_exception(ticket->get_type()) ||
+                fast_lanes_all_disabled());
     mysql_prlock_wrlock(&m_rwlock);
     if (remove)
+    {
+      DBUG_ASSERT(!m_strategy->fast_lane(remove->get_type()));
+      DBUG_ASSERT(!remove->m_fast_lane.load(std::memory_order_relaxed));
+      DBUG_ASSERT(m_strategy->fast_lane_exception(remove->get_type()) ||
+                  fast_lanes_all_disabled());
+      if (m_fast_lane && !m_strategy->fast_lane_exception(remove->get_type()))
+        enable_fast_lanes();
       m_granted.remove_ticket(remove);
+    }
     m_granted.remove_ticket(ticket);
     update_ticket_type();
     m_granted.add_ticket(ticket);
@@ -848,6 +1159,24 @@ public:
     which means it can be detroyed. Caller is expected to dispose ticket
     immediately anyway.
 
+    Certain lock requests can be served by multi-instance scalable fast lanes.
+    The following requirements must be met to make it happen: fast lanes must
+    be available for this MDL_lock, fast lanes must be enabled and lock request
+    type must satisfy m_strategy->fast_lane().
+
+    Fast lanes are available for certain namespaces, e.g. initial implementation
+    supported only BACKUP namespace and when fast lanes were allocated
+    successfully.
+
+    Lock requests that satisfy m_strategy->fast_lane_exception() are never
+    served by fast lanes. Such lock requests don't disable fast lanes when
+    served.
+
+    Non-fast_lane() and non-fast_lane_exception() lock requests are never
+    served by fast lanes. Such lock requests disable all fast lanes and move
+    fast lane tickets to conventional MDL_lock::m_granted list. Fast lanes
+    are reenabled once all such locks are released or aborted.
+
     @retval TAL_ACQUIRED Acquired
     @retval TAL_WAIT     Not acquired, must be waited
     @retval TAL_NOWAIT   Not acquired, cannot be waited
@@ -860,10 +1189,27 @@ public:
     MDL_context *mdl_context= ticket->get_ctx();
     // TAL_ACQUIRED to make less work on the hot path
     enum tal_status res= TAL_ACQUIRED;
+    bool need_disable_fast_lanes= false;
     update_ticket_lock(this);
+
+    if (m_fast_lane)
+    {
+      DBUG_ASSERT(mdl_instances);
+      if (m_strategy->fast_lane(ticket->get_type()))
+      {
+        uint lane= mdl_context->get_thd()->thread_id % mdl_instances;
+        if (m_fast_lane[lane].add_ticket(ticket))
+          return res;
+      }
+      else if (!m_strategy->fast_lane_exception(ticket->get_type()))
+        need_disable_fast_lanes= true;
+    }
+
     mysql_prlock_wrlock(&m_rwlock);
     if (likely(m_strategy))
     {
+      if (need_disable_fast_lanes)
+        disable_fast_lanes();
       if (can_grant_lock(ticket->get_type(), mdl_context, false))
         m_granted.add_ticket(ticket);
       else
@@ -884,18 +1230,50 @@ public:
                              check_if_conflicting_replication_locks(mdl_context)));
         }
         else
+        {
+          if (need_disable_fast_lanes)
+            enable_fast_lanes();
           res= TAL_NOWAIT;
+        }
       }
     }
     else
+    {
+      DBUG_ASSERT(fast_lanes_all_disabled());
       res= TAL_ERROR;
+    }
     mysql_prlock_unlock(&m_rwlock);
     return res;
   }
 
 
+  /**
+    Releases previously acquired lock.
+
+    Lock requests that were served by fast lanes are redirected to fast
+    lanes. Another thread can be disabling fast lanes concurrently and
+    resetting tiket->m_fast_lane. To handle such scenario properly
+    ticket->m_fast_lane has to be double checked under fast lane mutex
+    protection. Accessing ticket->m_fast_lane in this method is the
+    sole reason it is declared atomic.
+
+    Lock requests that were served by fast lanes, which were disabled
+    in the meantime, are released conventionally.
+
+    Conventional lock release consists of removing lock from m_granted
+    list, awaking waiters and destroying MDL_lock if needed.
+  */
   void release(LF_PINS *pins, MDL_ticket *ticket)
   {
+    if (Fast_lane *lane= static_cast<Fast_lane*>(
+            ticket->m_fast_lane.load(std::memory_order_relaxed)))
+    {
+      DBUG_ASSERT(key.mdl_namespace() == MDL_key::BACKUP);
+      DBUG_ASSERT(m_fast_lane);
+      DBUG_ASSERT(m_strategy->fast_lane(ticket->get_type()));
+      if (lane->remove_ticket(ticket))
+        return;
+    }
     remove_ticket(pins, &MDL_lock::m_granted, ticket);
   }
 
@@ -1206,6 +1584,7 @@ MDL_ticket::MDL_ticket(MDL_context *ctx_arg, MDL_request *mdl_request):
    m_duration(mdl_request->duration),
 #endif
    m_time(0),
+   m_fast_lane(nullptr),
    m_type(mdl_request->type),
    m_ctx(ctx_arg),
    m_lock(nullptr)
@@ -1955,11 +2334,17 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 }
 
 
-/** Remove a ticket from waiting or pending queue and wakeup up waiters. */
+/**
+  Removes ticket from waiting or pending queue and wakeup up waiters.
+
+  Fast lanes are reenabled when non-fast_lane() and
+  non-fast_lane_exception() locks are being released.
+*/
 
 void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
                              MDL_ticket *ticket)
 {
+  DBUG_ASSERT(!ticket->m_fast_lane.load(std::memory_order_relaxed));
   mysql_prlock_wrlock(&m_rwlock);
   (this->*list).remove_ticket(ticket);
   if (is_empty())
@@ -1992,6 +2377,9 @@ void MDL_lock::remove_ticket(LF_PINS *pins, Ticket_list MDL_lock::*list,
     reschedule_waiters();
   }
   mysql_prlock_unlock(&m_rwlock);
+  if (m_fast_lane && !m_strategy->fast_lane(ticket->get_type()) &&
+      !m_strategy->fast_lane_exception(ticket->get_type()))
+    enable_fast_lanes();
 }
 
 
