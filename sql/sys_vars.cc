@@ -1991,6 +1991,14 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED(1105, ""));
 
+static Sys_var_uint Sys_metadata_locks_instances(
+       "metadata_locks_instances",
+       "Number of fast lanes to create for metadata locks. Can be used to "
+       "improve DML scalability by eliminating MDL_lock::rwlock load. "
+       "Use 1 to disable MDL fast lanes. Supported MDL namespaces: BACKUP",
+       READ_ONLY GLOBAL_VAR(mdl_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 256), DEFAULT(8), BLOCK_SIZE(1));
+
 static Sys_var_on_access_session<Sys_var_ulonglong,
                                  PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
 Sys_pseudo_thread_id(
