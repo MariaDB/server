@@ -715,6 +715,11 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --metadata-locks-instances=# 
+ Number of fast lanes to create for metadata locks. Can be
+ used to improve DML scalability by eliminating
+ MDL_lock::rwlock load. Use 1 to disable MDL fast lanes.
+ Supported MDL namespaces: BACKUP
  --mhnsw-default-distance=name 
  Distance function to build the vector index for. One of: 
  euclidean, cosine
@@ -1841,6 +1846,7 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+metadata-locks-instances 8
 mhnsw-default-distance euclidean
 mhnsw-default-m 6
 mhnsw-ef-search 20
