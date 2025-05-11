@@ -22,6 +22,7 @@
 #include <m_string.h>
 #include <mysql_com.h>
 #include <lf.h>
+#include <atomic>
 #include "lex_ident.h"
 
 class THD;
@@ -759,6 +760,9 @@ private:
   MDL_ticket(MDL_context *ctx_arg, MDL_request *request);
   ~MDL_ticket();
 private:
+  /** Property of MDL_lock::Fast_road, unauthorized access is prohibited. */
+  std::atomic<void*> m_fast_lane;
+
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
 
@@ -1137,6 +1141,7 @@ extern "C" int thd_is_connected(MYSQL_THD thd);
   to avoid starving out weak, low-prio locks.
 */
 extern "C" ulong max_write_lock_count;
+extern uint mdl_instances;
 
 typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);
