@@ -7610,12 +7610,11 @@ no_icp:
 	}
 }
 
-int innobase_get_autoinc_lock_mode(Autoinc_spec *autoinc_spec)
+static
+int innobase_get_autoinc_lock_mode(const Autoinc_spec *autoinc_spec)
 {
-  return autoinc_spec
-	 ? autoinc_spec->order
-	   ? AUTOINC_OLD_STYLE_LOCKING : AUTOINC_NO_LOCKING
-         : innobase_autoinc_lock_mode;
+  return autoinc_spec->legacy ? innobase_autoinc_lock_mode :
+	 autoinc_spec->order ? AUTOINC_OLD_STYLE_LOCKING : AUTOINC_NO_LOCKING;
 }
 
 /********************************************************************//**
@@ -7632,11 +7631,9 @@ ha_innobase::innobase_lock_autoinc(void)
 {
 	DBUG_ENTER("ha_innobase::innobase_lock_autoinc");
 	dberr_t		error = DB_SUCCESS;
-	auto *autoinc_spec= table_share->identity_field_spec;
-
 	ut_ad(!srv_read_only_mode);
 
-	switch (innobase_get_autoinc_lock_mode(autoinc_spec)) {
+	switch (innobase_get_autoinc_lock_mode(m_prebuilt->autoinc_spec)) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
 		m_prebuilt->table->autoinc_mutex.wr_lock();

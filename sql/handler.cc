@@ -4190,6 +4190,7 @@ Autoinc_spec make_session_autoinc_spec(const system_variables *variables)
   s.no_auto_value_on_zero = variables->sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO;
   s.double_cache= true;
   s.cache= AUTO_INC_DEFAULT_NB_ROWS;
+  s.legacy= true;
   return s;
 }
 

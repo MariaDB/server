@@ -188,7 +188,6 @@ enum extra2_frm_value_type {
   EXTRA2_FIELD_FLAGS=129,
   EXTRA2_FIELD_DATA_TYPE_INFO=130,
   EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
-  EXTRA2_AUTOINC_SPEC=132,
 };
 
 enum extra2_field_flags {

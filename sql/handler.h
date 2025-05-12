@@ -2298,8 +2298,8 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   TABLE_LIST *merge_list;
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
+  bool has_identity_field;
   sequence_definition *seq_create_info;
-  Autoinc_spec *autoinc_spec;
 
   void init()
   {

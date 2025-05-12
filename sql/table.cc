@@ -1689,9 +1689,6 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
         case EXTRA2_INDEX_FLAGS:
           fail= read_extra2_section_once(extra2, length, &fields->index_flags);
           break;
-        case EXTRA2_AUTOINC_SPEC:
-          fail= read_extra2_section_once(extra2, length, &fields->autoinc_spec);
-          break;
         default:
           /* abort frm parsing if it's an unknown but important extra2 value */
           if (type >= EXTRA2_ENGINE_IMPORTANT)
@@ -2508,15 +2505,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       field_data_type_info_array.parse(old_root, share->fields,
                                        extra2.field_data_type_info))
     goto err;
-
-  if (extra2.autoinc_spec.str)
-  {
-    if (extra2.autoinc_spec.length != Autoinc_spec::stored_size())
-      goto err;
-    autoinc_spec= new(&mem_root) Autoinc_spec;
-    const uchar *end= autoinc_spec->from_binary(extra2.autoinc_spec.str);
-    DBUG_ASSERT(end == extra2.autoinc_spec.str + extra2.autoinc_spec.length);
-  }
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {

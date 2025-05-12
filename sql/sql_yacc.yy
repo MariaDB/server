@@ -6325,18 +6325,14 @@ identity_spec:
           opt_generated_always AS IDENTITY identity_props
           opt_serial_attribute
           {
-            Lex->create_info.autoinc_spec= $4;
             $4->generated_always= true;
             if (!Lex->last_field_identity($4))
               MYSQL_YYABORT;
-            Lex->last_field->identity_field= true;
-            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
+            Lex->last_field->flags|= NOT_NULL_FLAG;
           }
         | GENERATED_SYM BY DEFAULT opt_on_null AS IDENTITY identity_props
           opt_serial_attribute
           {
-            Lex->last_field->identity_field= true;
-            Lex->last_field->flags|= AUTO_INCREMENT_FLAG;
             $7->no_auto_value_on_zero= $4;
             if (!Lex->last_field_identity($7))
               MYSQL_YYABORT;

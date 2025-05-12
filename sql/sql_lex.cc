@@ -10560,8 +10560,11 @@ bool LEX::last_field_generated_always_as_row_end()
 
 bool LEX::last_field_identity(Autoinc_spec *spec)
 {
-  create_info.autoinc_spec= spec;
+  // This is needed to make sure there is only one autoinc field
+  last_field->flags|= AUTO_INCREMENT_FLAG;
 
+  create_info.has_identity_field= true;
+  last_field->identity_field= true;
   Virtual_column_info *v= add_virtual_expression(thd,
                             // TODO rebase the new(thd) patch set
                             new (thd->mem_root) Item_identity_next(thd,

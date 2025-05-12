@@ -3888,7 +3888,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
                MYF(0));
     DBUG_RETURN(TRUE);
   }
-  if (auto_increment == 1 && create_info->autoinc_spec)
+  if (auto_increment == 1 && create_info->has_identity_field)
   {
     // IDENTITY field can function without a key, but the engine
     // should support it (checked when handler is ready)
