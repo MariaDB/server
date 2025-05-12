@@ -12,9 +12,44 @@
 --source include/rpl_init.inc
 
 --echo #
---echo # Test case 1: TODO Write
+--echo # Test case 1: Test serial and parallel replication
+
+--echo # Test case 1a) Serial replication
+--connection server_2
+--source include/stop_slave.inc
+set @old_slave_threads= @@global.slave_parallel_threads;
+set @@global.slave_parallel_threads= 0;
+--source include/start_slave.inc
+--connection server_2
+--source include/stop_slave.inc
+set @old_slave_threads= @@global.slave_parallel_threads;
+set @@global.slave_parallel_threads= 0;
+--source include/start_slave.inc
+
 --let $test_mysqlbinlog_replay= 1
 --source rpl_fragment_row_event.inc
+
+--echo # Test case 1b) Parallel replication
+--connection server_2
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads= 4;
+--source include/start_slave.inc
+--connection server_2
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads= 4;
+--source include/start_slave.inc
+
+--let $test_mysqlbinlog_replay= 1
+--source rpl_fragment_row_event.inc
+
+--connection server_2
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads= @old_slave_threads;
+--source include/start_slave.inc
+--connection server_2
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads= @old_slave_threads;
+--source include/start_slave.inc
 
 --source include/rpl_end.inc
 --echo # End of .test

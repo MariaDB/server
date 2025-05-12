@@ -41,18 +41,17 @@ insert into t1 select 11 as a, group_concat(b) as b from t1;
 --let $mysqld_datadir=`select @@datadir`
 --let $binlog_insert_filename= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $binlog_file_param= $mysqld_datadir/$binlog_insert_filename
---let $assert_file= $MYSQLTEST_VARDIR/binlog_insert_frags.out
+--let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_insert_frags.out
 FLUSH LOGS;
---echo # MYSQL_BINLOG binlog_file_param --result-file=assert_file --base64-output=never
---exec $MYSQL_BINLOG $binlog_file_param --result-file=$assert_file --base64-output=never
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
---let $expected_write_rows_fragments=14
---let $assert_count= $expected_write_rows_fragments
---let $assert_text= Ensure write rows data is split into $expected_write_rows_fragments fragments
---let $assert_select= Partial_rows
---source include/assert_grep.inc
-
-
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
 
 --echo #
 --echo # Test Update_rows_log_event fragmentation
@@ -80,16 +79,17 @@ update t1 set a=a+1 where a=11;
 --connection server_1
 --let $binlog_update_filename= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $binlog_file_param= $mysqld_datadir/$binlog_update_filename
---let $assert_file= $MYSQLTEST_VARDIR/binlog_update_frags.out
+--let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_update_frags.out
 FLUSH LOGS;
---echo # MYSQL_BINLOG binlog_file_param --result-file=assert_file --base64-output=never
---exec $MYSQL_BINLOG $binlog_file_param --result-file=$assert_file --base64-output=never
+--echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+--exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
---let $expected_update_rows_fragments=13
---let $assert_count= $expected_update_rows_fragments
---let $assert_text= Ensure update rows data is split into $expected_update_rows_fragments fragments
---let $assert_select= Partial_rows
---source include/assert_grep.inc
+--let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+--let SEARCH_FILE= $binlog_analysis_file
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+--let SEARCH_OUTPUT= matches
+--source include/search_pattern_in_file.inc
 
 if ($test_mysqlbinlog_replay)
 {
