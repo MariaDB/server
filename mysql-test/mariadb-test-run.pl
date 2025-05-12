@@ -2219,7 +2219,6 @@ sub environment_setup {
   $ENV{'MYSQL_BINLOG'}=             mysqlbinlog_arguments();
   $ENV{'MYSQL'}=                    client_arguments("mariadb");
   $ENV{'MYSQL_SLAVE'}=              client_arguments("mariadb", ".2");
-  $ENV{'MYSQL_SERVER_3'}=           client_arguments("mariadb", ".3");
   $ENV{'MYSQL_UPGRADE'}=            client_arguments("mariadb-upgrade");
   $ENV{'MYSQLADMIN'}=               client_arguments("mariadb-admin");
   $ENV{'MYSQL_CLIENT_TEST'}=        mysql_client_test_arguments();
