@@ -17,6 +17,7 @@
 
 /* Basic functions needed by many modules */
 
+#include "lex_ident_sys.h"
 #include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
 #include "sql_list.h"
@@ -8891,6 +8892,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
   return FALSE;
 }
 
+
 /*
   Fix all conditions and outer join expressions.
 
@@ -8962,6 +8964,10 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
       wrap_ident(thd, conds);
     (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
     if ((*conds)->fix_fields_if_needed_for_bool(thd, conds))
+      goto err_no_arena;
+
+    if (setup_oracle_join(thd, conds, tables, select_lex->table_list,
+                          &select_lex->top_join_list))
       goto err_no_arena;
   }
 

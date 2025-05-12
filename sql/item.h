@@ -97,6 +97,15 @@ public:
 };
 
 
+struct ora_join_processor_param
+{
+  TABLE_LIST *inner;
+  List<TABLE_LIST> outer;
+  /* TRUE means Oracle join operator was used inside some OR clause */
+  bool or_present;
+};
+
+
 #ifdef DBUG_OFF
 static inline const char *dbug_print_item(Item *item) { return NULL; }
 #else
@@ -709,7 +718,7 @@ struct subselect_table_finder_param
 
 /* Base flags (including IN) for an item */
 
-typedef uint8 item_flags_t;
+typedef uint16 item_flags_t;
 
 enum class item_base_t : item_flags_t
 {
@@ -742,8 +751,9 @@ enum class item_with_t : item_flags_t
   SUBQUERY=    (1<<4), // If item contains a subquery
   ROWNUM_FUNC= (1<<5), // If ROWNUM function was used
   PARAM=       (1<<6), // If user parameter was used
-  COMPLEX_DATA_TYPE= (1<<7) // If the expression is of a complex data type which
+  COMPLEX_DATA_TYPE= (1<<7),// If the expression is of a complex data type which
                             // requires special handling on destruction
+  ORA_JOIN=    (1<<8), // If Oracle join syntax was used
 };
 
 
@@ -809,6 +819,7 @@ static inline item_with_t operator~(const item_with_t a)
 typedef uint8 item_walk_flags;
 const item_walk_flags WALK_SUBQUERY=          1;
 const item_walk_flags WALK_NO_CACHE_PROCESS= (1<<1);
+const item_walk_flags WALK_NO_REF=           (1<<2);
 
 
 class Item :public Value_source,
@@ -1070,6 +1081,8 @@ public:
   { return (bool) (with_flags & item_with_t::PARAM); }
   inline bool with_complex_data_types() const
   { return (bool) (with_flags & item_with_t::COMPLEX_DATA_TYPE); }
+  inline bool with_ora_join() const
+  { return (bool) (with_flags & item_with_t::ORA_JOIN); }
   inline void copy_flags(const Item *org, item_base_t mask)
   {
     base_flags= (item_base_t) (((item_flags_t) base_flags &
@@ -2281,6 +2294,12 @@ public:
   virtual bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
+    return 0;
+  }
+  virtual bool ora_join_processor(void *arg) { return 0; }
+  virtual bool remove_ora_join_processor(void *arg)
+  {
+    with_flags&= ~item_with_t::ORA_JOIN;
     return 0;
   }
 
@@ -3700,6 +3719,10 @@ public:
     Collect outer references
   */
   bool collect_outer_ref_processor(void *arg) override;
+
+  bool ora_join_add_table_ref(ora_join_processor_param *arg,
+                              TABLE_LIST *table);
+
   friend bool insert_fields(THD *thd, Name_resolution_context *context,
                             const LEX_CSTRING &db_name,
                             const LEX_CSTRING &table_name,
@@ -3932,6 +3955,8 @@ public:
     }
     return 0;
   }
+  bool ora_join_processor(void *arg) override;
+  bool check_ora_join(Item **reference, bool outer_ref_fixed);
   void cleanup() override;
   Item_equal *get_item_equal() override { return item_equal; }
   void set_item_equal(Item_equal *item_eq) override { item_equal= item_eq; }
@@ -4062,6 +4087,27 @@ public:
   { return get_item_copy<Item_null>(thd, this); }
   Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
+
+
+/*
+  A pseudo-Item to parse Oracle style outer join operator:
+    WHERE t1.a = t2.b (+);
+*/
+class Item_join_operator_plus: public Item_null
+{
+public:
+  using Item_null::Item_null;
+  /*
+    Need to override as least one method to have an unique vtable,
+    to make dynamic_cast work.
+  */
+  void print(String *str, enum_query_type) override
+  {
+    str->append("(+)"_LEX_CSTRING);
+  }
+  static List<Item> *make_as_item_list(THD *thd);
+};
+
 
 class Item_null_result :public Item_null
 {
@@ -6073,6 +6119,8 @@ public:
   bool walk(Item_processor processor, void *arg,
             item_walk_flags flags) override
   {
+    if (flags & WALK_NO_REF)
+      return  (this->*processor)(arg);
     if (ref && *ref)
       return (*ref)->walk(processor, arg, flags) ||
              (this->*processor)(arg); 
@@ -6178,6 +6226,7 @@ public:
       return 0;
     return cleanup_processor(arg);
   }
+  bool ora_join_processor(void *arg) override;
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
 };
@@ -6472,6 +6521,8 @@ public:
   bool walk(Item_processor processor, void *arg,
             item_walk_flags flags) override
   {
+    if (flags & WALK_NO_REF)
+      return (this->*processor)(arg);
     return (*ref)->walk(processor, arg, flags) ||
            (this->*processor)(arg);
   }
@@ -6482,6 +6533,7 @@ public:
       view_arg->view_used_tables|= (*ref)->used_tables();
     return 0;
   }
+  bool ora_join_processor(void *arg) override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred) override;
@@ -8403,6 +8455,8 @@ public:
   bool walk(Item_processor processor, void *arg,
             item_walk_flags flags) override
   {
+    if (flags & WALK_NO_REF)
+      return (this->*processor)(arg);
     return m_item->walk(processor, arg, flags) ||
       (this->*processor)(arg);
   }

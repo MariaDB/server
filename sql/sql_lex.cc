@@ -9048,6 +9048,34 @@ Item *LEX::create_item_ident_trigger_specific(THD *thd,
 }
 
 
+/*
+  @detail
+    This is called when we've parsed Oracle's outer join syntax, that is
+
+      [[db_name.]table_name.]column_name(+)
+
+    Check if the parse context allows it, if yes, mark the Item_field with
+    ORA_JOIN flag and return it.
+*/
+
+bool LEX::mark_item_ident_for_ora_join(THD *thd, Item *item)
+{
+  Item_field *item_field;
+  DBUG_ASSERT(item);
+
+  if ((thd->variables.sql_mode & MODE_ORACLE) &&
+      current_select && current_select->parsing_place == IN_WHERE &&
+      (item_field= dynamic_cast<Item_field*>(item)))
+  {
+    item_field->with_flags|= item_with_t::ORA_JOIN;
+    return false;
+  }
+
+  thd->parse_error(ER_SYNTAX_ERROR);
+  return true;
+}
+
+
 Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 {
   DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
@@ -10517,11 +10545,120 @@ Item *Lex_trim_st::make_item_func_trim_oracle(THD *thd) const
 }
 
 
+static Item *maybe_bad_field_error(THD *thd, Item *item,
+                                   const Lex_ident_sys_st &name_sys,
+                                   const Lex_ident_cli_st &field)
+{
+  if (!field.str)
+    return item;
+
+  Lex_ident_sys field_sys(thd, &field);
+  my_error(ER_BAD_FIELD_ERROR, MYF(0), field_sys.str, name_sys.str);
+  return nullptr;
+}
+
+
+
+Item *LEX::make_item_func_call_generic(THD *thd,
+                                       const Lex_ident_cli_st &name_cli,
+                                       udf_func *udf, List<Item> *args,
+                                       const Lex_ident_cli_st &field_cli,
+                                       const Lex_ident_cli_st &all_cli)
+{
+  const Lex_ident_sys name(thd, &name_cli);
+
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, &name_cli);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return maybe_bad_field_error(thd, item, name, field_cli);
+  }
+
+  if (name.is_null())
+    return nullptr;
+
+  if (unlikely(Lex_ident_routine::check_name_with_error(name)))
+    return nullptr;
+
+  const Type_handler *h;
+  Create_func *builder;
+  Item *item= NULL;
+  const sp_type_def *tdef= NULL;
+  sp_variable *spv= NULL;
+
+  /*
+    Implementation note:
+    names are resolved with the following order:
+    - MySQL native functions,
+    - User Defined Functions,
+    - Constructors, like POINT(1,1)
+    - Stored Functions (assuming the current <use> database)
+
+    This will be revised with WL#2128 (SQL PATH)
+  */
+  builder= Schema::find_implied(thd)->find_native_function_builder(thd, name);
+  if (builder)
+    return maybe_bad_field_error(thd, builder->create_func(thd, &name, args),
+                                 name, field_cli);
+
+  if ((h= Type_handler::handler_by_name(thd, name)) &&
+           (item= h->make_constructor_item(thd, args)))
+  {
+    // Found a constructor with a proper argument count
+    return maybe_bad_field_error(thd, item, name, field_cli);
+  }
+
+  if (spcont && (tdef= spcont->find_type_def(name, false)))
+  {
+    // Make a constructor for "TYPE t IS RECORD(...)"
+    return maybe_bad_field_error(thd, tdef->make_constructor_item(thd, args),
+                                 name, field_cli);
+  }
+
+  if (spcont && (spv= spcont->find_variable(&name, false)) &&
+                 spv->type_handler()->has_functors())
+  {
+    auto ident2= field_cli.str ? Lex_ident_sys(thd, &field_cli) : Lex_ident_sys();
+    if ((field_cli.str && ident2.is_null()) ||
+        !(item= create_item_functor(thd, name, args, ident2, all_cli)))
+      return nullptr;
+    item->set_name(thd, name_cli.pos(), all_cli.length, thd->charset());
+    return item;
+  }
+
+#ifdef HAVE_DLOPEN
+  if (udf)
+  {
+    if (udf->type == UDFTYPE_AGGREGATE)
+      current_select->in_sum_expr--;
+    item= Create_udf_func::s_singleton.create(thd, udf, args);
+    return maybe_bad_field_error(thd, item, name, field_cli);
+  }
+#endif
+
+  builder= find_qualified_function_builder(thd);
+  DBUG_ASSERT(builder);
+  return maybe_bad_field_error(thd, builder->create_func(thd, &name, args),
+                               name, field_cli);
+}
+
+
 Item *LEX::make_item_func_call_generic(THD *thd,
                                        const Lex_ident_cli_st *cdb,
                                        const Lex_ident_cli_st *cname,
                                        List<Item> *args)
 {
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, cdb, cname);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
   Lex_ident_sys db(thd, cdb), name(thd, cname);
   if (db.is_null() || name.is_null())
     return NULL; // EOM
@@ -10617,6 +10754,15 @@ Item *LEX::make_item_func_call_generic(THD *thd,
                                        Lex_ident_cli_st *cfunc,
                                        List<Item> *args)
 {
+  if (args && args->elements == 1 &&
+      dynamic_cast<Item_join_operator_plus*>(args->head()))
+  {
+    Item *item= create_item_ident(thd, cdb, cpkg, cfunc);
+    if (!item || mark_item_ident_for_ora_join(thd, item))
+      return nullptr;
+    return item;
+  }
+
   Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
   Identifier_chain2 q_pkg_func(pkg, func);
   sp_name *qname;
