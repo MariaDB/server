@@ -4185,6 +4185,8 @@ Autoinc_spec make_session_autoinc_spec(const system_variables *variables)
              (longlong)variables->auto_increment_offset : 1LL;
   s.step   = variables->auto_increment_increment ?
              (longlong)variables->auto_increment_increment : 1LL;
+  s.minvalue= 0;
+  s.maxvalue= LONGLONG_MAX;
   s.no_auto_value_on_zero = variables->sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO;
   s.double_cache= true;
   s.cache= AUTO_INC_DEFAULT_NB_ROWS;
