@@ -3604,11 +3604,13 @@ bool Partial_rows_log_event::print(FILE *file,
   if (!print_event_info->short_form)
   {
     if (print_header(head, print_event_info, 0) ||
-        my_b_printf(head, "\tPartial_rows:\n"))
+        my_b_printf(head, "\tPartial_rows (%u / %u):\n", seq_no,
+                    total_fragments))
     {
       /*
         TODO: Error handling
       */
+      goto err;
     }
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)
