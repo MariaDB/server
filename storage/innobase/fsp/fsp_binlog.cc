@@ -113,35 +113,124 @@ ibb_file_oob_refs ibb_file_hash;
 
 
 fsp_binlog_page_entry *
+fsp_binlog_page_fifo::get_entry(uint64_t file_no, uint64_t page_no,
+                                uint32_t latch, bool completed, bool clean)
+{
+  mysql_mutex_assert_owner(&m_mutex);
+  ut_a(file_no == first_file_no || file_no == first_file_no + 1);
+  page_list *pl= &fifos[file_no & 1];
+  if (UNIV_UNLIKELY(pl->used_entries == pl->allocated_entries))
+  {
+    size_t new_allocated_entries= 2*pl->allocated_entries;
+    size_t new_size= new_allocated_entries * sizeof(*pl->entries);
+    fsp_binlog_page_entry **new_entries=
+      (fsp_binlog_page_entry **)ut_realloc(pl->entries, new_size);
+    if (!new_entries)
+      return nullptr;
+    /* Copy any wrapped-around elements into not-wrapped new locations. */
+    if (pl->first_entry + pl->used_entries > pl->allocated_entries)
+    {
+      size_t wrapped_entries=
+        pl->first_entry + pl->used_entries - pl->allocated_entries;
+      ut_ad(new_allocated_entries >= pl->allocated_entries + wrapped_entries);
+      memcpy(new_entries + pl->allocated_entries, pl->entries,
+             wrapped_entries * sizeof(*new_entries));
+    }
+    pl->entries= new_entries;
+    pl->allocated_entries= new_allocated_entries;
+  }
+  fsp_binlog_page_entry *&e_loc= pl->entry_at(pl->used_entries);
+  ++pl->used_entries;
+  if (UNIV_LIKELY(freelist != nullptr))
+  {
+    e_loc= (fsp_binlog_page_entry *)freelist;
+    freelist= (byte *)*(uintptr_t *)freelist;
+    --free_buffers;
+  }
+  else
+  {
+    byte *mem=
+      static_cast<byte*>(ut_malloc(sizeof(*e_loc) + ibb_page_size,
+                                   mem_key_binlog));
+    if (!mem)
+      return nullptr;
+    e_loc= (fsp_binlog_page_entry *)mem;
+  }
+  e_loc->latched= latch;
+  e_loc->last_page= (page_no + 1 == size_in_pages(file_no));
+  e_loc->complete= completed;
+  e_loc->flushed_clean= clean;
+  e_loc->pending_flush= false;
+  return e_loc;
+}
+
+
+void
+fsp_binlog_page_fifo::release_entry(uint64_t file_no, uint64_t page_no)
+{
+  ut_a(file_no == first_file_no || file_no == first_file_no + 1);
+  page_list *pl= &fifos[file_no & 1];
+  ut_a(page_no == pl->first_page_no);
+  fsp_binlog_page_entry *e= pl->entries[pl->first_entry];
+  ut_ad(pl->used_entries > 0);
+  --pl->used_entries;
+  ++pl->first_entry;
+  ++pl->first_page_no;
+  if (UNIV_UNLIKELY(pl->first_entry == pl->allocated_entries))
+    pl->first_entry= 0;
+  /*
+    Put the page buffer on the freelist. Unless we already have too much on the
+    freelist; then put it on a temporary list so it can be freed later, outside
+    of holding the mutex.
+  */
+  if (UNIV_LIKELY(free_buffers * MAX_FREE_BUFFERS_FRAC <=
+                  innodb_binlog_size_in_pages))
+  {
+    *(uintptr_t *)e= (uintptr_t)freelist;
+    freelist= (byte *)e;
+    ++free_buffers;
+  }
+  else
+  {
+    *(uintptr_t *)e= (uintptr_t)to_free_list;
+    to_free_list= (byte *)e;
+  }
+}
+
+
+void
+fsp_binlog_page_fifo::unlock_with_delayed_free()
+{
+  mysql_mutex_assert_owner(&m_mutex);
+  byte *to_free= to_free_list;
+  to_free_list= nullptr;
+  mysql_mutex_unlock(&m_mutex);
+  if (UNIV_UNLIKELY(to_free != nullptr))
+  {
+    do
+    {
+      byte *next= (byte *)*(uintptr_t *)to_free;
+      ut_free(to_free);
+      to_free= next;
+    } while (to_free);
+  }
+}
+
+
+fsp_binlog_page_entry *
 fsp_binlog_page_fifo::create_page(uint64_t file_no, uint32_t page_no)
 {
   mysql_mutex_lock(&m_mutex);
   ut_ad(first_file_no != ~(uint64_t)0);
   ut_a(file_no == first_file_no || file_no == first_file_no + 1);
-
-  page_list *pl= &fifos[file_no & 1];
-  fsp_binlog_page_entry **next_ptr_ptr= &pl->first_page;
-  uint32_t entry_page_no= pl->first_page_no;
-  /* Can only add a page at the end of the list. */
-  while (*next_ptr_ptr)
-  {
-    next_ptr_ptr= &((*next_ptr_ptr)->next);
-    ++entry_page_no;
-  }
-  ut_a(page_no == entry_page_no);
-  fsp_binlog_page_entry *e= (fsp_binlog_page_entry *)ut_malloc(sizeof(*e), mem_key_binlog);
+  /* Can only allocate pages consecutively. */
+  ut_a(page_no == fifos[file_no & 1].first_page_no +
+       fifos[file_no & 1].used_entries);
+  fsp_binlog_page_entry *e= get_entry(file_no, page_no, 1, false, false);
   ut_a(e);
-  e->next= nullptr;
-  e->page_buf= static_cast<byte*>(aligned_malloc(ibb_page_size, ibb_page_size));
-  ut_a(e->page_buf);
-  memset(e->page_buf, 0, ibb_page_size);
-  e->last_page= (page_no + 1 == size_in_pages(file_no));
-  e->latched= 1;
-  e->complete= false;
-  e->flushed_clean= false;
-  *next_ptr_ptr= e;
-
   mysql_mutex_unlock(&m_mutex);
+  memset(e->page_buf(), 0, ibb_page_size);
+
   return e;
 }
 
@@ -151,30 +240,19 @@ fsp_binlog_page_fifo::get_page(uint64_t file_no, uint32_t page_no)
 {
   fsp_binlog_page_entry *res= nullptr;
   page_list *pl;
-  fsp_binlog_page_entry *p;
-  uint32_t entry_page_no;
 
   mysql_mutex_lock(&m_mutex);
+
   ut_ad(first_file_no != ~(uint64_t)0);
   ut_a(file_no <= first_file_no + 1);
   if (file_no < first_file_no)
     goto end;
   pl= &fifos[file_no & 1];
-  p= pl->first_page;
-  entry_page_no= pl->first_page_no;
-  if (!p || page_no < entry_page_no)
-    goto end;
-  while (p)
+  if (page_no >= pl->first_page_no &&
+      page_no < pl->first_page_no + pl->used_entries)
   {
-    if (page_no == entry_page_no)
-    {
-      /* Found the page. */
-      ++p->latched;
-      res= p;
-      break;
-    }
-    p= p->next;
-    ++entry_page_no;
+    res= pl->entry_at(page_no - pl->first_page_no);
+    ++res->latched;
   }
 
 end:
@@ -188,8 +266,8 @@ fsp_binlog_page_fifo::release_page(fsp_binlog_page_entry *page)
 {
   mysql_mutex_lock(&m_mutex);
   ut_a(page->latched > 0);
-  if (--page->latched == 0)
-    pthread_cond_broadcast(&m_cond);
+  if (--page->latched == 0 && (page->complete || page->pending_flush))
+    pthread_cond_broadcast(&m_cond);  /* Page ready to be flushed to disk */
   mysql_mutex_unlock(&m_mutex);
 }
 
@@ -258,18 +336,20 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
     if (!flushing)
     {
       pl= &fifos[file_no & 1];
-      e= pl->first_page;
-      if (!e)
+      if (pl->used_entries == 0)
         return true;
+      e= pl->entries[pl->first_entry];
       if (e->latched == 0)
         break;
+      if (force)
+        e->pending_flush= true;
     }
     my_cond_wait(&m_cond, &m_mutex.m_mutex);
   }
   flushing= true;
   uint32_t page_no= pl->first_page_no;
   bool is_complete= e->complete;
-  ut_ad(is_complete || !e->next);
+  ut_ad(is_complete || pl->used_entries == 1);
   if (is_complete || (force && !e->flushed_clean))
   {
     /*
@@ -286,10 +366,12 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
   retry:
     if (!is_complete)
       e->flushed_clean= true;
-    mysql_mutex_unlock(&m_mutex);
+    e->pending_flush= false;
+    /* Release the mutex, then free excess page buffers while not holding it. */
+    unlock_with_delayed_free();
     File fh= get_fh(file_no);
     ut_a(pl->fh >= (File)0);
-    size_t res= crc32_pwrite_page(fh, e->page_buf, page_no, MYF(MY_WME));
+    size_t res= crc32_pwrite_page(fh, e->page_buf(), page_no, MYF(MY_WME));
     ut_a(res == ibb_page_size);
     mysql_mutex_lock(&m_mutex);
     if (UNIV_UNLIKELY(e->latched) ||
@@ -300,15 +382,15 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
       for (;;)
       {
         ut_ad(file_no < first_file_no ||
-              fifos[file_no & 1].first_page_no >= page_no);
+              pl->first_page_no >= page_no);
         ut_ad(file_no < first_file_no ||
-              fifos[file_no & 1].first_page_no > page_no ||
-              fifos[file_no & 1].first_page == e);
+              pl->first_page_no > page_no ||
+              pl->entries[pl->first_entry] == e);
         if (!flushing)
         {
           if (file_no < first_file_no ||
-              fifos[file_no & 1].first_page_no != page_no ||
-              fifos[file_no & 1].first_page != e)
+              pl->first_page_no != page_no ||
+              pl->entries[pl->first_entry] != e)
           {
             /* Someone else flushed the page for us. */
             return true;
@@ -318,6 +400,8 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
             return true;
           if (e->latched == 0)
             break;
+          if (force)
+            e->pending_flush= true;
         }
         my_cond_wait(&m_cond, &m_mutex.m_mutex);
       }
@@ -343,14 +427,10 @@ fsp_binlog_page_fifo::flush_one_page(uint64_t file_no, bool force)
     releasing the mutex during the I/O.
   */
   ut_ad(flushing);
-  bool done= (e->next == nullptr);
+  ut_ad(pl->used_entries >= 1);
+  bool done= (pl->used_entries == 1);
   if (is_complete)
-  {
-    pl->first_page= e->next;
-    pl->first_page_no= page_no + 1;
-    aligned_free(e->page_buf);
-    ut_free(e);
-  }
+    release_entry(file_no, page_no);
   else
     done= true;  /* Cannot flush past final incomplete page. */
 
@@ -374,13 +454,14 @@ fsp_binlog_page_fifo::flush_up_to(uint64_t file_no, uint32_t page_no)
       break;
     uint64_t file_no_to_flush= file_no;
     /* Flush the prior file to completion first. */
-    if (file_no == first_file_no + 1 && fifos[(file_no - 1) & 1].first_page)
+    if (file_no == first_file_no + 1 && fifos[(file_no - 1) & 1].used_entries)
       file_no_to_flush= file_no - 1;
     bool done= flush_one_page(file_no_to_flush, true);
     if (done && file_no == file_no_to_flush)
       break;
   }
-  mysql_mutex_unlock(&m_mutex);
+  /* Will release the mutex and free any excess page buffers. */
+  unlock_with_delayed_free();
 }
 
 
@@ -446,12 +527,13 @@ fsp_binlog_page_fifo::create_tablespace(uint64_t file_no,
         first_file_no == ~(uint64_t)0 ||
         /* At server startup allow opening N empty and (N-1) partial. */
         (init_page != ~(uint32_t)0 && file_no + 1 == first_file_no &&
-         !fifos[first_file_no & 1].first_page));
+         fifos[first_file_no & 1].used_entries == 0));
   ut_a(first_file_no == ~(uint64_t)0 ||
        file_no == first_file_no + 1 ||
        file_no == first_file_no + 2 ||
        (init_page != ~(uint32_t)0 && file_no + 1 == first_file_no &&
-         !fifos[first_file_no & 1].first_page));
+         fifos[first_file_no & 1].used_entries == 0));
+  page_list *pl= &fifos[file_no & 1];
   if (first_file_no == ~(uint64_t)0)
   {
     first_file_no= file_no;
@@ -461,41 +543,31 @@ fsp_binlog_page_fifo::create_tablespace(uint64_t file_no,
   else if (file_no == first_file_no + 2)
   {
     /* All pages in (N-2) must be flushed before doing (N). */
-    ut_a(!fifos[file_no & 1].first_page);
-    if (fifos[file_no & 1].fh != (File)-1)
-      my_close(fifos[file_no & 1].fh, MYF(0));
+    ut_a(pl->used_entries == 0);
+    if (UNIV_UNLIKELY(pl->fh != (File)-1))
+    {
+      ut_ad(false /* Should have been done as part of tablespace close. */);
+      my_close(pl->fh, MYF(0));
+    }
     first_file_no= file_no - 1;
   }
 
-  if (init_page != ~(uint32_t)0)
+  pl->fh= (File)-1;
+  pl->size_in_pages= size_in_pages;
+  ut_ad(pl->used_entries == 0);
+  ut_ad(pl->first_entry == 0);
+  if (UNIV_UNLIKELY(init_page != ~(uint32_t)0))
   {
+    pl->first_page_no= init_page;
     if (partial_page)
     {
-      fsp_binlog_page_entry *e=
-        (fsp_binlog_page_entry *)ut_malloc(sizeof(*e), mem_key_binlog);
+      fsp_binlog_page_entry *e= get_entry(file_no, init_page, 0, false, true);
       ut_a(e);
-      e->next= nullptr;
-      e->page_buf=
-        static_cast<byte*>(aligned_malloc(ibb_page_size, ibb_page_size));
-      ut_a(e->page_buf);
-      memcpy(e->page_buf, partial_page, ibb_page_size);
-      e->last_page= (init_page + 1 == size_in_pages);
-      e->latched= 0;
-      e->complete= false;
-      e->flushed_clean= true;
-      fifos[file_no & 1].first_page= e;
+      memcpy(e->page_buf(), partial_page, ibb_page_size);
     }
-    else
-      fifos[file_no & 1].first_page= nullptr;
-    fifos[file_no & 1].first_page_no= init_page;
   }
   else
-  {
-    fifos[file_no & 1].first_page= nullptr;
-    fifos[file_no & 1].first_page_no= 0;
-  }
-  fifos[file_no & 1].fh= (File)-1;
-  fifos[file_no & 1].size_in_pages= size_in_pages;
+    pl->first_page_no= 0;
   pthread_cond_broadcast(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
@@ -505,24 +577,25 @@ void
 fsp_binlog_page_fifo::release_tablespace(uint64_t file_no)
 {
   mysql_mutex_lock(&m_mutex);
+  page_list *pl= &fifos[file_no & 1];
   ut_a(file_no == first_file_no);
-  ut_a(!fifos[file_no & 1].first_page ||
+  ut_a(pl->used_entries == 0 ||
        /* Allow a final, incomplete-but-fully-flushed page in the fifo. */
-       (!fifos[file_no & 1].first_page->complete &&
-        fifos[file_no & 1].first_page->flushed_clean &&
-        !fifos[file_no & 1].first_page->next &&
-        !fifos[(file_no + 1) & 1].first_page));
-  if (fifos[file_no & 1].fh != (File)-1)
+       (!pl->entries[pl->first_entry]->complete &&
+        pl->entries[pl->first_entry]->flushed_clean &&
+        pl->used_entries == 1 &&
+        fifos[(file_no + 1) & 1].used_entries == 0));
+  if (pl->fh != (File)-1)
   {
     while (flushing)
       my_cond_wait(&m_cond, &m_mutex.m_mutex);
     flushing= true;
-    File fh= fifos[file_no & 1].fh;
+    File fh= pl->fh;
     mysql_mutex_unlock(&m_mutex);
     int res= my_sync(fh, MYF(MY_WME));
     ut_a(!res);
     mysql_mutex_lock(&m_mutex);
-    free_page_list(&fifos[file_no & 1]);
+    free_page_list(file_no);
     flushing= false;
     pthread_cond_broadcast(&m_cond);
   }
@@ -532,31 +605,46 @@ fsp_binlog_page_fifo::release_tablespace(uint64_t file_no)
 
 
 fsp_binlog_page_fifo::fsp_binlog_page_fifo()
-  : first_file_no(~(uint64_t)0), flushing(false),
+  : first_file_no(~(uint64_t)0), free_buffers(0), freelist(nullptr),
+    to_free_list(nullptr), flushing(false),
     flush_thread_started(false), flush_thread_end(false)
 {
-  fifos[0]= {nullptr, 0, 0, (File)-1 };
-  fifos[1]= {nullptr, 0, 0, (File)-1 };
+  for (unsigned i= 0; i < 2; ++i)
+  {
+    fifos[i].allocated_entries= 64;
+    fifos[i].entries=
+      (fsp_binlog_page_entry **)ut_malloc(fifos[i].allocated_entries *
+                                          sizeof(fsp_binlog_page_entry *),
+                                          mem_key_binlog);
+    ut_a(fifos[i].entries);
+    fifos[i].used_entries= 0;
+    fifos[i].first_entry= 0;
+    fifos[i].first_page_no= 0;
+    fifos[i].size_in_pages= 0;
+    fifos[i].fh= (File)-1;
+  }
   mysql_mutex_init(fsp_page_fifo_mutex_key, &m_mutex, nullptr);
   pthread_cond_init(&m_cond, nullptr);
 }
 
 
 void
-fsp_binlog_page_fifo::free_page_list(page_list *pl)
+fsp_binlog_page_fifo::free_page_list(uint64_t file_no)
 {
+  page_list *pl= &fifos[file_no & 1];
   if (pl->fh != (File)-1)
     my_close(pl->fh, MYF(0));
-  fsp_binlog_page_entry *e= pl->first_page;
-  while (e)
+  while (pl->used_entries > 0)
   {
-    fsp_binlog_page_entry *next= e->next;
-    aligned_free(e->page_buf);
-    ut_free(e);
-    e= next;
+    memset(pl->entries[pl->first_entry]->page_buf(), 0, ibb_page_size);
+    release_entry(file_no, pl->first_page_no);
   }
-  *pl= {nullptr, 0, 0, (File)-1 };
-
+  /* We hold on to the pl->entries array and reuse for next tablespace. */
+  pl->used_entries= 0;
+  pl->first_entry= 0;
+  pl->first_page_no= 0;
+  pl->size_in_pages= 0;
+  pl->fh= (File)-1;
 }
 
 
@@ -564,9 +652,26 @@ void
 fsp_binlog_page_fifo::reset()
 {
   ut_ad(!flushing);
-  for (uint32_t i= 0; i < 2; ++i)
-    free_page_list(&fifos[i]);
+  if (first_file_no != ~(uint64_t)0)
+  {
+    for (uint32_t i= 0; i < 2; ++i)
+      free_page_list(first_file_no + i);
+  }
   first_file_no= ~(uint64_t)0;
+  /* Release page buffers in the freelist. */
+  while (freelist)
+  {
+    byte *q= (byte *)*(uintptr_t *)freelist;
+    ut_free(freelist);
+    freelist= q;
+  }
+  free_buffers= 0;
+  while (to_free_list)
+  {
+    byte *q= (byte *)*(uintptr_t *)to_free_list;
+    ut_free(to_free_list);
+    to_free_list= q;
+  }
 }
 
 
@@ -574,6 +679,8 @@ fsp_binlog_page_fifo::~fsp_binlog_page_fifo()
 {
   ut_ad(!flushing);
   reset();
+  for (uint32_t i= 0; i < 2; ++i)
+    ut_free(fifos[i].entries);
   mysql_mutex_destroy(&m_mutex);
   pthread_cond_destroy(&m_cond);
 }
@@ -1032,7 +1139,7 @@ fsp_log_binlog_write(mtr_t *mtr, fsp_binlog_page_entry *page,
     page->flushed_clean= false;
   }
   mtr->write_binlog((file_no & 1), page_no, (uint16_t)page_offset,
-                    page_offset + &page->page_buf[0], len);
+                    page_offset + &page->page_buf()[0], len);
 }
 
 
@@ -1042,7 +1149,7 @@ fsp_log_header_page(mtr_t *mtr, fsp_binlog_page_entry *page, uint64_t file_no,
   noexcept
 {
   page->complete= true;
-  mtr->write_binlog((file_no & 1), 0, 0, &page->page_buf[0], len);
+  mtr->write_binlog((file_no & 1), 0, 0, &page->page_buf()[0], len);
 }
 
 
@@ -1348,7 +1455,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
 
     ut_ad(page_offset < page_end);
     uint32_t page_remain= page_end - page_offset;
-    byte *ptr= page_offset + &block->page_buf[0];
+    byte *ptr= page_offset + &block->page_buf()[0];
     /* ToDo: Do this check at the end instead, to save one buf_page_get_gen()? */
     if (page_remain < 4) {
       /* Pad the remaining few bytes, and move to next page. */
@@ -1621,7 +1728,7 @@ binlog_chunk_reader::fetch_current_page()
       }
       if (block) {
         cur_block= block;
-        page_ptr= block->page_buf;
+        page_ptr= block->page_buf();
         return CHUNK_READER_FOUND;
       } else {
         /* Not in buffer pool, just read it from the file. */

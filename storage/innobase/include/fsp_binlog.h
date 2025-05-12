@@ -38,7 +38,7 @@ struct binlog_header_data;
 
 /* 4-byte "magic" identifying InnoDB binlog file (little endian). */
 static constexpr uint32_t IBB_MAGIC= 0x010dfefe;
-static constexpr uint32_t IBB_FILE_VERS_MAJOR= 0;
+static constexpr uint32_t IBB_FILE_VERS_MAJOR= 1;
 static constexpr uint32_t IBB_FILE_VERS_MINOR= 0;
 
 /*
@@ -112,9 +112,25 @@ static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS),
               "in ALLOWED_NESTED_RECORDS bitmask");
 
 
+/*
+  The object representing a binlog page that is not yet flushed to disk.
+  At the end of the object is an additionally allocated byte buffer of
+  size ibb_page_size, ie. the page buffer containing the data in the page.
+
+  The LATCHED count is the number of current writers and readers of the page
+  (the page cannot be flushed and freed until this drops to zero).
+
+  The flag LAST_PAGE is set for the very last page in a tablespace file,
+  used to hold this page latched until the end of a mini-transaction.
+
+  The flag COMPLETE is set when the writer has written the last byte of the
+  page (a page cannot be freed until it is complete, and will normally not be
+  flushed unless required for an InnoDB log checkpoint).
+
+  The flag FLUSHED_CLEAN is set if a (partial) page has been flushed to disk,
+  and cleared again by a writer when more data is added to the page.
+*/
 struct fsp_binlog_page_entry {
-  fsp_binlog_page_entry *next;
-  byte *page_buf;
   uint32_t latched;
   /* Flag set for the last page in a file. */
   bool last_page;
@@ -130,6 +146,15 @@ struct fsp_binlog_page_entry {
     FIFO yet.
   */
   bool flushed_clean;
+  /*
+    Flag set when the page is not yet complete, but nevertheless waiting to be
+    flushed to disk (eg. due to InnoDB checkpointing). Used to avoid waking up
+    the flush thread on every release of a last partial page in the file
+    when it is not needed.
+  */
+  bool pending_flush;
+
+  byte *page_buf() { return (byte *)this + sizeof(fsp_binlog_page_entry); }
 };
 
 
@@ -140,17 +165,40 @@ struct fsp_binlog_page_entry {
   Since binlog files are written strictly append-only, we can simply add new
   pages at the end and flush them from the beginning.
 
-  ToDo: This is deliberately a naive implementation with single global mutex
-  and repeated malloc()/free(), as a starting point. Should be improved later
-  for efficiency and scalability.
+  Some attempt is made to get reasonable scalability of the page fifo (even
+  though it is still protected by a global mutex that could potentially be
+  contended between writers and readers). The mutex is only held shortly;
+  a "latch" count in each page marks when there are active readers or writers
+  preventing page flush and free. Thus readers and writers can access a page
+  concurrently. File write operations/syscalls are done outside of holding the
+  mutex, and a freelist is used to likewise avoid most malloc/free.
 */
 class fsp_binlog_page_fifo {
 public:
+  /*
+    Allow at most 1/N of the pages in one binlog file will be kept in-memory
+    on the free list of page buffers.
+  */
+  static constexpr uint64_t MAX_FREE_BUFFERS_FRAC= 4;
+
   struct page_list {
-    fsp_binlog_page_entry *first_page;
+    fsp_binlog_page_entry **entries;
+    size_t allocated_entries;
+    size_t used_entries;
+    size_t first_entry;
     uint32_t first_page_no;
     uint32_t size_in_pages;
     File fh;
+
+    fsp_binlog_page_entry *&entry_at(size_t idx)
+    {
+      idx+= first_entry;
+      if (idx >= allocated_entries)
+        idx-= allocated_entries;
+      ut_ad(idx < allocated_entries);
+      return entries[idx];
+    }
+
   };
 private:
   mysql_mutex_t m_mutex;
@@ -165,11 +213,26 @@ private:
   */
   uint64_t first_file_no;
   page_list fifos[2];
-
+  /*
+    Free list for page objects, to avoid repeated aligned_alloc().
+    Each object is allocated as a byte array of size
+    sizeof(fsp_binlog_page_entry) + ibb_page_size, holding the
+    fsp_binlog_page_entry object and the page buffer just after it.
+    When on the freelist, instead just the first sizeof(byte *) bytes store
+    a simple `next' pointer.
+  */
+  size_t free_buffers;
+  byte *freelist;
+  /* Temporary overflow of freelist, to be freed after mutex is unlocked. */
+  byte *to_free_list;
   bool flushing;
   bool flush_thread_started;
   bool flush_thread_end;
 
+private:
+  fsp_binlog_page_entry *get_entry(uint64_t file_no, uint64_t page_no,
+                                   uint32_t latch, bool completed, bool clean);
+  void release_entry(uint64_t file_no, uint64_t page_no);
 
 public:
   fsp_binlog_page_fifo();
@@ -180,11 +243,12 @@ public:
   void flush_thread_run();
   void lock_wait_for_idle();
   void unlock() { mysql_mutex_unlock(&m_mutex); }
+  void unlock_with_delayed_free();
   void create_tablespace(uint64_t file_no, uint32_t size_in_pages,
                          uint32_t init_page= ~(uint32_t)0,
                          byte *partial_page= nullptr);
   void release_tablespace(uint64_t file_no);
-  void free_page_list(page_list *pl);
+  void free_page_list(uint64_t file_no);
   fsp_binlog_page_entry *create_page(uint64_t file_no, uint32_t page_no);
   fsp_binlog_page_entry *get_page(uint64_t file_no, uint32_t page_no);
   void release_page(fsp_binlog_page_entry *page);
