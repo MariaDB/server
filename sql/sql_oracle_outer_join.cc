@@ -23,16 +23,20 @@
   Support for Oracle's outer join syntax.
 
   == Contents ==
-
   1. Basic syntax
-  1.1 Multiple outer join operators
-  1.2 Building equvialent LEFT JOIN expression
+  1.1. Outer join operator
+  1.2. Outer-joining tables
+  1.3 Example 1: peer outer joins
+  1.4 Example 2: chained outer joins
+  1.5 Outer join graph
   2. Implementation
   2.1 Parser
-  2.2 Building the hypergraph
-  2.3 From hypergraph to outer join structure
-  2.4 Building the TABLE_LIST structure
+  2.2 Conversion to LEFT JOIN tree
+  2.2.1 Building the graph
+  2.2.2 Ordering the graph
+  2.2.3 Building the TABLE_LIST structure
   3. Debugging
+
 
   == 1. Basic syntax ==
 
@@ -45,108 +49,123 @@
   joined (i.e. is INNER) and the predicate containing the (+) is the outer
   join's ON expression. This makes the above query to be equivalent to:
 
-    t1.col left join t2 on t1.col=t2.col
+    select * from t1.col left join t2 on t1.col=t2.col
 
-  === 1.1 Multiple outer join operators ===
+  == 1.1. Outer join operator ==
+  Outer join operators may occur only in the WHERE clause. The WHERE clause
+  may be one predicate or multiple predicates connected with AND. Each of the
+  predicates
+   - may reference only one outer-joined (aka the "INNER") table (all
+     references to its columns have "outer join operator")
+   - may reference zero, one or more "OUTER" tables (without outer join
+     operator).
 
-  The WHERE condition may have multiple "outer join operators" that specify
-  multiple outer join operations.
-  Outer Join predicates must be located in the WHERE's top-level predicates
-  that are connected with AND.
+  A predicate that refers to an INNER table and OUTER table(s) prescribes that
+  the INNER table is joined with outer join operation.
 
-  Following Oracle, we have a rule that
-   - A predicate may reference only one outer-joined (aka "INNER") table.
-   - Also it may reference zero, one or more "OUTER" tables.
+  A predicate that only refers to an INNER table (like "t1.col(+)=124") will be
+  added to the table's ON expression, provided there is another predicate that
+  prescribes that the inner table is joined with outer join operation
+  (otherwise, the predicate remains in the WHERE and a warning is issued).
 
-  If the predicate has references to OUTER table(s), it describes an edge in
-  a hypergraph where vertices are tables and hyper-edges are outer join
-  relationships:
+  == 1.2. Outer-joining tables ==
 
-     {outer_tbl1, ..., outer_tblN} -> inner_tbl
+  If a query uses outer join operators, the FROM clause must be a simple
+  comma-separated list of tables (denoting inner join operations):
 
-  If the predicate only refers to one INNER table (like "t2.col(+)=1"), then
-  it doesn't specify a hyper-dege. It just specifies an extra condition to be
-  added to t2's ON expression.
+    FROM t1, t2, ..., tN
 
-  === 1.2 Building equvialent LEFT JOIN expression ==
+  If outer join operators prescribe that some table t_j is joined with outer
+  join, the FROM clause becomes:
 
-  One can walk the hypergraph and write out a LEFT JOIN expression that is
-  equivalent to the original query with Oracle's syntax.
+    FROM (t1, ..., tbl) LEFT JOIN t_j ON outer_join_predicates, ... tN
 
-  Start with a node that has no incoming edges. It may have several outgoing
-  edges. For example:
+  Here, all tables used by outer_join_predicates are moved to the left (ok to
+  do as inner join is commutative).
+
+  == 1.3 Example 1: peer outer joins ==
+  Consider a query:
 
     select *
     from t1,t2,t3
     where t1.col=t2.col(+) and t1.col=t3.col(+)
 
-  denotes a hypergraph with eges:
+  This has two outer join predicates
+    OUTER=t1, INNER=t2
+    OUTER=t1, INNER=t3
 
-     t1 -> t2
-     t1 -> t3
-
-  which can be written as
+  The query can be transformed to
 
     select *
     from (t1 left join t2 on t2.col=t1.col) left join t3 on t1.col=t3.col
 
-  or as equvalent query:
+  or an equvalent query:
 
     select *
     from (t1 left join t3 on t3.col=t1.col) left join t2 on t1.col=t2.col
 
-  One can write out edges in any order. However, MariaDB's optimizer is not
-  (yet) able to convert between the above two query forms, so we write outgoing
-  edges in the order the connected tables were listed in the original query's
-  FROM clause.
+  MariaDB optimizer will try to preserve the original order the tables were
+  listed in the WHERE clause.
 
-  The hypergraph may also have chains:
+  == 1.4 Example 2: chained outer joins ==
+  The query
 
-    select *
+    select ...
     from t1,t2,t3
     where cond1(t1.col, t2.col(+)) and cond2(t2.col, t3.col(+))
 
-  gives a hypergraph
+  has two outer join predicates
+    OUTER=t1, INNER=t2
+    OUTER=t2, INNER=t3
 
-     t1 -> t2
-     t2 -> t3
+  The query is transformed into
 
-  Here, the operation at the start of the chain is done first. The above gives
-
-    select *
+    select ...
     from
       t1
       left join t2 on cond1(t1.col, t2.col)
       left join t3 on cond2(t2.col, t3.col)
 
-  That is, we get
+  Note that the result of transformation is
      (t1 left join t2) left join t3
   and not
      t1 left join (t2 left join t3)
-  These two expressions are in general not equivalent.
 
-  Note that the hypergraph must not have cycles. A query that produces a graph
-  with cycles is aborted with error.
-  Alternative paths are fine, though. Example: t1->t2->t3 and t1->t4->t3.
+  (these two expressions are in general not equivalent) There's always just one
+  table on the inner side of the outer join.
+
+  == 1.5 Outer join graph ==
+  If we take tables as vertexes and OUTER->INNER relationships as edges, then
+  we get a directed graph.
+
+  The graph must not have cycles. A query that produces a graph with cycles
+  is aborted with error.
+  The graph may have alternative paths, like t1->t2->t3 and t1->t4->t3.
+
+  In order to produce the query expression with LEFT JOIN syntax, one needs to
+  perform topological sorting of the graph.
+  Then, write out the graph vertices (tables) in an order such that all edges
+  would come from left to the right.
 
   == 2. Implementation ==
 
   == 2.1 Parser ==
   The parser recognizes the "(+)" operator. After parsing, Item objects that
-  have a (+) operator somewhere inside them have
-  (item->with_flags() & ORA_JOIN) flag set.
+  have a (+) operator somewhere inside have (item->with_flags() & ORA_JOIN)
+  flag set.
 
-  == 2.2 Building the hypergraph ==
+  == 2.2 Conversion to LEFT JOIN tree ==
 
   At Name Resolution phase, we convert (+) operators into LEFT JOIN data
   structures (that is, a tree of TABLE_LIST objects with ON expressions).
   This is done in setup_oracle_join().
 
+  === 2.2.1 Building the graph ===
   First, we create an array of table_pos structures. These are the vertices
-  of the hypergraph.
-  Then, we analyze the WHERE clause and construct hypergraph's edges.
+  of the graph.
+  Then, we analyze the WHERE clause and construct graph's edges.
 
-  == 2.3 From hypergraph to outer joins ==
+  == 2.2.2 Ordering the graph ==
 
   Then, we walk the graph and construct a linked list of table_pos structures
   (connected via table_pos::{next,prev}) so that they come in what we call
@@ -157,7 +176,7 @@
      before those who are not
   3. Tables that were listed earlier in the original FROM clause come before.
 
-  == 2.4 Building the TABLE_LIST structure ==
+  == 2.2.3 Building the TABLE_LIST structure ==
   Then, we walk through the table_pos objects via {table_pos::next} edges and
   create a parsed LEFT JOIN data sructure.
 
@@ -192,7 +211,7 @@
 
 
 /**
-  Structure to collect oracle outer join relations and order tables
+  An outer join graph vertex.
 */
 
 struct table_pos: public Sql_alloc
@@ -203,8 +222,13 @@ struct table_pos: public Sql_alloc
   table_pos *next;
   table_pos *prev;
 
+  /* Tables we have outgoing edges to. Duplicates are possible. */
   List<table_pos> inner_side;
+
+  /* Incoming edges */
   List<table_pos> outer_side;
+
+  /* ON condition expressions (to be AND-ed together) */
   List<Item> on_conds;
   TABLE_LIST *table;
 
@@ -214,7 +238,7 @@ struct table_pos: public Sql_alloc
   /* TRUE <=> this table is already linked (in the prev<=>next chain) */
   bool processed;
 
-  /* TRUE <=> All tables in outer_side are already linked */
+  /* TRUE <=> All tables in outer_side are already linked in prev/next */
   bool outer_processed;
 
   bool is_outer_of(table_pos *tab)
@@ -686,7 +710,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
   uint i= 0;
 
   /*
-    Create a hypergraph vertex for each table.
+    Create a graph vertex for each table.
     Also note the original order of tables in the FROM clause.
   */
   for (;table; i++, t++, table= table->next_local)
@@ -712,8 +736,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
 
   /*
     Process the WHERE clause:
-     - Find outer join conditions
-     - Create hypergraph edges from them
+     - Find Outer Join conditions
+     - Create graph edges from them
      - Remove them from the WHERE clause
   */
   if (is_cond_and(*conds))
@@ -745,7 +769,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
 
   /*
     Check for inner tables that don't have outer tables;
-    prepare for producing the ordering.
+    Prepare for producing the ordering.
   */
   List<Item> return_to_where;
   return_to_where.empty();
