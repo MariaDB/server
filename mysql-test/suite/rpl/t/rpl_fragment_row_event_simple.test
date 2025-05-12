@@ -42,15 +42,27 @@ COMMIT;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 
---connection server_3
---source include/start_slave.inc
---source include/sync_with_master_gtid.inc
---source include/stop_slave.inc
+
+--connection server_1
+--let $mysqld_datadir=`select @@datadir`
+--let $binlog_filename= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+--let $binlog_file_param= $mysqld_datadir/$binlog_filename
+--exec $MYSQL_BINLOG $binlog_file_param | $MYSQL_SERVER_3
+
+#--echo # waiting for mysig
+#set debug_sync="now wait_for mysig";
+sleep 2;
+
+#--connection server_3
+#--source include/start_slave.inc
+#--source include/sync_with_master_gtid.inc
+#--source include/stop_slave.inc
 
 #select * from t1;
 
 --connection server_3
---source include/sync_with_master_gtid.inc
+set @@global.gtid_slave_pos= "0-1-3";
+#--source include/sync_with_master_gtid.inc
 #select * from t1;
 
 --echo # Diffing tables..
