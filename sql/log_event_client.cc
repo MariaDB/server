@@ -3589,6 +3589,42 @@ void Table_map_log_event::print_primary_key
   }
 }
 
+bool Partial_rows_log_event::print(FILE *file,
+                                   PRINT_EVENT_INFO *print_event_info)
+{
+  IO_CACHE *const head= &print_event_info->head_cache;
+  IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
+  bool do_print_encoded=
+    print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+    print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+    !print_event_info->short_form;
+  //bool const last_stmt_event= get_flags(STMT_END_F);
+
+  if (!print_event_info->short_form)
+  {
+    print_header(head, print_event_info, 0);
+    //if (my_b_printf(head, "\t%s: table id %s%s\n",
+    //                name, ullstr(m_table_id, llbuff),
+    //                last_stmt_event ? " flags: STMT_END_F" : ""))
+    //  goto err;
+  }
+  if (!print_event_info->short_form || print_event_info->print_row_count)
+    if (print_base64(body, print_event_info, do_print_encoded))
+      goto err;
+
+  if (copy_event_cache_to_file_and_reinit(head, file) ||
+      copy_cache_to_file_wrapped(body, file, do_print_encoded,
+                                 print_event_info->delimiter,
+                                 print_event_info->verbose) ||
+      copy_event_cache_to_file_and_reinit(tail, file))
+    goto err;
+
+  return 0;
+err:
+  return 1;
+}
+
 
 bool Write_rows_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
 {

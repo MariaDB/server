@@ -1052,9 +1052,9 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     DBUG_PRINT("debug", ("event_type: %s", ev->get_type_str()));
 
     switch (ev_type) {
-    case PARTIAL_ROW_DATA_EVENT:
-      fprintf(stderr, "\n\tFound event type PARTIAL_ROW_DATA_EVENT\n");
-      break;
+    //case PARTIAL_ROW_DATA_EVENT:
+    //  fprintf(stderr, "\n\tFound event type PARTIAL_ROW_DATA_EVENT\n");
+    //  break;
     case QUERY_EVENT:
     case QUERY_COMPRESSED_EVENT:
     {

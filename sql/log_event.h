@@ -5634,15 +5634,16 @@ public:
 #ifdef MYSQL_SERVER
   bool write_data_header(Log_event_writer *writer) override;
   bool write_data_body(Log_event_writer *writer) override;
+  int do_apply_event(rpl_group_info *rgi) override;
 #ifdef HAVE_REPLICATION
   //void pack_info(Protocol* protocol) override;
 #endif /* HAVE_REPLICATION */
 #else
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override
-  {
-    fprintf(stderr, "\n\tPrinting some partial rows log event\n");
-    return 0;
-  }
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
+  //{
+  //  fprintf(stderr, "\n\tPrinting some partial rows log event\n");
+  //  return 0;
+  //}
 #endif
 };
 
@@ -5781,7 +5782,7 @@ public:
   uint64_t data_size_per_chunk;
 
   Partial_rows_log_event *fragments;
-  Fragmented_rows_log_event fragmented_ev= {NULL, 0};
+  //Fragmented_rows_log_event fragmented_ev= {NULL, 0};
 
 public:
   Rows_log_event_fragmenter(uint32_t fragment_size, Rows_log_event *rows_event)

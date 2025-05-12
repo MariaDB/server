@@ -5684,6 +5684,56 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
   return res;
 }
 
+/*
+  TODO Relocate this to make more sense
+*/
+int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  Rows_log_event_assembler *assembler;
+  fprintf(stderr, "\n\t SQL thread found partial row data event %u / %u\n",
+          seq_no, total_fragments);
+
+  DBUG_ASSERT(rgi);
+  DBUG_ASSERT(rgi->thd);
+  if (!rgi->assembler)
+  {
+    rgi->assembler= new Rows_log_event_assembler(total_fragments);
+  }
+  assembler= rgi->assembler;
+
+  if (assembler->append(this))
+  {
+    /*
+      TODO error handling
+    */
+    return 1;
+  }
+
+  if (assembler->all_fragments_assembled())
+  {
+    PSI_stage_info org_stage;
+    Log_event *ev= assembler->create_rows_event(
+        rgi->rli->relay_log.description_event_for_exec, true, true);
+    delete rgi->assembler;
+    rgi->assembler= NULL;
+    if (!ev)
+    {
+      fprintf(stderr, "\n\tERROR Could not assemble event\n");
+      return 1;
+    }
+    //mysql_mutex_assert_owner(&rli->data_lock);
+    apply_event_and_update_pos_setup(ev, thd, rgi);
+    //else
+    //  mysql_mutex_unlock(&rli->data_lock);
+    rgi->thd->backup_stage(&org_stage);
+    ev->apply_event(rgi);
+    THD_STAGE_INFO(rgi->thd, org_stage);
+    delete ev;
+  }
+
+  return 0;
+}
+
 bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
 {
   uint64_t cur_offset= start_offset;
@@ -5794,6 +5844,7 @@ bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
             "\n\tFailed to allocate memory for assembling row event (needed "
             "%zu bytes)\n",
             total_fragments * (size_t) partial_ev->get_rows_size());
+    return 1;
   }
 
   fprintf(stderr,
