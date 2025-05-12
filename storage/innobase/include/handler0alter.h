@@ -22,6 +22,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Smart ALTER TABLE
 *******************************************************/
 
+#include "structs.h"
 #include "rem0types.h"
 
 /*************************************************************//**
@@ -94,11 +95,8 @@ private:
 	/** Maximum value if adding an AUTO_INCREMENT column, else 0 */
 	ulonglong	m_max_value;
 
-	/** Value of auto_increment_increment */
-	ulong		m_increment;
-
-	/** Value of auto_increment_offset */
-	ulong		m_offset;
+	/** Values of auto_increment_increment and auto_increment_offset */
+	Autoinc_spec	m_autoinc_spec;
 
 	/** Next value in the sequence */
 	ulonglong	m_next_value;

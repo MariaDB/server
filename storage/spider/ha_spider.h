@@ -350,8 +350,7 @@ public:
   bool can_use_for_auto_inc_init() override;
   int update_auto_increment();
   void get_auto_increment(
-    ulonglong offset,
-    ulonglong increment,
+    const Autoinc_spec *spec,
     ulonglong nb_desired_values,
     ulonglong *first_value,
     ulonglong *nb_reserved_values

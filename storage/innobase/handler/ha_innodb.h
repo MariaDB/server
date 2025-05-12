@@ -234,8 +234,7 @@ public:
 	void init_table_handle_for_HANDLER() override;
 
 	void get_auto_increment(
-		ulonglong		offset,
-		ulonglong		increment,
+		const Autoinc_spec*	spec,
 		ulonglong		nb_desired_values,
 		ulonglong*		first_value,
 		ulonglong*		nb_reserved_values) override;

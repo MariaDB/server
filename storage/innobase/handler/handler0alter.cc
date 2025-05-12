@@ -9985,10 +9985,10 @@ commit_set_autoinc(
 				: 0;
 
 			if (autoinc <= max_in_table) {
+				ut_ad(ctx->prebuilt->autoinc_spec);
 				ctx->new_table->autoinc = innobase_next_autoinc(
 					max_in_table, 1,
-					ctx->prebuilt->autoinc_increment,
-					ctx->prebuilt->autoinc_offset,
+					ctx->prebuilt->autoinc_spec,
 					innobase_get_int_col_max_value(ai));
 				/* Persist the maximum value as the
 				last used one. */
@@ -11959,23 +11959,20 @@ ib_sequence_t::ib_sequence_t(
 	ulonglong	max_value)
 	:
 	m_max_value(max_value),
-	m_increment(0),
-	m_offset(0),
 	m_next_value(start_value),
+	m_autoinc_spec(thd_get_autoinc(thd)),
 	m_eof(false)
 {
 	if (thd != 0 && m_max_value > 0) {
 
-		thd_get_autoinc(thd, &m_offset, &m_increment);
 
-		if (m_increment > 1 || m_offset > 1) {
+		if (m_autoinc_spec.start > 1 || m_autoinc_spec.step > 1) {
 
 			/* If there is an offset or increment specified
 			then we need to work out the exact next value. */
 
 			m_next_value = innobase_next_autoinc(
-				start_value, 1,
-				m_increment, m_offset, m_max_value);
+				start_value, 1, &m_autoinc_spec, m_max_value);
 
 		} else if (start_value == 0) {
 			/* The next value can never be 0. */
@@ -11999,7 +11996,7 @@ ib_sequence_t::operator++(int) UNIV_NOTHROW
 	ut_ad(m_max_value > 0);
 
 	m_next_value = innobase_next_autoinc(
-		current, 1, m_increment, m_offset, m_max_value);
+		current, 1, &m_autoinc_spec, m_max_value);
 
 	if (m_next_value == m_max_value && current == m_next_value) {
 		m_eof = true;

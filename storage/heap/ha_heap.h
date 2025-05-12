@@ -63,7 +63,7 @@ public:
   int write_row(const uchar * buf) override;
   int update_row(const uchar * old_data, const uchar * new_data) override;
   int delete_row(const uchar * buf) override;
-  void get_auto_increment(ulonglong offset, ulonglong increment,
+  void get_auto_increment(const Autoinc_spec *spec,
                           ulonglong nb_desired_values,
                           ulonglong *first_value,
                           ulonglong *nb_reserved_values) override;

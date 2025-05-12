@@ -16026,8 +16026,7 @@ void ha_mroonga::set_next_insert_id(ulonglong id)
   DBUG_VOID_RETURN;
 }
 
-void ha_mroonga::wrapper_get_auto_increment(ulonglong offset,
-                                            ulonglong increment,
+void ha_mroonga::wrapper_get_auto_increment(const Autoinc_spec *spec,
                                             ulonglong nb_desired_values,
                                             ulonglong *first_value,
                                             ulonglong *nb_reserved_values)
@@ -16035,15 +16034,14 @@ void ha_mroonga::wrapper_get_auto_increment(ulonglong offset,
   MRN_DBUG_ENTER_METHOD();
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  wrap_handler->get_auto_increment(offset, increment, nb_desired_values,
+  wrap_handler->get_auto_increment(spec, nb_desired_values,
                                       first_value, nb_reserved_values);
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
   DBUG_VOID_RETURN;
 }
 
-void ha_mroonga::storage_get_auto_increment(ulonglong offset,
-                                            ulonglong increment,
+void ha_mroonga::storage_get_auto_increment(const Autoinc_spec *spec,
                                             ulonglong nb_desired_values,
                                             ulonglong *first_value,
                                             ulonglong *nb_reserved_values)
@@ -16058,7 +16056,7 @@ void ha_mroonga::storage_get_auto_increment(ulonglong offset,
         *first_value));
       *nb_reserved_values = UINT_MAX64;
     } else {
-      handler::get_auto_increment(offset, increment, nb_desired_values,
+      handler::get_auto_increment(spec, nb_desired_values,
                                   first_value, nb_reserved_values);
       long_term_share->auto_inc_value = *first_value;
       DBUG_PRINT("info", ("mroonga: auto_inc_value=%llu",
@@ -16066,13 +16064,13 @@ void ha_mroonga::storage_get_auto_increment(ulonglong offset,
       long_term_share->auto_inc_inited = true;
     }
   } else {
-    handler::get_auto_increment(offset, increment, nb_desired_values,
+    handler::get_auto_increment(spec, nb_desired_values,
                                 first_value, nb_reserved_values);
   }
   DBUG_VOID_RETURN;
 }
 
-void ha_mroonga::get_auto_increment(ulonglong offset, ulonglong increment,
+void ha_mroonga::get_auto_increment(const Autoinc_spec *spec,
                                     ulonglong nb_desired_values,
                                     ulonglong *first_value,
                                     ulonglong *nb_reserved_values)
@@ -16080,14 +16078,14 @@ void ha_mroonga::get_auto_increment(ulonglong offset, ulonglong increment,
   MRN_DBUG_ENTER_METHOD();
   if (share->wrapper_mode)
   {
-    wrapper_get_auto_increment(offset, increment, nb_desired_values,
+    wrapper_get_auto_increment(spec, nb_desired_values,
                                first_value, nb_reserved_values);
   } else {
     MRN_LONG_TERM_SHARE *long_term_share = share->long_term_share;
     mrn::Lock lock(&long_term_share->auto_inc_mutex);
-    storage_get_auto_increment(offset, increment, nb_desired_values,
+    storage_get_auto_increment(spec, nb_desired_values,
                                first_value, nb_reserved_values);
-    long_term_share->auto_inc_value += nb_desired_values * increment;
+    long_term_share->auto_inc_value += nb_desired_values * spec->step;
     DBUG_PRINT("info", ("mroonga: auto_inc_value=%llu",
       long_term_share->auto_inc_value));
   }

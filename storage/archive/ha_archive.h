@@ -97,7 +97,7 @@ public:
   {
     return HA_ONLY_WHOLE_INDEX;
   }
-  virtual void get_auto_increment(ulonglong offset, ulonglong increment,
+  void get_auto_increment(const Autoinc_spec *spec,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
                                   ulonglong *nb_reserved_values) override;

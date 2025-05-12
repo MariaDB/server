@@ -456,6 +456,8 @@ struct mysql_row_templ_t {
 #define ROW_PREBUILT_ALLOCATED	78540783
 #define ROW_PREBUILT_FREED	26423527
 
+struct Autoinc_spec;
+
 /** A struct for (sometimes lazily) prebuilt structures in an Innobase table
 handle used within MySQL; these are used to save CPU time. */
 
@@ -653,13 +655,8 @@ struct row_prebuilt_t {
 	/*----------------------*/
 	ulonglong	autoinc_last_value;
 					/*!< last value of AUTO-INC interval */
-	ulonglong	autoinc_increment;/*!< The increment step of the auto
-					increment column. Value must be
-					greater than or equal to 1. Required to
-					calculate the next value */
-	ulonglong	autoinc_offset; /*!< The offset passed to
-					get_auto_increment() by MySQL. Required
-					to calculate the next value */
+
+	const Autoinc_spec	*autoinc_spec;
 	dberr_t		autoinc_error;	/*!< The actual error code encountered
 					while trying to init or read the
 					autoinc value from the table. We

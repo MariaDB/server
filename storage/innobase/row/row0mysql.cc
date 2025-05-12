@@ -900,11 +900,7 @@ row_create_prebuilt(
 	prebuilt->clust_ref = ref;
 
 	prebuilt->autoinc_error = DB_SUCCESS;
-	prebuilt->autoinc_offset = 0;
-
-	/* Default to 1, we will set the actual value later in
-	ha_innobase::get_auto_increment(). */
-	prebuilt->autoinc_increment = 1;
+	prebuilt->autoinc_spec= nullptr;
 
 	prebuilt->autoinc_last_value = 0;
 

@@ -4477,7 +4477,7 @@ public:
   virtual int start_stmt(THD *thd, thr_lock_type lock_type) {return 0;}
   virtual bool need_info_for_auto_inc() { return 0; }
   virtual bool can_use_for_auto_inc_init() { return 1; }
-  virtual void get_auto_increment(ulonglong offset, ulonglong increment,
+  virtual void get_auto_increment(const Autoinc_spec *spec,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
                                   ulonglong *nb_reserved_values);

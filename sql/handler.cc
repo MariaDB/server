@@ -4403,7 +4403,7 @@ int handler::get_next_auto_increment(const Autoinc_spec *spec, int *error,
         }
       }
       // TODO think on this
-      get_auto_increment(spec->start, spec->step,
+      get_auto_increment(spec,
                          nb_desired_values, &nr,
                          &nb_reserved_values);
       if (nr == ULONGLONG_MAX)
@@ -4575,13 +4575,13 @@ void handler::column_bitmaps_signal()
     first_value         (OUT) the first value reserved by the handler
     nb_reserved_values  (OUT) how many values the handler reserved
 
-  offset and increment means that we want values to be of the form
-  offset + N * increment, where N>=0 is integer.
+  spec defines offset and increment where values will be of the form
+  spec->start + N * spec->step, where N>=0 is integer.
   If the function sets *first_value to ~(ulonglong)0 it means an error.
   If the function sets *nb_reserved_values to ULONGLONG_MAX it means it has
   reserved to "positive infinite".
-*/
-void handler::get_auto_increment(ulonglong offset, ulonglong increment,
+  */
+void handler::get_auto_increment(const Autoinc_spec *spec,
                                  ulonglong nb_desired_values,
                                  ulonglong *first_value,
                                  ulonglong *nb_reserved_values)
@@ -4647,9 +4647,8 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
       /* No entry found, that's fine */;
     else
       print_error(error, MYF(0));
-    nr= 1;
-  }
-  else
+    nr = spec->start;
+  } else
     nr= ((ulonglong) table->next_number_field->
          val_int_offset(table->s->rec_buff_length)+1);
   ha_index_end();

@@ -115,7 +115,7 @@ class ha_myisam final : public handler
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info) override;
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 			     enum thr_lock_type lock_type) override;
-  void get_auto_increment(ulonglong offset, ulonglong increment,
+  void get_auto_increment(const Autoinc_spec *spec,
                           ulonglong nb_desired_values,
                           ulonglong *first_value,
                           ulonglong *nb_reserved_values) override;

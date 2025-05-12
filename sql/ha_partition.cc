@@ -11076,16 +11076,17 @@ int ha_partition::reset_auto_increment(ulonglong value)
   every partition when holding a mutex to be sure of correctness.
 */
 
-void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
+void ha_partition::get_auto_increment(const Autoinc_spec *spec,
                                       ulonglong nb_desired_values,
                                       ulonglong *first_value,
                                       ulonglong *nb_reserved_values)
 {
   DBUG_ENTER("ha_partition::get_auto_increment");
   DBUG_PRINT("enter", ("offset: %lu  inc: %lu  desired_values: %lu  "
-                       "first_value: %lu", (ulong) offset, (ulong) increment,
+                       "first_value: %lu",
+                      (ulong) spec->start, (ulong) spec->step,
                       (ulong) nb_desired_values, (ulong) *first_value));
-  DBUG_ASSERT(increment);
+  DBUG_ASSERT(spec->step);
   DBUG_ASSERT(nb_desired_values);
   *first_value= 0;
   if (table->s->next_number_keypart)
@@ -11103,7 +11104,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
     do
     {
       /* Only nb_desired_values = 1 makes sense */
-      (*file)->get_auto_increment(offset, increment, 1,
+      (*file)->get_auto_increment(spec, 1,
                                  &first_value_part, &nb_reserved_values_part);
       if (unlikely(first_value_part == ULONGLONG_MAX)) // error in one partition
       {
@@ -11151,7 +11152,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
 
     /* this gets corrected (for offset/increment) in update_auto_increment */
     *first_value= part_share->next_auto_inc_val;
-    part_share->next_auto_inc_val+= nb_desired_values * increment;
+    part_share->next_auto_inc_val+= nb_desired_values * spec->step;
 
     unlock_auto_increment();
     DBUG_PRINT("info", ("*first_value: %lu", (ulong) *first_value));

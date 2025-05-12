@@ -319,6 +319,8 @@ const char*
 server_get_hostname();
 /*=================*/
 
+struct Autoinc_spec;
+
 /*********************************************************************//**
 Compute the next autoinc value.
 
@@ -342,8 +344,8 @@ innobase_next_autoinc(
 /*==================*/
 	ulonglong	current,	/*!< in: Current value */
 	ulonglong	need,		/*!< in: count of values needed */
-	ulonglong	step,		/*!< in: AUTOINC increment step */
-	ulonglong	offset,		/*!< in: AUTOINC offset */
+	const Autoinc_spec *spec,	/*!< in: AUTOINC/IDENTITY
+						 increment step, offset, etc */
 	ulonglong	max_value)	/*!< in: max value for type */
 	MY_ATTRIBUTE((pure, warn_unused_result));
 

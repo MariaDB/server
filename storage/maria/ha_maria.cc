@@ -3426,7 +3426,7 @@ int ha_maria::rename_table(const char *from, const char *to)
 }
 
 
-void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
+void ha_maria::get_auto_increment(const Autoinc_spec *spec,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
                                   ulonglong *nb_reserved_values)

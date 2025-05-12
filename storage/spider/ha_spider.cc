@@ -5993,8 +5993,7 @@ int ha_spider::update_auto_increment()
 }
 
 void ha_spider::get_auto_increment(
-  ulonglong offset,
-  ulonglong increment,
+  const Autoinc_spec *spec,
   ulonglong nb_desired_values,
   ulonglong *first_value,
   ulonglong *nb_reserved_values
@@ -6049,7 +6048,7 @@ error_index_init:
       share->lgtm_tblhnd_share->auto_increment_lclval));
     *first_value = share->lgtm_tblhnd_share->auto_increment_lclval;
     share->lgtm_tblhnd_share->auto_increment_lclval +=
-      nb_desired_values * increment;
+      nb_desired_values * spec->step;
     DBUG_PRINT("info",("spider after auto_increment_lclval=%llu",
       share->lgtm_tblhnd_share->auto_increment_lclval));
     if (auto_increment_mode != 1)

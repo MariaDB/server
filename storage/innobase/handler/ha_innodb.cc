@@ -2623,12 +2623,13 @@ innobase_next_autoinc(
 /*==================*/
 	ulonglong	current,	/*!< in: Current value */
 	ulonglong	need,		/*!< in: count of values needed */
-	ulonglong	step,		/*!< in: AUTOINC increment step */
-	ulonglong	offset,		/*!< in: AUTOINC offset */
+	const Autoinc_spec *spec,	/*!< in: AUTOINC/IDENTITY
+						 increment step, offset, etc */
 	ulonglong	max_value)	/*!< in: max value for type */
 {
 	ulonglong	next_value;
 	ulonglong	block;
+	ulonglong	step= spec->step, offset= spec->start;
 
 	/* Should never be 0. */
 	ut_a(need > 0);
@@ -5742,14 +5743,16 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
        the table would fail and subsequent SELECTs would succeed. */;
   else if (table->persistent_autoinc)
   {
+    Autoinc_spec spec {};
+    spec.start= 1;
+    spec.step= 1;
     uint64_t max_value= innobase_get_int_col_max_value(&field);
     table->autoinc=
       innobase_next_autoinc(btr_read_autoinc_with_fallback(table, col_no,
                                                            s.mysql_version,
                                                            max_value),
                             1 /* need */,
-                            1 /* auto_increment_increment */,
-                            0 /* auto_increment_offset */,
+                            &spec,
                             max_value);
   }
 
@@ -7886,17 +7889,14 @@ set_max_autoinc:
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
-					ut_ad(m_prebuilt->autoinc_increment > 0);
+					ut_ad(m_prebuilt->autoinc_spec);
+					ut_ad(m_prebuilt->autoinc_spec->step > 0);
 
-					ulonglong	offset;
-					ulonglong	increment;
 					dberr_t		err;
 
-					offset = m_prebuilt->autoinc_offset;
-					increment = m_prebuilt->autoinc_increment;
-
 					auto_inc = innobase_next_autoinc(
-						auto_inc, 1, increment, offset,
+						auto_inc, 1,
+						m_prebuilt->autoinc_spec,
 						col_max_value);
 
 					err = innobase_set_max_autoinc(
@@ -8619,14 +8619,9 @@ ha_innobase::update_row(
 		/* This should filter out the negative
 		values set explicitly by the user. */
 		if (autoinc <= col_max_value) {
-			ulonglong	offset;
-			ulonglong	increment;
-
-			offset = m_prebuilt->autoinc_offset;
-			increment = m_prebuilt->autoinc_increment;
 
 			autoinc = innobase_next_autoinc(
-				autoinc, 1, increment, offset,
+				autoinc, 1, m_prebuilt->autoinc_spec,
 				col_max_value);
 
 			error = innobase_set_max_autoinc(autoinc);
@@ -16772,9 +16767,7 @@ Returns the value of the auto-inc counter in *first_value and ~0 on failure. */
 void
 ha_innobase::get_auto_increment(
 /*============================*/
-	ulonglong	offset,			/*!< in: table autoinc offset */
-	ulonglong	increment,		/*!< in: table autoinc
-						increment */
+	const Autoinc_spec* spec,
 	ulonglong	nb_desired_values,	/*!< in: number of values
 						reqd */
 	ulonglong*	first_value,		/*!< out: the autoinc value */
@@ -16834,14 +16827,14 @@ ha_innobase::get_auto_increment(
 
 	(3) It is restricted only for insert operations. */
 
-	if (increment > 1 && increment <= ~autoinc && autoinc < col_max_value
+	if (spec->start > 1 && spec->start <= ~autoinc && autoinc < col_max_value
 	    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 
 		ulonglong prev_auto_inc = autoinc;
 
-		autoinc = ((autoinc - 1) + increment - offset)/ increment;
+		autoinc = ((autoinc - 1) + spec->start - spec->step)/ spec->start;
 
-		autoinc = autoinc * increment + offset;
+		autoinc = autoinc * spec->start + spec->step;
 
 		/* If autoinc exceeds the col_max_value then reset
 		to old autoinc value. Because in case of non-strict
@@ -16883,7 +16876,7 @@ ha_innobase::get_auto_increment(
 
 	*nb_reserved_values = trx->n_autoinc_rows;
 
-	auto *autoinc_spec= table_share->identity_field_spec;
+	auto *autoinc_spec= m_prebuilt->autoinc_spec;
 	int autoinc_lock_mode= innobase_get_autoinc_lock_mode(autoinc_spec);
 
 	/* With old style AUTOINC locking we only update the table's
@@ -16896,7 +16889,7 @@ ha_innobase::get_auto_increment(
 
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(
-			current, *nb_reserved_values, increment, offset,
+			current, *nb_reserved_values, spec,
 			col_max_value);
 
 		m_prebuilt->autoinc_last_value = next_value;
@@ -16919,8 +16912,7 @@ ha_innobase::get_auto_increment(
 	this in write_row() and update_row() to increase the autoinc counter
 	for columns that are filled by the user. We need the offset and
 	the increment. */
-	m_prebuilt->autoinc_offset = offset;
-	m_prebuilt->autoinc_increment = increment;
+	m_prebuilt->autoinc_spec= spec;
 
 	m_prebuilt->table->autoinc_mutex.wr_unlock();
 }

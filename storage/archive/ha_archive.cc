@@ -1086,7 +1086,7 @@ error:
 }
 
 
-void ha_archive::get_auto_increment(ulonglong offset, ulonglong increment,
+void ha_archive::get_auto_increment(Autoinc_spec *auto_inc,
                                     ulonglong nb_desired_values,
                                     ulonglong *first_value,
                                     ulonglong *nb_reserved_values)

@@ -561,7 +561,7 @@ public:
 #endif
   int update_auto_increment(const Autoinc_spec *spec);
   void set_next_insert_id(ulonglong id);
-  void get_auto_increment(ulonglong offset, ulonglong increment, ulonglong nb_desired_values,
+  void get_auto_increment(const Autoinc_spec *spec, ulonglong nb_desired_values,
                           ulonglong *first_value, ulonglong *nb_reserved_values) mrn_override;
   void restore_auto_increment(ulonglong prev_insert_id) mrn_override;
   void release_auto_increment() mrn_override;
@@ -1224,11 +1224,11 @@ private:
   int storage_update_auto_increment(const Autoinc_spec *spec);
   void wrapper_set_next_insert_id(ulonglong id);
   void storage_set_next_insert_id(ulonglong id);
-  void wrapper_get_auto_increment(ulonglong offset, ulonglong increment,
+  void wrapper_get_auto_increment(const Autoinc_spec *spec,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
                                   ulonglong *nb_reserved_values);
-  void storage_get_auto_increment(ulonglong offset, ulonglong increment,
+  void storage_get_auto_increment(const Autoinc_spec *spec,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
                                   ulonglong *nb_reserved_values);

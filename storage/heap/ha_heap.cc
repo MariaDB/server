@@ -806,7 +806,7 @@ void ha_heap::update_create_info(HA_CREATE_INFO *create_info)
     create_info->auto_increment_value= stats.auto_increment_value;
 }
 
-void ha_heap::get_auto_increment(ulonglong offset, ulonglong increment,
+void ha_heap::get_auto_increment(const Autoinc_spec *spec,
                                  ulonglong nb_desired_values,
                                  ulonglong *first_value,
                                  ulonglong *nb_reserved_values)
