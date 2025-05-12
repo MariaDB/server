@@ -14,117 +14,131 @@ INSERT INTO t1 SELECT a,b, c + 80, d FROM t1;
 INSERT INTO t1 SELECT a,b, c + 160, d FROM t1;
 ANALYZE TABLE t1;
 
-
 --echo # Check behavior of duplicated/intersected hints.
 --echo # First specified hint is applied and next conflicting/intersected hints
 --echo # are ignored with warning.
 
 --echo # JOIN_INDEX(t1) is ignored as intersected.
-EXPLAIN SELECT /*+ INDEX(t1) JOIN_INDEX(t1) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1) JOIN_INDEX(t1) */ a FROM t1;
+--echo OLEGS: remove these delimiters--------------------------------------------------
 --echo # INDEX(t1 i_d) is ignored as duplicated.
-EXPLAIN SELECT /*+ INDEX(t1 i_a, i_b, i_c) INDEX(t1 i_d) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) INDEX(t1 i_d) */ a FROM t1;
+--echo --------------------------------------------------
 --echo # JOIN_INDEX(t1 i_a, i_b) is ignored as intersected.
-EXPLAIN SELECT /*+ INDEX(t1 i_a) JOIN_INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_b) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) JOIN_INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_b) */ a FROM t1;
+--echo --------------------------------------------------
 --echo # GROUP_INDEX(t1 i_a, i_b) is ignored as intersected.
-EXPLAIN SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) */ a FROM t1;
+--echo --------------------------------------------------
 --echo # GROUP_INDEX(t1) is ignored as intersected.
-EXPLAIN SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1) */ a FROM t1;
+--echo --------------------------------------------------
 --echo # ORDER_INDEX(t1 i_a, i_b) is ignored as intersected.
-EXPLAIN SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) */ a FROM t1;
+--echo --------------------------------------------------
 --echo # ORDER_INDEX(t1) is ignored as intersected.
-EXPLAIN SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1) */ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1) */ a FROM t1;
+--echo --------------------------------------------------
 --echo # ORDER_INDEX(t1 i_b) is ignored as intersected.
-EXPLAIN SELECT /*+  ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
+--echo --------------------------------------------------
 --echo # INDEX(t1) is ignored as intersected.
-EXPLAIN SELECT /*+  ORDER_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) INDEX(t1)*/ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) INDEX(t1)*/ a FROM t1;
+--echo --------------------------------------------------
 --echo # INDEX(t1) is ignored as intersected.
-EXPLAIN SELECT /*+  ORDER_INDEX(t1) GROUP_INDEX(t1) INDEX(t1)*/ a FROM t1;
-
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1) GROUP_INDEX(t1) INDEX(t1)*/ a FROM t1;
+--echo --------------------------------------------------
 --echo # Check the use of index hints.
-
 --echo # Force the use of i_a, i_b indexes, intersect(i_a,i_b) is used.
-EXPLAIN SELECT /*+ INDEX(t1 i_a, i_b) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo --------------------------------------------------
 --echo # Force the use of i_a, i_ab indexes, i_ab index is used.
-EXPLAIN SELECT /*+ INDEX(t1 i_a, i_ab) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
-
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_ab) */ a FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo --------------------------------------------------
 --echo # Force the use of i_a, i_b, i_c indexes, i_c index is used.
-EXPLAIN SELECT /*+ INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_c) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_c) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
 
+--echo # Test range index access
+EXPLAIN EXTENDED SELECT a FROM t1 WHERE a > 1 AND a < 3;
+--echo # Indexes are forbidden, full scan is employed
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+--echo # Indexes are forbidden for grouping and ordering but are usable for data access
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1) NO_ORDER_INDEX(t1)*/a FROM t1 WHERE a > 1 AND a < 3;
+--echo # Index "i_a" is forbidden, "i_ab" is used instead
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_a)*/a FROM t1 WHERE a > 1 AND a < 3;
+
+--echo # Usable indexes are forbidden, full scan is employed
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_a, i_ab)*/a FROM t1 WHERE a > 1 AND a < 3;
+
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_ab)*/a FROM t1 WHERE a > 1 AND a < 3;
+
+--echo --------------------------------------------------
 --echo # Ignore i_ab index, i_b index is used.
-EXPLAIN SELECT /*+ NO_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
-
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
+--echo --------------------------------------------------
 --echo # Ignore i_ab index, i_b index is used.
-EXPLAIN SELECT /*+ NO_JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
-
+EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b = 2 GROUP BY a;
+--echo --------------------------------------------------
 --echo # Force i_ab index for GROUP BY, i_ab index scan is used.
-EXPLAIN SELECT /*+ GROUP_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
-
+EXPLAIN EXTENDED SELECT /*+ GROUP_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
+--echo --------------------------------------------------
 --echo # Force i_ab index for JOIN, i_ab loose index scan is used.
-EXPLAIN SELECT /*+ JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
-
---echo # Ignore i_ab for for sorting rows. i_a index is used for sorting rows.
-EXPLAIN SELECT /*+ NO_ORDER_INDEX(t1 i_ab) */ a FROM t1
-ORDER BY a;
-
---echo # Ignore i_a for for sorting rows. Filesort is used for sorting rows.
-EXPLAIN SELECT /*+ NO_ORDER_INDEX(t1 i_a) */ a FROM t1
-ORDER BY a;
-
+EXPLAIN EXTENDED SELECT /*+ JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
+--echo --------------------------------------------------
+--echo # Ignore i_ab for for sorting rows. i_a index is used for sorting.
+EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
+--echo --------------------------------------------------
+--echo # Ignore i_a for for sorting rows. i_ab is used for sorting.
+EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
+--echo --------------------------------------------------
 --echo # Force i_ab index for sorting rows.
-EXPLAIN SELECT /*+ ORDER_INDEX(t1 i_ab) */ a FROM t1
-ORDER BY a;
-
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
+--echo --------------------------------------------------
 --echo # Force i_a index for sorting rows.
-EXPLAIN SELECT /*+ ORDER_INDEX(t1 i_a) */ a FROM t1
-ORDER BY a;
-
---echo # Force i_a index for sorting rows.
-EXPLAIN SELECT /*+ ORDER_INDEX(t1 i_a) */ * FROM t1
-ORDER BY a;
-
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
+--echo --------------------------------------------------
 --echo # Ignore all indexes.
-EXPLAIN SELECT /*+ NO_INDEX(t1) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
-
+EXPLAIN EXTENDED SELECT /*+ NO_INDEX(t1) */ * FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo --------------------------------------------------
 --echo # Check if old hints work if no new hint is specified.
-EXPLAIN SELECT /*+ INDEX_MERGE(t1) */ * FROM t1 IGNORE INDEX (i_a)
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1) */ * FROM t1 IGNORE INDEX (i_a)
 WHERE a = 1 AND b = 2 AND c = 3;
 
+--echo --------------------------------------------------
+--echo # Check that old hint is silently ignored if a new hint is specified.
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) */ * FROM t1 IGNORE INDEX(i_a)
+WHERE a = 1 AND b = 2 AND c = 3;
+
+
+--echo --------------------------------------------------
 --echo # Check index hints with UPDATE/DELETE commands.
+--echo # By default, "i_ab" index is used
+EXPLAIN EXTENDED UPDATE t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo --------------------------------------------------
+--echo # Force i_a index to be used.
+EXPLAIN EXTENDED UPDATE /*+ INDEX(t1 i_a) */ t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo --------------------------------------------------
+--echo # By default, "i_ab" index is used
+EXPLAIN EXTENDED DELETE FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
+--echo # Forbid i_ab index for DELETE.
+EXPLAIN EXTENDED DELETE /*+ NO_INDEX(t1 i_ab) */ FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
 
---echo # Force i_a index for UPDATE.
-EXPLAIN UPDATE /*+ INDEX(t1 i_a) */ t1 SET d = 1 WHERE a = 1 AND b = 2 AND c = 3;
-
---echo # Force i_a index for DELETE.
-EXPLAIN DELETE /*+ INDEX(t1 i_a) */ FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
-
+--echo --------------------------------------------------
 --echo # Check index hints in views.
 
 CREATE VIEW v1 AS SELECT /*+ NO_INDEX(t1 i_a,i_b) */ a FROM t1 WHERE
  b IN (SELECT /*+ NO_INDEX(t1 i_ab,i_b) */ a FROM t1 WHERE a > 3)
 ORDER BY a;
 SHOW CREATE VIEW v1;
-EXPLAIN SELECT a FROM v1;
-EXPLAIN SELECT /*+ INDEX(ta i_a) */ ta.a FROM v1, t1 ta WHERE ta.a > 3;
-
+EXPLAIN EXTENDED SELECT a FROM v1;
+EXPLAIN EXTENDED SELECT /*+ INDEX(ta i_a) */ ta.a FROM v1, t1 ta WHERE ta.a > 3;
+--echo --------------------------------------------------
 CREATE VIEW v2 AS SELECT /*+ INDEX(ta i_a) */ ta.a FROM v1, t1 ta WHERE ta.a > 3;
 SHOW CREATE VIEW v2;
-EXPLAIN SELECT a FROM v2;
-EXPLAIN SELECT /*+ INDEX(tb i_a) */ tb.a FROM v2, t1 tb WHERE tb.a > 3;
-
---echo # Check that old hint is silently ignored if new hint is specified.
-EXPLAIN SELECT /*+ INDEX(t1 i_a) */ * FROM t1 IGNORE INDEX(i_a)
-WHERE a = 1 AND b = 2 AND c = 3;
-
+EXPLAIN EXTENDED SELECT a FROM v2;
+EXPLAIN EXTENDED SELECT /*+ INDEX(tb i_a) */ tb.a FROM v2, t1 tb WHERE tb.a > 3;
+--echo --------------------------------------------------
 --echo # Check unsupported hints in view.
 CREATE VIEW v3 AS SELECT /*+ INDEX_MERGE(t1) */a FROM t1
 WHERE a = 1 AND b = 2 AND c = 3;

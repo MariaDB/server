@@ -631,12 +631,14 @@ public:
                                       Index_level_hint_type,
                                       LParen,
                                       Index_level_hint_body,
-                                      RParen>
+                                      RParen>,
+                           public Printable_parser_rule
   {
   public:
     using AND4::AND4;
-    
+
     bool resolve(Parse_context *pc) const;
+    void append_args(THD *thd, String *str) const override;
   };
 
 

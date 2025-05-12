@@ -522,11 +522,14 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
          tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, nullptr, nullptr);
+                 &qb_name_sys, &table_name_sys, nullptr, this);
     }
+    if (is_compound_hint(hint_type))
+      tab->get_compound_key_hint(hint_type)->parsed_hint= this;
     return false;
   }
 
+  // Key names for a compound hint are first collected into an array:
   Mem_root_array<Opt_hints_key *> key_hints(pc->thd->mem_root);
   bool is_conflicting = false;
   for (const Hint_param_index &index_name : *this)
@@ -540,40 +543,64 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
       tab->register_child(key);
     }
 
-    bool is_specified = tab->is_specified(hint_type) ||
-                        key->is_specified(hint_type);
-    if (is_specified && !is_compound_hint(hint_type))
+    if (!is_compound_hint(hint_type))
     {
-      print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
+      if (key->set_switch(hint_state, hint_type, true))
+      {
+        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
+                   &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
+        continue;
+      }
     }
-
-    if (is_specified ||
-        (is_compound_hint(hint_type) &&
-         tab->get_compound_key_hint(hint_type)->is_hint_conflicting(tab, key)))
+    else
     {
-      is_conflicting = true;
-      print_warn(pc->thd, ER_WARN_CONFLICTING_HINT,hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
-      break;
+      bool is_specified = tab->is_specified(hint_type) ||
+                          key->is_specified(hint_type);
+      if (is_specified ||
+          tab->get_compound_key_hint(hint_type)->is_hint_conflicting(tab, key))
+      {
+        is_conflicting = true;
+        print_warn(pc->thd, ER_WARN_CONFLICTING_HINT,hint_type, hint_state,
+                   &qb_name_sys, &table_name_sys, nullptr, this);
+        break;
+      }
+      key_hints.push_back(key);
     }
-    key_hints.push_back(key);
   }
 
-  if (!is_conflicting)
+  if (is_compound_hint(hint_type) && !is_conflicting)
   {
+    /*
+      Process key names collected for a compound hint. They have already been
+      checked for conflicts/duplication above, so no need to examine
+      the `set_switch()` return value
+    */
     for (size_t i = 0; i < key_hints.size(); i++)
     {
       Opt_hints_key *key = key_hints.at(i);
       key->set_switch(hint_state, hint_type, true);
     }
-    if (is_compound_hint(hint_type))
-    {
-      tab->get_compound_key_hint(hint_type)->parsed_hint= this;
-      tab->set_switch(hint_state, hint_type, false);
-    }
+
+    tab->get_compound_key_hint(hint_type)->parsed_hint= this;
+    tab->set_switch(hint_state, hint_type, false);
   }
   return false;
+}
+
+
+void Parser::Index_level_hint::append_args(THD *thd, String *str) const
+{
+  if (is_empty())  // Empty list of index names, no additional info
+    return;
+
+  bool first_index_name= true;
+  for (const Hint_param_index &index_name : *this)
+  {
+    if (!first_index_name)
+      str->append(STRING_WITH_LEN(","));
+    append_identifier(thd, str, &index_name);
+    first_index_name= false;
+  }
 }
 
 

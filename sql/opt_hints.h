@@ -99,6 +99,8 @@
 struct LEX;
 struct TABLE;
 
+using Key_map = Bitmap<MAX_INDEXES>;
+
 struct st_opt_hint_info
 {
   LEX_CSTRING hint_type;  // Hint "type", like "BKA" or "MRR".
@@ -262,7 +264,7 @@ public:
   void set_name(const Lex_ident_sys &name_arg) { name= name_arg; }
   Opt_hints *get_parent() const { return parent; }
   virtual void set_fixed() { fixed= true; }
-  virtual bool is_fixed(opt_hints_enum type_arg) const { return fixed; }
+  virtual bool is_fixed(opt_hints_enum type_arg) { return fixed; }
   void incr_fully_fixed_children() { n_fully_fixed_children++; }
   Mem_root_array<Opt_hints *> *child_array_ptr() { return &child_array; }
 
@@ -584,7 +586,7 @@ private:
 */
 class Compound_key_hint : public Sql_alloc
 {
-  Bitmap<64> key_map;           // Indexes, specified in the hint.
+  Key_map key_map;           // Indexes, specified in the hint.
   bool fixed= false;         // true if hint does not have unresolved index
 
 public:
@@ -603,7 +605,7 @@ public:
   void set_key_map(uint i) { key_map.set_bit(i); }
   bool is_set_key_map(uint i) { return key_map.is_set(i); }
   bool is_key_map_clear_all() { return key_map.is_clear_all(); }
-  Bitmap<64> *get_key_map() { return &key_map; }
+  Key_map *get_key_map() { return &key_map; }
   virtual bool is_hint_conflicting(Opt_hints_table *table_hint,
                                    Opt_hints_key *key_hint) const
   {
@@ -614,7 +616,8 @@ public:
 /**
   Auxiliary class for JOIN_INDEX, GROUP_INDEX, ORDER_INDEX hints.
 */
-class Index_key_hint : public Compound_key_hint {
+class Index_key_hint : public Compound_key_hint
+{
 public:
   bool is_hint_conflicting(Opt_hints_table *table_hint,
                            Opt_hints_key *key_hint) const override;
@@ -623,7 +626,8 @@ public:
 /**
   Auxiliary class for INDEX hint.
 */
-class Global_index_key_hint : public Compound_key_hint {
+class Global_index_key_hint : public Compound_key_hint
+{
 public:
   bool is_hint_conflicting(Opt_hints_table *table_hint,
                            Opt_hints_key *key_hint) const override;
@@ -673,7 +677,7 @@ public:
 
     @param table      Pointer to TABLE object
   */
-  bool fix_hint(TABLE *table);
+  bool fix_key_hints(TABLE *table);
 
   void set_fixed() override;
 
@@ -683,7 +687,7 @@ public:
 
     @param type_arg  hint type
   */
-  bool is_fixed(opt_hints_enum type_arg) const override;
+  bool is_fixed(opt_hints_enum type_arg) override;
 
   virtual uint get_unfixed_warning_code() const override
   {
@@ -696,7 +700,19 @@ public:
   
   Compound_key_hint *get_compound_key_hint(opt_hints_enum type);
 
-  const Compound_key_hint *get_compound_key_hint(opt_hints_enum type) const;
+  void append_hint_arguments(THD *thd, opt_hints_enum hint,
+                             String *str) override;
+
+  bool is_force_index_hint(opt_hints_enum type_arg)
+  {
+    return (get_compound_key_hint(type_arg)->is_fixed() &&
+            get_switch(type_arg));
+  }
+
+  void update_index_hint_map(Key_map *keys_to_use,
+                             Key_map *available_keys_to_use,
+                             opt_hints_enum type_arg);
+  bool update_index_hint_maps(THD *thd, TABLE *tbl);
 };
 
 
