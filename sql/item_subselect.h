@@ -791,6 +791,22 @@ public:
   Subq_materialization_tracker *get_materialization_tracker() const
   { return materialization_tracker; }
 
+  bool ora_join_processor(void *arg) override
+  {
+    if (left_expr->with_ora_join() && left_expr->cols() > 1)
+    {
+      // used in ROW operaton
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+      return TRUE;
+    }
+    return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && left_expr->maybe_null())
+      set_maybe_null();
+    return 0;
+  }
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
   friend class Item_in_optimizer;

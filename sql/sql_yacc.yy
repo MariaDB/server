@@ -1594,6 +1594,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item_list>
         expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
         ident_list ident_list_arg opt_expr_list
+        opt_udf_expr_list_or_join_operator
+        opt_expr_list_or_join_operator
         execute_using
         execute_params
         opt_sp_cparam_list
@@ -11015,23 +11017,28 @@ function_call_generic:
 #ifdef HAVE_DLOPEN
             udf_func *udf= 0;
             LEX *lex= Lex;
-            Lex_ident_sys ident(thd, &$1);
-
-            if (using_udf_functions &&
-                (udf= find_udf(ident.str, ident.length)) &&
-                udf->type == UDFTYPE_AGGREGATE)
+            if (using_udf_functions)
             {
-              if (unlikely(lex->current_select->inc_in_sum_expr()))
+              // find_udf expectes a 0-terminated string
+              const Lex_ident_sys sysname(thd, &$1);
+              if (sysname.is_null())
+                MYSQL_YYABORT; // EOM
+              if ((udf= find_udf(sysname.str, sysname.length)) &&
+                  udf->type == UDFTYPE_AGGREGATE)
               {
-                thd->parse_error();
-                MYSQL_YYABORT;
+                if (unlikely(lex->current_select->inc_in_sum_expr()))
+                {
+                  thd->parse_error();
+                  MYSQL_YYABORT;
+                }
               }
             }
             /* Temporary placing the result of find_udf in $3 */
             $<udf>$= udf;
 #endif
           }
-          opt_udf_expr_list ')' opt_object_member_access
+
+          opt_udf_expr_list_or_join_operator ')' opt_object_member_access
           {
             const Type_handler *h;
             Create_func *builder;
@@ -11055,9 +11062,19 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            builder= Schema::find_implied(thd)->
-                       find_native_function_builder(thd, ident);
-            if (builder)
+            if ($4 && $4->elements == 1 &&
+                dynamic_cast<Item_join_operator_plus*>($4->head()))
+            {
+              if ($6.str)
+              {
+                thd->parse_error();
+                MYSQL_YYABORT;
+              }
+              item= Lex->create_item_ident(thd, &$1);
+              if (!item || Lex->mark_item_ident_for_ora_join(thd, item))
+                MYSQL_YYABORT;
+            } else if ((builder= Schema::find_implied(thd)->
+                        find_native_function_builder(thd, ident)))
             {
               item= builder->create_func(thd, &ident, $4);
             }
@@ -11139,7 +11156,7 @@ function_call_generic:
                                                                      $1, $3)))
               MYSQL_YYABORT;
           }
-        | ident_cli '.' ident_cli '(' opt_expr_list ')'
+        | ident_cli '.' ident_cli '(' opt_expr_list_or_join_operator ')'
           {
             const Lex_ident_cli pos($1.pos(), $6.pos() - $1.pos() + 1);
             if (unlikely(!($$= Lex->make_item_func_or_method_call(thd, $1,
@@ -11147,7 +11164,21 @@ function_call_generic:
                                                                   pos))))
               MYSQL_YYABORT;
           }
-        | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list ')'
+        | '.' ident_cli '.' ident_cli '(' '+' ')'
+          {
+            /*
+               This grammar branch is needed for symmetry with simple_ident,
+               to handle Oracle style outer join:
+                 WHERE t1.a = .t2.a(+)
+            */
+            Lex_ident_cli empty($2.pos(), 0);
+            List<Item> *list= Item_join_operator_plus::make_as_item_list(thd);
+            if (unlikely(
+                !list ||
+                !($$= Lex->make_item_func_call_generic(thd, &empty, &$2, &$4, list))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list_or_join_operator ')'
           {
             if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
               MYSQL_YYABORT;
@@ -11219,6 +11250,19 @@ opt_udf_expr_list:
 %ifdef ORACLE
         | named_expr_list { $$= $1; }
 %endif
+        ;
+
+opt_udf_expr_list_or_join_operator:
+          opt_udf_expr_list
+        | remember_name '+' remember_end
+          {
+            /*
+              remember_name and remember_end are needed here
+              to avoid a shift/reduce conflict with the rule udf_expr.
+            */
+            if (!($$= Item_join_operator_plus::make_as_item_list(thd)))
+              MYSQL_YYABORT;
+          }
         ;
 
 udf_expr_list:
@@ -11863,6 +11907,15 @@ cast_type_temporal:
 opt_expr_list:
           /* empty */ { $$= NULL; }
         | expr_list { $$= $1;}
+        ;
+
+opt_expr_list_or_join_operator:
+          opt_expr_list
+        | '+'
+          {
+            if (!($$= Item_join_operator_plus::make_as_item_list(thd)))
+              MYSQL_YYABORT;
+          }
         ;
 
 expr_list:
@@ -16005,7 +16058,6 @@ select_sublist_qualified_asterisk:
 order_ident:
           expr { $$=$1; }
         ;
-
 
 simple_ident:
           ident_cli

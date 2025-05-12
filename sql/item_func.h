@@ -2624,6 +2624,9 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool eval_not_null_tables(void *) override
   {
     not_null_tables_cache= 0;
@@ -2696,6 +2699,9 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_field>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -2941,6 +2947,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   void print(String *str, enum_query_type query_type) override;
   bool check_vcol_func_processor(void *arg) override
   {
@@ -3980,6 +3989,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -4288,6 +4300,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
@@ -4345,6 +4360,9 @@ public:
     max_length= 11;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqlcode>(thd, this); }
 };

@@ -122,6 +122,17 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_row>(thd, this); }
   Item *do_build_clone(THD *thd) const override;
+
+  bool ora_join_processor(void *arg) override
+  {
+    if (with_ora_join())
+    {
+      // Oracle join operator is used inside rows.
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+      return(TRUE);
+    }
+    return (FALSE);
+  }
 };
 
 #endif /* ITEM_ROW_INCLUDED */

@@ -4061,13 +4061,13 @@ public:
                                 const Lex_ident_sys_st &db,
                                 const Lex_ident_sys_st &table,
                                 const Lex_ident_sys_st &name);
-  Item *create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name)
+  Item *create_item_ident_nosp(THD *thd, const Lex_ident_sys_st *name)
   {
     return create_item_ident_field(thd, Lex_ident_sys(), Lex_ident_sys(), *name);
   }
   Item *create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
                              const char *start, const char *end);
-  Item *create_item_ident(THD *thd, Lex_ident_cli_st *cname)
+  Item *create_item_ident(THD *thd, const Lex_ident_cli_st *cname)
   {
     Lex_ident_sys name(thd, cname);
     if (name.is_null())
@@ -4194,6 +4194,8 @@ public:
 
     return nullptr;
   }
+
+  bool mark_item_ident_for_ora_join(THD *thd, Item *item);
 
   /*
     Create items of this kind:

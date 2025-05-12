@@ -279,6 +279,9 @@ public:
   {
     return negated_item(thd);
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
@@ -887,6 +890,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_equal>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1191,6 +1197,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_interval>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1216,6 +1225,12 @@ public:
       return TRUE;
     fix_attributes(args, arg_count);
     return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
+    return 0;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1308,6 +1323,12 @@ public:
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
+    return 0;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -2745,6 +2766,7 @@ public:
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
+  bool ora_join_processor(void *arg) override;
 };
 
 class cmp_item_row :public cmp_item
@@ -2827,6 +2849,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool count_sargable_conds(void *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
@@ -3321,7 +3346,7 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags) override;
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
-                         COND **conds);
+                         COND **conds, List<Item> *all_fields);
   void copy_andor_arguments(THD *thd, Item_cond *item);
   bool walk(Item_processor processor, void *arg,
             item_walk_flags flags) override;
@@ -3742,6 +3767,15 @@ public:
   table_map not_null_tables() const override { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd) override;
   Item *neg_transformer(THD *thd) override;
+  bool ora_join_processor(void *arg) override
+  {
+    if (with_ora_join())
+    {
+      // Oracle join operator is used in this OR clause.
+      ((ora_join_processor_param *) arg)->or_present= true;
+    }
+    return (FALSE);
+  }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_or>(thd, this); }
 };

@@ -3614,11 +3614,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     }
   }
 
-  if (left_expr && left_expr->fix_fields_if_needed(thd_arg, &left_expr))
+  if (!left_expr || left_expr->fix_fields_if_needed(thd_arg, &left_expr))
     goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
     goto err;
+  if (left_expr->with_ora_join())
+    copy_flags(left_expr, item_with_t::ORA_JOIN);
   base_flags|= item_base_t::FIXED;
   thd->where= save_where;
   DBUG_RETURN(FALSE);

@@ -954,7 +954,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_ENTER("setup_without_group");
 
   thd->lex->allow_sum_func.clear_bit(select->nest_level);
-  res= setup_conds(thd, tables, leaves, conds);
+  res= setup_conds(thd, tables, leaves, conds, &all_fields);
 
   /* it's not wrong to have non-aggregated columns in a WHERE */
   select->set_non_agg_field_used(saved_non_agg_field_used);

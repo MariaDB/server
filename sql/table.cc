@@ -10643,7 +10643,7 @@ bool TR_table::query(ulonglong trx_id)
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds, NULL))))
     return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (unlikely(error || !select))
@@ -10682,7 +10682,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
     conds= newx Item_func_ge(thd, field, value);
   else
     conds= newx Item_func_le(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds, NULL))))
     return false;
   // FIXME: (performance) force index 'commit_timestamp'
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
