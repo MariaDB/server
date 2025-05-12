@@ -83,6 +83,7 @@ static int check_event_type(int type, Relay_log_info *rli)
   case PRE_GA_WRITE_ROWS_EVENT:
   case PRE_GA_UPDATE_ROWS_EVENT:
   case PRE_GA_DELETE_ROWS_EVENT:
+  case PARTIAL_ROW_DATA_EVENT:
     /*
       Row events are only allowed if a Format_description_event has
       already been seen.
@@ -273,6 +274,13 @@ void mysql_client_binlog_statement(THD* thd)
   const char *error= 0;
   Log_event *ev = 0;
   my_bool is_fragmented= FALSE;
+
+  /*
+    TODO This is probably tracking wrong - how do we currently do it with
+         multiple Row_log_events without destroying the RGI->tables_to_close?
+         Or does each Row_log_event have its own Table_map with it _always_?
+  */
+  my_bool ev_done= true;
   /*
     Out of memory check
   */
@@ -423,9 +431,14 @@ void mysql_client_binlog_statement(THD* thd)
           original value on return.
         */
         LEX *backup_lex;
+        if (ev->get_type_code() == PARTIAL_ROW_DATA_EVENT &&
+            (((Partial_rows_log_event *) ev)->seq_no <
+             ((Partial_rows_log_event *) ev)->total_fragments))
+          ev_done= false;
 
         thd->backup_and_reset_current_lex(&backup_lex);
         err= save_restore_context_apply_event(ev, rgi);
+
         thd->restore_current_lex(backup_lex);
       }
       thd->variables.option_bits=
@@ -464,9 +477,12 @@ end:
   if (unlikely(is_fragmented))
     my_free(const_cast<char*>(thd->lex->comment.str));
   thd->variables.option_bits= thd_options;
-  rgi->slave_close_thread_tables(thd);
   my_free(buf);
-  delete rgi;
-  rgi= thd->rgi_fake= NULL;
+  if (ev_done)
+  {
+    rgi->slave_close_thread_tables(thd);
+    delete rgi;
+    rgi= thd->rgi_fake= NULL;
+  }
   DBUG_VOID_RETURN;
 }

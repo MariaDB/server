@@ -767,8 +767,6 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   uchar ev_offset= packet->length();
 
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,String*...)");
-  
-  fprintf(stderr, "\n\tReading ev at pos: %zu \n", (size_t) (file->read_pos - file->buffer));
 
   if (my_b_read(file, (uchar*) buf, sizeof(buf)))
   {
@@ -1005,16 +1003,6 @@ Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
   if (event_type == START_EVENT_V3)
     (const_cast< Format_description_log_event *>(fdle))->used_checksum_alg=
       BINLOG_CHECKSUM_ALG_OFF;
-
-  //if (event_type == WRITE_ROWS_EVENT_V1)
-  //{
-  //  fprintf(stderr, "\n\tWev Tempbuf Size: %u\n\tSlave Write Rows Data\n\t\t", event_len);
-  //  for (size_t i= 0; i < event_len; i++)
-  //  {
-  //   fprintf(stderr, "%X", buf[i]);
-  //  }
-  //}
-
   /*
     CRC verification by SQL and Show-Binlog-Events master side.
     The caller has to provide @fdle->checksum_alg to
@@ -1125,7 +1113,7 @@ Log_event *Log_event::read_log_event_no_checksum(
     const Format_description_log_event *fdle)
 {
   Log_event* ev;
-  DBUG_ENTER("Log_event::read_log_event(char*,...)");
+  DBUG_ENTER("Log_event::read_log_event_no_checksum(char*,...)");
   DBUG_ASSERT(fdle != 0);
   DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
   DBUG_DUMP_EVENT_BUF(buf, event_len);
@@ -1267,9 +1255,6 @@ Log_event *Log_event::read_log_event_no_checksum(
 #endif
   case PARTIAL_ROW_DATA_EVENT:
     ev= new Partial_rows_log_event(buf, event_len, fdle);
-    fprintf(stderr, "\n\tFound Partial in read_log_event: %u/%u\n",
-            ((Partial_rows_log_event *) ev)->seq_no,
-            ((Partial_rows_log_event *) ev)->total_fragments);
     break;
   case BEGIN_LOAD_QUERY_EVENT:
     ev= new Begin_load_query_log_event(buf, event_len, fdle);
@@ -4040,8 +4025,6 @@ Partial_rows_log_event::Partial_rows_log_event(
   ev_buffer_base= buf;
   start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
   end_offset= event_len;
-
-  fprintf(stderr, "\n\tnew Partial_rows_log_event size %zu\n", end_offset - start_offset);
 
   DBUG_VOID_RETURN;
 }

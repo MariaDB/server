@@ -3603,11 +3603,13 @@ bool Partial_rows_log_event::print(FILE *file,
 
   if (!print_event_info->short_form)
   {
-    print_header(head, print_event_info, 0);
-    //if (my_b_printf(head, "\t%s: table id %s%s\n",
-    //                name, ullstr(m_table_id, llbuff),
-    //                last_stmt_event ? " flags: STMT_END_F" : ""))
-    //  goto err;
+    if (print_header(head, print_event_info, 0) ||
+        my_b_printf(head, "\tPartial_rows:\n"))
+    {
+      /*
+        TODO: Error handling
+      */
+    }
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)
     if (print_base64(body, print_event_info, do_print_encoded))
