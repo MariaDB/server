@@ -823,7 +823,7 @@ public:
   engine_option_value *option_list;
   ha_field_option_struct *option_struct;   /* structure with parsed options */
   /* Field is part of the following keys */
-  key_map	key_start, part_of_key, part_of_key_not_clustered;
+  key_map	key_start, part_of_key, part_of_key_not_clustered, vcol_part_of_key;
 
   /*
     Bitmap of indexes that have records ordered by col1, ... this_field, ...

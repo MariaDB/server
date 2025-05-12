@@ -1158,6 +1158,7 @@ static void update_vcol_key_covering(Field *vcol_field)
           part_of_key.intersect(((Item_field *) args[i])->field->part_of_key);
       }
     }
+    vcol_field->vcol_part_of_key= vcol_field->part_of_key;
     vcol_field->part_of_key.merge(part_of_key);
   }
 }
@@ -9271,8 +9272,19 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
-  if (h->keyread_enabled())
-    DBUG_RETURN(0);
+  /* May be needed. If not then remove. */
+  /*
+    if (h->keyread_enabled())
+    {
+      bool using_extra_keys= false;
+      for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+        if (!vf->vcol_part_of_key.is_set(h->keyread) &&
+            vf->part_of_key.is_set(h->keyread))
+          using_extra_keys= true;
+      if (!using_extra_keys)
+        DBUG_RETURN(0);
+    }
+   */
   /*
     TODO: this imposes memory leak until table flush when save_in_field()
           does expr_arena allocation. F.ex. case in
@@ -9315,8 +9327,16 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= (!vcol_info->is_stored() &&
-               bitmap_is_set(read_set, vf->field_index));
+      if (h->keyread_enabled() &&
+          !vf->vcol_part_of_key.is_set(h->keyread) &&
+          vf->part_of_key.is_set(h->keyread))
+      {
+        update= true;
+        bitmap_set_bit(read_set, vf->field_index);
+      }
+      else
+        update= (!h->keyread_enabled() && !vcol_info->is_stored() &&
+                 bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:

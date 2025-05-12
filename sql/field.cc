@@ -2601,6 +2601,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->table= new_table;
   tmp->key_start.init(0);
   tmp->part_of_key.init(0);
+  tmp->vcol_part_of_key.init(0);
   tmp->part_of_sortkey.init(0);
   tmp->read_stats= NULL;
   /*
