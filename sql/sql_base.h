@@ -247,7 +247,7 @@ void update_non_unique_table_error(TABLE_LIST *update,
                                    const char *operation,
                                    TABLE_LIST *duplicate);
 int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
-		COND **conds);
+		COND **conds, List<Item> *all_fields);
 void wrap_ident(THD *thd, Item **conds);
 int setup_ftfuncs(SELECT_LEX* select);
 void cleanup_ftfuncs(SELECT_LEX *select_lex);
@@ -694,4 +694,11 @@ private:
   int m_unhandled_errors;
   uint first_error;
 };
+
+bool setup_oracle_join(THD *thd, Item **conds,
+                       TABLE_LIST *tables,
+                       SQL_I_List<TABLE_LIST> &select_table_list,
+                       List<TABLE_LIST> *select_join_list,
+                       List<Item> *all_fields);
+
 #endif /* SQL_BASE_INCLUDED */
