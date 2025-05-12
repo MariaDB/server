@@ -4178,8 +4178,7 @@ constexpr uint AUTO_INC_DEFAULT_NB_MAX= (1 << AUTO_INC_DEFAULT_NB_MAX_BITS) - 1;
   legacy AUTO_INCREMENT path.
 */
 
-Autoinc_spec make_session_autoinc_spec(const TABLE *table,
-                                       const system_variables *variables)
+Autoinc_spec make_session_autoinc_spec(const system_variables *variables)
 {
   Autoinc_spec s{};
   s.start  = variables->auto_increment_offset ?
@@ -4189,7 +4188,6 @@ Autoinc_spec make_session_autoinc_spec(const TABLE *table,
   s.no_auto_value_on_zero = variables->sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO;
   s.double_cache= true;
   s.cache= AUTO_INC_DEFAULT_NB_ROWS;
-  s.field_index= table->next_number_field->field_index;
   return s;
 }
 
@@ -4202,16 +4200,15 @@ bool autoinc_overflows(const Autoinc_spec *spec, ulonglong nr)
 
 void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
 {
-  Autoinc_spec spec= make_session_autoinc_spec(table, &table->in_use->variables);
+  Autoinc_spec spec= make_session_autoinc_spec(&table->in_use->variables);
   return adjust_next_insert_id_after_explicit_value(nr, &spec);
 }
 
-int handler::auto_increment_prepare(const Autoinc_spec *spec)
+int handler::auto_increment_prepare(const Autoinc_spec *spec, Field *autoinc_field)
 {
   ulonglong nr;
   THD *thd= table->in_use;
   LEX *lex= thd->lex;
-  Field *autoinc_field= table->field[spec->field_index];
   DBUG_ENTER("handler::auto_increment_prepare");
 
   /*
@@ -4240,7 +4237,7 @@ int handler::auto_increment_prepare(const Autoinc_spec *spec)
     if ((longlong) nr > 0 || (autoinc_field->flags & UNSIGNED_FLAG))
       adjust_next_insert_id_after_explicit_value(nr, spec);
     insert_id_for_cur_row= 0; // didn't generate anything
-    DBUG_RETURN(0);
+    DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME); // auxiliary value
   }
 
   if (table->versioned())
@@ -4668,9 +4665,14 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
 
 int handler::update_auto_increment()
 {
-  Autoinc_spec spec= make_session_autoinc_spec(table, &table->in_use->variables);
-  int res= auto_increment_prepare(&spec);
-  if (res) return res;
+  Autoinc_spec spec= make_session_autoinc_spec(&table->in_use->variables);
+  int res= auto_increment_prepare(&spec, table->next_number_field);
+  if (res)
+  {
+    if (res == HA_ERR_RECORD_IS_THE_SAME)
+      res= 0;
+    return res;
+  }
 
   ulonglong nb_reserved_values;
   bool append;

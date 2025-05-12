@@ -2299,6 +2299,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
   sequence_definition *seq_create_info;
+  Autoinc_spec *autoinc_spec;
 
   void init()
   {
@@ -3704,7 +3705,7 @@ public:
   int update_auto_increment(const Autoinc_spec *spec);
   int update_auto_increment();
 
-  int auto_increment_prepare(const Autoinc_spec *spec);
+  int auto_increment_prepare(const Autoinc_spec *spec, Field *autoinc_field);
   int get_next_auto_increment(const Autoinc_spec *spec, int *error,
                                      ulonglong *out_nb_reserved_values,
                                      bool *append);

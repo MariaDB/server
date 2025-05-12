@@ -7428,7 +7428,8 @@ void pause_execution(THD *thd, double timeout)
 longlong Item_identity_next::val_int()
 {
   TABLE *table= table_list->table;
-  Autoinc_spec *spec= table->s->autoinc_spec;
+  if (unlikely(!table))
+    return 0; // Default record initialization
   DBUG_ASSERT(spec);
   int error;
   ulonglong values_reserved;
@@ -7440,3 +7441,75 @@ longlong Item_identity_next::val_int()
   return nr;
 }
 
+void Item_identity_next::print_default_prefix(String *str) const
+{
+  str->append(STRING_WITH_LEN("GENERATED "));
+  if (spec->generated_always)
+    str->append(STRING_WITH_LEN("ALWAYS "));
+  else
+  {
+    str->append(STRING_WITH_LEN("BY DEFAULT "));
+    if (spec->no_auto_value_on_zero)
+      str->append(STRING_WITH_LEN("ON NULL "));
+  }
+  str->append(STRING_WITH_LEN("AS"));
+}
+
+void Item_identity_next::print(String *str, enum_query_type query_type)
+{
+  str->append(name);
+  str->append(STRING_WITH_LEN(" "));
+  str->append(STRING_WITH_LEN("START WITH "));
+  str->append_ulonglong(spec->start); // TODO table->file->info???
+  str->append(STRING_WITH_LEN(" "));
+  str->append(STRING_WITH_LEN("INCREMENT BY "));
+  str->append_ulonglong(spec->step);
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->has_maxvalue)
+  {
+    str->append(STRING_WITH_LEN("MAXVALUE"));
+    str->append(STRING_WITH_LEN(" "));
+    str->append_ulonglong(spec->maxvalue);
+  }
+  else
+    str->append(STRING_WITH_LEN("NOMAXVALUE"));
+
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->has_minvalue)
+  {
+    str->append(STRING_WITH_LEN("MINVALUE"));
+    str->append(STRING_WITH_LEN(" "));
+    str->append_ulonglong(spec->minvalue);
+  }
+  else
+    str->append(STRING_WITH_LEN("NOMINVALUE"));
+
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->cache)
+  {
+    str->append(STRING_WITH_LEN("CACHE"));
+    str->append(STRING_WITH_LEN(" "));
+    str->append_ulonglong(spec->cache);
+    str->append(STRING_WITH_LEN(" "));
+    if (spec->double_cache)
+      str->append(STRING_WITH_LEN("DOUBLE"));
+  }
+  else
+    str->append(STRING_WITH_LEN("NOCACHE"));
+
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->cycle)
+    str->append(STRING_WITH_LEN("CYCLE"));
+  else
+    str->append(STRING_WITH_LEN("NOCYCLE"));
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->order)
+    str->append(STRING_WITH_LEN("ORDER"));
+  else
+    str->append(STRING_WITH_LEN("NOORDER"));
+}

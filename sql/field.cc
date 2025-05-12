@@ -10955,7 +10955,7 @@ bool Column_definition::check(THD *thd)
     }
   }
 
-  if (default_value && (flags & AUTO_INCREMENT_FLAG))
+  if (default_value && (flags & AUTO_INCREMENT_FLAG) && !identity_field)
   {
     my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
     DBUG_RETURN(1);

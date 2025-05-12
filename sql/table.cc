@@ -90,8 +90,35 @@ struct extra2_fields
   { bzero((void*)this, sizeof(*this)); }
 };
 
+class Expr_parse_arena
+{
+  Query_arena backup_arena;
+  THD *thd;
+  Query_arena *expr_arena, *old_stmt_arena;
+public:
+  Expr_parse_arena(THD *thd, Query_arena *expr_arena)
+    : thd(thd),
+      expr_arena(expr_arena),
+      old_stmt_arena(thd->stmt_arena)
+  {
+    thd->set_n_backup_active_arena(expr_arena, &backup_arena);
+    thd->stmt_arena= expr_arena;
+  }
+  ~Expr_parse_arena()
+  {
+    thd->restore_active_arena(expr_arena, &backup_arena);
+    thd->stmt_arena= old_stmt_arena;
+  }
+};
+
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
+
+void
+unpack_vcol_info_from_frm_for_share(THD *thd, TABLE_SHARE *share,
+                                    uchar *expr_frm, size_t expr_length,
+                                    Virtual_column_info *vcol_info,
+                                    Query_arena *expr_arena);
 
 /*
   Lex_ident_db does not have operator""_Lex_ident_db,
@@ -1173,7 +1200,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   };
   CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
   CHARSET_INFO *save_collation= thd->variables.collation_connection;
-  Query_arena  *backup_stmt_arena_ptr= thd->stmt_arena;
   const uchar *pos= table->s->vcol_defs.str;
   const uchar *end= pos + table->s->vcol_defs.length;
   Field **field_ptr= table->field - 1;
@@ -1181,7 +1207,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
   Sql_mode_save_for_frm_handling sql_mode_save(thd);
-  Query_arena backup_arena;
   Virtual_column_info *vcol= 0;
   StringBuffer<MAX_FIELD_WIDTH> expr_str;
   bool res= 1;
@@ -1197,8 +1222,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   if (table->init_expr_arena(mem_root))
     DBUG_RETURN(1);
 
-  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
-  thd->stmt_arena= table->expr_arena;
+  Expr_parse_arena parse_arena(thd, table->expr_arena);
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
 
@@ -1401,8 +1425,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   res=0;
 end:
-  thd->restore_active_arena(table->expr_arena, &backup_arena);
-  thd->stmt_arena= backup_stmt_arena_ptr;
   if (save_character_set_client)
     thd->update_charset(save_character_set_client, save_collation);
   DBUG_RETURN(res);
@@ -1858,7 +1880,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
   key_map sort_keys_in_use(0);
+  MEM_ROOT expr_mem_root;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
+
+
+  Query_arena expr_arena(&expr_mem_root,
+                         Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  init_sql_alloc(PSI_INSTRUMENT_ME, &expr_mem_root, 0, 0, MYF(0));
+
 
   keyinfo= &first_keyinfo;
   thd->mem_root= &share->mem_root;
@@ -2484,14 +2513,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     if (extra2.autoinc_spec.length != Autoinc_spec::stored_size())
       goto err;
-    autoinc_spec->from_binary(extra2.autoinc_spec.str);
-    DBUG_ASSERT(found_next_number_field);
-    if (autoinc_spec->generated_always)
-      (*found_next_number_field)->generated_always= true;
-    // IDENTITY does not use older code paths and is instead implemented
-    // as Field::default_value
-    found_next_number_field= NULL;
-    next_number_index= next_number_key_offset= next_number_keypart= 0;
+    autoinc_spec= new(&mem_root) Autoinc_spec;
+    const uchar *end= autoinc_spec->from_binary(extra2.autoinc_spec.str);
+    DBUG_ASSERT(end == extra2.autoinc_spec.str + extra2.autoinc_spec.length);
   }
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
@@ -3353,6 +3377,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Handle virtual expressions */
   if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
   {
+
+
     uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
 
     /* Skip header */
@@ -3400,6 +3426,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         vcol_info->name= reg_field->field_name;
       vcol_screen_pos+= name_length + expr_length;
 
+      bool needs_parsing= false;
+
       switch (type) {
       case VCOL_GENERATED_VIRTUAL:
       {
@@ -3428,6 +3456,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         DBUG_ASSERT(!reg_field->default_value);
         reg_field->default_value=    vcol_info;
         share->default_expressions++;
+        needs_parsing= reg_field->unireg_check == Field::NEXT_NUMBER;
         break;
       case VCOL_CHECK_FIELD:
         DBUG_ASSERT(!reg_field->check_constraint);
@@ -3437,6 +3466,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       case VCOL_CHECK_TABLE:
         *(table_check_constraints++)= vcol_info;
         break;
+      }
+
+      if (needs_parsing)
+      {
+        unpack_vcol_info_from_frm_for_share(thd, this,
+                                            vcol_screen_pos - expr_length,
+                                            expr_length,
+                                            vcol_info,
+                                            &expr_arena);
+        if (!vcol_info->expr)
+          goto err;
       }
     }
   }
@@ -3459,6 +3499,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     keyinfo= share->key_info + share->keys;
     if (parse_option_list(thd, &keyinfo->option_struct, &keyinfo->option_list,
                           mhnsw_index_options, TRUE, thd->mem_root))
+      goto err;
+  }
+
+  for (int j= 0, def_exprs= default_expressions; def_exprs; j++, def_exprs--)
+  {
+    Field *f= field[j];
+    if (f->default_value && f->default_value->expr &&
+        !f->default_value->expr->fix_table_share(this))
       goto err;
   }
 
@@ -3542,6 +3590,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->db_plugin= se_plugin;
   delete handler_file;
 
+  expr_arena.free_items();
+  free_root(&expr_mem_root, MYF(0));
+
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;
   thd->mem_root= old_root;
@@ -3568,6 +3619,9 @@ err:
   delete handler_file;
   plugin_unlock(0, se_plugin);
   my_hash_free(&share->name_hash);
+
+  expr_arena.free_items();
+  free_root(&expr_mem_root, MYF(0));
 
   if (!thd->is_error())
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
@@ -4102,13 +4156,11 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   bool error;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
-  DBUG_ASSERT(vcol->expr == NULL);
-  
   if (parser_state.init(thd, expr_str->c_ptr_safe(), expr_str->length()))
-    goto end;
+    DBUG_RETURN(vcol_info);
 
   if (init_lex_with_single_table(thd, table, &lex))
-    goto end;
+    DBUG_RETURN(vcol_info);
 
   lex.parse_vcol_expr= true;
   lex.last_field= &vcol_storage;
@@ -4140,6 +4192,42 @@ end:
   end_lex_with_single_table(thd, table, old_lex);
 
   DBUG_RETURN(vcol_info);
+}
+
+void
+unpack_vcol_info_from_frm_for_share(THD *thd, TABLE_SHARE *share,
+                                    uchar *expr_frm, size_t expr_length,
+                                    Virtual_column_info *vcol_info,
+                                    Query_arena *expr_arena)
+{
+  Create_field vcol_storage;
+
+  StringBuffer<MAX_FIELD_WIDTH> str;
+  str.append(&parse_vcol_keyword);
+  str.length(parse_vcol_keyword.length);
+  str.append((char*)expr_frm, expr_length);
+
+  Expr_parse_arena expr_parse_arena(thd, expr_arena);
+
+  Parser_state parser_state;
+  if (parser_state.init(thd, str.c_ptr_safe(), str.length()))
+    return;
+
+  LEX *old_lex= thd->lex;
+  LEX lex;
+  if (init_lex_with_single_table_share(thd, share, &lex) == NULL)
+    return;
+
+  lex.parse_vcol_expr= true;
+  lex.last_field= &vcol_storage;
+
+  int error= parse_sql(thd, &parser_state, NULL);
+  if (unlikely(error))
+    goto end;
+  vcol_info->expr= vcol_storage.vcol_info->expr;
+  end:
+  lex_end(thd->lex);
+  thd->lex= old_lex;
 }
 
 #ifndef DBUG_OFF
@@ -4769,6 +4857,40 @@ partititon_err:
   DBUG_RETURN (error);
 }
 
+
+bool TABLE_SHARE::fix_identity_field()
+{
+  if (found_next_number_field &&
+      (*found_next_number_field)->default_value)
+  {
+    const auto *autoinc_expr= dynamic_cast<Item_identity_next*>(
+                               (*found_next_number_field)->default_value->expr);
+    if (!autoinc_expr || (*found_next_number_field)->vcol_info)
+      return false; // frm corruption
+    Autoinc_spec *spec= autoinc_expr->spec;
+
+    if (!spec->has_maxvalue)
+      spec->maxvalue= LONGLONG_MAX;
+    if (!spec->has_maxvalue)
+      spec->minvalue= 0;
+
+    if (spec->generated_always)
+      (*found_next_number_field)->generated_always= true;
+
+    /*
+       IDENTITY does not use older code paths and is instead implemented
+       as Field::default_value.
+
+       But we will preserve the AUTO_INCREMENT flag as our way to resolve
+       IDENTITY at ALTER TABLE.
+       In particular, limiting only one such field present.
+    */
+    (*found_next_number_field)->unireg_check= Field::NONE;
+    found_next_number_field= NULL;
+    next_number_index= next_number_key_offset= next_number_keypart= 0;
+  }
+  return true;
+}
 
 /**
   Free engine stats

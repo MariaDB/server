@@ -3792,7 +3792,7 @@ public:
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
 
-  bool last_field_identity();
+  bool last_field_identity(Autoinc_spec *spec);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
@@ -5288,6 +5288,7 @@ extern void lex_end_nops(LEX *lex);
 extern void lex_unlock_plugins(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
+TABLE_LIST *init_lex_with_single_table_share(THD *thd, TABLE_SHARE *s, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 

@@ -1161,14 +1161,13 @@ protected:
 };
 
 
-struct Autoinc_spec
+struct Autoinc_spec: Sql_alloc
 {
   ulonglong start;
   ulonglong step;
   ulonglong minvalue;
   ulonglong maxvalue;
   unsigned int cache;
-  unsigned int field_index;
   bool has_minvalue:1;
   bool has_maxvalue:1;
   bool cycle:1;
@@ -1179,7 +1178,7 @@ struct Autoinc_spec
 
   static ushort stored_size()
   { return 8+8+8+8+4+1+1; /* extra byte is reserved */ }
-  uchar* to_binary(uchar *ptr)
+  uchar* to_binary(uchar *ptr) const
   {
     int8store(ptr, start);
     ptr += 8;

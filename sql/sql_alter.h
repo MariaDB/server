@@ -116,8 +116,6 @@ public:
   /* List of fields that we should delete statistics from */
   List<Field> drop_stat_fields;
 
-  Autoinc_spec *autoinc_spec= NULL;
-
   struct DROP_INDEX_STAT_PARAMS
   {
     KEY *key;
@@ -228,7 +226,6 @@ public:
     partition_names.empty();
     requested_algorithm= ALTER_TABLE_ALGORITHM_NONE;
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
-    autoinc_spec= NULL;
   }
 
 

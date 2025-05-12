@@ -1144,6 +1144,7 @@ public:
     DBUG_ASSERT(basic_const_item());
     return false;
   }
+  virtual bool fix_table_share(TABLE_SHARE *s) const { return true; }
   virtual void unfix_fields()
   {
     DBUG_ASSERT(0);
@@ -2019,6 +2020,11 @@ public:
                                        QT_FOR_FRM),
                      LOWEST_PRECEDENCE);
   }
+
+  virtual void print_for_frm(String *str)
+  {
+    print_for_table_def(str);
+  }
   virtual void print(String *str, enum_query_type query_type);
   class Print: public String
   {
@@ -2127,6 +2133,8 @@ public:
   virtual bool is_bool_literal() const { return false; }
   /* This is to handle printing of default values */
   virtual bool need_parentheses_in_default() { return false; }
+  virtual void print_default_prefix(String *str) const
+  { str->append(STRING_WITH_LEN("DEFAULT")); }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
     Data type format implied by the CHECK CONSTRAINT,

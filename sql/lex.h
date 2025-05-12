@@ -287,6 +287,7 @@ SYMBOL symbols[] = {
   { "HOUR_SECOND",	SYM(HOUR_SECOND_SYM)},
   { "ID",               SYM(ID_SYM)},
   { "IDENTIFIED",	SYM(IDENTIFIED_SYM)},
+  { "IDENTITY",	SYM(IDENTITY)},
   { "IF",		SYM(IF_SYM)},
   { "IGNORE",		SYM(IGNORE_SYM)},
   { "IGNORED",		SYM(IGNORED_SYM)},

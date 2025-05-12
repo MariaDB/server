@@ -4502,17 +4502,27 @@ public:
 
 class Item_identity_next: public Item_longlong_func
 {
+  static constexpr LEX_CSTRING name {STRING_WITH_LEN("IDENTITY") };
 protected:
   TABLE_LIST *table_list;
 public:
-  Item_identity_next(THD *thd, TABLE_LIST *table_list_arg):
-  Item_longlong_func(thd), table_list(table_list_arg) {}
+  Autoinc_spec *spec;
+  Item_identity_next(THD *thd, TABLE_LIST *table_list, Autoinc_spec *spec):
+  Item_longlong_func(thd), table_list(table_list), spec(spec) {}
 
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("IDENTITY") };
     return name;
   }
+  void print(String *str, enum_query_type query_type) override;
+  void print_default_prefix(String *str) const override;
+  void print_for_frm(String *str) override
+  {
+    print_default_prefix(str);
+    str->append(' ');
+    print(str, enum_query_type());
+  }
+
   longlong val_int() override;
   bool fix_length_and_dec(THD *thd) override
   {
@@ -4520,10 +4530,13 @@ public:
     unsigned_flag= true; // Limitation: only positive numbers for now
     return FALSE;
   }
+  bool fix_table_share(TABLE_SHARE *s) const override
+  {
+    return s->fix_identity_field();
+  }
   bool const_item() const override { return false; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_identity_next>(thd, this); }
-
 };
 
 class Interruptible_wait;

@@ -828,7 +828,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
   DBUG_ENTER("fix_fields_part_func");
 
   if (init_lex_with_single_table(thd, table, &lex))
-    goto end;
+    goto end_no_restore_lex;
   table->get_fields_in_item_tree= true;
 
   func_expr->walk(&Item::change_context_processor, 0,
@@ -905,6 +905,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
   result= set_up_field_array(thd, table, is_sub_part);
 end:
   end_lex_with_single_table(thd, table, old_lex);
+end_no_restore_lex:
   func_expr->walk(&Item::change_context_processor, 0, 0);
   DBUG_RETURN(result);
 }

@@ -722,8 +722,7 @@ void lex_free(void)
     proper functioning of fix_fields.
 */
 
-int
-init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
+TABLE_LIST *init_lex_with_single_table_share(THD *thd, TABLE_SHARE *s, LEX *lex)
 {
   TABLE_LIST *table_list;
   Table_ident *table_ident;
@@ -737,25 +736,41 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
     do this by using add_table_to_list where we add the table that
     we're working with to the Name_resolution_context.
   */
+  LEX *old_lex= thd->lex;
   thd->lex= lex;
   lex_start(thd);
   context->init();
   if (unlikely((!(table_ident= new Table_ident(thd,
-                                               &table->s->db,
-                                               &table->s->table_name,
+                                               &s->db,
+                                               &s->table_name,
                                                TRUE)))) ||
       (unlikely(!(table_list= select_lex->add_table_to_list(thd,
                                                             table_ident,
                                                             NULL,
                                                             0)))))
-    return TRUE;
+  {
+    // Restore in case of error.
+    lex_end(lex);
+    thd->lex= old_lex;
+    return NULL;
+  }
   context->resolve_in_table_list_only(table_list);
   lex->use_only_table_context= TRUE;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
-  table->map= 1; //To ensure correct calculation of const item
-  table_list->table= table;
   table_list->cacheable_table= false;
   lex->create_last_non_select_table= table_list;
+  return table_list;
+}
+
+
+int
+init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
+{
+  TABLE_LIST *table_list= init_lex_with_single_table_share(thd, table->s, lex);
+  if (unlikely(table_list == NULL))
+    return TRUE;
+  table->map= 1; //To ensure correct calculation of const item
+  table_list->table= table;
   return FALSE;
 }
 
@@ -10543,13 +10558,15 @@ bool LEX::last_field_generated_always_as_row_end()
                                                          VERS_ROW_END);
 }
 
-bool LEX::last_field_identity()
+bool LEX::last_field_identity(Autoinc_spec *spec)
 {
+  create_info.autoinc_spec= spec;
 
   Virtual_column_info *v= add_virtual_expression(thd,
                             // TODO rebase the new(thd) patch set
                             new (thd->mem_root) Item_identity_next(thd,
-                                                                last_table()));
+                                                                last_table(),
+                                                                spec));
   last_field->default_value= v;
   return v != NULL;
 }

@@ -1760,7 +1760,7 @@ rule:
 %type <myvar> select_outvar
 
 %type <virtual_column> opt_check_constraint check_constraint virtual_column_func
-        column_default_expr
+        column_default_expr expr_or_aux_expr auxiliary_expr
 
 %type <unit_operation> unit_type_decl
 
@@ -1983,7 +1983,7 @@ rule:
         sp_package_function_body
         sp_package_procedure_body
 
-%type <autoinc_spec> identity_specs
+%type <autoinc_spec> identity_props
 %type <num> opt_on_null opt_double
 
 
@@ -2813,14 +2813,7 @@ sequence_def:
             seq->used_fields|=
               seq_field_specified_min_value;
           }
-        | NO_SYM MINVALUE_SYM
-          {
-            sequence_definition *seq= Lex->create_info.seq_create_info;
-            if (unlikely(seq->used_fields & seq_field_used_min_value))
-              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
-            seq->used_fields|= seq_field_used_min_value;
-          }
-        | NOMINVALUE_SYM
+        | nominvalue
           {
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_min_value))
@@ -2836,14 +2829,7 @@ sequence_def:
             seq->used_fields|= seq_field_used_max_value;
             seq->used_fields|= seq_field_specified_max_value;
           }
-        | NO_SYM MAXVALUE_SYM
-          {
-            sequence_definition *seq= Lex->create_info.seq_create_info;
-            if (unlikely(seq->used_fields & seq_field_used_max_value))
-              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
-            seq->used_fields|= seq_field_used_max_value;
-          }
-        | NOMAXVALUE_SYM
+        | nomaxvalue
           {
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_max_value))
@@ -2924,6 +2910,13 @@ sequence_def:
             seq->used_fields|=
               seq_field_used_restart | seq_field_used_restart_value;
           }
+        ;
+
+nomaxvalue:
+        NOMAXVALUE_SYM {} | NO_SYM MAXVALUE_SYM {}
+        ;
+nominvalue:
+        NOMINVALUE_SYM {} | NO_SYM MINVALUE_SYM {}
         ;
 
 /* this rule is used to force look-ahead in the parser */
@@ -6324,23 +6317,30 @@ field_def:
               MYSQL_YYABORT;
             $$.init();
           }
-        | opt_generated_always AS IDENTITY identity_specs
-          opt_serial_attribute
-          {
-            if (Lex->last_field_identity())
-              MYSQL_YYABORT;
-            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
-            $4->generated_always= true;
-            Lex->alter_info.autoinc_spec= $4;
-          }
-        | GENERATED_SYM BY DEFAULT opt_on_null AS IDENTITY identity_specs
-          opt_serial_attribute
-          {
-            $7->no_auto_value_on_zero= $4;
-            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
-            Lex->alter_info.autoinc_spec= $7;
-          }
+        | identity_spec
+          { $$.init(); }
         ;
+
+identity_spec:
+          opt_generated_always AS IDENTITY identity_props
+          opt_serial_attribute
+          {
+            Lex->create_info.autoinc_spec= $4;
+            $4->generated_always= true;
+            if (!Lex->last_field_identity($4))
+              MYSQL_YYABORT;
+            Lex->last_field->identity_field= true;
+            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG;
+          }
+        | GENERATED_SYM BY DEFAULT opt_on_null AS IDENTITY identity_props
+          opt_serial_attribute
+          {
+            Lex->last_field->identity_field= true;
+            Lex->last_field->flags|= AUTO_INCREMENT_FLAG;
+            $7->no_auto_value_on_zero= $4;
+            if (!Lex->last_field_identity($7))
+              MYSQL_YYABORT;
+          }
 
 opt_generated_always:
           /* empty */ {}
@@ -6351,78 +6351,78 @@ opt_on_null:
           /* empty */ { $$= 0; }
         | ON NULL_SYM { $$= 1; }
 
-identity_specs:
+identity_props:
     /* empty */
     {
       /* The user wrote "IDENTITY" but no immediate sub‐clauses yet. */
       $$ = new Autoinc_spec();
       /* That’s the single aggregator object we’ll keep reusing. */
     }
-  | identity_specs START_SYM WITH expr
+  | identity_props START_SYM WITH expr
     {
       /* $1 is the same Autoinc_spec pointer from prior expansions. */
       $1->start = $4->val_int();
       $$ = $1;
     }
-  | identity_specs INCREMENT_SYM BY expr
+  | identity_props INCREMENT_SYM BY expr
     {
       $1->step = $4->val_int();
       $$ = $1;
     }
-  | identity_specs MINVALUE_SYM expr
+  | identity_props MINVALUE_SYM expr
     {
       $1->minvalue = $3->val_int();
       $1->has_minvalue = true;
       $$ = $1;
     }
-  | identity_specs NOMINVALUE_SYM
+  | identity_props nominvalue
     {
       $1->has_minvalue = false;
       $$ = $1;
     }
-  | identity_specs MAXVALUE_SYM expr
+  | identity_props MAXVALUE_SYM expr
     {
       $1->maxvalue = $3->val_int();
       $1->has_maxvalue = true;
       $$ = $1;
     }
-  | identity_specs NOMAXVALUE_SYM
+  | identity_props nomaxvalue
     {
       $1->has_maxvalue = false;
       $$ = $1;
     }
-  | identity_specs CYCLE_SYM
+  | identity_props CYCLE_SYM
     {
       $1->cycle = true;
       $$ = $1;
     }
-  | identity_specs NOCYCLE_SYM
+  | identity_props NOCYCLE_SYM
     {
       $1->cycle = false;
       $$ = $1;
     }
-  | identity_specs ORDER_SYM
+  | identity_props ORDER_SYM
     {
       $1->order= true;
       $$ = $1;
     }
-  | identity_specs NOORDER_SYM
+  | identity_props NOORDER_SYM
     {
       $1->order= false;
       $$ = $1;
     }
-  | identity_specs CACHE_SYM expr opt_double
+  | identity_props CACHE_SYM expr opt_double
     {
       $1->cache = (unsigned int)$3->val_int();
       $1->double_cache= $4;
       $$ = $1;
     }
-  | identity_specs NOCACHE_SYM
+  | identity_props NOCACHE_SYM
     {
       $1->cache = 0;
       $$ = $1;
     }
-  | identity_specs NOSHARE_SYM
+  | identity_props NOSHARE_SYM
     {
       /* Example placeholder: user wrote "NOSHARE" */
       $$ = $1;
@@ -6494,15 +6494,29 @@ parse_vcol_expr:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
           }
-          expr
+          expr_or_aux_expr
           {
-            Virtual_column_info *v= add_virtual_expression(thd, $3);
-            if (unlikely(!v))
-              MYSQL_YYABORT;
-            Lex->last_field->vcol_info= v;
+            Lex->last_field->vcol_info= $3;
             Lex->pop_select(); //main select
           }
         ;
+
+expr_or_aux_expr:
+        expr
+        {
+          Virtual_column_info *v= add_virtual_expression(thd, $1);
+          if (unlikely(!v))
+            MYSQL_YYABORT;
+          $$= v;
+        }
+      | auxiliary_expr
+        { $$= $1; }
+
+// auxiliary_expr is used for parsing special internal expressions,
+// they cannot be created by a user
+auxiliary_expr:
+        identity_spec
+        { $$= Lex->last_field->default_value; }
 
 parenthesized_expr:
           expr
