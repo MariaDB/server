@@ -3146,3 +3146,115 @@ EOF
 --exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/does_not_exist mysql 2>&1
 
 --source include/test_db_charset_restore.inc
+
+--echo # MDEV-21376 mysqldump should support wildcards.
+
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (2),(5),(11);
+CREATE TABLE t2(a int);
+INSERT INTO t2 VALUES (21),(52),(131);
+--exec $MYSQL_DUMP --skip-comments --wildcards=ON test1 t_
+--exec $MYSQL_DUMP --skip-comments --wildcards=ON test1 t? tx
+DROP DATABASE test1;
+
+--echo #
+
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (2),(5),(11);
+CREATE TABLE t2(a int);
+INSERT INTO t2 VALUES (21),(52),(131);
+--exec $MYSQL_DUMP --skip-comments --wildcards=ON test1 t%
+DROP DATABASE test1;
+
+--echo #
+
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (2),(5),(11);
+CREATE DATABASE test2;
+USE test2;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON test_
+DROP DATABASE test1;
+DROP DATABASE test2;
+
+--echo #
+
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (2),(5),(11);
+CREATE TABLE tt(a int);
+INSERT INTO tt VALUES (2),(5),(11);
+CREATE DATABASE test2;
+USE test2;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON t%
+
+--echo #
+--echo # Table names match multiple patterns.
+--echo #
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L test1 "t%" "t%"
+--echo #
+--echo # Database names match multiple patterns.
+--echo #
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L -B "t%" "t%"
+
+DROP DATABASE test1;
+DROP DATABASE test2;
+
+--echo #
+
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE table1(a int);
+INSERT INTO table1 VALUES (2),(5),(11);
+CREATE TABLE tt(a int);
+INSERT INTO tt VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L test1 table1
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L test1 tab?e1
+
+DROP DATABASE test1;
+
+--echo #
+
+
+--echo #
+--echo # strange names 
+--echo #
+
+CREATE DATABASE `t?1`;
+USE `t?1`;
+CREATE TABLE `t?1`(a int);
+INSERT INTO `t?1` VALUES (2),(5),(11);
+CREATE TABLE `t%t`(a int);
+INSERT INTO `t%t` VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -L "t?1" "t%1"
+CREATE DATABASE `t%*!`;
+USE `t%*!`;
+CREATE TABLE `t???1`(a int);
+INSERT INTO `t???1` VALUES (2),(5),(11);
+CREATE TABLE `t___t`(a int);
+INSERT INTO `t___t` VALUES (2),(5),(11);
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -L "t%"
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -L "t%*!" "t?%1 "
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments -L "t%*!" "t?t" "t%t"
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments --databases -L "t%1"
+DROP DATABASE `t?1`;
+DROP DATABASE `t%*!`;
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compatible=ansi --skip-comments --databases -L "%" >/dev/null
+
+--echo #
+--echo # no database matches the pattern.
+--echo #
+
+--exec $MYSQL_DUMP --compact --debug-info -L -B  a%
+
