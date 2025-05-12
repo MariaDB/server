@@ -81,7 +81,7 @@ NULL
 maria
 sachin
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 #duplicate entry test;
 insert into t1 values(2);
 ERROR 23000: Duplicate entry '2' for key 'a'
@@ -154,7 +154,7 @@ ERROR 23000: Duplicate entry '1' for key 'a'
 insert into t1 values(2,2);
 ERROR 23000: Duplicate entry '2' for key 'a'
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 #now try to change db_row_hash_1 column;
 alter table t1 drop column db_row_hash_1;
 ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
@@ -405,11 +405,11 @@ a	b	c	d	e
 maria	345	frter	dasd	utyuty
 sachin	341	fdf	gfgfgfg	hghgr
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 select db_row_hash_2 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_2' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_2' in 'SELECT'
 select db_row_hash_3 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_3' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_3' in 'SELECT'
 #duplicate entry test;
 insert into t1 values(21,2,3,42,51);
 ERROR 23000: Duplicate entry '3' for key 'c'
@@ -462,7 +462,7 @@ t1	CREATE TABLE `t1` (
 insert into t1 values(1,2,3,4,5,6);
 ERROR 23000: Duplicate entry '1' for key 'a'
 select db_row_hash_1 , db_row_hash_2, db_row_hash_3 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 #now try to change db_row_hash_1 column;
 alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
 ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
@@ -786,11 +786,11 @@ NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 maria	6	maria	maria	maria	maria	6	maria
 mariadb	7	mariadb	mariadb	mariadb	mariadb	8	mariadb
 select db_row_hash_1 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 select db_row_hash_2 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_2' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_2' in 'SELECT'
 select db_row_hash_3 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_3' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_3' in 'SELECT'
 #duplicate entry test;
 #duplicate keys entry;
 insert into t1 values(1,1,1,0,0,0,0,0);
@@ -806,7 +806,7 @@ ERROR 23000: Duplicate entry '1-1-1-1' for key 'e'
 insert into t1 values(1,1,1,1,1,1,1,1);
 ERROR 23000: Duplicate entry '1-1-1' for key 'a'
 select db_row_hash_1,db_row_hash_2,db_row_hash_3,db_row_hash_4,db_row_hash_5 from t1;
-ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'SELECT'
 alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
 ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
 alter table t1 add column dg int , add column ef int , drop column db_row_hash_1;
@@ -1170,7 +1170,7 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 33	3
 44	4
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1;
-ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'field list'
+ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'SELECT'
 #bug
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2;
 DB_ROW_HASH_1	DB_ROW_HASH_2
@@ -1191,7 +1191,7 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 44	4
 44	4
 select * from t1 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
-ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY'
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 DB_ROW_HASH_1	DB_ROW_HASH_2
 11	1
@@ -1217,7 +1217,7 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 33	3
 44	4
 select DB_ROW_HASH_1 from t1,t2 where t1.DB_ROW_HASH_1 = t2.DB_ROW_HASH_2;
-ERROR 42S22: Unknown column 't1.DB_ROW_HASH_1' in 'where clause'
+ERROR 42S22: Unknown column 't1.DB_ROW_HASH_1' in 'WHERE'
 select DB_ROW_HASH_1 from t1 inner join t2 on t1.a = t2.DB_ROW_HASH_2;
 DB_ROW_HASH_1
 11
@@ -1452,4 +1452,26 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (pk INT, a TEXT NOT NULL DEFAULT '', PRIMARY KEY (pk), b INT AUTO_INCREMENT, UNIQUE(b), UNIQUE (a,b)) ENGINE=myisam;
 ERROR HY000: AUTO_INCREMENT column `b` cannot be used in the UNIQUE index `a`
+#
+# MDEV-35620 UBSAN: runtime error: applying zero offset to null pointer in _ma_unique_hash, skip_trailing_space, my_hash_sort_mb_nopad_bin and my_strnncollsp_utf8mb4_bin
+#
+# Disable result log. The exact result is not important.
+# We just need to make sure UBSAN nullptr-with-offset is not reported.
+SELECT DISTINCT user,authentication_string FROM mysql.user;
+SELECT DISTINCT USER,PASSWORD FROM mysql.user;
+SELECT DISTINCT USER,plugin FROM mysql.user;
+# Enabling result log again.
+create or replace table t1 (t text) engine=aria;
+insert into t1 values ('');
+insert into t1 values (NULL);
+select distinct t from t1;
+t
+
+NULL
+alter table t1 ENGINE=MyISAM;
+select distinct t from t1;
+t
+
+NULL
+DROP TABLE t1;
 # End of 10.5 tests

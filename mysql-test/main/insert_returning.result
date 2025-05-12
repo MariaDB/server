@@ -482,7 +482,7 @@ INSERT INTO t1 VALUES(1,'a'),(2,'b'),(3,'c');
 # SIMLPE INSERT STATEMENT
 #
 INSERT INTO t2(id2,val2) VALUES(1,'a') RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 INSERT INTO t2(id2,val2) values(2,'b') RETURNING SUM(id2);
 ERROR HY000: Invalid use of group function
 INSERT INTO t2(id2,val2) VALUES(3,'c') RETURNING (SELECT id1 FROM t1);
@@ -498,13 +498,15 @@ t1 WHERE id1=1)
 5	6
 INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT 1 UNION SELECT id2 FROM t2);
+ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 INSERT INTO t2 (id2, val2) VALUES (6,'f') RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #
 # Multiple rows in single insert statement
 #
 INSERT INTO t2 VALUES(1,'a'),(2,'b') RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 INSERT INTO t2 VALUES(3,'c'),(4,'d') RETURNING MAX(id2);
 ERROR HY000: Invalid use of group function
 INSERT INTO t2 VALUES(5,'c'),(6,'f') RETURNING (SELECT id1 FROM t1);
@@ -527,7 +529,7 @@ ERROR 42S02: Unknown table 'test.t1'
 # INSERT ... SET
 #
 INSERT INTO t2 SET id2=1, val2='a' RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 INSERT INTO t2 SET id2=2, val2='b' RETURNING COUNT(id2);
 ERROR HY000: Invalid use of group function
 INSERT INTO t2 SET id2=3, val2='c' RETURNING (SELECT id1 FROM t1);
@@ -550,7 +552,7 @@ ERROR 42S02: Unknown table 'test.t1'
 #
 INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING MAX(id);
 ERROR HY000: Invalid use of group function
@@ -565,7 +567,7 @@ RETURNING (SELECT * FROM ins_duplicate);
 ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING id2, (SELECT id1+id FROM t1 WHERE id1=1);
-ERROR 42S22: Unknown column 'id2' in 'field list'
+ERROR 42S22: Unknown column 'id2' in 'RETURNING'
 INSERT INTO ins_duplicate VALUES(2,'b') ON DUPLICATE KEY UPDATE val='b'
 RETURNING (SELECT id FROM ins_duplicate);
 ERROR HY000: Table 'ins_duplicate' is specified twice, both as a target for 'INSERT' and as a separate source for data
@@ -576,7 +578,7 @@ ERROR 42S02: Unknown table 'test.t1'
 # INSERT...SELECT
 #
 INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=1 RETURNING id1;
-ERROR 42S22: Unknown column 'id1' in 'field list'
+ERROR 42S22: Unknown column 'id1' in 'RETURNING'
 INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING MAX(id2);
 ERROR HY000: Invalid use of group function
 INSERT INTO t2(id2, val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT

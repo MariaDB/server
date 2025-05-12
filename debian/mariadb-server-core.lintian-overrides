@@ -1,0 +1,11 @@
+# Bash word source used in comment
+bash-term-in-posix-shell 'source tree,' [usr/bin/mariadb-install-db:93]
+
+# These are from stop word list
+spelling-error-in-binary noone no one [usr/sbin/mariadbd]
+spelling-error-in-binary thats that's [usr/sbin/mariadbd]
+spelling-error-in-binary theres there's [usr/sbin/mariadbd]
+spelling-error-in-binary yuR your [usr/sbin/mariadbd]
+
+# README non common place but good to be there
+package-contains-documentation-outside-usr-share-doc [usr/share/mysql/mysql-test/README]

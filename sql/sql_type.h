@@ -723,7 +723,7 @@ public:
   {
     return m_usec ?
       my_snprintf(to, nbytes, "%s%llu.%06lu",
-                  m_neg ? "-" : "", m_sec, (uint) m_usec) :
+                  m_neg ? "-" : "", m_sec, m_usec) :
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }
   void make_truncated_warning(THD *thd, const char *type_str) const;
@@ -1965,6 +1965,11 @@ public:
   {
     return neg ? -to_seconds_abs() : to_seconds_abs();
   }
+  bool to_bool() const
+  {
+    return is_valid_time() &&
+           (TIME_to_ulonglong_time(this) != 0 || second_part != 0);
+  }
   longlong to_longlong() const
   {
     if (!is_valid_time())
@@ -2325,6 +2330,10 @@ public:
     DBUG_ASSERT(is_valid_date_slow());
     return Temporal::to_packed();
   }
+  bool to_bool() const
+  {
+    return to_longlong() != 0;
+  }
   longlong to_longlong() const
   {
     return is_valid_date() ? (longlong) TIME_to_ulonglong_date(this) : 0LL;
@@ -2644,6 +2653,11 @@ public:
     ltime->time_type= type;
     return false;
   }
+  bool to_bool() const
+  {
+    return is_valid_datetime() &&
+           (TIME_to_ulonglong_datetime(this) != 0 || second_part != 0);
+  }
   longlong to_longlong() const
   {
     return is_valid_datetime() ?
@@ -2883,6 +2897,10 @@ public:
       return Datetime::zero();
     return Timestamp::to_datetime(thd);
   }
+  bool to_bool() const
+  {
+    return !m_is_zero_datetime;
+  }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
   void trunc(uint decimals)
   {
@@ -3107,6 +3125,16 @@ public:
   bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
+  bool merge_charset_and_collation(Sql_used *used,
+                                   const Charset_collation_map_st &map,
+                                   CHARSET_INFO *cs,
+                                   const Lex_extended_collation_st &cl,
+                                   my_repertoire_t repertoire);
+  bool merge_collation(Sql_used *used,
+                       const Charset_collation_map_st &map,
+                       const Lex_extended_collation_st &cl,
+                       my_repertoire_t repertoire,
+                       bool allow_ignorable_with_context_collation);
   const char *derivation_name() const
   {
     switch(derivation)
@@ -3409,6 +3437,7 @@ public:
   Type_all_attributes(const Type_all_attributes &) = default;
   virtual ~Type_all_attributes() = default;
   virtual void set_type_maybe_null(bool maybe_null_arg)= 0;
+  virtual uint32 character_octet_length() const { return max_length; }
   // Returns total number of decimal digits
   virtual decimal_digits_t decimal_precision() const= 0;
   virtual const TYPELIB *get_typelib() const= 0;
@@ -3635,13 +3664,13 @@ public:
 class Vers_type_timestamp: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TIMESTAMP;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern Vers_type_timestamp vers_type_timestamp;
 
@@ -3649,13 +3678,13 @@ extern Vers_type_timestamp vers_type_timestamp;
 class Vers_type_trx: public Vers_type_handler
 {
 public:
-  virtual vers_kind_t kind() const
+  vers_kind_t kind() const override
   {
     return VERS_TRX_ID;
   }
   bool check_sys_fields(const LEX_CSTRING &table_name,
                         const Column_definition *row_start,
-                        const Column_definition *row_end) const;
+                        const Column_definition *row_end) const override;
 };
 extern MYSQL_PLUGIN_IMPORT Vers_type_trx vers_type_trx;
 
@@ -5893,6 +5922,9 @@ public:
   const Type_handler *type_handler_signed() const override;
   void Item_update_null_value(Item *item) const override;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions)
+                         const override;
 };
 
 

@@ -366,16 +366,27 @@ ibuf_insert_to_index_page(
 	ut_ad(!block->index);
 #endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(mtr->is_named_space(block->page.id().space()));
+        const auto comp = page_is_comp(page);
 
 	if (UNIV_UNLIKELY(index->table->not_redundant()
 			  != !!page_is_comp(page))) {
 		return DB_CORRUPTION;
 	}
 
-	rec = page_rec_get_next(page_get_infimum_rec(page));
-
-	if (!rec || page_rec_is_supremum(rec)) {
-		return DB_CORRUPTION;
+	if (comp) {
+		rec = const_cast<rec_t*>(
+			page_rec_next_get<true>(page,
+						page + PAGE_NEW_INFIMUM));
+		if (!rec || rec == page + PAGE_NEW_SUPREMUM) {
+			return DB_CORRUPTION;
+		}
+	} else {
+		rec = const_cast<rec_t*>(
+			page_rec_next_get<false>(page,
+						page + PAGE_OLD_INFIMUM));
+		if (!rec || rec == page + PAGE_OLD_SUPREMUM) {
+			return DB_CORRUPTION;
+		}
 	}
 
 	if (!rec_n_fields_is_sane(index, rec, entry)) {
@@ -787,7 +798,8 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
       {
         page_header_reset_last_insert(block, mtr);
         page_update_max_trx_id(block, buf_block_get_page_zip(block),
-                               page_get_max_trx_id(page_align(rec)), mtr);
+                               page_get_max_trx_id(btr_cur_get_page(cur)),
+                               mtr);
         dict_index_t *index;
         mem_heap_t *heap = mem_heap_create(512);
         dtuple_t *entry= ibuf_entry_build(rec, not_redundant, n_fields,

@@ -2052,7 +2052,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 3
+            "pages_accessed": 2
           },
           "filtered": "REPLACED",
           "r_filtered": 66.66666667,
@@ -2216,7 +2216,7 @@ ANALYZE
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "r_engine_stats": {
-            "pages_accessed": 3
+            "pages_accessed": 2
           },
           "filtered": "REPLACED",
           "r_filtered": 66.66666667,
@@ -3671,5 +3671,81 @@ count(*)
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t0, t1;
 # End of 10.4 tests
+#
+# MDEV-33875: ORDER BY DESC causes ROWID Filter slowdown
+#
+create table t1  (
+pk int primary key auto_increment,
+a int,
+b int,
+f1 varchar(200),
+f2 varchar(200),
+f3 varchar(200),
+f4 varchar(200),
+f5 varchar(200),
+key(a, pk),
+key(b)
+) engine=innodb;
+insert into t1 (a,b,f1, f2, f3, f4) select
+seq, seq,
+repeat('1-', 100),
+repeat('2-', 100),
+repeat('3-', 100),
+repeat('4-', 100)
+from
+seq_1_to_5000;
+insert into t1 (a,b,f1, f2, f3, f4)select
+30100, 30100,
+'abcd','abcd','abcd','abcd'
+from
+seq_1_to_250;
+insert into t1 (a,b,f1) values ( 110, 100, 12345);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# The following must NOT use Rowid Filter:
+analyze format=json select * from t1
+where
+a =30100 and b in (30100,30101,30102)
+order by
+pk desc;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 250,
+          "r_rows": 250,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 4.799086094,
+          "r_filtered": 100,
+          "attached_condition": "t1.a <=> 30100 and t1.b in (30100,30101,30102)"
+        }
+      }
+    ]
+  }
+}
+drop table t1;
 # End of 10.6 tests
 set global innodb_stats_persistent= @stats.save;

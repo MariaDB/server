@@ -91,20 +91,20 @@ public:
 	RECFM   GetTableFormat(const char* type);
 	bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
-  virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
+  AMT    GetDefType(void) override {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}
   virtual void   SetIndx(PIXDEF) {}
   virtual bool   IsHuge(void) {return false;}
   const CHARSET_INFO *data_charset() {return m_data_charset;}
-	const   char  *GetCsName(void) {return csname;}
+  const   char  *GetCsName(void) {return csname;}
 
   // Methods
-          int  GetColCatInfo(PGLOBAL g);
-          void SetIndexInfo(void);
-          bool DropTable(PGLOBAL g, PSZ name);
-	virtual bool Define(PGLOBAL g, PCATLG cat,
-						          LPCSTR name, LPCSTR schema, LPCSTR am);
-	virtual bool DefineAM(PGLOBAL, LPCSTR, int) = 0;
+  int  GetColCatInfo(PGLOBAL g);
+  void SetIndexInfo(void);
+  bool DropTable(PGLOBAL g, PSZ name);
+  bool Define(PGLOBAL g, PCATLG cat,
+              LPCSTR name, LPCSTR schema, LPCSTR am) override;
+  virtual bool DefineAM(PGLOBAL, LPCSTR, int) = 0;
 
  protected:
   // Members
@@ -135,12 +135,12 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   OEMDEF(void) {Hdll = NULL; Pxdef = NULL; Module = Subtype = NULL;}
 
   // Implementation
-  virtual const char *GetType(void) {return "OEM";}
-  virtual AMT  GetDefType(void) {return TYPE_AM_OEM;}
+  const char *GetType(void) override {return "OEM";}
+  AMT  GetDefType(void) override {return TYPE_AM_OEM;}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE mode);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE mode) override;
 
  protected:
   PTABDEF GetXdef(PGLOBAL g);

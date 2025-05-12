@@ -14,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.12.0)
 
 IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   # Setting build type to RelWithDebInfo as none was specified.
@@ -31,7 +31,7 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0074 CMP0075 CMP0069 CMP0135)
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135 CMP0091)
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
@@ -125,6 +125,18 @@ ENDIF()
 
 FIND_PACKAGE(Git)
 
+IF(WIN32 AND (CMAKE_VERSION VERSION_GREATER "3.21"))
+ # Install runtime dependency by default, when using vcpkg
+ IF(NOT DEFINED INSTALL_RUNTIME_DEPENDENCIES_DEFAULT)
+   IF("${VCPKG_INSTALLED_DIR}")
+     SET(INSTALL_RUNTIME_DEPENDENCIES_DEFAULT OFF)
+   ELSE()
+     SET(INSTALL_RUNTIME_DEPENDENCIES_DEFAULT ON)
+   ENDIF()
+ ENDIF()
+ OPTION(INSTALL_RUNTIME_DEPENDENCIES "Install runtime dependencies"  "${INSTALL_RUNTIME_DEPENDENCIES_DEFAULT}")
+ENDIF()
+
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
 IF(DEFINED ENV{CPPFLAGS})
@@ -193,13 +205,16 @@ ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
 
-OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
+
+SET(MEMPROTECT_DEFAULT ON)
+
+OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build"
+${MEMPROTECT_DEFAULT})
 
 #
 #  Enable protection of statement's memory root after first SP/PS execution.
 #  Can be switched on only for debug build.
 #
-OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" OFF)
 IF (WITH_PROTECT_STATEMENT_MEMROOT)
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
@@ -244,7 +259,20 @@ ENDIF()
 
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE")
+  IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
+          AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
+    MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")
+  ENDIF()
+  MY_CHECK_CXX_COMPILER_FLAG("-stdlib=libc++")
+  IF(NOT have_CXX__stdlib_libc__)
+    MESSAGE(FATAL_ERROR "C++ Compiler requires support for -stdlib=libc++")
+  ENDIF()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory")
+  IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
+    MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
+  ENDIF()
 ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
@@ -258,7 +286,7 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF AND NOT WITH_MSAN)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
@@ -351,6 +379,7 @@ IF(WIN32)
 ELSE()
   SET(DEFAULT_MYSQL_HOME ${CMAKE_INSTALL_PREFIX})
   SET(SHAREDIR ${INSTALL_MYSQLSHAREDIRABS})
+  SET(HOSTNAME "uname -n" CACHE STRING "Command for determining hostname")
 ENDIF()
 
 SET(DEFAULT_BASEDIR "${DEFAULT_MYSQL_HOME}")
@@ -491,7 +520,9 @@ IF(UNIX)
   ADD_SUBDIRECTORY(man)
 ENDIF()
 
-INCLUDE(cmake/abi_check.cmake)
+IF (NOT WITHOUT_ABI_CHECK)
+    INCLUDE(cmake/abi_check.cmake)
+ENDIF()
 INCLUDE(cmake/tags.cmake)
 INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)
@@ -616,7 +647,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill mariadb-upgrade-service)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

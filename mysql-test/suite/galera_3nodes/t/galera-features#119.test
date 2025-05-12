@@ -60,13 +60,11 @@ DROP TABLE test.t1;
 --source include/start_mysqld.inc
 
 --connection node_2
-CALL mtr.add_suppression("Inconsistent by consensus.");
-CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '1' for key 'PRIMARY', Error_code: 1062; handler error HA_ERR_FOUND_DUPP_KEY; the event's master log FIRST");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test\\.t1; Duplicate entry '1' for key 'PRIMARY', Error_code: 1062; handler error HA_ERR_FOUND_DUPP_KEY; the event's master log FIRST");
 CALL mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed: 121, seqno");
-CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster\\.\\.\\.");
 CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
-
 
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc
-

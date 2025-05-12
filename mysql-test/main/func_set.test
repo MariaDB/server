@@ -147,3 +147,11 @@ SELECT INTERVAL(ROW(1,1),ROW(1,2));
 SELECT INTERVAL(1,ROW(1,2));
 --error ER_OPERAND_COLUMNS
 SELECT INTERVAL(ROW(1,2),1);
+
+
+--echo #
+--echo # MDEV-29184 Assertion `0' in Item_row::illegal_method_call, Type_handler_row::Item_update_null_value, Item::update_null_value
+--echo #
+
+--error ER_OPERAND_COLUMNS
+SELECT INTERVAL(0, ROW(1,1), 1, 1, 1, 1, 1, 1, 1) AS f;

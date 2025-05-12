@@ -1,0 +1,98 @@
+connection node_2;
+connection node_1;
+connect primary1, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect primary2, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection primary1;
+# Primary1 creating user for replication
+create user repl@'%' identified by 'repl';
+grant all on *.* to  repl@'%';
+connection primary2;
+# Primary2 creating user for replication
+create user repl2@'%' identified by 'repl2';
+grant all on *.* to  repl2@'%';
+connect replica, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection replica;
+connection node_2;
+connection primary1;
+connection primary2;
+connection replica;
+# Galera replica changing master to primary1
+SET @@default_master_connection='stream1';
+# Primary node changing master to primary2
+SET @@default_master_connection='stream2';
+START ALL SLAVES;
+Warnings:
+Note	1937	SLAVE 'stream1' started
+Note	1937	SLAVE 'stream2' started
+connection primary1;
+# Primary 1: Creating table and populating it with data
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection primary2;
+# Primary 2: Creating table and populating it with data
+CREATE TABLE t2 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+connection replica;
+# Waiting for data to replicate to node_1
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+3-3-1003,4-4-1003	3-3-1003,4-4-1003	3-3-1003,4-4-1003
+connection node_2;
+# Waiting for data to replicate to node_2
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+3-3-1003,4-4-1003	3-3-1003,4-4-1003	3-3-1003,4-4-1003
+connection primary1;
+drop table t1;
+connection primary2;
+drop table t2;
+# Wait until drop table is replicated on Galera
+connection replica;
+connection node_2;
+connection replica;
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE 'stream1' stopped
+Note	1938	SLAVE 'stream2' stopped
+RESET SLAVE ALL;
+connection primary1;
+RESET MASTER;
+connection primary2;
+RESET MASTER;
+connection node_1;
+disconnect primary1;
+disconnect primary2;
+disconnect replica;
+disconnect node_2;
+disconnect node_1;
+# End of test

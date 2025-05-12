@@ -27,13 +27,13 @@ public:
   CSVDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "CSV";}
+  const char *GetType(void) override {return "CSV";}
   char    GetSep(void) {return Sep;}
   char    GetQot(void) {return Qot;}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE mode);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE mode) override;
 
  protected:
   // Members
@@ -60,29 +60,29 @@ public:
   TDBCSV(PGLOBAL g, PTDBCSV tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_CSV;}
-  virtual PTDB Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_CSV;}
+  PTDB Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBCSV(g, this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
+  PTDB Clone(PTABS t) override;
 //virtual bool IsUsingTemp(PGLOBAL g);
-  virtual int  GetBadLines(void) {return (int)Nerr;}
+  int  GetBadLines(void) override {return (int)Nerr;}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  CheckWrite(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);        // Physical file read
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  CheckWrite(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;        // Physical file read
 
   // Specific routines
-  virtual int  EstimatedLength(void);
-  virtual bool SkipHeader(PGLOBAL g);
+  int  EstimatedLength(void) override;
+  bool SkipHeader(PGLOBAL g) override;
   virtual bool CheckErr(void);
 
  protected:
-  virtual bool PrepareWriting(PGLOBAL g);
+  bool PrepareWriting(PGLOBAL g) override;
 
   // Members
   PSZ  *Field;             // Field to write to current line
@@ -112,12 +112,12 @@ class DllExport CSVCOL : public DOSCOL {
   CSVCOL(CSVCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int    GetAmType() {return TYPE_AM_CSV;}
+  int    GetAmType() override {return TYPE_AM_CSV;}
 
   // Methods
-  virtual bool   VarSize(void);
-  virtual void   ReadColumn(PGLOBAL g);
-  virtual void   WriteColumn(PGLOBAL g);
+  bool   VarSize(void) override;
+  void   ReadColumn(PGLOBAL g) override;
+  void   WriteColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used
@@ -143,26 +143,26 @@ class DllExport TDBFMT : public TDBCSV {
   TDBFMT(PGLOBAL g, PTDBFMT tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_FMT;}
-  virtual PTDB Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_FMT;}
+  PTDB Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBFMT(g, this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
+  PTDB Clone(PTABS t) override;
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-//virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+//int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
 //virtual int  CheckWrite(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);        // Physical file read
+  int  ReadBuffer(PGLOBAL g) override;        // Physical file read
 
   // Specific routines
-  virtual int  EstimatedLength(void);
+  int  EstimatedLength(void) override;
 
  protected:
-  virtual bool PrepareWriting(PGLOBAL g) 
+  bool PrepareWriting(PGLOBAL g) override 
        {snprintf(g->Message, sizeof(g->Message), MSG(TABLE_READ_ONLY), "FMT"); return true;}
 
   // Members
@@ -182,7 +182,7 @@ class DllExport TDBCCL : public TDBCAT {
 
  protected:
   // Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g);
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
 	PTOS  Topt;

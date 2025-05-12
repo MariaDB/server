@@ -53,7 +53,7 @@ CREATE TABLE `t1` (
 PRIMARY KEY  (`i`)
 );
 DELETE FROM t1 USING t1 WHERE post='1';
-ERROR 42S22: Unknown column 'post' in 'where clause'
+ERROR 42S22: Unknown column 'post' in 'WHERE'
 drop table t1;
 CREATE TABLE t1 (
 bool     char(0) default NULL,
@@ -236,11 +236,11 @@ drop table t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 DELETE FROM t1 ORDER BY x;
-ERROR 42S22: Unknown column 'x' in 'order clause'
+ERROR 42S22: Unknown column 'x' in 'ORDER BY'
 DELETE FROM t1 ORDER BY t2.x;
-ERROR 42S22: Unknown column 't2.x' in 'order clause'
+ERROR 42S22: Unknown column 't2.x' in 'ORDER BY'
 DELETE FROM t1 ORDER BY (SELECT x);
-ERROR 42S22: Unknown column 'x' in 'field list'
+ERROR 42S22: Unknown column 'x' in 'SELECT'
 DROP TABLE t1;
 CREATE TABLE t1 (
 a INT
@@ -564,6 +564,17 @@ having t3.a > any (select t2.b from t2
 where t2.b*10 < sum(t3.b)));
 drop table t1,t2,t3;
 End of 10.4 tests
+#
+# MDEV-26459: Assertion `block_size <= 0xFFFFFFFFL' failed
+# in calculate_block_sizes for 10.7 only
+#
+SET @sort_buffer_size_save= @@sort_buffer_size;
+SET sort_buffer_size=1125899906842624;
+CREATE TABLE t1 (a INT,b CHAR,KEY(a,b));
+DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
+DROP TABLE t1;
+SET sort_buffer_size= @sort_buffer_size_save;
+# End of 10.11 tests
 #
 # MDEV-29428: DELETE with ORDER BY without LIMIT clause
 #

@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-SLAP\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-SLAP\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,27 +11,27 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqlslap
+.\" mariadb-slap
 .\" load emulation
 .SH "NAME"
-mariadb-slap \- load emulation client (mysqlslap is now a symlink to mariadb-slap)
+mariadb-slap \- load emulation client (mariadb-slap is now a symlink to mariadb-slap)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqlslap\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysqlslap [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadb-slap\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-slap [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 is a diagnostic program designed to emulate client load for a MariaDB server and to report the timing of each stage\&. It works as if multiple clients are accessing the server\&.
 .PP
 Invoke
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlslap [\fR\fB\fIoptions\fR\fR\fB]\fR
+shell> \fBmariadb-slap [\fR\fB\fIoptions\fR\fR\fB]\fR
 .fi
 .if n \{\
 .RE
@@ -44,10 +44,10 @@ or
 enable you to specify a string containing an SQL statement or a file containing statements\&. If you specify a file, by default it must contain one statement per line\&. (That is, the implicit statement delimiter is the newline character\&.) Use the
 \fB\-\-delimiter\fR
 option to specify a different delimiter, which enables you to specify statements that span multiple lines or place multiple statements on a single line\&. You cannot include comments in a file;
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 does not understand them\&.
 .PP
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 runs in three stages:
 .sp
 .RS 4
@@ -91,7 +91,7 @@ Supply your own create and query SQL statements, with 50 clients querying and 20
 .RS 4
 .\}
 .nf
-mysqlslap \-\-delimiter=";" \e
+mariadb-slap \-\-delimiter=";" \e
   \-\-create="CREATE TABLE a (b int);INSERT INTO a VALUES (23)" \e
   \-\-query="SELECT * FROM a" \-\-concurrency=50 \-\-iterations=200
 .fi
@@ -100,7 +100,7 @@ mysqlslap \-\-delimiter=";" \e
 .\}
 .PP
 Let
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 build the query SQL statement with a table of two
 INT
 columns and three
@@ -111,7 +111,7 @@ columns\&. Use five clients querying 20 times each\&. Do not create the table or
 .RS 4
 .\}
 .nf
-mysqlslap \-\-concurrency=5 \-\-iterations=20 \e
+mariadb-slap \-\-concurrency=5 \-\-iterations=20 \e
   \-\-number\-int\-cols=2 \-\-number\-char\-cols=3 \e
   \-\-auto\-generate\-sql
 .fi
@@ -129,7 +129,7 @@ then run all the queries in the query file with five clients (five times each):
 .RS 4
 .\}
 .nf
-mysqlslap \-\-concurrency=5 \e
+mariadb-slap \-\-concurrency=5 \e
   \-\-iterations=5 \-\-query=query\&.sql \-\-create=create\&.sql \e
   \-\-delimiter=";"
 .fi
@@ -137,13 +137,13 @@ mysqlslap \-\-concurrency=5 \e
 .RE
 .\}
 .PP
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 supports the following options, which can be specified on the command line or in the
-[mysqlslap]
+[mariadb-slap]
 and
 [client]
 option file groups\&.
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 also supports the options for processing option files\&.
 .sp
 .RS 4
@@ -154,8 +154,8 @@ also supports the options for processing option files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: help option
-.\" help option: mysqlslap
+.\" mariadb-slap: help option
+.\" help option: mariadb-slap
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -170,8 +170,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql option
-.\" auto-generate-sql option: mysqlslap
+.\" mariadb-slap: auto-generate-sql option
+.\" auto-generate-sql option: mariadb-slap
 \fB\-\-auto\-generate\-sql\fR,
 \fB\-a\fR
 .sp
@@ -186,8 +186,8 @@ Generate SQL statements automatically when they are not supplied in files or via
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-add-autoincrement option
-.\" auto-generate-sql-add-autoincrement option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-add-autoincrement option
+.\" auto-generate-sql-add-autoincrement option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-add\-autoincrement\fR
 .sp
 Add an
@@ -203,8 +203,8 @@ column to automatically generated tables\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-execute-number option
-.\" auto-generate-sql-execute-number option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-execute-number option
+.\" auto-generate-sql-execute-number option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-execute\-number=\fR\fB\fIN\fR\fR
 .sp
 Specify how many queries to generate automatically\&.
@@ -218,8 +218,8 @@ Specify how many queries to generate automatically\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-guid-primary option
-.\" auto-generate-sql-guid-primary option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-guid-primary option
+.\" auto-generate-sql-guid-primary option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-guid\-primary\fR
 .sp
 Add a GUID\-based primary key to automatically generated tables\&.
@@ -233,8 +233,8 @@ Add a GUID\-based primary key to automatically generated tables\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-load-type option
-.\" auto-generate-sql-load-type option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-load-type option
+.\" auto-generate-sql-load-type option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-load\-type=\fR\fB\fItype\fR\fR
 .sp
 Specify the test load type\&. The allowable values are
@@ -259,8 +259,8 @@ mixed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-secondary-indexes option
-.\" auto-generate-sql-secondary-indexes option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-secondary-indexes option
+.\" auto-generate-sql-secondary-indexes option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-secondary\-indexes=\fR\fB\fIN\fR\fR
 .sp
 Specify how many secondary indexes to add to automatically generated tables\&. By default, none are added\&.
@@ -274,8 +274,8 @@ Specify how many secondary indexes to add to automatically generated tables\&. B
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-unique-query-number option
-.\" auto-generate-sql-unique-query-number option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-unique-query-number option
+.\" auto-generate-sql-unique-query-number option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-unique\-query\-number=\fR\fB\fIN\fR\fR
 .sp
 How many different queries to generate for automatic tests\&. For example, if you run a
@@ -291,8 +291,8 @@ test that performs 1000 selects, you can use this option with a value of 1000 to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-unique-write-number option
-.\" auto-generate-sql-unique-write-number option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-unique-write-number option
+.\" auto-generate-sql-unique-write-number option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-unique\-write\-number=\fR\fB\fIN\fR\fR
 .sp
 How many different queries to generate for
@@ -307,8 +307,8 @@ How many different queries to generate for
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: auto-generate-sql-write-number option
-.\" auto-generate-sql-write-number option: mysqlslap
+.\" mariadb-slap: auto-generate-sql-write-number option
+.\" auto-generate-sql-write-number option: mariadb-slap
 \fB\-\-auto\-generate\-sql\-write\-number=\fR\fB\fIN\fR\fR
 .sp
 How many row inserts to perform on each thread\&. The default is 100\&.
@@ -322,8 +322,8 @@ How many row inserts to perform on each thread\&. The default is 100\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: commit option
-.\" commit option: mysqlslap
+.\" mariadb-slap: commit option
+.\" commit option: mariadb-slap
 \fB\-\-commit=\fR\fB\fIN\fR\fR
 .sp
 How many statements to execute before committing\&. The default is 0 (no commits are done)\&.
@@ -337,8 +337,8 @@ How many statements to execute before committing\&. The default is 0 (no commits
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: compress option
-.\" compress option: mysqlslap
+.\" mariadb-slap: compress option
+.\" compress option: mariadb-slap
 \fB\-\-compress\fR,
 \fB\-C\fR
 .sp
@@ -353,8 +353,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: concurrency option
-.\" concurrency option: mysqlslap
+.\" mariadb-slap: concurrency option
+.\" concurrency option: mariadb-slap
 \fB\-\-concurrency=\fR\fB\fIN\fR\fR,
 \fB\-c \fR\fB\fIN\fR\fR
 .sp
@@ -371,8 +371,8 @@ statement\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: create option
-.\" create option: mysqlslap
+.\" mariadb-slap: create option
+.\" create option: mariadb-slap
 \fB\-\-create=\fR\fB\fIvalue\fR\fR
 .sp
 The file or string containing the statement to use for creating the table\&.
@@ -386,8 +386,8 @@ The file or string containing the statement to use for creating the table\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: create-schema option
-.\" create-schema option: mysqlslap
+.\" mariadb-slap: create-schema option
+.\" create-schema option: mariadb-slap
 \fB\-\-create\-schema=\fR\fB\fIvalue\fR\fR
 .sp
 The schema in which to run the tests\&.
@@ -401,8 +401,8 @@ The schema in which to run the tests\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: csv option
-.\" csv option: mysqlslap
+.\" mariadb-slap: csv option
+.\" csv option: mariadb-slap
 \fB\-\-csv[=\fR\fB\fIfile_name\fR\fR\fB]\fR
 .sp
 Generate output in comma\-separated values format\&. The output goes to the named file, or to the standard output if no file is given\&.
@@ -416,14 +416,14 @@ Generate output in comma\-separated values format\&. The output goes to the name
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: debug option
-.\" debug option: mysqlslap
+.\" mariadb-slap: debug option
+.\" debug option: mariadb-slap
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqlslap.trace'.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mariadb-slap.trace'.
 .RE
 .sp
 .RS 4
@@ -434,8 +434,8 @@ string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqlslap.trace'.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: debug-check option
-.\" debug-check option: mysqlslap
+.\" mariadb-slap: debug-check option
+.\" debug-check option: mariadb-slap
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -449,8 +449,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: debug-info option
-.\" debug-info option: mysqlslap
+.\" mariadb-slap: debug-info option
+.\" debug-info option: mariadb-slap
 \fB\-\-debug\-info\fR,
 \fB\-T\fR
 .sp
@@ -465,8 +465,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: default-auth option
-.\" default-auth option: mysqlslap
+.\" mariadb-slap: default-auth option
+.\" default-auth option: mariadb-slap
 \fB\-\-default\-auth=\fR\fB\fIname\fR
 .sp
 Default authentication client-side plugin to use\&.
@@ -480,8 +480,8 @@ Default authentication client-side plugin to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: defaults-extra-file option
-.\" defaults-extra-file option: mysqlslap
+.\" mariadb-slap: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-slap
 \fB\-\-defaults\-extra\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been
@@ -496,8 +496,8 @@ read\&.  Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: defaults-file option
-.\" defaults-file option: mysqlslap
+.\" mariadb-slap: defaults-file option
+.\" defaults-file option: mariadb-slap
 \fB\-\-defaults\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&.
@@ -512,8 +512,8 @@ Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: delimiter option
-.\" delimiter option: mysqlslap
+.\" mariadb-slap: delimiter option
+.\" delimiter option: mariadb-slap
 \fB\-\-delimiter=\fR\fB\fIstr\fR\fR,
 \fB\-F \fR\fB\fIstr\fR\fR
 .sp
@@ -528,8 +528,8 @@ The delimiter to use in SQL statements supplied in files or via command options\
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: detach option
-.\" detach option: mysqlslap
+.\" mariadb-slap: detach option
+.\" detach option: mariadb-slap
 \fB\-\-detach=\fR\fB\fIN\fR\fR
 .sp
 Detach (close and reopen) each connection after each
@@ -545,8 +545,8 @@ statements\&. The default is 0 (connections are not detached)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: engine option
-.\" engine option: mysqlslap
+.\" mariadb-slap: engine option
+.\" engine option: mariadb-slap
 \fB\-\-engine=\fR\fB\fIengine_name\fR\fR,
 \fB\-e \fR\fB\fIengine_name\fR\fR
 .sp
@@ -563,8 +563,8 @@ each engine\&. You can also specify an option for an engine after a colon, for e
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: host option
-.\" host option: mysqlslap
+.\" mariadb-slap: host option
+.\" host option: mariadb-slap
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -579,8 +579,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: init-command option
-.\" init-command option: mysqlslap
+.\" mariadb-slap: init-command option
+.\" init-command option: mariadb-slap
 \fB\-\-init\-command=str\fR
 .sp
 SQL Command to execute when connecting to MariaDB server\&. Will automatically be re\-executed when reconnecting\&.
@@ -594,8 +594,8 @@ SQL Command to execute when connecting to MariaDB server\&. Will automatically b
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: iterations option
-.\" iterations option: mysqlslap
+.\" mariadb-slap: iterations option
+.\" iterations option: mariadb-slap
 \fB\-\-iterations=\fR\fB\fIN\fR\fR,
 \fB\-i \fR\fB\fIN\fR\fR
 .sp
@@ -610,8 +610,8 @@ The number of times to run the tests\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: no-defaults option
-.\" no-defaults option: mysqlslap
+.\" mariadb-slap: no-defaults option
+.\" no-defaults option: mariadb-slap
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option file\&. This must be given as the
@@ -626,8 +626,8 @@ first argument\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: no-drop option
-.\" no-drop option: mysqlslap
+.\" mariadb-slap: no-drop option
+.\" no-drop option: mariadb-slap
 \fB\-\-no\-drop\fR
 .sp
 Do not drop any schema created during the test after the test is complete\&.
@@ -641,8 +641,8 @@ Do not drop any schema created during the test after the test is complete\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: number-char-cols option
-.\" number-char-cols option: mysqlslap
+.\" mariadb-slap: number-char-cols option
+.\" number-char-cols option: mariadb-slap
 \fB\-\-number\-char\-cols=\fR\fB\fIN\fR\fR,
 \fB\-x \fR\fB\fIN\fR\fR
 .sp
@@ -661,8 +661,8 @@ is specified\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: number-int-cols option
-.\" number-int-cols option: mysqlslap
+.\" mariadb-slap: number-int-cols option
+.\" number-int-cols option: mariadb-slap
 \fB\-\-number\-int\-cols=\fR\fB\fIN\fR\fR,
 \fB\-y \fR\fB\fIN\fR\fR
 .sp
@@ -681,12 +681,12 @@ is specified\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: number-of-queries option
-.\" number-of-queries option: mysqlslap
+.\" mariadb-slap: number-of-queries option
+.\" number-of-queries option: mariadb-slap
 \fB\-\-number\-of\-queries=\fR\fB\fIN\fR\fR
 .sp
 Limit each client to approximately this many queries\&. Query counting takes into account the statement delimiter\&. For example, if you invoke
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 as follows, the
 ;
 delimiter is recognized so that each instance of the query string counts as two queries\&. As a result, 5 rows (not 10) are inserted\&.
@@ -695,7 +695,7 @@ delimiter is recognized so that each instance of the query string counts as two 
 .RS 4
 .\}
 .nf
-shell> \fBmysqlslap \-\-delimiter=";" \-\-number\-of\-queries=10\fR
+shell> \fBmariadb-slap \-\-delimiter=";" \-\-number\-of\-queries=10\fR
          \fB\-\-query="use test;insert into t values(null)"\fR
 .fi
 .if n \{\
@@ -711,12 +711,12 @@ shell> \fBmysqlslap \-\-delimiter=";" \-\-number\-of\-queries=10\fR
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: only-print option
-.\" only-print option: mysqlslap
+.\" mariadb-slap: only-print option
+.\" only-print option: mariadb-slap
 \fB\-\-only\-print\fR
 .sp
 Do not connect to databases\&.
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 only prints what it would have done\&.
 .RE
 .sp
@@ -728,8 +728,8 @@ only prints what it would have done\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: password option
-.\" password option: mysqlslap
+.\" mariadb-slap: password option
+.\" password option: mariadb-slap
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -742,7 +742,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqlslap\fR
+\fBmariadb-slap\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
@@ -756,8 +756,8 @@ Specifying a password on the command line should be considered insecure\&. You c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: pipe option
-.\" pipe option: mysqlslap
+.\" mariadb-slap: pipe option
+.\" pipe option: mariadb-slap
 \fB\-\-pipe\fR,
 \fB\-W\fR
 .sp
@@ -772,8 +772,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: plugin-dir option
-.\" plugin-dir option: mysqlslap
+.\" mariadb-slap: plugin-dir option
+.\" plugin-dir option: mariadb-slap
 \fB\-\-plugin\-dir=\fIdir_name\fR
 .sp
 Directory for client-side plugins\&.
@@ -787,8 +787,8 @@ Directory for client-side plugins\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: port option
-.\" port option: mysqlslap
+.\" mariadb-slap: port option
+.\" port option: mariadb-slap
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -804,8 +804,8 @@ Forces --protocol=tcp when specified on the command line without other connectio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: post-query option
-.\" post-query option: mysqlslap
+.\" mariadb-slap: post-query option
+.\" post-query option: mariadb-slap
 \fB\-\-post\-query=\fR\fB\fIvalue\fR\fR
 .sp
 The file or string containing the statement to execute after the tests have completed\&. This execution is not counted for timing purposes\&.
@@ -819,8 +819,8 @@ The file or string containing the statement to execute after the tests have comp
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: post-system option
-.\" post-system option: mysqlslap
+.\" mariadb-slap: post-system option
+.\" post-system option: mariadb-slap
 \fB\-\-post\-system=\fR\fB\fIstr\fR\fR
 .sp
 The string to execute via
@@ -836,8 +836,8 @@ after the tests have completed\&. This execution is not counted for timing purpo
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: pre-query option
-.\" pre-query option: mysqlslap
+.\" mariadb-slap: pre-query option
+.\" pre-query option: mariadb-slap
 \fB\-\-pre\-query=\fR\fB\fIvalue\fR\fR
 .sp
 The file or string containing the statement to execute before running the tests\&. This execution is not counted for timing purposes\&.
@@ -851,8 +851,8 @@ The file or string containing the statement to execute before running the tests\
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: pre-system option
-.\" pre-system option: mysqlslap
+.\" mariadb-slap: pre-system option
+.\" pre-system option: mariadb-slap
 \fB\-\-pre\-system=\fR\fB\fIstr\fR\fR
 .sp
 The string to execute via
@@ -868,8 +868,8 @@ before running the tests\&. This execution is not counted for timing purposes\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: print-defaults option
-.\" print-defaults option: mysqlslap
+.\" mariadb-slap: print-defaults option
+.\" print-defaults option: mariadb-slap
 \fB\-\-print\-defaults\fR
 .sp
 Print the program argument list and exit\&.
@@ -884,8 +884,8 @@ This must be given as the first argument\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: protocol option
-.\" protocol option: mysqlslap
+.\" mariadb-slap: protocol option
+.\" protocol option: mariadb-slap
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -899,8 +899,8 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: query option
-.\" query option: mysqlslap
+.\" mariadb-slap: query option
+.\" query option: mariadb-slap
 \fB\-\-query=\fR\fB\fIvalue\fR\fR,
 \fB\-q \fR\fB\fIvalue\fR\fR
 .sp
@@ -917,8 +917,8 @@ statement to use for retrieving data\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: shared-memory-base-name option
-.\" shared-memory-base-name option: mysqlslap
+.\" mariadb-slap: shared-memory-base-name option
+.\" shared-memory-base-name option: mariadb-slap
 \fB\-\-shared\-memory\-base\-name=\fR\fB\fIname\fR\fR
 .sp
 On Windows, the shared\-memory name to use, for connections made via shared memory to a local server\&. This option applies only if the server supports shared\-memory connections\&.
@@ -932,8 +932,8 @@ On Windows, the shared\-memory name to use, for connections made via shared memo
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: silent option
-.\" silent option: mysqlslap
+.\" mariadb-slap: silent option
+.\" silent option: mariadb-slap
 \fB\-\-silent\fR,
 \fB\-s\fR
 .sp
@@ -948,8 +948,8 @@ Silent mode\&. No output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: socket option
-.\" socket option: mysqlslap
+.\" mariadb-slap: socket option
+.\" socket option: mariadb-slap
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -966,8 +966,8 @@ Forces --protocol=socket when specified on the command line without other connec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL options
-.\" SSL options: mysqlshow
+.\" mariadb-slap: SSL options
+.\" SSL options: mariadb-slap
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with
@@ -982,8 +982,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL CA option
-.\" SSL CA option: mysqlshow
+.\" mariadb-slap: SSL CA option
+.\" SSL CA option: mariadb-slap
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -998,8 +998,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL CA Path option
-.\" SSL CA Path option: mysqlshow
+.\" mariadb-slap: SSL CA Path option
+.\" SSL CA Path option: mariadb-slap
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -1014,8 +1014,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL Cert option
-.\" SSL Cert option: mysqlshow
+.\" mariadb-slap: SSL Cert option
+.\" SSL Cert option: mariadb-slap
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -1030,8 +1030,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL Cipher option
-.\" SSL Cipher option: mysqlshow
+.\" mariadb-slap: SSL Cipher option
+.\" SSL Cipher option: mariadb-slap
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -1046,8 +1046,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL Key option
-.\" SSL Key option: mysqlshow
+.\" mariadb-slap: SSL Key option
+.\" SSL Key option: mariadb-slap
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -1062,8 +1062,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL Crl option
-.\" SSL CRL option: mysqlshow
+.\" mariadb-slap: SSL Crl option
+.\" SSL CRL option: mariadb-slap
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -1078,8 +1078,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL Crlpath option
-.\" SSL Crlpath option: mysqlshow
+.\" mariadb-slap: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-slap
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -1094,8 +1094,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlshow: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysqlshow
+.\" mariadb-slap: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-slap
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -1109,8 +1109,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: user option
-.\" user option: mysqlslap
+.\" mariadb-slap: user option
+.\" user option: mariadb-slap
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -1125,8 +1125,8 @@ The MariaDB user name to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: verbose option
-.\" verbose option: mysqlslap
+.\" mariadb-slap: verbose option
+.\" verbose option: mariadb-slap
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -1141,8 +1141,8 @@ Verbose mode\&. Print more information about what the program does\&. This optio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlslap: version option
-.\" version option: mysqlslap
+.\" mariadb-slap: version option
+.\" version option: mariadb-slap
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -1151,7 +1151,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

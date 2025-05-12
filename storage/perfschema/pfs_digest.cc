@@ -76,7 +76,7 @@ int init_digest(const PFS_global_param *param)
   */
   digest_max= param->m_digest_sizing;
   digest_lost= 0;
-  PFS_atomic::store_u32(& digest_monotonic_index.m_u32, 1);
+  digest_monotonic_index.m_u32.store(1);
   digest_full= false;
 
   if (digest_max == 0)
@@ -146,19 +146,19 @@ void cleanup_digest(void)
 }
 
 C_MODE_START
-static uchar *digest_hash_get_key(const uchar *entry, size_t *length,
-                                  my_bool)
+static const uchar *digest_hash_get_key(const void *entry, size_t *length,
+                                        my_bool)
 {
   const PFS_statements_digest_stat * const *typed_entry;
   const PFS_statements_digest_stat *digest;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_statements_digest_stat*const*>(entry);
+  typed_entry= static_cast<const PFS_statements_digest_stat*const*>(entry);
   assert(typed_entry != NULL);
   digest= *typed_entry;
   assert(digest != NULL);
   *length= sizeof (PFS_digest_key);
   result= & digest->m_digest_key;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 
@@ -275,7 +275,7 @@ search:
 
   while (++attempts <= digest_max)
   {
-    safe_index= PFS_atomic::add_u32(& digest_monotonic_index.m_u32, 1) % digest_max;
+    safe_index= digest_monotonic_index.m_u32.fetch_add(1) % digest_max;
     if (safe_index == 0)
     {
       /* Record [0] is reserved. */
@@ -407,7 +407,7 @@ void reset_esms_by_digest()
     Reset index which indicates where the next calculated digest information
     to be inserted in statements_digest_stat_array.
   */
-  PFS_atomic::store_u32(& digest_monotonic_index.m_u32, 1);
+  digest_monotonic_index.m_u32.store(1);
   digest_full= false;
 }
 

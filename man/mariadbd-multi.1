@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADBD-MULTI\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADBD-MULTI\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,25 +11,25 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqld_multi
-.\" tools: mysqld_multi
+.\" mariadbd-multi
+.\" tools: mariadbd-multi
 .\" scripts
-.\" multi mysqld
+.\" multi mariadbd
 .SH "NAME"
-mariadbd-multi \- manage multiple MariaDB servers (mysqld_multi is now a symlink to mariadbd-multi)
+mariadbd-multi \- manage multiple MariaDB servers (mariadbd-multi is now a symlink to mariadbd-multi)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqld_multi\ [\fR\fB\fIoptions\fR\fR\fB]\ {start|stop|report}\ [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB]\ \&.\&.\&.]\fR\ 'u
-\fBmysqld_multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
+.HP \w'\fBmariadbd-multi\ [\fR\fB\fIoptions\fR\fR\fB]\ {start|stop|report}\ [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB]\ \&.\&.\&.]\fR\ 'u
+\fBmariadbd-multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 is designed to manage several
-\fBmysqld\fR
+\fBmariadbd\fR
 processes that listen for connections on different Unix socket files and TCP/IP ports\&. It can start or stop servers, or report their current status\&.
 .PP
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 searches for groups named
-[mysqld\fIN\fR]
+[mariadbd\fIN\fR]
 in
 my\&.cnf
 (or in the file named by the
@@ -38,20 +38,20 @@ option)\&.
 \fIN\fR
 can be any positive integer\&. This number is referred to in the following discussion as the option group number, or
 \fIGNR\fR\&. Group numbers distinguish option groups from one another and are used as arguments to
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 to specify which servers you want to start, stop, or obtain a status report for\&. Options listed in these groups are the same that you would use in the
-[mysqld]
+[mariadbd]
 group used for starting
-\fBmysqld\fR\&. However, when using multiple servers, it is necessary that each one use its own value for options such as the Unix socket file and TCP/IP port number\&.
+\fBmariadbd\fR\&. However, when using multiple servers, it is necessary that each one use its own value for options such as the Unix socket file and TCP/IP port number\&.
 .PP
 To invoke
-\fBmysqld_multi\fR, use the following syntax:
+\fBmariadbd-multi\fR, use the following syntax:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqld_multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
+shell> \fBmariadbd-multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
 .fi
 .if n \{\
 .RE
@@ -63,7 +63,7 @@ report
 indicate which operation to perform\&. You can perform the designated operation for a single server or multiple servers, depending on the
 \fIGNR\fR
 list that follows the option name\&. If there is no list,
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 performs the operation for all servers in the option file\&.
 .PP
 Each
@@ -71,44 +71,44 @@ Each
 value represents an option group number or range of group numbers\&. The value should be the number at the end of the group name in the option file\&. For example, the
 \fIGNR\fR
 for a group named
-[mysqld17]
+[mariadbd17]
 is
 17\&. To specify a range of numbers, separate the first and last numbers by a dash\&. The
 \fIGNR\fR
 value
 10\-13
 represents groups
-[mysqld10]
+[mariadbd10]
 through
-[mysqld13]\&. Multiple groups or group ranges can be specified on the command line, separated by commas\&. There must be no whitespace characters (spaces or tabs) in the
+[mariadbd13]\&. Multiple groups or group ranges can be specified on the command line, separated by commas\&. There must be no whitespace characters (spaces or tabs) in the
 \fIGNR\fR
 list; anything after a whitespace character is ignored\&.
 .PP
 This command starts a single server using option group
-[mysqld17]:
+[mariadbd17]:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqld_multi start 17\fR
+shell> \fBmariadbd-multi start 17\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 This command stops several servers, using option groups
-[mysqld8]
+[mariadbd8]
 and
-[mysqld10]
+[mariadbd10]
 through
-[mysqld13]:
+[mariadbd13]:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqld_multi stop 8,10\-13\fR
+shell> \fBmariadbd-multi stop 8,10\-13\fR
 .fi
 .if n \{\
 .RE
@@ -120,13 +120,13 @@ For an example of how you might set up an option file, use this command:
 .RS 4
 .\}
 .nf
-shell> \fBmysqld_multi \-\-example\fR
+shell> \fBmariadbd-multi \-\-example\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 searches for option files as follows:
 .sp
 .RS 4
@@ -137,8 +137,8 @@ searches for option files as follows:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: no-defaults option
-.\" no-defaults option: mysqld_multi
+.\" mariadbd-multi: no-defaults option
+.\" no-defaults option: mariadbd-multi
 With
 \fB\-\-no\-defaults\fR, no option files are read\&.
 .RE
@@ -151,8 +151,8 @@ With
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: defaults-file option
-.\" defaults-file option: mysqld_multi
+.\" mariadbd-multi: defaults-file option
+.\" defaults-file option: mariadbd-multi
 With
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR, only the named file is read\&.
 .RE
@@ -165,43 +165,43 @@ With
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: defaults-extra-file option
-.\" defaults-extra-file option: mysqld_multi
+.\" mariadbd-multi: defaults-extra-file option
+.\" defaults-extra-file option: mariadbd-multi
 Otherwise, option files in the standard list of locations are read, including any file named by the
 \fB\-\-defaults\-extra\-file=\fR\fB\fIfile_name\fR\fR
 option, if one is given\&. (If the option is given multiple times, the last value is used\&.)
 .RE
 .PP
 Option files read are searched for
-[mysqld_multi]
+[mariadbd-multi]
 and
-[mysqld\fIN\fR]
+[mariadbd\fIN\fR]
 option groups\&. The
-[mysqld_multi]
+[mariadbd-multi]
 group can be used for options to
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 itself\&.
-[mysqld\fIN\fR]
+[mariadbd\fIN\fR]
 groups can be used for options passed to specific
-\fBmysqld\fR
+\fBmariadbd\fR
 instances\&.
 .PP
 The
-[mysqld]
+[mariadbd]
 or
-[mysqld_safe]
+[mariadbd_safe]
 groups can be used for common options read by all instances of
-\fBmysqld\fR
+\fBmariadbd\fR
 or
-\fBmysqld_safe\fR\&. You can specify a
+\fBmariadbd_safe\fR\&. You can specify a
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR
 option to use a different configuration file for that instance, in which case the
-[mysqld]
+[mariadbd]
 or
-[mysqld_safe]
+[mariadbd_safe]
 groups from that file will be used for that instance\&.
 .PP
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 supports the following options\&.
 .sp
 .RS 4
@@ -212,8 +212,8 @@ supports the following options\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: help option
-.\" help option: mysqld_multi
+.\" mariadbd-multi: help option
+.\" help option: mariadbd-multi
 \fB\-\-help\fR
 .sp
 Display a help message and exit\&.
@@ -227,8 +227,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: example option
-.\" example option: mysqld_multi
+.\" mariadbd-multi: example option
+.\" example option: mariadbd-multi
 \fB\-\-example\fR
 .sp
 Display a sample option file\&.
@@ -242,8 +242,8 @@ Display a sample option file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: log option
-.\" log option: mysqld_multi
+.\" mariadbd-multi: log option
+.\" log option: mariadbd-multi
 \fB\-\-log=\fR\fB\fIfile_name\fR\fR
 .sp
 Specify the name of the log file\&. If the file exists, log output is appended to it\&.
@@ -257,12 +257,12 @@ Specify the name of the log file\&. If the file exists, log output is appended t
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: mysqladmin option
-.\" mysqladmin option: mysqld_multi
-\fB\-\-mysqladmin=\fR\fB\fIprog_name\fR\fR
+.\" mariadbd-multi: mariadb-admin option
+.\" mariadb-admin option: mariadbd-multi
+\fB\-\-mariadb-admin=\fR\fB\fIprog_name\fR\fR
 .sp
 The
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 binary to be used to stop servers\&.
 .RE
 .sp
@@ -274,33 +274,33 @@ binary to be used to stop servers\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: mysqld option
-.\" mysqld option: mysqld_multi
-\fB\-\-mysqld=\fR\fB\fIprog_name\fR\fR
+.\" mariadbd-multi: mariadbd option
+.\" mariadbd option: mariadbd-multi
+\fB\-\-mariadbd=\fR\fB\fIprog_name\fR\fR
 .sp
 The
-\fBmysqld\fR
+\fBmariadbd\fR
 binary to be used\&. Note that you can specify
-\fBmysqld_safe\fR
+\fBmariadbd_safe\fR
 as the value for this option also\&. If you use
-\fBmysqld_safe\fR
+\fBmariadbd_safe\fR
 to start the server, you can include the
-mysqld
+mariadbd
 or
 ledir
 options in the corresponding
-[mysqld\fIN\fR]
+[mariadbd\fIN\fR]
 option group\&. These options indicate the name of the server that
-\fBmysqld_safe\fR
+\fBmariadbd_safe\fR
 should start and the path name of the directory where the server is located\&. (See the descriptions for these options in
-\fBmysqld_safe\fR(1)\&.) Example:
+\fBmariadbd_safe\fR(1)\&.) Example:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-[mysqld38]
-mysqld = mysqld\-debug
+[mariadbd38]
+mariadbd = mariadbd\-debug
 ledir  = /opt/local/mysql/libexec
 .fi
 .if n \{\
@@ -316,8 +316,8 @@ ledir  = /opt/local/mysql/libexec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: no-log option
-.\" no-log option: mysqld_multi
+.\" mariadbd-multi: no-log option
+.\" no-log option: mariadbd-multi
 \fB\-\-no\-log\fR
 .sp
 Print log information to
@@ -333,12 +333,12 @@ rather than to the log file\&. By default, output goes to the log file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: password option
-.\" password option: mysqld_multi
+.\" mariadbd-multi: password option
+.\" password option: mariadbd-multi
 \fB\-\-password=\fR\fB\fIpassword\fR\fR
 .sp
 The password of the MariaDB account to use when invoking
-\fBmysqladmin\fR\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
+\fBmariadb-admin\fR\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
 .RE
 .sp
 .RS 4
@@ -349,8 +349,8 @@ The password of the MariaDB account to use when invoking
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: silent option
-.\" silent option: mysqld_multi
+.\" mariadbd-multi: silent option
+.\" silent option: mariadbd-multi
 \fB\-\-silent\fR
 .sp
 Silent mode; disable warnings\&.
@@ -364,8 +364,8 @@ Silent mode; disable warnings\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: tcp-ip option
-.\" tcp-ip option: mysqld_multi
+.\" mariadbd-multi: tcp-ip option
+.\" tcp-ip option: mariadbd-multi
 \fB\-\-tcp\-ip\fR
 .sp
 Connect to the MariaDB server(s) via the TCP/IP port instead of the UNIX socket\&. This affects stopping
@@ -382,12 +382,12 @@ stop and report operations\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: user option
-.\" user option: mysqld_multi
+.\" mariadbd-multi: user option
+.\" user option: mariadbd-multi
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
 The user name of the MariaDB account to use when invoking
-\fBmysqladmin\fR\&.
+\fBmariadb-admin\fR\&.
 .RE
 .sp
 .RS 4
@@ -398,8 +398,8 @@ The user name of the MariaDB account to use when invoking
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: verbose option
-.\" verbose option: mysqld_multi
+.\" mariadbd-multi: verbose option
+.\" verbose option: mariadbd-multi
 \fB\-\-verbose\fR
 .sp
 Be more verbose\&.
@@ -413,8 +413,8 @@ Be more verbose\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: version option
-.\" version option: mysqld_multi
+.\" mariadbd-multi: version option
+.\" version option: mariadbd-multi
 \fB\-\-version\fR
 .sp
 Display version information and exit\&.
@@ -428,15 +428,15 @@ Display version information and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqld_multi: wsrep-new-cluster option
-.\" wsrep-new-cluster option: mysqld_multi
+.\" mariadbd-multi: wsrep-new-cluster option
+.\" wsrep-new-cluster option: mariadbd-multi
 \fB\-\-wsrep\-new\-cluster\fR
 .sp
 Bootstrap a cluster\&.
 .RE
 .PP
 Some notes about
-\fBmysqld_multi\fR:
+\fBmariadbd-multi\fR:
 .sp
 .RS 4
 .ie n \{\
@@ -447,15 +447,15 @@ Some notes about
 .IP \(bu 2.3
 .\}
 \fBMost important\fR: Before using
-\fBmysqld_multi\fR
+\fBmariadbd-multi\fR
 be sure that you understand the meanings of the options that are passed to the
-\fBmysqld\fR
+\fBmariadbd\fR
 servers and
 \fIwhy\fR
 you would want to have separate
-\fBmysqld\fR
+\fBmariadbd\fR
 processes\&. Beware of the dangers of using multiple
-\fBmysqld\fR
+\fBmariadbd\fR
 servers with the same data directory\&. Use separate data directories, unless you
 \fIknow\fR
 what you are doing\&. Starting multiple servers with the same data directory does
@@ -474,7 +474,7 @@ give you extra performance in a threaded system\&.
 .IP \(bu 2.3
 .\}
 \fBImportant\fR: Make sure that the data directory for each server is fully accessible to the Unix account that the specific
-\fBmysqld\fR
+\fBmariadbd\fR
 process is started as\&.
 \fIDo not\fR
 use the Unix
@@ -495,9 +495,9 @@ what you are doing\&.
 .IP \(bu 2.3
 .\}
 Make sure that the MariaDB account used for stopping the
-\fBmysqld\fR
+\fBmariadbd\fR
 servers (with the
-\fBmysqladmin\fR
+\fBmariadbadmin\fR
 program) has the same user name and password for each server\&. Also, make sure that the account has the
 SHUTDOWN
 privilege\&. If the servers that you want to manage have different user names or passwords for the administrative accounts, you might want to create an account on each server that has the same user name and password\&. For example, you might set up a common
@@ -508,9 +508,9 @@ account by executing the following commands for each server:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-u root \-S /tmp/mysql\&.sock \-p\fR
+shell> \fBmariadb \-u root \-S /tmp/mariadb\&.sock \-p\fR
 Enter password:
-mysql> \fBGRANT SHUTDOWN ON *\&.*\fR
+mariadb> \fBGRANT SHUTDOWN ON *\&.*\fR
     \-> \fBTO 'multi_admin'@'localhost' IDENTIFIED BY 'multipass';\fR
 .fi
 .if n \{\
@@ -520,7 +520,7 @@ mysql> \fBGRANT SHUTDOWN ON *\&.*\fR
 Change the connection parameters appropriately when connecting to each one\&. Note that the host name part of the account name must allow you to connect as
 multi_admin
 from the host where you want to run
-\fBmysqld_multi\fR\&.
+\fBmariadbd-multi\fR\&.
 .RE
 .sp
 .RS 4
@@ -532,7 +532,7 @@ from the host where you want to run
 .IP \(bu 2.3
 .\}
 The Unix socket file and the TCP/IP port number must be different for every
-\fBmysqld\fR\&. (Alternatively, if the host has multiple network addresses, you can use
+\fBmariadbd\fR\&. (Alternatively, if the host has multiple network addresses, you can use
 \fB\-\-bind\-address\fR
 to cause different servers to listen to different interfaces\&.)
 .RE
@@ -548,27 +548,27 @@ to cause different servers to listen to different interfaces\&.)
 The
 \fB\-\-pid\-file\fR
 option is very important if you are using
-\fBmysqld_safe\fR
+\fBmariadbd-safe\fR
 to start
-\fBmysqld\fR
+\fBmariadbd\fR
 (for example,
-\fB\-\-mysqld=mysqld_safe\fR) Every
-\fBmysqld\fR
+\fB\-\-mariadbd=mariadbd-safe\fR) Every
+\fBmariadbd\fR
 should have its own process ID file\&. The advantage of using
-\fBmysqld_safe\fR
+\fBmariadbd-safe\fR
 instead of
-\fBmysqld\fR
+\fBmariadbd\fR
 is that
-\fBmysqld_safe\fR
+\fBmariadbd-safe\fR
 monitors its
-\fBmysqld\fR
+\fBmariadbd\fR
 process and restarts it if the process terminates due to a signal sent using
 kill \-9
 or for other reasons, such as a segmentation fault\&. Please note that the
-\fBmysqld_safe\fR
+\fBmariadbd-safe\fR
 script might require that you start it from a certain place\&. This means that you might have to change location to a certain directory before running
-\fBmysqld_multi\fR\&. If you have problems starting, please see the
-\fBmysqld_safe\fR
+\fBmariadbd-multi\fR\&. If you have problems starting, please see the
+\fBmariadbd-safe\fR
 script\&. Check especially the lines:
 .sp
 .if n \{\
@@ -578,7 +578,7 @@ script\&. Check especially the lines:
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 MY_PWD=`pwd`
 # Check if we are starting this relative (for the binary release)
-if test \-d $MY_PWD/data/mysql \-a \e
+if test \-d $MY_PWD/data/mariadb \-a \e
    \-f \&./share/mariadb/english/errmsg\&.sys \-a \e
    \-x \&./bin/mariadbd
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
@@ -588,7 +588,7 @@ if test \-d $MY_PWD/data/mysql \-a \e
 .\}
 .sp
 The test performed by these lines should be successful, or you might encounter problems\&. See
-\fBmysqld_safe\fR(1)\&.
+\fBmariadbd-safe\fR(1)\&.
 .RE
 .sp
 .RS 4
@@ -602,20 +602,20 @@ The test performed by these lines should be successful, or you might encounter p
 You might want to use the
 \fB\-\-user\fR
 option for
-\fBmysqld\fR, but to do this you need to run the
-\fBmysqld_multi\fR
+\fBmariadbd\fR, but to do this you need to run the
+\fBmariadbd-multi\fR
 script as the Unix
 root
 user\&. Having the option in the option file doesn't matter; you just get a warning if you are not the superuser and the
-\fBmysqld\fR
+\fBmariadbd\fR
 processes are started under your own Unix account\&.
 .RE
 .PP
 The following example shows how you might set up an option file for use with
-\fBmysqld_multi\fR\&. The order in which the
-\fBmysqld\fR
+\fBmariadbd-multi\fR\&. The order in which the
+\fBmariadbd\fR
 programs are started or stopped depends on the order in which they appear in the option file\&. Group numbers need not form an unbroken sequence\&. The first and fifth
-[mysqld\fIN\fR]
+[mariadbd\fIN\fR]
 groups were intentionally omitted from the example to illustrate that you can have
 \(lqgaps\(rq
 in the option file\&. This gives you more flexibility\&.
@@ -627,33 +627,33 @@ in the option file\&. This gives you more flexibility\&.
 # This file should probably be in your home dir (~/\&.my\&.cnf)
 # or /etc/my\&.cnf
 # Version 2\&.1 by Jani Tolonen
-[mysqld_multi]
-mysqld     = /usr/local/bin/mysqld_safe
-mysqladmin = /usr/local/bin/mysqladmin
+[mariadbd-multi]
+mariadbd     = /usr/local/bin/mariadbd-safe
+mariadb-admin = /usr/local/bin/mariadb-admin
 user       = multi_admin
 password   = multipass
-[mysqld2]
-socket     = /tmp/mysql\&.sock2
+[mariadbd2]
+socket     = /tmp/mariadb\&.sock2
 port       = 3307
 pid\-file   = /usr/local/mysql/var2/hostname\&.pid2
 datadir    = /usr/local/mysql/var2
 language   = /usr/local/share/mariadb/english
 user       = john
-[mysqld3]
+[mariadbd3]
 socket     = /tmp/mysql\&.sock3
 port       = 3308
 pid\-file   = /usr/local/mysql/var3/hostname\&.pid3
 datadir    = /usr/local/mysql/var3
 language   = /usr/local/share/mariadb/swedish
 user       = monty
-[mysqld4]
+[mariadbd4]
 socket     = /tmp/mysql\&.sock4
 port       = 3309
 pid\-file   = /usr/local/mysql/var4/hostname\&.pid4
 datadir    = /usr/local/mysql/var4
 language   = /usr/local/share/mariadb/estonia
 user       = tonu
-[mysqld6]
+[mariadbd6]
 socket     = /tmp/mysql\&.sock6
 port       = 3311
 pid\-file   = /usr/local/mysql/var6/hostname\&.pid6
@@ -668,7 +668,7 @@ user       = jani
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

@@ -30,7 +30,10 @@ CREATE TABLE bugs (
   tags TEXT FLAGS='COLUMN_VECTOR'
 ) DEFAULT CHARSET=utf8;
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command("dump --dump_plugins no");
+--enable_cursor_protocol
 
 DROP TABLE bugs;
 

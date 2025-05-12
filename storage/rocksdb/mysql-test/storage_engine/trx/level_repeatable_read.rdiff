@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/level_repeatable_read.result	2017-06-22 00:33:46.423995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/level_repeatable_read.reject	2017-06-22 20:33:13.935543284 +0300
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/level_repeatable_read.result
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/level_repeatable_read.reject
 @@ -24,8 +24,7 @@
  SELECT a FROM t1;
  a

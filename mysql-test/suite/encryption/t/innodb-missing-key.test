@@ -11,7 +11,9 @@ call mtr.add_suppression("InnoDB: Table `test`\\.`t1` has an unreadable root pag
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("InnoDB: Recovery failed to read page");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file .*test.t[12].ibd looks corrupted; key_version=1");
-call mtr.add_suppression("Table .*t1.* is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd'");
+call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
+call mtr.add_suppression("Table `test`\\.`t1` is corrupted");
 
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt

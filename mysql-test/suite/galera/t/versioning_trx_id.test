@@ -1,6 +1,6 @@
 --source include/galera_cluster.inc
 
-call mtr.add_suppression("Sending JOIN failed:.*");
+call mtr.add_suppression("Sending JOIN failed: ");
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 

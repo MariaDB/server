@@ -69,7 +69,7 @@ table_name = 'test_ps_fetch' AND
 index_name = 'idx' AND
 stat_name = 'n_diff_pfx02';
 
-FLUSH TABLE test_ps_fetch;
+RENAME TABLE test_ps_fetch TO tmp, tmp TO test_ps_fetch;
 
 SELECT seq_in_index, column_name, cardinality
 FROM information_schema.statistics WHERE table_name = 'test_ps_fetch'
@@ -104,3 +104,15 @@ DROP TABLE t1;
 ALTER TABLE mysql.innodb_table_stats FORCE, LOCK=NONE, ALGORITHM=INPLACE;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE mysql.innodb_index_stats FORCE, LOCK=NONE, ALGORITHM=INPLACE;
+
+--echo #
+--echo #  MDEV-34474 InnoDB: Failing assertion: stat_n_leaf_pages > 0
+--echo #           in ha_innobase::estimate_rows_upper_bound
+--echo #
+
+CREATE TABLE t (c1 INT,c2 INT,
+		INDEX(c1))STATS_PERSISTENT=1 ENGINE=INNODB;
+UPDATE mysql.innodb_index_stats SET stat_value=0 WHERE database_name like "test" and table_name like 't';
+UPDATE mysql.innodb_table_stats SET clustered_index_size= 0, sum_of_other_index_sizes=0 WHERE database_name like "test" and table_name like 't';
+UPDATE t SET c1=+1 ORDER BY c2;
+DROP TABLE t;

@@ -1,0 +1,139 @@
+connection node_2;
+connection node_1;
+connect replica1, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect primary2, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect primary1, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connect replica2, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection primary1;
+# Primary1 node creating user for replication
+create user repl@'%' identified by 'repl';
+grant all on *.* to  repl@'%';
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection replica1;
+connection node_2;
+connection primary2;
+connection primary1;
+connection replica1;
+# Galera replica changing master to primary1
+START SLAVE;
+connection primary2;
+# Primary2 creating user for replication
+create user repl2@'%' identified by 'repl2';
+grant all on *.* to  repl2@'%';
+connection replica2;
+# replica2 changing master to primary2
+START SLAVE;
+connection primary1;
+# Primary1: Creating table and populating it with data
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection replica1;
+# Waiting for data to replicate to replica
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+# Writing more data to table
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+2000
+connection node_2;
+# Waiting for data to replicate to Galera node_2
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+EXPECT_2000
+2000
+# Writing more data to table
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_3000 FROM t1;
+EXPECT_3000
+3000
+connection primary2;
+# Waiting for data to replicate to primary2
+SELECT COUNT(*) AS EXPECT_3000 FROM t1;
+EXPECT_3000
+3000
+# Writing more data to table
+# Intentionally generate 1k GTID-events
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+EXPECT_4000
+4000
+connection primary1;
+# Waiting for data to replicate to primary1
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+EXPECT_4000
+4000
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-4-1004,16-15-3002	0-4-1004,16-15-3002	0-4-1004,16-15-3002
+connection replica1;
+# Waiting for data to replicate to replica
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+EXPECT_4000
+4000
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-4-1004,16-15-3002	0-4-1004,16-15-3002	0-4-1004,16-15-3002
+connection node_2;
+# Waiting for data to replicate to node_2
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+EXPECT_4000
+4000
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-4-1004	0-4-1004,16-15-3002	0-4-1004,16-15-3002
+connection primary2;
+# Waiting for data to replicate to node_3
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+EXPECT_4000
+4000
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+EXPECT_1
+1
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+@@gtid_slave_pos	@@gtid_binlog_pos	@@gtid_current_pos
+0-4-1004	0-4-1004,16-15-3002	0-4-1004,16-15-3002
+connection primary1;
+drop table t1;
+# Wait until drop table is replicated on Galera
+connection replica1;
+connection node_2;
+connection primary2;
+connection replica1;
+STOP SLAVE;
+RESET SLAVE ALL;
+connection replica2;
+STOP SLAVE;
+RESET SLAVE ALL;
+RESET MASTER;
+connection node_1;
+disconnect primary1;
+disconnect replica1;
+disconnect primary2;
+disconnect replica2;
+disconnect node_2;
+disconnect node_1;
+# End of test

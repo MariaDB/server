@@ -253,6 +253,7 @@ size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
 {
   const char *end= src + srclen;
   register const uchar *map= cs->to_upper;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   for ( ; src != end ; src++)
     *dst++= (char) map[(uchar) *src];
@@ -265,6 +266,7 @@ size_t my_casedn_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
 {
   const char *end= src + srclen;
   register const uchar *map=cs->to_lower;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   for ( ; src != end ; src++)
     *dst++= (char) map[(uchar) *src];
@@ -346,6 +348,7 @@ void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
   register const uchar *sort_order=cs->sort_order;
   const uchar *end= key + len;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < (uchar*) end ; key++)
   {
     MY_HASH_ADD(m1, m2, (uint) sort_order[(uint) *key]);
@@ -362,6 +365,7 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
   register const uchar *sort_order=cs->sort_order;
   const uchar *end;
   uint16 space_weight= sort_order[' '];
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
 
   /*
     Remove all trailing characters that are equal to space.
@@ -777,7 +781,10 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     return (~(ulonglong) 0);
   }
 
-  return (negative ? -((longlong) i) : (longlong) i);
+  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  return negative && (longlong) i != LONGLONG_MIN ?
+        -((longlong) i) :
+         (longlong) i;
 
 noconv:
   err[0]= EDOM;
@@ -2185,7 +2192,8 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_min_str_8bit_simple,
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -2206,5 +2214,6 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_min_str_8bit_simple_nopad,
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };

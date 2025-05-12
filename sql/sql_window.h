@@ -173,7 +173,7 @@ class Window_def : public Window_spec
     : Window_spec(win_ref, part_list, ord_list, win_frame),
       window_name(win_name) {}
  
-  const char *name() { return window_name->str; }
+  const char *name() override { return window_name->str; }
 
 };
 

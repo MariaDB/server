@@ -1,10 +1,6 @@
 # Test of key cache with partitions
 --source include/have_partition.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2, v, x;
---enable_warnings
-
 --echo # Actual test of key caches
 --echo # Verifing that reads/writes use the key cache correctly
 SET @org_key_cache_buffer_size= @@global.default.key_buffer_size;

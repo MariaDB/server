@@ -25,8 +25,7 @@ int fill_misc_data(THD *thd, TABLE_LIST *tables);
 int fill_linux_info(THD *thd, TABLE_LIST *tables);
 int fill_collation_statistics(THD *thd, TABLE_LIST *tables);
 
-static const int SERVER_UID_SIZE= 29;
-extern char server_uid_buf[SERVER_UID_SIZE+1], *user_info;
+extern char *user_info;
 int calculate_server_uid(char *);
 int prepare_linux_info();
 

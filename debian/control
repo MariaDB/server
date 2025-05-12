@@ -8,6 +8,7 @@ Build-Depends: bison,
                debhelper (>= 11),
                default-jdk,
                dh-exec,
+               dh-package-notes,
                flex [amd64],
                gdb <!nocheck>,
                libaio-dev [linux-any],
@@ -87,7 +88,6 @@ Description: MariaDB database development files
 
 Package: libmariadb-dev-compat
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Depends: libmariadb-dev (= ${binary:Version}),
          ${misc:Depends}
@@ -207,6 +207,7 @@ Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends}
 Breaks: libmariadbd-dev (<< ${source:Version})
+Conflicts: libmariadbd19t64
 Replaces: libmariadbd-dev (<< ${source:Version})
 Multi-Arch: same
 Description: MariaDB embedded database, shared library
@@ -237,7 +238,8 @@ Description: MariaDB embedded database, development files package
  language in the world. The main goals of MariaDB are speed, robustness and
  ease of use.
  .
- This package includes the MariaDB embedded server library development and header files.
+ This package includes the MariaDB embedded server library development
+ and header files.
 
 Package: mysql-common
 Architecture: all
@@ -989,7 +991,7 @@ Description: Amazon S3 archival storage engine for MariaDB
  them accessible in MariaDB in read-only mode.
 
 Package: mariadb-plugin-rocksdb
-Architecture: amd64 arm64 mips64el ppc64el
+Architecture: amd64 arm64 mips64el ppc64el riscv64
 Depends: mariadb-server (= ${server:Version}),
          python3:any,
          rocksdb-tools,
@@ -1099,7 +1101,6 @@ Description: GSSAPI authentication plugin for MariaDB server
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
-Multi-Arch: same
 Depends: libgssapi-krb5-2,
          mariadb-client (= ${binary:Version}),
          ${misc:Depends},
@@ -1126,9 +1127,11 @@ Depends: libcrack2 (>= 2.9.0),
          ${shlibs:Depends}
 Description: CrackLib Password Validation Plugin for MariaDB server
  This password validation plugin uses cracklib to allow only
- sufficiently secure (as defined by cracklib) user passwords in MariaDB server.
+ sufficiently secure (as defined by cracklib) user passwords in
+ MariaDB server.
  .
- Install and configure this to enforce stronger passwords for MariaDB server users.
+ Install and configure this to enforce stronger passwords for
+ MariaDB server users.
 
 Package: mariadb-plugin-hashicorp-key-management
 Architecture: any
@@ -1223,8 +1226,7 @@ Depends: libnet-ssleay-perl,
 Conflicts: mariadb-server-5.5,
            mysql-server-5.7,
            mysql-server-core-8.0
-Breaks: mariadb-server-5.5,
-        mariadb-test-10.0,
+Breaks: mariadb-test-10.0,
         mariadb-test-10.1,
         mariadb-test-10.2,
         mariadb-test-10.3,

@@ -38,9 +38,9 @@ public:
 
   ~Sql_cmd_analyze_table() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_ANALYZE;
   }
@@ -61,9 +61,9 @@ public:
 
   ~Sql_cmd_check_table() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_CHECK;
   }
@@ -83,9 +83,9 @@ public:
 
   ~Sql_cmd_optimize_table() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_OPTIMIZE;
   }
@@ -106,9 +106,9 @@ public:
 
   ~Sql_cmd_repair_table() = default;
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_REPAIR;
   }

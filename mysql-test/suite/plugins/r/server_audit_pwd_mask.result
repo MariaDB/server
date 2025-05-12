@@ -1,0 +1,42 @@
+#
+# MDEV-35507 and MDEV-35522
+#
+install plugin ed25519 soname 'auth_ed25519';
+install plugin server_audit soname 'server_audit';
+set global server_audit_file_path='server_audit.log';
+set global server_audit_output_type=file;
+set global server_audit_logging=on;
+# unsafe to log passwords (pwd-123)
+CREATE USER u1 IDENTIFIED BY 'pwd_123';
+create user u2 IDENTIFIED VIA ed25519 USING PASSWORD('pwd_123');
+CREATE OR REPLACE USER u1 IDENTIFIED BY 'pwd_123';
+SET PASSWORD FOR u1 = PASSWORD('pwd_123');
+ALTER USER u1 IDENTIFIED BY 'pwd_123';
+ALTER USER if exists u1 IDENTIFIED BY 'pwd_123';
+SET STATEMENT max_statement_time=10 FOR ALTER USER u1 IDENTIFIED BY 'pwd_123';
+alter user u2 identified VIA ed25519 USING password('pwd_123');
+GRANT ALL ON test TO u1 IDENTIFIED BY "pwd_123";
+GRANT ALL ON test TO u1 identified VIA ed25519 as password('pwd_123') or ed25519 using password('pwd_123');
+CREATE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd_123");
+CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd_123");
+CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd_123");
+# pattern should not be found
+NOT FOUND /pwd_123/ in server_audit.log
+# pattern should not be found
+# cleaunup
+DROP SERVER s1;
+DROP USER u1;
+DROP USER u2;
+set global server_audit_logging=off;
+UNINSTALL PLUGIN ed25519;
+UNINSTALL PLUGIN server_audit;
+#
+# MDEV-35604: SIGSEGV in filter_query_type | log_statement_ex / auditing
+#
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+SET GLOBAL server_audit_logging=ON;
+SET STATEMENT max_error_count=1 SELECT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1' at line 1
+SET GLOBAL server_audit_logging=OFF;
+UNINSTALL SONAME 'server_audit';
+# end of 10.5 tests

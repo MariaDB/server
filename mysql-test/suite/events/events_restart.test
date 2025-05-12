@@ -1,7 +1,10 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
+--disable_query_log
 call mtr.add_suppression('Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted');
 call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler');
+call mtr.add_suppression('Event Scheduler.*shutdown.*');
+--enable_query_log
 
 let $collation_server=`select @@collation_server`;
 #

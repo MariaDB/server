@@ -172,36 +172,24 @@ name_of_col_is(
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-This function gets the next system table record as it scans the table.
-@return the next record if found, NULL if end of scan */
-static
 const rec_t*
-dict_getnext_system_low(
-/*====================*/
-	btr_pcur_t*	pcur,		/*!< in/out: persistent cursor to the
-					record*/
-	mtr_t*		mtr)		/*!< in: the mini-transaction */
+dict_getnext_system_low(btr_pcur_t *pcur, mtr_t *mtr)
 {
-	rec_t*	rec = NULL;
-
-	while (!rec) {
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
-
-		rec = btr_pcur_get_rec(pcur);
-
-		if (!btr_pcur_is_on_user_rec(pcur)) {
-			/* end of index */
-			btr_pcur_close(pcur);
-
-			return(NULL);
-		}
-	}
-
-	/* Get a record, let's save the position */
-	btr_pcur_store_position(pcur, mtr);
-
-	return(rec);
+  rec_t *rec = nullptr;
+  while (!rec)
+  {
+    btr_pcur_move_to_next_user_rec(pcur, mtr);
+    rec = btr_pcur_get_rec(pcur);
+    if (!btr_pcur_is_on_user_rec(pcur))
+    {
+      /* end of index */
+      btr_pcur_close(pcur);
+      return nullptr;
+    }
+  }
+  /* Get a record, let's save the position */
+  btr_pcur_store_position(pcur, mtr);
+  return rec;
 }
 
 /********************************************************************//**
@@ -969,8 +957,10 @@ void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 		const bool not_dropped{!rec_get_deleted_flag(rec, 0)};
 
 		/* Check that the .ibd file exists. */
-		if (fil_ibd_open(not_dropped, FIL_TYPE_TABLESPACE,
-				 space_id, dict_tf_to_fsp_flags(flags),
+		if (fil_ibd_open(space_id, dict_tf_to_fsp_flags(flags),
+				 not_dropped
+				 ? fil_space_t::VALIDATE_NOTHING
+				 : fil_space_t::MAYBE_MISSING,
 				 name, filepath)) {
 		} else if (!not_dropped) {
 		} else if (srv_operation == SRV_OPERATION_NORMAL
@@ -2286,8 +2276,8 @@ dict_load_tablespace(
 	}
 
 	table->space = fil_ibd_open(
-		2, FIL_TYPE_TABLESPACE, table->space_id,
-		dict_tf_to_fsp_flags(table->flags),
+		table->space_id, dict_tf_to_fsp_flags(table->flags),
+		fil_space_t::VALIDATE_SPACE_ID,
 		{table->name.m_name, strlen(table->name.m_name)}, filepath);
 
 	if (!table->space) {
@@ -2295,9 +2285,9 @@ dict_load_tablespace(
 		table->file_unreadable = true;
 
 		if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
-			sql_print_error("InnoDB: Failed to load tablespace "
-					ULINTPF " for table %s",
-					table->space_id, table->name);
+			sql_print_error("InnoDB: Failed to load tablespace %"
+					PRIu32 " for table %s",
+					table->space_id, table->name.m_name);
 		}
 	}
 
@@ -2469,24 +2459,21 @@ corrupted:
 			only to delete the .ibd files. */
 			goto corrupted;
 		} else {
-			const page_id_t page_id{table->space->id, pk->page};
 			mtr.start();
-			buf_block_t* block = buf_page_get(
-				page_id, table->space->zip_size(),
-				RW_S_LATCH, &mtr);
-			const bool corrupted = !block
-				|| page_get_space_id(block->page.frame)
-				!= page_id.space()
-				|| page_get_page_no(block->page.frame)
-				!= page_id.page_no()
-				|| (mach_read_from_2(FIL_PAGE_TYPE
-						    + block->page.frame)
-				    != FIL_PAGE_INDEX
-				    && mach_read_from_2(FIL_PAGE_TYPE
-							+ block->page.frame)
-				    != FIL_PAGE_TYPE_INSTANT);
+			bool ok = false;
+			if (buf_block_t* b = buf_page_get(
+				    page_id_t(table->space->id, pk->page),
+				    table->space->zip_size(),
+				    RW_S_LATCH, &mtr)) {
+				switch (mach_read_from_2(FIL_PAGE_TYPE
+							 + b->page.frame)) {
+				case FIL_PAGE_INDEX:
+				case FIL_PAGE_TYPE_INSTANT:
+					ok = true;
+				}
+			}
 			mtr.commit();
-			if (corrupted) {
+			if (!ok) {
 				goto corrupted;
 			}
 
@@ -2509,10 +2496,12 @@ corrupted:
 	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
+		auto i = fk_tables.size();
 		err = dict_load_foreigns(table->name.m_name, nullptr,
 					 0, true, ignore_err, fk_tables);
 
 		if (err != DB_SUCCESS) {
+			fk_tables.erase(fk_tables.begin() + i, fk_tables.end());
 			ib::warn() << "Load table " << table->name
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"
@@ -2555,7 +2544,7 @@ corrupted:
 }
 
 dict_table_t *dict_sys_t::load_table(const span<const char> &name,
-                                     dict_err_ignore_t ignore)
+                                     dict_err_ignore_t ignore) noexcept
 {
   if (dict_table_t *table= find_table(name))
     return table;

@@ -608,9 +608,9 @@ class Accept_all_gtid_filter : public Gtid_event_filter
 public:
   Accept_all_gtid_filter() {}
   ~Accept_all_gtid_filter() {}
-  my_bool exclude(rpl_gtid *gtid) { return FALSE; }
-  uint32 get_filter_type() { return ACCEPT_ALL_GTID_FILTER_TYPE; }
-  my_bool has_finished() { return FALSE; }
+  my_bool exclude(rpl_gtid *) override { return FALSE; }
+  uint32 get_filter_type() override { return ACCEPT_ALL_GTID_FILTER_TYPE; }
+  my_bool has_finished() override { return FALSE; }
 };
 
 /*
@@ -621,9 +621,9 @@ class Reject_all_gtid_filter : public Gtid_event_filter
 public:
   Reject_all_gtid_filter() {}
   ~Reject_all_gtid_filter() {}
-  my_bool exclude(rpl_gtid *gtid) { return TRUE; }
-  uint32 get_filter_type() { return REJECT_ALL_GTID_FILTER_TYPE; }
-  my_bool has_finished() { return FALSE; }
+  my_bool exclude(rpl_gtid *) override { return TRUE; }
+  uint32 get_filter_type() override { return REJECT_ALL_GTID_FILTER_TYPE; }
+  my_bool has_finished() override { return FALSE; }
 };
 
 /*
@@ -641,8 +641,8 @@ public:
   Window_gtid_event_filter();
   ~Window_gtid_event_filter() {}
 
-  my_bool exclude(rpl_gtid*);
-  my_bool has_finished();
+  my_bool exclude(rpl_gtid*) override;
+  my_bool has_finished() override;
 
   /*
     Set the GTID that begins this window (exclusive)
@@ -658,7 +658,7 @@ public:
   */
   int set_stop_gtid(rpl_gtid *stop);
 
-  uint32 get_filter_type() { return WINDOW_GTID_FILTER_TYPE; }
+  uint32 get_filter_type() override { return WINDOW_GTID_FILTER_TYPE; }
 
   /*
     Validates the underlying range is correct, and writes an error if not, i.e.
@@ -761,11 +761,11 @@ public:
   Id_delegating_gtid_event_filter();
   ~Id_delegating_gtid_event_filter();
 
-  my_bool exclude(rpl_gtid *gtid);
-  my_bool has_finished();
+  my_bool exclude(rpl_gtid *gtid) override;
+  my_bool has_finished() override;
   void set_default_filter(Gtid_event_filter *default_filter);
 
-  uint32 get_filter_type() { return DELEGATING_GTID_FILTER_TYPE; }
+  uint32 get_filter_type() override { return DELEGATING_GTID_FILTER_TYPE; }
 
   virtual T get_id_from_gtid(rpl_gtid *) = 0;
   virtual const char* get_id_type_name() = 0;
@@ -834,18 +834,18 @@ public:
   /*
     Returns the domain id of from the input GTID
   */
-  decltype(rpl_gtid::domain_id) get_id_from_gtid(rpl_gtid *gtid)
+  decltype(rpl_gtid::domain_id) get_id_from_gtid(rpl_gtid *gtid) override
   {
     return gtid->domain_id;
   }
 
-  const char* get_id_type_name() { return "domain"; }
+  const char* get_id_type_name() override { return "domain"; }
 
   /*
     Override Id_delegating_gtid_event_filter to extend with domain specific
     filtering logic
   */
-  my_bool exclude(rpl_gtid*);
+  my_bool exclude(rpl_gtid*) override;
 
   /*
     Validates that window filters with both a start and stop GTID satisfy
@@ -912,12 +912,12 @@ public:
   /*
     Returns the server id of from the input GTID
   */
-  decltype(rpl_gtid::server_id) get_id_from_gtid(rpl_gtid *gtid)
+  decltype(rpl_gtid::server_id) get_id_from_gtid(rpl_gtid *gtid) override
   {
     return gtid->server_id;
   }
 
-  const char* get_id_type_name() { return "server"; }
+  const char* get_id_type_name() override { return "server"; }
 };
 
 /*
@@ -935,16 +935,16 @@ public:
     Returns TRUE if any filers exclude the gtid, returns FALSE otherwise, i.e.
     all filters must allow the GTID.
   */
-  my_bool exclude(rpl_gtid *gtid);
+  my_bool exclude(rpl_gtid *gtid) override;
 
   /*
     Returns true if any filters have finished. To elaborate, as this filter
     performs an intersection, if any filter has finished, the result would
     be excluded regardless.
   */
-  my_bool has_finished();
+  my_bool has_finished() override;
 
-  uint32 get_filter_type() { return INTERSECTING_GTID_FILTER_TYPE; }
+  uint32 get_filter_type() override { return INTERSECTING_GTID_FILTER_TYPE; }
 
   /*
     Adds a new filter to the intersection

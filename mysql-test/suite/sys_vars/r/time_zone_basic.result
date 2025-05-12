@@ -215,11 +215,11 @@ SELECT @@time_zone;
 @@time_zone
 +01:00
 SELECT local.time_zone;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.time_zone;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT time_zone = @@session.time_zone;
-ERROR 42S22: Unknown column 'time_zone' in 'field list'
+ERROR 42S22: Unknown column 'time_zone' in 'SELECT'
 SET @@time_zone = @session_start_value;
 SELECT @@time_zone;
 @@time_zone

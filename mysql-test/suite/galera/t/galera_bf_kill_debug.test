@@ -66,7 +66,7 @@ SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.before_wsrep_thd_abort_reached";
 #
 # pause KILL execution before awake
 #
-SET DEBUG_SYNC= 'before_awake_no_mutex SIGNAL awake_reached WAIT_FOR continue_kill';
+SET DEBUG_SYNC= 'wsrep_kill_before_awake_no_mutex SIGNAL awake_reached WAIT_FOR continue_kill';
 --disable_query_log
 --send_eval KILL $k_thread
 --enable_query_log
@@ -78,6 +78,11 @@ SET DEBUG_SYNC='now WAIT_FOR awake_reached';
 # release applier and KILL operator
 SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "now SIGNAL signal.before_wsrep_thd_abort";
+
+--connection node_1
+COMMIT;
+
+--connection node_2b
 SET DEBUG_SYNC = "now SIGNAL continue_kill";
 
 --connection node_2
@@ -87,7 +92,7 @@ SET DEBUG_SYNC = "now SIGNAL continue_kill";
 --error 0,1213,2013,2026
 select * from t1;
 
---connection node_2
+--connection node_2b
 SET DEBUG_SYNC = "RESET";
 
 drop table t1;
@@ -105,7 +110,7 @@ drop table t1;
 --connection node_2a
 --let $connection_id = `SELECT CONNECTION_ID()`
 
-CREATE TABLE t1 (i int primary key);
+CREATE TABLE t1 (i int primary key) engine=innodb;
 
 # Set up sync point
 SET DEBUG_SYNC = "before_wsrep_ordered_commit SIGNAL bwoc_reached WAIT_FOR bwoc_continue";
@@ -124,17 +129,17 @@ SET DEBUG_SYNC = "now WAIT_FOR bwoc_reached";
 --enable_query_log
 
 SET DEBUG_SYNC = "now SIGNAL bwoc_continue";
-SET DEBUG_SYNC='RESET';
 --connection node_2a
---error 0,1213
+--error 0,1213,2013,2026
 --reap
 
 --connection node_2
+SET DEBUG_SYNC='RESET';
 # victim was able to complete the INSERT
 select * from t1;
 
 --disconnect node_2a
+--disconnect node_2b
 
 --connection node_1
 drop table t1;
-

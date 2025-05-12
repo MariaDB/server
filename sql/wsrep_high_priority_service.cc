@@ -124,14 +124,15 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
 static int apply_events(THD*                       thd,
                         Relay_log_info*            rli,
                         const wsrep::const_buffer& data,
-                        wsrep::mutable_buffer&     err)
+                        wsrep::mutable_buffer&     err,
+                        bool const                 include_msg)
 {
   int const ret= wsrep_apply_events(thd, rli, data.data(), data.size());
   if (ret || wsrep_thd_has_ignored_error(thd))
   {
     if (ret)
     {
-      wsrep_store_error(thd, err);
+      wsrep_store_error(thd, err, include_msg);
     }
     wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
   }
@@ -215,7 +216,6 @@ int Wsrep_high_priority_service::start_transaction(
   const wsrep::ws_handle& ws_handle, const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER(" Wsrep_high_priority_service::start_transaction");
-  m_thd->set_time();
   DBUG_RETURN(m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta) ||
               trans_begin(m_thd));
 }
@@ -392,6 +392,18 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
               wsrep_thd_transaction_state_str(m_thd),
               m_thd->killed);
 
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_rollback_mdl_release",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_rollback_mdl_release_reached "
+                      "WAIT_FOR signal.wsrep_rollback_mdl_release";
+                    DBUG_ASSERT(!debug_sync_set_action(m_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif
+
   m_thd->release_transactional_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
@@ -428,7 +440,7 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
 #endif
 
   thd->set_time();
-  int ret= apply_events(thd, m_rli, data, err);
+  int ret= apply_events(thd, m_rli, data, err, false);
   wsrep_thd_set_ignored_error(thd, false);
   trans_commit(thd);
 
@@ -596,10 +608,10 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
 #endif /* ENABLED_DEBUG_SYNC */
 
   wsrep_setup_uk_and_fk_checks(thd);
-  int ret= apply_events(thd, m_rli, data, err);
+  int ret= apply_events(thd, m_rli, data, err, true);
 
   thd->close_temporary_tables();
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
+  if (!ret && !wsrep::commits_transaction(ws_meta.flags()))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }
@@ -765,9 +777,9 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                                           ws_meta,
                                           thd->wsrep_sr().fragments());
   }
-  ret= ret || apply_events(thd, m_rli, data, err);
+  ret= ret || apply_events(thd, m_rli, data, err, true);
   thd->close_temporary_tables();
-  if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
+  if (!ret && !wsrep::commits_transaction(ws_meta.flags()))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
   }

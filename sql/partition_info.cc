@@ -180,7 +180,7 @@ bool partition_info::add_named_partition(const char *part_name, size_t length)
   }
   DBUG_PRINT("info", ("Found partition %u is_subpart %d for name %.*s",
                       part_def->part_id, part_def->is_subpart,
-                      length, part_name));
+                      static_cast<int>(length), part_name));
   DBUG_RETURN(false);
 }
 
@@ -672,11 +672,11 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
   Helper function to find_duplicate_name.
 */
 
-static const char *get_part_name_from_elem(const char *name, size_t *length,
-                                      my_bool not_used __attribute__((unused)))
+static const uchar *get_part_name_from_elem(const void *name, size_t *length,
+                                            my_bool)
 {
-  *length= strlen(name);
-  return name;
+  *length= strlen(static_cast<const char *>(name));
+  return static_cast<const uchar *>(name);
 }
 
 /*
@@ -714,8 +714,8 @@ char *partition_info::find_duplicate_name()
   max_names= num_parts;
   if (is_sub_partitioned())
     max_names+= num_parts * num_subparts;
-  if (my_hash_init(PSI_INSTRUMENT_ME, &partition_names, system_charset_info, max_names, 0, 0,
-                   (my_hash_get_key) get_part_name_from_elem, 0, HASH_UNIQUE))
+  if (my_hash_init(PSI_INSTRUMENT_ME, &partition_names, system_charset_info,
+                   max_names, 0, 0, get_part_name_from_elem, 0, HASH_UNIQUE))
   {
     DBUG_ASSERT(0);
     curr_name= (const uchar*) "Internal failure";
@@ -1985,7 +1985,7 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
   part_column_list_val *col_val;
   Name_resolution_context *context= &thd->lex->current_select->context;
   TABLE_LIST *save_list= context->table_list;
-  const char *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
   DBUG_ENTER("partition_info::add_column_list_value");
 
   if (part_type == LIST_PARTITION &&
@@ -1999,9 +1999,9 @@ bool partition_info::add_column_list_value(THD *thd, Item *item)
 
   context->table_list= 0;
   if (column_list)
-    thd->where= "field list";
+    thd->where= THD_WHERE::FIELD_LIST;
   else
-    thd->where= "partition function";
+    thd->where= THD_WHERE::PARTITION_FUNCTION;
 
   if (item->walk(&Item::check_partition_func_processor, 0, NULL))
   {

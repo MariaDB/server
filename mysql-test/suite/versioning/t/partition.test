@@ -999,7 +999,7 @@ create or replace table t1 (
                                             partition pn current);
 
 --echo # fill the table until full
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 --error ER_RECORD_FILE_FULL
 insert into t1 (f) select f from t1;
 --echo # leave space for exactly one record in current partition
@@ -1017,8 +1017,9 @@ create or replace table t1 (
   partition by system_time interval 1 year (partition p1 history,
                                             partition pn current);
 
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'MDEV-17891.data' from t1;
 --enable_ps2_protocol
@@ -1027,6 +1028,7 @@ load data infile 'MDEV-17891.data' replace into table t1;
 load data infile 'MDEV-17891.data' replace into table t1;
 --error ER_RECORD_FILE_FULL
 load data infile 'MDEV-17891.data' replace into table t1;
+--enable_cursor_protocol
 
 # Cleanup
 --remove_file $datadir/test/MDEV-17891.data
@@ -1367,9 +1369,11 @@ partition by system_time limit 100 (
   partition pn current);
 
 insert into t1 select seq from seq_0_to_49;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select x into outfile 'MDEV-20077.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 load data infile 'MDEV-20077.data' replace into table t1 (x);
 load data infile 'MDEV-20077.data' replace into table t1 (x);
@@ -2208,9 +2212,11 @@ create or replace table t1 (x int primary key) with system versioning
 partition by system_time interval 1 hour auto;
 
 insert t1 values (1), (2), (3);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select x into outfile 'MDEV-17554.data' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 set timestamp= unix_timestamp('2000-01-01 01:00:00');
 load data infile 'MDEV-17554.data' replace into table t1 (x);
@@ -2670,6 +2676,22 @@ drop table t;
 create table t (a int) with system versioning partition by system_time partitions 3;
 
 --echo #
+--echo # MDEV-36115 InnoDB: assertion: node->pcur->rel_pos == BTR_PCUR_ON
+--echo #            in row_update_for_mysql
+--echo #
+create table t (a int key) engine=innodb
+with system versioning
+partition by key() partitions 3;
+
+start transaction;
+insert into t values (1),(2),(3),(4),(5),(6),(7),(8);
+set timestamp=+1;
+delete from t;
+insert into t values (1),(2);
+DELETE from t;
+drop table t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
@@ -2709,6 +2731,33 @@ drop table t;
 
 --echo #
 --echo # End of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-34775 Wrong reopen of already open routine due to auto-create in SP
+--echo #
+
+create table t (a int) with system versioning
+partition by system_time
+interval 1 minute auto;
+
+--delimiter $
+create function f()
+returns int
+begin
+  replace into t select * from t;
+  return 0;
+end $
+--delimiter ;
+
+set timestamp= @@timestamp + 61;
+select f();
+
+drop table t;
+drop function f;
+
+--echo #
+--echo # End of 10.11 tests
 --echo #
 
 set global innodb_stats_persistent= @save_persistent;

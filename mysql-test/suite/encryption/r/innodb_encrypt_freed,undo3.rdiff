@@ -1,5 +1,5 @@
---- innodb_encrypt_freed.result	2021-03-23 15:44:14.466377983 +0530
-+++ innodb_encrypt_freed,undo3.reject	2022-11-29 19:04:24.987010571 +0530
+--- innodb_encrypt_freed.result
++++ innodb_encrypt_freed,undo3.reject
 @@ -14,6 +14,9 @@
  SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
  NAME

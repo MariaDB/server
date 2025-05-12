@@ -12,16 +12,10 @@ connection node_3;
 Suspending node ...
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-VARIABLE_VALUE = 2
-1
 CREATE TABLE t1 (f1 INTEGER) engine=InnoDB;
 INSERT INTO t1 VALUES (1);
 connection node_2;
 SET SESSION wsrep_sync_wait=0;
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-VARIABLE_VALUE = 2
-1
 SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -29,7 +23,7 @@ COUNT(*)
 connection node_3;
 Resuming node ...
 CALL mtr.add_suppression("WSREP: gcs_caused");
-CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core\\.cpp:core_handle_uuid_msg");
 SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)

@@ -129,8 +129,6 @@ struct list_node :public Sql_alloc
   }
 };
 
-typedef bool List_eq(void *a, void *b);
-
 extern MYSQL_PLUGIN_IMPORT list_node end_of_list;
 
 class base_list :public Sql_alloc
@@ -301,11 +299,12 @@ public:
   inline void **head_ref() { return first != &end_of_list ? &first->info : 0; }
   inline bool is_empty() { return first == &end_of_list ; }
   inline list_node *last_ref() { return &end_of_list; }
-  inline bool add_unique(void *info, List_eq *eq)
+  template <typename T= void>
+  inline bool add_unique(T *info, bool (*eq)(T *a, T *b))
   {
     list_node *node= first;
     for (;
-         node != &end_of_list && (!(*eq)(node->info, info));
+         node != &end_of_list && (!(*eq)(static_cast<T *>(node->info), info));
          node= node->next) ;
     if (node == &end_of_list)
       return push_back(info);
@@ -513,7 +512,7 @@ public:
   inline void prepend(List<T> *list) { base_list::prepend(list); }
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
-  { return base_list::add_unique(a, (List_eq *)eq); }
+  { return base_list::add_unique<T>(a, eq); }
   inline bool copy(const List<T> *list, MEM_ROOT *root)
   { return base_list::copy(list, root); }
   void delete_elements(void)
@@ -537,10 +536,9 @@ public:
   class Iterator;
   using value_type= T;
   using iterator= Iterator;
-  using const_iterator= const Iterator;
 
-  Iterator begin() const { return Iterator(first); }
-  Iterator end() const { return Iterator(); }
+  iterator begin() const { return iterator(first); }
+  iterator end() const { return iterator(); }
 
   class Iterator
   {
@@ -561,7 +559,7 @@ public:
       return *this;
     }
 
-    T operator++(int)
+    Iterator operator++(int)
     {
       Iterator tmp(*this);
       operator++();

@@ -218,8 +218,8 @@ DROP TABLE t1;
 SELECT @@character_set_connection, HEX(CAST(_utf8'÷' AS CHAR));
 @@character_set_connection	HEX(CAST(_utf8'÷' AS CHAR))
 sjis	8180
-SELECT STR_TO_DATE(CAST(_utf8'2001÷01÷01' AS CHAR),CAST(_utf8'%Y÷%m÷%d' AS CHAR));
-STR_TO_DATE(CAST(_utf8'2001÷01÷01' AS CHAR),CAST(_utf8'%Y÷%m÷%d' AS CHAR))
+SELECT STR_TO_DATE(CAST(_utf8'2001÷01÷01' AS CHAR),CAST(_utf8'%Y÷%m÷%d' AS CHAR)) as exp;
+exp
 2001-01-01
 CREATE TABLE t1 AS SELECT REPEAT(' ', 64) AS subject, REPEAT(' ',64) AS pattern LIMIT 0;
 SHOW COLUMNS FROM t1;
@@ -19109,20 +19109,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19247,20 +19247,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19386,20 +19386,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19524,20 +19524,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19658,6 +19658,15 @@ ERROR HY000: Invalid sjis character string: '�_x81�_xAD'
 EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
 ERROR HY000: Invalid sjis character string: '�_x81'
 SET sql_mode=DEFAULT;
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_sjis'' collate sjis_japanese_nopad_ci, _sjis 0x0001050001) as c1;
+c1
+-1
+select strcmp(_sjis'' collate sjis_nopad_bin, _sjis 0x0001050001) as c1;
+c1
+-1
 #
 # End of 10.5 tests
 #

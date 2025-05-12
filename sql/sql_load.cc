@@ -23,7 +23,6 @@
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_load.h"
-#include "sql_load.h"
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_base.h"          // fill_record_n_invoke_before_triggers
 #include <my_dir.h>
@@ -247,7 +246,7 @@ public:
 	    String &field_term,String &line_start,String &line_term,
 	    String &enclosed,int escape,bool get_it_from_net, bool is_fifo);
   ~READ_INFO();
-  int read_field();
+  int read_field(CHARSET_INFO *cs);
   int read_fixed_length(void);
   int next_line(void);
   char unescape(char chr);
@@ -725,7 +724,15 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       table->file->print_error(my_errno, MYF(0));
       error= 1;
     }
-    table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+    if (!error)
+    {
+      int err= table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+      if (err == HA_ERR_FOUND_DUPP_KEY)
+      {
+	error= 1;
+	my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+      }
+    }
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->next_number_field=0;
   }
@@ -1057,8 +1064,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     read_info.row_end[0]=0;
 #endif
 
-    restore_record(table, s->default_values);
-
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       Load_data_outvar *dst= item->get_load_data_outvar();
@@ -1171,13 +1177,21 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                             thd->progress.max_counter);
       }
     }
-    restore_record(table, s->default_values);
 
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       uint length;
       uchar *pos;
-      if (read_info.read_field())
+      CHARSET_INFO *cs;
+      /*
+        Avoiding of handling binary data as a text
+      */
+      if(item->charset_for_protocol() == &my_charset_bin)
+        cs= &my_charset_bin;
+      else
+        cs= read_info.charset();
+      if (read_info.read_field(cs))
 	break;
 
       /* If this line is to be skipped we don't want to fill field or var */
@@ -1318,8 +1332,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 #endif
     
-    restore_record(table, s->default_values);
-    
+    restore_default_record_for_insert(table);
     while ((item= it++))
     {
       /* If this line is to be skipped we don't want to fill field or var */
@@ -1550,7 +1563,7 @@ inline bool READ_INFO::terminator(const uchar *ptr, uint length)
   must make sure to use escapes properly.
 */
 
-int READ_INFO::read_field()
+int READ_INFO::read_field(CHARSET_INFO *cs)
 {
   int chr,found_enclosed_char;
 
@@ -1586,7 +1599,7 @@ int READ_INFO::read_field()
   for (;;)
   {
     // Make sure we have enough space for the longest multi-byte character.
-    while (data.length() + charset()->mbmaxlen <= data.alloced_length())
+    while (data.length() + cs->mbmaxlen <= data.alloced_length())
     {
       chr = GET;
       if (chr == my_b_EOF)
@@ -1672,7 +1685,7 @@ int READ_INFO::read_field()
 	}
       }
       data.append(chr);
-      if (charset()->use_mb() && read_mbtail(&data))
+      if (cs->use_mb() && read_mbtail(&data))
         goto found_eof;
     }
     /*

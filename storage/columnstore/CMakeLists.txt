@@ -10,6 +10,11 @@ IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
   add_definitions(-DHAVE_PSI_INTERFACE=)
 ENDIF()
 
+# let's temporarily disable the warning, until ColumnStore is fixed
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=suggest-override")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-suggest-override")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -U_GLIBCXX_DEBUG -U_GLIBCXX_ASSERTIONS")
+
 # new gcc is quite buggy re. spurious warnings. let's shut it up
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_GREATER "12.0.0")
   # 12
@@ -42,6 +47,8 @@ SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-fno-lto")
+    SET(PCRE_INCLUDES "${PCRE_INCLUDE_DIRS}")
     add_subdirectory(columnstore)
 
     IF(TARGET columnstore)

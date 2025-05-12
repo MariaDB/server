@@ -287,7 +287,20 @@ WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
-# restart
+# restart: --innodb-log-write-ahead-size=513
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb-log-write-ahead-size=4095
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb-log-write-ahead-size=10000
+SELECT @@innodb_log_write_ahead_size;
+@@innodb_log_write_ahead_size
+4096
 # Cleanup
 bak_ib_logfile0
 bak_ibdata1

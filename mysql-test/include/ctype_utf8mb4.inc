@@ -2,11 +2,6 @@
 # Tests with the utf8mb4 character set
 #
 
-# Tests will be skipped for the view protocol because the view protocol uses 
-# an additional util connection and don't use for this nessesary configurations
-# Also need to resolve MDEV-27871
--- source include/no_view_protocol.inc
-
 --source include/default_optimizer_switch.inc
 --disable_warnings
 drop table if exists t1,t2;
@@ -31,26 +26,26 @@ select locate('HE','hello' collate utf8mb4_bin);
 select locate('HE','hello' collate utf8mb4_bin,2);
 select locate('LO','hello' collate utf8mb4_bin,2);
 
-select locate(_utf8mb4 0xD0B1, _utf8mb4 0xD0B0D0B1D0B2);
-select locate(_utf8mb4 0xD091, _utf8mb4 0xD0B0D0B1D0B2);
-select locate(_utf8mb4 0xD0B1, _utf8mb4 0xD0B0D091D0B2);
-select locate(_utf8mb4 0xD091, _utf8mb4 0xD0B0D0B1D0B2 collate utf8mb4_bin);
-select locate(_utf8mb4 0xD0B1, _utf8mb4 0xD0B0D091D0B2 collate utf8mb4_bin);
+select locate(_utf8mb4 0xD0B1, _utf8mb4 0xD0B0D0B1D0B2) as exp;
+select locate(_utf8mb4 0xD091, _utf8mb4 0xD0B0D0B1D0B2) as exp;
+select locate(_utf8mb4 0xD0B1, _utf8mb4 0xD0B0D091D0B2) as exp;
+select locate(_utf8mb4 0xD091, _utf8mb4 0xD0B0D0B1D0B2 collate utf8mb4_bin) as exp;
+select locate(_utf8mb4 0xD0B1, _utf8mb4 0xD0B0D091D0B2 collate utf8mb4_bin) as exp;
 
-select length(_utf8mb4 0xD0B1), bit_length(_utf8mb4 0xD0B1), char_length(_utf8mb4 0xD0B1);
+select length(_utf8mb4 0xD0B1), bit_length(_utf8mb4 0xD0B1), char_length(_utf8mb4 0xD0B1) as exp;
 
 select 'a' like 'a';
 select 'A' like 'a';
 select 'A' like 'a' collate utf8mb4_bin;
-select _utf8mb4 0xD0B0D0B1D0B2 like concat(_utf8mb4'%',_utf8mb4 0xD0B1,_utf8mb4 '%');
+select _utf8mb4 0xD0B0D0B1D0B2 like concat(_utf8mb4'%',_utf8mb4 0xD0B1,_utf8mb4 '%') as exp;
 
 # Bug #6040: can't retrieve records with umlaut
 # characters in case insensitive manner.
 # Case insensitive search LIKE comparison
 # was broken for multibyte characters:
-select convert(_latin1'Günter André' using utf8mb4) like CONVERT(_latin1'GÜNTER%' USING utf8mb4);
-select CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4) LIKE CONVERT(_koi8r'÷áóñ' USING utf8mb4);
-select CONVERT(_koi8r'÷áóñ' USING utf8mb4) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4);
+select convert(_latin1'Günter André' using utf8mb4) like CONVERT(_latin1'GÜNTER%' USING utf8mb4) as exp;
+select CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4) LIKE CONVERT(_koi8r'÷áóñ' USING utf8mb4) as exp;
+select CONVERT(_koi8r'÷áóñ' USING utf8mb4) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4) as exp;
 
 #
 # Check the following:
@@ -666,6 +661,7 @@ DROP TABLE t1;
 #
 # Bug #6043 erratic searching for diacriticals in indexed MyISAM UTF-8 table
 #
+--disable_service_connection
 SET NAMES latin1;
 eval CREATE TABLE t1 (
     id int unsigned NOT NULL auto_increment,
@@ -682,6 +678,7 @@ SELECT id, term FROM t1 where (list_id = 1) AND (term = "testetest");
 SELECT id, term FROM t1 where (list_id = 1) AND (term = "testètest");
 DROP TABLE t1;
 }
+--enable_service_connection
 
 #
 # Bug #6019 SELECT tries to use too short prefix index on utf8mb4 data
@@ -747,10 +744,10 @@ drop table t1;
 #
 # Bug#22638 SOUNDEX broken for international characters
 #
-select soundex(_utf8mb4 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB);
-select hex(soundex(_utf8mb4 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB));
-select soundex(_utf8mb4 0xD091D092D093);
-select hex(soundex(_utf8mb4 0xD091D092D093));
+select soundex(_utf8mb4 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB) as exp;
+select hex(soundex(_utf8mb4 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB)) as exp;
+select soundex(_utf8mb4 0xD091D092D093) as exp;
+select hex(soundex(_utf8mb4 0xD091D092D093)) as exp;
 
 
 SET collation_connection='utf8mb4_general_ci';
@@ -786,7 +783,7 @@ drop table t1;
 #
 # Bug#8385: utf8mb4_general_ci treats Cyrillic letters I and SHORT I as the same
 #
-select convert(_koi8r'É' using utf8mb4) < convert(_koi8r'Ê' using utf8mb4);
+select convert(_koi8r'É' using utf8mb4) < convert(_koi8r'Ê' using utf8mb4) as exp;
 
 #
 # Bugs#5980: NULL requires a characterset in a union
@@ -1191,6 +1188,7 @@ DROP TABLE t1;
 #            (see bug #16674 as well)
 #
 
+--disable_service_connection
 SET NAMES latin2;
 
 if (!$is_heap)
@@ -1220,6 +1218,7 @@ SELECT * FROM t1 WHERE tid=72 and val LIKE 'VOLNÝ ADSL';
 
 DROP TABLE t1;
 }
+--enable_service_connection
 
 #
 # Bug 20709: problem with utf8mb4 fields in temporary tables
@@ -1420,8 +1419,11 @@ set names utf8mb4;
 eval create table t1 (a varchar(10) character set latin1, b int) engine $engine;
 insert into t1 values ('a',1);
 select concat(a, if(b>10, N'x', N'y')) from t1;
+#Incorrect collation in error message with view protocol
+--disable_view_protocol
 --error 1267
 select concat(a, if(b>10, N'Ã¦', N'ÃŸ')) from t1;
+--enable_view_protocol
 drop table t1;
 
 # Conversion tests for character set introducers

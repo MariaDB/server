@@ -1,0 +1,28 @@
+*** MDEV-25611: RESET MASTER hangs waiting for InnoDB to flush its log
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET @old_flush= @@GLOBAL.innodb_flush_log_at_trx_commit;
+SET GLOBAL innodb_flush_log_at_trx_commit= 0;
+SET @old_flush_timeout= @@GLOBAL.innoDB_flush_log_at_timeout;
+SET GLOBAL innoDB_flush_log_at_timeout=2700;
+connection default;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+connect  stop_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 VALUES (4,2);
+DELETE FROM t1 WHERE a in (1,2,3);
+FLUSH BINARY LOGS;
+connection stop_purge;
+ROLLBACK;
+connection default;
+disconnect stop_purge;
+RESET MASTER;
+connection default;
+DROP TABLE t1;
+SET GLOBAL debug_dbug= @old_dbug;
+SET GLOBAL innodb_flush_log_at_trx_commit= @old_flush;
+SET GLOBAL innoDB_flush_log_at_timeout= @old_flush_timeout;

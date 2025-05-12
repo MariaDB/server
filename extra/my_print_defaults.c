@@ -49,7 +49,7 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log", (char**) &default_dbug_option,
    (char**) &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"mysqld", 0, "Read the same set of groups that the mysqld binary does.",
+  {"mysqld", 0, "Read the same set of groups that the mariadbd (previously known as mysqld) binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"mariadbd", 0, "Read the same set of groups that the mariadbd binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -116,7 +116,7 @@ static int get_options(int *argc,char ***argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    cleanup_and_exit(ho_error);
 
   return 0;
 }
@@ -160,7 +160,8 @@ int main(int argc, char **argv)
   load_default_groups=(char**) my_malloc(PSI_NOT_INSTRUMENTED,
                                          nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)
-    exit(1);
+    cleanup_and_exit(1);
+
   if (opt_mysqld)
   {
     for (; mysqld_groups[i]; i++)

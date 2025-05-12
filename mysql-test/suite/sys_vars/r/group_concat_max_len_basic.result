@@ -152,11 +152,11 @@ SELECT @@group_concat_max_len;
 @@group_concat_max_len
 4
 SELECT local.group_concat_max_len;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.group_concat_max_len;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT group_concat_max_len = @@session.group_concat_max_len;
-ERROR 42S22: Unknown column 'group_concat_max_len' in 'field list'
+ERROR 42S22: Unknown column 'group_concat_max_len' in 'SELECT'
 SET @@global.group_concat_max_len = @start_global_value;
 SELECT @@global.group_concat_max_len;
 @@global.group_concat_max_len

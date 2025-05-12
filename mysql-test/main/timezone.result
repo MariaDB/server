@@ -1,6 +1,6 @@
 show variables like "system_time_zone";
 Variable_name	Value
-system_time_zone	MET
+system_time_zone	CET
 #
 # Test unix timestamp
 #
@@ -82,7 +82,7 @@ alter table mysql.time_zone_transition_type add primary key (time_zone_id,transi
 SET @@time_zone= default;
 SELECT DATE_FORMAT('2009-11-01 22:23:00', '%z %Z') AS current_timezone;
 current_timezone
-+0100 MET
++0100 CET
 SELECT DATE_FORMAT('2008-06-04 02:23:00', '%z %Z') AS current_timezone;
 current_timezone
-+0200 MEST
++0200 CEST

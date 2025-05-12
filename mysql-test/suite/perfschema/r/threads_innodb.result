@@ -1,9 +1,10 @@
 SELECT name, type, processlist_user, processlist_host, processlist_db,
-processlist_command, processlist_time, processlist_state, processlist_info,
+processlist_command, processlist_time, processlist_info,
 parent_thread_id, role, instrumented
 FROM performance_schema.threads
 WHERE name LIKE 'thread/innodb/%'
 GROUP BY name;
-name	type	processlist_user	processlist_host	processlist_db	processlist_command	processlist_time	processlist_state	processlist_info	parent_thread_id	role	instrumented
-thread/innodb/page_cleaner_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
-thread/innodb/thread_pool_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
+name	type	processlist_user	processlist_host	processlist_db	processlist_command	processlist_time	processlist_info	parent_thread_id	role	instrumented
+thread/innodb/page_cleaner_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
+thread/innodb/page_encrypt_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
+thread/innodb/thread_pool_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES

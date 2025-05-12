@@ -26,11 +26,11 @@ class OCCURDEF : public PRXDEF {          /* Logical table description */
 	OCCURDEF(void) {Pseudo = 3; Colist = Xcol = NULL;}
 
   // Implementation
-  virtual const char *GetType(void) {return "OCCUR";}
+  const char *GetType(void) override {return "OCCUR";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -50,21 +50,21 @@ class TDBOCCUR : public TDBPRX {
   TDBOCCUR(POCCURDEF tdp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_OCCUR;}
+  AMT  GetAmType(void) override {return TYPE_AM_OCCUR;}
   				void SetTdbp(PTDBASE tdbp) {Tdbp = tdbp;}
 
   // Methods
-	virtual void ResetDB(void) {N = 0; Tdbp->ResetDB();}
-	virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+	void ResetDB(void) override {N = 0; Tdbp->ResetDB();}
+	int  RowNumber(PGLOBAL g, bool b = FALSE) override;
 					bool MakeColumnList(PGLOBAL g);
           bool ViewColumnList(PGLOBAL g);
 
   // Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual bool InitTable(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
+	PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  bool InitTable(PGLOBAL g) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
 
  protected:
   // Members
@@ -89,12 +89,12 @@ class OCCURCOL : public COLBLK {
   OCCURCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_OCCUR;}
+  int  GetAmType(void) override {return TYPE_AM_OCCUR;}
 					int  GetI(void) {return I;}
 
   // Methods
-  virtual void Reset(void) {}		// Evaluated only by TDBOCCUR
-  virtual void ReadColumn(PGLOBAL g);
+  void Reset(void) override {}		// Evaluated only by TDBOCCUR
+  void ReadColumn(PGLOBAL g) override;
 					void Xreset(void) {I = 0;};
 
  protected:
@@ -114,10 +114,10 @@ class RANKCOL : public COLBLK {
 	RANKCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n) : COLBLK(cdp, tdbp, n) {}
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_OCCUR;}
+  int  GetAmType(void) override {return TYPE_AM_OCCUR;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used

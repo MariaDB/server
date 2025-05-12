@@ -82,19 +82,15 @@ CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
 --connection node_3
 SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
-CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group. Leaving cluster.");
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group\\. Leaving cluster\\.");
 
 --connection node_4
 SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
-CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group. Leaving cluster.");
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group\\. Leaving cluster\\.");
 
 DROP TABLE t2;
 
---let $node_3=node_3
---let $auto_increment_offset_node_3 = 3;
---let $node_4=node_4
---let $auto_increment_offset_node_4 = 4;
 --source suite/galera/include/auto_increment_offset_restore.inc
 
 --disconnect node_3

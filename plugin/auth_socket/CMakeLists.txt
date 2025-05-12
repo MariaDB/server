@@ -19,7 +19,9 @@ IF(WIN32)
 ENDIF()
 
 CHECK_CXX_SOURCE_COMPILES(
-"#define _GNU_SOURCE
+"#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <sys/socket.h>
 int main() {
   struct ucred cred;

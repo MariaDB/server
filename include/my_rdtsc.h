@@ -97,7 +97,7 @@ C_MODE_START
 /**
   A cycle timer.
 
-  On clang we use __builtin_readcyclecounter(), except for AARCH64.
+  On clang we use __builtin_readcyclecounter(), except for AARCH64 and RISC-V.
   On other compilers:
 
   On IA-32 and AMD64, we use the RDTSC instruction.
@@ -152,7 +152,7 @@ C_MODE_START
 */
 static inline ulonglong my_timer_cycles(void)
 {
-# if __has_builtin(__builtin_readcyclecounter) && !defined (__aarch64__)
+# if __has_builtin(__builtin_readcyclecounter) && !defined (__aarch64__) && !(defined(__linux__) && defined(__riscv))
   #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_AARCH64
   return __builtin_readcyclecounter();
 # elif defined _M_IX86  || defined _M_X64  || defined __i386__ || defined __x86_64__
@@ -230,8 +230,8 @@ static inline ulonglong my_timer_cycles(void)
     ulonglong result;
     __asm __volatile__("rdtime %0" : "=r"(result));
     return result;
-  }
 # endif
+  }
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_GETHRTIME
   /* gethrtime may appear as either cycle or nanosecond counter */

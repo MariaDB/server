@@ -1305,7 +1305,7 @@ ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fail
 update t1,t2,t3 set t3.id=5, t2.id=6, t1.id=7  where t1.id =1 and t2.id = t1.id and t3.id = t2.id;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t1_id_fk` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
 update t3 set  t3.id=7  where t1.id =1 and t2.id = t1.id and t3.id = t2.id;
-ERROR 42S22: Unknown column 't1.id' in 'where clause'
+ERROR 42S22: Unknown column 't1.id' in 'WHERE'
 drop table t3,t2,t1;
 CREATE TABLE t1 (
 c1 VARCHAR(8), c2 VARCHAR(8),
@@ -3072,7 +3072,7 @@ ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1 (a) ON DELETE SET NULL;
 set @old_sql_mode = @@sql_mode;
 set @@sql_mode = 'STRICT_TRANS_TABLES';
 ALTER TABLE t2 MODIFY a INT NOT NULL;
-ERROR HY000: Column 'a' cannot be NOT NULL: needed in a foreign key constraint 'test/t2_ibfk_1' SET NULL
+ERROR HY000: Column 'a' cannot be NOT NULL: needed in a foreign key constraint 't2_ibfk_1' SET NULL
 set @@sql_mode = @old_sql_mode;
 DELETE FROM t1;
 DROP TABLE t2,t1;
@@ -3351,4 +3351,10 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+#
+# MDEV-35723: applying zero offset to null pointer on INSERT
+#
+CREATE TABLE t1(c TEXT(1) NOT NULL, INDEX (c)) ENGINE=InnoDB;
+INSERT INTO t1 SET c='';
 DROP TABLE t1;

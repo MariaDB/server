@@ -147,16 +147,17 @@ private:
   Hash_set<LEX_STRING> m_set;
   mysql_rwlock_t m_lock;
 
-  static uchar *get_key(const LEX_STRING *ls, size_t *sz, my_bool)
+  static const uchar *get_key(const void *ls_, size_t *sz, my_bool)
   {
+    const LEX_STRING *ls= static_cast<const LEX_STRING*>(ls_);
     *sz= ls->length;
-    return (uchar *) ls->str;
+    return reinterpret_cast<const uchar*>(ls->str);
   }
 
 public:
   dbname_cache_t()
       : m_set(key_memory_dbnames_cache, table_alias_charset, 10, 0,
-              sizeof(char *), (my_hash_get_key) get_key, my_free, 0)
+              sizeof(char *), get_key, my_free, 0)
   {
     mysql_rwlock_init(key_rwlock_LOCK_dbnames, &m_lock);
   }
@@ -240,14 +241,14 @@ static int my_rmdir(const char *dir)
   Function we use in the creation of our hash to get key.
 */
 
-extern "C" uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
-                                    my_bool not_used);
+extern "C" const uchar *dboptions_get_key(const void *opt, size_t *length,
+                                          my_bool);
 
-uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
-                         my_bool not_used __attribute__((unused)))
+const uchar *dboptions_get_key(const void *opt_, size_t *length, my_bool)
 {
+  auto opt= static_cast<const my_dbopt_t *>(opt_);
   *length= opt->name_length;
-  return (uchar*) opt->name;
+  return reinterpret_cast<const uchar *>(opt->name);
 }
 
 
@@ -299,8 +300,8 @@ bool my_dboptions_cache_init(void)
   {
     dboptions_init= 1;
     error= my_hash_init(key_memory_dboptions_hash, &dboptions,
-                        table_alias_charset, 32, 0, 0, (my_hash_get_key)
-                        dboptions_get_key, free_dbopt, 0);
+                        table_alias_charset, 32, 0, 0, dboptions_get_key,
+                        free_dbopt, 0);
   }
   dbname_cache_init();
   return error;
@@ -333,7 +334,7 @@ void my_dbopt_cleanup(void)
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
   my_hash_init(key_memory_dboptions_hash, &dboptions, table_alias_charset, 32,
-               0, 0, (my_hash_get_key) dboptions_get_key, free_dbopt, 0);
+               0, 0, dboptions_get_key, free_dbopt, 0);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 
@@ -536,36 +537,53 @@ static bool write_db_opt(THD *thd, const char *path,
 
   DESCRIPTION
 
+  create->default_table_charset is guaranteed to be alway set
+  Required by some callers
+
   RETURN VALUES
   0	File found
-  1	No database file or could not open it
-
+  -1	No database file (file was not found or 'empty' file was cached)
+  1     Could not open it
 */
 
-bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
+int load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 {
   File file;
   char buf[256+DATABASE_COMMENT_MAXLEN];
   DBUG_ENTER("load_db_opt");
-  bool error=1;
+  int error= 0;
   size_t nbytes;
   myf utf8_flag= thd->get_utf8_flag();
 
   bzero((char*) create,sizeof(*create));
-  create->default_table_charset= thd->variables.collation_server;
 
   /* Check if options for this database are already in the hash */
   if (!get_dbopt(thd, path, create))
-    DBUG_RETURN(0);
+  {
+    if (!create->default_table_charset)
+      error= -1;                                // db.opt did not exists
+    goto err1;
+  }
 
   /* Otherwise, load options from the .opt file */
   if ((file= mysql_file_open(key_file_dbopt,
                              path, O_RDONLY | O_SHARE, MYF(0))) < 0)
+  {
+    /*
+      Create an empty entry, to avoid doing an extra file open for every create
+      table.
+    */
+    put_dbopt(path, create);
+    error= -1;
     goto err1;
+  }
 
   IO_CACHE cache;
   if (init_io_cache(&cache, file, IO_SIZE, READ_CACHE, 0, 0, MYF(0)))
-    goto err2;
+  {
+    error= 1;
+    goto err2;                                  // Not cached
+  }
 
   while ((int) (nbytes= my_b_gets(&cache, (char*) buf, sizeof(buf))) > 0)
   {
@@ -586,7 +604,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
            default-collation commands.
         */
         if (!(create->default_table_charset=
-        get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(utf8_flag))) &&
+              get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(utf8_flag))) &&
             !(create->default_table_charset=
               get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
@@ -621,9 +639,10 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 err2:
   mysql_file_close(file, MYF(0));
 err1:
+  if (!create->default_table_charset)           // In case of error
+    create->default_table_charset= thd->variables.collation_server;
   DBUG_RETURN(error);
 }
-
 
 /*
   Retrieve database options by name. Load database options file or fetch from
@@ -651,11 +670,12 @@ err1:
     db_create_info right after that.
 
   RETURN VALUES (read NOTE!)
-    FALSE   Success
-    TRUE    Failed to retrieve options
+  0	File found
+  -1	No database file (file was not found or 'empty' file was cached)
+  1     Could not open it
 */
 
-bool load_db_opt_by_name(THD *thd, const char *db_name,
+int load_db_opt_by_name(THD *thd, const char *db_name,
                          Schema_specification_st *db_create_info)
 {
   char db_opt_path[FN_REFLEN + 1];

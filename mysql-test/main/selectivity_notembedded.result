@@ -224,6 +224,86 @@ JS
 set optimizer_trace=@trace_tmp;
 drop table t1;
 #
+# MDEV-34993: Incorrect cardinality estimation causes poor query plan
+#
+create table t1 (
+pk int,
+key1 int,
+filler char(100),
+index (key1, pk),
+primary key (pk)
+);
+insert into t1
+select
+seq, FLOOR(seq/100), 'filler'
+from
+seq_1_to_1000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+set optimizer_trace=1;
+explain select * from t1
+where
+pk in (1,2,3,4,5) and
+key1 <= 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,key1	PRIMARY	4	NULL	5	Using index condition; Using where
+create temporary table opt_trace as
+select * from information_schema.optimizer_trace;
+# 11.0+ will not attempt to use selectivity(key1): 
+select
+json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
+from
+opt_trace;
+JS
+[
+    [
+        {
+            "index_name": "PRIMARY",
+            "selectivity_from_index": 0.005
+        }
+    ]
+]
+# Must not include 1.79...e308 as cost:
+select
+json_detailed(json_extract(trace,'$**.best_access_path')) as JS
+from
+opt_trace;
+JS
+[
+    {
+        "table": "t1",
+        "plan_details": 
+        {
+            "record_count": 1
+        },
+        "considered_access_paths": 
+        [
+            {
+                "access_type": "range",
+                "range_index": "PRIMARY",
+                "rows": 5,
+                "rows_after_filter": 5,
+                "rows_out": 2.490196078,
+                "cost": 0.010014472,
+                "chosen": true
+            }
+        ],
+        "chosen_access_method": 
+        {
+            "type": "range",
+            "index": "PRIMARY",
+            "rows_read": 5,
+            "rows_out": 2.490196078,
+            "cost": 0.010014472,
+            "uses_join_buffering": false
+        }
+    }
+]
+drop table opt_trace;
+drop table t1;
+#
 # Clean up
 #
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;

@@ -2,9 +2,6 @@
 # Test of --lower-case-table-names
 #
 
-#remove this include after fix MDEV-27944
---source include/no_view_protocol.inc
-
 create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
 create table t4 (id int primary key, Word varchar(40) not null);
 INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
@@ -36,8 +33,10 @@ drop table t1;
 create database mysqltest;
 use MYSQLTEST;
 create table t1 (a int);
+--disable_service_connection
 select T1.a from MYSQLTEST.T1;
 select t1.a from MYSQLTEST.T1;
+--enable_service_connection
 select mysqltest.t1.* from MYSQLTEST.t1;
 select MYSQLTEST.t1.* from MYSQLTEST.t1;
 select MYSQLTEST.T1.* from MYSQLTEST.T1;

@@ -572,7 +572,7 @@ create table t1 (a char(6))
 partition by range columns(a)
 (partition p0 values less than (H23456),
 partition p1 values less than (M23456));
-ERROR 42S22: Unknown column 'H23456' in 'field list'
+ERROR 42S22: Unknown column 'H23456' in 'PARTITION BY'
 create table t1 (a char(6))
 partition by range columns(a)
 (partition p0 values less than (23456),

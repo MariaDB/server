@@ -34,7 +34,6 @@
 #include "pfs_host.h"
 #include "pfs_user.h"
 #include "pfs_status.h"
-#include "pfs_atomic.h"
 #include "pfs_buffer_container.h"
 
 #include "sql_show.h" /* reset_status_vars */

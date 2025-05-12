@@ -125,6 +125,7 @@ size_t
 my_casedn_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
                     char *dst, size_t dstlen)
 {
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(dstlen >= srclen * cs->cset->casedn_multiply(cs));
   DBUG_ASSERT(src != dst || cs->cset->casedn_multiply(cs) == 1);
   return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_lower, 0);
@@ -135,6 +136,7 @@ size_t
 my_caseup_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
              char *dst, size_t dstlen)
 {
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(dstlen >= srclen * cs->cset->caseup_multiply(cs));
   DBUG_ASSERT(src != dst || cs->cset->caseup_multiply(cs) == 1);
   return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_upper, 1);
@@ -619,6 +621,7 @@ my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
 {
   register ulong m1= *nr1, m2= *nr2;
   const uchar *end= key + len;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for (; key < end ; key++)
   {
     MY_HASH_ADD(m1, m2, (uint)*key);
@@ -637,6 +640,7 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
     'A ' and 'A' as identical
   */
   const uchar *end= skip_trailing_space(key, len);
+  DBUG_ASSERT(key);  /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_mb_nopad_bin(cs, key, end - key, nr1, nr2);
 }
 

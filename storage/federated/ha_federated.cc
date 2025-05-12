@@ -430,11 +430,12 @@ static handler *federated_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *federated_get_key(FEDERATED_SHARE *share, size_t *length,
-                                my_bool not_used __attribute__ ((unused)))
+static const uchar *federated_get_key(const void *share_, size_t *length,
+                                      my_bool)
 {
+  auto share= static_cast<const FEDERATED_SHARE *>(share_);
   *length= share->share_key_length;
-  return (uchar*) share->share_key;
+  return reinterpret_cast<const uchar *>(share->share_key);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -513,7 +514,7 @@ int federated_db_init(void *p)
                        &federated_mutex, MY_MUTEX_INIT_FAST))
     goto error;
   if (!my_hash_init(PSI_INSTRUMENT_ME, &federated_open_tables, &my_charset_bin,
-                    32, 0, 0, (my_hash_get_key) federated_get_key, 0, 0))
+                    32, 0, 0, federated_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -1670,7 +1671,7 @@ public:
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&
            sql_errno <= ER_NET_WRITE_INTERRUPTED;

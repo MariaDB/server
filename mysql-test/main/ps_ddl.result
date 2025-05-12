@@ -2037,7 +2037,7 @@ SUCCESS
 execute stmt;
 Warnings:
 Note	1050	Table 't2' already exists
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 SUCCESS
 
 select * from t2;

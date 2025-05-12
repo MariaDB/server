@@ -1,0 +1,20 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS(HOST '1');
+CREATE TABLE t(c INT)ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "s",TABLE "foo"';
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO t VALUES(1);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT INTO t VALUES(1);  # Hangs
+drop table t;
+drop server s;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

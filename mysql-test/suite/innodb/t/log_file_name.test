@@ -105,8 +105,14 @@ let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t[12].ibd.
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-# On Windows, this error message is not output when t2.ibd is a directory!
-#let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*t2.ibd;
+
+# On Linux, lseek() would typically report EINVAL when invoked on a directory.
+# On other plaftorms as well as some GNU/Linux based environments, such as
+# a Ubuntu 22.04 based image on Amazon Web Services,
+# os_file_get_size() would succeed on a directory, and we would get another
+# error about inability to apply log to a corrupted page.
+
+#--let SEARCH_PATTERN= InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'
 #--source include/search_pattern_in_file.inc
 
 --rmdir $MYSQLD_DATADIR/test/t2.ibd
@@ -150,6 +156,7 @@ call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
 call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");
+call mtr.add_suppression("InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'");
 # The following are for aborted startup without --innodb-force-recovery:
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
 call mtr.add_suppression("InnoDB: Cannot read first page of '.*test.[tu]2.ibd': I/O error");

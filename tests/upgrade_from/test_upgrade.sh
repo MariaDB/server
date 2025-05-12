@@ -117,11 +117,12 @@ install_mariadb_from_archive() {
     # The missing libraries depned on the latest distribution version, so that is found by scanning the MariaDB archive directory.
 
     log Finding MariaDB RPM repository for version $version
-    if ! $(wget --spider -r --no-parent --level 1 --quiet https://archive.mariadb.org/mariadb-$version/yum/fedora/ -P /tmp/); then
-        log Could not find RPMs
+    latest_distro=$(curl -s https://archive.mariadb.org/mariadb-$version/yum/fedora/ | (grep -Eo '^<a href="[0-9]+/">' || true) | 
+    sort -V | tail -n 1 | sed -n 's/^<a href="\([0-9]*\)\/">/\1/p')
+    if [ -z $latest_distro ]; then
+        log Could not find repository. Exiting.
         exit 1
     fi
-    latest_distro=$(ls -1v /tmp/archive.mariadb.org/mariadb-$version/yum/fedora/ | tail -n 1)
     rpm_repository=https://archive.mariadb.org/mariadb-$version/yum/fedora/$latest_distro/$(uname -m)/
     log RPM repository: $rpm_repository
     # log Fedora distribution: $latest_distro # Currently only supports tests on Fedora
@@ -149,11 +150,17 @@ EOF
     fi
     # Install missing dependencies that are version/distro specific
     log "Installing missing libraries"
+    [[ $latest_distro -le 26 ]] && dnf install -y http://mirror.centos.org/centos/8-stream/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-4.el8.x86_64.rpm
     [[ $latest_distro -le 32 ]] && dnf install -y https://download-ib01.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/b/boost169-program-options-1.69.0-5.el8.x86_64.rpm
     [[ $latest_distro == 33 ]] && dnf install -y http://springdale.princeton.edu/data/springdale/7/x86_64/os/Computational/boost173-program-options-1.73.0-7.sdl7.x86_64.rpm
     [[ $latest_distro == 34 ]] && dnf install -y https://repo.almalinux.org/almalinux/9/AppStream/x86_64/os/Packages/boost-program-options-1.75.0-8.el9.x86_64.rpm \
         https://vault.centos.org/centos/8/AppStream/x86_64/os/Packages/liburing-1.0.7-3.el8.x86_64.rpm
     [[ $latest_distro == 35 ]] && dnf install -y https://archives.fedoraproject.org/pub/archive/fedora/linux/updates/36/Everything/x86_64/Packages/b/boost-program-options-1.76.0-12.fc36.x86_64.rpm
+    [[ $latest_distro -le 35 ]] && dnf install -y https://dl.fedoraproject.org/pub/fedora/linux/releases/39/Everything/x86_64/os/Packages/o/openssl1.1-1.1.1q-5.fc39.x86_64.rpm
+    # galera-4 needs boost-program-options-1.81.0. Try installing from default repository first.
+    [[ $latest_distro -ge 39 ]] && 
+        (dnf install -y boost-program-options-1.81.0 ||
+        dnf install -y https://rpmfind.net/linux/fedora/linux/releases/39/Everything/x86_64/os/Packages/b/boost-program-options-1.81.0-8.fc39.x86_64.rpm)
     if [[ $major_version == "10.4" ]] && [[ $minor_version -ge 24 ]]; then
         log RPMs not available for version 10.4.24+ from this repository. You may try testing by installing from the .tar.gz binaries.
         exit 1

@@ -62,6 +62,26 @@ public:
   {}
   my_repertoire_t repertoire() const
   { return is_ascii ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_EXTENDED; }
+  /*
+    Get a non-abbreviated month name by index
+    @param month - the month index 0..11
+  */
+  LEX_CSTRING month_name(uint month) const
+  {
+    if (month > 11)
+      return Lex_cstring("##", 2);
+    return Lex_cstring_strlen(month_names->type_names[month]);
+  }
+  /*
+    Get a non-abbreviated weekday name by index
+    @param weekday - the weekday index 0..6
+  */
+  LEX_CSTRING day_name(uint weekday) const
+  {
+    if (weekday > 6)
+      return Lex_cstring("##", 2);
+    return Lex_cstring_strlen(day_names->type_names[weekday]);
+  }
 };
 /* Exported variables */
 

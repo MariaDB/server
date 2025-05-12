@@ -1,0 +1,235 @@
+#
+# Test circular replication where galera cluster is async replica and master
+#
+#      mariadb #4                  galera                             galera
+#       primary1
+#       replica2
+#         ---async replication-->replica1 #1 <--galera replication--> node_2 #2
+#         ^                                                          ^
+#         |                                                          | galera replication
+#         |                                                          v
+#         +<------------------async replication----------------------primary2 (galera) #3
+#
+# Test outline:
+#
+#  - Create user for async replication in primary1
+#  - Create user for async replication in primary2
+#  - Create table and some data in primary1
+#  - Verify that table and data is replicated to galera nodes
+#  - Verify that mysql.gtid_slave_pos has some rows in all Galera nodes
+#  - Verify that gtid_slave_pos, gtid_binlog_pos and gtid_current_pos are
+#    same in all Galera nodes and primary1
+#  - Verify that writes on Galera nodes are replicated to all nodes
+#    and to primary1
+#
+# The galera/galera_3nodes_as_slave.cnf describes the setup of the nodes
+#
+--source include/force_restart.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connect replica1, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect primary2, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# As node #4 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# because it is both primary and replica we open both connections here
+--connect primary1, 127.0.0.1, root, , test, $NODE_MYPORT_4
+--connect replica2, 127.0.0.1, root, , test, $NODE_MYPORT_4
+
+--connection primary1
+--echo # Primary1 node creating user for replication
+create user repl@'%' identified by 'repl';
+grant all on *.* to  repl@'%';
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--let $node_1 = replica1
+--let $node_2 = node_2
+--let $node_3 = primary2
+--let $node_4 = primary1
+--source include/auto_increment_offset_save.inc
+
+--connection replica1
+--echo # Galera replica changing master to primary1
+--disable_query_log
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_4, master_use_gtid=slave_pos;
+--enable_query_log
+START SLAVE;
+
+--connection primary2
+--echo # Primary2 creating user for replication
+create user repl2@'%' identified by 'repl2';
+grant all on *.* to  repl2@'%';
+
+--connection replica2
+--echo # replica2 changing master to primary2
+--disable_query_log
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl2', master_password='repl2', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
+--enable_query_log
+START SLAVE;
+
+--connection primary1
+--echo # Primary1: Creating table and populating it with data
+CREATE TABLE t1 (id bigint auto_increment primary key, msg varchar(100)) engine=innodb;
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
+--enable_query_log
+
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+
+--connection replica1
+--echo # Waiting for data to replicate to replica
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+
+--echo # Writing more data to table
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
+--enable_query_log
+
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+
+--connection node_2
+--echo # Waiting for data to replicate to Galera node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 2000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_2000 FROM t1;
+
+--echo # Writing more data to table
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
+--enable_query_log
+
+SELECT COUNT(*) AS EXPECT_3000 FROM t1;
+
+--connection primary2
+--echo # Waiting for data to replicate to primary2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 3000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_3000 FROM t1;
+
+--echo # Writing more data to table
+--echo # Intentionally generate 1k GTID-events
+--let $inserts=1000
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values (NULL,'test1')
+  --inc $count
+}
+--enable_query_log
+
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+
+--connection primary1
+--echo # Waiting for data to replicate to primary1
+--let $wait_condition = SELECT COUNT(*) = 4000 FROM t1;
+--let $wait_condition_on_error_output = SHOW SLAVE STATUS;
+--source include/wait_condition_with_debug.inc
+
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+
+--connection replica1
+--echo # Waiting for data to replicate to replica
+--let $wait_condition = SELECT COUNT(*) = 4000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+
+--connection node_2
+--echo # Waiting for data to replicate to node_2
+--let $wait_condition = SELECT COUNT(*) = 4000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+
+--connection primary2
+--echo # Waiting for data to replicate to node_3
+--let $wait_condition = SELECT COUNT(*) = 4000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_4000 FROM t1;
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT COUNT(*) < 1000 AS EXPECT_1 FROM mysql.gtid_slave_pos;
+SELECT @@gtid_slave_pos,@@gtid_binlog_pos,@@gtid_current_pos;
+#
+# Cleanup
+#
+--connection primary1
+drop table t1;
+
+--echo # Wait until drop table is replicated on Galera
+--connection replica1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--connection primary2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--connection replica1
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection replica2
+STOP SLAVE;
+RESET SLAVE ALL;
+RESET MASTER;
+
+--source include/auto_increment_offset_restore.inc
+
+--connection node_1
+--disconnect primary1
+--disconnect replica1
+--disconnect primary2
+--disconnect replica2
+
+--source include/galera_end.inc
+--echo # End of test

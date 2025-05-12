@@ -103,12 +103,6 @@
 #include <lf.h>
 #include "my_cpu.h"
 
-/*
-  when using alloca() leave at least that many bytes of the stack -
-  for functions we might be calling from within this stack frame
-*/
-#define ALLOCA_SAFETY_MARGIN 8192
-
 #define LF_PINBOX_MAX_PINS 65536
 
 static void lf_pinbox_real_free(LF_PINS *pins);
@@ -239,25 +233,20 @@ void lf_pinbox_put_pins(LF_PINS *pins)
   } while (!my_atomic_cas32((int32 volatile*) &pinbox->pinstack_top_ver,
                             (int32*) &top_ver,
                             top_ver-pins->link+nr+LF_PINBOX_MAX_PINS));
-  return;
 }
 
-static int ptr_cmp(const void *pa, const void *pb)
+/*
+  Get the next pointer in the purgatory list.
+  Note that next_node is not used to avoid the extra volatile.
+*/
+#define pnext_node(P, X) (*((void **)(((char *)(X)) + (P)->free_ptr_offset)))
+
+static inline void add_to_purgatory(LF_PINS *pins, void *addr)
 {
-  const void *const*a= pa;
-  const void *const*b= pb;
-  return *a < *b ? -1 : *a == *b ? 0 : 1;
+  pnext_node(pins->pinbox, addr)= pins->purgatory;
+  pins->purgatory= addr;
+  pins->purgatory_count++;
 }
-
-#define add_to_purgatory(PINS, ADDR)                                    \
-  do                                                                    \
-  {                                                                     \
-    my_atomic_storeptr_explicit(                                        \
-      (void **)((char *)(ADDR)+(PINS)->pinbox->free_ptr_offset),        \
-      (PINS)->purgatory, MY_MEMORY_ORDER_RELEASE);                      \
-    (PINS)->purgatory= (ADDR);                                          \
-    (PINS)->purgatory_count++;                                          \
-  } while (0)
 
 /*
   Free an object allocated via pinbox allocator
@@ -276,138 +265,86 @@ void lf_pinbox_free(LF_PINS *pins, void *addr)
                       lf_pinbox_real_free(pins););
 }
 
-struct st_harvester {
-  void **granary;
-  int npins;
+struct st_match_and_save_arg {
+  LF_PINS *pins;
+  LF_PINBOX *pinbox;
+  void *old_purgatory;
 };
 
 /*
-  callback forlf_dynarray_iterate:
-  scan all pins of all threads and accumulate all pins
+  Callback for lf_dynarray_iterate:
+  Scan all pins of all threads, for each active (non-null) pin,
+  scan the current thread's purgatory. If present there, move it
+  to a new purgatory. At the end, the old purgatory will contain
+  pointers not pinned by any thread.
 */
-static int harvest_pins(void *e, void *h)
+static int match_and_save(void *e, void *a)
 {
   LF_PINS *el= e;
-  struct st_harvester *hv= h;
+  struct st_match_and_save_arg *arg= a;
+
   int i;
-  LF_PINS *el_end= el+MY_MIN(hv->npins, LF_DYNARRAY_LEVEL_LENGTH);
+  LF_PINS *el_end= el + LF_DYNARRAY_LEVEL_LENGTH;
   for (; el < el_end; el++)
   {
     for (i= 0; i < LF_PINBOX_PINS; i++)
     {
       void *p= my_atomic_loadptr((void **)&el->pin[i]);
       if (p)
-        *hv->granary++= p;
+      {
+        void *cur= arg->old_purgatory;
+        void **list_prev= &arg->old_purgatory;
+        while (cur)
+        {
+          void *next= pnext_node(arg->pinbox, cur);
+
+          if (p == cur)
+          {
+            /* pinned - keeping */
+            add_to_purgatory(arg->pins, cur);
+            /* unlink from old purgatory */
+            *list_prev= next;
+          }
+          else
+            list_prev= (void **)((char *)cur+arg->pinbox->free_ptr_offset);
+          cur= next;
+        }
+        if (!arg->old_purgatory)
+          return 1;
+      }
     }
   }
-  /*
-    hv->npins may become negative below, but it means that
-    we're on the last dynarray page and harvest_pins() won't be
-    called again. We don't bother to make hv->npins() correct
-    (that is 0) in this case.
-  */
-  hv->npins-= LF_DYNARRAY_LEVEL_LENGTH;
   return 0;
 }
-
-/*
-  callback forlf_dynarray_iterate:
-  scan all pins of all threads and see if addr is present there
-*/
-static int match_pins(void *e, void *addr)
-{
-  LF_PINS *el= e;
-  int i;
-  LF_PINS *el_end= el+LF_DYNARRAY_LEVEL_LENGTH;
-  for (; el < el_end; el++)
-    for (i= 0; i < LF_PINBOX_PINS; i++)
-      if (my_atomic_loadptr((void **)&el->pin[i]) == addr)
-        return 1;
-  return 0;
-}
-
-#define next_node(P, X) (*((uchar * volatile *)(((uchar *)(X)) + (P)->free_ptr_offset)))
-#define anext_node(X) next_node(&allocator->pinbox, (X))
 
 /*
   Scan the purgatory and free everything that can be freed
 */
 static void lf_pinbox_real_free(LF_PINS *pins)
 {
-  int npins;
-  void *list;
-  void **addr= NULL;
-  void *first= NULL, *last= NULL;
-  struct st_my_thread_var *var= my_thread_var;
-  void *stack_ends_here= var ? var->stack_ends_here : NULL;
   LF_PINBOX *pinbox= pins->pinbox;
 
-  npins= pinbox->pins_in_array+1;
-
-#ifdef HAVE_ALLOCA
-  if (stack_ends_here != NULL)
-  {
-    int alloca_size= sizeof(void *)*LF_PINBOX_PINS*npins;
-    /* create a sorted list of pinned addresses, to speed up searches */
-    if (available_stack_size(&pinbox, stack_ends_here) >
-        alloca_size + ALLOCA_SAFETY_MARGIN)
-    {
-      struct st_harvester hv;
-      addr= (void **) alloca(alloca_size);
-      hv.granary= addr;
-      hv.npins= npins;
-      /* scan the dynarray and accumulate all pinned addresses */
-     lf_dynarray_iterate(&pinbox->pinarray, harvest_pins, &hv);
-
-      npins= (int)(hv.granary-addr);
-      /* and sort them */
-      if (npins)
-        qsort(addr, npins, sizeof(void *), ptr_cmp);
-    }
-  }
-#endif
-
-  list= pins->purgatory;
-  pins->purgatory= 0;
+  /* Store info about current purgatory. */
+  struct st_match_and_save_arg arg = {pins, pinbox, pins->purgatory};
+  /* Reset purgatory. */
+  pins->purgatory= NULL;
   pins->purgatory_count= 0;
-  while (list)
+
+
+  lf_dynarray_iterate(&pinbox->pinarray, match_and_save, &arg);
+
+  if (arg.old_purgatory)
   {
-    void *cur= list;
-    list= *(void **)((char *)cur+pinbox->free_ptr_offset);
-    if (npins)
-    {
-      if (addr) /* use binary search */
-      {
-        void **a, **b, **c;
-        for (a= addr, b= addr+npins-1, c= a+(b-a)/2; (b-a) > 1; c= a+(b-a)/2)
-          if (cur == *c)
-            a= b= c;
-          else if (cur > *c)
-            a= c;
-          else
-            b= c;
-        if (cur == *a || cur == *b)
-          goto found;
-      }
-      else /* no alloca - no cookie. linear search here */
-      {
-        if (lf_dynarray_iterate(&pinbox->pinarray, match_pins, cur))
-          goto found;
-      }
-    }
-    /* not pinned - freeing */
-    if (last)
-      last= next_node(pinbox, last)= (uchar *)cur;
-    else
-      first= last= (uchar *)cur;
-    continue;
-found:
-    /* pinned - keeping */
-    add_to_purgatory(pins, cur);
+    /* Some objects in the old purgatory were not pinned, free them. */
+    void *last= arg.old_purgatory;
+    while (pnext_node(pinbox, last))
+      last= pnext_node(pinbox, last);
+    pinbox->free_func(arg.old_purgatory, last, pinbox->free_func_arg);
   }
-  if (last)
-    pinbox->free_func(first, last, pinbox->free_func_arg);
 }
+
+#define next_node(P, X) (*((uchar * volatile *)(((uchar *)(X)) + (P)->free_ptr_offset)))
+#define anext_node(X) next_node(&allocator->pinbox, (X))
 
 /* lock-free memory allocator for fixed-size objects */
 

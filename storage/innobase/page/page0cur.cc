@@ -926,7 +926,7 @@ static void page_zip_dir_split_slot(buf_block_t *block, ulint s, mtr_t* mtr)
 
   /* Log changes to the compressed page header and the dense page directory. */
   memcpy_aligned<2>(&block->page.zip.data[n_slots_f], n_slots_p, 2);
-  mach_write_to_2(slot, page_offset(rec));
+  mach_write_to_2(slot, rec - block->page.frame);
   page_rec_set_n_owned<true>(block, page_dir_slot_get_rec(slot), half_owned,
                              true, mtr);
   page_rec_set_n_owned<true>(block,
@@ -991,7 +991,8 @@ static void page_zip_dir_balance_slot(buf_block_t *block, ulint s, mtr_t *mtr)
 
 	/* Transfer one record to the underfilled slot */
 	page_rec_set_n_owned<true>(block, slot_rec, 0, true, mtr);
-	const rec_t* new_rec = page_rec_get_next_low(slot_rec, TRUE);
+	const rec_t* new_rec = page_rec_next_get<true>(block->page.frame,
+						       slot_rec);
 	/* We do not try to prevent crash on corruption here.
 	For ROW_FORMAT=COMPRESSED pages, the next-record links should
 	be validated in page_zip_decompress(). Corruption should only
@@ -999,7 +1000,7 @@ static void page_zip_dir_balance_slot(buf_block_t *block, ulint s, mtr_t *mtr)
 	page_rec_set_n_owned<true>(block, const_cast<rec_t*>(new_rec),
 				   PAGE_DIR_SLOT_MIN_N_OWNED,
 				   true, mtr);
-	mach_write_to_2(slot, page_offset(new_rec));
+	mach_write_to_2(slot, new_rec - block->page.frame);
 	page_rec_set_n_owned(up_rec, up_n_owned - 1, true);
 }
 
@@ -1061,7 +1062,8 @@ static void page_dir_balance_slot(const buf_block_t &block, ulint s)
 
 	if (comp) {
 		if (UNIV_UNLIKELY(!(new_rec =
-				    page_rec_get_next_low(slot_rec, true)))) {
+				    page_rec_next_get<true>(block.page.frame,
+							    slot_rec)))) {
 			ut_ad("corrupted page" == 0);
 			return;
 		}
@@ -1071,7 +1073,8 @@ static void page_dir_balance_slot(const buf_block_t &block, ulint s)
 		page_rec_set_n_owned(up_rec, up_n_owned - 1, true);
 	} else {
 		if (UNIV_UNLIKELY(!(new_rec =
-				    page_rec_get_next_low(slot_rec, false)))) {
+				    page_rec_next_get<false>(block.page.frame,
+							     slot_rec)))) {
 			ut_ad("corrupted page" == 0);
 			return;
 		}
@@ -1081,7 +1084,7 @@ static void page_dir_balance_slot(const buf_block_t &block, ulint s)
 		page_rec_set_n_owned(up_rec, up_n_owned - 1, false);
 	}
 
-	mach_write_to_2(slot, page_offset(new_rec));
+	mach_write_to_2(slot, new_rec - block.page.frame);
 }
 
 /** Allocate space for inserting an index record.
@@ -1476,7 +1479,8 @@ use_heap:
         rec_get_node_ptr_flag(rec));
 
   /* Write PAGE_LAST_INSERT */
-  mach_write_to_2(page_last_insert, page_offset(insert_buf + extra_size));
+  mach_write_to_2(page_last_insert,
+                  insert_buf + extra_size - block->page.frame);
 
   /* Update PAGE_DIRECTION_B, PAGE_N_DIRECTION if needed */
   if (block->page.frame[FIL_PAGE_TYPE + 1] != byte(FIL_PAGE_RTREE))
@@ -1609,7 +1613,7 @@ inc_dir:
     rec_set_bit_field_2(insert_rec, heap_no,
                         REC_OLD_HEAP_NO, REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
     memcpy(insert_rec - REC_NEXT, cur->rec - REC_NEXT, 2);
-    mach_write_to_2(cur->rec - REC_NEXT, page_offset(insert_rec));
+    mach_write_to_2(cur->rec - REC_NEXT, insert_rec - block->page.frame);
     while (!(n_owned= rec_get_n_owned_old(next_rec)))
     {
       next_rec= block->page.frame + rec_get_next_offs(next_rec, false);
@@ -2044,7 +2048,7 @@ use_heap:
   }
 
   /* next record after current before the insertion */
-  const rec_t *next_rec = page_rec_get_next_low(cursor->rec, TRUE);
+  const rec_t *next_rec = page_rec_next_get<true>(page, cursor->rec);
   if (UNIV_UNLIKELY(!next_rec ||
                     rec_get_status(next_rec) == REC_STATUS_INFIMUM ||
                     rec_get_status(cursor->rec) > REC_STATUS_INFIMUM))
@@ -2083,7 +2087,7 @@ use_heap:
   ut_ad(!last_insert_rec ||
         rec_get_node_ptr_flag(page + last_insert_rec) ==
         rec_get_node_ptr_flag(insert_rec));
-  mach_write_to_2(last_insert, page_offset(insert_rec));
+  mach_write_to_2(last_insert, insert_rec - page);
 
   if (!index->is_spatial())
   {
@@ -2103,7 +2107,7 @@ no_direction:
 inc_dir:
       mach_write_to_2(n, mach_read_from_2(n) + 1);
     }
-    else if (*dir != PAGE_RIGHT && page_rec_get_next(insert_rec) ==
+    else if (*dir != PAGE_RIGHT && page_rec_next_get<true>(page, insert_rec) ==
              page + last_insert_rec)
     {
       *dir= PAGE_LEFT;
@@ -2124,7 +2128,7 @@ inc_dir:
   ulint n_owned;
 
   while (!(n_owned= rec_get_n_owned_new(next_rec)))
-    if (!(next_rec= page_rec_get_next_low(next_rec, true)))
+    if (!(next_rec= page_rec_next_get<true>(page, next_rec)))
       return nullptr;
 
   rec_set_bit_field_1(const_cast<rec_t*>(next_rec), n_owned + 1,
@@ -2174,12 +2178,13 @@ static void page_mem_free(const buf_block_t &block, rec_t *rec,
     byte *page_heap_top= my_assume_aligned<2>(PAGE_HEAP_TOP + PAGE_HEADER +
                                               block.page.frame);
     const uint16_t heap_top= mach_read_from_2(page_heap_top);
-    const size_t extra_savings= heap_top - page_offset(rec + data_size);
+    const size_t extra_savings= heap_top -
+      (rec + data_size - block.page.frame);
     ut_ad(extra_savings < heap_top);
 
     /* When deleting the last record, do not add it to the PAGE_FREE list.
     Instead, decrement PAGE_HEAP_TOP and PAGE_N_HEAP. */
-    mach_write_to_2(page_heap_top, page_offset(rec - extra_size));
+    mach_write_to_2(page_heap_top, rec - extra_size - block.page.frame);
     mach_write_to_2(my_assume_aligned<2>(page_heap_top + 2), n_heap);
     static_assert(PAGE_N_HEAP == PAGE_HEAP_TOP + 2, "compatibility");
     if (extra_savings)
@@ -2197,7 +2202,7 @@ static void page_mem_free(const buf_block_t &block, rec_t *rec,
                                           block.page.frame);
     byte *page_garbage= my_assume_aligned<2>(PAGE_GARBAGE + PAGE_HEADER +
                                              block.page.frame);
-    mach_write_to_2(page_free, page_offset(rec));
+    mach_write_to_2(page_free, rec - block.page.frame);
     mach_write_to_2(page_garbage, mach_read_from_2(page_garbage) +
                     extra_size + data_size);
   }
@@ -2340,7 +2345,8 @@ page_cur_delete_rec(
 			page_zip_rec_set_owned(block, prev_rec, 1, mtr);
 			page_zip_rec_set_owned(block, slot_rec, 0, mtr);
 			slot_rec = prev_rec;
-			mach_write_to_2(cur_dir_slot, page_offset(slot_rec));
+			mach_write_to_2(cur_dir_slot,
+					slot_rec - block->page.frame);
 		} else if (cur_n_owned == 1
 			   && !page_rec_is_supremum(slot_rec)) {
 			page_zip_rec_set_owned(block, slot_rec, 0, mtr);
@@ -2365,14 +2371,14 @@ page_cur_delete_rec(
 
 	if (current_rec == slot_rec) {
 		slot_rec = prev_rec;
-		mach_write_to_2(cur_dir_slot, page_offset(slot_rec));
+		mach_write_to_2(cur_dir_slot, slot_rec - block->page.frame);
 	}
 
 	const size_t data_size = rec_offs_data_size(offsets);
 	const size_t extra_size = rec_offs_extra_size(offsets);
 
 	if (page_is_comp(block->page.frame)) {
-		mtr->page_delete(*block, page_offset(prev_rec)
+		mtr->page_delete(*block, prev_rec - block->page.frame
 				 - PAGE_NEW_INFIMUM,
 				 extra_size - REC_N_NEW_EXTRA_BYTES,
 				 data_size);
@@ -2382,7 +2388,7 @@ page_cur_delete_rec(
 			(slot_rec[-REC_NEW_N_OWNED] & ~REC_N_OWNED_MASK)
 			| (cur_n_owned - 1) << REC_N_OWNED_SHIFT);
 	} else {
-		mtr->page_delete(*block, page_offset(prev_rec)
+		mtr->page_delete(*block, prev_rec - block->page.frame
 				 - PAGE_OLD_INFIMUM);
 		memcpy(prev_rec - REC_NEXT, current_rec - REC_NEXT, 2);
 		slot_rec[-REC_OLD_N_OWNED] = static_cast<byte>(

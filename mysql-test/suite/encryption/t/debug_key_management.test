@@ -3,6 +3,7 @@
 -- source include/innodb_undo_tablespaces.inc
 -- source include/not_embedded.inc
 
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=[0-9]*\\] in file");
 if (`select count(*) = 0 from information_schema.plugins
      where plugin_name = 'debug_key_management' and plugin_status='active'`)
 {

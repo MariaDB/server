@@ -148,7 +148,7 @@ public:
     DBUG_ASSERT(!reinterpret_cast<XID_cache_element*>(ptr + LF_HASH_OVERHEAD)
 		->is_set(ACQUIRED));
   }
-  static uchar *key(const unsigned char *el, size_t *length, my_bool)
+  static const uchar *key(const void *el, size_t *length, my_bool)
   {
     const XID &xid= reinterpret_cast<const XID_cache_element*>(el)->xid;
     *length= xid.key_length();
@@ -185,6 +185,14 @@ void XID_STATE::set_online_alter_cache(Online_alter_cache_list *cache)
 {
   if (is_explicit_XA())
     xid_cache_element->xid.online_alter_cache= cache;
+}
+
+void XID_STATE::set_rollback_only()
+{
+  xid_cache_element->xa_state= XA_ROLLBACK_ONLY;
+  if (current_thd)
+    MYSQL_SET_TRANSACTION_XA_STATE(current_thd->m_transaction_psi,
+                                   XA_ROLLBACK_ONLY);
 }
 
 void XID_STATE::er_xaer_rmfail() const
@@ -506,6 +514,40 @@ bool trans_xa_end(THD *thd)
 }
 
 
+/*
+  Get the BACKUP_COMMIT lock for the duration of the XA.
+
+  The metadata lock which will ensure that COMMIT is blocked
+   by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
+   progress blocks FTWRL) and also by MDL_BACKUP_WAIT_COMMIT.
+   We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
+
+   Note that the function sets thd->backup_lock on sucess. The caller needs
+   to reset thd->backup_commit_lock before returning!
+*/
+
+static bool trans_xa_get_backup_lock(THD *thd, MDL_request *mdl_request)
+{
+  DBUG_ASSERT(thd->backup_commit_lock == 0);
+  MDL_REQUEST_INIT(mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                   MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(mdl_request,
+                                    thd->variables.lock_wait_timeout))
+    return 1;
+  thd->backup_commit_lock= mdl_request;
+  return 0;
+}
+
+static inline void trans_xa_release_backup_lock(THD *thd)
+{
+  if (thd->backup_commit_lock)
+  {
+    thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
+    thd->backup_commit_lock= 0;
+  }
+}
+
+
 /**
   Put a XA transaction in the PREPARED state.
 
@@ -528,21 +570,12 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XAER_NOTA, MYF(0));
   else
   {
-    /*
-      Acquire metadata lock which will ensure that COMMIT is blocked
-      by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
-      progress blocks FTWRL).
-
-      We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
-    */
     MDL_request mdl_request;
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_STATEMENT);
-    if (thd->mdl_context.acquire_lock(&mdl_request,
-                                      thd->variables.lock_wait_timeout) ||
+    if (trans_xa_get_backup_lock(thd, &mdl_request) ||
         ha_prepare(thd))
     {
       if (!mdl_request.ticket)
+        /* Failed to get the backup lock */
         ha_rollback_trans(thd, TRUE);
       thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
       thd->transaction->all.reset();
@@ -553,11 +586,25 @@ bool trans_xa_prepare(THD *thd)
     }
     else
     {
-      thd->transaction->xid_state.xid_cache_element->xa_state= XA_PREPARED;
-      MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+      if (thd->transaction->xid_state.xid_cache_element->xa_state !=
+          XA_ROLLBACK_ONLY)
+      {
+        thd->transaction->xid_state.xid_cache_element->xa_state= XA_PREPARED;
+        MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+      }
+      else
+      {
+        /*
+          In the non-err case, XA_ROLLBACK_ONLY should only be set by a slave
+          thread which prepared an empty transaction, to prevent binlogging a
+          standalone XA COMMIT.
+        */
+        DBUG_ASSERT(thd->rgi_slave && !(thd->transaction->all.ha_list));
+      }
       res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
         slave_applier_reset_xa_trans(thd) : 0;
     }
+    trans_xa_release_backup_lock(thd);
   }
 
   DBUG_RETURN(res);
@@ -621,19 +668,8 @@ bool trans_xa_commit(THD *thd)
         res= 1;
         goto _end_external_xid;
       }
-
       res= xa_trans_rolled_back(xs);
-      /*
-        Acquire metadata lock which will ensure that COMMIT is blocked
-        by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
-        progress blocks FTWRL).
-
-        We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
-      */
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_EXPLICIT);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
-                                        thd->variables.lock_wait_timeout))
+      if (trans_xa_get_backup_lock(thd, &mdl_request))
       {
         /*
           We can't rollback an XA transaction on lock failure due to
@@ -644,10 +680,6 @@ bool trans_xa_commit(THD *thd)
 
         res= true;
         goto _end_external_xid;
-      }
-      else
-      {
-        thd->backup_commit_lock= &mdl_request;
       }
       DBUG_ASSERT(!xid_state.xid_cache_element);
 
@@ -668,11 +700,7 @@ bool trans_xa_commit(THD *thd)
       res= res || thd->is_error();
       if (!xid_deleted)
         xs->acquired_to_recovered();
-      if (mdl_request.ticket)
-      {
-        thd->mdl_context.release_lock(mdl_request.ticket);
-        thd->backup_commit_lock= 0;
-      }
+      trans_xa_release_backup_lock(thd);
     }
     else
       my_error(ER_XAER_NOTA, MYF(0));
@@ -695,7 +723,8 @@ bool trans_xa_commit(THD *thd)
     if ((res= MY_TEST(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
   }
-  else if (thd->transaction->xid_state.xid_cache_element->xa_state == XA_PREPARED)
+  else if (thd->transaction->xid_state.xid_cache_element->xa_state ==
+           XA_PREPARED)
   {
     MDL_request mdl_request;
     if (thd->lex->xa_opt != XA_NONE)
@@ -704,18 +733,7 @@ bool trans_xa_commit(THD *thd)
       DBUG_RETURN(TRUE);
     }
 
-    /*
-      Acquire metadata lock which will ensure that COMMIT is blocked
-      by active FLUSH TABLES WITH READ LOCK (and vice versa COMMIT in
-      progress blocks FTWRL).
-
-      We allow FLUSHer to COMMIT; we assume FLUSHer knows what it does.
-    */
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_TRANSACTION);
-
-    if (thd->mdl_context.acquire_lock(&mdl_request,
-                                      thd->variables.lock_wait_timeout))
+    if (trans_xa_get_backup_lock(thd, &mdl_request))
     {
       /*
         We can't rollback an XA transaction on lock failure due to
@@ -742,6 +760,7 @@ bool trans_xa_commit(THD *thd)
       }
 
       thd->m_transaction_psi= NULL;
+      trans_xa_release_backup_lock(thd);
     }
   }
   else
@@ -779,7 +798,8 @@ bool trans_xa_commit(THD *thd)
 bool trans_xa_rollback(THD *thd)
 {
   XID_STATE &xid_state= thd->transaction->xid_state;
-
+  MDL_request mdl_request;
+  bool error;
   DBUG_ENTER("trans_xa_rollback");
 
   if (!xid_state.is_explicit_XA() ||
@@ -800,7 +820,6 @@ bool trans_xa_rollback(THD *thd)
     {
       bool res;
       bool xid_deleted= false;
-      MDL_request mdl_request;
       bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
       if (rw_trans && thd->is_read_only_ctx())
@@ -810,10 +829,7 @@ bool trans_xa_rollback(THD *thd)
         goto _end_external_xid;
       }
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_EXPLICIT);
-      if (thd->mdl_context.acquire_lock(&mdl_request,
-                                        thd->variables.lock_wait_timeout))
+      if (trans_xa_get_backup_lock(thd, &mdl_request))
       {
         /*
           We can't rollback an XA transaction on lock failure due to
@@ -823,10 +839,6 @@ bool trans_xa_rollback(THD *thd)
         DBUG_ASSERT(thd->is_error());
 
         goto _end_external_xid;
-      }
-      else
-      {
-        thd->backup_commit_lock= &mdl_request;
       }
       res= xa_trans_rolled_back(xs);
       DBUG_ASSERT(!xid_state.xid_cache_element);
@@ -844,11 +856,7 @@ bool trans_xa_rollback(THD *thd)
       xid_state.xid_cache_element= 0;
       if (!xid_deleted)
         xs->acquired_to_recovered();
-      if (mdl_request.ticket)
-      {
-        thd->mdl_context.release_lock(mdl_request.ticket);
-        thd->backup_commit_lock= 0;
-      }
+      trans_xa_release_backup_lock(thd);
     }
     else
       my_error(ER_XAER_NOTA, MYF(0));
@@ -865,11 +873,7 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  MDL_request mdl_request;
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-      MDL_STATEMENT);
-  if (thd->mdl_context.acquire_lock(&mdl_request,
-        thd->variables.lock_wait_timeout))
+  if (trans_xa_get_backup_lock(thd, &mdl_request))
   {
     /*
       We can't rollback an XA transaction on lock failure due to
@@ -880,7 +884,9 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(true);
   }
 
-  DBUG_RETURN(xa_trans_force_rollback(thd));
+  error= xa_trans_force_rollback(thd);
+  trans_xa_release_backup_lock(thd);
+  DBUG_RETURN(error);
 }
 
 
@@ -1175,5 +1181,10 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   thd->has_waiter= false;
   MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi); // TODO/Fixme: commit?
   thd->m_transaction_psi= NULL;
+  if (thd->variables.pseudo_slave_mode && thd->variables.pseudo_thread_id == 0)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		 ER_PSEUDO_THREAD_ID_OVERWRITE,
+		 ER_THD(thd, ER_PSEUDO_THREAD_ID_OVERWRITE));
+  thd->variables.pseudo_thread_id= 0;
   return thd->is_error();
 }

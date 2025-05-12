@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_table_status.result	2017-06-22 00:33:46.423995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_table_status.reject	2017-06-22 14:04:10.723690009 +0300
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_table_status.result
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_table_status.reject
 @@ -19,7 +19,7 @@
  Create_time	###
  Update_time	###

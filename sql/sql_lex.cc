@@ -3055,6 +3055,7 @@ void st_select_lex::init_query()
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
   first_rownum_optimization= true;
+  leaf_tables_saved= false;
   no_wrap_view_item= 0;
   exclude_from_table_unique_test= 0;
   in_tvc= 0;
@@ -3637,7 +3638,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     return false;
 
   Item **array= static_cast<Item**>(
-    thd->active_stmt_arena_to_use()->alloc(sizeof(Item*) * n_elems));
+    thd->active_stmt_arena_to_use()->calloc(sizeof(Item*) * n_elems));
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;
@@ -3793,6 +3794,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
   }
   else if (saved_fake_select_lex)
     saved_fake_select_lex->print_limit(thd, str, query_type);
+
+  print_lock_from_the_last_select(str);
 }
 
 
@@ -5488,6 +5491,9 @@ void st_select_lex::update_correlated_cache()
 
   while ((tl= ti++))
   {
+    if (tl->table_function)
+      is_correlated|= MY_TEST(tl->table_function->used_tables() &
+                                OUTER_REF_TABLE_BIT);
     //    is_correlated|= tl->is_with_table_recursive_reference();
     if (tl->on_expr)
       is_correlated|= MY_TEST(tl->on_expr->used_tables() & OUTER_REF_TABLE_BIT);
@@ -6550,6 +6556,21 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
+sp_fetch_target *LEX::make_fetch_target(THD *thd, const Lex_ident_sys_st &name)
+{
+  sp_pcontext *spc;
+  const Sp_rcontext_handler *rha;
+  sp_variable *spv= find_variable(&name, &spc, &rha);
+  if (unlikely(!spv))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return nullptr;
+  }
+  return new (thd->mem_root) sp_fetch_target(name,
+                               sp_rcontext_addr(rha, spv->offset));
+}
+
+
 static bool is_new(const char *str)
 {
   return (str[0] == 'n' || str[0] == 'N') &&
@@ -7228,8 +7249,11 @@ bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
                                         spcont, loop.m_cursor_offset, false);
   if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
-  instr->add_to_varlist(loop.m_index);
-  return false;
+  const sp_rcontext_addr raddr(&sp_rcontext_handler_local,
+                               loop.m_index->offset);
+  sp_fetch_target *trg=
+    new (thd->mem_root) sp_fetch_target(loop.m_index->name, raddr);
+  return !trg || instr->add_to_fetch_target_list(trg);
 }
 
 
@@ -8229,7 +8253,7 @@ bool LEX::check_expr_allows_fields_or_error(THD *thd, const char *name) const
 {
   if (select_stack_top > 0)
     return false; // OK, fields are allowed
-  my_error(ER_BAD_FIELD_ERROR, MYF(0), name, thd->where);
+  my_error(ER_BAD_FIELD_ERROR, MYF(0), name, thd_where(thd));
   return true;    // Error, fields are not allowed
 }
 
@@ -8252,7 +8276,7 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
 
   if (unlikely(current_select->no_table_names_allowed))
   {
-    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a->str, thd->where);
+    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a->str, thd_where(thd));
     return NULL;
   }
 
@@ -8467,7 +8491,7 @@ Item *LEX::create_item_ident(THD *thd,
 
   if (current_select->no_table_names_allowed)
   {
-    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), b->str, thd->where);
+    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), b->str, thd_where(thd));
     return NULL;
   }
 
@@ -9315,7 +9339,7 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
-bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
+sp_instr_cfetch *LEX::sp_add_instr_cfetch(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
   sp_instr_cfetch *i;
@@ -9323,14 +9347,14 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
   if (!spcont->find_cursor(name, &offset, false))
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
-    return true;
+    return nullptr;
   }
   i= new (thd->mem_root)
     sp_instr_cfetch(sphead->instructions(), spcont, offset,
                     !(thd->variables.sql_mode & MODE_ORACLE));
   if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
-    return true;
-  return false;
+    return nullptr;
+  return i;
 }
 
 
@@ -10795,6 +10819,22 @@ bool SELECT_LEX_UNIT::set_lock_to_the_last_select(Lex_select_lock l)
   return FALSE;
 }
 
+
+void SELECT_LEX_UNIT::print_lock_from_the_last_select(String *str)
+{
+  SELECT_LEX *sel= first_select();
+  while (sel->next_select())
+    sel= sel->next_select();
+  if(sel->braces)
+    return; // braces processed in st_select_lex::print
+
+  // lock type
+  sel->print_lock_type(str);
+
+  return;
+}
+
+
 /**
   Generate unique name for generated derived table for this SELECT
 */
@@ -11111,7 +11151,10 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
        (if cond is marked with MARKER_FULL_EXTRACTION or
            cond is an AND condition and some of its parts are marked with
            MARKER_FULL_EXTRACTION)
-       In this case condition is transformed and pushed into attach_to_conds
+       In this case condition is transformed with multiple_equality_transformer
+       transformer. It transforms all multiple equalities in the extracted
+       condition into the set of equalities.
+       After that the transformed condition is attached into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
        (if с1 isn't marked with any flag).
@@ -11127,10 +11170,6 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
 
        In this case build_pushable_cond() is called for c1.
        This method builds a clone of the c1 part that can be pushed.
-
-    Transformation mentioned above is made with multiple_equality_transformer
-    transformer. It transforms all multiple equalities in the extracted
-    condition into the set of equalities.
 
   @note
     Conditions that can be pushed are collected in attach_to_conds in this way:
@@ -11254,7 +11293,8 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
 Field_pair *get_corresponding_field_pair(Item *item,
                                          List<Field_pair> pair_list)
 {
-  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+  DBUG_ASSERT(item->type() == Item::DEFAULT_VALUE_ITEM ||
+              item->type() == Item::FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
                (((Item_ref *) item)->ref_type() == Item_ref::REF))));
@@ -11542,6 +11582,19 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
 
     if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
         || item->fix_fields(thd, NULL))
+    {
+      attach_to_conds.empty();
+      goto exit;
+    }
+  }
+
+  /*
+    Remove IMMUTABLE_FL only after all of the elements of the condition are processed.
+  */
+  it.rewind();
+  while ((item=it++))
+  {
+    if (item->walk(&Item::remove_immutable_flag_processor, 0, STOP_PTR))
     {
       attach_to_conds.empty();
       goto exit;
@@ -12327,6 +12380,48 @@ bool SELECT_LEX_UNIT::explainable() const
                derived->is_materialized_derived() && // (3)
                  !is_derived_eliminated() :
                false;
+}
+
+/**
+  Find the real table in prepared SELECT tree
+
+  NOTE: all SELECT must be prepared (to have leaf table list).
+
+  NOTE: it looks only for real tables (not view or derived)
+
+  @param thd          the current thread handle
+  @param db_name      name of db of the table to look for
+  @param db_name      name of db of the table to look for
+
+  @return first found table, NULL or ERROR_TABLE
+*/
+
+TABLE_LIST *SELECT_LEX::find_table(THD *thd,
+                                   const LEX_CSTRING *db_name,
+                                   const LEX_CSTRING *table_name)
+{
+  uchar buff[STACK_BUFF_ALLOC];                 // Max argument in function
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
+    return NULL;
+
+  List_iterator_fast <TABLE_LIST> ti(leaf_tables);
+  TABLE_LIST *table;
+  while ((table= ti++))
+  {
+    if (cmp(&table->db, db_name) == 0 &&
+        cmp(&table->table_name, table_name) == 0)
+      return table;
+  }
+
+  for (SELECT_LEX_UNIT *u= first_inner_unit(); u; u= u->next_unit())
+  {
+    for (st_select_lex *sl= u->first_select(); sl; sl=sl->next_select())
+    {
+      if ((table= sl->find_table(thd, db_name, table_name)))
+        return table;
+    }
+  }
+  return NULL;
 }
 
 

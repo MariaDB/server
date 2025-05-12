@@ -245,7 +245,7 @@ CREATE TABLE t4 (
 ) ENGINE=MyISAM;
 INSERT INTO t4 VALUES ('CD');
 
-set @@tmp_table_size=8192;
+set @@tmp_table_size=16384;
 
 --replace_column 9 #
 EXPLAIN

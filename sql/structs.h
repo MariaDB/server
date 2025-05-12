@@ -171,7 +171,7 @@ typedef struct st_key {
   engine_option_value *option_list;
   ha_index_option_struct *option_struct;                  /* structure with parsed options */
 
-  double actual_rec_per_key(uint i);
+  double actual_rec_per_key(uint i) const;
 } KEY;
 
 
@@ -234,7 +234,7 @@ struct AUTHID
   LEX_CSTRING user, host;
   void init() { memset(this, 0, sizeof(*this)); }
   void copy(MEM_ROOT *root, const LEX_CSTRING *usr, const LEX_CSTRING *host);
-  bool is_role() const { return user.str[0] && !host.str[0]; }
+  bool is_role() const { return user.str[0] && (!host.str || !host.str[0]); }
   void set_lex_string(LEX_CSTRING *l, char *buf)
   {
     if (is_role())
@@ -1059,5 +1059,30 @@ public:
   bool is_null() const { return m_is_null; }
 };
 
+
+/*
+  A run-time address of an SP variable. Consists of:
+  - The rcontext type (LOCAL, PACKAGE BODY),
+    controlled by m_rcontext_handler
+  - The frame offset
+*/
+class sp_rcontext_addr
+{
+public:
+  sp_rcontext_addr(const class Sp_rcontext_handler *h, uint offset)
+   :m_rcontext_handler(h), m_offset(offset)
+  { }
+  const Sp_rcontext_handler *rcontext_handler() const
+  {
+    return m_rcontext_handler;
+  }
+  uint offset() const
+  {
+    return m_offset;
+  }
+protected:
+  const class Sp_rcontext_handler *m_rcontext_handler;
+  uint m_offset;               ///< Frame offset
+};
 
 #endif /* STRUCTS_INCLUDED */

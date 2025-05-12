@@ -2,6 +2,11 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+call mtr.add_suppression("Invalid \\(old\\?\\) table or database name '#mysql50#d-b'");
+--enable_query_log
+
 SET GLOBAL innodb_stats_persistent = 0;
 
 --echo #
@@ -128,7 +133,6 @@ FLUSH TABLES;
 --let $shutdown_timeout=
 disconnect incomplete;
 
-SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 
 INSERT INTO child SET a=0;
@@ -137,9 +141,6 @@ INSERT INTO child SET a=1;
 --error ER_ROW_IS_REFERENCED_2
 DELETE FROM parent;
 ALTER TABLE child ADD INDEX(a);
---error ER_ROW_IS_REFERENCED_2
-DELETE FROM parent;
-ALTER TABLE child FORCE;
 DELETE FROM parent;
 DROP TABLE child,parent;
 
@@ -1063,6 +1064,21 @@ alter table t2 add foreign key(a) references t1;
 show create table t2;
 drop tables t2, t1;
 
+
+--echo #
+--echo # MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
+--echo #
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(3), c INT AS (LENGTH(b)) VIRTUAL,
+                INDEX(c)) ENGINE=InnoDB;
+CREATE TABLE t2(a INT REFERENCES t1(a) ON UPDATE CASCADE,
+                b INT GENERATED ALWAYS AS(a) VIRTUAL, INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1,b='fu';
+INSERT INTO t2 SET a=1;
+UPDATE t1 SET a=2,b='bar';
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2,t1;
+
 --echo # End of 10.5 tests
 
 --echo #
@@ -1184,8 +1200,101 @@ CHECK TABLE binaries, collections EXTENDED;
 # Cleanup
 DROP TABLE binaries, collections;
 
+CREATE SCHEMA `#mysql50##mysql50#d-b`;
+CREATE TABLE `#mysql50##mysql50#d-b`.t1 (a INT PRIMARY KEY, b INT UNIQUE) engine=InnoDB;
+USE `#mysql50##mysql50#d-b`;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT UNIQUE REFERENCES t1(b)) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1(a);
+SHOW CREATE TABLE t2;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET a=1;
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM t1;
+DELETE FROM t2;
+DELETE FROM t1;
+DROP DATABASE `#mysql50##mysql50#d-b`;
+USE test;
+
+--echo #
+--echo # MDEV-35962 CREATE INDEX fails to heal a FOREIGN KEY constraint
+--echo #
+
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t2 (b INT, FOREIGN KEY (b) REFERENCES t1(a)) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+SET STATEMENT foreign_key_checks=0 FOR
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO t2 VALUES (1);
+ALTER TABLE t1 ADD KEY(a), ALGORITHM=NOCOPY;
+INSERT INTO t2 VALUES (1);
+--error ER_DROP_INDEX_FK
+DROP INDEX b ON t2;
+SET STATEMENT foreign_key_checks=0 FOR
+DROP INDEX b ON t2;
+DELETE FROM t2;
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM t1;
+ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
+DELETE FROM t1;
+DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-33167 ASAN errors after failing to load foreign key
+--echo #   relation for the table
+--echo #
+call mtr.add_suppression("InnoDB: Load table `test`.`t3` failed, the table has missing foreign key indexes. Turn off 'foreign_key_checks' and try again.");
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t1(f1 VARCHAR(8),
+	        FOREIGN KEY(f1) REFERENCES test.t3(f1))ENGINE=InnoDB;
+
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t2(f1 VARCHAR(8),
+	        FOREIGN KEY(f1) REFERENCES test.t3(f1))
+                ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t3(f1 VARCHAR(8) PRIMARY KEY)
+		ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+set GLOBAL innodb_fast_shutdown=0;
+--let $shutdown_timeout=
+--source include/restart_mysqld.inc
+# Error encountered while loading the foreign key
+# constraint for t3. t1 wasn't loaded into memory yet
+# t2 failed to find index for foreign key relation
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1, t3;
+
 --echo # End of 10.6 tests
 
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+CREATE TABLE t1
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(32)BINARY NOT NULL,
+PRIMARY KEY (f1),
+INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('MySQL', 'InnoDB'), ('MariaDB', 'NDB');
 
---source include/wait_until_count_sessions.inc
+CREATE TABLE t2
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(255)BINARY NOT NULL,
+f3 int, PRIMARY KEY (f1), INDEX(f1), INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES('MySQL', 'MySQL', 1),
+                     ('MariaDB', 'MariaDB', 1);
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t2 (f2);
+# MDEV-33927 TODO: change the warning message
+--error ER_FK_CANNOT_DELETE_PARENT
+ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
+ADD UNIQUE INDEX(f3);
+drop table t1, t2;
+
+--echo # End of 10.11 tests

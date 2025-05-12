@@ -727,31 +727,31 @@ b	c	a	c	b	y
 1	10	2	3	1	2
 1	3	2	3	1	2
 select * from t1 natural join (t3 cross join t4);
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select * from (t3 cross join t4) natural join t1;
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select * from t1 join (t2, t3) using (b);
-ERROR 23000: Column 'b' in from clause is ambiguous
+ERROR 23000: Column 'b' in FROM is ambiguous
 select * from ((t1 natural join t2), (t3 natural join t4)) natural join t6;
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select * from ((t1 natural join t2), (t3 natural join t4)) natural join t6;
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select * from t6 natural join ((t1 natural join t2),  (t3 natural join t4));
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select * from (t1 join t2 on t1.b=t2.b) natural join (t3 natural join t4);
-ERROR 23000: Column 'b' in from clause is ambiguous
+ERROR 23000: Column 'b' in FROM is ambiguous
 select * from  (t3 natural join t4) natural join (t1 join t2 on t1.b=t2.b);
-ERROR 23000: Column 'b' in from clause is ambiguous
+ERROR 23000: Column 'b' in FROM is ambiguous
 select * from (t3 join (t4 natural join t5) on (b < z))
 natural join
 (t1 natural join t2);
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select * from (t1 natural join t2) natural join (t3 join (t4 natural join t5) on (b < z));
-ERROR 23000: Column 'c' in from clause is ambiguous
+ERROR 23000: Column 'c' in FROM is ambiguous
 select t1.b from v1a;
-ERROR 42S22: Unknown column 't1.b' in 'field list'
+ERROR 42S22: Unknown column 't1.b' in 'SELECT'
 select * from v1a join v1b on t1.b = t2.b;
-ERROR 42S22: Unknown column 't1.b' in 'on clause'
+ERROR 42S22: Unknown column 't1.b' in 'ON'
 select 
 statistics.TABLE_NAME, statistics.COLUMN_NAME, statistics.TABLE_CATALOG, statistics.TABLE_SCHEMA, statistics.NON_UNIQUE, statistics.INDEX_SCHEMA, statistics.INDEX_NAME, statistics.SEQ_IN_INDEX, statistics.COLLATION, statistics.SUB_PART, statistics.PACKED, statistics.NULLABLE, statistics.INDEX_TYPE, statistics.COMMENT, 
 columns.TABLE_CATALOG, columns.TABLE_SCHEMA, columns.COLUMN_DEFAULT, columns.IS_NULLABLE, columns.DATA_TYPE, columns.CHARACTER_MAXIMUM_LENGTH, columns.CHARACTER_OCTET_LENGTH, columns.NUMERIC_PRECISION, columns.NUMERIC_SCALE, columns.CHARACTER_SET_NAME, columns.COLLATION_NAME, columns.COLUMN_TYPE, columns.COLUMN_KEY, columns.EXTRA, columns.COLUMN_COMMENT
@@ -1531,12 +1531,12 @@ SET optimizer_switch=@save_optimizer_switch;
 CREATE TABLE t (i INT);
 CREATE PROCEDURE p() SELECT t1.f FROM t AS t1 JOIN t AS t2 USING (f);
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+ERROR 42S22: Unknown column 'f' in 'FROM'
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+ERROR 42S22: Unknown column 'f' in 'FROM'
 FLUSH TABLES;
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+ERROR 42S22: Unknown column 'f' in 'FROM'
 DROP TABLE t;
 CREATE TABLE t (f INT);
 CALL p;
@@ -1544,9 +1544,9 @@ f
 DROP TABLE t;
 CREATE TABLE t (i INT);
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+ERROR 42S22: Unknown column 'f' in 'FROM'
 CALL p;
-ERROR 42S22: Unknown column 'f' in 'from clause'
+ERROR 42S22: Unknown column 'f' in 'FROM'
 DROP PROCEDURE p;
 DROP TABLE t;
 CREATE TABLE t1 (a INT, b INT);
@@ -1557,9 +1557,9 @@ CREATE TABLE t5 (a INT, c INT);
 CREATE PROCEDURE p1() SELECT c FROM t1 JOIN (t2 LEFT JOIN t3 USING (a) LEFT JOIN t4 USING (a)
 LEFT JOIN t5 USING (a)) USING (a);
 CALL p1;
-ERROR 23000: Column 'c' in field list is ambiguous
+ERROR 23000: Column 'c' in SELECT is ambiguous
 CALL p1;
-ERROR 23000: Column 'c' in field list is ambiguous
+ERROR 23000: Column 'c' in SELECT is ambiguous
 DROP PROCEDURE p1;
 DROP TABLE t1,t2,t3,t4,t5;
 #
@@ -3507,6 +3507,135 @@ a	b	c
 SET OPTIMIZER_USE_CONDITION_SELECTIVITY=@tmp;
 DROP TABLE t1,t2;
 # End of 10.6 tests
+#
+# MDEV-34894: Poor query plan, because range estimates are not reused for ref(const)
+#
+create table t0 (
+a int,
+b int,
+dummy int
+);
+insert into t0 select seq,seq,seq from seq_1_to_10;
+create table t1 (
+pk1 int,
+pk2 int,
+pk3 int,
+key1 int,
+key(key1),
+filler char(100),
+primary key(pk1,pk2,pk3)
+);
+insert into t1
+select
+seq, seq, seq,
+FLOOR(seq/2),
+'filler-data'
+from seq_1_to_10000;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+update t1 set pk1=1 where pk1 between 1 and 200;
+explain select * from t1 where pk1=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	PRIMARY	PRIMARY	4	const	231	
+explain select * from t0,t1 where t1.pk1=t0.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ref	PRIMARY	PRIMARY	4	test.t0.a	1	
+create table t2 (
+col int
+);
+insert into t2 select seq from seq_1_to_10000;
+# This must use this good query plan:
+#  t0 - ALL
+#  t1 - ref, key=key1, not PRIMARY as pk1=1 is true for 20% of all rows
+#  t2 - ALL
+explain select * from t0, t1, t2
+where
+t1.pk1=1 and t1.pk2=t2.col and t1.pk3=t0.dummy and
+t1.key1=t0.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ref	PRIMARY,key1	key1	5	test.t0.b	1	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using where; Using join buffer (flat, BNL join)
+drop table t0,t1,t2;
+CREATE OR REPLACE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c INT, key(a,b,c)) ENGINE=Aria;
+INSERT INTO t1 select seq/10,mod(seq,2),seq from seq_1_to_1000;
+update t1 set a=10 WHERE c < 100;
+update t1 set a=12 WHERE a=11;
+insert into t1 values (11,1,11), (11,2,11);
+create or replace table t2 select seq from seq_1_to_10;
+explain select count(*) from t1, t2 as seq where a=10 and b=seq.seq;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t1	ref	a	a	8	const,test.seq.seq	5	Using where; Using index
+explain select count(*) from t1, t2 as seq where a=11 and b=seq.seq;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	4	const	2	Using index
+1	SIMPLE	seq	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+drop table t1,t2;
+#
+# MDEV-35180: ref_to_range rewrite causes poor query plan
+#
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_100;
+create table t2 (
+kp1 int,
+kp2 int,
+filler char(100),
+key(kp1, kp2)
+);
+insert into t2
+select
+seq, seq,
+'filler-data'
+from seq_1_to_10000;
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+# For t2, this must use type=ref, key_len=5 (not type=range, key_len=10)
+explain
+select *
+from t1, t2
+where
+t2.kp1=t1.a and t2.kp1<=100 and t2.kp2<=20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ref	kp1	kp1	5	test.t1.a	1	Using index condition
+drop table t1,t2;
+#
+# MDEV-36592: If the join_condition is specified via USING (column_list), the query plan depends ...
+#
+CREATE TABLE t1 (
+id int(11),
+f1 char(255),
+PRIMARY KEY  (id)
+);
+INSERT INTO t1 (id) VALUES (1),(2),(3);
+UPDATE t1 SET f1=REPEAT('a',250);
+CREATE TABLE t2 (id  int(11), f2 INT NOT NULL);
+INSERT INTO t2 select seq, seq from seq_1_to_20;
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# In both queries, t1 should use type=index, not type=ALL:
+EXPLAIN SELECT count(*) FROM t2 JOIN t1 USING (id);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	3	Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+EXPLAIN SELECT count(*) FROM t1 JOIN t2 USING (id);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	3	Using index
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+DROP TABLE t1,t2;
+# End of 10.11 tests
 #
 # MDEV-30256 Wrong result (missing rows) upon join with empty table
 #

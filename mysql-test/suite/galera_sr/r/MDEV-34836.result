@@ -1,0 +1,23 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE parent (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1, 1),(2, 2),(3, 3);
+CREATE TABLE child (id INT AUTO_INCREMENT PRIMARY KEY, parent_id INT, CONSTRAINT parent_fk
+FOREIGN KEY (parent_id) REFERENCES parent (id)) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO child (parent_id) VALUES (1),(2),(3);
+connection node_1;
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM child;
+COUNT(*)
+0
+ALTER TABLE parent AUTO_INCREMENT = 100;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE child, parent;
+disconnect node_2;
+disconnect node_1;

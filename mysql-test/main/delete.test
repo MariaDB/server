@@ -628,6 +628,22 @@ drop table t1,t2,t3;
 --echo End of 10.4 tests
 
 --echo #
+--echo # MDEV-26459: Assertion `block_size <= 0xFFFFFFFFL' failed
+--echo # in calculate_block_sizes for 10.7 only
+--echo #
+
+SET @sort_buffer_size_save= @@sort_buffer_size;
+--disable_warnings
+SET sort_buffer_size=1125899906842624;
+--enable_warnings
+CREATE TABLE t1 (a INT,b CHAR,KEY(a,b));
+DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
+DROP TABLE t1;
+SET sort_buffer_size= @sort_buffer_size_save;
+
+--echo # End of 10.11 tests
+
+--echo #
 --echo # MDEV-29428: DELETE with ORDER BY without LIMIT clause
 --echo #
 

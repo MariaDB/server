@@ -131,13 +131,13 @@ public:
     don't implement this method unless you really have indexes
    */
   // perhaps get index type
-  const char *index_type(uint inx) { return "REMOTE"; }
+  const char *index_type(uint inx) override { return "REMOTE"; }
   /*
     This is a list of flags that says what the storage engine
     implements. The current table flags are documented in
     handler.h
   */
-  ulonglong table_flags() const
+  ulonglong table_flags() const override
   {
     /* fix server to be able to get remote server table flags */
     return (HA_PRIMARY_KEY_IN_READ_INDEX | HA_FILE_BASED
@@ -160,15 +160,15 @@ public:
     index up to and including 'part'.
   */
     /* fix server to be able to get remote server index flags */
-  ulong index_flags(uint inx, uint part, bool all_parts) const
+  ulong index_flags(uint inx, uint part, bool all_parts) const override
   {
     return (HA_READ_NEXT | HA_READ_RANGE | HA_READ_AFTER_KEY);
   }
-  uint max_supported_record_length() const { return HA_MAX_REC_LENGTH; }
-  uint max_supported_keys()          const { return MAX_KEY; }
-  uint max_supported_key_parts()     const { return MAX_REF_PARTS; }
-  uint max_supported_key_length()    const { return FEDERATED_MAX_KEY_LENGTH; }
-  uint max_supported_key_part_length() const { return FEDERATED_MAX_KEY_LENGTH; }
+  uint max_supported_record_length() const override { return HA_MAX_REC_LENGTH; }
+  uint max_supported_keys() const       override { return MAX_KEY; }
+  uint max_supported_key_parts() const  override { return MAX_REF_PARTS; }
+  uint max_supported_key_length() const override { return FEDERATED_MAX_KEY_LENGTH; }
+  uint max_supported_key_part_length() const override { return FEDERATED_MAX_KEY_LENGTH; }
   /*
     Called in test_quick_select to determine if indexes should be used.
     Normally, we need to know number of blocks . For federated we need to
@@ -181,7 +181,7 @@ public:
     this to use indexes "
   */
 
-  IO_AND_CPU_COST scan_time()
+  IO_AND_CPU_COST scan_time() override
   {
     DBUG_PRINT("info", ("records %lu", (ulong) stats.records));
     return
@@ -192,41 +192,41 @@ public:
     };
   }
   IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
-                               ulonglong blocks)
+                               ulonglong blocks) override
   {
     return {0, (double) (ranges + rows) * DISK_READ_COST };
   }
-  IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override
   {
     return {0, (double) rows * DISK_READ_COST };
   }
-  const key_map *keys_to_use_for_scanning() { return &key_map_full; }
+  const key_map *keys_to_use_for_scanning() override { return &key_map_full; }
   /*
     Everything below are methods that we implment in ha_federated.cc.
 
     Most of these methods are not obligatory, skip them and
     MySQL will treat them as not implemented
   */
-  int open(const char *name, int mode, uint test_if_locked);    // required
-  int close(void);                                              // required
+  int open(const char *name, int mode, uint test_if_locked) override;    // required
+  int close(void) override;                                              // required
 
-  void start_bulk_insert(ha_rows rows, uint flags);
-  int end_bulk_insert();
-  int write_row(const uchar *buf);
-  int update_row(const uchar *old_data, const uchar *new_data);
-  int delete_row(const uchar *buf);
-  int index_init(uint keynr, bool sorted);
-  ha_rows estimate_rows_upper_bound();
+  void start_bulk_insert(ha_rows rows, uint flags) override;
+  int end_bulk_insert() override;
+  int write_row(const uchar *buf) override;
+  int update_row(const uchar *old_data, const uchar *new_data) override;
+  int delete_row(const uchar *buf) override;
+  int index_init(uint keynr, bool sorted) override;
+  ha_rows estimate_rows_upper_bound() override;
   int index_read(uchar *buf, const uchar *key,
-                 uint key_len, enum ha_rkey_function find_flag);
+                 uint key_len, enum ha_rkey_function find_flag) override;
   int index_read_idx(uchar *buf, uint idx, const uchar *key,
                      uint key_len, enum ha_rkey_function find_flag);
-  int index_next(uchar *buf);
-  int index_end();
+  int index_next(uchar *buf) override;
+  int index_end() override;
   int read_range_first(const key_range *start_key,
                                const key_range *end_key,
-                               bool eq_range, bool sorted);
-  int read_range_next();
+                               bool eq_range, bool sorted) override;
+  int read_range_next() override;
   /*
     unlike index_init(), rnd_init() can be called two times
     without rnd_end() in between (it only makes sense if scan=1).
@@ -235,51 +235,51 @@ public:
     position it to the start of the table, no need to deallocate
     and allocate it again
   */
-  int rnd_init(bool scan);                                      //required
-  int rnd_end();
-  int rnd_next(uchar *buf);                                      //required
+  int rnd_init(bool scan) override;                                      //required
+  int rnd_end() override;
+  int rnd_next(uchar *buf) override;                                      //required
   int rnd_next_int(uchar *buf);
-  int rnd_pos(uchar *buf, uchar *pos);                            //required
-  void position(const uchar *record);                            //required
+  int rnd_pos(uchar *buf, uchar *pos) override;                            //required
+  void position(const uchar *record) override;                            //required
   /*
     A ref is a pointer inside a local buffer. It is not comparable to
     other ref's.
   */
-  int cmp_ref(const uchar *ref1, const uchar *ref2)
+  int cmp_ref(const uchar *ref1, const uchar *ref2) override
   {
     return handler::cmp_ref(ref1,ref2);    /* Works if table scan is used */
   }
-  int info(uint);                                              //required
-  int extra(ha_extra_function operation);
+  int info(uint) override;                                              //required
+  int extra(ha_extra_function operation) override;
 
   void update_auto_increment(void);
-  int repair(THD* thd, HA_CHECK_OPT* check_opt);
-  int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-  int delete_table(const char *name)
+  int repair(THD* thd, HA_CHECK_OPT* check_opt) override;
+  int optimize(THD* thd, HA_CHECK_OPT* check_opt) override;
+  int delete_table(const char *name) override
   {
     return 0;
   }
-  int delete_all_rows(void);
-  int truncate();
+  int delete_all_rows(void) override;
+  int truncate() override;
   int create(const char *name, TABLE *form,
-             HA_CREATE_INFO *create_info);                      //required
+             HA_CREATE_INFO *create_info) override;                      //required
   ha_rows records_in_range(uint inx,
                            const key_range *start_key,
                            const key_range *end_key,
-                           page_range *pages);
-  uint8 table_cache_type() { return HA_CACHE_TBL_NOCACHE; }
+                           page_range *pages) override;
+  uint8 table_cache_type() override { return HA_CACHE_TBL_NOCACHE; }
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);     //required
-  bool get_error_message(int error, String *buf);
+                             enum thr_lock_type lock_type) override;     //required
+  bool get_error_message(int error, String *buf) override;
   
   MYSQL_RES *store_result(MYSQL *mysql);
   void free_result();
   
-  int external_lock(THD *thd, int lock_type);
+  int external_lock(THD *thd, int lock_type) override;
   int connection_commit();
   int connection_rollback();
   int connection_autocommit(bool state);
   int execute_simple_query(const char *query, int len);
-  int reset(void);
+  int reset(void) override;
 };

@@ -962,7 +962,7 @@ Klaipeda
 Panevezys
 # Part 2, join_cache_level=3, Query 7
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -971,12 +971,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY	#hash#PRIMARY	33	world.Country.Code,const	984	Using where; Using join buffer (flat, BNLH join)
 # Part 2, join_cache_level=3, Query 8
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1170,7 +1170,7 @@ Klaipeda
 Panevezys
 # Part 2, join_cache_level=4, Query 7
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1179,12 +1179,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY	#hash#PRIMARY	33	world.Country.Code,const	984	Using where; Using join buffer (flat, BNLH join)
 # Part 2, join_cache_level=4, Query 8
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1434,7 +1434,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1442,12 +1442,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1631,7 +1631,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1639,12 +1639,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -1828,7 +1828,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -1836,12 +1836,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -2025,7 +2025,7 @@ Klaipeda
 ?iauliai
 Panevezys
 EXPLAIN
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
@@ -2033,12 +2033,12 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	eq_ref	PRIMARY	PRIMARY	33	world.Country.Code,const	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
-SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
 WHERE 
 Country.Population > 10000000;
-Name	IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage)
+Name	epx
 Australia	81.2
 United Kingdom	97.3
 Canada	60.4
@@ -6244,7 +6244,7 @@ explain format=json
 select *
 from t1 a, t3 b
 where
-b.kp1=a.a and
+b.kp1+1=a.a+1 and
 b.kp1 <= 10 and
 b.kp2 <= 10 and
 b.col1 +1 < 33333;
@@ -6257,8 +6257,7 @@ EXPLAIN
       {
         "table": {
           "table_name": "a",
-          "access_type": "range",
-          "possible_keys": ["PRIMARY"],
+          "access_type": "index",
           "key": "PRIMARY",
           "key_length": "4",
           "used_key_parts": ["a"],
@@ -6266,7 +6265,6 @@ EXPLAIN
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "a.a <= 10",
           "using_index": true
         }
       },
@@ -6282,14 +6280,14 @@ EXPLAIN
             "loops": 10,
             "rows": 836,
             "cost": "COST_REPLACED",
-            "filtered": 9.090909004,
-            "index_condition": "b.kp2 <= 10",
-            "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
+            "filtered": 100,
+            "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
+            "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
           },
           "buffer_type": "flat",
           "buffer_size": "54",
           "join_type": "BNL",
-          "attached_condition": "b.kp1 = a.a"
+          "attached_condition": "b.kp1 + 1 = a.a + 1"
         }
       }
     ]
@@ -6487,4 +6485,50 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DROP TABLE t1,t2,t3;
 #
 # End of 10.4 tests
+#
+#
+# MDEV-34580: Assertion `(key_part->key_part_flag & 4) == 0' failed key_hashnr
+#
+SET join_cache_level=3;
+CREATE TABLE t1 ( a TIMESTAMP , b varchar(100), c varchar(10) ) ;
+INSERT INTO t1 (b,c) VALUES ('GHOBS','EMLCG'),('t','p');
+CREATE TABLE t2 (a varchar(100), b varchar(100), c varchar(10) , KEY b (b(66))) ;
+insert into t2 select seq, seq, seq from seq_1_to_20;
+explain
+SELECT t1.a FROM t1  JOIN t2 ON t1.b = t2.b ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	hash_ALL	b	#hash#b	69	test.t1.b	20	Using where; Using join buffer (flat, BNLH join)
+SELECT t1.a FROM t1  JOIN t2 ON t1.b = t2.b ;
+a
+set join_cache_level=default;
+DROP TABLE t1, t2;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-36165: BKA join cache buffer is employed despite join_cache_level=3 (flat BNLH)
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT a, a from t1;
+CREATE TABLE t3(a INT, b INT, c INT, key (a,b));
+INSERT INTO t3 select a, a, a FROM t1;
+SET optimizer_switch = 'join_cache_hashed=off,join_cache_bka=on,mrr=on';
+SET join_cache_level = 3;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index condition
+SET join_cache_level = 4;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index condition
+SET join_cache_level = default;
+SET optimizer_switch = default;
+DROP TABLE t1, t2, t3;
+#
+# End of 10.11 tests
 #

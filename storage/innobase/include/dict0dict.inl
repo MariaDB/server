@@ -306,56 +306,6 @@ dict_table_has_indexed_v_cols(
 	return(false);
 }
 
-/********************************************************************//**
-Gets the approximately estimated number of rows in the table.
-@return estimated number of rows */
-UNIV_INLINE
-ib_uint64_t
-dict_table_get_n_rows(
-/*==================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table->stat_initialized);
-
-	return(table->stat_n_rows);
-}
-
-/********************************************************************//**
-Increment the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_inc(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	if (table->stat_initialized) {
-		ib_uint64_t	n_rows = table->stat_n_rows;
-		if (n_rows < 0xFFFFFFFFFFFFFFFFULL) {
-			table->stat_n_rows = n_rows + 1;
-		}
-	}
-}
-
-/********************************************************************//**
-Decrement the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_dec(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	if (table->stat_initialized) {
-		ib_uint64_t	n_rows = table->stat_n_rows;
-		if (n_rows > 0) {
-			table->stat_n_rows = n_rows - 1;
-		}
-	}
-}
-
 #ifdef UNIV_DEBUG
 /********************************************************************//**
 Gets the nth column of a table.
@@ -1126,8 +1076,8 @@ dict_table_is_file_per_table(
 /** Acquire the table handle. */
 inline void dict_table_t::acquire()
 {
-  ut_ad(dict_sys.frozen());
-  n_ref_count++;
+  ut_d(const auto old=) n_ref_count++;
+  ut_ad(old || dict_sys.frozen());
 }
 
 /** Release the table handle.

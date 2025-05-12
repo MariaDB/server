@@ -629,7 +629,10 @@ bs:
     return (~(ulonglong) 0);
   }
 
-  return (negative ? -((longlong) res) : (longlong) res);
+  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  return negative && (longlong) res != LONGLONG_MIN ?
+         -((longlong) res) :
+          (longlong) res;
 }
 
 
@@ -1021,6 +1024,8 @@ end4:
   {
    if (li > MAX_NEGATIVE_NUMBER)
      goto overflow;
+   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefinite behavior in negation
+     return LONGLONG_MIN;
    return -((longlong) li);
   }
   return (longlong) li;
@@ -1305,6 +1310,7 @@ my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -1331,6 +1337,7 @@ my_hash_sort_utf16_nopad(CHARSET_INFO *cs,
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((s < e) && (res= mb_wc(cs, &wc, (uchar *) s, (uchar *) e)) > 0)
   {
@@ -1348,6 +1355,7 @@ my_hash_sort_utf16(CHARSET_INFO *cs, const uchar *s, size_t slen,
                    ulong *nr1, ulong *nr2)
 {
   size_t lengthsp= my_ci_lengthsp(cs, (const char *) s, slen);
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_utf16_nopad(cs, s, lengthsp, nr1, nr2);
 }
 
@@ -1363,6 +1371,7 @@ my_casedn_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((src < srcend) &&
@@ -1458,6 +1467,7 @@ my_hash_sort_utf16_nopad_bin(CHARSET_INFO *cs  __attribute__((unused)),
 {
   const uchar *end= pos + len;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(pos); /* Avoid UBSAN nullptr-with-offset */
 
   for ( ; pos < end ; pos++)
   {
@@ -1473,6 +1483,7 @@ my_hash_sort_utf16_bin(CHARSET_INFO *cs,
                        const uchar *pos, size_t len, ulong *nr1, ulong *nr2)
 {
   size_t lengthsp= my_ci_lengthsp(cs, (const char *) pos, len);
+  DBUG_ASSERT(pos); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_utf16_nopad_bin(cs, pos, lengthsp, nr1, nr2);
 }
 
@@ -1494,7 +1505,8 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_ci_handler =
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1515,7 +1527,8 @@ static MY_COLLATION_HANDLER my_collation_utf16_bin_handler =
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1536,7 +1549,8 @@ static MY_COLLATION_HANDLER my_collation_utf16_general_nopad_ci_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1557,7 +1571,8 @@ static MY_COLLATION_HANDLER my_collation_utf16_nopad_bin_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1847,7 +1862,8 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_ci_handler =
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1868,7 +1884,8 @@ static MY_COLLATION_HANDLER my_collation_utf16le_bin_handler =
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1889,7 +1906,8 @@ static MY_COLLATION_HANDLER my_collation_utf16le_general_nopad_ci_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -1910,7 +1928,8 @@ static MY_COLLATION_HANDLER my_collation_utf16le_nopad_bin_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -2175,6 +2194,7 @@ my_caseup_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -2199,6 +2219,7 @@ my_hash_sort_utf32_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
   const uchar *e= s + slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
@@ -2219,6 +2240,7 @@ my_hash_sort_utf32(CHARSET_INFO *cs, const uchar *s, size_t slen,
                    ulong *nr1, ulong *nr2)
 {
   size_t lengthsp= my_lengthsp_utf32(cs, (const char *) s, slen);
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_utf32_nopad(cs, s, lengthsp, nr1, nr2);
 }
 
@@ -2232,6 +2254,7 @@ my_casedn_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
@@ -2525,6 +2548,8 @@ end4:
   {
    if (li > MAX_NEGATIVE_NUMBER)
      goto overflow;
+   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefinite behavior in negation
+     return LONGLONG_MIN;
    return -((longlong) li);
   }
   return (longlong) li;
@@ -2646,7 +2671,8 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_ci_handler =
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -2667,7 +2693,8 @@ static MY_COLLATION_HANDLER my_collation_utf32_bin_handler =
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -2688,7 +2715,8 @@ static MY_COLLATION_HANDLER my_collation_utf32_general_nopad_ci_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -2709,7 +2737,8 @@ static MY_COLLATION_HANDLER my_collation_utf32_nopad_bin_handler =
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -3041,6 +3070,7 @@ static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -3065,6 +3095,7 @@ my_hash_sort_ucs2_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
   const uchar *e=s+slen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   while ((s < e) && (res=my_ucs2_uni(cs,&wc, (uchar *)s, (uchar*)e)) >0)
   {
@@ -3081,6 +3112,7 @@ static void my_hash_sort_ucs2(CHARSET_INFO *cs, const uchar *s, size_t slen,
 			      ulong *nr1, ulong *nr2)
 {
   size_t lengthsp= my_lengthsp_mb2(cs, (const char *) s, slen);
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_ucs2_nopad(cs, s, lengthsp, nr1, nr2);
 }
 
@@ -3093,6 +3125,7 @@ static size_t my_casedn_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   char *dstend= dst + dstlen;
   MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
 
   while ((src < srcend) &&
          (res= my_ucs2_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
@@ -3205,6 +3238,7 @@ my_hash_sort_ucs2_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
 {
   const uchar *end= key + len;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   for ( ; key < end ; key++)
   {
     MY_HASH_ADD(m1, m2, (uint)*key);
@@ -3219,6 +3253,7 @@ my_hash_sort_ucs2_bin(CHARSET_INFO *cs,
                       const uchar *key, size_t len, ulong *nr1, ulong *nr2)
 {
   size_t lengthsp= my_lengthsp_mb2(cs, (const char *) key, len);
+  DBUG_ASSERT(key); /* Avoid UBSAN nullptr-with-offset */
   my_hash_sort_ucs2_nopad_bin(cs, key, lengthsp, nr1, nr2);
 }
 
@@ -3240,7 +3275,8 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_ci_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -3261,7 +3297,8 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_mysql500_ci_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -3282,7 +3319,8 @@ static MY_COLLATION_HANDLER my_collation_ucs2_bin_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -3303,7 +3341,8 @@ static MY_COLLATION_HANDLER my_collation_ucs2_general_nopad_ci_handler =
     my_min_str_mb_simple_nopad,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -3324,7 +3363,8 @@ static MY_COLLATION_HANDLER my_collation_ucs2_nopad_bin_handler =
     my_min_str_mb_simple_nopad,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 

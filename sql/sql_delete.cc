@@ -328,7 +328,6 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   SQL_SELECT *select= 0;
   SORT_INFO *file_sort= 0;
   READ_RECORD info;
-  ha_rows deleted= 0;
   bool reverse= FALSE;
   bool binlog_is_row;
   killed_state killed_status= NOT_KILLED;
@@ -402,10 +401,10 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  const_cond_result= const_cond && (!conds || conds->val_int());
+  const_cond_result= const_cond && (!conds || conds->val_bool());
   if (unlikely(thd->is_error()))
   {
-    /* Error evaluating val_int(). */
+    /* Error evaluating val_bool(). */
     DBUG_RETURN(TRUE);
   }
 
@@ -427,6 +426,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   has_triggers= table->triggers && table->triggers->has_delete_triggers();
   transactional_table= table->file->has_transactions_and_rollback();
+  deleted= 0;
 
   if (!returning && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
@@ -500,6 +500,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
 
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
+
     my_ok(thd, 0);
     DBUG_RETURN(0);
   }
@@ -535,6 +542,13 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
+
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
 
     my_ok(thd, 0);
     DBUG_RETURN(0);				// Nothing to delete
@@ -712,8 +726,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     table->mark_columns_needed_for_delete();
   }
 
-  if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE) &&
-      !table->prepare_triggers_for_delete_stmt_or_event())
+  if (!table->prepare_triggers_for_delete_stmt_or_event() &&
+      table->file->ha_table_flags() & HA_CAN_FORCE_BULK_DELETE)
     will_batch= !table->file->start_bulk_delete();
 
   /*
@@ -745,27 +759,21 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                              MEM_STRIP_BUF_SIZE);
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
-    while (!(error=info.read_record()) && !thd->killed &&
-          ! thd->is_error())
+    while (!(error=info.read_record()) && !thd->killed && !thd->is_error())
     {
       if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
-        if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref))))
-        {
-          error= 1;
-          goto terminate_delete;
-        }
+        if ((error= deltempfile->unique_add((char*) table->file->ref)))
+          break;
         if (!--tmplimit && using_limit)
           break;
       }
     }
     end_read_record(&info);
-    if (unlikely(deltempfile->get(table)) ||
-        unlikely(table->file->ha_index_or_rnd_end()) ||
-        unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
-                                  1, false)))
+    if (table->file->ha_index_or_rnd_end() || error > 0 ||
+        deltempfile->get(table) ||
+        init_read_record(&info, thd, table, 0, &deltempfile->sort, 0, 1, 0))
     {
       error= 1;
       goto terminate_delete;
@@ -908,10 +916,11 @@ cleanup:
     query_cache_invalidate3(thd, table_list, 1);
   }
 
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->first_cond_optimization= 0;
+    thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= false;
   }
 
   delete deltempfile;
@@ -966,7 +975,7 @@ cleanup:
       result->send_eof();
     else
       my_ok(thd, deleted);
-    DBUG_PRINT("info",("%ld records deleted",(long) deleted));
+    DBUG_PRINT("info", ("%ld records deleted", (long) deleted));
   }
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
@@ -1010,10 +1019,11 @@ got_error:
 ***************************************************************************/
 
 
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
+extern "C" int refpos_order_cmp(void *arg, const void *a, const void *b)
 {
-  handler *file= (handler*)arg;
-  return file->cmp_ref((const uchar*)a, (const uchar*)b);
+  auto file= static_cast<handler *>(arg);
+  return file->cmp_ref(static_cast<const uchar *>(a),
+                       static_cast<const uchar *>(b));
 }
 
 
@@ -1232,6 +1242,13 @@ void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
 
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::send_eof().
+
+  ***************************************************************************/
+
   /* the error was handled or nothing deleted and no side effects return */
   if (error_handled ||
       (!thd->transaction->stmt.modified_non_trans_table && !deleted))
@@ -1433,6 +1450,13 @@ bool multi_delete::send_eof()
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     multi_delete::abort_result_set().
+
+  ***************************************************************************/
 
   if (thd->transaction->stmt.modified_non_trans_table)
     thd->transaction->all.modified_non_trans_table= TRUE;
@@ -1837,6 +1861,9 @@ bool Sql_cmd_delete::execute_inner(THD *thd)
 
   if (result)
   {
+    /* In single table case, this->deleted set by delete_from_single_table */
+    if (res && multitable)
+      deleted= ((multi_delete*)get_result())->num_deleted();
     res= false;
     delete result;
   }

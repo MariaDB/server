@@ -31,14 +31,6 @@ Created 10/4/1994 Heikki Tuuri
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
-Gets pointer to the page frame where the cursor is positioned.
-@return page */
-UNIV_INLINE
-page_t*
-page_cur_get_page(
-/*==============*/
-	page_cur_t*	cur);	/*!< in: page cursor */
-/*********************************************************//**
 Gets pointer to the buffer block where the cursor is positioned.
 @return page */
 UNIV_INLINE
@@ -60,12 +52,12 @@ page_cur_get_page_zip(
 UNIV_INLINE
 rec_t *page_cur_get_rec(const page_cur_t *cur);
 #else /* UNIV_DEBUG */
-# define page_cur_get_page(cur)		page_align((cur)->rec)
 # define page_cur_get_block(cur)	(cur)->block
 # define page_cur_get_page_zip(cur)	buf_block_get_page_zip((cur)->block)
 # define page_cur_get_rec(cur)		(cur)->rec
 #endif /* UNIV_DEBUG */
-# define is_page_cur_get_page_zip(cur)	is_buf_block_get_page_zip((cur)->block)
+#define page_cur_get_page(cur)		page_cur_get_block(cur)->page.frame
+#define is_page_cur_get_page_zip(cur)	is_buf_block_get_page_zip((cur)->block)
 /*********************************************************//**
 Sets the cursor object to point before the first user record
 on the page. */

@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+CREATE TABLE t1(f1 INT NOT NULL, f2 TEXT)ENGINE=InnoDB;
+let $restart_parameters=--debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0;
+--source include/restart_mysqld.inc
+INSERT INTO t1 SELECT seq, repeat('a', 4000) FROM seq_1_to_1800;
+let $restart_parameters=--debug_dbug=+d,before_final_redo_apply --innodb_log_file_size=8M;
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+let $restart_parameters=--innodb_log_file_size=10M;
+let $shutdown_timeout=;
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # MDEV-34519 innodb_log_checkpoint_now crashes when
+--echo #              innodb_read_only is enabled
+--echo #
+--let $restart_parameters=--innodb-force-recovery=6
+--source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=1;
+--let $restart_parameters=--innodb-read-only=1
+--source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=1;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+
+DROP TABLE t1;

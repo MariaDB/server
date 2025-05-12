@@ -152,7 +152,9 @@ trx_undo_log_v_idx(
 	ulint n_idx = 0;
 	for (const auto& v_index : vcol->v_indexes) {
 		n_idx++;
-		/* FIXME: index->id is 64 bits! */
+		if (uint32_t hi= uint32_t(v_index.index->id >> 32)) {
+			size += 1 + mach_get_compressed_size(hi);
+		}
 		size += mach_get_compressed_size(uint32_t(v_index.index->id));
 		size += mach_get_compressed_size(v_index.nth_field);
 	}
@@ -179,10 +181,14 @@ trx_undo_log_v_idx(
 	ptr += mach_write_compressed(ptr, n_idx);
 
 	for (const auto& v_index : vcol->v_indexes) {
-		ptr += mach_write_compressed(
-			/* FIXME: index->id is 64 bits! */
-			ptr, uint32_t(v_index.index->id));
-
+		/* This is compatible with
+		ptr += mach_u64_write_much_compressed(ptr, v_index.index-id)
+		(the added "if" statement is fixing an old regression). */
+		if (uint32_t hi= uint32_t(v_index.index->id >> 32)) {
+			*ptr++ = 0xff;
+			ptr += mach_write_compressed(ptr, hi);
+		}
+		ptr += mach_write_compressed(ptr, uint32_t(v_index.index->id));
 		ptr += mach_write_compressed(ptr, v_index.nth_field);
 	}
 
@@ -221,7 +227,15 @@ trx_undo_read_v_idx_low(
 	dict_index_t*	clust_index = dict_table_get_first_index(table);
 
 	for (ulint i = 0; i < num_idx; i++) {
-		index_id_t	id = mach_read_next_compressed(&ptr);
+		index_id_t	id = 0;
+		/* This is like mach_u64_read_much_compressed(),
+		but advancing ptr to the next field. */
+		if (*ptr == 0xff) {
+			ptr++;
+			id = mach_read_next_compressed(&ptr);
+			id <<= 32;
+		}
+		id |= mach_read_next_compressed(&ptr);
 		ulint		pos = mach_read_next_compressed(&ptr);
 		dict_index_t*	index = dict_table_get_next_index(clust_index);
 
@@ -1840,7 +1854,7 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
-	if (m.second && index->table->is_active_ddl()) {
+	if (m.second && index->table->is_native_online_ddl()) {
 		trx->apply_online_log= true;
 	}
 
@@ -1865,7 +1879,9 @@ trx_undo_report_row_operation(
 	} else if (index->table->is_temporary()) {
 	} else if (trx_has_lock_x(*trx, *index->table)
 		   && index->table->bulk_trx_id == trx->id) {
-		m.first->second.start_bulk_insert(index->table);
+		m.first->second.start_bulk_insert(
+			index->table,
+			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
 
 		if (dberr_t err = m.first->second.bulk_insert_buffered(
 			    *clust_entry, *index, trx)) {
@@ -2045,170 +2061,133 @@ err_exit:
 
 /*============== BUILDING PREVIOUS VERSION OF A RECORD ===============*/
 
-/** Copy an undo record to heap.
-@param[in]	roll_ptr	roll pointer to a record that exists
-@param[in,out]	heap		memory heap where copied */
-static
-trx_undo_rec_t*
-trx_undo_get_undo_rec_low(
-	roll_ptr_t		roll_ptr,
-	mem_heap_t*		heap)
+static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
+                                     rec_offs *offsets, mem_heap_t *heap,
+                                     rec_t **old_vers,
+                                     const purge_sys_t::view_guard &check,
+                                     ulint v_status,
+                                     mem_heap_t *v_heap, dtuple_t **vrow,
+                                     const trx_undo_rec_t *undo_rec);
+
+inline const buf_block_t *
+purge_sys_t::view_guard::get(const page_id_t id, mtr_t *mtr)
 {
-  ulint rseg_id;
-  uint32_t page_no;
-  uint16_t offset;
-  bool is_insert;
-  mtr_t mtr;
-
-  trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no, &offset);
-  ut_ad(page_no > FSP_FIRST_INODE_PAGE_NO);
-  ut_ad(offset >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-  trx_rseg_t *rseg= &trx_sys.rseg_array[rseg_id];
-  ut_ad(rseg->is_persistent());
-
-  mtr.start();
-
-  trx_undo_rec_t *undo_rec= nullptr;
-  if (buf_block_t* undo_page=
-      buf_page_get(page_id_t(rseg->space->id, page_no), 0, RW_S_LATCH, &mtr))
+  buf_block_t *block;
+  ut_ad(mtr->is_active());
+  if (!latch)
   {
-    buf_page_make_young_if_needed(&undo_page->page);
-    undo_rec= undo_page->page.frame + offset;
-    const size_t end= mach_read_from_2(undo_rec);
-    if (UNIV_UNLIKELY(end <= offset ||
-                      end >= srv_page_size - FIL_PAGE_DATA_END))
-      undo_rec= nullptr;
-    else
+    decltype(purge_sys.pages)::const_iterator i= purge_sys.pages.find(id);
+    if (i != purge_sys.pages.end())
     {
-      size_t len{end - offset};
-      undo_rec=
-        static_cast<trx_undo_rec_t*>(mem_heap_dup(heap, undo_rec, len));
-      mach_write_to_2(undo_rec, len);
+      block= i->second;
+      ut_ad(block);
+      return block;
     }
   }
-
-  mtr.commit();
-  return undo_rec;
-}
-
-/** Copy an undo record to heap, to check if a secondary index record
-can be safely purged.
-@param trx_id   DB_TRX_ID corresponding to roll_ptr
-@param name     table name
-@param roll_ptr	DB_ROLL_PTR pointing to the undo log record
-@param heap     memory heap for allocation
-@return copy of the record
-@retval nullptr if the version is visible to purge_sys.view */
-static trx_undo_rec_t *trx_undo_get_rec_if_purgeable(trx_id_t trx_id,
-                                                     const table_name_t &name,
-                                                     roll_ptr_t roll_ptr,
-                                                     mem_heap_t* heap)
-{
+  block= buf_pool.page_fix(id);
+  if (block)
   {
-    purge_sys_t::view_guard check;
-    if (!check.view().changes_visible(trx_id))
-      return trx_undo_get_undo_rec_low(roll_ptr, heap);
+    mtr->memo_push(block, MTR_MEMO_BUF_FIX);
+    if (latch)
+      /* In MVCC operations (outside purge tasks), we will refresh the
+      buf_pool.LRU position. In purge, we expect the page to be freed
+      soon, at the end of the current batch. */
+      buf_page_make_young_if_needed(&block->page);
   }
-  return nullptr;
-}
-
-/** Copy an undo record to heap.
-@param trx_id   DB_TRX_ID corresponding to roll_ptr
-@param name     table name
-@param roll_ptr	DB_ROLL_PTR pointing to the undo log record
-@param heap     memory heap for allocation
-@return copy of the record
-@retval nullptr if the undo log is not available */
-static trx_undo_rec_t *trx_undo_get_undo_rec(trx_id_t trx_id,
-                                             const table_name_t &name,
-                                             roll_ptr_t roll_ptr,
-                                             mem_heap_t *heap)
-{
-  {
-    purge_sys_t::end_view_guard check;
-    if (!check.view().changes_visible(trx_id))
-      return trx_undo_get_undo_rec_low(roll_ptr, heap);
-  }
-  return nullptr;
+  return block;
 }
 
 /** Build a previous version of a clustered index record. The caller
 must hold a latch on the index page of the clustered index record.
-@param	rec		version of a clustered index record
-@param	index		clustered index
-@param	offsets		rec_get_offsets(rec, index)
-@param	heap		memory heap from which the memory needed is
-			allocated
-@param	old_vers	previous version or NULL if rec is the
-			first inserted version, or if history data
-			has been deleted (an error), or if the purge
-			could have removed the version
-			though it has not yet done so
-@param	v_heap		memory heap used to create vrow
-			dtuple if it is not yet created. This heap
-			diffs from "heap" above in that it could be
-			prebuilt->old_vers_heap for selection
-@param	v_row		virtual column info, if any
-@param	v_status	status determine if it is going into this
-			function by purge thread or not.
-			And if we read "after image" of undo log
-@param	undo_block	undo log block which was cached during
-			online dml apply or nullptr
+@param rec       version of a clustered index record
+@param index     clustered index
+@param offsets   rec_get_offsets(rec, index)
+@param heap      memory heap from which the memory needed is allocated
+@param old_vers  previous version, or NULL if rec is the first inserted
+                 version, or if history data has been deleted (an error),
+                 or if the purge could have removed the version though
+                 it has not yet done so
+@param mtr       mini-transaction
+@param v_status  TRX_UNDO_PREV_IN_PURGE, ...
+@param v_heap    memory heap used to create vrow dtuple if it is not yet
+                 created. This heap diffs from "heap" above in that it could be
+                 prebuilt->old_vers_heap for selection
+@param vrow      virtual column info, if any
 @return error code
 @retval DB_SUCCESS if previous version was successfully built,
 or if it was an insert or the undo record refers to the table before rebuild
 @retval DB_MISSING_HISTORY if the history is missing */
 TRANSACTIONAL_TARGET
-dberr_t
-trx_undo_prev_version_build(
-	const rec_t 	*rec,
-	dict_index_t	*index,
-	rec_offs	*offsets,
-	mem_heap_t	*heap,
-	rec_t		**old_vers,
-	mem_heap_t	*v_heap,
-	dtuple_t	**vrow,
-	ulint		v_status)
+dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
+                                    rec_offs *offsets, mem_heap_t *heap,
+                                    rec_t **old_vers, mtr_t *mtr,
+                                    ulint v_status,
+                                    mem_heap_t *v_heap, dtuple_t **vrow)
 {
-	dtuple_t*	entry;
-	trx_id_t	rec_trx_id;
-	undo_no_t	undo_no;
-	table_id_t	table_id;
-	trx_id_t	trx_id;
-	roll_ptr_t	roll_ptr;
-	upd_t*		update;
-	byte		type;
-	byte		info_bits;
-	byte		cmpl_info;
-	bool		dummy_extern;
-	byte*		buf;
+  ut_ad(!index->table->is_temporary());
+  ut_ad(rec_offs_validate(rec, index, offsets));
 
-	ut_ad(!index->table->is_temporary());
-	ut_ad(rec_offs_validate(rec, index, offsets));
+  const roll_ptr_t roll_ptr= row_get_rec_roll_ptr(rec, index, offsets);
+  *old_vers= nullptr;
 
-	roll_ptr = row_get_rec_roll_ptr(rec, index, offsets);
+  if (trx_undo_roll_ptr_is_insert(roll_ptr))
+    /* The record rec is the first inserted version */
+    return DB_SUCCESS;
 
-	*old_vers = NULL;
+  ut_ad(roll_ptr < 1ULL << 55);
+  ut_ad(uint16_t(roll_ptr) >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+  ut_ad(uint32_t(roll_ptr >> 16) >= FSP_FIRST_INODE_PAGE_NO);
 
-	if (trx_undo_roll_ptr_is_insert(roll_ptr)) {
-		/* The record rec is the first inserted version */
-		return DB_SUCCESS;
-	}
+  const trx_id_t rec_trx_id= row_get_rec_trx_id(rec, index, offsets);
 
-	mariadb_increment_undo_records_read();
-	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
+  ut_ad(!index->table->skip_alter_undo);
 
-	ut_ad(!index->table->skip_alter_undo);
+  mariadb_increment_undo_records_read();
+  const auto savepoint= mtr->get_savepoint();
+  dberr_t err= DB_MISSING_HISTORY;
+  purge_sys_t::view_guard check{v_status == TRX_UNDO_CHECK_PURGE_PAGES
+                                ? purge_sys_t::view_guard::PURGE
+                                : v_status == TRX_UNDO_CHECK_PURGEABILITY
+                                ? purge_sys_t::view_guard::VIEW
+                                : purge_sys_t::view_guard::END_VIEW};
+  if (!check.view().changes_visible(rec_trx_id))
+  {
+    trx_undo_rec_t *undo_rec= nullptr;
+    static_assert(ROLL_PTR_RSEG_ID_POS == 48, "");
+    static_assert(ROLL_PTR_PAGE_POS == 16, "");
+    if (const buf_block_t *undo_page=
+        check.get(page_id_t{trx_sys.rseg_array[(roll_ptr >> 48) & 0x7f].
+                            space->id,
+                            uint32_t(roll_ptr >> 16)}, mtr))
+    {
+      static_assert(ROLL_PTR_BYTE_POS == 0, "");
+      const uint16_t offset{uint16_t(roll_ptr)};
+      undo_rec= undo_page->page.frame + offset;
+      const size_t end= mach_read_from_2(undo_rec);
+      if (UNIV_UNLIKELY(end > offset &&
+                        end < srv_page_size - FIL_PAGE_DATA_END))
+        err= trx_undo_prev_version(rec, index, offsets, heap,
+                                   old_vers, check, v_status, v_heap, vrow,
+                                   undo_rec);
+    }
+  }
 
-	trx_undo_rec_t*	undo_rec = v_status == TRX_UNDO_CHECK_PURGEABILITY
-		? trx_undo_get_rec_if_purgeable(rec_trx_id, index->table->name,
-						roll_ptr, heap)
-		: trx_undo_get_undo_rec(rec_trx_id, index->table->name,
-					roll_ptr, heap);
-	if (!undo_rec) {
-		return DB_MISSING_HISTORY;
-	}
+  mtr->rollback_to_savepoint(savepoint);
+  return err;
+}
 
+static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
+                                     rec_offs *offsets, mem_heap_t *heap,
+                                     rec_t **old_vers,
+                                     const purge_sys_t::view_guard &check,
+                                     ulint v_status,
+                                     mem_heap_t *v_heap, dtuple_t **vrow,
+                                     const trx_undo_rec_t *undo_rec)
+{
+	byte type, cmpl_info;
+	bool dummy_extern;
+	undo_no_t undo_no;
+	table_id_t table_id;
 	const byte *ptr =
 		trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info,
 				      &dummy_extern, &undo_no, &table_id);
@@ -2219,6 +2198,10 @@ trx_undo_prev_version_build(
 		now-dropped old table (table_id). */
 		return DB_SUCCESS;
 	}
+
+	trx_id_t trx_id;
+	roll_ptr_t roll_ptr;
+	byte info_bits;
 
 	ptr = trx_undo_update_rec_get_sys_cols(ptr, &trx_id, &roll_ptr,
 					       &info_bits);
@@ -2247,10 +2230,12 @@ trx_undo_prev_version_build(
 
 	ptr = trx_undo_rec_skip_row_ref(ptr, index);
 
+	upd_t* update;
 	ptr = trx_undo_update_rec_get_update(ptr, index, type, trx_id,
 					     roll_ptr, info_bits,
 					     heap, &update);
 	ut_a(ptr);
+	byte* buf;
 
 	if (row_upd_changes_field_size_or_external(index, offsets, update)) {
 		/* We should confirm the existence of disowned external data,
@@ -2266,7 +2251,7 @@ trx_undo_prev_version_build(
 		the BLOB. */
 
 		if (update->info_bits & REC_INFO_DELETED_FLAG
-		    && purge_sys.is_purgeable(trx_id)) {
+		    && check.view().changes_visible(trx_id)) {
 			return DB_SUCCESS;
 		}
 
@@ -2276,9 +2261,10 @@ trx_undo_prev_version_build(
 		those fields that update updates to become externally stored
 		fields. Store the info: */
 
-		entry = row_rec_to_index_entry(rec, index, offsets, heap);
+		dtuple_t* entry = row_rec_to_index_entry(rec, index, offsets,
+							 heap);
 		/* The page containing the clustered index record
-		corresponding to entry is latched in mtr.  Thus the
+		corresponding to entry is latched.  Thus the
 		following call is safe. */
 		if (!row_upd_index_replace_new_col_vals(entry, *index, update,
 							heap)) {

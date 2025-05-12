@@ -29,7 +29,7 @@
 #include <locale.h>
 #endif
 
-extern HASH charset_name_hash;
+static HASH charset_name_hash;
 
 /*
   The code below implements this functionality:
@@ -597,7 +597,7 @@ CHARSET_INFO *default_charset_info = &my_charset_latin1;
   All related character sets should share same cname
 */
 
-void add_compiled_collation(struct charset_info_st *cs)
+int add_compiled_collation(struct charset_info_st *cs)
 {
   DBUG_ASSERT(cs->number < array_elements(all_charsets));
   all_charsets[cs->number]= cs;
@@ -613,6 +613,7 @@ void add_compiled_collation(struct charset_info_st *cs)
     DBUG_ASSERT(org->cs_name.length == strlen(cs->cs_name.str));
 #endif
   }
+  return 0;
 }
 
 
@@ -638,7 +639,6 @@ void add_compiled_extra_collation(struct charset_info_st *cs)
     cs->cs_name= org->cs_name;
   }
 }
-
 
 
 static my_pthread_once_t charsets_initialized= MY_PTHREAD_ONCE_INIT;
@@ -688,15 +688,12 @@ const char *my_collation_get_tailoring(uint id)
 }
 
 
-HASH charset_name_hash;
-
-static uchar *get_charset_key(const uchar *object,
-                              size_t *size,
-                              my_bool not_used __attribute__((unused)))
+static const uchar *get_charset_key(const void *object, size_t *size,
+                                    my_bool not_used __attribute__((unused)))
 {
-  CHARSET_INFO *cs= (CHARSET_INFO*) object;
+  CHARSET_INFO *cs= object;
   *size= cs->cs_name.length;
-  return (uchar*) cs->cs_name.str;
+  return (const uchar*) cs->cs_name.str;
 }
 
 static void init_available_charsets(void)
@@ -724,7 +721,7 @@ static void init_available_charsets(void)
     if (*cs)
     {
       DBUG_ASSERT(cs[0]->mbmaxlen <= MY_CS_MBMAXLEN);
-      if (cs[0]->m_ctype)
+      if (cs[0]->m_ctype && !cs[0]->state_map)
         if (init_state_maps(*cs))
           *cs= NULL;
     }

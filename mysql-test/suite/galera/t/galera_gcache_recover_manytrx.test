@@ -5,6 +5,7 @@
 
 --source include/galera_cluster.inc
 --source include/big_test.inc
+--source include/have_innodb.inc
 --source include/have_log_bin.inc
 
 SET SESSION wsrep_sync_wait = 0;
@@ -126,7 +127,6 @@ DELIMITER ;|
 --send CALL insert_10m ();
 
 --connection node_2
-call mtr.add_suppression("Error in Log_event::read_log_event\(\):.*");
 SET SESSION wsrep_sync_wait = 0;
 
 # Make sure that node_2 is not killed while TOIs are applied.
@@ -200,12 +200,12 @@ DROP PROCEDURE insert_1k;
 DROP PROCEDURE insert_1m;
 
 --connection node_1
-call mtr.add_suppression("Error in Log_event::read_log_event\(\):.*");
+call mtr.add_suppression("Error in Log_event::read_log_event\\(\\)");
 CALL mtr.add_suppression("conflict state 7 after post commit");
 
 # Warning happens when the cluster is started for the first time
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
 
 --connection node_2
-call mtr.add_suppression("Error in Log_event::read_log_event\(\):.*");
+call mtr.add_suppression("Error in Log_event::read_log_event\\(\\)");
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");

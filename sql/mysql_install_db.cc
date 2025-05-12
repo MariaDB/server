@@ -335,7 +335,8 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
     " %s"
     " --bootstrap"
     " --datadir=."
-    " --loose-innodb-buffer-pool-size=20M"
+    " --tmpdir=."
+    " --loose-innodb-buffer-pool-size=21M"
     "\""
     , mysqld_path, opt_verbose_bootstrap ? "--console" : "");
   return cmdline;
@@ -343,10 +344,29 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
 
 static char my_ini_path[MAX_PATH];
 
+/**
+  Wrapper for WritePrivateProfileStringA, with retries and sleeps
+  if file is locked by another process.
+*/
+static BOOL write_private_profile_string_with_retries(const char *appname,
+  const char *key, const char *val, const char *filename)
+{
+  static constexpr int RETRIES=50;
+  static constexpr int SLEEP_MS=10;
+  for (int n= RETRIES;; n--)
+  {
+    if (WritePrivateProfileStringA(appname, key, val, filename))
+      return TRUE;
+    if (GetLastError() != ERROR_ACCESS_DENIED || !n)
+      return FALSE;
+    Sleep(SLEEP_MS);
+  }
+}
+
 static void write_myini_str(const char *key, const char* val, const char *section="mysqld")
 {
   DBUG_ASSERT(my_ini_path[0]);
-  if (!WritePrivateProfileString(section, key, val, my_ini_path))
+  if (!write_private_profile_string_with_retries(section, key, val, my_ini_path))
   {
     die("Can't write to ini file key=%s, val=%s, section=%s, Windows error %u",key,val,section,
       GetLastError());

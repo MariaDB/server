@@ -25,6 +25,7 @@
   @file storage/perfschema/pfs_instr_class.cc
   Performance schema instruments meta data (implementation).
 */
+#include <atomic>
 
 #include "my_global.h"
 #include "my_sys.h"
@@ -36,7 +37,6 @@
 #include "pfs_timer.h"
 #include "pfs_events_waits.h"
 #include "pfs_setup_object.h"
-#include "pfs_atomic.h"
 #include "pfs_program.h"
 #include "pfs_buffer_container.h"
 #include "mysql/psi/mysql_thread.h"
@@ -76,12 +76,12 @@ static void init_instr_class(PFS_instr_class *klass,
   - the performance schema initialization
   - a plugin initialization
 */
-static uint32 mutex_class_dirty_count= 0;
-static uint32 mutex_class_allocated_count= 0;
-static uint32 rwlock_class_dirty_count= 0;
-static uint32 rwlock_class_allocated_count= 0;
-static uint32 cond_class_dirty_count= 0;
-static uint32 cond_class_allocated_count= 0;
+static std::atomic<uint32> mutex_class_dirty_count(0);
+static std::atomic<uint32> mutex_class_allocated_count(0);
+static std::atomic<uint32> rwlock_class_dirty_count(0);
+static std::atomic<uint32> rwlock_class_allocated_count(0);
+static std::atomic<uint32> cond_class_dirty_count(0);
+static std::atomic<uint32> cond_class_allocated_count(0);
 
 /** Size of the mutex class array. @sa mutex_class_array */
 ulong mutex_class_max= 0;
@@ -137,8 +137,8 @@ PFS_cond_class *cond_class_array= NULL;
   - the performance schema initialization
   - a plugin initialization
 */
-static uint32 thread_class_dirty_count= 0;
-static uint32 thread_class_allocated_count= 0;
+static std::atomic<uint32> thread_class_dirty_count(0);
+static std::atomic<uint32> thread_class_allocated_count(0);
 
 static PFS_thread_class *thread_class_array= NULL;
 
@@ -185,28 +185,28 @@ LF_HASH table_share_hash;
 /** True if table_share_hash is initialized. */
 static bool table_share_hash_inited= false;
 
-static uint32 file_class_dirty_count= 0;
-static uint32 file_class_allocated_count= 0;
+static std::atomic<uint32> file_class_dirty_count(0);
+static std::atomic<uint32> file_class_allocated_count(0);
 
 PFS_file_class *file_class_array= NULL;
 
-static uint32 stage_class_dirty_count= 0;
-static uint32 stage_class_allocated_count= 0;
+static std::atomic<uint32> stage_class_dirty_count(0);
+static std::atomic<uint32> stage_class_allocated_count(0);
 
 static PFS_stage_class *stage_class_array= NULL;
 
-static uint32 statement_class_dirty_count= 0;
-static uint32 statement_class_allocated_count= 0;
+static std::atomic<uint32> statement_class_dirty_count(0);
+static std::atomic<uint32> statement_class_allocated_count(0);
 
 static PFS_statement_class *statement_class_array= NULL;
 
-static uint32 socket_class_dirty_count= 0;
-static uint32 socket_class_allocated_count= 0;
+static std::atomic<uint32> socket_class_dirty_count(0);
+static std::atomic<uint32> socket_class_allocated_count(0);
 
 static PFS_socket_class *socket_class_array= NULL;
 
-static uint32 memory_class_dirty_count= 0;
-static uint32 memory_class_allocated_count= 0;
+static std::atomic<uint32> memory_class_dirty_count(0);
+static std::atomic<uint32> memory_class_allocated_count(0);
 
 static PFS_memory_class *memory_class_array= NULL;
 
@@ -403,19 +403,19 @@ void cleanup_table_share(void)
 
 C_MODE_START
 /** get_key function for @c table_share_hash. */
-static uchar *table_share_hash_get_key(const uchar *entry, size_t *length,
-                                       my_bool)
+static const uchar *table_share_hash_get_key(const void *entry, size_t *length,
+                                             my_bool)
 {
   const PFS_table_share * const *typed_entry;
   const PFS_table_share *share;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_table_share* const *> (entry);
+  typed_entry= static_cast<const PFS_table_share* const *> (entry);
   assert(typed_entry != NULL);
   share= *typed_entry;
   assert(share != NULL);
   *length= share->m_key.m_key_length;
   result= &share->m_key.m_hash_key[0];
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 
@@ -1092,7 +1092,7 @@ PFS_sync_key register_mutex_class(const char *name, uint name_length,
     mutex_class_dirty_count is incremented *before* an entry is added
     mutex_class_allocated_count is incremented *after* an entry is added
   */
-  index= PFS_atomic::add_u32(&mutex_class_dirty_count, 1);
+  index= mutex_class_dirty_count.fetch_add(1);
 
   if (index < mutex_class_max)
   {
@@ -1148,7 +1148,7 @@ PFS_sync_key register_mutex_class(const char *name, uint name_length,
       empty/NULL/zero, but this won't cause a crash
       (mutex_class_array is initialized with MY_ZEROFILL).
     */
-    PFS_atomic::add_u32(&mutex_class_allocated_count, 1);
+    mutex_class_allocated_count.fetch_add(1);
     return (index + 1);
   }
 
@@ -1178,7 +1178,7 @@ PFS_sync_key register_rwlock_class(const char *name, uint name_length,
   REGISTER_CLASS_BODY_PART(index, rwlock_class_array, rwlock_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&rwlock_class_dirty_count, 1);
+  index= rwlock_class_dirty_count.fetch_add(1);
 
   if (index < rwlock_class_max)
   {
@@ -1191,7 +1191,7 @@ PFS_sync_key register_rwlock_class(const char *name, uint name_length,
     entry->m_timed= false;
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
-    PFS_atomic::add_u32(&rwlock_class_allocated_count, 1);
+    rwlock_class_allocated_count.fetch_add(1);
     return (index + 1);
   }
 
@@ -1217,7 +1217,7 @@ PFS_sync_key register_cond_class(const char *name, uint name_length,
   REGISTER_CLASS_BODY_PART(index, cond_class_array, cond_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&cond_class_dirty_count, 1);
+  index= cond_class_dirty_count.fetch_add(1);
 
   if (index < cond_class_max)
   {
@@ -1229,7 +1229,7 @@ PFS_sync_key register_cond_class(const char *name, uint name_length,
     entry->m_timed= false;
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
-    PFS_atomic::add_u32(&cond_class_allocated_count, 1);
+    cond_class_allocated_count.fetch_add(1);
     return (index + 1);
   }
 
@@ -1311,7 +1311,7 @@ PFS_thread_key register_thread_class(const char *name, uint name_length,
       return (index + 1);
   }
 
-  index= PFS_atomic::add_u32(&thread_class_dirty_count, 1);
+  index= thread_class_dirty_count.fetch_add(1);
 
   if (index < thread_class_max)
   {
@@ -1320,7 +1320,7 @@ PFS_thread_key register_thread_class(const char *name, uint name_length,
     strncpy(entry->m_name, name, name_length);
     entry->m_name_length= name_length;
     entry->m_enabled= true;
-    PFS_atomic::add_u32(&thread_class_allocated_count, 1);
+    thread_class_allocated_count.fetch_add(1);
     return (index + 1);
   }
 
@@ -1361,7 +1361,7 @@ PFS_file_key register_file_class(const char *name, uint name_length,
   REGISTER_CLASS_BODY_PART(index, file_class_array, file_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&file_class_dirty_count, 1);
+  index= file_class_dirty_count.fetch_add(1);
 
   if (index < file_class_max)
   {
@@ -1373,7 +1373,7 @@ PFS_file_key register_file_class(const char *name, uint name_length,
     entry->m_timed= true;
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
-    PFS_atomic::add_u32(&file_class_allocated_count, 1);
+    file_class_allocated_count.fetch_add(1);
 
     return (index + 1);
   }
@@ -1403,7 +1403,7 @@ PFS_stage_key register_stage_class(const char *name,
   REGISTER_CLASS_BODY_PART(index, stage_class_array, stage_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&stage_class_dirty_count, 1);
+  index= stage_class_dirty_count.fetch_add(1);
 
   if (index < stage_class_max)
   {
@@ -1427,7 +1427,7 @@ PFS_stage_key register_stage_class(const char *name,
 
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
-    PFS_atomic::add_u32(&stage_class_allocated_count, 1);
+    stage_class_allocated_count.fetch_add(1);
 
     return (index + 1);
   }
@@ -1454,7 +1454,7 @@ PFS_statement_key register_statement_class(const char *name, uint name_length,
   REGISTER_CLASS_BODY_PART(index, statement_class_array, statement_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&statement_class_dirty_count, 1);
+  index= statement_class_dirty_count.fetch_add(1);
 
   if (index < statement_class_max)
   {
@@ -1465,7 +1465,7 @@ PFS_statement_key register_statement_class(const char *name, uint name_length,
     entry->m_timed= true;
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
-    PFS_atomic::add_u32(&statement_class_allocated_count, 1);
+    statement_class_allocated_count.fetch_add(1);
 
     return (index + 1);
   }
@@ -1537,7 +1537,7 @@ PFS_socket_key register_socket_class(const char *name, uint name_length,
   REGISTER_CLASS_BODY_PART(index, socket_class_array, socket_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&socket_class_dirty_count, 1);
+  index= socket_class_dirty_count.fetch_add(1);
 
   if (index < socket_class_max)
   {
@@ -1549,7 +1549,7 @@ PFS_socket_key register_socket_class(const char *name, uint name_length,
     entry->m_timed= false;
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
-    PFS_atomic::add_u32(&socket_class_allocated_count, 1);
+    socket_class_allocated_count.fetch_add(1);
     return (index + 1);
   }
 
@@ -1590,7 +1590,7 @@ PFS_memory_key register_memory_class(const char *name, uint name_length,
   REGISTER_CLASS_BODY_PART(index, memory_class_array, memory_class_max,
                            name, name_length)
 
-  index= PFS_atomic::add_u32(&memory_class_dirty_count, 1);
+  index= memory_class_dirty_count.fetch_add(1);
 
   if (index < memory_class_max)
   {
@@ -1601,7 +1601,7 @@ PFS_memory_key register_memory_class(const char *name, uint name_length,
     /* Set user-defined configuration options for this instrument */
     configure_instr_class(entry);
     entry->m_timed= false; /* Immutable */
-    PFS_atomic::add_u32(&memory_class_allocated_count, 1);
+    memory_class_allocated_count.fetch_add(1);
     return (index + 1);
   }
 
@@ -2022,7 +2022,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_table_share *pfs)
+  void operator()(PFS_table_share *pfs) override
   {
     pfs->refresh_setup_object_flags(m_thread);
   }
@@ -2045,7 +2045,7 @@ public:
     : m_thread(thread)
   {}
 
-  virtual void operator()(PFS_program *pfs)
+  void operator()(PFS_program *pfs) override
   {
     pfs->refresh_setup_object_flags(m_thread);
   }

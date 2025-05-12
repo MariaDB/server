@@ -82,6 +82,26 @@ INSERT INTO t2() VALUES();
 SELECT * FROM t2 ORDER BY id;
 DROP TABLE t2;
 
+--echo #
+--echo # MDEV-34181  Instant table aborts after discard tablespace
+--echo #
+CREATE TABLE t1(c3 INT, c2 INT, c1 INT KEY)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, 1), (2, 2, 2);
+CREATE TABLE t2 (c1 INT KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+ALTER TABLE t2 ADD c2 INT;
+FLUSH TABLES t1 FOR EXPORT;
+let $datadir=`select @@datadir`;
+--copy_file $datadir/test/t1.ibd $datadir/test/imp_t1.ibd
+UNLOCK TABLES;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t2 ADD c3 INT FIRST;
+--copy_file $datadir/test/imp_t1.ibd $datadir/test/t2.ibd
+
+--replace_regex /opening '.*\/test\//opening '.\/test\//
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
 --echo # End of 10.5 tests
 
 --echo #

@@ -1,0 +1,97 @@
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[12]\\.ibd looks corrupted");
+call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page ");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+create table t1 (f1 int primary key, f2 blob)page_compressed=1 engine=innodb encrypted=yes stats_persistent=0;
+create table t2(f1 int primary key, f2 blob)engine=innodb encrypted=yes stats_persistent=0;
+create table t3(f1 int primary key, f2 blob)page_compressed=1 engine=innodb encrypted=no stats_persistent=0;
+start transaction;
+insert into t1 values(1, repeat('#',12));
+insert into t1 values(2, repeat('+',12));
+insert into t1 values(3, repeat('/',12));
+insert into t1 values(4, repeat('-',12));
+insert into t1 values(5, repeat('.',12));
+insert into t2 select * from t1;
+insert into t3 select * from t1;
+commit work;
+SET GLOBAL innodb_fast_shutdown = 0;
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+select space into @t1_space_id from information_schema.innodb_sys_tablespaces where name='test/t1';
+select space into @t2_space_id from information_schema.innodb_sys_tablespaces where name='test/t2';
+select space into @t3_space_id from information_schema.innodb_sys_tablespaces where name='test/t3';
+begin;
+insert into t1 values (6, repeat('%', 400));
+insert into t2 values (6, repeat('%', 400));
+insert into t3 values (6, repeat('%', 400));
+# xtrabackup prepare
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t1_space_id;
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t2_space_id;
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t3_space_id;
+set global innodb_buf_flush_list_now = 1;
+# Kill the server
+# restart
+FOUND 3 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\]/ in mysqld.1.err
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+check table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	check	status	OK
+select f1, f2 from t1;
+f1	f2
+1	############
+2	++++++++++++
+3	////////////
+4	------------
+5	............
+select f1, f2 from t2;
+f1	f2
+1	############
+2	++++++++++++
+3	////////////
+4	------------
+5	............
+select f1, f2 from t3;
+f1	f2
+1	############
+2	++++++++++++
+3	////////////
+4	------------
+5	............
+SET GLOBAL innodb_fast_shutdown = 0;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
+select space into @t1_space_id from information_schema.innodb_sys_tablespaces where name='test/t1';
+begin;
+insert into t1 values (6, repeat('%', 400));
+set global innodb_saved_page_number_debug = 3;
+set global innodb_fil_make_page_dirty_debug = @t1_space_id;
+set global innodb_buf_flush_list_now = 1;
+# Kill the server
+# Corrupt the page 3 in t1.ibd file
+# Assign the maximum value to lsn in doublewrite buffer page
+# restart
+FOUND 1 /InnoDB: Encrypted page \[page id: space=[1-9]*, page number=3\] in file .*test.t1.ibd looks corrupted/ in mysqld.1.err
+select * from t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+select * from t1;
+f1	f2
+1	############
+2	++++++++++++
+3	////////////
+4	------------
+5	............
+drop table t3, t2, t1;

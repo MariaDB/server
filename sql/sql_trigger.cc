@@ -82,7 +82,7 @@ public:
     :Stored_program_creation_ctx(client_cs, connection_cl, db_cl)
   { }
 
-  virtual Stored_program_creation_ctx *clone(MEM_ROOT *mem_root)
+  Stored_program_creation_ctx *clone(MEM_ROOT *mem_root) override
   {
     return new (mem_root) Trigger_creation_ctx(m_client_cs,
                                                m_connection_cl,
@@ -90,7 +90,7 @@ public:
   }
 
 protected:
-  virtual Object_creation_ctx *create_backup_ctx(THD *thd) const
+  Object_creation_ctx *create_backup_ctx(THD *thd) const override
   {
     return new Trigger_creation_ctx(thd);
   }
@@ -282,8 +282,8 @@ public:
   Handle_old_incorrect_sql_modes_hook(const char *file_path)
     :path(file_path)
   {};
-  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, const char *end);
+  bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end) override;
 };
 
 
@@ -294,8 +294,8 @@ public:
                                           LEX_CSTRING *trigger_table_arg)
     :path(file_path), trigger_table_value(trigger_table_arg)
   {};
-  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, const char *end);
+  bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end) override;
 private:
   const char *path;
   LEX_CSTRING *trigger_table_value;
@@ -322,12 +322,12 @@ public:
 
   Deprecated_trigger_syntax_handler() : m_trigger_name(NULL) {}
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* message,
-                                Sql_condition ** cond_hdl)
+                                Sql_condition ** cond_hdl) override
   {
     if (sql_errno != EE_OUTOFMEMORY &&
         sql_errno != ER_OUT_OF_RESOURCES)
@@ -622,7 +622,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   table= tables->table;
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && !wsrep_should_replicate_ddl(thd, table->s->db_type()))
+  /* Resolve should we replicate creation of the trigger.
+     It should be replicated if storage engine(s) associated
+     to trigger are replicated by Galera.
+  */
+  if (WSREP(thd) &&
+      !wsrep_should_replicate_ddl_iterate(thd, tables))
     goto end;
 #endif
 
@@ -1476,8 +1481,9 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
 
   {
     int null_bytes= (table->s->fields - table->s->null_fields + 7)/8;
-    if (!(extra_null_bitmap= (uchar*)alloc_root(&table->mem_root, null_bytes)))
+    if (!(extra_null_bitmap= (uchar*)alloc_root(&table->mem_root, 2*null_bytes)))
       return 1;
+    extra_null_bitmap_init= extra_null_bitmap + null_bytes;
     if (!(record0_field= (Field **)alloc_root(&table->mem_root,
                                               (table->s->fields + 1) *
                                               sizeof(Field*))))
@@ -1502,13 +1508,17 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
           null_ptr++, null_bit= 1;
         else
           null_bit*= 2;
+        if (f->flags & NO_DEFAULT_VALUE_FLAG)
+          f->set_null();
+        else
+          f->set_notnull();
       }
       else
         *trg_fld= *fld;
     }
     *trg_fld= 0;
     DBUG_ASSERT(null_ptr <= extra_null_bitmap + null_bytes);
-    bzero(extra_null_bitmap, null_bytes);
+    memcpy(extra_null_bitmap_init, extra_null_bitmap, null_bytes);
   }
   else
   {
@@ -2015,10 +2025,8 @@ static bool add_table_for_trigger_internal(THD *thd,
   {
     if (if_exists)
     {
-      push_warning_printf(thd,
-                          Sql_condition::WARN_LEVEL_NOTE,
-                          ER_TRG_DOES_NOT_EXIST,
-                          ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                   ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
 
       *table= NULL;
 
@@ -2519,6 +2527,14 @@ bool Table_triggers_list::process_triggers(THD *thd,
   */
   save_current_select= thd->lex->current_select;
 
+  /*
+    Reset the sentinel thd->bulk_param in order not to consume the next
+    values of a bound array in case one of statement executed by
+    the trigger's body is a DML statement.
+  */
+  void *save_bulk_param= thd->bulk_param;
+  thd->bulk_param= nullptr;
+
   do {
     thd->lex->current_select= NULL;
     err_status=
@@ -2528,6 +2544,7 @@ bool Table_triggers_list::process_triggers(THD *thd,
                                      &trigger->subject_table_grants);
     status_var_increment(thd->status_var.executed_triggers);
   } while (!err_status && (trigger= trigger->next));
+  thd->bulk_param= save_bulk_param;
   thd->lex->current_select= save_current_select;
 
   thd->restore_sub_statement_state(&statement_state);

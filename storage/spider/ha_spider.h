@@ -121,10 +121,8 @@ public:
   bool               pre_bitmap_checked;
   bool               bulk_insert;
   bool               info_auto_called;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   bool               auto_inc_temporary;
-#endif
-  int                bulk_size;
+  int                bulk_size= 0;
   int                direct_dup_insert;
   int                store_error_num;
   uint               dup_key_idx;
@@ -172,14 +170,14 @@ public:
   handler *clone(
     const char *name,
     MEM_ROOT *mem_root
-  );
+  ) override;
   const char **bas_ext() const;
   int open(
     const char* name,
     int mode,
     uint test_if_locked
-  );
-  int close();
+  ) override;
+  int close() override;
   int check_access_kind_for_connection(
     THD *thd,
     bool write_request
@@ -191,59 +189,56 @@ public:
     THD *thd,
     THR_LOCK_DATA **to,
     enum thr_lock_type lock_type
-  );
+  ) override;
   int external_lock(
     THD *thd,
     int lock_type
-  );
+  ) override;
   int start_stmt(
     THD *thd,
     thr_lock_type lock_type
-  );
-  int reset();
+  ) override;
+  int reset() override;
   int extra(
     enum ha_extra_function operation
-  );
-  int index_init(
-    uint idx,
-    bool sorted
-  );
-  int index_end();
+  ) override;
+  int index_init(uint idx, bool sorted) override;
+  int index_end() override;
   int index_read_map(
     uchar *buf,
     const uchar *key,
     key_part_map keypart_map,
     enum ha_rkey_function find_flag
-  );
+  ) override;
   int index_read_last_map(
     uchar *buf,
     const uchar *key,
     key_part_map keypart_map
-  );
+  ) override;
   int index_next(
     uchar *buf
-  );
+  ) override;
   int index_prev(
     uchar *buf
-  );
+  ) override;
   int index_first(
     uchar *buf
-  );
+  ) override;
   int index_last(
     uchar *buf
-  );
+  ) override;
   int index_next_same(
     uchar *buf,
     const uchar *key,
     uint keylen
-  );
+  ) override;
   int read_range_first(
     const key_range *start_key,
     const key_range *end_key,
     bool eq_range,
     bool sorted
-  );
-  int read_range_next();
+  ) override;
+  int read_range_next() override;
   void reset_no_where_cond();
   bool check_no_where_cond();
   ha_rows multi_range_read_info_const(
@@ -255,7 +250,7 @@ public:
     uint *flags,
     ha_rows limit,
     Cost_estimate *cost
-  );
+  ) override;
   ha_rows multi_range_read_info(
     uint keyno,
     uint n_ranges,
@@ -264,111 +259,99 @@ public:
     uint *bufsz,
     uint *flags,
     Cost_estimate *cost
-  );
+  ) override;
   int multi_range_read_init(
     RANGE_SEQ_IF *seq,
     void *seq_init_param,
     uint n_ranges,
     uint mode,
     HANDLER_BUFFER *buf
-  );
+  ) override;
   int multi_range_read_next(
     range_id_t *range_info
-  );
+  ) override;
   int multi_range_read_next_first(
     range_id_t *range_info
   );
   int multi_range_read_next_next(
     range_id_t *range_info
   );
-  int rnd_init(
-    bool scan
-  );
-  int rnd_end();
+  int rnd_init(bool scan) override;
+  int rnd_end() override;
   int rnd_next(
     uchar *buf
-  );
+  ) override;
   void position(
     const uchar *record
-  );
+  ) override;
   int rnd_pos(
     uchar *buf,
     uchar *pos
-  );
+  ) override;
   int cmp_ref(
     const uchar *ref1,
     const uchar *ref2
-  );
-  int ft_init();
-  void ft_end();
+  ) override;
+  int ft_init() override;
+  void ft_end() override;
   FT_INFO *ft_init_ext(
     uint flags,
     uint inx,
     String *key
-  );
+  ) override;
   int ft_read(
     uchar *buf
-  );
+  ) override;
   int pre_index_read_map(
     const uchar *key,
     key_part_map keypart_map,
     enum ha_rkey_function find_flag,
     bool use_parallel
-  );
-  int pre_index_first(bool use_parallel);
-  int pre_index_last(bool use_parallel);
+  ) override;
+  int pre_index_first(bool use_parallel) override;
+  int pre_index_last(bool use_parallel) override;
   int pre_index_read_last_map(
     const uchar *key,
     key_part_map keypart_map,
     bool use_parallel
-  );
-  int pre_multi_range_read_next(
-    bool use_parallel
-  );
+  ) override;
+  int pre_multi_range_read_next(bool use_parallel) override;
   int pre_read_range_first(
     const key_range *start_key,
     const key_range *end_key,
     bool eq_range,
     bool sorted,
     bool use_parallel
-  );
-  int pre_ft_read(bool use_parallel);
-  int pre_rnd_next(bool use_parallel);
+  ) override;
+  int pre_ft_read(bool use_parallel) override;
+  int pre_rnd_next(bool use_parallel) override;
   int info(
     uint flag
-  );
+  ) override;
   ha_rows records_in_range(
     uint inx,
     const key_range *start_key,
     const key_range *end_key,
     page_range *pages
-  );
+  ) override;
   int check_crd();
-  int pre_records();
-  ha_rows records();
-  int pre_calculate_checksum();
-  int calculate_checksum();
-  const char *table_type() const;
-  ulonglong table_flags() const;
+  int pre_records() override;
+  ha_rows records() override;
+  int pre_calculate_checksum() override;
+  int calculate_checksum() override;
+  const char *table_type() const override;
+  ulonglong table_flags() const override;
   ulong table_flags_for_partition();
-  const char *index_type(
-    uint key_number
-  );
-  ulong index_flags(
-    uint idx,
-    uint part,
-    bool all_parts
-  ) const;
-  uint max_supported_record_length() const;
-  uint max_supported_keys() const;
-  uint max_supported_key_parts() const;
-  uint max_supported_key_length() const;
-  uint max_supported_key_part_length() const;
-  uint8 table_cache_type();
-  bool need_info_for_auto_inc();
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
-  bool can_use_for_auto_inc_init();
-#endif
+  const char *index_type(uint key_number) override;
+  ulong index_flags(uint idx, uint part, bool all_parts) const override;
+  uint max_supported_record_length() const override;
+  uint max_supported_keys() const override;
+  uint max_supported_key_parts() const override;
+  uint max_supported_key_length() const override;
+  uint max_supported_key_part_length() const override;
+  uint8 table_cache_type() override;
+  bool need_info_for_auto_inc() override;
+  bool can_use_for_auto_inc_init() override;
   int update_auto_increment();
   void get_auto_increment(
     ulonglong offset,
@@ -376,153 +359,122 @@ public:
     ulonglong nb_desired_values,
     ulonglong *first_value,
     ulonglong *nb_reserved_values
-  );
-  int reset_auto_increment(
-    ulonglong value
-  );
-  void release_auto_increment();
-  void start_bulk_insert(
-    ha_rows rows,
-    uint flags
-  );
-  int end_bulk_insert();
-  int write_row(
-    const uchar *buf
-  );
+  ) override;
+  int reset_auto_increment(ulonglong value) override;
+  void release_auto_increment() override;
+  void start_bulk_insert(ha_rows rows, uint flags) override;
+  int end_bulk_insert() override;
+  int write_row(const uchar *buf) override;
   void direct_update_init(
     THD *thd,
     bool hs_request
   );
-  bool start_bulk_update();
-  int exec_bulk_update(
-    ha_rows *dup_key_found
-  );
-  int end_bulk_update();
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
+  bool start_bulk_update() override;
+  int exec_bulk_update(ha_rows *dup_key_found) override;
+  int end_bulk_update() override;
   int bulk_update_row(
     const uchar *old_data,
     const uchar *new_data,
     ha_rows *dup_key_found
-  );
+  ) override;
   int update_row(
     const uchar *old_data,
     const uchar *new_data
-  );
-#else
-  int bulk_update_row(
-    const uchar *old_data,
-    uchar *new_data,
-    ha_rows *dup_key_found
-  );
-  int update_row(
-    const uchar *old_data,
-    uchar *new_data
-  );
-#endif
+  ) override;
   bool check_direct_update_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
     longlong offset_limit
   );
-  int direct_update_rows_init(
-    List<Item> *update_fields
-  );
-  int direct_update_rows(
-    ha_rows *update_rows,
-    ha_rows *found_row
-  );
-  bool start_bulk_delete();
-  int end_bulk_delete();
-  int delete_row(
-    const uchar *buf
-  );
+  int direct_update_rows_init(List<Item> *update_fields) override;
+  int direct_update_rows(ha_rows *update_rows, ha_rows *found_row) override;
+  bool start_bulk_delete() override;
+  int end_bulk_delete() override;
+  int delete_row(const uchar *buf) override;
   bool check_direct_delete_sql_part(
     st_select_lex *select_lex,
     longlong select_limit,
     longlong offset_limit
   );
-  int direct_delete_rows_init();
+  int direct_delete_rows_init() override;
   int direct_delete_rows(
     ha_rows *delete_rows
-  );
-  int delete_all_rows();
-  int truncate();
-  IO_AND_CPU_COST scan_time();
-  IO_AND_CPU_COST rnd_pos_time(ha_rows rows);
+  ) override;
+  int delete_all_rows() override;
+  int truncate() override;
+  IO_AND_CPU_COST scan_time() override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
-                               ulonglong blocks);
-  const key_map *keys_to_use_for_scanning();
-  ha_rows estimate_rows_upper_bound();
+                               ulonglong blocks) override;
+  const key_map *keys_to_use_for_scanning() override;
+  ha_rows estimate_rows_upper_bound() override;
   void print_error(
     int error,
     myf errflag
-  );
+  ) override;
   bool get_error_message(
     int error,
     String *buf
-  );
+  ) override;
   int create(
     const char *name,
     TABLE *form,
     HA_CREATE_INFO *info
-  );
+  ) override;
   void update_create_info(
     HA_CREATE_INFO* create_info
-  );
+  ) override;
   int rename_table(
     const char *from,
     const char *to
-  );
+  ) override;
   int delete_table(
     const char *name
-  );
-  bool is_crashed() const;
+  ) override;
+  bool is_crashed() const override;
 #ifdef SPIDER_HANDLER_AUTO_REPAIR_HAS_ERROR
-  bool auto_repair(int error) const;
+  bool auto_repair(int error) const override;
 #else
   bool auto_repair() const;
 #endif
   int disable_indexes(
     key_map map, bool persist
-  );
+  ) override;
   int enable_indexes(
     key_map map, bool persist
-  );
+  ) override;
   int check(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   int repair(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   bool check_and_repair(
     THD *thd
-  );
+  ) override;
   int analyze(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   int optimize(
     THD* thd,
     HA_CHECK_OPT* check_opt
-  );
+  ) override;
   bool is_fatal_error(
     int error_num,
     uint flags
-  );
+  ) override;
   Field *field_exchange(
     Field *field
   );
   const COND *cond_push(
     const COND* cond
-  );
-  void cond_pop();
-  int info_push(
-    uint info_type,
-    void *info
-  );
-  void return_record_by_parent();
+  ) override;
+  void cond_pop() override;
+  int info_push(uint info_type, void *info) override;
+  void return_record_by_parent() override;
   TABLE *get_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
@@ -791,6 +743,8 @@ public:
   int append_lock_tables_list();
   int lock_tables();
   int dml_init();
+private:
+  void init_fields();
 };
 
 

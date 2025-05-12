@@ -139,8 +139,10 @@ select hex(cast(_ascii 0x7f as char(1) character set latin1));
 --echo #
 --echo # Bug#58022 ... like ... escape export_set ( ... ) crashes when export_set returns warnings
 --echo #
+#view-protocol doubles warning message
+--disable_view_protocol
 SELECT '' LIKE '' ESCAPE EXPORT_SET(1, 1, 1, 1, '');
-
+--enable_view_protocol
 --echo End of 5.1 tests
 
                                                                                
@@ -223,6 +225,8 @@ SET NAMES latin1 COLLATE latin1_bin;
 --echo # MDEV-6752 Trailing incomplete characters are not replaced to question marks on conversion
 --echo #
 SET NAMES utf8, character_set_connection=latin1;
+
+--disable_service_connection
 SELECT 'Â';
 SELECT HEX('Â');
 SELECT HEX(CAST('Â' AS CHAR CHARACTER SET utf8));
@@ -241,6 +245,7 @@ INSERT IGNORE INTO t1 VALUES ('Â'),('Â#');
 SHOW WARNINGS;
 SELECT HEX(a),a FROM t1;
 DROP TABLE t1;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
@@ -516,6 +521,13 @@ SELECT CAST(_latin1 0x617F62 AS INT);
 SELECT CAST(_latin1 0x612062 AS INT);
 SELECT CAST(_latin1 0x617E62 AS INT);
 SELECT CAST(_latin1 0x61FF62 AS INT);
+
+
+--echo #
+--echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+--echo #
+
+SELECT CAST(CONVERT('-9223372036854775808' USING latin1) AS SIGNED) AS c1;
 
 
 --echo #

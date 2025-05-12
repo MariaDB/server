@@ -28,28 +28,28 @@ class DllExport GZFAM : public TXTFAM {
   GZFAM(PGZFAM txfp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_GZ;}
-  virtual int  GetPos(void);
-  virtual int  GetNextPos(void);
-  virtual PTXF Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_GZ;}
+  int  GetPos(void) override;
+  int  GetNextPos(void) override;
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) GZFAM(this);}
 
   // Methods
-  virtual void Reset(void);
-  virtual int  GetFileLength(PGLOBAL g);
-  virtual int  Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
-  virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  GetRowID(void);
-  virtual bool RecordPos(PGLOBAL g);
-  virtual bool SetPos(PGLOBAL g, int recpos);
-  virtual int  SkipRecord(PGLOBAL g, bool header);
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+  void Reset(void) override;
+  int  GetFileLength(PGLOBAL g) override;
+  int  Cardinality(PGLOBAL g) override {return (g) ? -1 : 0;}
+  int  MaxBlkSize(PGLOBAL g, int s) override {return s;}
+  bool AllocateBuffer(PGLOBAL g) override;
+  int  GetRowID(void) override;
+  bool RecordPos(PGLOBAL g) override;
+  bool SetPos(PGLOBAL g, int recpos) override;
+  int  SkipRecord(PGLOBAL g, bool header) override;
+  bool OpenTableFile(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
+  void Rewind(void) override;
 
  protected:
           int  Zerror(PGLOBAL g);    // GZ error function
@@ -71,23 +71,23 @@ class DllExport ZBKFAM : public GZFAM {
   ZBKFAM(PZBKFAM txfp);
 
   // Implementation
-  virtual int  GetPos(void);
-  virtual int  GetNextPos(void) {return 0;}
-  virtual PTXF Duplicate(PGLOBAL g)
+  int  GetPos(void) override;
+  int  GetNextPos(void) override {return 0;}
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) ZBKFAM(this);}
 
   // Methods
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  MaxBlkSize(PGLOBAL g, int s);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  GetRowID(void);
-  virtual bool RecordPos(PGLOBAL g);
-  virtual int  SkipRecord(PGLOBAL g, bool header);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+  int  Cardinality(PGLOBAL g) override;
+  int  MaxBlkSize(PGLOBAL g, int s) override;
+  bool AllocateBuffer(PGLOBAL g) override;
+  int  GetRowID(void) override;
+  bool RecordPos(PGLOBAL g) override;
+  int  SkipRecord(PGLOBAL g, bool header) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
+  void Rewind(void) override;
 
  protected:
   // Members
@@ -108,15 +108,15 @@ class DllExport GZXFAM : public ZBKFAM {
   GZXFAM(PZIXFAM txfp) : ZBKFAM(txfp) {}
 
   // Implementation
-  virtual int  GetNextPos(void) {return 0;}
-  virtual PTXF Duplicate(PGLOBAL g)
+  int  GetNextPos(void) override {return 0;}
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) GZXFAM(this);}
 
   // Methods
-  virtual int  Cardinality(PGLOBAL g);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
+  int  Cardinality(PGLOBAL g) override;
+  bool AllocateBuffer(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
 
  protected:
   // No additional Members
@@ -140,21 +140,21 @@ class DllExport ZLBFAM : public BLKFAM {
   ZLBFAM(PZLBFAM txfp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_ZLIB;}
-  virtual int  GetPos(void);
-  virtual int  GetNextPos(void);
-  virtual PTXF Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_ZLIB;}
+  int  GetPos(void) override;
+  int  GetNextPos(void) override;
+  PTXF Duplicate(PGLOBAL g) override
                   {return (PTXF)new(g) ZLBFAM(this);}
   inline  void SetOptimized(bool b) {Optimized = b;}
 
   // Methods
-  virtual int  GetFileLength(PGLOBAL g);
-  virtual bool SetPos(PGLOBAL g, int recpos);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+  int  GetFileLength(PGLOBAL g) override;
+  bool SetPos(PGLOBAL g, int recpos) override;
+  bool AllocateBuffer(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
+  void Rewind(void) override;
 
  protected:
           bool WriteCompressedBuffer(PGLOBAL g);

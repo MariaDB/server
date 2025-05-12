@@ -16,9 +16,10 @@
 */
 static const int SP_STMT_PRINT_MAXLEN= 40;
 
-static int cmp_rqp_locations(Rewritable_query_parameter * const *a,
-                             Rewritable_query_parameter * const *b)
+static int cmp_rqp_locations(const void *a_, const void *b_)
 {
+  auto a= static_cast<Rewritable_query_parameter *const *>(a_);
+  auto b= static_cast<Rewritable_query_parameter *const *>(b_);
   return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
 
@@ -653,6 +654,92 @@ bool sp_lex_instr::setup_table_fields_for_trigger(
   return result;
 }
 
+
+/**
+  Initialize a new memory root for re-parsing a failed SP instruction's
+  statement or free a memory allocated on re-parsing of the failed statement
+  and re-initialize it again so to avoid memory leaks on repeating a statement
+  re-parsing.
+
+  @param sphead  The stored program.
+  @param[out] new_memroot_allocated  true in case a new memory root for
+                                     re-parsing was created, else false meaning
+                                     that already allocated memory root is
+                                     reused
+
+  @return false on success, true on error (OOM)
+*/
+
+bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead,
+                                               bool *new_memroot_allocated)
+{
+  if (!m_mem_root_for_reparsing)
+  {
+    DBUG_EXECUTE_IF("sp_instr_reparsing_2nd_time", DBUG_ASSERT(0););
+    /*
+      Allocate a memory for SP-instruction's mem_root on a mem_root of sp_head.
+      Since the method sp_lex_instr::setup_memroot_for_reparsing() is called
+      on failing execution of SP-instruction by the reason of changes in data
+      dictionary objects metadata, the sp_head mem_root protection flag could
+      has been already set on first execution of the stored routine. Therefore,
+      clear the flag
+        ROOT_FLAG_READ_ONLY
+      in case it is set before allocating a memory for SP instruction's
+      mem_root on sp_head's mem_root and restore its original value once
+      the memory for the SP-instruction's new_root allocated. Read only
+      property for the stored routine's mem_root can be not set after first
+      invocation of a stored routine in case it was completed with error.
+      So, check the flag is set before resetting its value and restoring its
+      original value on return.
+    */
+    MEM_ROOT *sphead_mem_root= sphead->get_main_mem_root();
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    const bool read_only_mem_root=
+      (sphead_mem_root->flags & ROOT_FLAG_READ_ONLY);
+
+    if (read_only_mem_root)
+      sphead_mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+#endif
+
+    m_mem_root_for_reparsing=
+      (MEM_ROOT*)alloc_root(sphead_mem_root, sizeof(MEM_ROOT));
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (read_only_mem_root)
+      /*
+        Restore original read only property of sp_head' s mem_root
+        in case it was set
+      */
+      sphead_mem_root->flags|= ROOT_FLAG_READ_ONLY;
+#endif
+
+    if (!m_mem_root_for_reparsing)
+      return true;
+
+    *new_memroot_allocated= true;
+  }
+  else
+  {
+    DBUG_EXECUTE_IF("sp_instr_reparsing_1st_time", DBUG_ASSERT(0););
+    /*
+      Free a memory allocated on SP-instruction's mem_root to avoid
+      memory leaks could take place on recompilation of SP-instruction's
+      statement.
+    */
+    free_root(m_mem_root_for_reparsing, MYF(0));
+    *new_memroot_allocated= false;
+  }
+
+  init_sql_alloc(key_memory_sp_head_main_root, m_mem_root_for_reparsing,
+                 MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
+
+  mem_root= m_mem_root_for_reparsing;
+
+  return false;
+}
+
+
 LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 {
   String sql_query;
@@ -704,6 +791,19 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     SP arena's state to STMT_INITIALIZED_FOR_SP as its initial state.
   */
   state= STMT_INITIALIZED_FOR_SP;
+
+  /*
+    First, set up a men_root for the statement is going to re-compile.
+  */
+  bool mem_root_allocated;
+  if (setup_memroot_for_reparsing(sp, &mem_root_allocated))
+    return nullptr;
+
+  /*
+    and then set it as the current mem_root. Any memory allocations can take
+    place on re-parsing the SP-instruction's statement will be performed on
+    this mem_root.
+  */
   thd->set_n_backup_active_arena(this, &backup);
   thd->free_list= nullptr;
 
@@ -751,8 +851,22 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       data member. So, for the sp_instr_cpush instruction by the time we reach
       this block cursor_lex->free_list is already empty.
     */
-    cleanup_items(cursor_lex->free_list);
+    if (mem_root_allocated)
+      /*
+        If the new memory root for re-parsing has been just created,
+        then delete every item from the free item list of sp_lex_cursor.
+        In case the memory root for re-parsing is re-used from previous
+        re-parsing of failed instruction, don't do anything since all memory
+        allocated for items were already released on calling free_root
+        inside the method sp_lex_instr::setup_memroot_for_reparsing
+      */
+      cursor_lex->free_items();
+
+    /* Nullify free_list to don't have a dangling pointer */
+    cursor_lex->free_list= nullptr;
+
     cursor_free_list= &cursor_lex->free_list;
+    cursor_lex->mem_root= m_mem_root_for_reparsing;
     DBUG_ASSERT(thd->lex == sp_instr_lex);
     lex_start(thd);
   }
@@ -1832,7 +1946,7 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   Query_arena backup_arena;
   DBUG_ENTER("sp_instr_cfetch::execute");
 
-  res= c ? c->fetch(thd, &m_varlist, m_error_on_no_data) : -1;
+  res= c ? c->fetch(thd, &m_fetch_target_list, m_error_on_no_data) : -1;
 
   *nextp= m_ip+1;
   DBUG_RETURN(res);
@@ -1842,8 +1956,8 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
 void
 sp_instr_cfetch::print(String *str)
 {
-  List_iterator_fast<sp_variable> li(m_varlist);
-  sp_variable *pv;
+  List_iterator_fast<sp_fetch_target> li(m_fetch_target_list);
+  sp_fetch_target *pv;
   const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
@@ -1862,12 +1976,14 @@ sp_instr_cfetch::print(String *str)
   str->qs_append(m_cursor);
   while ((pv= li++))
   {
-    if (str->reserve(pv->name.length+SP_INSTR_UINT_MAXLEN+2))
+    const LEX_CSTRING *prefix= pv->rcontext_handler()->get_name_prefix();
+    if (str->reserve(pv->name.length+prefix->length+SP_INSTR_UINT_MAXLEN+2))
       return;
     str->qs_append(' ');
+    str->qs_append(prefix);
     str->qs_append(&pv->name);
     str->qs_append('@');
-    str->qs_append(pv->offset);
+    str->qs_append(pv->offset());
   }
 }
 

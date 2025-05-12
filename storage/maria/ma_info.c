@@ -141,7 +141,7 @@ void _ma_report_error(int errcode, const LEX_STRING *name, myf flags)
     }
   }
   my_printf_error(errcode, "Got error '%M' for '%s'",
-                  flags, (int) errcode, file_name);
+                  flags, errcode, file_name);
   DBUG_VOID_RETURN;
 }
 

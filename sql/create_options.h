@@ -78,10 +78,14 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool parse_engine_part_options(THD *thd, TABLE *table);
 #endif
-bool parse_option_list(THD* thd, handlerton *hton, void *option_struct,
+bool parse_option_list(THD* thd, void *option_struct,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root);
+bool extend_option_list(THD* thd, handlerton *hton, bool create,
+                        engine_option_value **option_list,
+                        ha_create_table_option *rules);
+
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
                                    TABLE_SHARE *share);
 bool merge_engine_options(engine_option_value *source,

@@ -1,6 +1,9 @@
 connection node_2;
 connection node_1;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
 connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 set wsrep_sync_wait=0;
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
@@ -44,9 +47,9 @@ connection node_1b;
 connection node_1;
 connection node_3;
 connection node_1;
-CALL insert_row('node1', 500);
+CALL insert_row('node1', 100);
 connection node_3;
-CALL insert_row('node3', 500);
+CALL insert_row('node3', 100);
 CREATE TABLE t2(i int primary key) engine=innodb;
 connection node_2;
 # Restart node_2
@@ -60,7 +63,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2503
+gtid_binlog_pos	1111-1-1703
 connection node_2;
 # GTID in node2
 show variables like 'wsrep_gtid_domain_id';
@@ -68,7 +71,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2503
+gtid_binlog_pos	1111-1-1703
 connection node_3;
 # GTID in node3
 show variables like 'wsrep_gtid_domain_id';
@@ -76,7 +79,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2503
+gtid_binlog_pos	1111-1-1703
 # Shutdown node_3
 connection node_3;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
@@ -98,7 +101,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2554
+gtid_binlog_pos	1111-1-1754
 connection node_2;
 # GTID in node2
 show variables like 'wsrep_gtid_domain_id';
@@ -106,7 +109,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2554
+gtid_binlog_pos	1111-1-1754
 connection node_3;
 # GTID in node3
 show variables like 'wsrep_gtid_domain_id';
@@ -114,7 +117,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2554
+gtid_binlog_pos	1111-1-1754
 # One by one shutdown all nodes
 connection node_3;
 # shutdown node_3
@@ -132,7 +135,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2554
+gtid_binlog_pos	1111-1-1754
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -163,7 +166,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2756
+gtid_binlog_pos	1111-1-1956
 connection node_2;
 node2 GTID
 show variables like 'wsrep_gtid_domain_id';
@@ -171,7 +174,7 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2756
+gtid_binlog_pos	1111-1-1956
 connection node_3;
 node3 GTID
 show variables like 'wsrep_gtid_domain_id';
@@ -179,34 +182,35 @@ Variable_name	Value
 wsrep_gtid_domain_id	1111
 show variables like '%gtid_binlog_pos%';
 Variable_name	Value
-gtid_binlog_pos	1111-1-2756
+gtid_binlog_pos	1111-1-1956
 connection node_1;
 table size in node1
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-2750
+1950
 connection node_2;
 table size in node2
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-2750
+1950
 connection node_3;
 table size in node3
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-2750
+1950
 connection node_2;
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node");
-call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
-call mtr.add_suppression("Sending JOIN failed:.*");
-call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST.*");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
+call mtr.add_suppression("Sending JOIN failed: ");
+call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST");
+call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 connection node_3;
-call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node");
-call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
-call mtr.add_suppression("Sending JOIN failed:.*");
-call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST.*");
+call mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
+call mtr.add_suppression("Sending JOIN failed: ");
+call mtr.add_suppression("WSREP: Failed to JOIN the cluster after SST");
+call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 # cleanup
 connection node_1;
+call mtr.add_suppression("WSREP: FLOW message from member .* in non-primary configuration");
 DROP PROCEDURE insert_row;
 DROP TABLE t1;
 DROP TABLE t2;

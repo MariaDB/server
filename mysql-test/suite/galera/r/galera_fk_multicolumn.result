@@ -2,7 +2,7 @@ connection node_2;
 connection node_1;
 CREATE TABLE t0 (
 f1 INT PRIMARY KEY,
-f2 INT UNIQUE
+f2 INT UNIQUE NOT NULL
 );
 CREATE TABLE t1 (
 f1 INT PRIMARY KEY,

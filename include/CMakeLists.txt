@@ -42,6 +42,7 @@ SET(HEADERS
   my_dbug.h 
   m_string.h
   my_sys.h 
+  my_cmp.h
   my_xml.h
   mysql_embed.h
   my_decimal_limits.h

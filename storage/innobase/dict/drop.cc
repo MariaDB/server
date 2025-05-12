@@ -243,12 +243,13 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
     mutex_lock();
     lock_release_on_drop(this);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
-    ut_ad(ib_vector_is_empty(autoinc_locks));
+    ut_ad(autoinc_locks.empty());
     mem_heap_empty(lock.lock_heap);
     lock.table_locks.clear();
     /* commit_persist() already reset this. */
     ut_ad(!lock.was_chosen_as_deadlock_victim);
     lock.n_rec_locks= 0;
+    lock.set_nth_bit_calls= 0;
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
     {
       UT_LIST_REMOVE(lock.evicted_tables, table);

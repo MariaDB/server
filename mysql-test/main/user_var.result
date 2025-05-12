@@ -1,5 +1,5 @@
 set @a := foo;
-ERROR 42S22: Unknown column 'foo' in 'field list'
+ERROR 42S22: Unknown column 'foo' in 'SET'
 set @a := connection_id() + 3;
 select @a - connection_id();
 @a - connection_id()

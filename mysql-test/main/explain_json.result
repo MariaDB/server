@@ -404,7 +404,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
@@ -451,7 +451,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
@@ -765,22 +765,24 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "t1",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 10,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 10,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -2110,7 +2112,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,

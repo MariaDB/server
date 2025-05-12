@@ -73,55 +73,55 @@ class federatedx_io_mysql :public federatedx_io
   bool test_all_restrict() const;
 public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
-  ~federatedx_io_mysql();
+  ~federatedx_io_mysql() override;
 
   int simple_query(const char *fmt, ...);
-  int query(const char *buffer, size_t length);
-  virtual FEDERATEDX_IO_RESULT *store_result();
+  int query(const char *buffer, size_t length) override;
+  FEDERATEDX_IO_RESULT *store_result() override;
 
-  virtual size_t max_query_size() const;
+  size_t max_query_size() const override;
 
-  virtual my_ulonglong affected_rows() const;
-  virtual my_ulonglong last_insert_id() const;
+  my_ulonglong affected_rows() const override;
+  my_ulonglong last_insert_id() const override;
 
-  virtual int error_code();
-  virtual const char *error_str();
+  int error_code() override;
+  const char *error_str() override;
 
-  void reset();
-  int commit();
-  int rollback();
+  void reset() override;
+  int commit() override;
+  int rollback() override;
 
-  int savepoint_set(ulong sp);
-  ulong savepoint_release(ulong sp);
-  ulong savepoint_rollback(ulong sp);
-  void savepoint_restrict(ulong sp);
+  int savepoint_set(ulong sp) override;
+  ulong savepoint_release(ulong sp) override;
+  ulong savepoint_rollback(ulong sp) override;
+  void savepoint_restrict(ulong sp) override;
 
-  ulong last_savepoint() const;
-  ulong actual_savepoint() const;
-  bool is_autocommit() const;
+  ulong last_savepoint() const override;
+  ulong actual_savepoint() const override;
+  bool is_autocommit() const override;
 
   bool table_metadata(ha_statistics *stats, const char *table_name,
-                      uint table_name_length, uint flag);
+                      uint table_name_length, uint flag) override;
 
   /* resultset operations */
 
-  virtual void free_result(FEDERATEDX_IO_RESULT *io_result);
-  virtual unsigned int get_num_fields(FEDERATEDX_IO_RESULT *io_result);
-  virtual my_ulonglong get_num_rows(FEDERATEDX_IO_RESULT *io_result);
-  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result,
-                                       FEDERATEDX_IO_ROWS **current= NULL);
-  virtual ulong *fetch_lengths(FEDERATEDX_IO_RESULT *io_result);
-  virtual const char *get_column_data(FEDERATEDX_IO_ROW *row,
-                                      unsigned int column);
-  virtual bool is_column_null(const FEDERATEDX_IO_ROW *row,
-                              unsigned int column) const;
+  void free_result(FEDERATEDX_IO_RESULT *io_result) override;
+  unsigned int get_num_fields(FEDERATEDX_IO_RESULT *io_result) override;
+  my_ulonglong get_num_rows(FEDERATEDX_IO_RESULT *io_result) override;
+  FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result,
+                                       FEDERATEDX_IO_ROWS **current= NULL) override;
+  ulong *fetch_lengths(FEDERATEDX_IO_RESULT *io_result) override;
+  const char *get_column_data(FEDERATEDX_IO_ROW *row,
+                                      unsigned int column) override;
+  bool is_column_null(const FEDERATEDX_IO_ROW *row,
+                              unsigned int column) const override;
 
-  virtual size_t get_ref_length() const;
-  virtual void mark_position(FEDERATEDX_IO_RESULT *io_result,
-                             void *ref, FEDERATEDX_IO_ROWS *current);
-  virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
-                            const void *ref);
-  virtual void set_thd(void *thd);
+  size_t get_ref_length() const override;
+  void mark_position(FEDERATEDX_IO_RESULT *io_result,
+                             void *ref, FEDERATEDX_IO_ROWS *current) override;
+  int seek_position(FEDERATEDX_IO_RESULT **io_result,
+                            const void *ref) override;
+  void set_thd(void *thd) override;
 };
 
 

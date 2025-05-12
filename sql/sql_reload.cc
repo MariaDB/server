@@ -90,7 +90,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     */
     if (unlikely(!thd) && (thd= (tmp_thd= new THD(0))))
     {
-      thd->thread_stack= (char*) &tmp_thd;
       thd->store_globals();
       thd->set_query_inner((char*) STRING_WITH_LEN("intern:reload_acl"),
                            default_charset_info);
@@ -623,7 +622,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
       if (table_list->belong_to_view &&
           check_single_table_access(thd, PRIV_LOCK_TABLES, table_list, FALSE))
       {
-        table_list->hide_view_error(thd);
+        table_list->replace_view_error_with_generic(thd);
         goto error_reset_bits;
       }
       if (table_list->is_view_or_derived())

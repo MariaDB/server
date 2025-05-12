@@ -1,5 +1,5 @@
---- suite/versioning/r/select2.result	2022-12-12 19:34:34.242342915 +0200
-+++ suite/versioning/r/select2,trx_id.reject	2022-12-12 19:37:18.721907294 +0200
+--- select2.result
++++ select2,trx_id.reject
 @@ -22,6 +22,8 @@
  delete from t1 where x > 7;
  insert into t1(x, y) values(3, 33);

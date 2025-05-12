@@ -21,7 +21,7 @@ COUNT(@@GLOBAL.slave_ddl_exec_mode)
 1
 1 Expected
 SELECT slave_ddl_exec_mode = @@SESSION.version;
-ERROR 42S22: Unknown column 'slave_ddl_exec_mode' in 'field list'
+ERROR 42S22: Unknown column 'slave_ddl_exec_mode' in 'SELECT'
 Expected error 'Readonly variable'
 SET @@GLOBAL.slave_ddl_exec_mode=STRICT;
 SELECT @@GLOBAL.slave_ddl_exec_mode;

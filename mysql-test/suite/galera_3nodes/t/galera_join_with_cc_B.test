@@ -270,13 +270,13 @@ SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debu
 
 DROP TABLE t1;
 
-call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from .+: new State Transfer required\\.");
 
 --connection node_2
-call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from .+: new State Transfer required\\.");
 
 --connection node_3
-call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from .+: new State Transfer required\\.");
 
 --disconnect node_1a
 

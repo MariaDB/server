@@ -84,10 +84,10 @@ prep_stmt::operator =(const prep_stmt& x)
 
 struct database : public database_i, private noncopyable {
   database(const config& c);
-  virtual ~database();
-  virtual dbcontext_ptr create_context(bool for_write) volatile;
-  virtual void stop() volatile;
-  virtual const config& get_conf() const volatile;
+  ~database() override;
+  dbcontext_ptr create_context(bool for_write) volatile override;
+  void stop() volatile override;
+  const config& get_conf() const volatile override;
  public:
   int child_running;
  private:
@@ -128,21 +128,21 @@ struct expr_user_lock : private noncopyable {
 
 struct dbcontext : public dbcontext_i, private noncopyable {
   dbcontext(volatile database *d, bool for_write);
-  virtual ~dbcontext();
-  virtual void init_thread(const void *stack_botton,
-    volatile int& shutdown_flag);
-  virtual void term_thread();
-  virtual bool check_alive();
-  virtual void lock_tables_if();
-  virtual void unlock_tables_if();
-  virtual bool get_commit_error();
-  virtual void clear_error();
-  virtual void close_tables_if();
-  virtual void table_addref(size_t tbl_id);
-  virtual void table_release(size_t tbl_id);
-  virtual void cmd_open(dbcallback_i& cb, const cmd_open_args& args);
-  virtual void cmd_exec(dbcallback_i& cb, const cmd_exec_args& args);
-  virtual void set_statistics(size_t num_conns, size_t num_active);
+  ~dbcontext() override;
+  void init_thread(const void *stack_botton,
+    volatile int& shutdown_flag) override;
+  void term_thread() override;
+  bool check_alive() override;
+  void lock_tables_if() override;
+  void unlock_tables_if() override;
+  bool get_commit_error() override;
+  void clear_error() override;
+  void close_tables_if() override;
+  void table_addref(size_t tbl_id) override;
+  void table_release(size_t tbl_id) override;
+  void cmd_open(dbcallback_i& cb, const cmd_open_args& args) override;
+  void cmd_exec(dbcallback_i& cb, const cmd_exec_args& args) override;
+  void set_statistics(size_t num_conns, size_t num_active) override;
  private:
   int set_thread_message(const char *fmt, ...)
     __attribute__((format (printf, 2, 3)));
@@ -175,7 +175,7 @@ struct dbcontext : public dbcontext_i, private noncopyable {
   THD *thd;
   MYSQL_LOCK *lock;
   bool lock_failed;
-  std::auto_ptr<expr_user_lock> user_lock;
+  std::unique_ptr<expr_user_lock> user_lock;
   int user_level_lock_timeout;
   bool user_level_lock_locked;
   bool commit_error;

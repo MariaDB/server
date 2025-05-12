@@ -28,13 +28,10 @@ select
   sum(b) over (order by a rows between 2 preceding and 2 following) as SUM_B
 from
   t10;
-#enable after fix MDEV-27871
---disable_view_protocol
 select variable_name,
-       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as result
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
---enable_view_protocol
 
 set sort_buffer_size=1024;
 flush status;
@@ -43,13 +40,10 @@ select
   sum(b) over (order by a rows between 2 preceding and 2 following) as SUM_B
 from
   t10;
-#enable after fix MDEV-27871
---disable_view_protocol
 select variable_name,
-       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as result
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
---enable_view_protocol
 
 let $diff_tables= t21, t22;
 source include/diff_tables.inc;
@@ -66,13 +60,10 @@ select
   sum(b) over (order by a rows between 20 preceding and 20 following) as SUM_B3
 from
   t10;
-#enable after fix MDEV-27871
---disable_view_protocol
 select variable_name,
-       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as result
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
---enable_view_protocol
 
 set sort_buffer_size=1024;
 flush status;
@@ -83,13 +74,10 @@ select
   sum(b) over (order by a rows between 20 preceding and 20 following) as SUM_B3
 from
   t10;
-#enable after fix MDEV-27871
---disable_view_protocol
 select variable_name,
-       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as result
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
---enable_view_protocol
 
 let $diff_tables= t21, t22;
 source include/diff_tables.inc;
@@ -106,13 +94,10 @@ select
   sum(b) over (order by a range between 5000 preceding and 5000 following) as SUM_B1
 from
   t10;
-#enable after fix MDEV-27871
---disable_view_protocol
 select variable_name,
-       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as result
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
---enable_view_protocol
 
 set sort_buffer_size=1024;
 flush status;
@@ -122,13 +107,10 @@ select
   sum(b) over (order by a range between 5000 preceding and 5000 following) as SUM_B1
 from
   t10;
-#enable after fix MDEV-27871
---disable_view_protocol
 select variable_name,
-       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end as result
 from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
---enable_view_protocol
 
 let $diff_tables= t21, t22;
 source include/diff_tables.inc;

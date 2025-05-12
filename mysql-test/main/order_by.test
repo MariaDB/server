@@ -3,11 +3,6 @@
 # Testing ORDER BY
 #
 
-# Tests will be skipped for the view protocol because the view protocol creates 
-# an additional util connection and other statistics data
-# Check after fix MDEV-27871, possible this include can be removed
---source include/no_view_protocol.inc
-
 call mtr.add_suppression("Sort aborted.*");
 --source include/have_sequence.inc
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
@@ -829,13 +824,17 @@ INSERT INTO t1 SELECT a +64, b +64 FROM t1;
 
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
 
+--disable_view_protocol
 --disable_query_log
 --let $q = `show status like 'Created_tmp_tables';`
 eval set @tmp_tables_before = 
   CAST(REPLACE('$q', 'Created_tmp_tables', '') AS UNSIGNED);
 --enable_query_log
 
+#Enable after fix MDEV-31548
+--disable_cursor_protocol
 SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
+--enable_cursor_protocol
 
 # this query creates one temporary table in itself, which we are not
 # interested in.
@@ -847,6 +846,7 @@ eval set @tmp_tables_after =
 --enable_query_log
 
 SELECT @tmp_tables_after = @tmp_tables_before ;
+--enable_view_protocol
 
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
 
@@ -856,7 +856,10 @@ eval set @tmp_tables_before =
   CAST(REPLACE('$q', 'Created_tmp_tables', '') AS UNSIGNED);
 --enable_query_log
 
+#Enable after fix MDEV-31548
+--disable_cursor_protocol
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
+--enable_cursor_protocol
 
 --disable_query_log
 --let $q = `show status like 'Created_tmp_tables';`
@@ -893,7 +896,7 @@ INSERT INTO t2 (a,b) VALUES (1,2), (2,3);
 INSERT INTO t3 (c) VALUES (1), (2);
 
 SELECT
-  (SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+  (SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a) as exp
   FROM t3;
 
 DROP TABLE t1, t2, t3;
@@ -1467,6 +1470,7 @@ SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 0;
 SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 10 OFFSET 10;
 SELECT * FROM t1 WHERE f1>10 ORDER BY f2, f0 LIMIT 0 OFFSET 10;
 
+--disable_view_protocol
 --disable_ps2_protocol
 ################
 ## Test with SQL_CALC_FOUND_ROWS
@@ -1515,6 +1519,7 @@ WHERE t1.f2>20
 ORDER BY tmp.f1, f0 LIMIT 30 OFFSET 30;
 SELECT FOUND_ROWS();
 --enable_ps2_protocol
+--enable_view_protocol
 
 ################
 ## Test views
@@ -1888,6 +1893,8 @@ insert into t1
 analyze table t1;
 --enable_result_log
 
+--disable_cursor_protocol
+--disable_view_protocol
 --disable_ps2_protocol
 explain
 select b, count(*) num_cnt from t1
@@ -1909,6 +1916,8 @@ select b, count(*) num_cnt from t1
 --enable_result_log
 show status like '%Handler_read%';
 --enable_ps2_protocol
+--enable_view_protocol
+--enable_cursor_protocol
 
 drop table t0, t1;
 
@@ -2007,9 +2016,11 @@ WHERE f1 = ANY ( SELECT f1
                  WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
 ORDER BY field;
 
+--disable_view_protocol
 eval $q1;
 eval $q2;
 eval EXPLAIN EXTENDED $q2;
+--enable_view_protocol
 
 DROP TABLE t1,t2,t3;
 

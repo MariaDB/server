@@ -84,9 +84,9 @@ SELECT @@flush = @@global.flush;
 SET flush = 1;
 ERROR HY000: Variable 'flush' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT global.flush;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT flush = @@session.flush;
-ERROR 42S22: Unknown column 'flush' in 'field list'
+ERROR 42S22: Unknown column 'flush' in 'SELECT'
 SET @@global.flush = @start_value;
 SELECT @@global.flush;
 @@global.flush

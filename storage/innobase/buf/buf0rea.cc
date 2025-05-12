@@ -46,13 +46,14 @@ Created 11/5/1995 Heikki Tuuri
 
 TRANSACTIONAL_TARGET
 bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
+	noexcept
 {
   transactional_shared_lock_guard<page_hash_latch> g
     {page_hash.lock_get(chain)};
   return page_hash.get(page_id, chain);
 }
 
-/** If there are buf_pool.curr_size per the number below pending reads, then
+/** If there are buf_pool.curr_size() per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
 #define BUF_READ_AHEAD_PEND_LIMIT	2
@@ -173,6 +174,7 @@ page_exists:
     page_zip_set_size(&bpage->zip, zip_size);
     bpage->zip.data = (page_zip_t*) data;
 
+    bpage->lock.init();
     bpage->init(buf_page_t::READ_FIX, page_id);
     bpage->lock.x_lock(true);
 
@@ -201,8 +203,8 @@ Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
 @param[in] page_id	page id
-@param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0,
-			bitwise-ORed with 1 in recovery
+@param[in] zip_size	0 or ROW_FORMAT=COMPRESSED page size
+			bitwise-ORed with 1 to allocate an uncompressed frame
 @param[in,out] chain	buf_pool.page_hash cell for page_id
 @param[in,out] space	tablespace
 @param[in,out] block	preallocated buffer block
@@ -218,7 +220,7 @@ buf_read_page_low(
 	buf_pool_t::hash_chain&	chain,
 	fil_space_t*		space,
 	buf_block_t*&		block,
-	bool			sync = false)
+	bool			sync = false) noexcept
 {
 	buf_page_t*	bpage;
 
@@ -260,15 +262,13 @@ buf_read_page_low(
 			     dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
+		recv_sys.free_corrupted_page(page_id, *space->chain.start);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
 		thd_wait_end(nullptr);
 		/* The i/o was already completed in space->io() */
 		fio.err = bpage->read_complete(*fio.node);
 		space->release();
-		if (fio.err == DB_FAIL) {
-			fio.err = DB_PAGE_CORRUPTED;
-		}
 		if (mariadb_timer) {
 			mariadb_increment_pages_read_time(mariadb_timer);
 		}
@@ -302,10 +302,9 @@ pages: to avoid deadlocks this function must be written such that it cannot
 end up waiting for these latches!
 @param[in]	page_id		page id of a page which the current thread
 wants to access
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return number of page read requests issued */
 TRANSACTIONAL_TARGET
-ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size)
+ulint buf_read_ahead_random(const page_id_t page_id) noexcept
 {
   if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
     /* Disable the read-ahead for temporary tablespace */
@@ -316,7 +315,7 @@ ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size)
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   fil_space_t* space= fil_space_t::get(page_id.space());
@@ -352,6 +351,7 @@ read_ahead:
 
   /* Read all the suitable blocks within the area */
   buf_block_t *block= nullptr;
+  unsigned zip_size{space->zip_size()};
   if (UNIV_LIKELY(!zip_size))
   {
   allocate_block:
@@ -382,6 +382,7 @@ read_ahead:
 
   if (count)
   {
+    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
@@ -398,33 +399,25 @@ read_ahead:
   return count;
 }
 
-/** High-level function which reads a page from a file to buf_pool
-if it is not already there. Sets the io_fix and an exclusive lock
-on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param page_id    page id
-@param zip_size   ROW_FORMAT=COMPRESSED page size, or 0
-@param chain      buf_pool.page_hash cell for page_id
-@retval DB_SUCCESS if the page was read and is not corrupted,
-@retval DB_SUCCESS_LOCKED_REC if the page was not read
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
-                      buf_pool_t::hash_chain &chain)
+dberr_t buf_read_page(const page_id_t page_id,
+                      buf_pool_t::hash_chain &chain, bool unzip) noexcept
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
-  if (!space)
+  if (UNIV_UNLIKELY(!space))
   {
-    ib::info() << "trying to read page " << page_id
-               << " in nonexisting or being-dropped tablespace";
+    sql_print_information("InnoDB: trying to read page "
+                          "[page id: space=" UINT32PF
+                          ", page number=" UINT32PF "]"
+                          " in nonexisting or being-dropped tablespace",
+                          page_id.space(), page_id.page_no());
     return DB_TABLESPACE_DELETED;
   }
 
   /* Our caller should already have ensured that the page does not
   exist in buf_pool.page_hash. */
   buf_block_t *block= nullptr;
+  unsigned zip_size= space->zip_size();
+
   if (UNIV_LIKELY(!zip_size))
   {
   allocate_block:
@@ -433,7 +426,7 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
     block= buf_LRU_get_free_block(have_mutex);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
-  else if (recv_recovery_is_on())
+  else if (unzip)
   {
     zip_size|= 1;
     goto allocate_block;
@@ -452,7 +445,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
 {
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   if (buf_pool.page_hash_contains(page_id, chain))
@@ -509,10 +502,9 @@ NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
 function must be written such that it cannot end up waiting for these
 latches!
 @param[in]	page_id		page id; see NOTE 3 above
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return number of page read requests issued */
 TRANSACTIONAL_TARGET
-ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
+ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
 {
   /* check if readahead is disabled.
   Disable the read ahead logic for temporary tablespace */
@@ -524,7 +516,7 @@ ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size)
     return 0;
 
   if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
@@ -550,6 +542,11 @@ fail:
     space->release();
     return 0;
   }
+
+  if (trx_sys_hdr_page(page_id))
+    /* If it is an ibuf bitmap page or trx sys hdr, we do no
+    read-ahead, as that could break the ibuf page access order */
+    goto fail;
 
   /* How many out of order accessed pages can we ignore
   when working out the access pattern for linear readahead */
@@ -645,6 +642,7 @@ failed:
 
   /* If we got this far, read-ahead can be sensible: do it */
   buf_block_t *block= nullptr;
+  unsigned zip_size{space->zip_size()};
   if (UNIV_LIKELY(!zip_size))
   {
   allocate_block:
@@ -677,6 +675,7 @@ failed:
 
   if (count)
   {
+    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));
@@ -699,7 +698,7 @@ failed:
 @param recs     log records
 @param init_lsn page initialization, or 0 if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, lsn_t init_lsn)
+                      page_recv_t &recs, lsn_t init_lsn) noexcept
 {
   ut_ad(space->id == page_id.space());
   space->reacquire();

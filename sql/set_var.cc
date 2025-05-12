@@ -48,11 +48,12 @@ static ulonglong system_variable_hash_version= 0;
   Return variable name and length for hashing of variables.
 */
 
-static uchar *get_sys_var_length(const sys_var *var, size_t *length,
-                                 my_bool first)
+static const uchar *get_sys_var_length(const void *var_, size_t *length,
+                                       my_bool)
 {
+  auto var= static_cast<const sys_var *>(var_);
   *length= var->name.length;
-  return (uchar*) var->name.str;
+  return reinterpret_cast<const uchar *>(var->name.str);
 }
 
 sys_var_chain all_sys_vars = { NULL, NULL };
@@ -64,8 +65,9 @@ int sys_var_init()
   /* Must be already initialized. */
   DBUG_ASSERT(system_charset_info != NULL);
 
-  if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash, system_charset_info, 700, 0,
-                   0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE))
+  if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash,
+                   system_charset_info, 700, 0, 0, get_sys_var_length, 0,
+                   HASH_UNIQUE))
     goto error;
 
   if (mysql_add_sys_var_chain(all_sys_vars.first))
@@ -601,8 +603,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 }
 
 
-static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
+static int show_cmp(const void *a_, const void *b_)
 {
+  const SHOW_VAR *a= static_cast<const SHOW_VAR *>(a_);
+  const SHOW_VAR *b= static_cast<const SHOW_VAR *>(b_);
   return strcmp(a->name, b->name);
 }
 
@@ -778,6 +782,7 @@ int set_var::check(THD *thd)
   if (!value)
     return 0;
 
+  thd->where= THD_WHERE::SET_LIST;
   if (value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   if (var->check_update_type(value))
@@ -884,6 +889,7 @@ int set_var_user::check(THD *thd)
     Item_func_set_user_var can't substitute something else on its place =>
     0 can be passed as last argument (reference on item)
   */
+  thd->where= THD_WHERE::SET_LIST;
   return (user_var_item->fix_fields(thd, (Item**) 0) ||
           user_var_item->check(0)) ? -1 : 0;
 }
@@ -1100,7 +1106,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[0]->store(name_buffer, strlen(name_buffer), scs);
 
     if ((wild && wild_case_compare(system_charset_info, name_buffer, wild))
-        || (cond && !cond->val_int()))
+        || (cond && !cond->val_bool()))
       continue;
 
     mysql_mutex_lock(&LOCK_global_system_variables);

@@ -6,6 +6,8 @@ test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
 test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
 test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
 test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
+test.t	preload_keys	Error	Unable to connect to foreign data source: localhost
 test.t	preload_keys	error	Corrupt
 DROP TABLE t;
 CREATE TABLE t (c INT PRIMARY KEY) ENGINE=SPIDER PARTITION BY KEY() PARTITIONS 2;

@@ -143,6 +143,7 @@ extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
 extern const char *shared_memory_base_name;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+extern MYSQL_PLUGIN_IMPORT bool metadata_lock_info_plugin_loaded;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
@@ -593,6 +594,7 @@ extern PSI_stage_info stage_deleting_from_main_table;
 extern PSI_stage_info stage_deleting_from_reference_tables;
 extern PSI_stage_info stage_discard_or_import_tablespace;
 extern PSI_stage_info stage_end;
+extern PSI_stage_info stage_ending_io_thread;
 extern PSI_stage_info stage_enabling_keys;
 extern PSI_stage_info stage_executing;
 extern PSI_stage_info stage_execution_of_init_command;
@@ -622,6 +624,7 @@ extern PSI_stage_info stage_preparing;
 extern PSI_stage_info stage_purging_old_relay_logs;
 extern PSI_stage_info stage_query_end;
 extern PSI_stage_info stage_starting_cleanup;
+extern PSI_stage_info stage_slave_sql_cleanup;
 extern PSI_stage_info stage_rollback;
 extern PSI_stage_info stage_rollback_implicit;
 extern PSI_stage_info stage_commit;
@@ -836,6 +839,7 @@ enum options_mysqld
   OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE,
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
+  OPT_LOG_SLOW_FILTER,
   OPT_LOWER_CASE_TABLE_NAMES,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
@@ -973,7 +977,7 @@ inline void table_case_convert(char * name, uint length)
     files_charset_info->casedn(name, length, name, length);
 }
 
-extern void set_server_version(char *buf, size_t size);
+extern char *set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()
 void set_current_thd(THD *thd);
@@ -1002,6 +1006,8 @@ extern my_bool opt_mysql56_temporal_format, strict_password_validation;
 extern ulong binlog_checksum_options;
 extern bool max_user_connections_checking;
 extern ulong opt_binlog_dbug_fsync_sleep;
+static const int SERVER_UID_SIZE= 29;
+extern char server_uid[SERVER_UID_SIZE+1];
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;

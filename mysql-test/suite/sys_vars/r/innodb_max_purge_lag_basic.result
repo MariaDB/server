@@ -15,7 +15,7 @@ SELECT @@innodb_max_purge_lag;
 @@innodb_max_purge_lag
 0
 SELECT local.innodb_max_purge_lag;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET global innodb_max_purge_lag = 0;
 SELECT @@global.innodb_max_purge_lag;
 @@global.innodb_max_purge_lag

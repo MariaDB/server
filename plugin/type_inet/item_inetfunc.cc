@@ -214,7 +214,7 @@ String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
   Checks if the passed string represents an IPv4-address.
 */
 
-longlong Item_func_is_ipv4::val_int()
+bool Item_func_is_ipv4::val_bool()
 {
   DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
@@ -242,7 +242,7 @@ public:
   Checks if the passed string represents an IPv6-address.
 */
 
-longlong Item_func_is_ipv6::val_int()
+bool Item_func_is_ipv6::val_bool()
 {
   DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
@@ -254,7 +254,7 @@ longlong Item_func_is_ipv6::val_int()
   Checks if the passed IPv6-address is an IPv4-compat IPv6-address.
 */
 
-longlong Item_func_is_ipv4_compat::val_int()
+bool Item_func_is_ipv4_compat::val_bool()
 {
   IP6 ip6(args[0]);
   return !ip6.is_null() && ip6.is_v4compat();
@@ -265,7 +265,7 @@ longlong Item_func_is_ipv4_compat::val_int()
   Checks if the passed IPv6-address is an IPv4-mapped IPv6-address.
 */
 
-longlong Item_func_is_ipv4_mapped::val_int()
+bool Item_func_is_ipv4_mapped::val_bool()
 {
   IP6 ip6(args[0]);
   return !ip6.is_null() && ip6.is_v4mapped();

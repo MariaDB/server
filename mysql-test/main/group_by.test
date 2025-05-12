@@ -286,6 +286,7 @@ drop table t1;
 CREATE TABLE t1 (a char(1));
 INSERT INTO t1 VALUES ('A'),('B'),('A'),('B'),('A'),('B'),(NULL),('a'),('b'),(NULL),('A'),('B'),(NULL);
 flush status;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
@@ -294,11 +295,13 @@ SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like 'Created%tables';
 --enable_ps_protocol
 # Do the same tests with on-disk temporary tables
 set tmp_memory_table_size=0;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
@@ -307,6 +310,7 @@ SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like 'Created%tables';
 --enable_ps_protocol
@@ -1676,7 +1680,7 @@ DROP TABLE t1, t2;
 # an additional util connection and other statistics data
 --disable_ps2_protocol
 --disable_view_protocol
-
+--disable_cursor_protocol
 FLUSH STATUS; # this test case *must* use Aria temp tables
 
 CREATE TABLE t1 (f1 INT, f2 decimal(20,1), f3 blob);
@@ -1686,6 +1690,7 @@ DROP TABLE t1;
 
 --echo the value below *must* be 1
 show status like 'Created_tmp_disk_tables';
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol
 
@@ -2144,6 +2149,43 @@ drop table t20, t21, t22;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-29351 SIGSEGV when doing forward reference of item in select list
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35238: Wrong results from a tables with a single record and an aggregate
+--echo #
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=myisam;
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+INSERT INTO t1 VALUES (NULL);
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=myisam;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (a int NOT NULL) ENGINE=myisam;
+INSERT INTO t2 VALUES (10);
+
+SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+explain format=json SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #
 
 --echo #

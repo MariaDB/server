@@ -484,7 +484,7 @@ a	b
 4	four
 set @arg00=0 ;
 execute stmt1 using @arg00;
-ERROR 42S22: Unknown column '?' in 'order clause'
+ERROR 42S22: Unknown column '?' in 'ORDER BY'
 set @arg00=1;
 prepare stmt1 from ' select a,b from t1 order by a
 limit 1 ';
@@ -3852,7 +3852,7 @@ a	b
 4	four
 set @arg00=0 ;
 execute stmt1 using @arg00;
-ERROR 42S22: Unknown column '?' in 'order clause'
+ERROR 42S22: Unknown column '?' in 'ORDER BY'
 set @arg00=1;
 prepare stmt1 from ' select a,b from t1 order by a
 limit 1 ';

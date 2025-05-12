@@ -1,9 +1,9 @@
 connection node_2;
 connection node_1;
+connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6;
 connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5;
 connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
 connection node_4;
-CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos;;
 START SLAVE;
 include/wait_for_slave_to_start.inc
 connection node_1;
@@ -21,7 +21,6 @@ include/sync_with_master_gtid.inc
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
-connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6;
 connection node_6;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
@@ -51,18 +50,30 @@ SELECT COUNT(*) = 3 FROM information_schema.columns WHERE table_name ='t1';
 COUNT(*) = 3
 1
 connection node_2;
+connection node_1;
+connection node_3;
+connection node_4;
+connection node_5;
+connection node_6;
+connection node_2;
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.t1	optimize	status	OK
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 connection node_1;
+connection node_3;
 connection node_4;
+connection node_5;
 connection node_6;
 connection node_1;
 DROP TABLE t1;
 connection node_4;
 STOP SLAVE;
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
@@ -75,19 +86,33 @@ connection node_2;
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
 connection node_3;
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
 connection node_5;
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
 connection node_6;
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");
+connection node_1;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+connection node_2;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+connection node_3;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+connection node_4;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+connection node_5;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
+connection node_6;
+CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");

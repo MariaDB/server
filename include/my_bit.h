@@ -175,6 +175,11 @@ static inline uchar last_byte_mask(uint bits)
   return (uchar) ((2U << used) - 1);
 }
 
+static inline uint my_bits_in_bytes(uint n)
+{
+  return ((n + 7) / 8);
+}
+
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif

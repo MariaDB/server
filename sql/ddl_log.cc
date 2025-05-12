@@ -924,12 +924,12 @@ public:
                             first_error(0), only_ignore_non_existing_errors(0)
   {}
 
-  bool handle_condition(THD *thd,
+  bool handle_condition(THD *,
                         uint sql_errno,
-                        const char* sqlstate,
+                        const char*,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
+                        const char*,
+                        Sql_condition **cond_hdl) override
   {
     *cond_hdl= NULL;
     if (non_existing_table_error(sql_errno) ||
@@ -2741,7 +2741,6 @@ int ddl_log_execute_recovery()
     DBUG_RETURN(1);
   }
   original_thd= current_thd;                    // Probably NULL
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->init();                                  // Needed for error messages
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:ddl_log_execute_recovery"),

@@ -1338,7 +1338,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
     is created we create tables with thd->variables.wsrep_on=false
     to avoid replicating wsrep_schema tables to other nodes.
    */
-  if (WSREP_ON && !is_trans_keyword())
+  if (WSREP_ON && !is_trans_keyword(false))
   {
     thd->wsrep_PA_safe= false;
   }
@@ -1839,22 +1839,26 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             ::do_apply_event(), then the companion SET also have so
             we don't need to reset_one_shot_variables().
   */
-  if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
+  if (rpl_filter->is_db_empty() ||
+      is_trans_keyword(
+          (rgi->gtid_ev_flags2 & (Gtid_log_event::FL_PREPARED_XA |
+                                  Gtid_log_event::FL_COMPLETED_XA))) ||
+      rpl_filter->db_ok(thd->db.str))
   {
     bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
 
-#ifdef WITH_WSREP
-    if (!wsrep_thd_is_applying(thd))
-#endif
-      thd->set_time(when, when_sec_part);
+    thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
     DBUG_PRINT("query",("%s", thd->query()));
 
 #ifdef WITH_WSREP
-    WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
-		thd_get_thread_id(thd), wsrep_thd_query(thd));
+    if (WSREP(thd))
+    {
+      WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
+		  thd_get_thread_id(thd), wsrep_thd_query(thd));
+    }
 #endif
 
     if (unlikely(!(expected_error= !is_rb_alter ? error_code : 0)) ||
@@ -2199,6 +2203,16 @@ compare_errors:
           actual_error == ER_CONNECTION_KILLED)
         thd->reset_killed();
     }
+    else if (actual_error == ER_XAER_NOTA && !rpl_filter->db_ok(get_db()))
+    {
+      /*
+        If there is an XA query whos XID cannot be found, if the replication
+        filter is active and filters the target database, assume that the XID
+        cache has been cleared (e.g. by server restart) since it was prepared,
+        so we can just ignore this event.
+      */
+      thd->clear_error(1);
+    }
     /*
       Other cases: mostly we expected no error and get one.
     */
@@ -2454,10 +2468,10 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
   {
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
 
-    sql_print_warning("ALTER query started at %u-%u-%llu could not "
+    sql_print_warning("ALTER query started at %u-%lu-%llu could not "
                       "be completed because of unexpected master server "
-                      "or its binlog change", info->sa_seq_no, // todo:gtid
-                      0, 0);
+                      "or its binlog change", info->domain_id,
+                      mi->master_id, info->sa_seq_no);
     info_iterator.remove();
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
@@ -2938,7 +2952,12 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
-  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
+  uchar buf[GTID_HEADER_LEN+2
+    + sizeof(XID)
+    + 1 // flags_extra:
+    + 1 // extra_engines
+    + 8 // sa_seq_no
+  ];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -3080,7 +3099,20 @@ static char gtid_begin_string[] = "BEGIN";
 int
 Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   ulonglong bits= thd->variables.option_bits;
+
+  if (unlikely(thd->transaction->all.ha_list || (bits & OPTION_GTID_BEGIN)))
+  {
+    rli->report(WARNING_LEVEL, 0, NULL,
+                "Rolling back unfinished transaction (no COMMIT "
+                "or ROLLBACK in relay log). This indicates a corrupt binlog "
+                "on the master, possibly caused by disk full or other write "
+                "error.");
+    rgi->cleanup_context(thd, 1);
+    bits= thd->variables.option_bits;
+  }
+
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
@@ -3099,7 +3131,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
   DBUG_ASSERT((bits & OPTION_GTID_BEGIN) == 0);
 
-  Master_info *mi=rgi->rli->mi;
+  Master_info *mi= rli->mi;
   switch (flags2 & (FL_DDL | FL_TRANSACTIONAL))
   {
     case FL_TRANSACTIONAL:
@@ -3658,7 +3690,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 #endif
   }
 
-  general_log_print(thd, COM_QUERY, get_query());
+  general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   res= do_commit();
   if (!res && rgi->gtid_pending)
@@ -4870,15 +4902,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd))
+      if (WSREP(thd) && !thd->slave_thread)
       {
-        WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
+        WSREP_WARN("BF applier thread=%lu failed to open_and_lock_tables for "
+                   "%s, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-                    thd->get_stmt_da()->sql_errno(),
-                    thd->is_fatal_error,
-                    thd->wsrep_cs().mode(),
-                    thd->wsrep_trx().state(),
-                    (long long) wsrep_thd_trx_seqno(thd));
+                   thd_get_thread_id(thd),
+                   thd->get_stmt_da()->message(),
+                   thd->is_fatal_error,
+                   thd->wsrep_cs().mode(),
+                   thd->wsrep_trx().state(),
+                   wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
       if (thd->is_error() &&
@@ -6615,6 +6649,46 @@ last_uniq_key(TABLE *table, uint keyno)
   return 1;
 }
 
+
+/*
+  We need to set the null bytes to ensure that the filler bit are
+  all set when returning.  There are storage engines that just set
+  the necessary bits on the bytes and don't set the filler bits
+  correctly.
+*/
+static void
+normalize_null_bits(TABLE *table)
+{
+  if (table->s->null_bytes > 0)
+  {
+    DBUG_ASSERT(table->s->last_null_bit_pos < 8);
+    /*
+      Normalize any unused null bits.
+
+      We need to set the highest (8 - last_null_bit_pos) bits to 1, except that
+      if last_null_bit_pos is 0 then there are no unused bits and we should set
+      no bits to 1.
+
+      When N = last_null_bit_pos != 0, we can get a mask for this with
+
+        0xff << N = (0xff << 1) << (N-1) = 0xfe << (N-1) = 0xfe << ((N-1) & 7)
+
+      And we can get a mask=0 for the case N = last_null_bit_pos = 0 with
+
+        0xfe << 7 = 0xfe << ((N-1) & 7)
+
+     Thus we can set the desired bits in all cases by OR-ing with
+     (0xfe << ((N-1) & 7)), avoiding a conditional jump.
+    */
+    table->record[0][table->s->null_bytes - 1]|=
+      (uchar)(0xfe << ((table->s->last_null_bit_pos - 1) & 7));
+    /* Normalize the delete marker bit, if any. */
+    table->record[0][0]|=
+      !(table->s->db_create_options & HA_OPTION_PACK_RECORD);
+  }
+}
+
+
 /**
    Check if an error is a duplicate key error.
 
@@ -7074,6 +7148,7 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
        table->s->null_fields) == 0
       && all_values_set)
   {
+    normalize_null_bits(table);
     result= cmp_record(table, record[1]);
     goto record_compare_exit;
   }
@@ -7383,7 +7458,7 @@ void issue_long_find_row_warning(Log_event_type type,
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
                             "performance.",
-                            evt_type, table_name, (long) delta, scan_type);
+                            evt_type, table_name, delta, scan_type);
     }
   }
 }
@@ -7521,6 +7596,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
   // We can't use position() - try other methods.
   
+  normalize_null_bits(table);
+
   /*
     Save copy of the record in table->record[1]. It might be needed 
     later if linear search is used to find exact match.
@@ -7556,16 +7633,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 #ifndef HAVE_valgrind
     DBUG_DUMP("key data", m_key, m_key_info->key_length);
 #endif
-
-    /*
-      We need to set the null bytes to ensure that the filler bit are
-      all set when returning.  There are storage engines that just set
-      the necessary bits on the bytes and don't set the filler bits
-      correctly.
-    */
-    if (table->s->null_bytes > 0)
-      table->record[0][table->s->null_bytes - 1]|=
-        256U - (1U << table->s->last_null_bit_pos);
 
     const enum ha_rkey_function find_flag=
       m_usable_key_parts == m_key_info->user_defined_key_parts
@@ -8086,6 +8153,7 @@ uint8 Update_rows_log_event::get_trg_event_map() const
 #endif
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
@@ -8098,7 +8166,7 @@ void Incident_log_event::pack_info(Protocol *protocol)
                        m_incident, description(), m_message.str);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(WITH_WSREP)
 /*
@@ -8184,6 +8252,7 @@ Incident_log_event::write_data_body(Log_event_writer *writer)
 }
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 /* Pack info for its unrecognized ignorable event */
 void Ignorable_log_event::pack_info(Protocol *protocol)
 {
@@ -8193,7 +8262,7 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
                      number, description);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,

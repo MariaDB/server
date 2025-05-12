@@ -71,11 +71,11 @@ public:
   BSONDEF(void);
 
   // Implementation
-  virtual const char* GetType(void) { return "BSON"; }
+  const char* GetType(void) override { return "BSON"; }
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
 protected:
   // Members
@@ -170,30 +170,30 @@ public:
   TDBBSN(TDBBSN* tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) { return TYPE_AM_JSN; }
-  virtual bool SkipHeader(PGLOBAL g);
-  virtual PTDB Duplicate(PGLOBAL g) { return (PTDB)new(g) TDBBSN(this); }
+  AMT  GetAmType(void) override { return TYPE_AM_JSN; }
+  bool SkipHeader(PGLOBAL g) override;
+  PTDB Duplicate(PGLOBAL g) override { return (PTDB)new(g) TDBBSN(this); }
   PBVAL GetRow(void) { return Row; }
 
   // Methods
-  virtual PTDB Clone(PTABS t);
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual PCOL InsertSpecialColumn(PCOL colp);
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE) {return (b) ? M : N;}
-  virtual bool CanBeFiltered(void) 
+  PTDB Clone(PTABS t) override;
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  PCOL InsertSpecialColumn(PCOL colp) override;
+  int  RowNumber(PGLOBAL g, bool b = FALSE) override {return (b) ? M : N;}
+  bool CanBeFiltered(void) override 
                {return Txfp->GetAmType() == TYPE_AM_MGO || !Xcol;}
 
   // Database routines
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual bool PrepareWriting(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual void CloseDB(PGLOBAL g);
+  int  Cardinality(PGLOBAL g) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  bool PrepareWriting(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  void CloseDB(PGLOBAL g) override;
 
   // Specific routine
-  virtual int  EstimatedLength(void);
+  int  EstimatedLength(void) override;
 
 protected:
   PBVAL FindRow(PGLOBAL g);
@@ -242,15 +242,15 @@ public:
   BSONCOL(BSONCOL* colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int   GetAmType(void) { return Tbp->GetAmType(); }
-  virtual bool  Stringify(void) { return Sgfy; }
+  int   GetAmType(void) override { return Tbp->GetAmType(); }
+  bool  Stringify(void) override { return Sgfy; }
 
   // Methods
-  virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
+  bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
           bool  ParseJpath(PGLOBAL g);
-  virtual PSZ   GetJpath(PGLOBAL g, bool proj);
-  virtual void  ReadColumn(PGLOBAL g);
-  virtual void  WriteColumn(PGLOBAL g);
+  PSZ   GetJpath(PGLOBAL g, bool proj) override;
+  void  ReadColumn(PGLOBAL g) override;
+  void  WriteColumn(PGLOBAL g) override;
 
 protected:
   bool  CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
@@ -288,30 +288,30 @@ public:
   TDBBSON(PBTDB tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) { return TYPE_AM_JSON; }
-  virtual PTDB Duplicate(PGLOBAL g) { return (PTDB)new(g) TDBBSON(this); }
+  AMT  GetAmType(void) override { return TYPE_AM_JSON; }
+  PTDB Duplicate(PGLOBAL g) override { return (PTDB)new(g) TDBBSON(this); }
   PBVAL GetDoc(void) { return Docp; }
 
   // Methods
-  virtual PTDB Clone(PTABS t);
+  PTDB Clone(PTABS t) override;
 
   // Database routines
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual void ResetSize(void);
-  virtual int  GetProgCur(void) { return N; }
-  virtual int  GetRecpos(void);
-  virtual bool SetRecpos(PGLOBAL g, int recpos);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual bool PrepareWriting(PGLOBAL g) { return false; }
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
+  int  Cardinality(PGLOBAL g) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  void ResetSize(void) override;
+  int  GetProgCur(void) override { return N; }
+  int  GetRecpos(void) override;
+  bool SetRecpos(PGLOBAL g, int recpos) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  bool PrepareWriting(PGLOBAL g) override { return false; }
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
   int  MakeDocument(PGLOBAL g);
 
   // Optimization routines
-  virtual int  MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
+  int  MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add) override;
 
 protected:
   int  MakeNewDoc(PGLOBAL g);
@@ -335,7 +335,7 @@ public:
 
 protected:
   // Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g);
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   PTOS Topt;

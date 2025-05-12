@@ -2540,20 +2540,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2678,20 +2678,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2817,20 +2817,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2955,20 +2955,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix

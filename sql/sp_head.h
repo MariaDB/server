@@ -87,7 +87,7 @@ protected:
   { }
 
 protected:
-  virtual void change_env(THD *thd) const
+  void change_env(THD *thd) const override
   {
     thd->variables.collation_database= m_db_cl;
 
@@ -1098,9 +1098,9 @@ public:
     return m_routine_implementations.check_dup_qualified(lex->sphead) ||
            m_routine_implementations.push_back(lex, &main_mem_root);
   }
-  sp_package *get_package() { return this; }
-  void init_psi_share();
-  bool is_invoked() const
+  sp_package *get_package() override { return this; }
+  void init_psi_share() override;
+  bool is_invoked() const override
   {
     /*
       Cannot flush a package out of the SP cache when:

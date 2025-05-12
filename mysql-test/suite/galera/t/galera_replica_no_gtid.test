@@ -23,7 +23,7 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='repl', master_password='repl', master_ssl_verify_server_cert=0, master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
 --enable_query_log
 START SLAVE;
 
@@ -87,7 +87,7 @@ SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 --source include/wait_condition.inc
 
 --connection node_2
-call mtr.add_suppression("Slave: Operation CREATE USER failed for .*");
+call mtr.add_suppression("Slave: Operation CREATE USER failed for ");
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.gtid_slave_pos;
 SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 

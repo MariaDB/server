@@ -45,7 +45,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sys_guid>(thd, this); }
 };
 
@@ -60,7 +60,7 @@ public:
     return name;
   }
   bool val_native(THD *thd, Native *to) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 

@@ -152,11 +152,11 @@ SELECT @@default_week_format;
 @@default_week_format
 1
 SELECT local.default_week_format;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.default_week_format;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT default_week_format = @@session.default_week_format;
-ERROR 42S22: Unknown column 'default_week_format' in 'field list'
+ERROR 42S22: Unknown column 'default_week_format' in 'SELECT'
 SET @@global.default_week_format = @start_global_value;
 SELECT @@global.default_week_format;
 @@global.default_week_format

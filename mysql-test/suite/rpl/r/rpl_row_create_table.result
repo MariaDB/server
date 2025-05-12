@@ -495,5 +495,18 @@ DROP VIEW IF EXISTS bug48506_t1, bug48506_t2, bug48506_t3;
 DROP TEMPORARY TABLES t7;
 DROP TABLES t4, t5;
 DROP TABLES IF EXISTS bug48506_t4;
+*** MDEV-31794: Preserved unsupported table flags break replication
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=Aria TRANSACTIONAL=1;
+ALTER TABLE t1 ENGINE=MyISAM;
+CREATE TABLE t2 LIKE t1;
+connection slave;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* TRANSACTIONAL=1 */
+connection master;
+DROP TEMPORARY TABLE t1;
+DROP TABLE t2;
 include/rpl_end.inc
 end of the tests

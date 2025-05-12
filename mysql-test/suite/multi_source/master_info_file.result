@@ -1,0 +1,18 @@
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=SERVER_MYPORT_1, master_ssl_verify_server_cert=0;
+CHANGE MASTER 'named' TO master_host='localhost', master_user='test', master_port=SERVER_MYPORT_2;
+--list_files @@datadir *.info
+relay-log-named.info
+relay-log.info
+--list_files MYSQL_TMP_DIR *.txt
+master_info_file-named.txt
+master_info_file.txt
+multi-master_info_file.txt
+--cat_file MYSQL_TMP_DIR/multi-master_info_file.txt
+named
+FOUND 1 matches in master_info_file.txt
+FOUND 1 matches in master_info_file.txt
+FOUND 1 matches in master_info_file.txt
+FOUND 1 matches in master_info_file-named.txt
+FOUND 1 matches in master_info_file-named.txt
+FOUND 1 matches in master_info_file-named.txt
+RESET REPLICA 'named' ALL;

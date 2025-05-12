@@ -551,10 +551,12 @@ Warning	1366	Incorrect double value: 'asdf' for column ``.`(temporary)`.`f` at r
 Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`d` at row 1
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON EMPTY)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL ON EMPTY)) jt' at line 2
+x
+NULL
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON ERROR)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL ON ERROR)) jt' at line 2
+x
+NULL
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON EMPTY)) jt;
 x
@@ -567,17 +569,19 @@ SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x DATE
 PATH '$.x'
                                   DEFAULT DATE'2020-01-01' ON EMPTY)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE'2020-01-01' ON EMPTY)) jt' at line 4
+x
+2020-01-01
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x DATE
 PATH '$.x'
                                   DEFAULT DATE'2020-01-01' ON ERROR)) jt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE'2020-01-01' ON ERROR)) jt' at line 4
+x
+NULL
 #
 # Bug#25413069: SIG11 IN CHECK_COLUMN_GRANT_IN_TABLE_REF
 #
 SELECT a FROM JSON_TABLE(abc, '$[*]' COLUMNS ( a int path '$.a')) AS jt;
-ERROR 42S22: Unknown column 'abc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 'abc' in 'JSON_TABLE'
 #
 # Bug#25420680: ASSERTION `THD->IS_ERROR()' FAILED IN SQL/SQL_SELECT.CC
 #
@@ -665,10 +669,10 @@ DEALLOCATE PREPARE stmt;
 CREATE TABLE t1 (id INT, jc JSON);
 SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 SELECT * FROM JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt LEFT JOIN t1 ON t1.jc=jt.id;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 SELECT * FROM JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt RIGHT JOIN t1 ON t1.jc=jt.id;
 id	id	jc
@@ -692,33 +696,33 @@ SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i RIGHT JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 WITH qn AS
 (SELECT jt.* FROM t1 RIGHT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id)
 SELECT * from qn;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 WITH qn AS
 (SELECT 1 UNION
 SELECT jt.id FROM t1 RIGHT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id)
 SELECT * from qn;
-ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1.jc' in 'JSON_TABLE'
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i RIGHT JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
 ON t1o.id=t1i.id;
-ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 't1o.jc' in 'JSON_TABLE'
 INSERT INTO t1 VALUES(1,"1"),(2,"4"),(3,"3");
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -741,14 +745,14 @@ LEFT JOIN
 JSON_TABLE(t1.jc, '$' COLUMNS (id FOR ORDINALITY)) as jt ON t1.jc=jt.id
 RIGHT JOIN
 JSON_TABLE(jt.id, '$' COLUMNS (id FOR ORDINALITY)) as jt1 ON jt.id=jt1.id;
-ERROR 42S22: Unknown column 'jt.id' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 'jt.id' in 'JSON_TABLE'
 DROP TABLE t1;
 #
 # Bug#25525409: ASSERTION `TABLE_LIST->TABLE' FAILED IN SQL/SQL_BASE.CC
 #
 SELECT * FROM JSON_TABLE( ( SELECT a ) , '$.*' COLUMNS (col1 FOR ORDINALITY) )
 AS alias1;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT * FROM JSON_TABLE( ( SELECT 1 ) , '$.*' COLUMNS (col1 FOR ORDINALITY) )
 AS alias1;
 col1
@@ -1048,7 +1052,7 @@ CREATE TABLE t (x INT);
 INSERT INTO t VALUES (1), (2), (3);
 SELECT MAX(t.x) OVER () m, jt.* FROM t,
 JSON_TABLE(JSON_ARRAY(m), '$[*]' COLUMNS (i INT PATH '$')) jt;
-ERROR 42S22: Unknown column 'm' in 'JSON_TABLE argument'
+ERROR 42S22: Unknown column 'm' in 'JSON_TABLE'
 DROP TABLE t;
 #
 # Bug#26583283: ASSERTION `!THD->IS_ERROR()' FAILED IN SQL_RESOLVER.CC

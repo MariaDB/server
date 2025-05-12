@@ -37,6 +37,11 @@ simple headers.
 /* Forward declarations */
 class THD;
 class Field;
+struct dict_table_t;
+struct dict_foreign_t;
+struct table_name_t;
+struct mem_block_info_t;
+typedef struct mem_block_info_t mem_heap_t;
 
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
@@ -83,7 +88,7 @@ innobase_invalidate_query_cache(
 void
 innobase_quote_identifier(
 	FILE*		file,
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id);
 
 /** Quote an standard SQL identifier like tablespace, index or column name.
@@ -93,7 +98,7 @@ Return the string as an std:string object.
 @return a std::string with id properly quoted. */
 std::string
 innobase_quote_identifier(
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id);
 
 /*****************************************************************//**
@@ -125,9 +130,7 @@ void
 innobase_mysql_print_thd(
 /*=====================*/
 	FILE*	f,		/*!< in: output stream */
-	THD*	thd,		/*!< in: pointer to a MySQL THD object */
-	uint	max_query_len);	/*!< in: max query length to print, or 0 to
-				   use the default max length */
+	THD*	thd);		/*!< in: pointer to a MySQL THD object */
 
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
 the 'mtype' of InnoDB. InnoDB differentiates between MySQL's old <= 4.1
@@ -154,33 +157,6 @@ innobase_strcasecmp(
 const char*
 innobase_basename(
 	const char*	path_name);
-
-/******************************************************************//**
-Converts an identifier to a table name. */
-void
-innobase_convert_from_table_id(
-/*===========================*/
-	CHARSET_INFO*	cs,	/*!< in: the 'from' character set */
-	char*		to,	/*!< out: converted identifier */
-	const char*	from,	/*!< in: identifier to convert */
-	ulint		len);	/*!< in: length of 'to', in bytes; should
-				be at least 5 * strlen(to) + 1 */
-/******************************************************************//**
-Converts an identifier to UTF-8. */
-void
-innobase_convert_from_id(
-/*=====================*/
-	CHARSET_INFO*	cs,	/*!< in: the 'from' character set */
-	char*		to,	/*!< out: converted identifier */
-	const char*	from,	/*!< in: identifier to convert */
-	ulint		len);	/*!< in: length of 'to', in bytes;
-				should be at least 3 * strlen(to) + 1 */
-/******************************************************************//**
-Makes all characters in a NUL-terminated UTF-8 string lower case. */
-void
-innobase_casedn_str(
-/*================*/
-	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
@@ -369,15 +345,6 @@ innobase_next_autoinc(
 	MY_ATTRIBUTE((pure, warn_unused_result));
 
 /**********************************************************************
-Converts an identifier from my_charset_filename to UTF-8 charset. */
-uint
-innobase_convert_to_system_charset(
-/*===============================*/
-	char*           to,		/* out: converted identifier */
-	const char*     from,		/* in: identifier to convert */
-	ulint           len,		/* in: length of 'to', in bytes */
-	uint*		errors);	/* out: error return */
-/**********************************************************************
 Check if the length of the identifier exceeds the maximum allowed.
 The input to this function is an identifier in charset my_charset_filename.
 return true when length of identifier is too long. */
@@ -397,32 +364,28 @@ innobase_convert_to_system_charset(
 	ulint		len,		/* in: length of 'to', in bytes */
 	uint*		errors);	/* out: error return */
 
-/**********************************************************************
-Converts an identifier from my_charset_filename to UTF-8 charset. */
-uint
-innobase_convert_to_filename_charset(
-/*=================================*/
-	char*		to,	/* out: converted identifier */
-	const char*	from,	/* in: identifier to convert */
-	ulint		len);	/* in: length of 'to', in bytes */
+/** Convert a schema or table name to InnoDB (and file system) format.
+@param cs   source character set
+@param name name encoded in cs
+@param buf  output buffer (MAX_TABLE_NAME_LEN + 1 bytes)
+@return the converted string (within buf) */
+LEX_CSTRING innodb_convert_name(CHARSET_INFO *cs, LEX_CSTRING name, char *buf)
+  noexcept;
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_push_warning(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...);
+/** Report that a table cannot be decrypted.
+@param thd    connection context
+@param table  table that cannot be decrypted
+@retval DB_DECRYPTION_FAILED (always) */
+ATTRIBUTE_COLD
+dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table);
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_push_warning(
-	void*		ithd,	/*!< in: thd */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...);
+/** Report a foreign key error.
+@param error    error to report
+@param name     table name
+@param foreign  constraint */
+ATTRIBUTE_COLD
+void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
+                     const dict_foreign_t& foreign);
 
 /********************************************************************//**
 Helper function to push warnings from InnoDB internals to SQL-layer. */
@@ -461,6 +424,16 @@ void destroy_background_thd(MYSQL_THD thd);
 @param[in]	thd	MYSQL_THD to reset */
 void
 innobase_reset_background_thd(MYSQL_THD);
+
+/** Open a table based on a database and table name.
+@param db     schema name
+@param name   table name within the schema
+@param table  table
+@param heap   memory heap for allocating a converted name
+@return InnoDB format table name with database and table name,
+allocated from heap */
+char *dict_table_lookup(LEX_CSTRING db, LEX_CSTRING name,
+                        dict_table_t **table, mem_heap_t *heap) noexcept;
 
 #ifdef WITH_WSREP
 /** Append table-level exclusive key.

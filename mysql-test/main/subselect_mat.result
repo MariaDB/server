@@ -2948,16 +2948,15 @@ INSERT INTO t2 VALUES (1000,6,2);
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,in_to_exists=off';
 EXPLAIN
 SELECT (f1, f2, f3) NOT IN
-(SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
+(SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3) as exp
 FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
 2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	Using filesort
 SELECT (f1, f2, f3) NOT IN
-(SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
+(SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3) as exp
 FROM t2;
-(f1, f2, f3) NOT IN
-(SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
+exp
 1
 drop table t1, t2;
 #
@@ -3068,3 +3067,391 @@ UNION ALL
 1
 1
 drop table t1, t2;
+#
+# MDEV-34665: Simplify IN predicate processing for NULL-aware
+#             materialization involving only one column
+set @save_optimizer_switch=@@optimizer_switch;
+set @@optimizer_switch = "materialization=on,in_to_exists=off,semijoin=off";
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (null), (1), (2), (3);
+# Query against empty t2
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	0
+2	0
+3	0
+NULL	0
+# Insert some not-NULL values
+insert into t2 values (3), (4);
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	0
+2	0
+3	1
+NULL	NULL
+# Ensure the correct strategy is tested
+analyze format=json select a, a in (select b from t2) from t1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 4,
+          "r_index_lookups": 3,
+          "r_partial_matches": 1,
+          "query_block": {
+            "select_id": 2,
+            "cost": "REPLACED",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+# Insert NULL value (so there are both NULLs and and not-NULL values)
+insert into t2 values (null);
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	NULL
+2	NULL
+3	1
+NULL	NULL
+analyze format=json select a, a in (select b from t2) from t1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 4,
+          "r_index_lookups": 3,
+          "query_block": {
+            "select_id": 2,
+            "cost": "REPLACED",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 3,
+                  "r_rows": 3,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+delete from t2;
+# Insert NULL values only
+insert into t2 values (null), (null);
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	NULL
+2	NULL
+3	NULL
+NULL	NULL
+analyze format=json select a, a in (select b from t2) from t1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "return NULL",
+          "query_block": {
+            "select_id": 2,
+            "cost": "REPLACED",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+# Test UPDATE
+insert into t2 values (3), (4);
+update t1 set a=a+1 where a not in (select b from t2);
+# Nothing updated due to NULLs on both sides of IN
+select * from t1;
+a
+NULL
+1
+2
+3
+# Remove NULLs from the right side
+delete from t2 where b is null;
+update t1 set a=a+1 where a not in (select b from t2);
+# Now some rows are updated:
+select * from t1;
+a
+NULL
+2
+3
+3
+analyze format=json update t1 set a=a+1 where a not in (select b from t2);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 4,
+      "r_rows": 4,
+      "r_filtered": 25,
+      "r_total_time_ms": "REPLACED",
+      "r_engine_stats": REPLACED,
+      "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))"
+    },
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 4,
+          "r_index_lookups": 3,
+          "r_partial_matches": 1,
+          "query_block": {
+            "select_id": 2,
+            "cost": "REPLACED",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+# Test DELETE
+# Restore initial data-set:
+delete from t1;
+insert into t1 values (null), (1), (2), (3);
+# Add some NULL values to the right side of IN
+insert into t2 values (null), (null);
+delete from t1 where a not in (select b from t2);
+# Nothing deleted due to NULLs on both sides of IN
+select * from t1;
+a
+NULL
+1
+2
+3
+# Remove NULLs from the right side
+delete from t2 where b is null;
+delete from t1 where a not in (select b from t2);
+# Now some rows are deleted:
+select * from t1;
+a
+NULL
+3
+analyze format=json delete from t1 where a not in (select b from t2);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "r_rows": 2,
+      "r_filtered": 0,
+      "r_total_time_ms": "REPLACED",
+      "r_engine_stats": REPLACED,
+      "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))"
+    },
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 2,
+          "r_index_lookups": 1,
+          "r_partial_matches": 1,
+          "query_block": {
+            "select_id": 2,
+            "cost": "REPLACED",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1, t2;
+set @@optimizer_switch=@save_optimizer_switch;

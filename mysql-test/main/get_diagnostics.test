@@ -284,6 +284,7 @@ GET DIAGNOSTICS CONDITION ABS(2) @var = CLASS_ORIGIN;
 GET DIAGNOSTICS CONDITION 1.1 @var = CLASS_ORIGIN;
 GET DIAGNOSTICS CONDITION "1" @var = CLASS_ORIGIN;
 
+--disable_cursor_protocol
 # Reset warnings
 SELECT COUNT(max_questions) INTO @var FROM mysql.user;
 
@@ -303,6 +304,7 @@ GET DIAGNOSTICS CONDITION @cond @var1 = CLASS_ORIGIN;
 
 # Reset warnings
 SELECT COUNT(max_questions) INTO @var FROM mysql.user;
+--enable_cursor_protocol
 
 DELIMITER |;
 CREATE PROCEDURE p1()
@@ -367,7 +369,9 @@ GET DIAGNOSTICS @var = NUMBER;
 SELECT @var;
 --enable_view_protocol
 
+--disable_cursor_protocol
 SELECT COUNT(max_questions) INTO @var FROM mysql.user;
+--enable_cursor_protocol
 GET DIAGNOSTICS @var = NUMBER;
 SELECT @var;
 

@@ -87,7 +87,7 @@ public:
     if (m_full)
       return NULL;
 
-    monotonic= PFS_atomic::add_u32(& m_monotonic.m_u32, 1);
+    monotonic= m_monotonic.m_u32.fetch_add(1);
     monotonic_max= monotonic + static_cast<uint>(m_max);
 
     while (monotonic < monotonic_max)
@@ -99,7 +99,8 @@ public:
       {
         return pfs;
       }
-      monotonic= PFS_atomic::add_u32(& m_monotonic.m_u32, 1);
+      monotonic= m_monotonic.m_u32.fetch_add(1);
+
     }
 
     m_full= true;
@@ -517,7 +518,7 @@ public:
 
   ulong get_row_count()
   {
-    ulong page_count= PFS_atomic::load_u32(& m_max_page_index.m_u32);
+    ulong page_count= m_max_page_index.m_u32.load();
 
     return page_count * PFS_PAGE_SIZE;
   }
@@ -554,11 +555,11 @@ public:
     /*
       1: Try to find an available record within the existing pages
     */
-    current_page_count= PFS_atomic::load_u32(& m_max_page_index.m_u32);
+    current_page_count= m_max_page_index.m_u32.load();
 
     if (current_page_count != 0)
     {
-      monotonic= PFS_atomic::load_u32(& m_monotonic.m_u32);
+      monotonic= m_monotonic.m_u32.load();
       monotonic_max= monotonic + current_page_count;
 
       while (monotonic < monotonic_max)
@@ -602,7 +603,7 @@ public:
           counter faster and then move on to the detection of new pages,
           in part 2: below.
         */
-        monotonic= PFS_atomic::add_u32(& m_monotonic.m_u32, 1);
+        monotonic= m_monotonic.m_u32.fetch_add(1);
       };
     }
 
@@ -683,7 +684,7 @@ public:
           my_atomic_storeptr(typed_addr, ptr);
 
           /* Advertise the new page */
-          PFS_atomic::add_u32(& m_max_page_index.m_u32, 1);
+          m_max_page_index.m_u32.fetch_add(1);
         }
 
         pthread_mutex_unlock(& m_critical_section);

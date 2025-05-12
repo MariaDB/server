@@ -3,11 +3,12 @@ connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1b;
 SET SESSION wsrep_sync_wait=0;
 ######################################################################
-# Test for ALTER ENGINE=INNODB
+# Test for ALTER TABLE ENGINE=INNODB
 ######################################################################
 ######################################################################
 #
@@ -17,6 +18,7 @@ SET SESSION wsrep_sync_wait=0;
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
 CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
@@ -49,6 +51,9 @@ EXPECT_1
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
 ######################################################################
 #
 # Scenario #2: DML working on FK parent table tries to replicate, but
@@ -87,6 +92,9 @@ EXPECT_1
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
 ######################################################################
 #
 # Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
@@ -137,10 +145,10 @@ EXPECT_1
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
-DROP TABLE c1, c2;
+DROP TABLE IF EXISTS c1, c2;
 DROP TABLE p1, p2;
 ######################################################################
-# Test for TRUNCATE 
+# Test for TRUNCATE TABLE 
 ######################################################################
 ######################################################################
 #
@@ -150,6 +158,7 @@ DROP TABLE p1, p2;
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
 INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
 CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
@@ -182,6 +191,9 @@ EXPECT_1
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
 ######################################################################
 #
 # Scenario #2: DML working on FK parent table tries to replicate, but
@@ -220,6 +232,9 @@ EXPECT_1
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
 ######################################################################
 #
 # Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
@@ -270,5 +285,595 @@ EXPECT_1
 SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
-DROP TABLE c1, c2;
+DROP TABLE IF EXISTS c1, c2;
 DROP TABLE p1, p2;
+######################################################################
+# Test for DROP TABLE 
+######################################################################
+######################################################################
+#
+# Scenario #1: DML working on FK parent table BF aborted by DDL
+#              over child table
+#
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+DROP TABLE c1 ;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #2: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TABLE c1 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TABLE c2 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE IF EXISTS c1, c2;
+Warnings:
+Note	1051	Unknown table 'test.c2'
+DROP TABLE p1, p2;
+######################################################################
+# Test for DROP TABLE 
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #4: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#              and another temporary table. TMP table should be skipped
+#              but FK child table should be replicated with proper keys
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TEMPORARY TABLE tmp1 (i int);
+CREATE TEMPORARY TABLE tmp2 (i int);
+DROP TABLE tmp1, c1, tmp2 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+INSERT INTO p1 VALUES (10, 'TO DEADLOCK');
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+DROP TABLE IF EXISTS c1;
+Warnings:
+Note	1051	Unknown table 'test.c1'
+DROP TABLE p1;
+DROP TABLE IF EXISTS tmp1, tmp2;
+Warnings:
+Note	1051	Unknown table 'test.tmp1,test.tmp2'
+######################################################################
+# Test for DROP TABLE IF EXISTS 
+######################################################################
+######################################################################
+#
+# Scenario #1: DML working on FK parent table BF aborted by DDL
+#              over child table
+#
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+DROP TABLE IF EXISTS c1 ;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #2: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TABLE IF EXISTS c1 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TABLE IF EXISTS c2 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE IF EXISTS c1, c2;
+Warnings:
+Note	1051	Unknown table 'test.c2'
+DROP TABLE p1, p2;
+######################################################################
+# Test for DROP TABLE IF EXISTS 
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #4: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#              and another temporary table. TMP table should be skipped
+#              but FK child table should be replicated with proper keys
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TEMPORARY TABLE tmp1 (i int);
+CREATE TEMPORARY TABLE tmp2 (i int);
+DROP TABLE IF EXISTS tmp1, c1, tmp2 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+INSERT INTO p1 VALUES (10, 'TO DEADLOCK');
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+DROP TABLE IF EXISTS c1;
+Warnings:
+Note	1051	Unknown table 'test.c1'
+DROP TABLE p1;
+DROP TABLE IF EXISTS tmp1, tmp2;
+Warnings:
+Note	1051	Unknown table 'test.tmp1,test.tmp2'
+######################################################################
+# Test for DROP TABLE IF EXISTS nonexisting, 
+######################################################################
+######################################################################
+#
+# Scenario #1: DML working on FK parent table BF aborted by DDL
+#              over child table
+#
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+DROP TABLE IF EXISTS nonexisting, c1 ;
+Warnings:
+Note	1051	Unknown table 'test.nonexisting'
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #2: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TABLE IF EXISTS nonexisting, c1 ;
+Warnings:
+Note	1051	Unknown table 'test.nonexisting'
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_1;
+CREATE TABLE IF NOT EXISTS c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT IGNORE INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TABLE IF EXISTS nonexisting, c2 ;
+Warnings:
+Note	1051	Unknown table 'test.nonexisting'
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE IF EXISTS c1, c2;
+Warnings:
+Note	1051	Unknown table 'test.c2'
+DROP TABLE p1, p2;
+######################################################################
+# Test for DROP TABLE IF EXISTS nonexisting, 
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #4: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#              and another temporary table. TMP table should be skipped
+#              but FK child table should be replicated with proper keys
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TEMPORARY TABLE tmp1 (i int);
+CREATE TEMPORARY TABLE tmp2 (i int);
+DROP TABLE IF EXISTS nonexisting, tmp1, c1, tmp2 ;
+Warnings:
+Note	1051	Unknown table 'test.nonexisting'
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+INSERT INTO p1 VALUES (10, 'TO DEADLOCK');
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+DROP TABLE IF EXISTS c1;
+Warnings:
+Note	1051	Unknown table 'test.c1'
+DROP TABLE p1;
+DROP TABLE IF EXISTS tmp1, tmp2;
+Warnings:
+Note	1051	Unknown table 'test.tmp1,test.tmp2'

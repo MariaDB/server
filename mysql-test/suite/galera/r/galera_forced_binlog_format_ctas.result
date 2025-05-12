@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-call mtr.add_suppression("Unsafe statement written to the binary log using statement format since.*");
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since ");
 SET GLOBAL wsrep_forced_binlog_format=ROW;
 connection node_1;
 CREATE TABLE t1(a int not null primary key auto_increment, b int) ENGINE=InnoDB;

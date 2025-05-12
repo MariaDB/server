@@ -3,8 +3,8 @@
 --source include/check_ipv6.inc
 --source include/force_restart.inc
 
-call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to'");
-call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to '127\\.0\\.0\\.1'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql\\.gtid_slave_pos");
 
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
@@ -20,7 +20,6 @@ call mtr.add_suppression("Failed to load slave replication state from table mysq
 CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 
---let $wsrep_sst_auth_orig = `SELECT @@wsrep_sst_auth`
 SET GLOBAL wsrep_sst_auth = 'sst:';
 
 --connection node_2
@@ -86,8 +85,9 @@ SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE
 
 --source ../galera/include/auto_increment_offset_restore.inc
 --source suite/galera/include/galera_sst_restore.inc
+
 --connection node_2
-CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled. Expect abort");
+CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled\\. Expect abort");
 
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

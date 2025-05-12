@@ -1272,11 +1272,8 @@ SELECT str_to_date('2007-20-00', '%Y-%m-%d') >= '2007/10/20' AND
        str_to_date('2007-20-00', '%Y-%m-%d') <= '';
 --enable_view_protocol
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT str_to_date('2007-10-00', '%Y-%m-%d') BETWEEN '' AND '2007/10/20';
-SELECT str_to_date('2007-20-00', '%Y-%m-%d') BETWEEN '2007/10/20' AND '';
---enable_view_protocol
+SELECT str_to_date('2007-10-00', '%Y-%m-%d') BETWEEN '' AND '2007/10/20' as exp;
+SELECT str_to_date('2007-20-00', '%Y-%m-%d') BETWEEN '2007/10/20' AND '' as exp;
 
 SELECT str_to_date('', '%Y-%m-%d');
 

@@ -3913,8 +3913,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	23	test.t1.a1	1	FirstMatch(t1)
 3	DERIVED	t2	const	PRIMARY	PRIMARY	22	const	1	Using index
-4	RECURSIVE UNION	tt2	ALL	b1	NULL	NULL	NULL	14	Using where
-4	RECURSIVE UNION	<derived3>	ref	key0	key0	23	test.tt2.b1	1	
+4	RECURSIVE UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+4	RECURSIVE UNION	tt2	ref	b1	b1	23	cte.a2	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 analyze format=json select fv
 from (select t1.a1, f1(t1.a2) fv from t1) dt
@@ -4013,38 +4013,37 @@ ANALYZE
                       "nested_loop": [
                         {
                           "table": {
-                            "table_name": "tt2",
+                            "table_name": "<derived3>",
                             "access_type": "ALL",
-                            "possible_keys": ["b1"],
                             "loops": 1,
                             "r_loops": 1,
-                            "rows": 14,
-                            "r_rows": 14,
+                            "rows": 2,
+                            "r_rows": 1,
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
-                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100,
-                            "attached_condition": "tt2.b1 is not null"
+                            "attached_condition": "cte.a2 is not null"
                           }
                         },
                         {
                           "table": {
-                            "table_name": "<derived3>",
+                            "table_name": "tt2",
                             "access_type": "ref",
-                            "possible_keys": ["key0"],
-                            "key": "key0",
+                            "possible_keys": ["b1"],
+                            "key": "b1",
                             "key_length": "23",
-                            "used_key_parts": ["a2"],
-                            "ref": ["test.tt2.b1"],
-                            "loops": 14,
-                            "r_loops": 14,
+                            "used_key_parts": ["b1"],
+                            "ref": ["cte.a2"],
+                            "loops": 2,
+                            "r_loops": 1,
                             "rows": 1,
-                            "r_rows": 0.071428571,
+                            "r_rows": 1,
                             "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -4732,33 +4731,33 @@ insert into t1 values (3), (7), (1);
 with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
 select * from t1 as t;
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 explain with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
 select * from t1 as t;
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 create procedure sp1() with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
 select * from t1 as t;
 call sp1();
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 call sp1();
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
 select * from t1 as t;
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 explain with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
 select * from t1 as t;
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 create procedure sp2() with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
 select * from t1 as t;
 call sp2();
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 call sp2();
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 drop procedure sp1;
 drop procedure sp2;
 drop table t1;

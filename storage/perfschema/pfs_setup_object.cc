@@ -63,19 +63,19 @@ void cleanup_setup_object(void)
 }
 
 C_MODE_START
-static uchar *setup_object_hash_get_key(const uchar *entry, size_t *length,
-                                        my_bool)
+static const uchar *setup_object_hash_get_key(const void *entry,
+                                              size_t *length, my_bool)
 {
   const PFS_setup_object * const *typed_entry;
   const PFS_setup_object *setup_object;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_setup_object* const *> (entry);
+  typed_entry= static_cast<const PFS_setup_object* const *> (entry);
   assert(typed_entry != NULL);
   setup_object= *typed_entry;
   assert(setup_object != NULL);
   *length= setup_object->m_key.m_key_length;
   result= setup_object->m_key.m_hash_key;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 
@@ -231,7 +231,7 @@ public:
     : m_pins(pins)
   {}
 
-  virtual void operator()(PFS_setup_object *pfs)
+  void operator()(PFS_setup_object *pfs) override
   {
     lf_hash_delete(&setup_object_hash, m_pins,
                    pfs->m_key.m_hash_key, pfs->m_key.m_key_length);

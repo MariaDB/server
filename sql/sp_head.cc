@@ -97,7 +97,7 @@ void init_sp_psi_keys()
 #define MYSQL_RUN_SP(SP, CODE) do { CODE; } while(0)
 #endif
 
-extern "C" uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first);
+extern "C" const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool);
 
 /**
   Helper function which operates on a THD object to set the query start_time to
@@ -1353,7 +1353,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           thd->wsrep_cs().reset_error();
           /* Reset also thd->killed if it has been set during BF abort. */
           if (killed_mask_hard(thd->killed) == KILL_QUERY)
-            thd->killed= NOT_KILLED;
+            thd->reset_killed();
           /* if failed transaction was not replayed, must return with error from here */
           if (!must_replay) err_status = 1;
         }
@@ -2373,6 +2373,16 @@ sp_head::bind_input_param(THD *thd,
   sp_variable *spvar= m_pcont->find_variable(arg_no);
   if (!spvar)
     DBUG_RETURN(FALSE);
+
+  if (!spvar->field_def.type_handler()->is_scalar_type() &&
+      dynamic_cast<Item_param*>(arg_item))
+  {
+    // Item_param cannot store values of non-scalar data types yet
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             spvar->field_def.type_handler()->name().ptr(),
+             "EXECUTE ... USING ?");
+    DBUG_RETURN(true);
+  }
 
   if (spvar->mode != sp_variable::MODE_IN)
   {
@@ -3477,11 +3487,11 @@ typedef struct st_sp_table
 } SP_TABLE;
 
 
-uchar *sp_table_key(const uchar *ptr, size_t *plen, my_bool first)
+const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool)
 {
-  SP_TABLE *tab= (SP_TABLE *)ptr;
+  auto tab= static_cast<const SP_TABLE *>(ptr);
   *plen= tab->qname.length;
-  return (uchar *)tab->qname.str;
+  return reinterpret_cast<const uchar *>(tab->qname.str);
 }
 
 
@@ -3858,8 +3868,10 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                         spcont, coffset, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
-  instr_cfetch->add_to_varlist(index);
-  return false;
+  const sp_rcontext_addr raddr(&sp_rcontext_handler_local, index->offset);
+  sp_fetch_target *target=
+    new (thd->mem_root) sp_fetch_target(index->name, raddr);
+  return !target || instr_cfetch->add_to_fetch_target_list(target);
 }
 
 

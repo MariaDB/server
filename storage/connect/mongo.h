@@ -69,11 +69,11 @@ public:
 	MGODEF(void);
 
 	// Implementation
-	virtual const char *GetType(void) { return "MONGO"; }
+	const char *GetType(void) override { return "MONGO"; }
 
 	// Methods
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-	virtual PTDB GetTable(PGLOBAL g, MODE m);
+	bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+	PTDB GetTable(PGLOBAL g, MODE m) override;
 
 protected:
 	// Members

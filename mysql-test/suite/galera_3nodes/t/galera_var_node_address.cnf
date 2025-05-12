@@ -5,4 +5,3 @@ wsrep_node_address=127.0.0.1
 
 [mysqld.3]
 wsrep_node_address=localhost
-

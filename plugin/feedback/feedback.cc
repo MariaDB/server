@@ -26,11 +26,9 @@ namespace feedback {
 ulong debug_startup_interval, debug_first_interval, debug_interval;
 #endif
 
-char server_uid_buf[SERVER_UID_SIZE+1]; ///< server uid will be written here
-
 /* backing store for system variables */
-static char *server_uid= server_uid_buf, *url, *http_proxy;
-char *user_info;
+static char *url, *http_proxy;
+char *user_info, *server_uid_ptr= server_uid;
 ulong send_timeout, send_retry_wait;
 
 /**
@@ -253,9 +251,6 @@ static int init(void *p)
   PSI_register(cond);
   PSI_register(thread);
 
-  if (calculate_server_uid(server_uid_buf))
-    return 1;
-
   prepare_linux_info();
 
 #ifndef DBUG_OFF
@@ -361,7 +356,7 @@ static int free(void *p)
 #define DEFAULT_PROTO "http://"
 #endif
 
-static MYSQL_SYSVAR_STR(server_uid, server_uid,
+static MYSQL_SYSVAR_STR(server_uid, server_uid_ptr,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
        "Automatically calculated server unique id hash.", NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(user_info, user_info,

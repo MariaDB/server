@@ -21,29 +21,41 @@ drop table if exists t1;
 create table t1 (`a` blob);
 insert into t1 values("hello world"),("Hello mars"),(NULL);
 disable_query_log;
+--disable_cursor_protocol
 eval select * into outfile "../../tmp/outfile-test.1" from t1;
+--enable_cursor_protocol
 enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.1"));
 disable_query_log;
+--disable_cursor_protocol
 eval select * into dumpfile "../../tmp/outfile-test.2" from t1 limit 1;
+--enable_cursor_protocol
 enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.2"));
 disable_query_log;
+--disable_cursor_protocol
 eval select * into dumpfile "../../tmp/outfile-test.3" from t1 where a is null;
+--enable_cursor_protocol
 enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.3"));
 
 # the following should give errors
 
 disable_query_log;
+--disable_cursor_protocol
 --error ER_FILE_EXISTS_ERROR
 eval select * into outfile "../../tmp/outfile-test.1" from t1;
+--enable_cursor_protocol
 
+--disable_cursor_protocol
 --error ER_FILE_EXISTS_ERROR
 eval select * into dumpfile "../../tmp/outfile-test.2" from t1;
+--enable_cursor_protocol
 
+--disable_cursor_protocol
 --error ER_FILE_EXISTS_ERROR
 eval select * into dumpfile "../../tmp/outfile-test.3" from t1;
+--enable_cursor_protocol
 enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.not-exist"));
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.1
@@ -53,7 +65,9 @@ drop table t1;
 
 # Bug#8191 SELECT INTO OUTFILE insists on FROM clause
 disable_query_log;
+--disable_cursor_protocol
 eval select 1 into outfile "../../tmp/outfile-test.4";
+--enable_cursor_protocol
 enable_query_log;
 select load_file(concat(@tmpdir,"/outfile-test.4"));
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.4
@@ -76,17 +90,21 @@ DROP TABLE t1;
 # Bug#13202 SELECT * INTO OUTFILE ... FROM information_schema.schemata now fails
 #
 disable_query_log;
+--disable_cursor_protocol
 eval SELECT * INTO OUTFILE "../../tmp/outfile-test.4"
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 FROM information_schema.schemata LIMIT 0, 5;
+--enable_cursor_protocol
 # enable_query_log;
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.4
 
 use information_schema;
 # disable_query_log;
+--disable_cursor_protocol
 eval SELECT * INTO OUTFILE "../../tmp/outfile-test.4"
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'
 FROM schemata LIMIT 0, 5;
+--enable_cursor_protocol
 enable_query_log;
 --remove_file $MYSQLTEST_VARDIR/tmp/outfile-test.4
 use test;
@@ -97,8 +115,10 @@ use test;
 # It should not be possible to write to a file outside of vardir
 create table t1(a int);
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--disable_cursor_protocol
 --error ER_OPTION_PREVENTS_STATEMENT
 eval select * into outfile "$MYSQL_TEST_DIR/outfile-test1" from t1;
+--enable_cursor_protocol
 drop table t1;
 
 #
@@ -110,6 +130,7 @@ create user user_1@localhost;
 grant all on mysqltest.* to user_1@localhost;
 connect (con28181_1,localhost,user_1,,mysqltest);
 
+--disable_cursor_protocol
 --error ER_ACCESS_DENIED_ERROR
 eval select schema_name
 into outfile "../../tmp/outfile-test.4"
@@ -117,18 +138,21 @@ fields terminated by ',' optionally enclosed by '"'
  lines terminated by '\n'
 from information_schema.schemata
 where schema_name like 'mysqltest';
+--enable_cursor_protocol
 
 connection default;
 disconnect con28181_1;
 grant file on *.* to user_1@localhost;
 
 connect (con28181_2,localhost,user_1,,mysqltest);
+--disable_cursor_protocol
 eval select schema_name
 into outfile "../../tmp/outfile-test.4"
 fields terminated by ',' optionally enclosed by '"'
  lines terminated by '\n'
 from information_schema.schemata
 where schema_name like 'mysqltest';
+--enable_cursor_protocol
 
 connection default;
 disconnect con28181_2;

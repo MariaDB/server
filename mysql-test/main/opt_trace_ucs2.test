@@ -7,5 +7,8 @@ insert into t1 values ('a', 'a');
 set optimizer_trace=1;
 --source include/explain-no-costs.inc
 explain format=json select * from t1 force index(col1) where col1 >='a';
+# Enable after fix MDEV-31408
+--disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
 drop table t1;

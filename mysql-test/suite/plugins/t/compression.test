@@ -22,6 +22,7 @@ if ($engine == "innodb") {
   call mtr.add_suppression("Background Page read failed to read, uncompress, or decrypt");
   call mtr.add_suppression("Table is compressed or encrypted but uncompress or decrypt failed");
   call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate");
+  call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
   call mtr.add_suppression("Table .*t1.* is compressed with (\\w+), which is not currently loaded. Please load the \\1 provider plugin to open the table");
 }
 if ($engine == "mroonga") {

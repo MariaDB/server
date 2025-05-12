@@ -3,7 +3,12 @@ CREATE TABLE t1(
 id	INT,
 PRIMARY KEY(id)
 ) ENGINE=InnoDB;
+CREATE TABLE dl(
+id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, 
+cnt INT UNSIGNED
+) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1), (2), (3);
+INSERT INTO dl(cnt) SELECT variable_value FROM information_schema.global_status WHERE variable_name LIKE 'Innodb_deadlocks';
 BEGIN;
 SELECT * FROM t1 WHERE id = 1 LOCK IN SHARE MODE;
 connect  con1,localhost,root,,;
@@ -20,5 +25,8 @@ disconnect con1;
 ROLLBACK;
 disconnect con2;
 connection default;
+'Deadlock counter is valid';
+1
 ROLLBACK;
 DROP TABLE t1;
+DROP TABLE dl;

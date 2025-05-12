@@ -12,4 +12,4 @@ SELECT * FROM t1;
 f1
 SET debug_dbug='-d,ib_create_table_fail_too_many_trx';
 DROP TABLE t1;
-CALL mtr.add_suppression("Error writing into mysql.wsrep_streaming_log: 177");
+CALL mtr.add_suppression("Error writing into mysql\\.wsrep_streaming_log: 177");

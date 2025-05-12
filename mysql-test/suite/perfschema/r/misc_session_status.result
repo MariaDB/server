@@ -7,7 +7,6 @@ select * from performance_schema.session_status limit 0;
 VARIABLE_NAME	VARIABLE_VALUE
 set max_session_mem_used=32768;
 select * from performance_schema.session_status;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=32768 option so it cannot execute this statement
 set global innodb_io_capacity_max=100;
 Warnings:
 Warning	1210	Setting innodb_io_capacity_max 100 lower than innodb_io_capacity 200.

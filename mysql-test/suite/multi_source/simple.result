@@ -520,6 +520,34 @@ Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
 stop all slaves;
+#
+# MDEV-21858: START/STOP ALL SLAVES does not return access errors
+#
+connection slave;
+SET SESSION sql_log_bin=0;
+CREATE USER 'unpriv'@'127.0.0.1';
+GRANT USAGE ON *.* TO 'unpriv'@'127.0.0.1';
+connect  con1,127.0.0.1,unpriv,,,$SERVER_MYPORT_3;
+STOP SLAVE 'slave2';
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE ADMIN privilege(s) for this operation
+START SLAVE 'slave2';
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE ADMIN privilege(s) for this operation
+STOP ALL SLAVES;
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE ADMIN privilege(s) for this operation
+connection slave;
+START SLAVE 'slave2';
+set default_master_connection = 'slave2';
+include/wait_for_slave_to_start.inc
+connection con1;
+START ALL SLAVES;
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE ADMIN privilege(s) for this operation
+disconnect con1;
+connection slave;
+STOP SLAVE 'slave2';
+set default_master_connection = 'slave2';
+include/wait_for_slave_to_stop.inc
+DROP USER 'unpriv'@'127.0.0.1';
+SET SESSION sql_log_bin=1;
 include/reset_master_slave.inc
 disconnect slave;
 connection master1;

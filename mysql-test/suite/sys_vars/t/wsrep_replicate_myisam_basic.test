@@ -1,0 +1,19 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_replicate_myisam
+--echo #
+
+--echo # save the initial value
+SET @wsrep_mode_saved = @@global.wsrep_mode;
+
+--echo
+--echo # scope and valid values
+SET @@global.wsrep_mode=REPLICATE_MYISAM;
+SELECT @@global.wsrep_mode;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_mode = @wsrep_mode_saved;
+
+--echo # End of test

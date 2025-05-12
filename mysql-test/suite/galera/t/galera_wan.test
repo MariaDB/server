@@ -8,33 +8,44 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/force_restart.inc
 
-CALL mtr.add_suppression("WSREP: Stray state UUID msg:.*");
-CALL mtr.add_suppression("WSREP: Sending JOIN failed:.*");
-CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
-call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
+CALL mtr.add_suppression("WSREP: Stray state UUID msg: ");
+CALL mtr.add_suppression("WSREP: .*Sending JOIN failed: ");
+CALL mtr.add_suppression("WSREP: .*sending install message failed: (Transport endpoint|Socket) is not connected");
+CALL mtr.add_suppression("WSREP: .*There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 
-
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 --connection node_1
-CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
---source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+
+--connection node_1
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
 
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 --connection node_4
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
---source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
---source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+
 SELECT VARIABLE_VALUE LIKE '%gmcast.segment = 3%' FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'wsrep_provider_options';
-
-SELECT COUNT(*) = 1 FROM t1;
-
 DROP TABLE t1;
 
+--connection node_1
+call mtr.add_suppression("WSREP: read_completion_condition");
+call mtr.add_suppression("WSREP: read_handler");
+
+--disconnect node_3
+--disconnect node_4
+
+--source include/galera_end.inc

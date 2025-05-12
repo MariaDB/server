@@ -39,7 +39,7 @@ a
 2
 3
 select invisible,a from t1;
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SELECT'
 delete from t1 where a =1;
 update t1 set a=1 where a=3;
 select * from t1;

@@ -377,14 +377,12 @@ public:
    */
   void unlink_thd_as_waiter(const char *log_file_name, my_off_t log_file_pos);
 
-#ifndef DBUG_OFF
   /* Uses DBUG_ASSERT statements to ensure that the argument thd_to_check
    * matches the thread of the respective Tranx_node::thd of the passed in
    * log_file_name and log_file_pos.
    */
-  void assert_thd_is_waiter(THD *thd_to_check, const char *log_file_name,
-                            my_off_t log_file_pos);
-#endif
+  bool is_thd_waiter(THD *thd_to_check, const char *log_file_name,
+                     my_off_t log_file_pos);
 
   /* Given a position, check to see whether the position is an active
    * transaction's ending position by probing the hash table.

@@ -145,8 +145,9 @@ class Session_sysvars_tracker: public State_tracker
     void init()
     {
       my_hash_init(PSI_INSTRUMENT_ME, &m_registered_sysvars, &my_charset_bin,
-                   0, 0, 0, (my_hash_get_key) sysvars_get_key, my_free,
-                   HASH_UNIQUE | (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0));
+                   0, 0, 0, sysvars_get_key, my_free,
+                   HASH_UNIQUE |
+                       (mysqld_server_initialized ? HASH_THREAD_SPECIFIC : 0));
     }
     void free_hash()
     {
@@ -203,14 +204,14 @@ class Session_sysvars_tracker: public State_tracker
 public:
   void init(THD *thd);
   void deinit(THD *thd);
-  bool enable(THD *thd);
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool enable(THD *thd) override;
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
   void mark_as_changed(THD *thd, const sys_var *var);
   void deinit() { orig_list.deinit(); }
   /* callback */
-  static uchar *sysvars_get_key(const char *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)));
+  static const uchar *sysvars_get_key(const void *entry, size_t *length,
+                                      my_bool);
 
   friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 };
@@ -230,8 +231,8 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 class Current_schema_tracker: public State_tracker
 {
 public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 };
 
 
@@ -252,8 +253,8 @@ public:
 class Session_state_change_tracker: public State_tracker
 {
 public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 };
 
 
@@ -322,7 +323,7 @@ class Transaction_state_tracker : public State_tracker
   enum_tx_state calc_trx_state(THD *thd, thr_lock_type l, bool has_trx);
 public:
 
-  bool enable(THD *thd)
+  bool enable(THD *thd) override
   {
     m_enabled= false;
     tx_changed= TX_CHG_NONE;
@@ -333,8 +334,8 @@ public:
     return State_tracker::enable(thd);
   }
 
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 
   /** Change transaction characteristics */
   void set_read_flags(THD *thd, enum enum_tx_read_flags flags);

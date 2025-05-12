@@ -39,12 +39,12 @@ public:
     : m_info(info)
   {}
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_GET_DIAGNOSTICS;
   }
 
-  virtual bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
 private:
   /** The information to be obtained. */
@@ -223,7 +223,7 @@ public:
   {}
 
   /** Obtain statement information in the context of a diagnostics area. */
-  bool aggregate(THD *thd, const Diagnostics_area *da);
+  bool aggregate(THD *thd, const Diagnostics_area *da) override;
 
 private:
   /* List of statement information items. */
@@ -302,7 +302,7 @@ public:
   {}
 
   /** Obtain condition information in the context of a diagnostics area. */
-  bool aggregate(THD *thd, const Diagnostics_area *da);
+  bool aggregate(THD *thd, const Diagnostics_area *da) override;
 
 private:
   /**

@@ -113,19 +113,19 @@ class Expression_cache_tmptable :public Expression_cache
 public:
   Expression_cache_tmptable(THD *thd, List<Item> &dependants, Item *value);
   virtual ~Expression_cache_tmptable();
-  virtual result check_value(Item **value);
-  virtual my_bool put_value(Item *value);
+  result check_value(Item **value) override;
+  my_bool put_value(Item *value) override;
 
-  void print(String *str, enum_query_type query_type);
-  bool is_inited() { return inited; };
-  void init();
+  void print(String *str, enum_query_type query_type) override;
+  bool is_inited() override { return inited; };
+  void init() override;
 
   void set_tracker(Expression_cache_tracker *st)
   {
     tracker= st;
     update_tracker();
   }
-  virtual void update_tracker()
+  void update_tracker() override
   {
     if (tracker)
     {

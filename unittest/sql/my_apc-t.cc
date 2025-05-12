@@ -108,7 +108,6 @@ void *test_apc_service_thread(void *ptr)
   apc_target.destroy();
   mysql_mutex_destroy(&target_mutex);
   my_thread_end();
-  pthread_exit(0);
   return NULL;
 }
 
@@ -123,7 +122,7 @@ public:
   int *where_to;  // Where to write it
   Apc_order(int a, int *b) : value(a), where_to(b) {}
 
-  void call_in_target_thread()
+  void call_in_target_thread() override
   {
     my_sleep(int_rand(1000));
     *where_to = value;
@@ -190,6 +189,7 @@ int main(int args, char **argv)
   pthread_t request_thr[N_THREADS];
   int i;
 
+  my_mutex_init();
   my_thread_global_init();
 
   mysql_mutex_init(0, &apc_counters_mutex, MY_MUTEX_INIT_FAST);

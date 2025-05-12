@@ -12,25 +12,20 @@ drop function if exists f1;
 #
 create table t1 (ts timestamp);
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 set time_zone='+00:00';
-select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp());
+select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp()) as exp;
 insert into t1 (ts) values ('2003-03-30 02:30:00');
 
 set time_zone='+10:30';
-select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp());
+select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp()) as exp;
 insert into t1 (ts) values ('2003-03-30 02:30:00');
 
 set time_zone='-10:00';
-select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp());
+select unix_timestamp(utc_timestamp())-unix_timestamp(current_timestamp()) as exp;
 insert into t1 (ts) values ('2003-03-30 02:30:00');
 
 # Here we will get different results
 select * from t1;
-
---enable_view_protocol
 
 drop table t1;
 
@@ -192,17 +187,12 @@ insert into t1 (tz) values ('MET'), ('UTC');
 select tz, convert_tz('2003-12-31 00:00:00',tz,'UTC'), convert_tz('2003-12-31 00:00:00','UTC',tz) from t1 order by tz;
 drop table t1;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 # Parameters to CONVERT_TZ() what should give NULL
-select convert_tz('2003-12-31 04:00:00', NULL, 'UTC');
-select convert_tz('2003-12-31 04:00:00', 'SomeNotExistingTimeZone', 'UTC');
-select convert_tz('2003-12-31 04:00:00', 'MET', 'SomeNotExistingTimeZone');
-select convert_tz('2003-12-31 04:00:00', 'MET', NULL);
-select convert_tz( NULL, 'MET', 'UTC');
-
---enable_view_protocol
+select convert_tz('2003-12-31 04:00:00', NULL, 'UTC') as exp;
+select convert_tz('2003-12-31 04:00:00', 'SomeNotExistingTimeZone', 'UTC') as exp;
+select convert_tz('2003-12-31 04:00:00', 'MET', 'SomeNotExistingTimeZone') as exp;
+select convert_tz('2003-12-31 04:00:00', 'MET', NULL) as exp;
+select convert_tz( NULL, 'MET', 'UTC') as exp;
 
 #
 # Test for bug #4508 "CONVERT_TZ() function with new time zone as param
@@ -315,12 +305,7 @@ SET timestamp=DEFAULT;
 --echo # MDEV-5506 safe_mutex: Trying to lock unitialized mutex at safemalloc.c on server shutdown after SELECT with CONVERT_TZ
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
-SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' ); 
-
---enable_view_protocol
+SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' ) as exp;
 
 --echo #
 --echo # End of 5.3 tests

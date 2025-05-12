@@ -139,6 +139,7 @@ per-page-details                  FALSE
 log                               (No default value)
 leaf                              FALSE
 merge                             0
+skip-freed-pages                  FALSE
 [5]: Page type dump for with shortform for tab1.ibd
 
 

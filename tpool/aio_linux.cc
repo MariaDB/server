@@ -99,6 +99,7 @@ class aio_linux final : public aio
     */
     constexpr unsigned MAX_EVENTS= 256;
 
+    aio->m_pool->m_worker_init_callback();
     io_event events[MAX_EVENTS];
     for (;;)
     {
@@ -107,14 +108,14 @@ class aio_linux final : public aio
         continue;
       case -EINVAL:
         if (shutdown_in_progress)
-          return;
+          goto end;
         /* fall through */
       default:
         if (ret < 0)
         {
           fprintf(stderr, "io_getevents returned %d\n", ret);
           abort();
-          return;
+          goto end;
         }
         for (int i= 0; i < ret; i++)
         {
@@ -138,6 +139,8 @@ class aio_linux final : public aio
         }
       }
     }
+end:
+    aio->m_pool->m_worker_destroy_callback();
   }
 
 public:

@@ -1,6 +1,11 @@
 --source include/have_rocksdb.inc
 --source include/have_debug_sync.inc
 
+if (`SELECT $CURSOR_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for cursor-protocol
+}
+
 # For GitHub issue#167 -- Unique key check doesn't work
 
 connect (con1, localhost, root,,);

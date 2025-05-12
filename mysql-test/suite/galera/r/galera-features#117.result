@@ -34,7 +34,7 @@ SHOW TABLES IN test;
 Tables_in_test
 t1
 Killing server ...
-CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("WSREP: Failed to execute TOI action");
 CALL mtr.add_suppression("WSREP: TO isolation end failed");
 connection node_1;

@@ -29,8 +29,8 @@ call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
 call mtr.add_suppression("InnoDB: Unknown index id .* on page");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*ibdata1' page");
-call mtr.add_suppression("InnoDB: File '.*ibdata1' is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page \\d+ from file '.*test/t1\\.ibd'");
+call mtr.add_suppression("InnoDB: File '.*(ibdata1|t1\\.ibd)' is corrupted");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -271,22 +271,6 @@ UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE t1;
-
-CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
-INSERT INTO t1 VALUES (1);
-
-SET SESSION debug_dbug="+d,ib_export_io_write_failure_9";
-
---replace_regex /, .*\).*t1.cfg/, Bad file descriptor) t1.cfg/
-
-FLUSH TABLES t1 FOR EXPORT;
-
-UNLOCK TABLES;
-
-SET SESSION debug_dbug=@saved_debug_dbug;
-
-DROP TABLE t1;
-
 
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO t1 VALUES (1);

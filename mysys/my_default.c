@@ -318,6 +318,9 @@ int get_defaults_options(char **argv)
   }
 
   if (! my_defaults_group_suffix)
+    my_defaults_group_suffix= getenv("MARIADB_GROUP_SUFFIX");
+
+  if (! my_defaults_group_suffix)
     my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
 
   if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)
@@ -410,14 +413,14 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   const char **dirs;
   DBUG_ENTER("my_load_defaults");
 
-  init_alloc_root(key_memory_defaults, &alloc, 512, 0, MYF(0));
+  init_alloc_root(key_memory_defaults, &alloc, 4096, 0, MYF(0));
   if ((dirs= init_default_directories(&alloc)) == NULL)
     goto err;
 
   args_used= get_defaults_options(*argv);
 
-  if (my_init_dynamic_array(key_memory_defaults, &args, sizeof(char*), 128, 64,
-                            MYF(0)))
+  if (my_init_dynamic_array(key_memory_defaults, &args, sizeof(char*),
+                            DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(0)))
     goto err;
 
   insert_dynamic(&args, *argv);/* Name MUST be set, even by embedded library */

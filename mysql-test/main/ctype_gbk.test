@@ -65,10 +65,12 @@ CREATE TABLE t1(a MEDIUMTEXT CHARACTER SET gbk,
 INSERT INTO t1 VALUES
   (REPEAT(0x1125,200000), REPEAT(0x1125,200000)), ('', ''), ('', '');
 
+--disable_cursor_protocol
 --enable_prepare_warnings
 SELECT a FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
 SELECT b FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
 --disable_prepare_warnings
+--enable_cursor_protocol
 
 DROP TABLES t1;
 
@@ -449,13 +451,10 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
 set sql_mode='';
 SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312)) as exp;
 SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8)) as exp;
 set sql_mode=default;
---enable_view_protocol
 
 --echo #
 --echo # End of 10.1 tests
@@ -503,6 +502,13 @@ let $coll_pad='gbk_bin';
 SET NAMES gbk;
 SET @seq=_gbk 0xAAA1;
 --source include/ctype_ident_sys.inc
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_gbk'' collate gbk_chinese_nopad_ci, _gbk 0x0001050001);
+select strcmp(_gbk'' collate gbk_nopad_bin, _gbk 0x0001050001);
 
 --echo #
 --echo # End of 10.5 tests

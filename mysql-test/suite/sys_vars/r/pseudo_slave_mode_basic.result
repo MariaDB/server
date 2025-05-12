@@ -25,9 +25,9 @@ SELECT @@pseudo_slave_mode;
 @@pseudo_slave_mode
 1
 SELECT session.pseudo_slave_mode;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT local.pseudo_slave_mode;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET session pseudo_slave_mode = 0;
 Warnings:
 Warning	1231	Slave applier execution mode not active, statement ineffective.

@@ -250,11 +250,11 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
 /* Get column name from column hash */
 
-static uchar *get_field_name(Field **buff, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+static const uchar *get_field_name(const void *buff_, size_t *length, my_bool)
 {
-  *length= (uint) (*buff)->field_name.length;
-  return (uchar*) (*buff)->field_name.str;
+  auto buff= static_cast<const Field *const *>(buff_);
+  *length= (*buff)->field_name.length;
+  return reinterpret_cast<const uchar *>((*buff)->field_name.str);
 }
 
 
@@ -285,17 +285,6 @@ const char *fn_frm_ext(const char *name)
 TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
                                   const Lex_ident_table &name)
 {
-#ifdef WITH_WSREP
-  if (db.str && db.streq(MYSQL_SCHEMA_NAME))
-  {
-    if (name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_STREAMING_TABLE)}) ||
-        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_CLUSTER_TABLE)}) ||
-        name.streq(Lex_ident_table{STRING_WITH_LEN(WSREP_MEMBERS_TABLE)}))
-    {
-      return TABLE_CATEGORY_INFORMATION;
-    }
-  }
-#endif /* WITH_WSREP */
   if (is_infoschema_db(&db))
     return TABLE_CATEGORY_INFORMATION;
 
@@ -316,6 +305,20 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
     if (name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
   }
+
+#ifdef WITH_WSREP
+  if (db.streq(WSREP_LEX_SCHEMA))
+  {
+    if(name.streq(WSREP_LEX_STREAMING))
+      return TABLE_CATEGORY_INFORMATION;
+    if (name.streq(WSREP_LEX_CLUSTER))
+      return TABLE_CATEGORY_INFORMATION;
+    if (name.streq(WSREP_LEX_MEMBERS))
+      return TABLE_CATEGORY_INFORMATION;
+    if (name.streq(WSREP_LEX_ALLOWLIST))
+      return TABLE_CATEGORY_INFORMATION;
+  }
+#endif /* WITH_WSREP */
 
   return TABLE_CATEGORY_USER;
 }
@@ -349,8 +352,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     db, table_name, "", 0);
-  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_table_share, &mem_root, TABLE_ALLOC_BLOCK_SIZE,
+                 TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -439,10 +442,12 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   bzero((char*) share, sizeof(*share));
   /*
     This can't be MY_THREAD_SPECIFIC for slaves as they are freed
-    during cleanup() from Relay_log_info::close_temporary_tables()
+    during cleanup() from Relay_log_info::close_temporary_tables().
+    We can also not use pre-alloc here, as internal temporary tables
+    are not freeing table->share->mem_root
   */
   init_sql_alloc(key_memory_table_share, &share->mem_root,
-                 TABLE_ALLOC_BLOCK_SIZE, 0,
+                 TABLE_PREALLOC_BLOCK_SIZE, 0,
                  MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
@@ -1215,7 +1220,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
     expr_str.length(parse_vcol_keyword.length);
     expr_str.append((char*)pos, expr_length);
-    thd->where= vcol_type_name(static_cast<enum_vcol_info_type>(type));
+    thd->where= THD_WHERE::USE_WHERE_STRING;
+    thd->where_str= vcol_type_name(static_cast<enum_vcol_info_type>(type));
 
     switch (type) {
     case VCOL_GENERATED_VIRTUAL:
@@ -1732,9 +1738,9 @@ public:
 */
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-static bool change_to_partiton_engine(LEX_CSTRING *name,
-                                      plugin_ref *se_plugin)
+static bool change_to_partiton_engine(plugin_ref *se_plugin)
 {
+  LEX_CSTRING name= { STRING_WITH_LEN("partition") };
   /*
     Use partition handler
     tmp_plugin is locked with a local lock.
@@ -1742,10 +1748,9 @@ static bool change_to_partiton_engine(LEX_CSTRING *name,
     replacing it with a globally locked version of tmp_plugin
   */
   /* Check if the partitioning engine is ready */
-  if (!plugin_is_ready(name, MYSQL_STORAGE_ENGINE_PLUGIN))
+  if (!plugin_is_ready(&name, MYSQL_STORAGE_ENGINE_PLUGIN))
   {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
-             "--skip-partition");
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-partition");
     return 1;
   }
   plugin_unlock(NULL, *se_plugin);
@@ -2043,7 +2048,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       else if (str_db_type_length == 9 &&
                !strncmp((char *) next_chunk + 2, "partition", 9))
       {
-        if (change_to_partiton_engine(&se_name, &se_plugin))
+        if (change_to_partiton_engine(&se_plugin))
           goto err;
       }
 #endif
@@ -2087,7 +2092,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             share->mysql_version >= 50600 && share->mysql_version <= 50799)
         {
           share->keep_original_mysql_version= 1;
-          if (change_to_partiton_engine(&se_name, &se_plugin))
+          if (change_to_partiton_engine(&se_plugin))
             goto err;
         }
       }
@@ -2352,7 +2357,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (use_hash)
     use_hash= !my_hash_init(PSI_INSTRUMENT_ME, &share->name_hash,
                             system_charset_info, share->fields, 0, 0,
-                            (my_hash_get_key) get_field_name, 0, 0);
+                            get_field_name, 0, 0);
 
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)
@@ -3767,6 +3772,27 @@ bool Virtual_column_info::cleanup_session_expr()
 }
 
 
+bool
+Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
+                                  const Virtual_column_info* vcol, bool &error) const
+{
+  error= true;
+  Item *cmp_expr= vcol->expr->build_clone(thd);
+  if (!cmp_expr)
+    return false;
+  Item::func_processor_rename_table param;
+  param.old_db=    Lex_ident_db(vcol_share->db);
+  param.old_table= Lex_ident_table(vcol_share->table_name);
+  param.new_db=    Lex_ident_db(share->db);
+  param.new_table= Lex_ident_table(share->table_name);
+  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
+
+  error= false;
+  return type_handler()  == vcol->type_handler()
+      && is_stored() == vcol->is_stored()
+      && expr->eq(cmp_expr, true);
+}
+
 
 class Vcol_expr_context
 {
@@ -4054,50 +4080,54 @@ static void print_long_unique_table(TABLE *table)
           " fields->offset,field->null_bit, field->null_pos and key_info ... \n"
           "\nPrinting  Table  keyinfo\n");
   str.append(buff, strlen(buff));
-  my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %d\n"
-          "table->s->fields %d\n",
+  my_snprintf(buff, sizeof(buff), "\ntable->s->reclength %lu\n"
+          "table->s->fields %u\n",
           table->s->reclength, table->s->fields);
   str.append(buff, strlen(buff));
   for (uint i= 0; i < table->s->keys; i++)
   {
     key_info_table= table->key_info + i;
     key_info_share= table->s->key_info + i;
-    my_snprintf(buff, sizeof(buff), "\ntable->key_info[%d] user_defined_key_parts = %d\n"
-                                    "table->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
-                                    "table->key_info[%d] flags & HA_NOSAME = %d\n",
-                                   i, key_info_table->user_defined_key_parts,
-                                   i, key_info_table->algorithm == HA_KEY_ALG_LONG_HASH,
-                                   i, key_info_table->flags & HA_NOSAME);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->key_info[%u] user_defined_key_parts = %u\n"
+                "table->key_info[%u] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
+                "table->key_info[%u] flags & HA_NOSAME = %lu\n",
+                i, key_info_table->user_defined_key_parts,
+                i, key_info_table->algorithm == HA_KEY_ALG_LONG_HASH,
+                i, key_info_table->flags & HA_NOSAME);
     str.append(buff, strlen(buff));
-    my_snprintf(buff, sizeof(buff), "\ntable->s->key_info[%d] user_defined_key_parts = %d\n"
-                                    "table->s->key_info[%d] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
-                                    "table->s->key_info[%d] flags & HA_NOSAME = %d\n",
-                                   i, key_info_share->user_defined_key_parts,
-                                   i, key_info_share->algorithm == HA_KEY_ALG_LONG_HASH,
-                                   i, key_info_share->flags & HA_NOSAME);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->s->key_info[%u] user_defined_key_parts = %u\n"
+                "table->s->key_info[%u] algorithm == HA_KEY_ALG_LONG_HASH = %d\n"
+                "table->s->key_info[%u] flags & HA_NOSAME = %lu\n",
+                i, key_info_share->user_defined_key_parts,
+                i, key_info_share->algorithm == HA_KEY_ALG_LONG_HASH,
+                i, key_info_share->flags & HA_NOSAME);
     str.append(buff, strlen(buff));
     key_part = key_info_table->key_part;
-    my_snprintf(buff, sizeof(buff), "\nPrinting table->key_info[%d].key_part[0] info\n"
-            "key_part->offset = %d\n"
-            "key_part->field_name = %s\n"
-            "key_part->length = %d\n"
-            "key_part->null_bit = %d\n"
-            "key_part->null_offset = %d\n",
-            i, key_part->offset, key_part->field->field_name.str, key_part->length,
-            key_part->null_bit, key_part->null_offset);
+    my_snprintf(buff, sizeof(buff),
+                "\nPrinting table->key_info[%u].key_part[0] info\n"
+                "key_part->offset = %u\n"
+                "key_part->field_name = %s\n"
+                "key_part->length = %u\n"
+                "key_part->null_bit = %u\n"
+                "key_part->null_offset = %u\n",
+                i, key_part->offset, key_part->field->field_name.str, key_part->length,
+                key_part->null_bit, key_part->null_offset);
     str.append(buff, strlen(buff));
 
     for (uint j= 0; j < key_info_share->user_defined_key_parts; j++)
     {
       key_part= key_info_share->key_part + j;
-      my_snprintf(buff, sizeof(buff), "\nPrinting share->key_info[%d].key_part[%d] info\n"
-            "key_part->offset = %d\n"
-            "key_part->field_name = %s\n"
-            "key_part->length = %d\n"
-            "key_part->null_bit = %d\n"
-            "key_part->null_offset = %d\n",
-            i,j,key_part->offset, key_part->field->field_name.str, key_part->length,
-            key_part->null_bit, key_part->null_offset);
+      my_snprintf(buff, sizeof(buff),
+                  "\nPrinting share->key_info[%u].key_part[%u] info\n"
+                  "key_part->offset = %u\n"
+                  "key_part->field_name = %s\n"
+                  "key_part->length = %u\n"
+                  "key_part->null_bit = %u\n"
+                  "key_part->null_offset = %u\n",
+                  i, j, key_part->offset, key_part->field->field_name.str,
+                  key_part->length, key_part->null_bit, key_part->null_offset);
       str.append(buff, strlen(buff));
     }
   }
@@ -4106,16 +4136,17 @@ static void print_long_unique_table(TABLE *table)
   for(uint i= 0; i < table->s->fields; i++)
   {
     field= table->field[i];
-    my_snprintf(buff, sizeof(buff), "\ntable->field[%d]->field_name %s\n"
-            "table->field[%d]->offset = %d\n"
-            "table->field[%d]->field_length = %d\n"
-            "table->field[%d]->null_pos wrt to record 0 = %d\n"
-            "table->field[%d]->null_bit_pos = %d\n",
-            i, field->field_name.str,
-            i, field->ptr- table->record[0],
-            i, field->pack_length(),
-            i, field->null_bit ? field->null_ptr - table->record[0] : -1,
-            i, field->null_bit);
+    my_snprintf(buff, sizeof(buff),
+                "\ntable->field[%u]->field_name %s\n"
+                "table->field[%u]->offset = %" PRIdPTR "\n" // `%td` not available
+                "table->field[%u]->field_length = %d\n"
+                "table->field[%u]->null_pos wrt to record 0 = %" PRIdPTR "\n"
+                "table->field[%u]->null_bit_pos = %d",
+                i, field->field_name.str,
+                i, field->ptr- table->record[0],
+                i, field->pack_length(),
+                i, field->null_bit ? field->null_ptr - table->record[0] : -1,
+                i, field->null_bit);
     str.append(buff, strlen(buff));
   }
   (*error_handler_hook)(1, str.ptr(), ME_NOTE);
@@ -4200,6 +4231,24 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
   return 0;
 }
 
+void TABLE::update_keypart_vcol_info()
+{
+  for (uint k= 0; k < s->keys; k++)
+  {
+    KEY &info_k= key_info[k];
+    uint parts = (s->use_ext_keys ? info_k.ext_key_parts :
+                      info_k.user_defined_key_parts);
+    for (uint p= 0; p < parts; p++)
+    {
+      KEY_PART_INFO &kp= info_k.key_part[p];
+      if (kp.field != field[kp.fieldnr - 1])
+      {
+        kp.field->vcol_info = field[kp.fieldnr - 1]->vcol_info;
+      }
+    }
+  }
+}
+
 /*
   Open a table based on a TABLE_SHARE
 
@@ -4261,7 +4310,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     goto err;
   }
   init_sql_alloc(key_memory_TABLE, &outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE,
-                 0, MYF(0));
+                 TABLE_PREALLOC_BLOCK_SIZE, MYF(0));
 
   /*
     We have to store the original alias in mem_root as constraints and virtual
@@ -4432,20 +4481,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
 
-    for (uint k= 0; k < share->keys; k++)
-    {
-      KEY *key_info= &outparam->key_info[k];
-      uint parts= (share->use_ext_keys ? key_info->ext_key_parts :
-                   key_info->user_defined_key_parts);
-      for (uint p=0; p < parts; p++)
-      {
-        KEY_PART_INFO *kp= &key_info->key_part[p];
-        if (kp->field != outparam->field[kp->fieldnr - 1])
-        {
-          kp->field->vcol_info= outparam->field[kp->fieldnr - 1]->vcol_info;
-        }
-      }
-    }
+    outparam->update_keypart_vcol_info();
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -4639,8 +4675,8 @@ partititon_err:
 
   thd->lex->context_analysis_only= save_context_analysis_only;
   DBUG_EXECUTE_IF("print_long_unique_internal_state",
-   print_long_unique_table(outparam););
-  DBUG_RETURN (OPEN_FRM_OK);
+                  print_long_unique_table(outparam););
+  DBUG_RETURN(OPEN_FRM_OK);
 
  err:
   if (! error_reported)
@@ -5352,9 +5388,10 @@ bool Lex_ident_fs::check_db_name_with_error() const
 }
 
 
-bool check_column_name(const char *name)
+bool check_column_name(const Lex_ident &ident)
 {
   // name length in symbols
+  const char *name= ident.str, *end= ident.str + ident.length;
   size_t name_length= 0;
   bool last_char_is_space= TRUE;
 
@@ -5364,9 +5401,7 @@ bool check_column_name(const char *name)
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (system_charset_info->use_mb())
     {
-      int len=my_ismbchar(system_charset_info, name, 
-                          name+system_charset_info->mbmaxlen);
-      if (len)
+      if (int len= my_ismbchar(system_charset_info, name,  end))
       {
         name += len;
         name_length++;
@@ -5383,12 +5418,6 @@ bool check_column_name(const char *name)
   }
   /* Error if empty or too long column name */
   return last_char_is_space || (name_length > NAME_CHAR_LEN);
-}
-
-
-bool check_period_name(const char *name)
-{
-  return check_column_name(name);
 }
 
 
@@ -5957,6 +5986,7 @@ TABLE_LIST::TABLE_LIST(THD *thd,
                        List<Index_hint> *index_hints_ptr,
                        LEX_STRING *option_ptr)
 {
+  reset();
   db= db_str;
   is_fqtn= fqtn;
   alias= alias_str;
@@ -6373,8 +6403,8 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 
   if (check_option)
   {
-    const char *save_where= thd->where;
-    thd->where= "check option";
+    THD_WHERE save_where= thd->where;
+    thd->where= THD_WHERE::CHECK_OPTION;
     if (check_option->fix_fields_if_needed_for_bool(thd, &check_option))
       DBUG_RETURN(TRUE);
     thd->where= save_where;
@@ -6396,9 +6426,9 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   @pre This method can be called only if there is an error.
 */
 
-void TABLE_LIST::hide_view_error(THD *thd)
+void TABLE_LIST::replace_view_error_with_generic(THD *thd)
 {
-  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error()) || thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
@@ -6504,7 +6534,7 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
     /* VIEW's CHECK OPTION CLAUSE */
     Counting_error_handler ceh;
     thd->push_internal_handler(&ceh);
-    bool res= check_option->val_int() == 0;
+    bool res= check_option->val_bool() == false;
     thd->pop_internal_handler();
     if (ceh.errors)
       return(VIEW_CHECK_ERROR);
@@ -6547,7 +6577,7 @@ int TABLE::verify_constraints(bool ignore_failure)
         yes! NULL is ok.
         see 4.23.3.4 Table check constraints, part 2, SQL:2016
       */
-      if (((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value) ||
+      if (((*chk)->expr->val_bool() == false && !(*chk)->expr->null_value) ||
           in_use->is_error())
       {
         enum_vcol_info_type vcol_type= (*chk)->get_vcol_type();
@@ -7306,6 +7336,7 @@ void Field_iterator_natural_join::next()
 {
   cur_column_ref= column_ref_it++;
   DBUG_ASSERT(!cur_column_ref || ! cur_column_ref->table_field ||
+              !cur_column_ref->table_field->field ||
               cur_column_ref->table_ref->table ==
               cur_column_ref->table_field->field->table);
 }
@@ -9520,6 +9551,8 @@ void TABLE::vers_update_end()
   if (vers_end_field()->store_timestamp(in_use->query_start(),
                                         in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
+  if (vfield)
+    update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
 }
 
 /**
@@ -9549,8 +9582,8 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
 {
   if (triggers)
   {
-    if (triggers->has_triggers(TRG_EVENT_DELETE,
-                               TRG_ACTION_AFTER))
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER))
     {
       /*
         The table has AFTER DELETE triggers that might access to
@@ -9559,8 +9592,7 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
       */
       (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
     }
-    if (triggers->has_triggers(TRG_EVENT_UPDATE,
-                               TRG_ACTION_AFTER))
+    if (triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER))
     {
       /*
         The table has AFTER UPDATE triggers that might access to subject
@@ -9575,17 +9607,19 @@ void TABLE::prepare_triggers_for_insert_stmt_or_event()
 
 bool TABLE::prepare_triggers_for_delete_stmt_or_event()
 {
-  if (triggers &&
-      triggers->has_triggers(TRG_EVENT_DELETE,
-                             TRG_ACTION_AFTER))
+  if (triggers)
   {
-    /*
-      The table has AFTER DELETE triggers that might access to subject table
-      and therefore might need delete to be done immediately. So we turn-off
-      the batching.
-    */
-    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-    return TRUE;
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to subject table
+        and therefore might need delete to be done immediately. So we turn-off
+        the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+      return TRUE;
+    }
   }
   return FALSE;
 }
@@ -9593,17 +9627,19 @@ bool TABLE::prepare_triggers_for_delete_stmt_or_event()
 
 bool TABLE::prepare_triggers_for_update_stmt_or_event()
 {
-  if (triggers &&
-      triggers->has_triggers(TRG_EVENT_UPDATE,
-                             TRG_ACTION_AFTER))
+  if (triggers)
   {
-    /*
-      The table has AFTER UPDATE triggers that might access to subject
-      table and therefore might need update to be done immediately.
-      So we turn-off the batching.
-    */ 
-    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-    return TRUE;
+    triggers->clear_extra_null_bitmap();
+    if (triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+      return TRUE;
+    }
   }
   return FALSE;
 }
@@ -10067,37 +10103,6 @@ int TABLE_LIST::fetch_number_of_rows()
   return error;
 }
 
-/*
-  Procedure of keys generation for result tables of materialized derived
-  tables/views.
-
-  A key is generated for each equi-join pair derived table-another table.
-  Each generated key consists of fields of derived table used in equi-join.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
-  In this case for the derived table tt one key will be generated. It will
-  consist of two parts f1 and f2.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 JOIN
-                  t2 ON tt.f2=t2.f4;
-  In this case for the derived table tt two keys will be generated.
-  One key over f1 field, and another key over f2 field.
-  Currently optimizer may choose to use only one such key, thus the second
-  one will be dropped after range optimizer is finished.
-  See also JOIN::drop_unused_derived_keys function.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=a_function(t1.f3);
-  In this case for the derived table tt one key will be generated. It will
-  consist of one field - f1.
-*/
-
-
 
 /*
   @brief
@@ -10245,7 +10250,14 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
       tabledef_version.length= 0;
   }
   else
+  {
     set_tabledef_version(s);
+    if (m_table_ref_type == TABLE_REF_NULL)
+    {
+      set_table_ref_id(s);
+      return TRUE;
+    }
+  }
   return FALSE;
 }
 
@@ -10258,7 +10270,7 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-double KEY::actual_rec_per_key(uint i)
+double KEY::actual_rec_per_key(uint i) const
 { 
   if (rec_per_key == 0)
     return 0;

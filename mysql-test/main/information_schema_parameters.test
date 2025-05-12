@@ -297,10 +297,12 @@ CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
 --echo # We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
 --echo # but we will use SPECIFIC_NAME for filtering records from mysql.proc
 FLUSH STATUS;
+--disable_cursor_protocol
 --disable_ps2_protocol
 query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
   WHERE SPECIFIC_NAME = 'test_func5';
 --enable_ps2_protocol
+--enable_cursor_protocol
 --replace_result $count_routines count_routines
 SHOW STATUS LIKE 'handler_read%next';
 
@@ -308,6 +310,7 @@ SHOW STATUS LIKE 'handler_read%next';
 --echo # We cannot use the index due to CONCAT(), and filtering by SPECIFIC_NAME
 --echo # does not work either since SPECIFIC_NAME = 'not_existing_proc'. See
 --echo # the difference in counters in comparison to the previous test
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH STATUS;
 query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
@@ -342,6 +345,7 @@ query_vertical SELECT * FROM INFORMATION_SCHEMA.PARAMETERS
   AND SPECIFIC_NAME = 'процедурка';
 SHOW STATUS LIKE 'handler_read%next';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --replace_column 1 #
 SELECT COUNT(*) FROM information_schema.PARAMETERS

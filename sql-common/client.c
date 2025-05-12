@@ -1587,7 +1587,7 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 
 #include <openssl/x509v3.h>
 
-static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr)
+static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr, int is_local)
 {
   SSL *ssl;
   X509 *server_cert= NULL;
@@ -1628,7 +1628,8 @@ static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr)
     mysql->tls_self_signed_error= *errptr= "SSL certificate is self-signed";
     break;
   case X509_V_OK:
-    ret_validation= X509_check_host(server_cert, mysql->host,
+    ret_validation= !is_local &&
+                    X509_check_host(server_cert, mysql->host,
                                     strlen(mysql->host), 0, 0) != 1 &&
                     X509_check_ip_asc(server_cert, mysql->host, 0) != 1;
     *errptr= "SSL certificate validation failure";
@@ -2171,7 +2172,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     /* Verify server cert */
     if ((!mysql->options.extension ||
          !mysql->options.extension->tls_allow_invalid_server_cert) &&
-        ssl_verify_server_cert(mysql, &cert_error))
+        ssl_verify_server_cert(mysql, &cert_error, vio_type == VIO_TYPE_SOCKET))
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                                ER(CR_SSL_CONNECTION_ERROR), cert_error);
@@ -3938,12 +3939,13 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
 /**
   A function to return the key from a connection attribute
 */
-uchar *
-get_attr_key(LEX_STRING *part, size_t *length,
+const uchar *
+get_attr_key(const void *part_, size_t *length,
              my_bool not_used __attribute__((unused)))
 {
+  const LEX_STRING *part= part_;
   *length= part[0].length;
-  return (uchar *) part[0].str;
+  return (const uchar *) part[0].str;
 }
 
 int STDCALL
@@ -3992,7 +3994,7 @@ mysql_options4(MYSQL *mysql,enum mysql_option option,
       {
         if (my_hash_init(key_memory_mysql_options,
                          &mysql->options.extension->connection_attributes,
-                         &my_charset_bin, 0, 0, 0, (my_hash_get_key)
+                         &my_charset_bin, 0, 0, 0,
                          get_attr_key, my_free, HASH_UNIQUE))
         {
           set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);

@@ -1200,7 +1200,7 @@ END LOOP;
 END;
 $$
 CALL p1;
-ERROR 42S22: Unknown column 'rec' in 'field list'
+ERROR 42S22: Unknown column 'rec' in 'SELECT'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1 AS
 BEGIN
@@ -1211,7 +1211,7 @@ END LOOP;
 END;
 $$
 CALL p1;
-ERROR 42S02: Unknown table 'rec' in field list
+ERROR 42S02: Unknown table 'rec' in SELECT
 DROP PROCEDURE p1;
 # Totally confusing name mixture
 CREATE TABLE rec (rec INT);

@@ -503,10 +503,10 @@ rtr_pcur_move_to_next(
 		rtr_rec_t	rec;
 		rec = rtr_info->matches->matched_recs->back();
 		rtr_info->matches->matched_recs->pop_back();
+		cursor->btr_cur.page_cur.block = rtr_info->matches->block;
 		mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 		cursor->btr_cur.page_cur.rec = rec.r_rec;
-		cursor->btr_cur.page_cur.block = rtr_info->matches->block;
 
 		DEBUG_SYNC_C("rtr_pcur_move_to_next_return");
 		return(true);
@@ -604,7 +604,6 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     upper_rw_latch= RW_X_LATCH;
     break;
   default:
-    ut_ad(latch_mode != BTR_MODIFY_PREV);
     ut_ad(latch_mode != BTR_SEARCH_PREV);
     if (!latch_by_caller)
       mtr_s_lock_index(index, mtr);
@@ -648,7 +647,7 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
 
  search_loop:
   auto buf_mode= BUF_GET;
-  ulint rw_latch= RW_NO_LATCH;
+  rw_lock_type_t rw_latch= RW_NO_LATCH;
 
   if (height)
   {
@@ -659,7 +658,7 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
       rw_latch= upper_rw_latch;
   }
   else if (latch_mode <= BTR_MODIFY_LEAF)
-    rw_latch= latch_mode;
+    rw_latch= rw_lock_type_t(latch_mode);
 
   dberr_t err;
   auto block_savepoint= mtr->get_savepoint();
@@ -670,8 +669,7 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     if (err)
     {
     err_exit:
-      if (err == DB_DECRYPTION_FAILED)
-        btr_decryption_failed(*index);
+      btr_read_failed(err, *index);
       mtr->rollback_to_savepoint(savepoint);
     }
   func_exit:
@@ -1294,11 +1292,13 @@ rtr_page_get_father_block(
 	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in/out: mtr */
 {
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
+  const page_t *const page= cursor->block()->page.frame;
+  const rec_t *rec= page_is_comp(page)
+    ? page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM)
+    : page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
   if (!rec)
     return nullptr;
-  cursor->page_cur.rec= rec;
+  cursor->page_cur.rec= const_cast<rec_t*>(rec);
   return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor,
                                       thr, mtr);
 }
@@ -1575,7 +1575,10 @@ rtr_check_discard_page(
 		if (auto matches = rtr_info->matches) {
 			mysql_mutex_lock(&matches->rtr_match_mutex);
 
-			if (matches->block->page.id() == id) {
+			/* matches->block could be nullptr when cursor
+			encounters empty table */
+			if (rtr_info->matches->block
+			    && matches->block->page.id() == id) {
 				matches->matched_recs->clear();
 				matches->valid = false;
 			}
@@ -2211,6 +2214,15 @@ rtr_cur_search_with_match(
 					ut_ad(orig_mode
 					      != PAGE_CUR_RTREE_LOCATE);
 
+					/* Collect matched records on page */
+					offsets = rec_get_offsets(
+						rec, index, offsets,
+						index->n_fields,
+						ULINT_UNDEFINED, &heap);
+
+					mysql_mutex_lock(
+					  &rtr_info->matches->rtr_match_mutex);
+
 					if (!match_init) {
 						rtr_init_match(
 							rtr_info->matches,
@@ -2218,14 +2230,12 @@ rtr_cur_search_with_match(
 						match_init = true;
 					}
 
-					/* Collect matched records on page */
-					offsets = rec_get_offsets(
-						rec, index, offsets,
-						index->n_fields,
-						ULINT_UNDEFINED, &heap);
 					rtr_leaf_push_match_rec(
 						rec, rtr_info, offsets,
 						page_is_comp(page));
+
+					mysql_mutex_unlock(
+					  &rtr_info->matches->rtr_match_mutex);
 				}
 
 				last_match_rec = rec;

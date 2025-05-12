@@ -77,15 +77,15 @@ struct hstcpsvr_conn : public dbcallback_i {
   bool write_more(bool *more_r = 0);
   bool read_more(bool *more_r = 0);
  public:
-  virtual void dbcb_set_prep_stmt(size_t pst_id, const prep_stmt& v);
-  virtual const prep_stmt *dbcb_get_prep_stmt(size_t pst_id) const;
-  virtual void dbcb_resp_short(uint32_t code, const char *msg);
-  virtual void dbcb_resp_short_num(uint32_t code, uint32_t value);
-  virtual void dbcb_resp_short_num64(uint32_t code, uint64_t value);
-  virtual void dbcb_resp_begin(size_t num_flds);
-  virtual void dbcb_resp_entry(const char *fld, size_t fldlen);
-  virtual void dbcb_resp_end();
-  virtual void dbcb_resp_cancel();
+  void dbcb_set_prep_stmt(size_t pst_id, const prep_stmt& v) override;
+  const prep_stmt *dbcb_get_prep_stmt(size_t pst_id) const override;
+  void dbcb_resp_short(uint32_t code, const char *msg) override;
+  void dbcb_resp_short_num(uint32_t code, uint32_t value) override;
+  void dbcb_resp_short_num64(uint32_t code, uint64_t value) override;
+  void dbcb_resp_begin(size_t num_flds) override;
+  void dbcb_resp_entry(const char *fld, size_t fldlen) override;
+  void dbcb_resp_end() override;
+  void dbcb_resp_cancel() override;
  public:
   hstcpsvr_conn() : addr_len(sizeof(addr)), readsize(4096),
     nonblocking(false), read_finished(false), write_finished(false),
@@ -254,7 +254,7 @@ hstcpsvr_conn::dbcb_resp_cancel()
 
 struct hstcpsvr_worker : public hstcpsvr_worker_i, private noncopyable {
   hstcpsvr_worker(const hstcpsvr_worker_arg& arg);
-  virtual void run();
+  void run() override;
  private:
   const hstcpsvr_shared_c& cshared;
   volatile hstcpsvr_shared_v& vshared;
@@ -451,7 +451,7 @@ hstcpsvr_worker::run_one_nb()
   {
     pollfd& pfd = pfds[nfds - 1];
     if ((pfd.revents & mask_in) != 0) {
-      std::auto_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
+      std::unique_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
       c->nonblocking = true;
       c->readsize = cshared.readsize;
       c->accept(cshared);
@@ -498,7 +498,7 @@ hstcpsvr_worker::run_one_ep()
       /* listener */
       ++accept_count;
       DBG_EP(fprintf(stderr, "IN listener\n"));
-      std::auto_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
+      std::unique_ptr<hstcpsvr_conn> c(new hstcpsvr_conn());
       c->nonblocking = true;
       c->readsize = cshared.readsize;
       c->accept(cshared);

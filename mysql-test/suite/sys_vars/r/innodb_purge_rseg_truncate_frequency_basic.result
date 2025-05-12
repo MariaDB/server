@@ -19,7 +19,7 @@ SELECT @@innodb_purge_rseg_truncate_frequency;
 @@innodb_purge_rseg_truncate_frequency
 128
 SELECT local.innodb_purge_rseg_truncate_frequency;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET global innodb_purge_rseg_truncate_frequency = 1;
 Warnings:
 Warning	1287	'@@innodb_purge_rseg_truncate_frequency' is deprecated and will be removed in a future release

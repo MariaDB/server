@@ -42,7 +42,7 @@ public:
   }
   const char *fully_qualified_func_name() const override
   { return "sysconst_test()"; }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sysconst_test>(thd, this); }
 };
 

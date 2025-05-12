@@ -1,0 +1,94 @@
+call mtr.add_suppression("InnoDB: Cannot free the unused segments in system tablespace because a previous shutdown was not with innodb_fast_shutdown=0");
+call mtr.add_suppression("InnoDB: :autoshrink failed to read the used segment");
+call mtr.add_suppression("InnoDB: :autoshrink failed due to .* in FSP_SEG_INODES_FULL list");
+call mtr.add_suppression("InnoDB: :autoshrink failed due to .* in FSP_SEG_INODES_FREE list");
+call mtr.add_suppression("InnoDB: :autoshrink failed to free the segment");
+call mtr.add_suppression("Found .* prepared XA transactions");
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	10485760
+SET GLOBAL INNODB_FILE_PER_TABLE=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)STATS_PERSISTENT=0, ENGINE=InnoDB;
+XA START 'x';
+insert into t1 values (1, 1);
+XA END 'x';
+XA PREPARE 'x';
+set GLOBAL innodb_fast_shutdown=0;
+# restart
+# Fail to free the segment due to XA PREPARE transaction
+FOUND 2 /InnoDB: Cannot free the unused segments in system tablespace because a previous shutdown was not with innodb_fast_shutdown=0/ in mysqld.1.err
+XA COMMIT 'x';
+DROP TABLE t1;
+# restart: --debug_dbug=d,undo_segment_leak
+SET GLOBAL INNODB_FILE_PER_TABLE=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)STATS_PERSISTENT=0, ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+UPDATE t1 SET f1 = f1 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f2 = f2 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f1 = f2 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f2 = f1 + 1 WHERE f1 > 1000;
+DELETE FROM t1;
+DROP TABLE t1;
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	77594624
+# restart: --debug_dbug=d,unused_undo_free_fail_1
+# Fail to free the segment due to previous shutdown
+FOUND 1 /InnoDB: Cannot free the unused segments in system tablespace because a previous shutdown was not with innodb_fast_shutdown=0.*/ in mysqld.1.err
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	15728640
+SET GLOBAL innodb_fast_shutdown= 0;
+# Fail to free the segment while finding the used segments
+# restart: --debug_dbug=d,unused_undo_free_fail_2
+SELECT IF(file_size>10485760,'ok',file_size) FROM information_schema.innodb_sys_tablespaces WHERE space=0;
+IF(file_size>10485760,'ok',file_size)
+ok
+FOUND 1 /InnoDB: :autoshrink failed to read the used segment/ in mysqld.1.err
+FOUND 1 /InnoDB: :autoshrink failed due to .* in FSP_SEG_INODES_FULL list/ in mysqld.1.err
+SET GLOBAL innodb_fast_shutdown= 0;
+# Fail to free the segment while finding the used segments
+# restart: --debug_dbug=d,unused_undo_free_fail_3
+SELECT IF(file_size>10485760,'ok',file_size) FROM information_schema.innodb_sys_tablespaces WHERE space=0;
+IF(file_size>10485760,'ok',file_size)
+ok
+FOUND 1 /InnoDB: :autoshrink failed due to .* in FSP_SEG_INODES_FREE list/ in mysqld.1.err
+SET GLOBAL innodb_fast_shutdown= 0;
+# Fail to free the segment while freeing the unused segments
+# restart: --debug_dbug=d,unused_undo_free_fail_4
+SELECT IF(file_size>10485760,'ok',file_size) FROM information_schema.innodb_sys_tablespaces WHERE space=0;
+IF(file_size>10485760,'ok',file_size)
+ok
+FOUND 1 /InnoDB: :autoshrink failed to free the segment .* in page .*/ in mysqld.1.err
+SET GLOBAL innodb_fast_shutdown= 0;
+# Fail to free the segment while freeing the used segments
+# restart: --debug_dbug=d,unused_undo_free_fail_5
+SELECT IF(file_size>10485760,'ok',file_size) FROM information_schema.innodb_sys_tablespaces WHERE space=0;
+IF(file_size>10485760,'ok',file_size)
+ok
+FOUND 1 /InnoDB: :autoshrink failed to free the segment .* in page .*/ in mysqld.1.err
+SET GLOBAL innodb_fast_shutdown= 0;
+# restart
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	10485760
+# Fail to reset the TRX_SYS_FSEG_HEADER during undo tablespace
+# reinitialization. garbage_collect() shouldn't free the
+# TRX_SYS_FSEG_HEADER index node
+set global innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=2 --debug_dbug=d,sys_fseg_header_fail
+FOUND 1 /InnoDB: :autoshrink freed the segment .* in page .*/ in mysqld.1.err
+set global innodb_fast_shutdown=0;
+# restart
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	10485760

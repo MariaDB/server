@@ -1,4 +1,4 @@
-/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -333,13 +333,11 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
          var->save_result.string_value.length);
   start_pos_buf[var->save_result.string_value.length]= 0;
 
-
   WSREP_DEBUG("SST wsrep_start_position check for new position %s old %s",
-	     start_pos_buf, wsrep_start_position);
+              start_pos_buf, wsrep_start_position);
 
   // Verify the format.
   if (wsrep_start_position_verify(start_pos_buf)) return true;
-
 
   // Give error if position is updated when wsrep is not enabled or
   // provider is not loaded.
@@ -658,7 +656,7 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   {
     wsrep_create_rollbacker();
     WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
-	    wsrep_slave_threads, wsrep_running_applier_threads);
+                wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);
   }
   mysql_mutex_unlock(&LOCK_wsrep_cluster_config);
@@ -762,7 +760,7 @@ static void wsrep_slave_count_change_update ()
 {
   wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_applier_threads);
   WSREP_DEBUG("Change on slave threads: New %ld old %lu difference %d",
-	  wsrep_slave_threads, wsrep_running_applier_threads, wsrep_slave_count_change);
+              wsrep_slave_threads, wsrep_running_applier_threads, wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
@@ -787,9 +785,9 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
     // Thread creation and execution is asyncronous, therefore we need
     // wait them to be started or error produced
     while (wsrep_running_applier_threads != (ulong)wsrep_slave_threads &&
-	   !wsrep_thread_create_failed.load(std::memory_order_relaxed))
+           !wsrep_thread_create_failed.load(std::memory_order_relaxed))
     {
-	    my_sleep(1000);
+      my_sleep(1000);
     }
 
     mysql_mutex_lock(&LOCK_global_system_variables);
@@ -966,7 +964,7 @@ bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
 {
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
-              "repl.max_ws_size=%d", wsrep_max_ws_size);
+              "repl.max_ws_size=%lu", wsrep_max_ws_size);
   enum wsrep::provider::status ret= Wsrep_server_state::instance().provider().options(max_ws_size_opt);
   if (ret)
   {
@@ -978,6 +976,22 @@ bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
 
 bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
 {
+  ulonglong new_wsrep_mode= var->save_result.ulonglong_value;
+  ulonglong old_wsrep_mode= wsrep_mode;
+  wsrep_mode= new_wsrep_mode;
+  if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM) ||
+      wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+  {
+    if (!(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
+          wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
+    {
+      my_message(ER_WRONG_ARGUMENTS, "wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA] "
+                 "can't be enabled if wsrep_forced_binlog != [NONE|ROW]", MYF(0));
+      wsrep_mode= old_wsrep_mode;
+      return true;
+    }
+  }
+  wsrep_mode= old_wsrep_mode;
   return false;
 }
 
@@ -1121,3 +1135,28 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   return false;
 }
 
+bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
+{
+  ulonglong new_forced_binlog_format= var->save_result.ulonglong_value;
+
+  if (!(new_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
+        new_forced_binlog_format == BINLOG_FORMAT_ROW))
+  {
+    if (wsrep_check_mode(WSREP_MODE_BINLOG_ROW_FORMAT_ONLY))
+    {
+      my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set "
+                 "if wsrep_mode=BINLOG_ROW_FORMAT_ONLY", MYF(0));
+      return true;
+    }
+
+    if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM) ||
+        wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+    {
+      my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format=[MIXED|STATEMENT] can't be set "
+                 "if wsrep_mode=[REPLICATE_MYISAM|REPLICATE_ARIA]", MYF(0));
+      return true;
+    }
+  }
+
+  return false;
+}

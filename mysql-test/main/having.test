@@ -258,6 +258,8 @@ where t1.col2 in
 
 # the having column is resolved in the FROM clause of the outer query -
 # works in ANSI
+#Enable after fix MDEV-31937
+--disable_ps2_protocol
 select t1.col1 from t1
 where t1.col2 in 
       (select t2.col2 from t2 
@@ -284,6 +286,7 @@ where t1.col2 in
        group by t2.col1, t2.col2 having col_t1 <= 10)
 group by col_t1
 having col_t1 <= 20;
+--enable_ps2_protocol
 
 #
 # nested HAVING clauses
@@ -412,11 +415,14 @@ INSERT INTO PROJ VALUES  ('P4','SDP','Design',20000,'Deale');
 INSERT INTO PROJ VALUES  ('P5','IRM','Test',10000,'Vienna');
 INSERT INTO PROJ VALUES  ('P6','PAYR','Design',50000,'Deale');
 
+#Enable after fix MDEV-31937
+--disable_ps2_protocol
 SELECT EMPNUM, GRADE*1000
   FROM HU.STAFF WHERE GRADE * 1000 > 
                   ANY (SELECT SUM(BUDGET) FROM HU.PROJ
                          GROUP BY CITY, PTYPE
                            HAVING HU.PROJ.CITY = HU.STAFF.CITY);
+--enable_ps2_protocol
 
 DROP SCHEMA HU;
 USE test;
@@ -956,6 +962,8 @@ DROP TABLE t;
 --echo # MDEV-29731 Crash when HAVING in a correlated subquery references
 --echo #            columns in the outer query
 --echo #
+#Enable after fix MDEV-29731
+--disable_view_protocol
 CREATE TABLE t (a INT, b INT);
 SELECT 1 FROM t
   WHERE b = (SELECT 1 FROM t GROUP BY a HAVING b = a+1);
@@ -998,7 +1006,53 @@ UPDATE t SET a = ''
               WHERE (0, a) IN ((0,-1),(+1,0))
               ORDER BY 1+AVG(a) OVER (ORDER BY a)) ORDER BY a;
 DROP TABLE t;
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-23983: Crash caused by query containing constant having clause
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, b TEXT, c INT);
+INSERT INTO t1 VALUES (3, 7, 'b', 1), (4, 7, 'b', 1);
+
+SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 1;
+
+let $q=
+SELECT * FROM t1
+WHERE t1.id = 3
+GROUP BY t1.a
+HAVING t1.b = 'b' and t1.c = 2;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT, b TEXT, c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3, 'b', 1);
+
+SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 1;
+
+let $q=
+SELECT t2.* FROM t2 LEFT JOIN t1 ON t2.id = t1.a
+GROUP BY t2.id
+HAVING t2.b = 'b' and t2.c = 2;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

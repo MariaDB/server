@@ -21,6 +21,6 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP TABLE ten;
-CALL mtr.add_suppression("Ignoring error 'Duplicate entry '111110' for key 'PRIMARY'' on query.");
+CALL mtr.add_suppression("Ignoring error 'Duplicate entry '111110' for key 'PRIMARY'' on query\\.");
 connection node_2;
-CALL mtr.add_suppression("Ignoring error 'Duplicate entry '111110' for key 'PRIMARY'' on query.");
+CALL mtr.add_suppression("Ignoring error 'Duplicate entry '111110' for key 'PRIMARY'' on query\\.");

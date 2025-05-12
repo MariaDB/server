@@ -26,7 +26,7 @@
 set @old_enabled= @@global.rpl_semi_sync_master_enabled;
 set @old_timeout= @@global.rpl_semi_sync_master_timeout;
 set global rpl_semi_sync_master_enabled= 1;
-set global rpl_semi_sync_master_timeout= 500;
+set global rpl_semi_sync_master_timeout= 2000; # 2s
 
 --connection server_2
 --source include/stop_slave.inc
@@ -39,7 +39,9 @@ set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
 --connection server_3
 --source include/stop_slave.inc
 set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @old_dbug= @@global.debug_dbug;
 set global rpl_semi_sync_slave_enabled= 1;
+set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
 --source include/start_slave.inc
 
 --echo # Ensure primary recognizes both replicas are semi-sync
@@ -55,9 +57,23 @@ if (`SELECT strcmp("$master_ss_status", "ON") != 0`)
   --die rpl_semi_sync_master_status should be ON to start
 }
 
---connection server_1
+--connection default
 --let $init_master_yes_tx= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_master_yes_tx', Value, 1)
-create table t1 (a int);
+--send create table t1 (a int);
+
+--echo # Ensure both slaves get the event with the need_ack flag set (i.e. one
+--echo # slave shouldn't be able to receive the event and send an ACK before
+--echo # the dump thread for the other server prepares the event to send).
+--connection server_3
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+--connection server_2
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+--connection server_3
+set debug_sync= "now signal io_thd_do_reply";
+
+--connection default
+--reap
+
 
 --connection server_2
 --echo # Verifying server_2 did not send ACK
@@ -99,18 +115,22 @@ if (`SELECT $cur_master_yes_tx != ($init_master_yes_tx + 1)`)
   --die rpl_semi_sync_master_yes_tx should have been incremented by primary
 }
 
+--connection server_2
+set debug_sync= "now signal io_thd_do_reply";
+
 
 --echo #
 --echo # Cleanup
 
 --connection server_2
+--source include/stop_slave.inc
 set global rpl_semi_sync_slave_enabled= @old_enabled;
 set global debug_dbug= @old_dbug;
---source include/stop_slave.inc
 
 --connection server_3
-set global rpl_semi_sync_slave_enabled= @old_enabled;
 --source include/stop_slave.inc
+set global rpl_semi_sync_slave_enabled= @old_enabled;
+set global debug_dbug= @old_dbug;
 
 --connection server_1
 set global rpl_semi_sync_master_enabled= @old_enabled;

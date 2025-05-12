@@ -72,8 +72,10 @@ AND VALUE > 0;
 SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
 WHERE STAT_TYPE = 'IO_WRITE_NANOS' AND VALUE > 0;
 
+--disable_cursor_protocol
 SELECT VALUE INTO @a from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
 WHERE STAT_TYPE = 'IO_WRITE_NANOS';
+--enable_cursor_protocol
 
 # Single statement writes do show up in per-table stats
 INSERT INTO t2 VALUES (5), (6), (7), (8);
@@ -83,8 +85,10 @@ WHERE TABLE_NAME = 't2'
 AND STAT_TYPE = 'IO_WRITE_NANOS'
 AND VALUE > 0;
 
+--disable_cursor_protocol
 SELECT VALUE INTO @b from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
 WHERE STAT_TYPE = 'IO_WRITE_NANOS';
+--enable_cursor_protocol
 
 SELECT CASE WHEN @b - @a > 0 THEN 'true' ELSE 'false' END;
 

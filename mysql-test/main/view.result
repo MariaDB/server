@@ -43,13 +43,13 @@ show create view t1;
 ERROR HY000: 'test.t1' is not of type 'VIEW'
 drop table t1;
 select a from v1;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 select v1.a from v1;
-ERROR 42S22: Unknown column 'v1.a' in 'field list'
+ERROR 42S22: Unknown column 'v1.a' in 'SELECT'
 select b from v1;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 select v1.b from v1;
-ERROR 42S22: Unknown column 'v1.b' in 'field list'
+ERROR 42S22: Unknown column 'v1.b' in 'SELECT'
 explain extended select c from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
@@ -73,9 +73,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	/* select#1 */ select `v2`.`c` AS `c` from `test`.`v2`
 create view v3 (c) as select a+1 from v1;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 create view v3 (c) as select b+1 from v1;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 create view v3 (c) as select c+1 from v1;
 select c from v3;
 c
@@ -944,31 +944,19 @@ create view v1 as select * from t1;
 create view v2 as select * from v1;
 create view v3 as select v2.col1 from v2,t2 where v2.col1 = t2.col1;
 insert into v2 values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v2'
 insert into t1 values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 't1'
 insert into v2 values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v2'
 insert into v2 values ((select max(col1) from t1));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v2'
 insert into t1 values ((select max(col1) from t1));
-ERROR HY000: Table 't1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into v2 values ((select max(col1) from t1));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v2'
 insert into v2 values ((select max(col1) from v2));
-ERROR HY000: Table 'v2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into t1 values ((select max(col1) from v2));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 't1'
 insert into v2 values ((select max(col1) from v2));
-ERROR HY000: Table 'v2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into v3 (col1) values ((select max(col1) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'v3'
 insert into v3 (col1) values ((select max(col1) from t1));
-ERROR HY000: The definition of table 'v3' prevents operation INSERT on table 'v3'
 insert into v3 (col1) values ((select max(col1) from v2));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v3'
-insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2));
-ERROR HY000: The definition of table 'v2' prevents operation INSERT on table 'v3'
+insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2 LIMIT 1));
+ERROR 22003: Out of range value for column 'col1' at row 3
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 ERROR 23000: Column 'col1' cannot be null
@@ -977,6 +965,18 @@ insert into t1 values (1),(2),(3);
 insert into t1 (col1) values ((select max(col1) from v4));
 select * from t1;
 col1
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
 NULL
 1
 2
@@ -1339,9 +1339,26 @@ create view v3 as select * from t1 where 20 < (select (s1) from v2);
 insert into v3 values (30);
 ERROR HY000: The target table v3 of the INSERT is not insertable-into
 create view v4 as select * from v2 where 20 < (select (s1) from t1);
+select * from t1;
+s1
 insert into v4 values (30);
-ERROR HY000: The target table v4 of the INSERT is not insertable-into
-drop view v4, v3, v2, v1;
+select * from t1;
+s1
+30
+create view v5 as select * from v2 where s1 < (select min(s1) from t1) WITH CHECK OPTION;
+# can't insert only less then minimum
+insert into v5 values (40);
+ERROR 44000: CHECK OPTION failed `test`.`v5`
+# allow insert the new minimum
+insert into v5 values (10);
+# always emply view (can't be something less than minimum)
+select * from v5;
+s1
+select * from t1;
+s1
+30
+10
+drop view v5, v4, v3, v2, v1;
 drop table t1;
 create table t1 (a int);
 create view v1 as select * from t1;
@@ -1510,8 +1527,6 @@ execute stmt1 using @a;
 set @a= 301;
 execute stmt1 using @a;
 deallocate prepare stmt1;
-insert into v3(a) select sum(302);
-insert into v3(a) select sum(303) over ();
 select * from v3;
 a	b
 100	0
@@ -1530,14 +1545,6 @@ a	b
 301	10
 301	1000
 301	2000
-302	0
-302	10
-302	1000
-302	2000
-303	0
-303	10
-303	1000
-303	2000
 drop view v3;
 drop tables t1,t2;
 create table t1(f1 int);
@@ -1593,7 +1600,7 @@ drop table t1;
 create table t1 (s1 int, s2 char);
 create view v1 as select s1, s2 from t1;
 select s2 from v1 vq1 where 2 = (select count(*) from v1 vq2 having vq1.s2 = vq2.s2);
-ERROR 42S22: Unknown column 'vq2.s2' in 'having clause'
+ERROR 42S22: Unknown column 'vq2.s2' in 'HAVING'
 select s2 from v1 vq1 where 2 = (select count(*) aa from v1 vq2 having vq1.s2 = aa);
 s2
 drop view v1;
@@ -2517,7 +2524,7 @@ blank
 not blank
 not blank
 Warnings:
-Warning	1052	Column 'x' in group statement is ambiguous
+Warning	1052	Column 'x' in GROUP BY is ambiguous
 SELECT IF(x IS NULL, 'blank', 'not blank') AS x FROM v1;
 x
 blank
@@ -2534,7 +2541,7 @@ blank
 not blank
 not blank
 Warnings:
-Warning	1052	Column 'x' in group statement is ambiguous
+Warning	1052	Column 'x' in GROUP BY is ambiguous
 DROP VIEW v1;
 DROP TABLE t1;
 drop table if exists t1;
@@ -6036,7 +6043,7 @@ f1	f2
 1	20
 drop table t1, t2;
 SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1;
-ERROR 42S22: Unknown column 'SOME_GARBAGE.b.a' in 'field list'
+ERROR 42S22: Unknown column 'SOME_GARBAGE.b.a' in 'SELECT'
 #
 # MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
 # FOR UPDATE
@@ -6951,11 +6958,11 @@ CREATE TABLE t2 (b int);
 INSERT INTO t2 VALUES (2),(3);
 CREATE TABLE t3 (c int);
 CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
-ERROR 42S22: Unknown column 't1.x' in 'on clause'
+ERROR 42S22: Unknown column 't1.x' in 'ON'
 INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
-ERROR 42S22: Unknown column 't1.x' in 'on clause'
+ERROR 42S22: Unknown column 't1.x' in 'ON'
 CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
-ERROR 42S22: Unknown column 't1.x' in 'on clause'
+ERROR 42S22: Unknown column 't1.x' in 'ON'
 DROP TABLE t1,t2,t3;
 #
 # MDEV-29088: view specification contains unknown column in ON condition
@@ -6965,10 +6972,10 @@ create table t2 (b int);
 create table t3 (c int);
 create view v as
 select * from t1 left join t2 on t1.a=t2.b and t1.a in (select d from t3);
-ERROR 42S22: Unknown column 'd' in 'field list'
+ERROR 42S22: Unknown column 'd' in 'SELECT'
 create algorithm=merge view v as
 select * from t1 left join t2 on t1.a=t2.b and t1.a in (select d from t3);
-ERROR 42S22: Unknown column 'd' in 'field list'
+ERROR 42S22: Unknown column 'd' in 'SELECT'
 drop table t1,t2,t3;
 #
 # MDEV-31189: Server crash or assertion failure in upon 2nd
@@ -6989,6 +6996,48 @@ DROP VIEW v1;
 DROP VIEW v2;
 DROP TABLE t;
 # End of 10.4 tests
+#
+# MDEV-29537: Creation of view with UNION and SELECT ... FOR UPDATE
+# in definition is failed with error
+#
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE;
+SELECT * FROM v1;
+1
+1
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1` from `t1` union select 1 AS `1` from DUAL  where 1 group by 1 having 1 order by 1 for update	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE);
+SELECT * FROM v1;
+1
+1
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1` from `t1` union (select 1 AS `1` from DUAL  where 1 group by 1 having 1 for update)	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-35090: (Item_func_current_user) Assertion
+# `typeid(*copy) == typeid(*this)' failed in
+# Item_func_or_sum::do_build_clone
+#
+CREATE VIEW v AS SELECT 1;
+SELECT * FROM v WHERE UpdateXML('<user>N/A</user>','/a',CURRENT_USER());
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '<user>N/A</user>'
+DROP VIEW v;
+# End of 10.5 tests
 #
 # MDEV-13115: SELECT .. SKIP LOCKED - ensure SHOW CREATE VIEW is correct
 #

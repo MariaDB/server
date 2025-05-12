@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-CALL mtr.add_suppression("WSREP: discarding established.*");
+CALL mtr.add_suppression("WSREP: discarding established");
 connection node_1;
 connection node_2;
 connection node_2;
@@ -27,7 +27,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = DEFAULT;
 connection node_2;
 INSERT INTO t1 VALUES (6);
-ERROR HY000: Lost connection to server during query
+Got one of the listed errors
 connection node_1;
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
@@ -61,7 +61,7 @@ EXPECT_0
 0
 DROP TABLE t1;
 connection node_2b;
-CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for ");
 disconnect node_2;
 connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 disconnect node_2a;

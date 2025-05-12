@@ -5435,5 +5435,75 @@ AsText(g)
 POINT(1 1)
 DROP TABLE t1;
 #
-# End of 10.5 tests
+# MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 #
+create table t1 (c polygon);
+insert into t1 values
+(PolygonFromText('POLYGON((1 2,1 2))')),
+(PolygonFromText('POLYGON((0 0,1 1,0 0))'));
+select length(group_concat(c, c order by 1,2)) from t1;
+length(group_concat(c, c order by 1,2))
+229
+create table t2 as select group_concat(c, c order by 1,2), concat(c), c from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `group_concat(c, c order by 1,2)` mediumblob DEFAULT NULL,
+  `concat(c)` longblob DEFAULT NULL,
+  `c` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1, t2;
+#
+# MDEV-33987 Server crashes at Item_func_as_wkt::val_str_ascii
+#
+SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
+c1
+NULL
+#
+# Server crash in DTCollation::set_repertoire_from_charset
+#
+CREATE TABLE t (f POINT, KEY(f));
+DELETE FROM t WHERE f NOT IN (NULL,'x');
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t;
+#
+# MDEV-31219 Assertion `fixed' failed in Item_func_hybrid_field_type / Frame_positional_cursor
+#
+CREATE TABLE t (a INT, b POINT);
+INSERT INTO t VALUES (1,POINT(0,0)),(2,POINT(0,0));
+SELECT NTH_VALUE(a,b) OVER () FROM t;
+ERROR HY000: Illegal parameter data types point and bigint for operation '-'
+DROP TABLE t;
+#
+# MDEV-32619 Settng SRID on geometry with ST_*FromWKKB(g, srid)
+#
+SELECT
+ST_SRID(g1),
+ST_SRID(ST_GeomFromWKB(g1, 4326)),
+ST_SRID(ST_GeomFromWKB(g1)),
+ST_AsText(g1),
+ST_SRID(ST_PointFromWKB(g2, 4326)),
+ST_SRID(g2),
+ST_SRID(ST_LineStringFromWKB(g3, 3)),
+ST_SRID(ST_PolygonFromWKB(g4, 4)),
+ST_SRID(ST_MultiPointFromWKB(g5, 5)),
+ST_SRID(ST_MultiLineStringFromWKB(g6, 6)),
+ST_SRID(ST_MultiPolygonFromWKB(g7, 7))
+FROM (
+SELECT
+POINT(1, 2) AS g1,
+POINT(4, 3) AS g2,
+LINESTRING(POINT(4, 3), POINT(4, 4)) AS g3,
+POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3))) AS g4,
+MULTIPOINT(POINT(4, 3)) AS g5,
+MULTILINESTRING(LINESTRING(POINT(4, 3), POINT(4, 4))) AS g6,
+MULTIPOLYGON(POLYGON(LINESTRING(POINT(4, 3), POINT(4, 4), POINT(3, 4), POINT(4, 3)))) AS g7
+) AS t;
+ST_SRID(g1)	ST_SRID(ST_GeomFromWKB(g1, 4326))	ST_SRID(ST_GeomFromWKB(g1))	ST_AsText(g1)	ST_SRID(ST_PointFromWKB(g2, 4326))	ST_SRID(g2)	ST_SRID(ST_LineStringFromWKB(g3, 3))	ST_SRID(ST_PolygonFromWKB(g4, 4))	ST_SRID(ST_MultiPointFromWKB(g5, 5))	ST_SRID(ST_MultiLineStringFromWKB(g6, 6))	ST_SRID(ST_MultiPolygonFromWKB(g7, 7))
+0	4326	0	POINT(1 2)	4326	0	3	4	5	6	7
+#
+# MDEV-35117 Error message "ERROR 1815 (HY000): Internal error: st_distance_sphere' could be improved
+#
+SELECT ST_DISTANCE_SPHERE(st_geomfromtext('linestring( 2 2, 2 8) '), ST_GeomFromText('POINT(18.413076 43.856258)')) ;
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
+# End of 10.5 tests

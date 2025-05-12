@@ -3,9 +3,6 @@
 # Tests with the utf8 character set
 #
 
-# Enable after fix MDEV-27904
--- source include/no_view_protocol.inc
-
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 let collation=utf8mb3_unicode_ci;
@@ -50,15 +47,15 @@ select length(_utf8 0xD0B1), bit_length(_utf8 0xD0B1), char_length(_utf8 0xD0B1)
 select 'a' like 'a';
 select 'A' like 'a';
 select 'A' like 'a' collate utf8_bin;
-select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%');
+select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%') as exp;
 
 # Bug #6040: can't retrieve records with umlaut
 # characters in case insensitive manner.
 # Case insensitive search LIKE comparison
 # was broken for multibyte characters:
-select convert(_latin1'G¸nter AndrÈ' using utf8) like CONVERT(_latin1'G‹NTER%' USING utf8);
-select CONVERT(_koi8r'◊¡”—' USING utf8) LIKE CONVERT(_koi8r'˜·ÛÒ' USING utf8);
-select CONVERT(_koi8r'˜·ÛÒ' USING utf8) LIKE CONVERT(_koi8r'◊¡”—' USING utf8);
+select convert(_latin1'G¸nter AndrÈ' using utf8) like CONVERT(_latin1'G‹NTER%' USING utf8) as exp;
+select CONVERT(_koi8r'◊¡”—' USING utf8) LIKE CONVERT(_koi8r'˜·ÛÒ' USING utf8) as exp;
+select CONVERT(_koi8r'˜·ÛÒ' USING utf8) LIKE CONVERT(_koi8r'◊¡”—' USING utf8) as exp;
 
 #
 # Check the following:
@@ -629,6 +626,7 @@ DROP TABLE t1;
 #
 # Bug #6043 erratic searching for diacriticals in indexed MyISAM UTF-8 table
 #
+--disable_service_connection
 SET NAMES latin1;
 CREATE TABLE t1 (
     id int unsigned NOT NULL auto_increment,
@@ -644,6 +642,7 @@ SELECT id, term FROM t1 where (list_id = 1) AND (term = "testÈtest");
 SELECT id, term FROM t1 where (list_id = 1) AND (term = "testetest");
 SELECT id, term FROM t1 where (list_id = 1) AND (term = "testËtest");
 DROP TABLE t1;
+--enable_service_connection
 
 #
 # Bug #6019 SELECT tries to use too short prefix index on utf8 data
@@ -696,10 +695,10 @@ drop table t1;
 #
 # Bug#22638 SOUNDEX broken for international characters
 #
-select soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB);
-select hex(soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB));
-select soundex(_utf8 0xD091D092D093);
-select hex(soundex(_utf8 0xD091D092D093));
+select soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB) as exp;
+select hex(soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB)) as exp;
+select soundex(_utf8 0xD091D092D093) as exp;
+select hex(soundex(_utf8 0xD091D092D093)) as exp;
 
 
 SET collation_connection='utf8_general_ci';
@@ -735,7 +734,7 @@ drop table t1;
 #
 # Bug#8385: utf8_general_ci treats Cyrillic letters I and SHORT I as the same
 #
-select convert(_koi8r'…' using utf8) < convert(_koi8r' ' using utf8);
+select convert(_koi8r'…' using utf8) < convert(_koi8r' ' using utf8) as exp;
 
 #
 # Bugs#5980: NULL requires a characterset in a union
@@ -1113,6 +1112,7 @@ DROP TABLE t1;
 #            (see bug #16674 as well)
 #
 
+--disable_service_connection
 SET NAMES latin2;
 
 CREATE TABLE t1 (
@@ -1139,6 +1139,7 @@ ALTER TABLE t1 ADD KEY idx (tid,val(11));
 SELECT * FROM t1 WHERE tid=72 and val LIKE 'VOLN› ADSL'; 
 
 DROP TABLE t1;
+--enable_service_connection
 
 #
 # Bug 20709: problem with utf8 fields in temporary tables
@@ -1346,6 +1347,7 @@ drop table t1;
 # Conversion is possible if string repertoire is ASCII.
 # Conversion is not possible if the string have extended characters
 #
+--disable_service_connection
 set names utf8;
 create table t1 (a varchar(10) character set latin1, b int);
 insert into t1 values ('a',1);
@@ -1380,6 +1382,7 @@ select concat(a, if(b>10, 'x' 'x', 'y' 'y')) from t1;
 --error 1267
 select concat(a, if(b>10, 'x' '√¶', 'y' '√ü')) from t1;
 drop table t1;
+--enable_service_connection
 
 #
 # Bug#19960: Inconsistent results when joining
@@ -1496,7 +1499,13 @@ SELECT HEX(RPAD(_utf8 0xD18F, 3, 0x20));
 SELECT HEX(LPAD(_utf8 0xD18F, 3, 0x20));
 
 SELECT HEX(INSERT(_utf8 0xD18F, 2, 1, 0x20));
+#Enable view-protocol after fix MDEV-33942
+--disable_view_protocol
+#Enable after fix MDEV-31512
+--disable_cursor_protocol
 SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+--enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug#11752408 - 43593: DUMP/BACKUP/RESTORE/UPGRADE TOOLS FAILS BECAUSE OF UTF8_GENERAL_CI
@@ -1573,14 +1582,19 @@ CREATE TABLE t1 (
   s3 MEDIUMTEXT CHARACTER SET utf8,
   s4 LONGTEXT CHARACTER SET utf8
 );
+--disable_view_protocol
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SET NAMES utf8, @@character_set_results=NULL;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
 SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
+--enable_cursor_protocol
 --disable_metadata
+--enable_view_protocol
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t1, t2;
@@ -2515,6 +2529,12 @@ SELECT CAST(_utf8 '√´√´√´' AS INT);
 SELECT CAST(_utf8 '≈ì≈ì≈ì' AS INT);
 SELECT CAST(_utf8 '—è—è—è' AS INT);
 
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_utf8mb3'' collate utf8mb3_general_nopad_ci, _utf8mb3 0x0001050001) as c1;
+select strcmp(_utf8mb3'' collate utf8mb3_nopad_bin, _utf8mb3 0x0001050001) as c1;
 
 --echo #
 --echo # End of 10.5 tests
@@ -2530,7 +2550,7 @@ SELECT CAST(_utf8 '—è—è—è' AS INT);
 --echo #
 
 SET NAMES utf8mb3 COLLATE utf8mb3_bin;
-SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT));
+SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT)) AS c1;
 CREATE TABLE t1 AS SELECT CAST('a' AS CHAR COLLATE DEFAULT) AS c1;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;

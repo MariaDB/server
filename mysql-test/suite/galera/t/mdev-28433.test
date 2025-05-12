@@ -26,7 +26,7 @@ SHOW STATUS LIKE 'wsrep_cluster_status';
 --enable_query_log
 --source include/wait_until_connected_again.inc
 --source include/galera_wait_ready.inc
-call mtr.add_suppression("WSREP: .*Invalid backend URI.*");
+call mtr.add_suppression("WSREP: .*Invalid backend URI");
 call mtr.add_suppression("WSREP: gcs connect failed: Invalid argument");
 
 # Restore original auto_increment_offset values.

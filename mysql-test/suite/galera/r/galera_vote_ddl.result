@@ -1,0 +1,70 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET @@global.wsrep_ignore_apply_errors = 7;
+connection node_2;
+SET @@global.wsrep_ignore_apply_errors = 7;
+connection node_1;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY);
+connection node_1;
+DROP TABLE nonexistent;
+ERROR 42S02: Unknown table 'test.nonexistent'
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+TRUNCATE TABLE nonexistent;
+ERROR 42S02: Table 'test.nonexistent' doesn't exist
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+CREATE TABLE nonexistent.t1 (s INT);
+ERROR 42000: Unknown database 'nonexistent'
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (s INT);
+ERROR 42S01: Table 't1' already exists
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+ALTER TABLE nonexistent ADD COLUMN (c INT);
+ERROR 42S02: Table 'test.nonexistent' doesn't exist
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+DROP TABLE t1;
+connection node_1;
+SET @@global.wsrep_ignore_apply_errors = 0;
+connection node_2;
+SET @@global.wsrep_ignore_apply_errors = 0;
+connection node_1;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY);
+connection node_1;
+DROP TABLE nonexistent;
+ERROR 42S02: Unknown table 'test.nonexistent'
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+TRUNCATE TABLE nonexistent;
+ERROR 42S02: Table 'test.nonexistent' doesn't exist
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+CREATE TABLE nonexistent.t1 (s INT);
+ERROR 42000: Unknown database 'nonexistent'
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (s INT);
+ERROR 42S01: Table 't1' already exists
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+connection node_1;
+ALTER TABLE nonexistent ADD COLUMN (c INT);
+ERROR 42S02: Table 'test.nonexistent' doesn't exist
+INSERT INTO t1 VALUES (DEFAULT);
+connection node_2;
+DROP TABLE t1;
+connection node_1;
+SET @@global.wsrep_ignore_apply_errors = 7;
+connection node_2;
+SET @@global.wsrep_ignore_apply_errors = 7;

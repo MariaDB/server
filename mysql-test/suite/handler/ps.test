@@ -7,6 +7,10 @@ flush status;
 handler handler_a read first;
 # handler...read must be prepared in --ps-protocol mode
 --replace_result $PS_PROTOCOL OK
+if($CURSOR_PROTOCOL)
+{
+    --replace_result $CURSOR_PROTOCOL OK
+}
 --disable_ps_protocol
 show status like 'Com_stmt_prepare%';
 --enable_ps_protocol

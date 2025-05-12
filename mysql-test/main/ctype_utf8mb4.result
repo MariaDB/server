@@ -3666,20 +3666,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3804,20 +3804,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3943,20 +3943,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4081,20 +4081,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8mb4_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8mb4_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8mb4_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4183,24 +4183,6 @@ DROP TABLE t1;
 # End of 10.2 tests
 #
 #
-# Start of 10.5 tests
-#
-#
-# MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
-#
-SET NAMES utf8mb4;
-SELECT 1 COLLATE utf8mb4_general_ci;
-1 COLLATE utf8mb4_general_ci
-1
-SELECT 1 COLLATE utf8mb4_bin;
-1 COLLATE utf8mb4_bin
-1
-SELECT 1 COLLATE latin1_swedish_ci;
-ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
-#
-# End of 10.5 tests
-#
-#
 # Start of 10.6 tests
 #
 #
@@ -4227,4 +4209,191 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 #
 # End of 10.6 tests
+#
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+#
+SET NAMES utf8mb4;
+SELECT 1 COLLATE utf8mb4_general_ci;
+1 COLLATE utf8mb4_general_ci
+1
+SELECT 1 COLLATE utf8mb4_bin;
+1 COLLATE utf8mb4_bin
+1
+SELECT 1 COLLATE latin1_swedish_ci;
+ERROR 42000: COLLATION 'latin1_swedish_ci' is not valid for CHARACTER SET 'utf8mb4'
+# MDEV-34376 Wrong data types when mixing an utf8 *TEXT column and a short binary
+#
+CREATE TABLE t1 (
+c_tinytext tinytext,
+c_text text,
+c_mediumtext mediumtext,
+c_longtext longtext
+) CHARACTER SET utf8mb4;
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM v1;
+# Using table fields
+CREATE TABLE t2 AS SELECT
+COALESCE(c_tinytext,   CAST('binary data' AS BINARY)) AS mix_tinytext_binary,
+COALESCE(c_text,       CAST('binary data' AS BINARY)) AS mix_text_binary,
+COALESCE(c_mediumtext, CAST('binary data' AS BINARY)) AS mix_mediumtext_binary,
+COALESCE(c_longtext, CAST('binary data' AS BINARY)) AS mix_longtext_binary
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `mix_tinytext_binary` tinyblob DEFAULT NULL,
+  `mix_text_binary` blob DEFAULT NULL,
+  `mix_mediumtext_binary` mediumblob DEFAULT NULL,
+  `mix_longtext_binary` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+c_tinytext   AS mix_tinytext_binary,
+c_text       AS mix_text_binary,
+c_mediumtext AS mix_mediumtext_binary,
+c_longtext   AS mix_longtext_binary
+FROM t1
+UNION SELECT
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `mix_tinytext_binary` tinyblob DEFAULT NULL,
+  `mix_text_binary` blob DEFAULT NULL,
+  `mix_mediumtext_binary` mediumblob DEFAULT NULL,
+  `mix_longtext_binary` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+# Using view fields
+CREATE TABLE t2 AS SELECT
+COALESCE(c_tinytext,   CAST('binary data' AS BINARY)) AS mix_tinytext_binary,
+COALESCE(c_text,       CAST('binary data' AS BINARY)) AS mix_text_binary,
+COALESCE(c_mediumtext, CAST('binary data' AS BINARY)) AS mix_mediumtext_binary,
+COALESCE(c_longtext, CAST('binary data' AS BINARY)) AS mix_longtext_binary
+FROM v1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `mix_tinytext_binary` tinyblob DEFAULT NULL,
+  `mix_text_binary` blob DEFAULT NULL,
+  `mix_mediumtext_binary` mediumblob DEFAULT NULL,
+  `mix_longtext_binary` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+c_tinytext   AS mix_tinytext_binary,
+c_text       AS mix_text_binary,
+c_mediumtext AS mix_mediumtext_binary,
+c_longtext   AS mix_longtext_binary
+FROM v1
+UNION SELECT
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `mix_tinytext_binary` tinyblob DEFAULT NULL,
+  `mix_text_binary` blob DEFAULT NULL,
+  `mix_mediumtext_binary` mediumblob DEFAULT NULL,
+  `mix_longtext_binary` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+# Using view on view fields
+CREATE TABLE t2 AS SELECT
+COALESCE(c_tinytext,   CAST('binary data' AS BINARY)) AS mix_tinytext_binary,
+COALESCE(c_text,       CAST('binary data' AS BINARY)) AS mix_text_binary,
+COALESCE(c_mediumtext, CAST('binary data' AS BINARY)) AS mix_mediumtext_binary,
+COALESCE(c_longtext, CAST('binary data' AS BINARY)) AS mix_longtext_binary
+FROM v2;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `mix_tinytext_binary` tinyblob DEFAULT NULL,
+  `mix_text_binary` blob DEFAULT NULL,
+  `mix_mediumtext_binary` mediumblob DEFAULT NULL,
+  `mix_longtext_binary` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+c_tinytext   AS mix_tinytext_binary,
+c_text       AS mix_text_binary,
+c_mediumtext AS mix_mediumtext_binary,
+c_longtext   AS mix_longtext_binary
+FROM v2
+UNION SELECT
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY),
+CAST('binary data' AS BINARY);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `mix_tinytext_binary` tinyblob DEFAULT NULL,
+  `mix_text_binary` blob DEFAULT NULL,
+  `mix_mediumtext_binary` mediumblob DEFAULT NULL,
+  `mix_longtext_binary` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP VIEW v2, v1;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (
+c1 varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL
+) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('jj');
+SELECT * FROM t1 WHERE c1 LIKE 'jj' COLLATE utf8mb4_unicode_ci;
+c1
+jj
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1 LIKE ? COLLATE utf8mb4_unicode_ci';
+EXECUTE stmt USING 'jj';
+c1
+jj
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(?) COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT NULL COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.11 tests
 #

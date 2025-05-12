@@ -17,12 +17,14 @@ SELECT * FROM s;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 connection node_2;
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 SELECT * FROM t1;
 a
 SELECT * FROM s;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 connection node_1;
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 DROP TABLE t1;
 DROP SEQUENCE s;
 # Case 2 REPLACE INTO ... SELECT with error
@@ -64,6 +66,7 @@ id	a
 connection node_1;
 DROP TABLE t,t2,t3;
 # Bigger REPLACE ... AS SELECT test
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
 CREATE TABLE t1(id int not null primary key ,b int) ENGINE=InnoDB;
 CREATE TABLE t2(id int not null primary key ,b int) ENGINE=MyISAM;
 CREATE TABLE t3(id int not null primary key ,b int) ENGINE=Aria;
@@ -113,7 +116,7 @@ EXPECT_1000
 1000
 SELECT COUNT(*) AS EXPECT_1000 FROM t3;
 EXPECT_1000
-1000
+0
 SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 EXPECT_1000
 1000
@@ -126,9 +129,9 @@ EXPECT_1000
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
 EXPECT_1000
 1000
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
-EXPECT_1000
-1000
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
+EXPECT_0
+0
 connection node_1;
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
 # Bigger INSERT INTO ... SELECT test
@@ -181,7 +184,7 @@ EXPECT_1000
 1000
 SELECT COUNT(*) AS EXPECT_1000 FROM t3;
 EXPECT_1000
-1000
+0
 SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 EXPECT_1000
 1000
@@ -194,9 +197,9 @@ EXPECT_1000
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
 EXPECT_1000
 1000
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
-EXPECT_1000
-1000
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
+EXPECT_0
+0
 connection node_1;
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
 CREATE TABLE t1(pk int not null primary key) engine=innodb;
@@ -238,4 +241,6 @@ pk
 5
 DROP TABLE t1;
 DROP VIEW view_t1;
+SET GLOBAL wsrep_mode=DEFAULT;
+connection node_2;
 SET GLOBAL wsrep_mode=DEFAULT;

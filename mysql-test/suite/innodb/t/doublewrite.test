@@ -18,6 +18,9 @@ call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
 call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
 call mtr.add_suppression("\\[Warning\\] Found 1 prepared XA transactions");
 call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile:");
+call mtr.add_suppression("InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 18446744073709551615 is in the future!");
+call mtr.add_suppression("InnoDB: Your database may be corrupt or you may have copied the InnoDB tablespace but not the ib_logfile0");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -39,10 +42,17 @@ commit work;
 SET GLOBAL innodb_fast_shutdown = 0;
 let $shutdown_timeout=;
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0,innodb_max_dirty_pages_pct=0;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct=99;
 --source ../include/no_checkpoint_start.inc
 connect (dml,localhost,root,,);
 XA START 'x';
-insert into t1 values (6, repeat('%', @@innodb_page_size/2));
+insert into t1 values(6, repeat('%', @@innodb_page_size/2));
 XA END 'x';
 XA PREPARE 'x';
 disconnect dml;
@@ -50,9 +60,11 @@ connection default;
 
 flush table t1 for export;
 
-let $restart_parameters=;
---let CLEANUP_IF_CHECKPOINT=XA COMMIT 'x';drop table t1;
+--let CLEANUP_IF_CHECKPOINT=drop table t1, unexpected_checkpoint;
 --source ../include/no_checkpoint_end.inc
+
+--copy_file $MYSQLD_DATADIR/ibdata1 $MYSQLD_DATADIR/ibdata1.bak
+--copy_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile0.bak
 
 perl;
 use IO::Handle;
@@ -71,7 +83,26 @@ syswrite(FILE, chr(0) x ($page_size/2));
 sysseek(FILE, 3*$page_size, 0);
 sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
 sysseek(FILE, 3*$page_size, 0)||die "Unable to seek $fname\n";
-syswrite(FILE, chr(0) x ($page_size/2));
+my $corrupted = $page;
+# Set FIL_PAGE_LSN to the maximum
+substr($corrupted, 16, 8) = chr(255) x 8;
+substr($corrupted, $page_size - 8, 8) = chr(255) x 8;
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($corrupted, 0, $page_size - 4), 0, $polynomial);
+    substr($corrupted, $page_size - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($corrupted, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($corrupted_, 38, $page_size - 38 - 8), 0,
+                         $polynomial));
+    substr ($corrupted, 0, 4) = $ck;
+    substr ($corrupted, $page_size - 8, 4) = $ck;
+}
+syswrite(FILE, $corrupted);
 close FILE;
 
 # Change the flag offset of page 0 in doublewrite buffer
@@ -113,26 +144,51 @@ die "Did not find the page in the doublewrite buffer ($d1,$d2)\n";
 EOF
 
 --source include/start_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile;
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9][0-9]*, page number=0\\];
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\];
+let SEARCH_PATTERN=InnoDB: The log was only scanned up to \\d+, while the current LSN at the time of the latest checkpoint \\d+ was 0 and the maximum LSN on a data page was 18446744073709551615!
 --source include/search_pattern_in_file.inc
+--error ER_XAER_NOTA
 XA ROLLBACK 'x';
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+let $shutdown_timeout=;
+# Corrupt the file in a better way.
+
+--remove_file $MYSQLD_DATADIR/ibdata1
+--remove_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MYSQLD_DATADIR/ibdata1.bak $MYSQLD_DATADIR/ibdata1
+--move_file $MYSQLD_DATADIR/ib_logfile0.bak $MYSQLD_DATADIR/ib_logfile0
+
+perl;
+use IO::Handle;
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+open(FILE, "+<", $fname) or die;
+sysseek(FILE, ($page_size/2), 0);
+syswrite(FILE, chr(0) x ($page_size/2));
+sysseek(FILE, 3*$page_size, 0);
+syswrite(FILE, chr(0) x ($page_size/2));
+close FILE;
+EOF
+--source include/start_mysqld.inc
 check table t1;
 select f1, f2 from t1;
 
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0,innodb_max_dirty_pages_pct=0;
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct=99;
 --source ../include/no_checkpoint_start.inc
-connect (dml,localhost,root,,);
-XA START 'x';
-insert into t1 values (6, repeat('%', @@innodb_page_size/2));
-XA END 'x';
-XA PREPARE 'x';
-disconnect dml;
-connection default;
+XA ROLLBACK 'x';
+FLUSH TABLE t1 FOR EXPORT;
 
-flush table t1 for export;
-
-let $restart_parameters=;
+# If we are skipping the test at this point due to an unexpected
+# checkpoint, we will already have tested a part of this functionality.
+--let CLEANUP_IF_CHECKPOINT=drop table t1;
 --source ../include/no_checkpoint_end.inc
 
 # Zero out the first page in file and try to recover from dblwr
@@ -144,9 +200,8 @@ close FILE;
 EOF
 
 --source include/start_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile;
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9][0-9]*, page number=[03]\\];
 --source include/search_pattern_in_file.inc
-XA ROLLBACK 'x';
 check table t1;
 select f1, f2 from t1;
 drop table t1;

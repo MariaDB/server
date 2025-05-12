@@ -1,0 +1,64 @@
+connection node_2;
+connection node_1;
+create table t1 (id serial, val int) engine=innodb;
+create table t2 (id serial, val int) engine=aria;
+insert into t1 values(1, 23);
+insert into t2 values(2, 42);
+call mtr.add_suppression("WSREP: Replication of non-transactional engines is experimental\\. Storage engine Aria for table 'test'\\.'t2' is not supported in Galera");
+begin;
+update t1 set val=24 where id=1;
+update t2 set val=41 where id=2;
+commit;
+ERROR HY000: Transactional commit not supported by involved engine(s)
+select * from t1;
+id	val
+1	23
+select * from t2;
+id	val
+2	41
+connection node_2;
+select * from t1;
+id	val
+1	23
+select * from t2;
+id	val
+connection node_1;
+drop table t1, t2;
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
+create table t1 (id serial, val int) engine=innodb;
+create table t2 (id serial, val int) engine=aria;
+insert into t1 values(1, 23);
+insert into t2 values(2, 42);
+begin;
+update t1 set val=24 where id=1;
+update t2 set val=41 where id=2;
+ERROR HY000: Transactional commit not supported by involved engine(s)
+commit;
+select * from t1;
+id	val
+1	24
+select * from t2;
+id	val
+2	42
+connection node_2;
+select * from t1;
+id	val
+1	23
+select * from t2;
+id	val
+2	42
+connection node_1;
+drop table t1, t2;
+create table t2 (id serial, val int) engine=aria;
+INSERT INTO t2 values(1,1);
+UPDATE t2 set id=5,val=6 where id = 1;
+SELECT * from t2;
+id	val
+5	6
+connection node_2;
+SELECT * from t2;
+id	val
+5	6
+DROP TABLE t2;
+connection node_1;
+SET GLOBAL wsrep_mode=DEFAULT;

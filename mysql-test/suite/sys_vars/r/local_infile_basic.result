@@ -88,9 +88,9 @@ SELECT @@local_infile;
 @@local_infile
 1
 SELECT global.local_infile;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT local_infile = @@session.local_infile;
-ERROR 42S22: Unknown column 'local_infile' in 'field list'
+ERROR 42S22: Unknown column 'local_infile' in 'SELECT'
 SET @@global.local_infile = @start_value;
 SELECT @@global.local_infile;
 @@global.local_infile

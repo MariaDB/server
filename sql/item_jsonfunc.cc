@@ -22,7 +22,7 @@
 #include "json_schema_helper.h"
 
 static bool get_current_value(json_engine_t *, const uchar *&, size_t &);
-static int check_overlaps(json_engine_t *, json_engine_t *, bool);
+static bool check_overlaps(json_engine_t *, json_engine_t *, bool);
 static int json_find_overlap_with_object(json_engine_t *, json_engine_t *, bool);
 
 #ifndef DBUG_OFF
@@ -79,7 +79,8 @@ static bool eq_ascii_string(const CHARSET_INFO *cs,
 }
 
 
-static bool append_simple(String *s, const char *a, size_t a_len)
+static bool __attribute__((warn_unused_result))
+append_simple(String *s, const char *a, size_t a_len)
 {
   if (!s->realloc_with_extra_if_needed(s->length() + a_len))
   {
@@ -91,7 +92,8 @@ static bool append_simple(String *s, const char *a, size_t a_len)
 }
 
 
-static inline bool append_simple(String *s, const uchar *a, size_t a_len)
+static inline bool __attribute__((warn_unused_result))
+append_simple(String *s, const uchar *a, size_t a_len)
 {
   return append_simple(s, (const char *) a, a_len);
 }
@@ -101,7 +103,7 @@ static inline bool append_simple(String *s, const uchar *a, size_t a_len)
   Appends JSON string to the String object taking charsets in
   consideration.
 */
-static int st_append_json(String *s,
+int st_append_json(String *s,
              CHARSET_INFO *json_cs, const uchar *js, uint js_len)
 {
   int str_len= js_len * s->charset()->mbmaxlen;
@@ -305,8 +307,10 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   nice_js->length(0);
   nice_js->set_charset(je->s.cs);
-  nice_js->alloc(je->s.str_end - je->s.c_str + 32);
 
+  if (nice_js->alloc(je->s.str_end - je->s.c_str + 32))
+    goto error;
+  
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
@@ -352,7 +356,8 @@ static int json_nice(json_engine_t *je, String *nice_js,
           goto error;
 
         nice_js->append('"');
-        append_simple(nice_js, key_start, key_end - key_start);
+        if (append_simple(nice_js, key_start, key_end - key_start))
+          goto error;
         nice_js->append(colon, colon_len);
       }
       /* now we have key value to handle, so no 'break'. */
@@ -573,7 +578,7 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 }
 
 
-longlong Item_func_json_valid::val_int()
+bool Item_func_json_valid::val_bool()
 {
   String *js= args[0]->val_json(&tmp_value);
 
@@ -593,7 +598,7 @@ bool Item_func_json_equals::fix_length_and_dec(THD *thd)
 }
 
 
-longlong Item_func_json_equals::val_int()
+bool Item_func_json_equals::val_bool()
 {
   longlong result= 0;
 
@@ -654,7 +659,7 @@ bool Item_func_json_exists::fix_length_and_dec(THD *thd)
 }
 
 
-longlong Item_func_json_exists::val_int()
+bool Item_func_json_exists::val_bool()
 {
   json_engine_t je;
   int array_counters[JSON_DEPTH_LIMIT];
@@ -864,7 +869,7 @@ String *Item_func_json_quote::val_str(String *str)
 
 bool Item_func_json_unquote::fix_length_and_dec(THD *thd)
 {
-  collation.set(&my_charset_utf8mb3_general_ci,
+  collation.set(&my_charset_utf8mb4_bin,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_char_length() * collation.collation->mbmaxlen;
   set_maybe_null();
@@ -907,12 +912,12 @@ String *Item_func_json_unquote::val_str(String *str)
     return js;
 
   str->length(0);
-  str->set_charset(&my_charset_utf8mb3_general_ci);
+  str->set_charset(&my_charset_utf8mb4_bin);
 
   if (str->realloc_with_extra_if_needed(je.value_len) ||
       (c_len= json_unescape(js->charset(),
         je.value, je.value + je.value_len,
-        &my_charset_utf8mb3_general_ci,
+        &my_charset_utf8mb4_bin,
         (uchar *) str->ptr(), (uchar *) (str->ptr() + je.value_len))) < 0)
     goto error;
 
@@ -1473,7 +1478,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 }
 
 
-longlong Item_func_json_contains::val_int()
+bool Item_func_json_contains::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
@@ -1691,7 +1696,7 @@ return_null:
 }
 #endif /*DUMMY*/
 
-longlong Item_func_json_contains_path::val_int()
+bool Item_func_json_contains_path::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je;
@@ -2261,24 +2266,67 @@ String *Item_func_json_array_insert::val_str(String *str)
     str->set_charset(js->charset());
     if (item_pos)
     {
-      if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
-          (n_item > 0  && str->append(" ", 1)) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
-          str->append(",", 1) ||
-          (n_item == 0  && str->append(" ", 1)) ||
-          append_simple(str, item_pos, js->end() - item_pos))
+      my_ptrdiff_t size= item_pos - js->ptr();
+      if (append_simple(str, js->ptr(), size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
         goto return_null; /* Out of memory. */
+      }
+      if (n_item > 0 && str->append(" ", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        goto return_null; /* Out of memory. */
+      }
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
+        goto return_null; /* Out of memory. */
+      }
+      if (str->append(",", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        goto return_null; /* Out of memory. */
+      }
+      if (n_item == 0 && str->append(" ", 1))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        goto return_null; /* Out of memory. */
+      }
+      size= js->end() - item_pos;
+      if (append_simple(str, item_pos, size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+        goto return_null; /* Out of memory. */
+      }
     }
     else
     {
+      my_ptrdiff_t size;
       /* Insert position wasn't found - append to the array. */
       DBUG_ASSERT(je.state == JST_ARRAY_END);
       item_pos= (const char *) (je.s.c_str - je.sav_c_len);
-      if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
-          (n_item > 0  && str->append(", ", 2)) ||
-          append_json_value(str, args[n_arg+1], &tmp_val) ||
-          append_simple(str, item_pos, js->end() - item_pos))
+      size= item_pos - js->ptr();
+      if (append_simple(str, js->ptr(), size))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
         goto return_null; /* Out of memory. */
+      }
+      if (n_item > 0 && str->append(", ", 2))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), 2);
+        goto return_null; /* Out of memory. */
+      }
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), tmp_val.length());
+        goto return_null; /* Out of memory. */
+      }
+      size= js->end() - item_pos;
+      if (append_simple(str, item_pos, size))
+      {
+         my_error(ER_OUTOFMEMORY, MYF(0), (int) size);
+         goto return_null; /* Out of memory. */
+      }
     }
 
     {
@@ -4130,13 +4178,23 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
        goto error;
      if (je.value_type == JSON_VALUE_STRING)
      {
-       if (value2.realloc_with_extra_if_needed(je.value_len) ||
-         (c_len= json_unescape(js->charset(), je.value,
+       if (value2.realloc_with_extra_if_needed(je.value_len))
+       {
+         my_error(ER_OUTOFMEMORY, MYF(0), je.value_len);
+         goto error;
+       }
+       if ((c_len= json_unescape(js->charset(), je.value,
                                je.value + je.value_len,
-                               &my_charset_utf8mb3_general_ci,
+                               &my_charset_utf8mb4_bin,
                                (uchar *) value2.ptr(),
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
+       {
+         if (current_thd)
+           push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                               ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                               0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
          goto error;
+       }
 
        value2.length(c_len);
        js= &value2;
@@ -4179,13 +4237,23 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 
   if (type == JSON_VALUE_STRING)
   {
-    if (value1.realloc_with_extra_if_needed(value_len) ||
-        (c_len= json_unescape(value1.charset(), (uchar *) value,
+    if (value1.realloc_with_extra_if_needed(value_len))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), value_len);
+      return 1;
+    }
+    if ((c_len= json_unescape(value1.charset(), (uchar *) value,
                               (uchar *) value+value_len,
-                              &my_charset_utf8mb3_general_ci,
+                              &my_charset_utf8mb4_bin,
                               (uchar *) value1.ptr(),
                               (uchar *) (value1.ptr() + value_len))) < 0)
+    {
+      if (current_thd)
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                            0, "equality comparison", 0);
       return 1;
+    }
     value1.length(c_len);
     res1= &value1;
   }
@@ -4776,7 +4844,7 @@ static int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value
     FALSE - If two json documents do not overlap
     TRUE  - if two json documents overlap
 */
-static int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
+static bool check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
 {
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   return dbug_json_check_min_stack_requirement(););
@@ -4794,7 +4862,7 @@ static int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_
   }
 }
 
-longlong Item_func_json_overlaps::val_int()
+bool Item_func_json_overlaps::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
@@ -4847,7 +4915,7 @@ bool Item_func_json_overlaps::fix_length_and_dec(THD *thd)
   return Item_bool_func::fix_length_and_dec(thd);
 }
 
-longlong Item_func_json_schema_valid::val_int()
+bool Item_func_json_schema_valid::val_bool()
 {
   json_engine_t ve;
   int is_valid= 1;
@@ -5115,7 +5183,7 @@ static bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
 {
   int level= value->stack_p;
   if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
-                   (my_hash_get_key) get_key_name, NULL, 0))
+                   get_key_name, NULL, 0))
     return true;
   hash_inited= true;
 
@@ -5418,7 +5486,7 @@ static bool filter_keys(json_engine_t *je1, String *str, HASH items)
         str.append('"');
         str.append('\0');
 
-        char *curr_key= (char*)malloc((size_t)(key_end-key_start+3));
+        char *curr_key= (char*)malloc((size_t)(str.length()+3));
         strncpy(curr_key, str.ptr(), str.length());
 
         if (my_hash_search(&items, (const uchar*)curr_key, strlen(curr_key)))

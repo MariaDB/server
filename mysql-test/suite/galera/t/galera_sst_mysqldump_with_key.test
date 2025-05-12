@@ -6,6 +6,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_ssl_communication.inc
+--source include/force_restart.inc
 
 --source suite/galera/include/galera_sst_set_mysqldump.inc
 --let $node_1=node_1

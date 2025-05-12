@@ -44,7 +44,7 @@ variables:
   # Major version dictates which branches share the same ccache. E.g. 10.6-abc
   # and 10.6-xyz will have the same cache.
   MARIADB_MAJOR_VERSION: "11.1"
-  # NOTE! Currently ccache is only used on the Centos8 build. As each job has
+  # NOTE! Currently ccache is only used on the Centos 9 build. As each job has
   # sufficiently different environments they are unable to benefit from each
   # other's ccaches. As each build generates about 1 GB of ccache, having
   # multiple caches would quickly consume all free storage on Gitlab-CI and
@@ -53,7 +53,7 @@ variables:
   # cache:policy are not flexible enough to have a system where the cache is
   # uploaded only once a week and not on every build. Having ccache on at least
   # one build still helps ensure that ccache compatibility is at least tested
-  # and if the Centos 8 build is always significantly faster than all other
+  # and if the Centos 9 build is always significantly faster than all other
   # builds (e.g. on self-hosted Gitlab instances) then users would at least be
   # able to discover it.
   #
@@ -209,26 +209,20 @@ fedora-sanitizer:
     matrix:
       - SANITIZER: [-DWITH_ASAN=YES, -DWITH_TSAN=YES, -DWITH_UBSAN=YES]
 
-centos8:
+centos9:
   stage: build
-  image: quay.io/centos/centos:stream8 # CentOS 8 is deprecated, use this Stream8 instead
+  image: quay.io/centos/centos:stream9 # CentOS 9 is deprecated, use this Stream9 instead
   variables:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    - yum install -y yum-utils rpm-build openssl-devel pcre2-devel
-    - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-    # dnf --enablerepo=powertools install Judy-devel  #--> not found
-    - dnf config-manager --set-enabled powertools
-    # Error:
-    # Problem: conflicting requests
-    # - package Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.i686 is filtered out by modular filtering
-    # - package Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64 is filtered out by modular filtering
-    # Solution: install Judy-devel directly from downloaded rpm file:
-    - yum install -y http://vault.centos.org/centos/8/PowerTools/x86_64/os/Packages/Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64.rpm
-    # Use eatmydata to speed up build
-    - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
-    - yum install -y ccache  # From EPEL
+    - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+    - yum install -y yum-utils rpm-build openssl-devel libeatmydata ccache
+    # Install missing dependencies
+    - yum install -y https://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/Judy-devel-1.0.5-28.el9.x86_64.rpm
+    - yum install -y https://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/bison-devel-3.7.4-5.el9.x86_64.rpm
+    - yum install -y https://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/multilib-rpm-config-1-19.el9.noarch.rpm
+    # Configure ccache
     - source /etc/profile.d/ccache.sh
     - export CCACHE_DIR="$(pwd)/.ccache"; ccache --zero-stats
     # This repository does not have any .spec files, so install dependencies based on CentOS spec file
@@ -424,7 +418,8 @@ fedora install:
       - installed-database.sql
       - upgraded-database.sql
 
-cppcheck: 
+cppcheck:
+  allow_failure: true
   stage: sast
   needs: []
   variables:
@@ -432,33 +427,57 @@ cppcheck:
     GIT_SUBMODULE_STRATEGY: normal
   script:
     - yum install -y cppcheck diffutils
-    # --template: use a single-line template
+    # --template: output format
     # --force: check large directories without warning
     # -i<directory>: ignore this directory when scanning
+    # -I<directory>: include path, reduces false positives 
+    #                related to inability to resolve symbols
     # -j: run multiple cppcheck threads
     # Use newline to escape colon in yaml
     - >
-      cppcheck --template="{file}:{line}: {severity}: {message}" --force
+      cppcheck --template="{file}:{line}\n{code}\n{severity}: {message}" --force --check-level=exhaustive
       client dbug extra include libmariadb libmysqld libservices mysql-test mysys mysys_ssl pcre plugin
       strings tests unittest vio wsrep-lib sql sql-common storage
       -istorage/mroonga -istorage/tokudb -istorage/spider -istorage/rocksdb -iextra/ -ilibmariadb/ -istorage/columnstore
-      --output-file=cppcheck.txt -j $(nproc)
-    # Parallel jobs may output findings in an nondeterministic order. Sort to match ignorelist.
-    - cat cppcheck.txt | sort > cppcheck_sorted.txt
-    # Remove line numbers for diff
-    - sed 's/:[^:]*:/:/' cppcheck_sorted.txt > cppcheck_sorted_no_line_numbers.txt
+      -Iinclude -Istorage/innobase/include
+      --output-file=initial-cppcheck_output.txt -j $(nproc)
+    # when including {code} in the cppcheck template, some more pre-processing needs to be done
+    #
+    # sample cppcheck finding: <file>:<line>
+    #                          foo.bar()
+    #                          ^
+    #                          <severity>: <message>
+    #
+    # 1. remove all lines with "^"
+    # 2. merge every 3 lines into 1 so it can be sorted (example: <file> foo.bar() <severity>: <message>)
+    # 3. sort to match ignorelist since parallel jobs may output findings in an nondeterministic order
+    # 4. remove findings likely to be false positives (i.e, "unknown macros")
+    # 5. remove line numbers for diffing against ignorelist
+    - |
+      cat initial-cppcheck_output.txt | grep -v '\^$' > preprocessed-cppcheck_circumflex_removed.txt
+      cat preprocessed-cppcheck_circumflex_removed.txt | awk 'NR%3==1 {printf "%s", (NR==1) ? "" : "\n"; printf "%s", $0} NR%3!=1 {printf " %s", $0}' > preprocessed-cppcheck_oneline.txt
+      cat preprocessed-cppcheck_oneline.txt | sort > preprocessed-cppcheck_sorted.txt
+      cat preprocessed-cppcheck_sorted.txt | grep -v "There is an unknown macro here somewhere" > results-cppcheck_all_findings.txt
+      sed 's/:[0-9]\+//' results-cppcheck_all_findings.txt > preprocessed_final-cppcheck_no_line_nums.txt
     # Only print new issues not found in ignore list
     - echo "Problems found in ignore list that were not discovered by cppcheck (may have been fixed)."
-    - diff --changed-group-format='%>' --unchanged-group-format='' cppcheck_sorted_no_line_numbers.txt tests/code_quality/cppcheck_ignorelist.txt || true
+    - diff --changed-group-format='%>' --unchanged-group-format='' preprocessed_final-cppcheck_no_line_nums.txt tests/code_quality/cppcheck_ignorelist.txt || true
     - echo "Problems found by cppcheck that were not in ignore list."
-    - diff --changed-group-format='%<' --unchanged-group-format='' cppcheck_sorted_no_line_numbers.txt tests/code_quality/cppcheck_ignorelist.txt > lines_not_ignored.txt || true
-    - cat lines_not_ignored.txt && test ! -s lines_not_ignored.txt
+    - diff --changed-group-format='%<' --unchanged-group-format='' preprocessed_final-cppcheck_no_line_nums.txt tests/code_quality/cppcheck_ignorelist.txt > results-cppcheck_new_findings.txt || true
+    - cat results-cppcheck_new_findings.txt && test ! -s results-cppcheck_new_findings.txt
   artifacts:
     when: always
     paths:
-      - cppcheck_sorted.txt
+      # save all steps of pre-processing in-case it ever breaks
+      - initial-cppcheck_output.txt
+      - preprocessed-cppcheck_circumflex_removed.txt
+      - preprocessed-cppcheck_sorted.txt
+      - preprocessed_final-cppcheck_no_line_nums.txt
+      - results-cppcheck_all_findings.txt
+      - results-cppcheck_new_findings.txt
 
 flawfinder: 
+  allow_failure: true
   stage: sast
   needs: []
   variables:
@@ -480,11 +499,12 @@ flawfinder:
     - echo "Problems found in ignore list that were not discovered by flawfinder (may have been fixed)."
     - diff --changed-group-format='%>' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json || true
     - echo "Problems found by flawfinder that were not in ignore list."
-    - diff --changed-group-format='%<' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json > lines_not_ignored.txt || true
-    - cat lines_not_ignored.txt && test ! -s lines_not_ignored.txt
+    - diff --changed-group-format='%<' --unchanged-group-format='' flawfinder-min-level5.json tests/code_quality/flawfinder_ignorelist.json > flawfinder_new_findings.txt || true
+    - cat flawfinder_new_findings.txt && test ! -s flawfinder_new_findings.txt
   artifacts:
     when: always
     paths:
+      - flawfinder_new_findings.txt
       - flawfinder-all-vulnerabilities.html
       - flawfinder-min-level5.json
       

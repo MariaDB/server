@@ -28,14 +28,11 @@ select position(binary 'll' in 'hello'),position('a' in binary 'hello');
 # strange undocumented behaviour, strict mode
 #
 select left('hello',null), right('hello',null);
-select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5) ;
-#enable after fix MDEV-27871
---disable_view_protocol
-select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) ;
+select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5);
+select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) as exp;
 select substring_index('www.tcx.se','.',-2),substring_index('www.tcx.se','.',1);
 select substring_index('www.tcx.se','tcx',1),substring_index('www.tcx.se','tcx',-1);
 select substring_index('.tcx.se','.',-2),substring_index('.tcx.se','.tcx',-1);
---enable_view_protocol
 select substring_index('aaaaaaaaa1','a',1);
 select substring_index('aaaaaaaaa1','aa',1);
 select substring_index('aaaaaaaaa1','aa',2);
@@ -79,32 +76,31 @@ select substring_index('the king of the the hill','the',1);
 select substring_index('the king of the the hill','the',2);
 select substring_index('the king of the the hill','the',3);
 
-select concat(':',ltrim('  left  '),':',rtrim('  right  '),':');
-#enable after fix MDEV-27871
---disable_view_protocol
-select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':');
-select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':');
-select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':');
-select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':');
-select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':');
+select concat(':',ltrim('  left  '),':',rtrim('  right  '),':') as exp;
+select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':') as exp;
+select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':') as exp;
+select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':') as exp;
+select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':') as exp;
+select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':') as exp;
 select TRIM("foo" FROM "foo"), TRIM("foo" FROM "foook"), TRIM("foo" FROM "okfoo");
---enable_view_protocol
 
 select concat_ws(', ','monty','was here','again');
 select concat_ws(NULL,'a'),concat_ws(',',NULL,'');
 select concat_ws(',','',NULL,'a');
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"');
+SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"') as exp;
 
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
+--disable_view_protocol
+#chaeck after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 select replace('aaaa','a','bbbb');
 --disable_metadata
-select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') ;
-select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
+--enable_cursor_protocol
 --enable_view_protocol
+select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') as exp;
+select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 select 'mood' sounds like 'mud';
 select 'Glazgo' sounds like 'Liverpool';
 select null sounds like 'null';
@@ -137,32 +133,25 @@ select rpad('abcd',7),lpad('abcd',7);
 select LEAST(NULL,'HARRY','HARRIOT',NULL,'HAROLD'),GREATEST(NULL,'HARRY','HARRIOT',NULL,'HAROLD');
 select least(1,2,3) | greatest(16,32,8), least(5,4)*1,greatest(-1.0,1.0)*1,least(3,2,1)*1.0,greatest(1,1.1,1.0),least("10",9),greatest("A","B","0");
 
-#enable after fix MDEV-27871
---disable_view_protocol
-select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000);
---enable_view_protocol
-select decode(encode("abcdef","monty"),"monty")="abcdef";
+select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000) as exp;
+select decode(encode("abcdef","monty"),"monty")="abcdef" as exp;
 
 select quote('\'\"\\test');
 select quote(concat('abc\'', '\\cba'));
 select quote(1/0), quote('\0\Z');
 select length(quote(concat(char(0),"test")));
-#enable after fix MDEV-27871
---disable_view_protocol
-select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235))));
-select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL);
---enable_view_protocol
+select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235)))) as exp;
+select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL) as exp;
 select hex(unhex("1")), hex(unhex("12")), hex(unhex("123")), hex(unhex("1234")), hex(unhex("12345")), hex(unhex("123456"));
 select length(unhex(md5("abrakadabra")));
 
 #
 # Bug #6564: QUOTE(NULL
 #
-
-#enable after fix MDEV-28651
---disable_view_protocol
+#enable after fix MDEV-31587
+--disable_cursor_protocol
 select concat('a', quote(NULL));
---enable_view_protocol
+--enable_cursor_protocol
 
 #
 # Wrong usage of functions
@@ -211,14 +200,11 @@ CREATE TABLE t1 (
   submitter int(10) unsigned default NULL
 ) ENGINE=MyISAM;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 INSERT INTO t1 VALUES (1,'Link',1,1,1,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2001-02-28 08:40:16',20010228084016,0,4);
-SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') FROM t1;
-SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') FROM t1;
-SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) FROM t1;
-SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') from t1 group by bugdesc;
---enable_view_protocol
+SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') as exp FROM t1;
+SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') as exp FROM t1;
+SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) as exp FROM t1;
+SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') as exp from t1 group by bugdesc;
 drop table t1;
 
 #
@@ -764,8 +750,11 @@ create table t1 (i int);
 insert into t1 values (1000000000),(1);
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 select lpad(i, 7, ' ') as t from t1;
 select rpad(i, 7, ' ') as t from t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;
@@ -916,6 +905,8 @@ select format(NULL, NULL);
 select format(pi(), NULL);
 select format(NULL, 2);
 
+#check after fix MDEV-31587
+--disable_cursor_protocol
 #enable after fix MDEV-28585
 --disable_view_protocol
 select benchmark(NULL, NULL);
@@ -923,16 +914,20 @@ select benchmark(0, NULL);
 select benchmark(100, NULL);
 select benchmark(NULL, 1+1);
 --enable_view_protocol
+--enable_cursor_protocol
 
 #
 # Bug #20752: BENCHMARK with many iterations returns too quickly
 #
 
 # not a string, but belongs with the above Bug#22684
+#check after fix MDEV-31587
+--disable_cursor_protocol
 #enable after fix MDEV-28585
 --disable_view_protocol
 select benchmark(-1, 1);
 --enable_view_protocol
+--enable_cursor_protocol
 #
 # Please note:
 # 1) The collation of the password is irrelevant, the encryption uses
@@ -1000,26 +995,26 @@ select left('hello', -1);
 select left('hello', -4294967295);
 #enable after fix MDEV-29552
 --disable_view_protocol
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select left('hello', 4294967295);
---enable_view_protocol
 select left('hello', -4294967296);
-#enable after fix MDEV-29552
---disable_view_protocol
 select left('hello', 4294967296);
---enable_view_protocol
 select left('hello', -4294967297);
-#enable after fix MDEV-29552
---disable_view_protocol
 select left('hello', 4294967297);
+--enable_cursor_protocol
 --enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select left('hello', -18446744073709551615);
 select left('hello', 18446744073709551615);
 select left('hello', -18446744073709551616);
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select left('hello', 18446744073709551616);
 select left('hello', -18446744073709551617);
 select left('hello', 18446744073709551617);
+--enable_cursor_protocol
 --enable_view_protocol
 
 select right('hello', 10);
@@ -1028,26 +1023,26 @@ select right('hello', -1);
 select right('hello', -4294967295);
 #enable after fix MDEV-29552
 --disable_view_protocol
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select right('hello', 4294967295);
---enable_view_protocol
 select right('hello', -4294967296);
-#enable after fix MDEV-29552
---disable_view_protocol
 select right('hello', 4294967296);
---enable_view_protocol
 select right('hello', -4294967297);
-#enable after fix MDEV-29552
---disable_view_protocol
 select right('hello', 4294967297);
+--enable_cursor_protocol
 --enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select right('hello', -18446744073709551615);
 select right('hello', 18446744073709551615);
 select right('hello', -18446744073709551616);
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 select right('hello', 18446744073709551616);
 select right('hello', -18446744073709551617);
 select right('hello', 18446744073709551617);
+--enable_cursor_protocol
 --enable_view_protocol
 
 select substring('hello', 2, -1);
@@ -1072,6 +1067,8 @@ select substring('hello', 18446744073709551617, 1);
 #enable after fix MDEV-28652
 --disable_view_protocol
 select substring('hello', 1, -1);
+#check after fix MDEV-31587
+--disable_cursor_protocol
 select substring('hello', 1, -4294967295);
 select substring('hello', 1, 4294967295);
 select substring('hello', 1, -4294967296);
@@ -1087,6 +1084,7 @@ select substring('hello', 1, -18446744073709551616);
 select substring('hello', 1, 18446744073709551616);
 select substring('hello', 1, -18446744073709551617);
 select substring('hello', 1, 18446744073709551617);
+--enable_cursor_protocol
 --enable_view_protocol
 select substring('hello', -1, -1);
 select substring('hello', -4294967295, -4294967295);
@@ -1138,15 +1136,12 @@ select insert('hello', -4294967296, -4294967296, 'hi');
 select insert('hello', 4294967296, 4294967296, 'hi');
 select insert('hello', -4294967297, -4294967297, 'hi');
 select insert('hello', 4294967297, 4294967297, 'hi');
-#enable after fix MDEV-27871
---disable_view_protocol
-select insert('hello', -18446744073709551615, -18446744073709551615, 'hi');
-select insert('hello', 18446744073709551615, 18446744073709551615, 'hi');
-select insert('hello', -18446744073709551616, -18446744073709551616, 'hi');
-select insert('hello', 18446744073709551616, 18446744073709551616, 'hi');
-select insert('hello', -18446744073709551617, -18446744073709551617, 'hi');
-select insert('hello', 18446744073709551617, 18446744073709551617, 'hi');
---enable_view_protocol
+select insert('hello', -18446744073709551615, -18446744073709551615, 'hi') as exp;
+select insert('hello', 18446744073709551615, 18446744073709551615, 'hi') as exp;
+select insert('hello', -18446744073709551616, -18446744073709551616, 'hi') as exp;
+select insert('hello', 18446744073709551616, 18446744073709551616, 'hi') as exp;
+select insert('hello', -18446744073709551617, -18446744073709551617, 'hi') as exp;
+select insert('hello', 18446744073709551617, 18446744073709551617, 'hi') as exp;
 
 select repeat('hello', -1);
 select repeat('hello', -4294967295);
@@ -1421,7 +1416,10 @@ create table t1(a float);
 insert into t1 values (1.33);
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 select format(a, 2) from t1;
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 drop table t1;
@@ -1491,17 +1489,14 @@ CREATE TABLE t2 (a VARCHAR(20), b INT);
 INSERT INTO t1 VALUES ('ABC', 1);
 INSERT INTO t2 VALUES ('ABC', 1);
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a) as exp
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
 
-SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a) as exp
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
 
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC')
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC') as exp
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
---enable_view_protocol
 
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
@@ -1509,11 +1504,8 @@ TRUNCATE TABLE t2;
 INSERT INTO t1 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 INSERT INTO t2 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a) as exp
   FROM t2 WHERE t2.b = 1 GROUP BY t2.b;
---enable_view_protocol
 
 DROP TABLE t1, t2;
 
@@ -1542,9 +1534,11 @@ SELECT CONVERT(('' IN (REVERSE(CAST(('') AS DECIMAL)), '')), CHAR(3));
 --echo #
 CREATE TABLE t1 ( a TEXT );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --disable_ps2_protocol
 --eval SELECT 'aaaaaaaaaaaaaa' INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt';
 --enable_ps2_protocol
+--enable_cursor_protocol
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
@@ -1627,11 +1621,17 @@ SELECT format(12345678901234567890.123, 3, 'ar_AE');
 SELECT format(12345678901234567890.123, 3, 'ar_SA');
 SELECT format(12345678901234567890.123, 3, 'be_BY');
 SELECT format(12345678901234567890.123, 3, 'de_DE');
+#check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'en_IN');
 SELECT format(12345678901234567890.123, 3, 'en_US');
+--enable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'it_CH');
 SELECT format(12345678901234567890.123, 3, 'ru_RU');
+#checkafter fix MDEV-31512
+--disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'ta_IN');
+--enable_cursor_protocol
 
 CREATE TABLE t1 (fmt CHAR(5) NOT NULL);
 INSERT INTO t1 VALUES ('ar_AE');
@@ -1643,6 +1643,8 @@ INSERT INTO t1 VALUES ('en_US');
 INSERT INTO t1 VALUES ('it_CH');
 INSERT INTO t1 VALUES ('ru_RU');
 INSERT INTO t1 VALUES ('ta_IN');
+#check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT fmt, format(12345678901234567890.123, 3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(12345678901234567890.123, 0, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(12345678901234567890,     3, fmt) FROM t1 ORDER BY fmt;
@@ -1650,6 +1652,7 @@ SELECT fmt, format(-12345678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(-02345678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(-00345678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
 SELECT fmt, format(-00045678901234567890,    3, fmt) FROM t1 ORDER BY fmt;
+--enable_cursor_protocol
 DROP TABLE t1;
 
 SELECT format(123, 1, 'Non-existent-locale');
@@ -1679,14 +1682,11 @@ SELECT CONV(1,-2147483648,-2147483648);
 --echo # Bug#12985030 SIMPLE QUERY WITH DECIMAL NUMBERS LEAKS MEMORY
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
 SELECT (rpad(1.0,2048,1)) IS NOT FALSE;
 SELECT ((+0) IN
 ((0b111111111111111111111111111111111111111111111111111),(rpad(1.0,2048,1)),
-(32767.1)));
+(32767.1))) as exp;
 SELECT ((rpad(1.0,2048,1)) = ('4(') ^ (0.1));
---enable_view_protocol
 
 --error 1690
 SELECT
@@ -2097,7 +2097,10 @@ DROP TABLE t1;
 --disable_view_protocol
 CREATE TABLE t1 (a INT, b TIME, c TIME);
 INSERT INTO t1 VALUES (NULL,'22:56:45','22:56:45'),(4,'12:51:42','12:51:42');
+#check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT REPLACE( BINARY c, a, b ) f FROM t1 GROUP BY f WITH ROLLUP;
+--enable_cursor_protocol
 DROP TABLE t1;
 --enable_view_protocol
 
@@ -2114,10 +2117,7 @@ DROP TABLE t1;
 --echo # MDEV-24742 Server crashes in Charset::numchars / String::numchars
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
---enable_view_protocol
+SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux') as exp;
 
 --echo #
 --echo # Bug#31374305 - FORMAT() NOT DISPLAYING WHOLE NUMBER SIDE CORRECTLY
@@ -2362,7 +2362,97 @@ SELECT SUBSTR(0,@a) FROM t;
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+--echo #
+
+CREATE TABLE t1 (c BLOB);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+SELECT BIN(c) FROM t1;
+DROP TABLE t1;
+
+DO OCT(-9223372036854775808);
+
+--echo #
+--echo # MDEV-28652 SUBSTRING(str,pos,len) returns incorrect result in view (returns an empty string)
+--echo #
+
+create view v1 as select substring('hello', 1, 4294967295);
+select * from v1;
+drop view v1;
+
+--echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-29552 LEFT and RIGHT with big value for parameter 'len' >0 return empty value in view
+--echo #
+
+create view v1 as select left('hello', 4294967295);
+select * from v1;
+drop view v1;
+
+--echo #
+--echo # MDEV-33942 View cuts off the end of string with the utf8 character set in INSERT function
+--echo #
+
+SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+CREATE VIEW v1 AS SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+SELECT * FROM v1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-28686 Assertion `0' in Type_handler_string_result::make_sort_key or unexpected result
+--echo #
+
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT e, GROUP_CONCAT(s) FROM t GROUP BY CONVERT((LPAD(e, -1) AND e) USING utf8);
+DROP TABLE t;
+
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+SET sql_mode=STRICT_TRANS_TABLES;
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-32755 Stack-Buffer-Overflow at /mariadb-11.3.0/strings/int2str.c:122
+--echo #
+
+CREATE TABLE t0 ( c55 INT , c38 INT ) ;
+INSERT INTO t0 VALUES ( -54 , -27 ) , ( -107 , -62 ) ;
+CREATE INDEX i0 ON t0 ( c38 ) ;
+INSERT INTO t0 ( c55 ) VALUES ( 43 ) , ( 77 ) ;
+SELECT t0 . c55 AS c47 FROM
+( SELECT c15 AS c40 FROM
+  ( SELECT c55 AS c15 FROM t0 ) AS t1
+  JOIN t0 ON t1.c15 = t1.c15 SOUNDS LIKE + CONV ( -2919286674558440404 , -17 , -2 ) ) AS t2
+  JOIN t0 ON t0.c38 = t0.c38;
+DROP TABLE t0;
+
+SELECT CONV(-29223372036854775809, -10, 18446744073709551614);
+SELECT CONV(1<<63, 10, -2);
+
+--echo #
+--echo # MDEV-35416 CONV(1<<63, 10, -2) fails with --view-protocol
+--echo #
+
+CREATE TABLE t1 AS SELECT CONV(1<<63, 10, -2) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #
 
 --echo #

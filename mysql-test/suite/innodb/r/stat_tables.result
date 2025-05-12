@@ -82,4 +82,32 @@ WHERE database_name='test' AND table_name='t1' AND stat_name='size';
 TIMESTAMPDIFF(DAY,last_update,now())<=1
 1
 DROP TABLE t1;
+#
+# MDEV-34207: ALTER TABLE...STATS_PERSISTENT=0 fails to drop statistics
+#
+CREATE TABLE t1 (c1 INT) ENGINE=InnoDB STATS_PERSISTENT 1;
+ALTER TABLE t1 STATS_PERSISTENT 0;
+DROP TABLE t1;
+SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=1;
+CREATE TABLE t2 (c1 INT) ENGINE=InnoDB;
+RENAME TABLE t2 TO t1;
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent=0;
+CREATE TABLE t2 (c1 INT) ENGINE=InnoDB STATS_PERSISTENT 1;
+RENAME TABLE t2 TO t1;
+SET GLOBAL innodb_stats_persistent=@save_persistent;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE=InnoDB STATS_PERSISTENT 1;
+DROP TABLE t1;
 # End of 10.6 tests
+#
+# MDEV-36373 Warning: ... persistent statistics storage is corrupted
+#
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+SET STATEMENT transaction_read_only=1 FOR ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DROP TABLE t1;
+# End of 10.11 tests

@@ -88,7 +88,7 @@ a	b	c
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
-select t0.`b` `b`,t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r_int` t2 left join (`auto_test_remote`.`ta_r_3` t1 join `auto_test_remote`.`ta_r` t0) on ((t0.`a` = t2.`a`) and (t1.`a` = t2.`a`)) where 1 order by t0.`b` desc
+select t0.`a` `a`,t2.`b` `b`,t2.`c` `c` from `auto_test_remote`.`ta_r_int` t2 left join (`auto_test_remote`.`ta_r_3` t1 join `auto_test_remote`.`ta_r` t0) on ((t0.`a` = t2.`a`) and (t1.`a` = t2.`a`)) where 1 order by t0.`b` desc
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')

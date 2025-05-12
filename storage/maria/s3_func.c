@@ -43,6 +43,9 @@ static const char *protocol_types[]= {"Auto", "Original", "Amazon", "Legacy", "P
 TYPELIB s3_protocol_typelib= {array_elements(protocol_types)-1,"",
                               protocol_types, NULL};
 
+static const char *providers[]= {"Default", "Amazon", "Huawei", NullS};
+TYPELIB s3_provider_typelib = {array_elements(providers)-1,"",providers, NULL};
+
 /******************************************************************************
  Allocations handler for libmarias3
  To be removed when we do the init allocation in mysqld.cc
@@ -154,6 +157,20 @@ ms3_st *s3_open_connection(S3_INFO *s3)
                     errno, ms3_error(errno));
     my_errno= HA_ERR_NO_SUCH_TABLE;
   }
+
+  /* Provider specific overrides */
+  switch (s3->provider)
+  {
+    case 0: /* Default */
+      break;
+    case 1: /* Amazon */
+      s3->protocol_version = 5;
+      break;
+    case 2: /* Huawei */
+      s3->no_content_type = 1;
+      break;
+  }
+
   if (s3->protocol_version > 2)
   {
     uint8_t protocol_version;
@@ -176,6 +193,12 @@ ms3_st *s3_open_connection(S3_INFO *s3)
 
   if (s3->use_http)
     ms3_set_option(s3_client, MS3_OPT_USE_HTTP, NULL);
+
+  if (s3->ssl_no_verify)
+    ms3_set_option(s3_client, MS3_OPT_DISABLE_SSL_VERIFY, NULL);
+
+  if (s3->no_content_type)
+    ms3_set_option(s3_client, MS3_OPT_NO_CONTENT_TYPE, NULL);
 
   return s3_client;
 }
@@ -1176,7 +1199,7 @@ my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,
       if (!(errmsg= ms3_server_error(s3_client)))
         errmsg= ms3_error(error);
 
-      my_printf_error(EE_READ, "Got error from move_object(%s -> %s): %d %",
+      my_printf_error(EE_READ, "Got error from move_object(%s -> %s): %d %s",
                       error_flags,
                       from_name, to_name, error, errmsg);
     }

@@ -160,7 +160,7 @@ may be pointing to garbage (an undo log record discarded by purge),
 but it will never be dereferenced, because the purge view is older
 than any active transaction.
 
-For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
+For details see: row_undo_mod_sec_is_unsafe() and row_purge_poss_sec()
 */
 
 

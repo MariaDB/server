@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 #
 # Bug #41453: Assertion `m_status == DA_ERROR' failed in
 # Diagnostics_area::sql_errno

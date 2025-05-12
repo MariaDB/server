@@ -1318,9 +1318,10 @@ longlong Item_func_minus::int_op()
   {
     if (args[1]->unsigned_flag)
     {
-      if ((ulonglong) val0 < (ulonglong) val1)
+      if ((ulonglong) val0 >= (ulonglong) val1)
+        res_unsigned= TRUE;
+      else if ((ulonglong)val1 - (ulonglong)val0 > (ulonglong)LONGLONG_MAX)
         goto err;
-      res_unsigned= TRUE;
     }
     else
     {
@@ -2152,7 +2153,7 @@ class Func_handler_shift_left_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null() <<
@@ -2165,7 +2166,7 @@ class Func_handler_shift_left_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() <<
@@ -2186,7 +2187,7 @@ class Func_handler_shift_right_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null() >>
@@ -2199,7 +2200,7 @@ class Func_handler_shift_right_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() >>
@@ -2220,7 +2221,7 @@ class Func_handler_bit_neg_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return ~ item->arguments()[0]->to_longlong_null();
@@ -2232,7 +2233,7 @@ class Func_handler_bit_neg_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return ~ VDec(item->arguments()[0]).to_xlonglong_null();
@@ -2996,13 +2997,15 @@ String *Item_func_min_max::val_str_native(String *str)
       res=args[i]->val_str(str);
     else
     {
-      String *res2;
-      res2= args[i]->val_str(res == str ? &tmp_value : str);
+      String *res2= args[i]->val_str(&tmp_value);
       if (res2)
       {
         int cmp= sortcmp(res,res2,collation.collation);
         if ((cmp_sign < 0 ? cmp : -cmp) < 0)
-          res=res2;
+        {
+          str->copy(*res2);
+          res= str;
+        }
       }
     }
     if ((null_value= args[i]->null_value))
@@ -3051,6 +3054,27 @@ longlong Item_func_min_max::val_int_native()
       return 0;
   }
   return value;
+}
+
+
+longlong Item_func_min_max::val_uint_native()
+{
+  DBUG_ASSERT(fixed());
+  ulonglong value= 0;
+  for (uint i=0; i < arg_count ; i++)
+  {
+    if (i == 0)
+      value= (ulonglong) args[i]->val_int();
+    else
+    {
+      ulonglong tmp= (ulonglong) args[i]->val_int();
+      if (!args[i]->null_value && (tmp < value ? cmp_sign : -cmp_sign) > 0)
+	value= tmp;
+    }
+    if ((null_value= args[i]->null_value))
+      return 0;
+  }
+  return (longlong) value;
 }
 
 
@@ -3146,11 +3170,27 @@ longlong Item_func_char_length::val_int()
 }
 
 
+bool Item_func_coercibility::fix_length_and_dec(THD *thd)
+{
+  max_length=10;
+  base_flags&= ~item_base_t::MAYBE_NULL;
+  /*
+    Since this is a const item which doesn't use tables (see used_tables()),
+    we don't want to access the function arguments during execution.
+    That's why we store the derivation here during the preparation phase
+    and only return it later at the execution phase
+  */
+  DBUG_ASSERT(args[0]->fixed());
+  m_cached_collation_derivation= (longlong) args[0]->collation.derivation;
+  return false;
+}
+
+
 longlong Item_func_coercibility::val_int()
 {
   DBUG_ASSERT(fixed());
   null_value= 0;
-  return (longlong) args[0]->collation.derivation;
+  return m_cached_collation_derivation;
 }
 
 
@@ -3432,7 +3472,7 @@ class Func_handler_bit_count_int_to_slong:
         public Item_handled_func::Handler_slong2
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null().bit_count();
@@ -3444,7 +3484,7 @@ class Func_handler_bit_count_decimal_to_slong:
         public Item_handled_func::Handler_slong2
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null().bit_count();
@@ -4105,13 +4145,12 @@ public:
 
 /** Extract a hash key from User_level_lock. */
 
-uchar *ull_get_key(const uchar *ptr, size_t *length,
-                   my_bool not_used __attribute__((unused)))
+const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
   MDL_key *key = ull->lock->get_key();
   *length= key->length();
-  return (uchar*) key->ptr();
+  return key->ptr();
 }
 
 
@@ -4178,7 +4217,7 @@ public:
                         const char * /* sqlstate */,
                         Sql_condition::enum_warning_level* /* level */,
                         const char *message,
-                        Sql_condition ** /* cond_hdl */);
+                        Sql_condition ** /* cond_hdl */) override;
 };
 
 bool
@@ -6470,7 +6509,7 @@ class Func_handler_bit_xor_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null() ^
@@ -6483,7 +6522,7 @@ class Func_handler_bit_xor_dec_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() ^
@@ -6998,7 +7037,7 @@ sp_cursor *Cursor_ref::get_open_cursor_or_error()
 }
 
 
-longlong Item_func_cursor_isopen::val_int()
+bool Item_func_cursor_isopen::val_bool()
 {
   sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
   DBUG_ASSERT(c != NULL);
@@ -7006,14 +7045,14 @@ longlong Item_func_cursor_isopen::val_int()
 }
 
 
-longlong Item_func_cursor_found::val_int()
+bool Item_func_cursor_found::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
-longlong Item_func_cursor_notfound::val_int()
+bool Item_func_cursor_notfound::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();
@@ -7029,6 +7068,16 @@ longlong Item_func_cursor_rowcount::val_int()
 /*****************************************************************************
   SEQUENCE functions
 *****************************************************************************/
+bool Item_func_nextval::check_access_and_fix_fields(THD *thd, Item **ref,
+                                                    privilege_t want_access)
+{
+  table_list->sequence= false;
+  bool error= check_single_table_access(thd, want_access, table_list, false);
+  table_list->sequence= true;
+  if (error && table_list->belong_to_view)
+    table_list->replace_view_error_with_generic(thd);
+  return error || Item_longlong_func::fix_fields(thd, ref);
+}
 
 longlong Item_func_nextval::val_int()
 {

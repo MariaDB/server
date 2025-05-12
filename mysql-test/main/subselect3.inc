@@ -57,9 +57,11 @@ select a, oref, a in (
 create table t3 (a int);
 insert into t3 values (NULL), (NULL);
 flush status;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select a in (select max(ie) from t1 where oref=4 group by grp) from t3;
 --enable_ps2_protocol
+--enable_cursor_protocol
 show status like 'Handler_read_rnd_next';
 select ' ^ This must show 11' Z;
 
@@ -96,7 +98,9 @@ select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
 
 --disable_ps2_protocol
 flush status;
+--disable_cursor_protocol
 select oref, a from t2 where a in (select a from t1 where oref=t2.oref);
+--enable_cursor_protocol
 # This will only show access to t2:
 show status like '%Handler_read_rnd_next';
 
@@ -106,7 +110,9 @@ insert into t2 values (NULL, 0),(NULL, 0), (NULL, 0), (NULL, 0);
 
 set optimizer_switch='subquery_cache=off';
 flush status;
+--disable_cursor_protocol
 select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
+--enable_cursor_protocol
 show status like '%Handler_read%';
 select 'No key lookups, seq reads: 29= 5 reads from t2 + 4 * 6 reads from t1.' Z;
 set @@optimizer_switch=@save_optimizer_switch;
@@ -645,9 +651,11 @@ DROP TABLE t1, t2;
 
 create table t1 (a int, b decimal(13, 3)); 
 insert into t1 values (1, 0.123);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select a, (select max(b) from t1) into outfile "../../tmp/subselect.out.file.1" from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 delete from t1;
 load data infile "../../tmp/subselect.out.file.1" into table t1;
 select * from t1;
@@ -699,6 +707,8 @@ SELECT a AS x, ROW(11, 12) = (SELECT MAX(x), 12), ROW(11, 12) IN (SELECT MAX(x),
 
 DROP TABLE t1;
 
+#enable after fix MDEV-31728
+--disable_cursor_protocol
 #enable after fix MDEV-28585
 --disable_view_protocol
 --echo # both columns should be same
@@ -709,6 +719,7 @@ SELECT ROW(1,2) = (SELECT NULL,    1), ROW(1,2) IN (SELECT NULL,    1);
 SELECT ROW(1,2) = (SELECT    1,    1), ROW(1,2) IN (SELECT    1,    1);
 SELECT ROW(1,2) = (SELECT    1,    2), ROW(1,2) IN (SELECT    1,    2);
 --enable_view_protocol
+--enable_cursor_protocol
 
 #
 # Bug #37362      Crash in do_field_eq
@@ -816,11 +827,13 @@ set @save_optimizer_switch2=@@optimizer_switch;
 set optimizer_switch='subquery_cache=off';
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --echo 
 SELECT i1, i2
 FROM t1
 WHERE (i1, i2) 
       NOT IN (SELECT i1, i2 FROM t2);
+--enable_cursor_protocol
 
 --echo 
 --echo # Check that the subquery only has to be evaluated once 
@@ -832,11 +845,13 @@ SHOW STATUS LIKE '%Handler_read_rnd_next';
 INSERT INTO t1 VALUES (NULL, NULL); 
 FLUSH STATUS;
 
+--disable_cursor_protocol
 --echo 
 SELECT i1, i2
 FROM t1
 WHERE (i1, i2) 
       NOT IN (SELECT i1, i2 FROM t2);
+--enable_cursor_protocol
 
 --echo 
 --echo # Handler_read_rnd_next should be one more than baseline 
@@ -982,10 +997,12 @@ set @@max_heap_table_size= 16384;
 explain select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
 flush status;
 --disable_ps2_protocol
+--disable_cursor_protocol
 select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
 --enable_ps2_protocol
 show status like 'Created_tmp_disk_tables';
-set @save_max_heap_table_size=@@max_heap_table_size;
+--enable_cursor_protocol
+set @@max_heap_table_size=@save_max_heap_table_size;
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t0, t1;
 

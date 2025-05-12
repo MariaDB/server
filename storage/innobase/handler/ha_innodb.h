@@ -101,6 +101,9 @@ public:
 
 	int open(const char *name, int mode, uint test_if_locked) override;
 
+	/** Fetch or recalculate InnoDB table statistics */
+	dberr_t statistics_init(dict_table_t *table, bool recalc);
+
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;
@@ -214,16 +217,16 @@ public:
 
 	char* get_foreign_key_create_info() override;
 
-        int get_foreign_key_list(const THD *thd,
+        int get_foreign_key_list(THD *thd,
                                  List<FOREIGN_KEY_INFO> *f_key_list) override;
 
 	int get_parent_foreign_key_list(
-		const THD*		thd,
+		THD*		thd,
 		List<FOREIGN_KEY_INFO>*	f_key_list) override;
 
 	bool can_switch_engines() override;
 
-	uint referenced_by_foreign_key() override;
+	bool referenced_by_foreign_key() const noexcept override;
 
 	void free_foreign_key_create_info(char* str) override { my_free(str); }
 
@@ -439,6 +442,12 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+	/** Check consistency between .frm indexes and InnoDB indexes
+	Set HA_DUPLICATE_KEY_NOT_IN_ORDER if multiple unique index
+	are not in the correct order.
+	@param ib_table InnoDB table definition
+	@retval true if not errors were found */
+	bool check_index_consistency(const dict_table_t* ib_table) noexcept;
 protected:
 	bool
 	can_convert_string(const Field_string* field,
@@ -459,8 +468,13 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-	/** @return whether the table is read-only */
-	bool is_read_only(bool altering_to_supported= false) const;
+	/** Check the transaction is valid.
+        @param altering_to_supported  whether an ALTER TABLE is being run
+        to something else than ROW_FORMAT=COMPRESSED
+        @retval 0 if the transaction is valid for the current operation
+        @retval HA_ERR_TABLE_READONLY  if the table is read-only
+        @retval HA_ERR_ROLLBACK        if the transaction has been aborted */
+	int is_valid_trx(bool altering_to_supported= false) const noexcept;
 
 	inline void update_thd(THD* thd);
 	void update_thd();
@@ -889,15 +903,13 @@ innodb_rec_per_key(
 @param[in]	ib_table	InnoDB dict_table_t
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
-				add index call
-@param[in]	locked		true if innobase_share_mutex is held */
+				add index call */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
 	dict_vcol_templ_t*	s_templ,
-	const dict_add_v_col_t*	add_v,
-	bool			locked);
+	const dict_add_v_col_t*	add_v = nullptr);
 
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template
@@ -942,12 +954,3 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
-
-/** This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
-
-@param[in] hton InnoDB handlerton
-@param[in] xid X/Open XA transaction identification
-
-@return 0 or error number */
-int innobase_rollback_by_xid(handlerton* hton, XID* xid);

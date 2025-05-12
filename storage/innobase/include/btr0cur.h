@@ -74,14 +74,10 @@ page_zip_des_t*
 btr_cur_get_page_zip(
 /*=================*/
 	btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the page of a tree cursor.
+/** Returns the page of a tree cursor.
 @return pointer to page */
-UNIV_INLINE
-page_t*
-btr_cur_get_page(
-/*=============*/
-	btr_cur_t*	cursor);/*!< in: tree cursor */
+#define btr_cur_get_page(cursor) (cursor)->block()->page.frame
+
 /*********************************************************//**
 Returns the index of a cursor.
 @param cursor b-tree cursor
@@ -709,10 +705,6 @@ struct btr_cur_t {
 	ulint		fold;		/*!< fold value used in the search if
 					flag is BTR_CUR_HASH */
 	/* @} */
-	btr_path_t*	path_arr;	/*!< in estimating the number of
-					rows in range, we store in this array
-					information of the path through
-					the tree */
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
   btr_cur_t() { memset((void*) this, 0, sizeof *this); }
 

@@ -183,7 +183,7 @@ static void send_report(const char *when)
     str.length(0);
     str.append(STRING_WITH_LEN("FEEDBACK_SERVER_UID"));
     str.append('\t');
-    str.append(server_uid_buf, sizeof(server_uid_buf)-1);
+    str.append(server_uid,  sizeof(server_uid)-1);
     str.append('\n');
     str.append(STRING_WITH_LEN("FEEDBACK_WHEN"));
     str.append('\t');
@@ -290,7 +290,6 @@ pthread_handler_t background_thread(void *arg __attribute__((unused)))
   }
 
   my_thread_end();
-  pthread_exit(0);
   return 0;
 }
 

@@ -125,7 +125,8 @@ class purge_sys_t
 
 public:
   /** latch protecting view, m_enabled */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  mutable IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
 private:
   /** Read view at the start of a purge batch. Any encountered index records
   that are older than view will be removed. */
@@ -149,10 +150,11 @@ public:
 private:
   /** number of pending stop() calls without resume() */
   Atomic_counter<uint32_t> m_paused;
-  /** number of stop_SYS() calls without resume_SYS() */
-  Atomic_counter<uint32_t> m_SYS_paused;
-  /** number of stop_FTS() calls without resume_FTS() */
-  Atomic_counter<uint32_t> m_FTS_paused;
+  /** PAUSED_SYS * number of stop_SYS() calls without resume_SYS() +
+  number of stop_FTS() calls without resume_FTS() */
+  Atomic_relaxed<uint32_t> m_FTS_paused;
+  /** The stop_SYS() multiplier in m_FTS_paused */
+  static constexpr const uint32_t PAUSED_SYS= 1U << 16;
 
   /** latch protecting end_view */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock_low end_latch;
@@ -321,16 +323,21 @@ private:
   void wait_FTS(bool also_sys);
 public:
   /** Suspend purge in data dictionary tables */
-  void stop_SYS() { m_SYS_paused++; }
+  void stop_SYS()
+  {
+    ut_d(const auto p=) m_FTS_paused.fetch_add(PAUSED_SYS);
+    ut_ad(p < p + PAUSED_SYS);
+  }
   /** Resume purge in data dictionary tables */
   static void resume_SYS(void *);
 
   /** Pause purge during a DDL operation that could drop FTS_ tables. */
   void stop_FTS();
   /** Resume purge after stop_FTS(). */
-  void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
+  void resume_FTS()
+  { ut_d(const auto p=) m_FTS_paused.fetch_sub(1); ut_ad(p & ~PAUSED_SYS); }
   /** @return whether stop_SYS() is in effect */
-  bool must_wait_FTS() const { return m_FTS_paused; }
+  bool must_wait_FTS() const { return m_FTS_paused & ~PAUSED_SYS; }
 
 private:
   /**
@@ -432,10 +439,17 @@ public:
 
   struct view_guard
   {
-    inline view_guard();
+    enum guard { END_VIEW= -1, PURGE= 0, VIEW= 1};
+    guard latch;
+    inline view_guard(guard latch);
     inline ~view_guard();
+    /** Fetch an undo log page.
+    @param id   page identifier
+    @param mtr  mini-transaction
+    @return reference to buffer page, possibly buffer-fixed in mtr */
+    inline const buf_block_t *get(const page_id_t id, mtr_t *mtr);
 
-    /** @return purge_sys.view */
+    /** @return purge_sys.view or purge_sys.end_view */
     inline const ReadViewBase &view() const;
   };
 
@@ -464,14 +478,39 @@ public:
 /** The global data structure coordinating a purge */
 extern purge_sys_t	purge_sys;
 
-purge_sys_t::view_guard::view_guard()
-{ purge_sys.latch.rd_lock(SRW_LOCK_CALL); }
+purge_sys_t::view_guard::view_guard(purge_sys_t::view_guard::guard latch) :
+  latch(latch)
+{
+  switch (latch) {
+  case VIEW:
+    purge_sys.latch.rd_lock(SRW_LOCK_CALL);
+    break;
+  case END_VIEW:
+    purge_sys.end_latch.rd_lock();
+    break;
+  case PURGE:
+    /* the access is within a purge batch; purge_coordinator_task
+    will wait for all workers to complete before updating the views */
+    break;
+  }
+}
 
 purge_sys_t::view_guard::~view_guard()
-{ purge_sys.latch.rd_unlock(); }
+{
+  switch (latch) {
+  case VIEW:
+    purge_sys.latch.rd_unlock();
+    break;
+  case END_VIEW:
+    purge_sys.end_latch.rd_unlock();
+    break;
+  case PURGE:
+    break;
+  }
+}
 
 const ReadViewBase &purge_sys_t::view_guard::view() const
-{ return purge_sys.view; }
+{ return latch == END_VIEW ? purge_sys.end_view : purge_sys.view; }
 
 purge_sys_t::end_view_guard::end_view_guard()
 { purge_sys.end_latch.rd_lock(); }

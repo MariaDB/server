@@ -30,9 +30,11 @@ SET SESSION log_slow_verbosity='innodb,query_plan';
 --let log_file=$log_slow_prefix-verbosity_1
 
 --source include/log_slow_start.inc
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT sum(a+b) FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 UPDATE t1 set b=b+1 where a=1 or a=999;
 --source include/log_slow_stop.inc
 
@@ -51,9 +53,11 @@ SET SESSION log_slow_verbosity='innodb,query_plan';
 --let log_file=$log_slow_prefix-verbosity_2
 
 --source include/log_slow_start.inc
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT 1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --source include/log_slow_stop.inc
 
 --let log_slow_verbosity_expected_matches= 2
@@ -72,7 +76,7 @@ let log_file=$log_slow_prefix-verbosity_3
 INSERT INTO t1 VALUE(1000);
 --source include/log_slow_stop.inc
 
---let log_slow_verbosity_innodb_expected_matches= 1
+--let log_slow_verbosity_innodb_expected_matches= 0
 --source include/log_slow_grep.inc
 
 DROP TABLE t1;

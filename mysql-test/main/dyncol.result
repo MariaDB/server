@@ -1621,7 +1621,7 @@ ex
 # as a dynamic column name
 #
 select COLUMN_CREATE(color, "black");
-ERROR 42S22: Unknown column 'color' in 'field list'
+ERROR 42S22: Unknown column 'color' in 'SELECT'
 #
 # MDEV-489 Assertion `offset < 0x1f' failed in
 # type_and_offset_store on COLUMN_ADD

@@ -57,11 +57,11 @@ public:
   static int delete_all_rows();
 
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
-
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
+    
 
 protected:
   table_hosts();
@@ -70,7 +70,7 @@ public:
   ~table_hosts() = default;
 
 private:
-  virtual void make_row(PFS_host *pfs);
+  void make_row(PFS_host *pfs) override;
 
   /** Table share lock. */
   static THR_LOCK m_table_lock;

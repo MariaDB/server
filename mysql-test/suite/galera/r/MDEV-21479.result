@@ -66,7 +66,7 @@ SHOW STATUS LIKE 'wsrep_desync_count';
 Variable_name	Value
 wsrep_desync_count	0
 SET @@global.wsrep_desync = 0;
-CALL mtr.add_suppression("WSREP: Protocol violation. JOIN message sender (.*) is not in state transfer \\(SYNCED\\). Message ignored.");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 connection node_1;
 # Wait until both nodes are back to cluster
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=false';

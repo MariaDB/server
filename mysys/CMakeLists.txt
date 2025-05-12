@@ -27,6 +27,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_alloc.c my_bit.c my_bitmap.c my_chsize.c
 				my_compress.c my_copy.c  my_create.c my_delete.c
 				my_div.c my_error.c my_file.c my_fopen.c my_fstream.c 
+				my_getexe.c
 				my_gethwaddr.c my_getopt.c my_getsystime.c my_getwd.c my_compare.c my_init.c
 				my_lib.c my_lock.c my_malloc.c my_mess.c
 				my_mkdir.c my_mmap.c my_once.c my_open.c my_pread.c my_pthread.c
@@ -35,7 +36,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
 				string.c thr_lock.c thr_mutex.c
-				thr_rwlock.c thr_timer.c
+				thr_rwlock.c thr_timer.c my_stack.c
                                 tree.c typelib.c base64.c my_memmem.c
                                 my_getpagesize.c
                                 guess_malloc_library.c
@@ -46,7 +47,8 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
                                 file_logger.c my_dlerror.c   crc32/crc32c.cc
-                                my_timezone.cc)
+                                my_timezone.cc
+                                my_virtual_mem.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -171,7 +173,7 @@ IF(HAVE_BFD_H)
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp ws2_32 synchronization)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

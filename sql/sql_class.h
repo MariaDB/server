@@ -51,6 +51,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "scope.h"
 #include "ddl_log.h"                            /* DDL_LOG_STATE */
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 
@@ -70,9 +71,9 @@ void set_thd_stage_info(void *thd,
 
 #include "wsrep.h"
 #include "wsrep_on.h"
-#ifdef WITH_WSREP
 #include <inttypes.h>
 #include <ilist.h>
+#ifdef WITH_WSREP
 /* wsrep-lib */
 #include "wsrep_client_service.h"
 #include "wsrep_client_state.h"
@@ -226,6 +227,7 @@ extern "C" const char *thd_client_ip(MYSQL_THD thd);
 extern "C" LEX_CSTRING *thd_current_db(MYSQL_THD thd);
 extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
+extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
 
 /**
   @class CSET_STRING
@@ -466,6 +468,7 @@ public:
   bool invisible;
   bool without_overlaps;
   bool old;
+  uint length;
   Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
@@ -473,7 +476,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -484,7 +487,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
@@ -529,7 +532,7 @@ public:
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
   */
-  virtual Key *clone(MEM_ROOT *mem_root) const
+  Key *clone(MEM_ROOT *mem_root) const override
   { return new (mem_root) Foreign_key(*this, mem_root); }
   /* Used to validate foreign key options */
   bool validate(List<Create_field> &table_fields);
@@ -773,6 +776,7 @@ typedef struct system_variables
   ulong net_wait_timeout;
   ulong net_write_timeout;
   ulong optimizer_extra_pruning_depth;
+  ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
@@ -1050,9 +1054,8 @@ typedef struct system_status_var
   ulonglong table_open_cache_hits;
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
-  ulonglong send_metadata_skips;
+  ulonglong cpu_time, busy_time, query_time;
   double last_query_cost;
-  double cpu_time, busy_time;
   uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
@@ -1611,7 +1614,7 @@ public:
   void set_n_backup_statement(Statement *stmt, Statement *backup);
   void restore_backup_statement(Statement *stmt, Statement *backup);
   /* return class type */
-  virtual Type type() const;
+  Type type() const override;
 };
 
 
@@ -2176,7 +2179,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     m_unhandled_errors++;
     if (!first_error)
@@ -2200,7 +2203,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     if (*level == Sql_condition::WARN_LEVEL_ERROR)
       errors++;
@@ -2228,7 +2231,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
 private:
 };
@@ -2249,7 +2252,7 @@ public:
                         const char *sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition **cond_hdl);
+                        Sql_condition **cond_hdl) override;
 
   bool need_reopen() const { return m_need_reopen; };
   void init() { m_need_reopen= FALSE; };
@@ -2262,12 +2265,12 @@ class Turn_errors_to_warnings_handler : public Internal_error_handler
 {
 public:
   Turn_errors_to_warnings_handler() = default;
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
+  bool handle_condition(THD *,
+                        uint,
+                        const char*,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
+                        const char*,
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (*level == Sql_condition::WARN_LEVEL_ERROR)
@@ -2279,12 +2282,12 @@ public:
 
 struct Suppress_warnings_error_handler : public Internal_error_handler
 {
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char *sqlstate,
+  bool handle_condition(THD *,
+                        uint,
+                        const char *,
                         Sql_condition::enum_warning_level *level,
-                        const char *msg,
-                        Sql_condition **cond_hdl)
+                        const char *,
+                        Sql_condition **) override
   {
     return *level == Sql_condition::WARN_LEVEL_WARN;
   }
@@ -2550,8 +2553,8 @@ struct wait_for_commit
       return wait_for_prior_commit2(thd, allow_kill);
     else
     {
-      if (wakeup_error)
-        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+      if (unlikely(wakeup_error))
+        prior_commit_error(thd);
       return wakeup_error;
     }
   }
@@ -2602,6 +2605,7 @@ struct wait_for_commit
   void wakeup(int wakeup_error);
 
   int wait_for_prior_commit2(THD *thd, bool allow_kill);
+  void prior_commit_error(THD *thd);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 
@@ -2823,6 +2827,39 @@ struct thd_async_state
 };
 
 
+enum class THD_WHERE
+{
+  NOWHERE = 0,
+  CHECKING_TRANSFORMED_SUBQUERY,
+  IN_ALL_ANY_SUBQUERY,
+  JSON_TABLE_ARGUMENT,
+  FIELD_LIST,
+  PARTITION_FUNCTION,
+  FROM_CLAUSE,
+  DEFAULT_WHERE,
+  ON_CLAUSE,
+  WHERE_CLAUSE,
+  SET_LIST,
+  INSERT_LIST,
+  VALUES_CLAUSE,
+  UPDATE_CLAUSE,
+  RETURNING,
+  FOR_SYSTEM_TIME,
+  ORDER_CLAUSE,
+  HAVING_CLAUSE,
+  GROUP_STATEMENT,
+  PROCEDURE_LIST,
+  CHECK_OPTION,
+  DO_STATEMENT,
+  HANDLER_STATEMENT,
+  USE_WHERE_STRING, // ugh, a compromise for vcol...
+};
+
+
+class THD;
+const char *thd_where(THD *thd);
+
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -2876,13 +2913,6 @@ public:
   MDL_request *backup_commit_lock;
 
   void reset_for_next_command(bool do_clear_errors= 1);
-  /*
-    Constant for THD::where initialization in the beginning of every query.
-
-    It's needed because we do not save/restore THD::where normally during
-    primary (non subselect) query execution.
-  */
-  static const char * const DEFAULT_WHERE;
 
 #ifdef EMBEDDED_LIBRARY
   struct st_mysql  *mysql;
@@ -2955,7 +2985,7 @@ public:
     A pointer to the stack frame of handle_one_connection(),
     which is called first in the thread for handling a client
   */
-  char	  *thread_stack;
+  void *thread_stack;
 
   /**
     Currently selected catalog.
@@ -3039,15 +3069,29 @@ public:
   const char *get_proc_info() const
   { return proc_info; }
 
+  // Used by thd_where() when where==USE_WHERE_STRING
+  const char *where_str;
+
   /*
     Used in error messages to tell user in what part of MySQL we found an
     error. E. g. when where= "having clause", if fix_fields() fails, user
     will know that the error was in having clause.
   */
-  const char *where;
+  THD_WHERE where;
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
+
+#ifndef DBUG_OFF
+  /*
+    If Active_tranx is missing an entry for a transaction which is planning to
+    await an ACK, this ensures that the reason is because semi-sync was turned
+    off then on in-between the binlogging of the transaction, and before it had
+    started waiting for the ACK.
+  */
+  ulong expected_semi_sync_offs;
+#endif
+
   /* If this is a semisync slave connection. */
   bool semi_sync_slave;
   ulonglong client_capabilities;  /* What the client supports */
@@ -3371,8 +3415,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       implicit_xid.null();
-      init_sql_alloc(key_memory_thd_transactions, &mem_root, 256,
-                     0, MYF(MY_THREAD_SPECIFIC));
+      init_sql_alloc(key_memory_thd_transactions, &mem_root,
+                     DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
     }
   } default_transaction, *transaction;
   Global_read_lock global_read_lock;
@@ -3942,6 +3986,9 @@ public:
 
   sp_rcontext *spcont;		// SP runtime context
 
+  sp_rcontext *get_rcontext(const sp_rcontext_addr &addr);
+  Item_field *get_variable(const sp_rcontext_addr &addr);
+
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
 
@@ -4058,6 +4105,10 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void reset_stack()
+  {
+    thread_stack= 0;
+  }
   void reset_globals();
   bool trace_started()
   {
@@ -4126,7 +4177,7 @@ public:
   enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
              const PSI_stage_info *stage, PSI_stage_info *old_stage,
              const char *src_function, const char *src_file,
-             int src_line)
+             int src_line) override
   {
     mysql_mutex_assert_owner(mutex);
     mysys_var->current_mutex = mutex;
@@ -4138,7 +4189,7 @@ public:
   }
   inline void exit_cond(const PSI_stage_info *stage,
                         const char *src_function, const char *src_file,
-                        int src_line)
+                        int src_line) override
   {
     /*
       Putting the mutex unlock in thd->exit_cond() ensures that
@@ -4155,8 +4206,8 @@ public:
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }
-  virtual int is_killed() { return killed; }
-  virtual THD* get_thd() { return this; }
+  int is_killed() override { return killed; }
+  THD* get_thd() override { return this; }
 
   /**
     A callback to the server internals that is used to address
@@ -4181,8 +4232,8 @@ public:
     @retval  TRUE  if the thread was woken up
     @retval  FALSE otherwise.
    */
-  virtual bool notify_shared_lock(MDL_context_owner *ctx_in_use,
-                                  bool needs_thr_lock_abort);
+  bool notify_shared_lock(MDL_context_owner *ctx_in_use,
+                          bool needs_thr_lock_abort) override;
 
   // End implementation of MDL_context_owner interface.
 
@@ -4568,6 +4619,7 @@ public:
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
       reset_killed();
+    my_errno= 0;
     DBUG_VOID_RETURN;
   }
 
@@ -4683,14 +4735,19 @@ public:
     return !stmt_arena->is_conventional();
   }
 
+  void register_item_tree_change(Item **place)
+  {
+    /* TODO: check for OOM condition here */
+    if (is_item_tree_change_register_required())
+      nocheck_register_item_tree_change(place, *place, mem_root);
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
-    /* TODO: check for OOM condition here */
-    if (is_item_tree_change_register_required())
-      nocheck_register_item_tree_change(place, *place, mem_root);
+    register_item_tree_change(place);
     *place= new_value;
     DBUG_VOID_RETURN;
   }
@@ -4972,7 +5029,7 @@ public:
       my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
     return TRUE;
   }
-  /* Get db name or "". Use for printing current db */
+  /* Get db name or "". */
   const char *get_db()
   { return safe_str(db.str); }
 
@@ -5189,7 +5246,7 @@ public:
 
 public:
   /** Overloaded to guard query/query_length fields */
-  virtual void set_statement(Statement *stmt);
+  void set_statement(Statement *stmt) override;
   inline void set_command(enum enum_server_command command)
   {
     DBUG_ASSERT(command != COM_SLEEP);
@@ -5593,9 +5650,11 @@ public:
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
 
-  /** This flag denotes that record locking should be skipped during INSERT
-  and gap locking during SELECT. Only used by the streaming replication thread
-  that only modifies the wsrep_schema.SR table. */
+  /** This flag denotes that record locking should be skipped during INSERT,
+     gap locking during SELECT, and write-write conflicts due to innodb
+     snapshot isolation during DELETE.
+     Only used by the streaming replication thread that only modifies the
+     mysql.wsrep_streaming_log table. */
   my_bool                   wsrep_skip_locking;
 
   mysql_cond_t              COND_wsrep_thd;
@@ -5860,10 +5919,18 @@ public:
     lex= backup_lex;
   }
 
-  bool should_collect_handler_stats() const
+  bool should_collect_handler_stats()
   {
-    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
-           lex->analyze_stmt;
+    /*
+      We update handler_stats.active to ensure that we have the same
+      value across the whole statement.
+      This function is only called from TABLE::init() so the value will
+      be the same for the whole statement.
+    */
+    handler_stats.active=
+      ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+       lex->analyze_stmt);
+    return handler_stats.active;
   }
 
   /* Return true if we should create a note when an unusable key is found */
@@ -6037,7 +6104,8 @@ public:
   */
   virtual int send_data(List<Item> &items)=0;
   virtual ~select_result_sink() = default;
-  void reset(THD *thd_arg) { thd= thd_arg; }
+  // Used in cursors to initialize and reset
+  void reinit(THD *thd_arg) { thd= thd_arg; }
 };
 
 class select_result_interceptor;
@@ -6111,15 +6179,11 @@ public:
   */
   virtual bool check_simple_select() const;
   virtual void abort_result_set() {}
-  /*
-    Cleanup instance of this class for next execution of a prepared
-    statement/stored procedure.
-  */
-  virtual void cleanup();
+  virtual void reset_for_next_ps_execution();
   void set_thd(THD *thd_arg) { thd= thd_arg; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result_sink::reset(thd_arg);
+    select_result_sink::reinit(thd_arg);
     unit= NULL;
   }
 #ifdef EMBEDDED_LIBRARY
@@ -6174,7 +6238,7 @@ public:
   TABLE *dst_table; /* table to write into */
 
   /* The following is called in the child thread: */
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -6188,7 +6252,7 @@ class select_result_text_buffer : public select_result_sink
 {
 public:
   select_result_text_buffer(THD *thd_arg): select_result_sink(thd_arg) {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   bool send_result_set_metadata(List<Item> &fields, uint flag);
 
   void save_to(String *res);
@@ -6216,18 +6280,18 @@ public:
     DBUG_PRINT("enter", ("this %p", this));
     DBUG_VOID_RETURN;
   }              /* Remove gcc warning */
-  uint field_count(List<Item> &fields) const { return 0; }
-  bool send_result_set_metadata(List<Item> &fields, uint flag) { return FALSE; }
-  select_result_interceptor *result_interceptor() { return this; }
+  uint field_count(List<Item> &fields) const override { return 0; }
+  bool send_result_set_metadata(List<Item> &fields, uint flag) override { return FALSE; }
+  select_result_interceptor *result_interceptor() override { return this; }
 
   /*
     Instruct the object to not call my_ok(). Client output will be handled
     elsewhere. (this is used by ANALYZE $stmt feature).
   */
   void disable_my_ok_calls() { suppress_my_ok= true; }
-  void reset(THD *thd_arg)
+  void reinit(THD *thd_arg)
   {
-    select_result::reset(thd_arg);
+    select_result::reinit(thd_arg);
     suppress_my_ok= false;
   }
 protected:
@@ -6270,10 +6334,11 @@ private:
   /// FETCH <cname> INTO <varlist>.
   class Select_fetch_into_spvars: public select_result_interceptor
   {
-    List<sp_variable> *spvar_list;
+    List<sp_fetch_target> *m_fetch_target_list;
     uint field_count;
     bool m_view_structure_only;
-    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
+    bool send_data_to_variable_list(List<sp_fetch_target> &vars,
+                                    List<Item> &items);
   public:
     Select_fetch_into_spvars(THD *thd_arg, bool view_structure_only)
      :select_result_interceptor(thd_arg),
@@ -6281,17 +6346,20 @@ private:
     {}
     void reset(THD *thd_arg)
     {
-      select_result_interceptor::reset(thd_arg);
-      spvar_list= NULL;
+      select_result_interceptor::reinit(thd_arg);
+      m_fetch_target_list= NULL;
       field_count= 0;
     }
     uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
+    void set_spvar_list(List<sp_fetch_target> *vars)
+    {
+      m_fetch_target_list= vars;
+    }
 
-    virtual bool send_eof() { return FALSE; }
-    virtual int send_data(List<Item> &items);
-    virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-    virtual bool view_structure_only() const { return m_view_structure_only; }
+    bool send_eof() override { return FALSE; }
+    int send_data(List<Item> &items) override;
+    int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+    bool view_structure_only() const override { return m_view_structure_only; }
 };
 
 public:
@@ -6316,14 +6384,14 @@ public:
   my_bool is_open()
   { return MY_TEST(server_side_cursor); }
 
-  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
+  int fetch(THD *, List<sp_fetch_target> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
 
   void reset(THD *thd_arg)
   {
     sp_cursor_statistics::reset();
-    result.reset(thd_arg);
+    result.reinit(thd_arg);
     server_side_cursor= NULL;
   }
 
@@ -6345,13 +6413,13 @@ class select_send :public select_result {
 public:
   select_send(THD *thd_arg):
     select_result(thd_arg), is_result_set_started(FALSE) {}
-  bool send_result_set_metadata(List<Item> &list, uint flags);
-  int send_data(List<Item> &items);
-  bool send_eof();
-  virtual bool check_simple_select() const { return FALSE; }
-  void abort_result_set();
-  virtual void cleanup();
-  select_result_interceptor *result_interceptor() { return NULL; }
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  int send_data(List<Item> &items) override;
+  bool send_eof() override;
+  bool check_simple_select() const override { return FALSE; }
+  void abort_result_set() override;
+  void reset_for_next_ps_execution() override;
+  select_result_interceptor *result_interceptor() override { return NULL; }
 };
 
 
@@ -6363,9 +6431,9 @@ public:
 
 class select_send_analyze : public select_send
 {
-  bool send_result_set_metadata(List<Item> &list, uint flags) { return 0; }
-  bool send_eof() { return 0; }
-  void abort_result_set() {}
+  bool send_result_set_metadata(List<Item> &list, uint flags) override { return 0; }
+  bool send_eof() override { return 0; }
+  void abort_result_set() override {}
 public:
   select_send_analyze(THD *thd_arg): select_send(thd_arg) {}
 };
@@ -6384,8 +6452,10 @@ public:
     select_result_interceptor(thd_arg), exchange(ex), file(-1),row_count(0L)
   { path[0]=0; }
   ~select_to_file();
-  bool send_eof();
-  void cleanup();
+  bool send_eof() override;
+  void abort_result_set() override;
+  void reset_for_next_ps_execution() override;
+  bool free_recources();
 };
 
 
@@ -6425,16 +6495,16 @@ class select_export :public select_to_file {
 public:
   select_export(THD *thd_arg, sql_exchange *ex): select_to_file(thd_arg, ex) {}
   ~select_export();
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
 };
 
 
 class select_dump :public select_to_file {
 public:
   select_dump(THD *thd_arg, sql_exchange *ex): select_to_file(thd_arg, ex) {}
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -6452,17 +6522,17 @@ class select_insert :public select_result_interceptor {
                 List<Item> *update_values, enum_duplicates duplic,
                 bool ignore, select_result *sel_ret_list);
   ~select_insert();
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  virtual int prepare2(JOIN *join);
-  virtual int send_data(List<Item> &items);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int prepare2(JOIN *join) override;
+  int send_data(List<Item> &items) override;
   virtual bool store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
   bool prepare_eof();
   bool send_ok_packet();
-  bool send_eof();
-  virtual void abort_result_set();
+  bool send_eof() override;
+  void abort_result_set() override;
   /* not implemented: select_insert is never re-used in prepared statements */
-  void cleanup();
+  void reset_for_next_ps_execution() override;
 };
 
 
@@ -6497,18 +6567,18 @@ public:
       bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
       bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
     }
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
 
   int binlog_show_create_table(TABLE **tables, uint count);
-  bool store_values(List<Item> &values);
-  bool send_eof();
-  virtual void abort_result_set();
-  virtual bool can_rollback_data() { return 1; }
+  bool store_values(List<Item> &values) override;
+  bool send_eof() override;
+  void abort_result_set() override;
+  bool can_rollback_data() override { return 1; }
 
   // Needed for access from local class MY_HOOKS in prepare(), since thd is proteted.
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
-  int prepare2(JOIN *join) { return 0; }
+  int prepare2(JOIN *join) override { return 0; }
 
 private:
   TABLE *create_table_from_items(THD *thd,
@@ -6613,6 +6683,7 @@ public:
     aggregate functions as normal functions.
   */
   bool precomputed_group_by;
+  bool group_concat;
   bool force_copy_fields;
   /*
     If TRUE, create_tmp_field called from create_tmp_table will convert
@@ -6631,7 +6702,7 @@ public:
      group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
-     precomputed_group_by(0),
+     precomputed_group_by(0), group_concat(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {
     init();
@@ -6671,7 +6742,7 @@ public:
     init();
     tmp_table_param.init();
   }
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
   /**
     Do prepare() and prepare2() if they have been postponed until
     column type information is computed (used by select_union_direct).
@@ -6682,13 +6753,13 @@ public:
   */
   virtual bool postponed_prepare(List<Item> &types)
   { return false; }
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   int write_record();
   int update_counter(Field *counter, longlong value);
   int delete_record();
-  bool send_eof();
+  bool send_eof() override;
   virtual bool flush();
-  void cleanup();
+  void reset_for_next_ps_execution() override;
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
                                    const LEX_CSTRING *alias,
@@ -6815,11 +6886,11 @@ public:
     curr_op_type(UNSPECIFIED)
   {
   };
-  int send_data(List<Item> &items);
-  void change_select();
+  int send_data(List<Item> &items) override;
+  void change_select() override;
   int unfold_record(ha_rows cnt);
-  bool send_eof();
-  bool force_enable_index_if_needed()
+  bool send_eof() override;
+  bool force_enable_index_if_needed() override
   {
     is_index_enabled= true;
     return true;
@@ -6863,9 +6934,10 @@ class select_union_recursive :public select_unit
  */
   List<TABLE_LIST> rec_table_refs;
   /*
-    The count of how many times cleanup() was called with cleaned==false
-    for the unit specifying the recursive CTE for which this object was created
-    or for the unit specifying a CTE that mutually recursive with this CTE.
+    The count of how many times reset_for_next_ps_execution() was called with
+    cleaned==false for the unit specifying the recursive CTE for which this
+    object was created or for the unit specifying a CTE that mutually
+    recursive with this CTE.
   */
   uint cleanup_count;
   long row_counter;
@@ -6876,15 +6948,15 @@ class select_union_recursive :public select_unit
       row_counter(0)
   { incr_table_param.init(); };
 
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
                            const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
-                           uint hidden);
-  void cleanup();
+                           uint hidden) override;
+  void reset_for_next_ps_execution() override;
 };
 
 /**
@@ -6931,30 +7003,30 @@ public:
     done_send_result_set_metadata(false), done_initialize_tables(false),
     limit_found_rows(0)
     { send_records= 0; }
-  bool change_result(select_result *new_result);
-  uint field_count(List<Item> &fields) const
+  bool change_result(select_result *new_result) override;
+  uint field_count(List<Item> &fields) const override
   {
     // Only called for top-level select_results, usually select_send
     DBUG_ASSERT(false); /* purecov: inspected */
     return 0; /* purecov: inspected */
   }
-  bool postponed_prepare(List<Item> &types);
-  bool send_result_set_metadata(List<Item> &list, uint flags);
-  int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join);
-  bool send_eof();
-  bool flush() { return false; }
-  bool check_simple_select() const
+  bool postponed_prepare(List<Item> &types) override;
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  int send_data(List<Item> &items) override;
+  bool initialize_tables (JOIN *join) override;
+  bool send_eof() override;
+  bool flush() override { return false; }
+  bool check_simple_select() const override
   {
     /* Only called for top-level select_results, usually select_send */
     DBUG_ASSERT(false); /* purecov: inspected */
     return false; /* purecov: inspected */
   }
-  void abort_result_set()
+  void abort_result_set() override
   {
     result->abort_result_set(); /* purecov: inspected */
   }
-  void cleanup()
+  void reset_for_next_ps_execution() override
   {
     send_records= 0;
   }
@@ -6972,7 +7044,11 @@ public:
     // EXPLAIN should never output to a select_union_direct
     DBUG_ASSERT(false); /* purecov: inspected */
   }
+#ifdef EMBEDDED_LIBRARY
+  void begin_dataset() override
+#else
   void begin_dataset()
+#endif
   {
     // Only called for sp_cursor::Select_fetch_into_spvars
     DBUG_ASSERT(false); /* purecov: inspected */
@@ -6988,8 +7064,8 @@ protected:
 public:
   select_subselect(THD *thd_arg, Item_subselect *item_arg):
     select_result_interceptor(thd_arg), item(item_arg) {}
-  int send_data(List<Item> &items)=0;
-  bool send_eof() { return 0; };
+  int send_data(List<Item> &items) override=0;
+  bool send_eof() override { return 0; };
 };
 
 /* Single value subselect interface class */
@@ -6999,7 +7075,7 @@ public:
   select_singlerow_subselect(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg)
   {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -7050,10 +7126,10 @@ public:
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
-                           uint hidden);
+                           uint hidden) override;
   bool init_result_table(ulonglong select_options);
-  int send_data(List<Item> &items);
-  void cleanup();
+  int send_data(List<Item> &items) override;
+  void reset_for_next_ps_execution() override;
   ha_rows get_null_count_of_col(uint idx)
   {
     DBUG_ASSERT(idx < table->s->fields);
@@ -7086,8 +7162,8 @@ public:
                                   bool mx, bool all):
     select_subselect(thd_arg, item_arg), cache(0), fmax(mx), is_all(all)
   {}
-  void cleanup();
-  int send_data(List<Item> &items);
+  void reset_for_next_ps_execution() override;
+  int send_data(List<Item> &items) override;
   bool cmp_real();
   bool cmp_int();
   bool cmp_decimal();
@@ -7102,7 +7178,7 @@ class select_exists_subselect :public select_subselect
 public:
   select_exists_subselect(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg) {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
 };
 
 
@@ -7212,10 +7288,10 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                     uchar *b, size_t *b_len);
-  int compare_packed_varstrings(uchar *a, size_t *a_len,
-                                uchar *b, size_t *b_len);
+  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                     const uchar *b, size_t *b_len);
+  int compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                const uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);
@@ -7369,15 +7445,15 @@ public:
 public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
+  bool initialize_tables (JOIN *join) override;
   int do_deletes();
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
-  bool send_eof();
+  bool send_eof() override;
   inline ha_rows num_deleted() const { return deleted; }
-  virtual void abort_result_set();
-  void prepare_to_read_rows();
+  void abort_result_set() override;
+  void prepare_to_read_rows() override;
 };
 
 
@@ -7425,19 +7501,19 @@ public:
   ~multi_update();
   bool init(THD *thd);
   bool init_for_single_table(THD *thd);
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join);
-  int prepare2(JOIN *join);
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
+  bool initialize_tables (JOIN *join) override;
+  int prepare2(JOIN *join) override;
   int  do_updates();
-  bool send_eof();
+  bool send_eof() override;
   inline ha_rows num_found() const { return found; }
   inline ha_rows num_updated() const { return updated; }
   inline void set_found (ha_rows n) { found= n; }
   inline void set_updated (ha_rows n) { updated= n; }
-  virtual void abort_result_set();
-  void update_used_tables();
-  void prepare_to_read_rows();
+  virtual void abort_result_set() override;
+  void update_used_tables() override;
+  void prepare_to_read_rows() override;
 };
 
 class my_var_sp;
@@ -7469,8 +7545,8 @@ public:
       m_rcontext_handler(rcontext_handler),
       m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() = default;
-  bool set(THD *thd, Item *val);
-  my_var_sp *get_my_var_sp() { return this; }
+  bool set(THD *thd, Item *val) override;
+  my_var_sp *get_my_var_sp() override { return this; }
   const Type_handler *type_handler() const
   { return m_type_handler; }
   sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
@@ -7491,7 +7567,7 @@ public:
               &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
   { }
-  bool set(THD *thd, Item *val);
+  bool set(THD *thd, Item *val) override;
 };
 
 class my_var_user: public my_var {
@@ -7499,7 +7575,7 @@ public:
   my_var_user(const LEX_CSTRING *j)
     : my_var(j, SESSION_VAR) { }
   ~my_var_user() = default;
-  bool set(THD *thd, Item *val);
+  bool set(THD *thd, Item *val) override;
 };
 
 class select_dumpvar :public select_result_interceptor {
@@ -7512,11 +7588,11 @@ public:
    :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
   { var_list.empty(); }
   ~select_dumpvar() = default;
-  int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
-  bool send_eof();
-  virtual bool check_simple_select() const;
-  void cleanup();
+  int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
+  int send_data(List<Item> &items) override;
+  bool send_eof() override;
+  bool check_simple_select() const override;
+  void reset_for_next_ps_execution() override;
 };
 
 /* Bits in sql_command_flags */
@@ -7656,6 +7732,11 @@ public:
   DDL statement that may be subject to error filtering.
 */
 #define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
+/**
+   Basic DML statements that create writeset.
+*/
+#define CF_WSREP_BASIC_DML (1u << 25)
+
 #endif /* WITH_WSREP */
 
 
@@ -8230,10 +8311,11 @@ public:
     m_maybe_null(false)
   { }
 
-  void set_type_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  void set_type_maybe_null(bool maybe_null_arg) override
+  { m_maybe_null= maybe_null_arg; }
   bool get_maybe_null() const { return m_maybe_null; }
 
-  decimal_digits_t decimal_precision() const
+  decimal_digits_t decimal_precision() const override
   {
     /*
       Type_holder is not used directly to create fields, so
@@ -8245,11 +8327,11 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
-  void set_typelib(const TYPELIB *typelib)
+  void set_typelib(const TYPELIB *typelib) override
   {
     m_typelib= typelib;
   }
-  const TYPELIB *get_typelib() const
+  const TYPELIB *get_typelib() const override
   {
     return m_typelib;
   }

@@ -1,0 +1,22 @@
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+--source include/have_rocksdb.inc
+
+--connection node_1
+INSTALL PLUGIN IF NOT EXISTS connect SONAME 'ha_connect';
+
+CREATE TABLE t1 (f INT) ENGINE=CONNECT;
+CREATE TABLE t2 (f INT) ENGINE=ROCKSDB;
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t3 (f INT) ENGINE=SEQUENCE;
+show warnings;
+
+--connection node_2
+show create table t1;
+show create table t2;
+--error ER_NO_SUCH_TABLE
+show create table t3;
+
+--connection node_1
+DROP TABLE t1, t2;
+UNINSTALL PLUGIN IF EXISTS connect;

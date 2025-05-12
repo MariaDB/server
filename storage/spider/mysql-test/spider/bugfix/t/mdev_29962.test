@@ -1,0 +1,31 @@
+--echo #
+--echo # MDEV-29962 SIGSEGV in ha_spider::lock_tables on BEGIN after table lock
+--echo #
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+CREATE TABLE t1 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+SELECT * FROM t1;
+LOCK TABLES t1 WRITE CONCURRENT,t1 AS t2 READ;
+BEGIN;
+
+drop table t, t1;
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--echo #
+--echo # end of test mdev_29962
+--echo #

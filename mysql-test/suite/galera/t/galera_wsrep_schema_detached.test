@@ -1,0 +1,65 @@
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+
+call mtr.add_suppression("WSREP: async IST sender failed to serve");
+call mtr.add_suppression("WSREP: Failed to establish connection: Connection refused");
+call mtr.add_suppression("WSREP: IST failed: IST sender, failed to connect");
+call mtr.add_suppression("WSREP: .*State transfer.* failed: Protocol error");
+
+SET @wsrep_provider_options_orig = @@GLOBAL.wsrep_provider_options;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true;pc.weight=2';
+
+--connection node_2
+
+call mtr.add_suppression("WSREP: async IST sender failed to serve");
+call mtr.add_suppression("WSREP: Failed to establish connection: Connection refused");
+call mtr.add_suppression("WSREP: IST failed: IST sender, failed to connect");
+call mtr.add_suppression("WSREP: .*State transfer.* failed: Protocol error");
+
+SET @wsrep_cluster_address_orig = @@GLOBAL.wsrep_cluster_address;
+SET GLOBAL WSREP_ON=0;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_allowlist;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+INSERT INTO mysql.wsrep_allowlist (ip) VALUES (0);
+SET GLOBAL wsrep_cluster_address = @wsrep_cluster_address_orig;
+SELECT 1;
+DELETE FROM mysql.wsrep_allowlist;
+
+--connection node_2
+--source include/kill_galera.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster_members;
+
+--connection node_2
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=false;pc.weight=1';
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_1 FROM mysql.wsrep_cluster;
+SELECT COUNT(*) AS EXPECT_2 FROM mysql.wsrep_cluster_members;
+
+# Cleanup
+--source include/auto_increment_offset_restore.inc

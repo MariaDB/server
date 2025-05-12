@@ -54,11 +54,18 @@ MACRO(BUNDLE_PCRE2)
     ENDIF()
   ENDFOREACH()
 
+  IF(CMAKE_MSVC_RUNTIME_LIBRARY)
+    SET(CMAKE_MSVC_RUNTIME_LIBRARY_ARG
+      "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}")
+  ELSE()
+    SET(CMAKE_MSVC_RUNTIME_LIBRARY_ARG)
+  ENDIF()
+
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.43/pcre2-10.43.zip"
-    URL_MD5 b58f050f2fdd6f2ca5774a2975377a85
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.zip"
+    URL_MD5 873da56c6469ec207ca5c5ae9688b83a
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"
@@ -72,6 +79,7 @@ MACRO(BUNDLE_PCRE2)
       "-DCMAKE_C_FLAGS_RELEASE=${pcre2_flags_RELEASE}"
       "-DCMAKE_C_FLAGS_MINSIZEREL=${pcre2_flags_MINSIZEREL}"
       "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+      ${CMAKE_MSVC_RUNTIME_LIBRARY_ARG}
       ${stdlibs}
       ${byproducts}
   )

@@ -625,6 +625,7 @@ a	b	a	b
 15901234-5566-e777-e888-99aabbccddee	59	15901234-5566-e777-e888-99aabbccddee	59
 16101234-5566-f777-8888-99aabbccddee	61	16101234-5566-f777-8888-99aabbccddee	61
 16301234-5566-f777-e888-99aabbccddee	63	16301234-5566-f777-e888-99aabbccddee	63
+Warnings:
 Warning	1292	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee'
 Warning	1292	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee'
 Warning	1292	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee'
@@ -689,7 +690,6 @@ Warning	1292	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee'
 Warning	1292	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee'
 Warning	1292	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee'
 Warning	1292	Incorrect uuid value: '06001234-5566-f777-0888-99aabbccddee'
-Warnings:
 select * from t1 union select * from t2;
 a	b
 00001234-5566-0777-0888-99aabbccddee	0

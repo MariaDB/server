@@ -1,7 +1,7 @@
 connection node_2;
 connection node_1;
 connection node_1;
-call mtr.add_suppression("WSREP: RSU failed due to pending transactions, schema: test, query ALTER.*");
+call mtr.add_suppression("WSREP: RSU failed due to pending transactions, schema: test, query ALTER");
 call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 connection node_1;
 CREATE TABLE t1(

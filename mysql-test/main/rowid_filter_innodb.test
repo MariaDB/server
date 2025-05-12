@@ -4,6 +4,10 @@
 --source include/have_sequence.inc
 --source include/innodb_stable_estimates.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
@@ -773,7 +777,49 @@ DROP TABLE t0, t1;
 
 --echo # End of 10.4 tests
 
+--echo #
+--echo # MDEV-33875: ORDER BY DESC causes ROWID Filter slowdown
+--echo #
+create table t1  (
+  pk int primary key auto_increment,
+  a int,
+  b int,
+  f1 varchar(200),
+  f2 varchar(200),
+  f3 varchar(200),
+  f4 varchar(200),
+  f5 varchar(200),
+  key(a, pk),
+  key(b)
+) engine=innodb;
+
+insert into t1 (a,b,f1, f2, f3, f4) select
+  seq, seq,
+  repeat('1-', 100),
+  repeat('2-', 100),
+  repeat('3-', 100),
+  repeat('4-', 100)
+from
+  seq_1_to_5000;
+
+insert into t1 (a,b,f1, f2, f3, f4)select
+  30100, 30100,
+  'abcd','abcd','abcd','abcd'
+from
+  seq_1_to_250;
+insert into t1 (a,b,f1) values ( 110, 100, 12345);
+analyze table t1;
+
+--echo # The following must NOT use Rowid Filter:
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+order by
+  pk desc;
+
+drop table t1;
+
 --echo # End of 10.6 tests
 
 set global innodb_stats_persistent= @stats.save;
-

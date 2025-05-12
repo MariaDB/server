@@ -68,6 +68,15 @@ struct Pool {
 			aligned_malloc(m_size, CPU_LEVEL1_DCACHE_LINESIZE));
 		memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(
 			m_start, 0, m_size);
+		/* Note: The above would zero-initialize some
+		std::atomic data members in trx_t, such as
+		trx_t::lock, which will not be initialized further in
+		TrxFactory::init().  It may be implementation defined
+		whether such zero initialization works. On some
+		hypothetical platform (not one that seems to be
+		supported by a mainstream C++ compiler), std::atomic
+		might wrap the data member as well as a
+		non-zero-initialized mutex. */
 
 		m_last = m_start;
 

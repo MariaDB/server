@@ -117,7 +117,7 @@ public:
   virtual ~Event_queue_element();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table);
+  load_from_row(THD *thd, TABLE *table) override;
 
   bool
   compute_next_execution_time();
@@ -155,7 +155,7 @@ public:
   init();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table);
+  load_from_row(THD *thd, TABLE *table) override;
 
   int
   get_create_event(THD *thd, String *buf);
@@ -176,7 +176,7 @@ public:
   Event_job_data();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table);
+  load_from_row(THD *thd, TABLE *table) override;
 
   bool
   execute(THD *thd, bool drop);

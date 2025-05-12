@@ -199,7 +199,8 @@ static my_bool print_win_error_msg(DWORD error, my_bool verbose)
   char *s;
   if (FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
                     FORMAT_MESSAGE_FROM_SYSTEM,
-                    NULL, error, 0, (char *)&s, 0,
+                    NULL, error, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
+                    (char *) &s, 0,
                     NULL))
   {
     char* end = s + strlen(s) - 1;
@@ -352,7 +353,8 @@ int main(int argc,char *argv[])
       {
         found= 1;
         if (verbose)
-          printf("MariaDB error code %3d (%s): %s\n", code, name, msg);
+          printf("MariaDB error code %3d (%s): %s\n"
+                 "Learn more: https://mariadb.com/kb/en/e%3d/\n", code, name, msg, code);
         else
           puts(msg);
       }

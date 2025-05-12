@@ -326,7 +326,7 @@ public:
   page_id_t get_page_id() const { return page_id; }
 
   /** Handle the DML undo log and apply it on online indexes */
-  inline void apply_undo_rec(const trx_undo_rec_t *rec);
+  inline void apply_undo_rec(const trx_undo_rec_t *rec, uint16_t offset);
 
   ~UndorecApplier()
   {

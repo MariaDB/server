@@ -32,14 +32,25 @@ static const LEX_STRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("User lock") },
 };
 
+
+#ifndef DBUG_OFF
+static const LEX_STRING duration_name[] = {
+  { C_STRING_WITH_LEN("statement") },
+  { C_STRING_WITH_LEN("transaction") },
+  { C_STRING_WITH_LEN("explicit") },
+};
+#endif
+
 namespace Show {
 
 static ST_FIELD_INFO i_s_metadata_lock_info_fields_info[] =
 {
   Column("THREAD_ID",     ULonglong(20), NOT_NULL, "thread_id"),
-  Column("LOCK_MODE",     Varchar(24),   NULLABLE, "lock_mode"),
-  Column("LOCK_DURATION", Varchar(30),   NULLABLE, "lock_duration"),
-  Column("LOCK_TYPE",     Varchar(33),   NULLABLE, "lock_type"),
+  Column("LOCK_MODE",     Varchar(24),   NOT_NULL, "lock_mode"),
+  Column("LOCK_DURATION", Varchar(33),   NULLABLE, "lock_duration"),
+  Column("LOCK_TIME_MS",  ULonglong(8),  NULLABLE, "lock_time_ms"),
+  Column("LOCK_TYPE",     Varchar(33),   NOT_NULL, "lock_type"),
+  Column("TABLE_CATALOG", Name(),        NULLABLE, "table_catalog"),
   Column("TABLE_SCHEMA",  Name(),        NULLABLE, "table_schema"),
   Column("TABLE_NAME",    Name(),        NULLABLE, "table_name"),
   CEnd()
@@ -71,17 +82,31 @@ int i_s_metadata_lock_info_fill_row(
   table->field[0]->store((longlong) mdl_ctx->get_thread_id(), TRUE);
   table->field[1]->set_notnull();
   table->field[1]->store(*mdl_ticket->get_type_name(), system_charset_info);
+#ifndef DBUG_OFF
+  table->field[2]->set_notnull();
+  table->field[2]->store(duration_name[mdl_ticket->m_duration],
+                         system_charset_info);
+#else
   table->field[2]->set_null();
-  table->field[3]->set_notnull();
-  table->field[3]->store(
-    metadata_lock_info_lock_name[(int) mdl_namespace].str,
-    metadata_lock_info_lock_name[(int) mdl_namespace].length,
-    system_charset_info);
+#endif
+  if (!mdl_ticket->m_time)
+    table->field[3]->set_null();
+  else
+  {
+    ulonglong now= microsecond_interval_timer();
+    table->field[3]->set_notnull();
+    table->field[3]->store((now - mdl_ticket->m_time) / 1000, TRUE);
+  }
   table->field[4]->set_notnull();
-  table->field[4]->store(mdl_key->db_name(),
-    mdl_key->db_name_length(), system_charset_info);
+  table->field[4]->store(metadata_lock_info_lock_name[(int) mdl_namespace],
+                         system_charset_info);
   table->field[5]->set_notnull();
-  table->field[5]->store(mdl_key->name(),
+  table->field[5]->store(STRING_WITH_LEN("def"), system_charset_info);
+  table->field[6]->set_notnull();
+  table->field[6]->store(mdl_key->db_name(),
+    mdl_key->db_name_length(), system_charset_info);
+  table->field[7]->set_notnull();
+  table->field[7]->store(mdl_key->name(),
     mdl_key->name_length(), system_charset_info);
   if (schema_table_store_record(thd, table))
     DBUG_RETURN(1);
@@ -112,6 +137,7 @@ static int i_s_metadata_lock_info_init(
   schema->fields_info = Show::i_s_metadata_lock_info_fields_info;
   schema->fill_table = i_s_metadata_lock_info_fill_table;
   schema->idx_field1 = 0;
+  metadata_lock_info_plugin_loaded= 1;
   DBUG_RETURN(0);
 }
 
@@ -119,6 +145,7 @@ static int i_s_metadata_lock_info_deinit(
   void *p
 ) {
   DBUG_ENTER("i_s_metadata_lock_info_deinit");
+  metadata_lock_info_plugin_loaded= 0;
   DBUG_RETURN(0);
 }
 

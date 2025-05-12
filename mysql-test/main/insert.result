@@ -768,14 +768,14 @@ create table t3 (c int);
 create table t4 (d1 int, d2 int);
 insert into t4
 select * from t1 left join t2 on (select t1.i from t3);
-ERROR 42S22: Unknown column 't1.i' in 'field list'
+ERROR 42S22: Unknown column 't1.i' in 'SELECT'
 replace t4
 select * from t1 left join t2 on (select t1.i from t3);
-ERROR 42S22: Unknown column 't1.i' in 'field list'
+ERROR 42S22: Unknown column 't1.i' in 'SELECT'
 drop table t1,t2,t3,t4;
 create table t (a int);
 select 1 in (select count(*) from t t1 join (t t2 join t t3 on (t1.a != 0)));
-ERROR 42S22: Unknown column 't1.a' in 'on clause'
+ERROR 42S22: Unknown column 't1.a' in 'ON'
 drop table t;
 #
 # MDEV-28578 Server crashes in Item_field::fix_outer_field after CREATE SELECT
@@ -783,7 +783,7 @@ drop table t;
 create table t1 (i int) ;
 create table t2 (j int) ;
 create table t4 select * from t1 join t2 on (select t3.i);
-ERROR 42S22: Unknown column 't3.i' in 'field list'
+ERROR 42S22: Unknown column 't3.i' in 'SELECT'
 drop table t1, t2;
 #
 # End of 10.4 tests
@@ -808,5 +808,75 @@ a
 8
 drop table t1;
 #
-# End of 10.5 tests
+# MDEV-32086 Server crash when inserting from derived table containing insert target table
+# (part 2)
 #
+create table t1 (pk int, id int);
+insert into t1 values (2,2), (3,3), (4,4);
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+select 101+count(*)
+from
+(
+select dt2.id
+from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id<1000;
+101+count(*)
+104
+prepare s from '
+insert into t1 values(
+  (select 101+count(*)
+   from
+   (
+      select dt2.id
+      from (select id from t1) dt2, t1 t where t.id=dt2.id
+   ) dt
+   where dt.id<1000
+  ), 123
+)
+';
+execute s;
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+104	123
+select 101+count(*)
+from
+(
+select dt2.id
+from (select id from t1) dt2, t1 t where t.id=dt2.id
+) dt
+where dt.id<1000;
+101+count(*)
+105
+execute s;
+select * from t1;
+pk	id
+2	2
+3	3
+4	4
+104	123
+105	123
+drop table t1;
+#
+# Try this: INSERT INTO t1 VALUES ... reference to t1
+#           RETURNING (subquery not touching t1)
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+# This is accepted:
+insert into t1 (a) values 
+(3),
+((select max(a) from t1)) 
+returning 
+a, b, (select max(a) from t2);
+a	b	(select max(a) from t2)
+3	NULL	NULL
+NULL	NULL	NULL
+drop table t1,t2;
+# End of 10.5 tests

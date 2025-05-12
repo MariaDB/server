@@ -149,54 +149,54 @@ class TYPBLK : public VALBLK {
   TYPBLK(void *mp, int size, int type, int prec = 0, bool un = false);
 
   // Implementation
-  virtual bool   Init(PGLOBAL g, bool check);
-  virtual int    GetVlen(void) {return sizeof(TYPE);}
+  bool   Init(PGLOBAL g, bool check) override;
+  int    GetVlen(void) override {return sizeof(TYPE);}
 
-  virtual char   GetTinyValue(int n) {return (char)UnalignedRead(n);}
-  virtual uchar  GetUTinyValue(int n) {return (uchar)UnalignedRead(n);}
-  virtual short  GetShortValue(int n) {return (short)UnalignedRead(n);}
-  virtual ushort GetUShortValue(int n) {return (ushort)UnalignedRead(n);}
-  virtual int    GetIntValue(int n) {return (int)UnalignedRead(n);}
-  virtual uint   GetUIntValue(int n) {return (uint)UnalignedRead(n);}
-  virtual longlong GetBigintValue(int n) {return (longlong)UnalignedRead(n);}
-  virtual ulonglong GetUBigintValue(int n) {return (ulonglong)UnalignedRead(n);}
-  virtual double GetFloatValue(int n) {return (double)UnalignedRead(n);}
-  virtual char  *GetCharString(char *p, int n);
-  virtual void   Reset(int n) {UnalignedWrite(n, 0);}
+  char   GetTinyValue(int n) override {return (char)UnalignedRead(n);}
+  uchar  GetUTinyValue(int n) override {return (uchar)UnalignedRead(n);}
+  short  GetShortValue(int n) override {return (short)UnalignedRead(n);}
+  ushort GetUShortValue(int n) override {return (ushort)UnalignedRead(n);}
+  int    GetIntValue(int n) override {return (int)UnalignedRead(n);}
+  uint   GetUIntValue(int n) override {return (uint)UnalignedRead(n);}
+  longlong GetBigintValue(int n) override {return (longlong)UnalignedRead(n);}
+  ulonglong GetUBigintValue(int n) override {return (ulonglong)UnalignedRead(n);}
+  double GetFloatValue(int n) override {return (double)UnalignedRead(n);}
+  char  *GetCharString(char *p, int n) override;
+  void   Reset(int n) override {UnalignedWrite(n, 0);}
 
   // Methods
   using VALBLK::SetValue;
-  virtual void   SetValue(PCSZ sp, int n);
-  virtual void   SetValue(const char *sp, uint len, int n);
-  virtual void   SetValue(short sval, int n)
+  void   SetValue(PCSZ sp, int n) override;
+  void   SetValue(const char *sp, uint len, int n) override;
+  void   SetValue(short sval, int n) override
                   {UnalignedWrite(n, (TYPE)sval); SetNull(n, false);}
-  virtual void   SetValue(ushort sval, int n)
+  void   SetValue(ushort sval, int n) override
                   {UnalignedWrite(n, (TYPE)sval); SetNull(n, false);}
-  virtual void   SetValue(int lval, int n)
+  void   SetValue(int lval, int n) override
                   {UnalignedWrite(n, (TYPE)lval); SetNull(n, false);}
-  virtual void   SetValue(uint lval, int n)
+  void   SetValue(uint lval, int n) override
                   {UnalignedWrite(n, (TYPE)lval); SetNull(n, false);}
-  virtual void   SetValue(longlong lval, int n)
+  void   SetValue(longlong lval, int n) override
                   {UnalignedWrite(n, (TYPE)lval); SetNull(n, false);}
-  virtual void   SetValue(ulonglong lval, int n)
+  void   SetValue(ulonglong lval, int n) override
                   {UnalignedWrite(n, (TYPE)lval); SetNull(n, false);}
-  virtual void   SetValue(double fval, int n)
+  void   SetValue(double fval, int n) override
                   {UnalignedWrite(n, (TYPE)fval); SetNull(n, false);}
-  virtual void   SetValue(char cval, int n)
+  void   SetValue(char cval, int n) override
                   {UnalignedWrite(n, (TYPE)cval); SetNull(n, false);}
-  virtual void   SetValue(uchar cval, int n)
+  void   SetValue(uchar cval, int n) override
                   {UnalignedWrite(n, (TYPE)cval); SetNull(n, false);}
-  virtual void   SetValue(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   Move(int i, int j);
-  virtual int    CompVal(PVAL vp, int n);
-  virtual int    CompVal(int i1, int i2);
-  virtual void  *GetValPtr(int n);
-  virtual void  *GetValPtrEx(int n);
-  virtual int    Find(PVAL vp);
-  virtual int    GetMaxLength(void);
+  void   SetValue(PVAL valp, int n) override;
+  void   SetValue(PVBLK pv, int n1, int n2) override;
+  void   SetMin(PVAL valp, int n) override;
+  void   SetMax(PVAL valp, int n) override;
+  void   Move(int i, int j) override;
+  int    CompVal(PVAL vp, int n) override;
+  int    CompVal(int i1, int i2) override;
+  void  *GetValPtr(int n) override;
+  void  *GetValPtrEx(int n) override;
+  int    Find(PVAL vp) override;
+  int    GetMaxLength(void) override;
 
  protected:
   // Specialized functions
@@ -229,38 +229,38 @@ class CHRBLK : public VALBLK {
   CHRBLK(void *mp, int size, int type, int len, int prec, bool b);
 
   // Implementation
-  virtual bool   Init(PGLOBAL g, bool check);
-  virtual int    GetVlen(void) {return Long;}
-  virtual PSZ    GetCharValue(int n);
-  virtual char   GetTinyValue(int n);
-  virtual uchar  GetUTinyValue(int n);
-  virtual short  GetShortValue(int n);
-  virtual ushort GetUShortValue(int n);
-  virtual int    GetIntValue(int n);
-  virtual uint   GetUIntValue(int n);
-  virtual longlong GetBigintValue(int n);
-  virtual ulonglong GetUBigintValue(int n);
-  virtual double GetFloatValue(int n);
-  virtual char  *GetCharString(char *p, int n);
-  virtual void   Reset(int n);
-  virtual void   SetPrec(int p) {Ci = (p != 0);}
-  virtual bool   IsCi(void) {return Ci;}
+  bool   Init(PGLOBAL g, bool check) override;
+  int    GetVlen(void) override {return Long;}
+  PSZ    GetCharValue(int n) override;
+  char   GetTinyValue(int n) override;
+  uchar  GetUTinyValue(int n) override;
+  short  GetShortValue(int n) override;
+  ushort GetUShortValue(int n) override;
+  int    GetIntValue(int n) override;
+  uint   GetUIntValue(int n) override;
+  longlong GetBigintValue(int n) override;
+  ulonglong GetUBigintValue(int n) override;
+  double GetFloatValue(int n) override;
+  char  *GetCharString(char *p, int n) override;
+  void   Reset(int n) override;
+  void   SetPrec(int p) override {Ci = (p != 0);}
+  bool   IsCi(void) override {return Ci;}
 
   // Methods
   using VALBLK::SetValue;
-  virtual void   SetValue(PCSZ sp, int n);
-  virtual void   SetValue(const char *sp, uint len, int n);
-  virtual void   SetValue(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   Move(int i, int j);
-  virtual int    CompVal(PVAL vp, int n);
-  virtual int    CompVal(int i1, int i2);
-  virtual void  *GetValPtr(int n);
-  virtual void  *GetValPtrEx(int n);
-  virtual int    Find(PVAL vp);
-  virtual int    GetMaxLength(void);
+  void   SetValue(PCSZ sp, int n) override;
+  void   SetValue(const char *sp, uint len, int n) override;
+  void   SetValue(PVAL valp, int n) override;
+  void   SetValue(PVBLK pv, int n1, int n2) override;
+  void   SetMin(PVAL valp, int n) override;
+  void   SetMax(PVAL valp, int n) override;
+  void   Move(int i, int j) override;
+  int    CompVal(PVAL vp, int n) override;
+  int    CompVal(int i1, int i2) override;
+  void  *GetValPtr(int n) override;
+  void  *GetValPtrEx(int n) override;
+  int    Find(PVAL vp) override;
+  int    GetMaxLength(void) override;
 
  protected:
   // Members
@@ -282,39 +282,39 @@ class STRBLK : public VALBLK {
   STRBLK(PGLOBAL g, void *mp, int size, int type);
 
   // Implementation
-  virtual void   SetNull(int n, bool b) {if (b) {Strp[n] = NULL;}}
-  virtual bool   IsNull(int n) {return Strp[n] == NULL;}
-  virtual void   SetNullable(bool) {}      // Always nullable
-  virtual bool   Init(PGLOBAL g, bool check);
-  virtual int    GetVlen(void) {return sizeof(PSZ);}
-  virtual PSZ    GetCharValue(int n) {return Strp[n];}
-  virtual char   GetTinyValue(int n);
-  virtual uchar  GetUTinyValue(int n);
-  virtual short  GetShortValue(int n);
-  virtual ushort GetUShortValue(int n);
-  virtual int    GetIntValue(int n);
-  virtual uint   GetUIntValue(int n);
-  virtual longlong GetBigintValue(int n);
-  virtual ulonglong GetUBigintValue(int n);
-  virtual double GetFloatValue(int n) {return atof(Strp[n]);}
-  virtual char  *GetCharString(char *, int n) {return Strp[n];}
-  virtual void   Reset(int n) {Strp[n] = NULL;}
+  void   SetNull(int n, bool b) override {if (b) {Strp[n] = NULL;}}
+  bool   IsNull(int n) override {return Strp[n] == NULL;}
+  void   SetNullable(bool) override {}      // Always nullable
+  bool   Init(PGLOBAL g, bool check) override;
+  int    GetVlen(void) override {return sizeof(PSZ);}
+  PSZ    GetCharValue(int n) override {return Strp[n];}
+  char   GetTinyValue(int n) override;
+  uchar  GetUTinyValue(int n) override;
+  short  GetShortValue(int n) override;
+  ushort GetUShortValue(int n) override;
+  int    GetIntValue(int n) override;
+  uint   GetUIntValue(int n) override;
+  longlong GetBigintValue(int n) override;
+  ulonglong GetUBigintValue(int n) override;
+  double GetFloatValue(int n) override {return atof(Strp[n]);}
+  char  *GetCharString(char *, int n) override {return Strp[n];}
+  void   Reset(int n) override {Strp[n] = NULL;}
 
   // Methods
   using VALBLK::SetValue;
-  virtual void   SetValue(PCSZ sp, int n);
-  virtual void   SetValue(const char *sp, uint len, int n);
-  virtual void   SetValue(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   Move(int i, int j);
-  virtual int    CompVal(PVAL vp, int n);
-  virtual int    CompVal(int i1, int i2);
-  virtual void  *GetValPtr(int n);
-  virtual void  *GetValPtrEx(int n);
-  virtual int    Find(PVAL vp);
-  virtual int    GetMaxLength(void);
+  void   SetValue(PCSZ sp, int n) override;
+  void   SetValue(const char *sp, uint len, int n) override;
+  void   SetValue(PVAL valp, int n) override;
+  void   SetValue(PVBLK pv, int n1, int n2) override;
+  void   SetMin(PVAL valp, int n) override;
+  void   SetMax(PVAL valp, int n) override;
+  void   Move(int i, int j) override;
+  int    CompVal(PVAL vp, int n) override;
+  int    CompVal(int i1, int i2) override;
+  void  *GetValPtr(int n) override;
+  void  *GetValPtrEx(int n) override;
+  int    Find(PVAL vp) override;
+  int    GetMaxLength(void) override;
 
   // Specific
           void   SetSorted(bool b) {Sorted = b;}
@@ -334,12 +334,12 @@ class DATBLK : public TYPBLK<int> {
   DATBLK(void *mp, int size);
 
   // Implementation
-  virtual bool  SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);
-  virtual char *GetCharString(char *p, int n);
+  bool  SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0) override;
+  char *GetCharString(char *p, int n) override;
 
   // Methods
   using TYPBLK<int>::SetValue;
-  virtual void  SetValue(PCSZ sp, int n);
+  void  SetValue(PCSZ sp, int n) override;
 
  protected:
   // Members
@@ -364,8 +364,8 @@ class PTRBLK : public STRBLK {
   // Methods
   using STRBLK::SetValue;
   using STRBLK::CompVal;
-  virtual void   SetValue(PCSZ p, int n) {Strp[n] = (char*)p;}
-  virtual int    CompVal(int i1, int i2);
+  void   SetValue(PCSZ p, int n) override {Strp[n] = (char*)p;}
+  int    CompVal(int i1, int i2) override;
 
  protected:
   // Members

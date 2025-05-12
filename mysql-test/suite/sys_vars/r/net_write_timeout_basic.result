@@ -144,11 +144,11 @@ SELECT @@net_write_timeout;
 @@net_write_timeout
 1
 SELECT local.net_write_timeout;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.net_write_timeout;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT net_write_timeout = @@session.net_write_timeout;
-ERROR 42S22: Unknown column 'net_write_timeout' in 'field list'
+ERROR 42S22: Unknown column 'net_write_timeout' in 'SELECT'
 SET @@global.net_write_timeout = @start_global_value;
 SELECT @@global.net_write_timeout;
 @@global.net_write_timeout

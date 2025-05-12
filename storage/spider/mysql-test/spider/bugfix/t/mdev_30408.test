@@ -1,0 +1,27 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+set @@optimizer_switch="semijoin=off";
+set spider_same_server_link= 1;
+set global spider_same_server_link=1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, b int);
+insert into t2 select a,a from ten;
+create table t1 (a int, b int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+select a.a, a.b from t1 a where exists (select * from t1 b where b.b = a.b);
+drop table ten, t1, t2;
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

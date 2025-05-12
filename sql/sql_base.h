@@ -157,7 +157,8 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 
 my_bool mysql_rm_tmp_tables(void);
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
-                             const MDL_savepoint &start_of_statement_svp);
+                             const MDL_savepoint &start_of_statement_svp,
+                             bool remove_indirect);
 bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
                                 LEX_CSTRING *table, thr_lock_type lock_type);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
@@ -190,7 +191,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
-                  bool allow_sum_func);
+                  bool allow_sum_func, THD_WHERE where= THD_WHERE::DEFAULT_WHERE);
 void unfix_fields(List<Item> &items);
 bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
                  List<Item> &values, bool ignore_errors, bool update);
@@ -299,6 +300,8 @@ bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          uint check_flag);
 bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b);
@@ -333,10 +336,9 @@ int dynamic_column_error_message(enum_dyncol_func_result rc);
 /* open_and_lock_tables with optional derived handling */
 int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 
-extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
-                                  const void* key2);
+extern "C" qsort_cmp2 simple_raw_key_cmp;
 extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
-int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2);
+int simple_str_key_cmp(void *arg, const void *key1, const void *key2);
 
 extern Item **not_found_item;
 extern Field *not_found_field;
@@ -364,6 +366,7 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
     table->maybe_null= embedding->outer_join;
     embedding= embedding->embedding;
   }
+  DBUG_ASSERT(tablenr <= MAX_TABLES);
   table->tablenr= tablenr;
   table->map= (table_map) 1 << tablenr;
   table->force_index= table->force_index_join= 0;
@@ -383,14 +386,15 @@ inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
                                       List<Item> &item,
                                       enum_column_usage column_usage,
                                       List<Item> *sum_func_list,
-                                      bool allow_sum_func)
+                                      bool allow_sum_func,
+                                      THD_WHERE where= THD_WHERE::DEFAULT_WHERE)
 {
   bool res;
   SELECT_LEX *first= thd->lex->first_select_lex();
   DBUG_ASSERT(thd->lex->current_select == first);
   first->no_wrap_view_item= TRUE;
   res= setup_fields(thd, ref_pointer_array, item, column_usage,
-                    sum_func_list, NULL,  allow_sum_func);
+                    sum_func_list, NULL,  allow_sum_func, where);
   first->no_wrap_view_item= FALSE;
   return res;
 }
@@ -429,13 +433,13 @@ public:
 class DML_prelocking_strategy : public Prelocking_strategy
 {
 public:
-  virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
-                              Sroutine_hash_entry *rt, sp_head *sp,
-                              bool *need_prelocking);
-  virtual bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
-                            TABLE_LIST *table_list, bool *need_prelocking);
-  virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
-                           TABLE_LIST *table_list, bool *need_prelocking);
+  bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
+                      Sroutine_hash_entry *rt, sp_head *sp,
+                      bool *need_prelocking) override;
+  bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+                    TABLE_LIST *table_list, bool *need_prelocking) override;
+  bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
+                   TABLE_LIST *table_list, bool *need_prelocking) override;
 };
 
 
@@ -445,8 +449,8 @@ class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
   bool done;
   bool has_prelocking_list;
 public:
-  void reset(THD *thd);
-  bool handle_end(THD *thd);
+  void reset(THD *thd) override;
+  bool handle_end(THD *thd) override;
 };
 
 
@@ -457,8 +461,8 @@ public:
 
 class Lock_tables_prelocking_strategy : public DML_prelocking_strategy
 {
-  virtual bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
-                            TABLE_LIST *table_list, bool *need_prelocking);
+  bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+                    TABLE_LIST *table_list, bool *need_prelocking) override;
 };
 
 
@@ -473,13 +477,13 @@ class Lock_tables_prelocking_strategy : public DML_prelocking_strategy
 class Alter_table_prelocking_strategy : public Prelocking_strategy
 {
 public:
-  virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
-                              Sroutine_hash_entry *rt, sp_head *sp,
-                              bool *need_prelocking);
-  virtual bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
-                            TABLE_LIST *table_list, bool *need_prelocking);
-  virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
-                           TABLE_LIST *table_list, bool *need_prelocking);
+  bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
+                      Sroutine_hash_entry *rt, sp_head *sp,
+                      bool *need_prelocking) override;
+  bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+                    TABLE_LIST *table_list, bool *need_prelocking) override;
+  bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
+                   TABLE_LIST *table_list, bool *need_prelocking) override;
 };
 
 
@@ -581,11 +585,6 @@ public:
     return m_timeout;
   }
 
-  enum_open_table_action get_action() const
-  {
-    return m_action;
-  }
-
   uint get_flags() const { return m_flags; }
 
   /**
@@ -678,7 +677,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
   /**
     Returns TRUE if one or more ER_NO_SUCH_TABLE errors have been

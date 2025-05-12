@@ -19,7 +19,7 @@ SELECT @@secure_auth;
 @@secure_auth
 1
 SELECT global.secure_auth;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SET global secure_auth = 1;
 Warnings:
 Warning	1287	'@@secure_auth' is deprecated and will be removed in a future release

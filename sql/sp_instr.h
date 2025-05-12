@@ -278,8 +278,10 @@ public:
   {
     if (m_lex_resp)
     {
+      m_lex_resp= false;
       /* Prevent endless recursion. */
       m_lex->sphead= nullptr;
+      delete m_lex->result;
       lex_end(m_lex);
       delete m_lex;
     }
@@ -397,8 +399,29 @@ class sp_lex_instr : public sp_instr
 public:
   sp_lex_instr(uint ip, sp_pcontext *ctx, LEX *lex, bool is_lex_owner)
   : sp_instr(ip, ctx),
-    m_lex_keeper(lex, is_lex_owner)
+    m_lex_keeper(lex, is_lex_owner),
+    m_mem_root_for_reparsing(nullptr)
   {}
+
+  ~sp_lex_instr() override
+  {
+    if (m_mem_root_for_reparsing)
+    {
+      /*
+        Free items owned by an instance of sp_lex_instr and call m_lex_keeper's
+        destructor explicitly to avoid referencing a deallocated memory
+        owned by the memory root m_mem_root_for_reparsing that else would take
+        place in case their implicit invocations (in that case, m_lex_keeper's
+        destructor and the method free_items() called by ~sp_instr are invoked
+        after the memory owned by the memory root m_mem_root_for_reparsing
+        be freed, that would result in abnormal server termination)
+      */
+      free_items();
+      m_lex_keeper.~sp_lex_keeper();
+      free_root(m_mem_root_for_reparsing, MYF(0));
+      m_mem_root_for_reparsing= nullptr;
+    }
+  }
 
   virtual bool is_invalid() const = 0;
 
@@ -470,6 +493,12 @@ private:
   SQL_I_List<Item_trigger_field> m_cur_trigger_stmt_items;
 
   /**
+    MEM_ROOT used for allocation of memory on re-parsing of a statement
+    caused failure of SP-instruction execution
+  */
+  MEM_ROOT *m_mem_root_for_reparsing;
+
+  /**
     Clean up items previously created on behalf of the current instruction.
   */
   void cleanup_before_parsing(enum_sp_type sp_type);
@@ -492,6 +521,9 @@ private:
   bool setup_table_fields_for_trigger(
     THD *thd, sp_head *sp,
     SQL_I_List<Item_trigger_field> *next_trig_items_list);
+
+  bool setup_memroot_for_reparsing(sp_head *sphead,
+                                   bool *new_memroot_allocated);
 };
 
 
@@ -560,7 +592,8 @@ public:
 }; // class sp_instr_stmt : public sp_lex_instr
 
 
-class sp_instr_set : public sp_lex_instr
+class sp_instr_set : public sp_lex_instr,
+                     public sp_rcontext_addr
 {
   sp_instr_set(const sp_instr_set &);	/**< Prevent use of these */
   void operator=(sp_instr_set &);
@@ -572,8 +605,7 @@ public:
                LEX *lex, bool lex_resp,
 	       const LEX_CSTRING &expr_str)
     : sp_lex_instr(ip, ctx, lex, lex_resp),
-      m_rcontext_handler(rh),
-      m_offset(offset),
+      sp_rcontext_addr(rh, offset),
       m_value(val),
       m_expr_str(expr_str)
   {}
@@ -620,8 +652,6 @@ protected:
   }
 
   sp_rcontext *get_rcontext(THD *thd) const;
-  const Sp_rcontext_handler *m_rcontext_handler;
-  uint m_offset;		///< Frame offset
   Item *m_value;
 
 private:
@@ -1198,6 +1228,32 @@ public:
 
 
 /**
+  Get a query text associated with the cursor.
+*/
+
+static inline LEX_CSTRING get_cursor_query(const LEX_CSTRING &cursor_stmt)
+{
+  /*
+    Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
+    move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
+    in order to get correct value of cursor's query string.
+  */
+
+  if (strncasecmp(cursor_stmt.str, "FOR", 3) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[3]))
+    return LEX_CSTRING{cursor_stmt.str + 4, cursor_stmt.length - 4};
+
+  if (strncasecmp(cursor_stmt.str, "IS", 2) == 0 &&
+      my_isspace(current_thd->variables.character_set_client,
+                 cursor_stmt.str[2]))
+    return LEX_CSTRING{cursor_stmt.str + 3, cursor_stmt.length - 3};
+
+  return cursor_stmt;
+}
+
+
+/**
   This is DECLARE CURSOR
 */
 
@@ -1257,16 +1313,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1398,16 +1445,7 @@ public:
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    /*
-      Lexer on processing the clause CURSOR FOR / CURSOR IS doesn't
-      move a pointer on cpp_buf after the token FOR/IS so skip it explicitly
-      in order to get correct value of cursor's query string.
-    */
-    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
-    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
-      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
-    return m_cursor_stmt;
+    return get_cursor_query(m_cursor_stmt);
   }
 
   bool on_after_expr_parsing(THD *) override
@@ -1459,7 +1497,7 @@ public:
       m_cursor(c),
       m_error_on_no_data(error_on_no_data)
   {
-    m_varlist.empty();
+    m_fetch_target_list.empty();
   }
 
   virtual ~sp_instr_cfetch() = default;
@@ -1468,14 +1506,19 @@ public:
 
   void print(String *str) override;
 
-  void add_to_varlist(sp_variable *var)
+  bool add_to_fetch_target_list(sp_fetch_target *target)
   {
-    m_varlist.push_back(var);
+    return m_fetch_target_list.push_back(target);
+  }
+
+  void set_fetch_target_list(List<sp_fetch_target> *list)
+  {
+    m_fetch_target_list= *list;
   }
 
 private:
   uint m_cursor;
-  List<sp_variable> m_varlist;
+  List<sp_fetch_target> m_fetch_target_list;
   bool m_error_on_no_data;
 
 public:

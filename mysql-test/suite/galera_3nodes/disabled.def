@@ -9,14 +9,3 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
-galera_2_cluster : MDEV-32631 galera_2_cluster: before_rollback(): Assertion `0' failed
-galera_gtid_2_cluster : MDEV-32633 galera_gtid_2_cluster: Assertion `thd->wsrep_next_trx_id() != (0x7fffffffffffffffLL * 2ULL + 1)'
-galera_ssl_reload : MDEV-32778 galera_ssl_reload failed with warning message
-galera_ipv6_mariabackup : temporarily disabled at the request of Codership
-galera_pc_bootstrap : temporarily disabled at the request of Codership
-galera_ipv6_mariabackup_section : temporarily disabled at the request of Codership
-# Opensuse/suse/rocky9/rocky84/rhel9/rhel8-ppc64le .. - all same IPv6 isn't configured right or skipping or galera
-galera_ipv6_rsync : Can't connect to server on '::1' (115)
-galera_ipv6_rsync_section : Can't connect to server on '::1' (115)
-GCF-354 : MDEV-25614 Galera test failure on GCF-354

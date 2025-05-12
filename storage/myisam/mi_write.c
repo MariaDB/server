@@ -923,8 +923,11 @@ int _mi_ck_write_tree(register MI_INFO *info, uint keynr, uchar *key,
 
 /* typeof(_mi_keys_compare)=qsort_cmp2 */
 
-static int keys_compare(bulk_insert_param *param, uchar *key1, uchar *key2)
+static int keys_compare(void *param_, const void *key1_, const void *key2_)
 {
+  const bulk_insert_param *param= param_;
+  const uchar *key1= key1_;
+  const uchar *key2= key2_;
   uint not_used[2];
   return ha_key_cmp(param->info->s->keyinfo[param->keynr].seg,
                     key1, key2, USE_WHOLE_KEY, SEARCH_SAME,
@@ -1020,7 +1023,7 @@ int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-                (qsort_cmp2)keys_compare, keys_free, (void *)params++, MYF(0));
+                keys_compare, keys_free, params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

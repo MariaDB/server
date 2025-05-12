@@ -14,10 +14,12 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) ENGINE=innodb;
 # So concurrent insert won't happen on the table
 INSERT INTO t1 VALUES("default");
 
+--disable_cursor_protocol
 SELECT variable_value INTO @commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_commits';
 SELECT variable_value INTO @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
+--enable_cursor_protocol
 
 connect(con1,localhost,root,,);
 connect(con2,localhost,root,,);

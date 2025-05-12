@@ -73,7 +73,7 @@ static WinIoInit win_io_init;
 
 
 SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
-                 unsigned long long offset)
+              unsigned long long offset)
 {
   OVERLAPPED ov{};
   ULARGE_INTEGER uli;
@@ -95,8 +95,8 @@ SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
   return -1;
 }
 
-SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
-                  unsigned long long offset)
+SSIZE_T pwrite(const native_file_handle &h, const void *buf, size_t count,
+               unsigned long long offset)
 {
   OVERLAPPED ov{};
   ULARGE_INTEGER uli;
@@ -142,7 +142,7 @@ public:
     pool->submit_task(&cb->m_internal_task);
   }
 
-  virtual int submit_io(aiocb *aiocb) override
+  int submit_io(aiocb *aiocb) override
   {
     aiocb->m_internal_task.m_func = simulated_aio_callback;
     aiocb->m_internal_task.m_arg = aiocb;
@@ -152,8 +152,8 @@ public:
     return 0;
   }
 
-  virtual int bind(native_file_handle &fd) override { return 0; }
-  virtual int unbind(const native_file_handle &fd) override { return 0; }
+  int bind(native_file_handle &fd) override { return 0; }
+  int unbind(const native_file_handle &fd) override { return 0; }
 };
 
 aio *create_simulated_aio(thread_pool *tp)

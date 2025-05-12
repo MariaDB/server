@@ -10,6 +10,8 @@ SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is 
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-invalid-offsetof)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-effc++ DEBUG RELWITHDEBINFO)
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")

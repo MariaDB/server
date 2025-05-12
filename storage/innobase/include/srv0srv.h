@@ -223,20 +223,6 @@ extern uint	srv_flush_log_at_timeout;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
-/** Requested size in bytes */
-extern ulint		srv_buf_pool_size;
-/** Requested buffer pool chunk size */
-extern size_t		srv_buf_pool_chunk_unit;
-/** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-extern ulong	srv_LRU_scan_depth;
-/** Whether or not to flush neighbors of a block */
-extern ulong	srv_flush_neighbors;
-/** Previously requested size */
-extern ulint	srv_buf_pool_old_size;
-/** Current size as scaling factor for the other components */
-extern ulint	srv_buf_pool_base_size;
-/** Current size in bytes */
-extern ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 extern ulong	srv_buf_pool_dump_pct;
 #ifdef UNIV_DEBUG
@@ -258,8 +244,8 @@ extern ulong    srv_io_capacity;
 
 /* We use this dummy default value at startup for max_io_capacity.
 The real value is set based on the value of io_capacity. */
-#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(~0UL)
-#define SRV_MAX_IO_CAPACITY_LIMIT		(~0UL)
+#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(UINT32_MAX)
+#define SRV_MAX_IO_CAPACITY_LIMIT		(UINT32_MAX)
 extern ulong    srv_max_io_capacity;
 
 /* The "innodb_stats_method" setting, decides how InnoDB is going
@@ -285,9 +271,9 @@ extern uint	srv_fast_shutdown;
 
 extern ibool	srv_innodb_status;
 
-extern unsigned long long	srv_stats_transient_sample_pages;
+extern uint32_t			srv_stats_transient_sample_pages;
 extern my_bool			srv_stats_persistent;
-extern unsigned long long	srv_stats_persistent_sample_pages;
+extern uint32_t			srv_stats_persistent_sample_pages;
 extern my_bool			srv_stats_auto_recalc;
 extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
@@ -297,6 +283,7 @@ extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
 
+extern my_bool	innodb_alter_copy_bulk;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
@@ -396,6 +383,7 @@ extern ulong srv_buf_dump_status_frequency;
 
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;
+extern mysql_pfs_key_t	page_encrypt_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	thread_pool_thread_key;
 
@@ -549,6 +537,15 @@ void srv_monitor_task(void*);
 void srv_master_callback(void*);
 
 
+/**
+ Fetches and executes tasks from the purge work queue,
+ until this queue is empty.
+ This is main part of purge worker task, but also
+ executed in coordinator.
+ @note needs current_thd to be set beforehand.
+*/
+void srv_purge_worker_task_low();
+
 } /* extern "C" */
 
 #ifdef UNIV_DEBUG
@@ -570,7 +567,7 @@ struct export_var_t{
 #endif /* BTR_CUR_HASH_ADAPT */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
-	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
+	char  innodb_buffer_pool_resize_status[65];/*!< Buf pool resize status */
 	my_bool innodb_buffer_pool_load_incomplete;/*!< Buf pool load incomplete */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
@@ -590,7 +587,6 @@ struct export_var_t{
 	ulint innodb_data_reads;		/*!< I/O read requests */
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
-	ulint innodb_deadlocks;
 	ulint innodb_history_list_length;
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;

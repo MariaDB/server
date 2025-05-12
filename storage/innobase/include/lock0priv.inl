@@ -98,16 +98,14 @@ lock_rec_set_nth_bit(
 	      || (xtest() && !lock->trx->mutex_is_locked()));
 #endif
 	lock->trx->lock.n_rec_locks++;
+	lock->trx->lock.set_nth_bit_calls++;
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return	next lock, NULL if none exists */
 UNIV_INLINE
-lock_t*
-lock_rec_get_next_on_page(
-/*======================*/
-	lock_t*	lock)	/*!< in: a record lock */
+lock_t *lock_rec_get_next_on_page(const lock_t *lock)
 {
   return const_cast<lock_t*>(lock_rec_get_next_on_page_const(lock));
 }
@@ -166,20 +164,17 @@ lock_rec_get_nth_bit(
 	return(1 & *b >> (i % 8));
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return next lock, NULL if none exists */
 UNIV_INLINE
-const lock_t*
-lock_rec_get_next_on_page_const(
-/*============================*/
-	const lock_t*	lock)	/*!< in: a record lock */
+const lock_t *lock_rec_get_next_on_page_const(const lock_t *lock)
 {
   ut_ad(!lock->is_table());
 
   const page_id_t page_id{lock->un_member.rec_lock.page_id};
 
-  while (!!(lock= static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))))
+  while (!!(lock= static_cast<const lock_t*>(lock->hash)))
     if (lock->un_member.rec_lock.page_id == page_id)
       break;
   return lock;

@@ -143,11 +143,11 @@ class Select_fetch_protocol_binary: public select_send
   Protocol_binary protocol;
 public:
   Select_fetch_protocol_binary(THD *thd);
-  virtual bool send_result_set_metadata(List<Item> &list, uint flags);
-  virtual int send_data(List<Item> &items);
-  virtual bool send_eof();
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  int send_data(List<Item> &items) override;
+  bool send_eof() override;
 #ifdef EMBEDDED_LIBRARY
-  void begin_dataset()
+  void begin_dataset() override
   {
     protocol.begin_dataset();
   }
@@ -208,7 +208,7 @@ public:
                                         String *expanded_query);
 public:
   Prepared_statement(THD *thd_arg);
-  virtual ~Prepared_statement();
+  ~Prepared_statement() override;
   void setup_set_params();
   Query_arena::Type type() const override;
   bool cleanup_stmt(bool restore_set_statement_vars) override;
@@ -270,7 +270,7 @@ class Execute_sql_statement: public Server_runnable
 {
 public:
   Execute_sql_statement(LEX_STRING sql_text);
-  virtual bool execute_server_code(THD *thd);
+  bool execute_server_code(THD *thd) override;
 private:
   LEX_STRING m_sql_text;
 };
@@ -921,10 +921,10 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         param->set_null();
         break;
       case STMT_INDICATOR_DEFAULT:
-        param->set_default();
+        param->set_default(false);
         break;
       case STMT_INDICATOR_IGNORE:
-        param->set_ignore();
+        param->set_ignore(false);
         break;
       default:
         DBUG_ASSERT(0);
@@ -1316,6 +1316,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
+  bool cache_results= FALSE;
   DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
@@ -1348,7 +1349,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
                              update_values, duplic, ignore,
-                             &unused_conds, FALSE))
+                             &unused_conds, FALSE,
+                             &cache_results))
       goto error;
 
     value_count= values->elements;
@@ -1536,8 +1538,8 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
-  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, COLUMNS_READ, 0, NULL, 0));
+  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(), *values, COLUMNS_READ, 0,
+                           NULL, 0, THD_WHERE::DO_STATEMENT));
 }
 
 
@@ -1569,6 +1571,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
                                      DT_INIT | DT_PREPARE))
     goto error;
 
+  thd->where= THD_WHERE::SET_LIST;
   while ((var= it++))
   {
     if (var->light_check(thd))
@@ -2266,6 +2269,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 #ifdef WITH_WSREP
     if (wsrep_sync_wait(thd, sql_command))
       goto error;
+    if (!stmt->is_sql_prepare())
+    {
+      wsrep_after_command_before_result(thd);
+      if (wsrep_current_error(thd))
+      {
+        wsrep_override_error(thd, wsrep_current_error(thd),
+                             wsrep_current_error_status(thd));
+        goto error;
+      }
+    }
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2864,8 +2877,8 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
     DBUG_VOID_RETURN;                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL;
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_immediate()
     with an empty THD::change_list. It can be non empty as the above
@@ -2888,8 +2901,6 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
   change_list_savepoint.rollback(thd);
-  thd->free_items();
-  thd->free_list= free_list_backup;
 
   /*
     stmt->execute_immediately() sets thd->query_string with the executed
@@ -3065,7 +3076,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
 
   if (lex->result)
   {
-    lex->result->cleanup();
+    lex->result->reset_for_next_ps_execution();
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
@@ -3454,8 +3465,13 @@ void mysql_sql_stmt_execute(THD *thd)
     so they don't get freed in case of re-prepare.
     See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
   */
-  Item *free_list_backup= thd->free_list;
-  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Hide and restore at scope exit the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  SCOPE_VALUE(thd->free_list, (Item *) NULL);
+  // Free items created by execute_loop() at scope exit
+  SCOPE_EXIT([thd]() mutable { thd->free_items(); });
   /*
     Make sure we call Prepared_statement::execute_loop() with an empty
     THD::change_list. It can be non-empty because the above
@@ -3479,12 +3495,6 @@ void mysql_sql_stmt_execute(THD *thd)
 
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
   change_list_savepoint.rollback(thd);
-  thd->free_items();    // Free items created by execute_loop()
-  /*
-    Now restore the "external" (e.g. "SET STATEMENT") Item list.
-    It will be freed normaly in THD::cleanup_after_query().
-  */
-  thd->free_list= free_list_backup;
 
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
@@ -5485,8 +5495,8 @@ public:
 
   my_bool do_log_bin;
 
-  Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
-    Protocol_text(thd_arg, prealloc),
+  Protocol_local(THD *thd_arg, THD *new_thd_arg) :
+    Protocol_text(thd_arg),
     cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
     new_thd(new_thd_arg), do_log_bin(FALSE)
   {}
@@ -5504,29 +5514,33 @@ public:
     thd->set_binlog_bit();
   }
 protected:
-  bool net_store_data(const uchar *from, size_t length);
+  bool net_store_data(const uchar *from, size_t length) override;
   bool net_store_data_cs(const uchar *from, size_t length,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
-  bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
+  bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count) override;
   bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                   bool);
-  bool net_send_error_packet(THD *, uint, const char *, const char *);
+                   bool) override;
+  bool net_send_error_packet(THD *, uint, const char *, const char *) override;
   bool begin_dataset();
   bool begin_dataset(THD *thd, uint numfields);
 
-  bool write();
-  bool flush();
+  bool write() override;
+  bool flush() override;
 
   bool store_field_metadata(const THD *thd, const Send_field &field,
                             CHARSET_INFO *charset_for_protocol,
                             uint pos);
-  bool send_result_set_metadata(List<Item> *list, uint flags);
+  bool send_result_set_metadata(List<Item> *list, uint flags) override;
+#ifdef EMBEDDED_LIBRARY
+  void remove_last_row() override;
+#else
   void remove_last_row();
-  bool store_null();
-  void prepare_for_resend();
+#endif
+  bool store_null() override;
+  void prepare_for_resend() override;
   bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
  
-  enum enum_protocol_type type() { return PROTOCOL_LOCAL; };
+  enum enum_protocol_type type() override { return PROTOCOL_LOCAL; };
 };
 
 static
@@ -6098,7 +6112,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (char*) &result;
+    p->thd->thread_stack= (void*) &result;      // Big stack
     p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
@@ -6278,7 +6292,6 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
     new_thd= new THD(0);
     local_connection_thread_count++;
-    new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
@@ -6299,7 +6312,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   else
     new_thd= NULL;
 
-  p= new Protocol_local(thd_orig, new_thd, 0);
+  p= new Protocol_local(thd_orig, new_thd);
   if (new_thd)
     new_thd->protocol= p;
   else

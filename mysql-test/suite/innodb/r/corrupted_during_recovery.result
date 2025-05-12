@@ -8,8 +8,10 @@ INSERT INTO t2 VALUES(1);
 # Corrupt the pages
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
+FOUND 1 /InnoDB: Page \[page id: space=[1-9][0-9]*, page number=3\] log sequence number 1311768467463790320 is in the future!/ in mysqld.1.err
 SELECT * FROM t1;
-Got one of the listed errors
+a
+1
 SELECT * FROM t2;
 a
 1
@@ -27,7 +29,7 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 DELETE FROM t1 WHERE pk=3;
 # Kill the server
 disconnect con1;
-# Corrupt the pages
+# Corrupt the page
 SELECT * FROM t1;
 pk
 1

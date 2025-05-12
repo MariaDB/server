@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2022 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,9 +31,23 @@
 #include "wsrep_storage_service.h"
 #include "wsrep_thd.h"
 #include "wsrep_server_state.h"
+#include "log_event.h"
+#include "sql_class.h"
 
 #include <string>
 #include <sstream>
+
+#define WSREP_SCHEMA          "mysql"
+#define WSREP_STREAMING_TABLE "wsrep_streaming_log"
+#define WSREP_CLUSTER_TABLE   "wsrep_cluster"
+#define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
+
+LEX_CSTRING WSREP_LEX_SCHEMA= {STRING_WITH_LEN(WSREP_SCHEMA)};
+LEX_CSTRING WSREP_LEX_STREAMING= {STRING_WITH_LEN(WSREP_STREAMING_TABLE)};
+LEX_CSTRING WSREP_LEX_CLUSTER= {STRING_WITH_LEN(WSREP_CLUSTER_TABLE)};
+LEX_CSTRING WSREP_LEX_MEMBERS= {STRING_WITH_LEN(WSREP_MEMBERS_TABLE)};
+LEX_CSTRING WSREP_LEX_ALLOWLIST= {STRING_WITH_LEN(WSREP_ALLOWLIST_TABLE)};
 
 const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
@@ -161,6 +175,43 @@ public:
 private:
   THD* m_thd;
   my_bool m_wsrep_on;
+};
+
+class wsrep_ignore_table
+{
+public:
+  wsrep_ignore_table(THD* thd)
+    : m_thd(thd)
+    , m_wsrep_ignore_table(thd->wsrep_ignore_table)
+  {
+    thd->wsrep_ignore_table= true;
+  }
+  ~wsrep_ignore_table()
+  {
+    m_thd->wsrep_ignore_table= m_wsrep_ignore_table;
+  }
+private:
+  THD* m_thd;
+  my_bool m_wsrep_ignore_table;
+};
+
+class wsrep_skip_locking
+{
+public:
+  wsrep_skip_locking(THD *thd)
+      : m_thd(thd)
+      , m_wsrep_skip_locking(thd->wsrep_skip_locking)
+  {
+    thd->wsrep_skip_locking= true;
+  }
+  ~wsrep_skip_locking()
+  {
+    m_thd->wsrep_skip_locking= m_wsrep_skip_locking;
+  }
+
+private:
+  THD *m_thd;
+  my_bool m_wsrep_skip_locking;
 };
 
 class thd_server_status
@@ -699,7 +750,6 @@ int Wsrep_schema::init()
     WSREP_ERROR("Unable to get thd");
     DBUG_RETURN(1);
   }
-  thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
 
   if (Wsrep_schema_impl::execute_SQL(thd, create_cluster_table_str.c_str(),
@@ -759,6 +809,12 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
   Wsrep_schema_impl::wsrep_off wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+
+  if (trans_begin(thd, MYSQL_START_TRANS_OPT_READ_WRITE))
+  {
+    WSREP_ERROR("Failed to start transaction for store view");
+    goto out_not_started;
+  }
 
   /*
     Clean up cluster table and members table.
@@ -853,7 +909,22 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
   ret= 0;
  out:
+  if (ret)
+  {
+    trans_rollback_stmt(thd);
+    if (!trans_rollback(thd))
+    {
+      close_thread_tables(thd);
+    }
+  }
+  else if (trans_commit(thd))
+  {
+    ret= 1;
+    WSREP_ERROR("Failed to commit transaction for store view");
+  }
+  thd->release_transactional_locks();
 
+out_not_started:
   DBUG_RETURN(ret);
 }
 
@@ -1205,9 +1276,10 @@ int Wsrep_schema::remove_fragments(THD* thd,
   int ret= 0;
 
   WSREP_DEBUG("Removing %zu fragments", fragments.size());
-  Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
+  Wsrep_schema_impl::wsrep_ignore_table wsrep_ignore_table(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+  Wsrep_schema_impl::wsrep_skip_locking skip_locking(thd);
 
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
@@ -1580,6 +1652,64 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
 
   delete storage_thd;
   DBUG_RETURN(ret);
+}
+
+int Wsrep_schema::store_gtid_event(THD* thd,
+                                   const Gtid_log_event *gtid)
+{
+  DBUG_ENTER("Wsrep_schema::store_gtid_event");
+  int error=0;
+  void *hton= NULL;
+  const bool in_transaction= (gtid->flags2 & Gtid_log_event::FL_TRANSACTIONAL);
+  const bool in_ddl= (gtid->flags2 & Gtid_log_event::FL_DDL);
+
+  DBUG_PRINT("info", ("thd: %p, in_transaction: %d, in_ddl: %d "
+                      "in_active_multi_stmt_transaction: %d",
+                      thd, in_transaction, in_ddl,
+                      thd->in_active_multi_stmt_transaction()));
+
+  Wsrep_schema_impl::wsrep_ignore_table  ignore_table(thd);
+  Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+
+  rpl_group_info *rgi= thd->wsrep_rgi;
+  const uint64 sub_id= rpl_global_gtid_slave_state->next_sub_id(gtid->domain_id);
+  rpl_gtid current_gtid;
+  current_gtid.domain_id= gtid->domain_id;
+  current_gtid.server_id= gtid->server_id;
+  current_gtid.seq_no= gtid->seq_no;
+  rgi->gtid_pending= false;
+
+  DBUG_ASSERT(!in_transaction || thd->in_active_multi_stmt_transaction());
+
+  if ((error= rpl_global_gtid_slave_state->record_gtid(thd, &current_gtid,
+                                                      sub_id,
+                                                      in_transaction, false, &hton)))
+    goto out;
+
+  rpl_global_gtid_slave_state->update_state_hash(sub_id, &current_gtid, hton, rgi);
+
+  if (in_ddl)
+  {
+    // Commit transaction if this GTID is part of DDL-clause because
+    // DDL causes implicit commit assuming there is no multi statement
+    // transaction ongoing.
+    if((error= trans_commit_stmt(thd)))
+      goto out;
+
+    (void)trans_commit(thd);
+  }
+
+out:
+  if (error)
+  {
+    WSREP_DEBUG("Wsrep_schema::store_gtid_event %llu-%llu-%llu failed error=%s (%d).",
+                gtid->domain_id, gtid->server_id, gtid->seq_no, strerror(error), error);
+    (void)trans_rollback_stmt(thd);
+    (void)trans_rollback(thd);
+  }
+
+  DBUG_RETURN(error);
 }
 
 void Wsrep_schema::clear_allowlist()

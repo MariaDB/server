@@ -896,13 +896,13 @@ SELECT c FROM
 (SELECT COUNT(b) FROM t1) AS x GROUP BY c
 ) FROM t1 GROUP BY b
 ) AS y;
-ERROR 42S22: Unknown column 'c' in 'field list'
+ERROR 42S22: Unknown column 'c' in 'SELECT'
 SHOW WARNINGS;
 Level	Code	Message
 Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
 Note	1981	Aggregate function 'count()' of SELECT #3 belongs to SELECT #2
 Note	1276	Field or reference 'test.t1.c' of SELECT #3 was resolved in SELECT #2
-Error	1054	Unknown column 'c' in 'field list'
+Error	1054	Unknown column 'c' in 'SELECT'
 DROP TABLE t1;
 End of 5.0 tests
 #  
@@ -1179,7 +1179,7 @@ count(*)
 show status like 'Created_tmp_disk_tables';
 Variable_name	Value
 Created_tmp_disk_tables	1
-set @save_max_heap_table_size=@@max_heap_table_size;
+set @@max_heap_table_size=@save_max_heap_table_size;
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t0, t1;
 create table t0 (a int);

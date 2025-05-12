@@ -142,14 +142,14 @@ public:
 	JOBJECT(int i) : JSON(i) {}
 
 	// Methods
-	virtual void  Clear(void) {First = Last = NULL;}
+	void  Clear(void) override {First = Last = NULL;}
 //virtual JTYP  GetValType(void) {return TYPE_JOB;}
-  virtual PJPR  GetFirst(void) {return First;}
-	virtual int   GetSize(bool b);
-  virtual PJOB  GetObject(void) {return this;}
-	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
-	virtual bool  Merge(PGLOBAL g, PJSON jsp);
-	virtual bool  IsNull(void);
+  PJPR  GetFirst(void) override {return First;}
+	int   GetSize(bool b) override;
+  PJOB  GetObject(void) override {return this;}
+	PSZ   GetText(PGLOBAL g, PSTRG text) override;
+	bool  Merge(PGLOBAL g, PJSON jsp) override;
+	bool  IsNull(void) override;
 
 	// Specific
 	PJPR  AddPair(PGLOBAL g, PCSZ key);
@@ -174,15 +174,15 @@ class JARRAY : public JSON {
 	JARRAY(int i) : JSON(i) {}
 
 	// Methods
-  virtual void  Clear(void) {First = Last = NULL; Size = 0;}
-	virtual int   size(void) { return Size; }
-  virtual PJAR  GetArray(void) {return this;}
-	virtual int   GetSize(bool b);
-  virtual PJVAL GetArrayValue(int i);
-	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
-	virtual bool  Merge(PGLOBAL g, PJSON jsp);
-  virtual bool  DeleteValue(int n);
-  virtual bool  IsNull(void);
+  void  Clear(void) override {First = Last = NULL; Size = 0;}
+	int   size(void) override { return Size; }
+  PJAR  GetArray(void) override {return this;}
+	int   GetSize(bool b) override;
+  PJVAL GetArrayValue(int i) override;
+	PSZ   GetText(PGLOBAL g, PSTRG text) override;
+	bool  Merge(PGLOBAL g, PJSON jsp) override;
+  bool  DeleteValue(int n) override;
+  bool  IsNull(void) override;
 
 	// Specific
 	PJVAL AddArrayValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
@@ -221,14 +221,14 @@ public:
   //using JSON::SetVal;
 
 	// Methods
-	virtual void   Clear(void);
+	void   Clear(void) override;
 //virtual JTYP   GetType(void) {return TYPE_JVAL;}
   virtual JTYP   GetValType(void);
-  virtual PJOB   GetObject(void);
-  virtual PJAR   GetArray(void);
-  virtual PJSON  GetJsp(void) {return (DataType == TYPE_JSON ? Jsp : NULL);}
-  virtual PSZ    GetText(PGLOBAL g, PSTRG text);
-	virtual bool   IsNull(void);
+  PJOB   GetObject(void) override;
+  PJAR   GetArray(void) override;
+  PJSON  GetJsp(void) override {return (DataType == TYPE_JSON ? Jsp : NULL);}
+  PSZ    GetText(PGLOBAL g, PSTRG text) override;
+	bool   IsNull(void) override;
 
 	// Specific
 	//inline PVL  GetVal(void) { return Val; }
@@ -239,7 +239,7 @@ public:
 	long long GetBigint(void);
 	double GetFloat(void);
 	PVAL   GetValue(PGLOBAL g);
-	void   SetValue(PJSON jsp);
+	void   SetValue(PJSON jsp) override;
 	void   SetValue(PGLOBAL g, PVAL valp);
 	void   SetString(PGLOBAL g, PSZ s, int ci = 0);
 	void   SetInteger(PGLOBAL g, int n);
@@ -288,9 +288,9 @@ class JOUTSTR : public JOUT {
 public:
 	JOUTSTR(PGLOBAL g);
 
-	virtual bool WriteStr(const char* s);
-	virtual bool WriteChr(const char c);
-	virtual bool Escape(const char* s);
+	bool WriteStr(const char* s) override;
+	bool WriteChr(const char c) override;
+	bool Escape(const char* s) override;
 
 	// Member
 	char* Strp;                         // The serialized string
@@ -305,9 +305,9 @@ class JOUTFILE : public JOUT {
 public:
 	JOUTFILE(PGLOBAL g, FILE* str, int pty) : JOUT(g) { Stream = str; Pretty = pty; }
 
-	virtual bool WriteStr(const char* s);
-	virtual bool WriteChr(const char c);
-	virtual bool Escape(const char* s);
+	bool WriteStr(const char* s) override;
+	bool WriteChr(const char c) override;
+	bool Escape(const char* s) override;
 
 	// Member
 	FILE* Stream;
@@ -320,8 +320,8 @@ class JOUTPRT : public JOUTFILE {
 public:
 	JOUTPRT(PGLOBAL g, FILE* str) : JOUTFILE(g, str, 2) { M = 0; B = false; }
 
-	virtual bool WriteStr(const char* s);
-	virtual bool WriteChr(const char c);
+	bool WriteStr(const char* s) override;
+	bool WriteChr(const char c) override;
 
 	// Member
 	int  M;

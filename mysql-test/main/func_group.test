@@ -1,9 +1,9 @@
 #
 # simple test of all group functions
 #
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Test temporarily disabled for ps-protocol
+   --skip Test temporarily disabled for ps-protocol and cursor-protocol
 }
 
 set @sav_dpi= @@div_precision_increment;

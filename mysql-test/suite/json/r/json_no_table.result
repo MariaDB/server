@@ -2473,7 +2473,7 @@ NULL
 Warnings:
 Warning	4042	Syntax error in JSON path in argument 6 to function 'json_search' at position 2
 select json_search(a, b, c);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 select json_search( '{ "a": "foobar" }', 'one', 'foo%' );
 json_search( '{ "a": "foobar" }', 'one', 'foo%' )
 "$.a"
@@ -2886,7 +2886,7 @@ json_unquote(json_compact('["a", "b", "c"]'))
 ["a", "b", "c"]
 select charset(json_unquote('"abc"'));
 charset(json_unquote('"abc"'))
-utf8mb3
+utf8mb4
 select json_quote(convert(X'e68891' using utf8));
 json_quote(convert(X'e68891' using utf8))
 "我"

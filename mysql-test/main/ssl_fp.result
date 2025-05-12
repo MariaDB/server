@@ -8,5 +8,5 @@ ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
 test.have_ssl()
 yes
 # mysql --protocol tcp -uroot --ssl-fp=00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33 --disable-ssl-verify-server-cert -e "select test.have_ssl()"
-ERROR 2026 (HY000): TLS/SSL error: Fingerprint verification of server certificate failed
+ERROR 2026 (HY000): TLS/SSL error: Fingerprint validation of peer certificate failed
 drop function have_ssl;

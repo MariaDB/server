@@ -52,6 +52,7 @@ master-bin.000001	#	Query	1	#	use `test`; create table t3( a int primary key, b 
 # let's stop at first CA processing (in process_commit_alter)
 connection slave;
 include/sync_with_master_gtid.inc
+# wait for CA_1 waiting itself
 connect extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
 stop slave;;
 connection slave;

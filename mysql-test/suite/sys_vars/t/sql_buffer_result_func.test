@@ -51,18 +51,22 @@ SHOW STATUS LIKE 'Created_tmp_tables';
 --enable_ps_protocol
 --echo Expected value : 0.
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
 --enable_ps_protocol
 --echo Expected value : 1.
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';
@@ -81,7 +85,9 @@ SHOW STATUS LIKE 'Created_tmp_tables';
 --enable_ps_protocol
 --echo Expected value : 2.
 
+--disable_cursor_protocol
 SELECT * FROM t1;
+--enable_cursor_protocol
 
 --disable_ps_protocol
 SHOW STATUS LIKE 'Created_tmp_tables';

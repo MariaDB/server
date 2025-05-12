@@ -179,6 +179,10 @@ public:
                                              FbtImpl::max_char_length()+1));
       return false;
     }
+    bool to_bool() const
+    {
+      return !this->only_zero_bytes(m_buffer, FbtImpl::binary_length());
+    }
     int cmp(const Binary_string &other) const
     {
       return FbtImpl::cmp(FbtImpl::to_lex_cstring(), other.to_lex_cstring());
@@ -253,6 +257,10 @@ public:
     {
       return singleton();
     }
+    bool val_bool() override
+    {
+      return m_value.to_bool();
+    }
     longlong val_int() override
     {
       return 0;
@@ -290,8 +298,9 @@ public:
       str->append(tmp);
       str->append('\'');
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_literal_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
     // Non-overriding methods
     void set_value(const Fbt &value)
@@ -763,9 +772,9 @@ public:
       Fbt_null tmp(arg);
       return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
     }
-    int compare(cmp_item *ci) override
+    int compare(const cmp_item *ci) const override
     {
-      cmp_item_fbt *tmp= static_cast<cmp_item_fbt*>(ci);
+      const cmp_item_fbt *tmp= static_cast<const cmp_item_fbt*>(ci);
       DBUG_ASSERT(!m_null_value);
       DBUG_ASSERT(!tmp->m_null_value);
       return m_native.cmp(tmp->m_native);
@@ -779,13 +788,13 @@ public:
   class in_fbt :public in_vector
   {
     Fbt m_value;
-    static int cmp_fbt(void *cmp_arg, Fbt *a, Fbt *b)
+    static int cmp_fbt(void *cmp_arg, const void *a, const void *b)
     {
-      return a->cmp(*b);
+      return static_cast<const Fbt*>(a)->cmp(*static_cast<const Fbt*>(b));
     }
   public:
     in_fbt(THD *thd, uint elements)
-     :in_vector(thd, elements, sizeof(Fbt), (qsort2_cmp) cmp_fbt, 0),
+     :in_vector(thd, elements, sizeof(Fbt), cmp_fbt, 0),
       m_value(Fbt::zero())
     { }
     const Type_handler *type_handler() const override
@@ -869,8 +878,9 @@ public:
     {
       return Item::save_in_field(field, no_conversions);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_copy_fbt>(thd, this); }
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
   };
 
   class Item_char_typecast_func_handler_fbt_to_binary:
@@ -970,7 +980,7 @@ public:
       Fbt_null tmp(args[0]);
       return null_value= tmp.is_null() || tmp.to_native(to);
     }
-    Item *get_copy(THD *thd) override
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
   };
 
@@ -980,9 +990,10 @@ public:
   public:
     Item_cache_fbt(THD *thd)
      :Item_cache(thd, singleton()) { }
-    Item *get_copy(THD *thd)
+    Item *do_get_copy(THD *thd) const override
     { return get_item_copy<Item_cache_fbt>(thd, this); }
-    bool cache_value()
+    Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+    bool cache_value() override
     {
       if (!example)
         return false;
@@ -992,54 +1003,54 @@ public:
                                                    &m_value, type_handler());
       return true;
     }
-    String* val_str(String *to)
+    String* val_str(String *to) override
     {
       if (!has_value())
         return NULL;
       Fbt_null tmp(m_value.ptr(), m_value.length());
       return tmp.is_null() || tmp.to_string(to) ? NULL : to;
     }
-    my_decimal *val_decimal(my_decimal *to)
+    my_decimal *val_decimal(my_decimal *to) override
     {
       if (!has_value())
         return NULL;
       my_decimal_set_zero(to);
       return to;
     }
-    longlong val_int()
+    longlong val_int() override
     {
       if (!has_value())
         return 0;
       return 0;
     }
-    double val_real()
+    double val_real() override
     {
       if (!has_value())
         return 0;
       return 0;
     }
-    longlong val_datetime_packed(THD *thd)
-    {
-      DBUG_ASSERT(0);
-      if (!has_value())
-        return 0;
-      return 0;
-    }
-    longlong val_time_packed(THD *thd)
+    longlong val_datetime_packed(THD *) override
     {
       DBUG_ASSERT(0);
       if (!has_value())
         return 0;
       return 0;
     }
-    bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+    longlong val_time_packed(THD *) override
+    {
+      DBUG_ASSERT(0);
+      if (!has_value())
+        return 0;
+      return 0;
+    }
+    bool get_date(THD *, MYSQL_TIME *ltime, date_mode_t) override
     {
       if (!has_value())
         return true;
       set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
       return false;
     }
-    bool val_native(THD *thd, Native *to)
+    bool val_native(THD *, Native *to) override
     {
       if (!has_value())
         return true;

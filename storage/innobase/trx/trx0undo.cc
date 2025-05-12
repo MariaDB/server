@@ -185,7 +185,7 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
     return nullptr;
 
   if (!buf_page_make_young_if_needed(&block->page))
-    buf_read_ahead_linear(block->page.id(), 0);
+    buf_read_ahead_linear(block->page.id());
   return trx_undo_page_get_last_rec(block, page_no, offset);
 }
 
@@ -242,7 +242,7 @@ trx_undo_get_prev_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
 static trx_undo_rec_t*
 trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
                                      uint32_t page_no, uint16_t offset,
-                                     ulint mode, mtr_t *mtr)
+                                     rw_lock_type_t mode, mtr_t *mtr)
 {
   if (page_no == block->page.id().page_no() &&
       mach_read_from_2(block->page.frame + offset + TRX_UNDO_NEXT_LOG))
@@ -272,7 +272,8 @@ trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
 @retval nullptr if none */
 static trx_undo_rec_t*
 trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
-                       uint16_t offset, ulint mode, const buf_block_t*& block,
+                       uint16_t offset, rw_lock_type_t mode,
+                       const buf_block_t *&block,
                        mtr_t *mtr, dberr_t *err)
 {
   buf_block_t *b= buf_page_get_gen(page_id_t{space.id, page_no}, 0, mode,
@@ -282,7 +283,7 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
     return nullptr;
 
   if (!buf_page_make_young_if_needed(&b->page))
-    buf_read_ahead_linear(b->page.id(), 0);
+    buf_read_ahead_linear(b->page.id());
 
   if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(b, page_no, offset))
     return rec;
@@ -291,12 +292,12 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                                               mtr);
 }
 
-inline void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec)
+inline
+void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec, uint16_t offset)
 {
   undo_rec= rec;
-  if (!undo_rec)
-    return;
-  offset= page_offset(undo_rec);
+  ut_ad(page_offset(undo_rec) == offset);
+  this->offset= offset;
 
   bool updated_extern= false;
   undo_no_t undo_no= 0;
@@ -309,7 +310,7 @@ inline void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec)
   dict_sys.unfreeze();
 
   ut_ad(table);
-  if (!table->is_active_ddl())
+  if (!table->is_native_online_ddl())
     return;
 
   dict_index_t *index= dict_table_get_first_index(table);
@@ -350,16 +351,11 @@ ATTRIBUTE_COLD void trx_t::apply_log()
   const trx_undo_t *undo= rsegs.m_redo.undo;
   if (!undo || !undo_no)
     return;
-  page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
+  const page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
   page_id_t next_page_id(page_id);
-  mtr_t mtr;
-  mtr.start();
-  buf_block_t *block= buf_page_get(page_id, 0, RW_S_LATCH, &mtr);
+  buf_block_t *block= buf_pool.page_fix(page_id, nullptr, buf_pool_t::FIX_WAIT_READ);
   if (UNIV_UNLIKELY(!block))
-  {
-    mtr.commit();
     return;
-  }
 
   UndorecApplier log_applier(page_id, id);
 
@@ -369,31 +365,27 @@ ATTRIBUTE_COLD void trx_t::apply_log()
                                                      undo->hdr_offset);
     while (rec)
     {
-      block->page.fix();
-      mtr.commit();
+      const uint16_t offset= uint16_t(rec - block->page.frame);
       /* Since we are the only thread who could write to this undo page,
       it is safe to dereference rec while only holding a buffer-fix. */
-      log_applier.apply_undo_rec(rec);
-      mtr.start();
-      mtr.page_lock(block, RW_S_LATCH);
-      rec= trx_undo_page_get_next_rec(block, page_offset(rec),
+      log_applier.apply_undo_rec(rec, offset);
+      rec= trx_undo_page_get_next_rec(block, offset,
                                       page_id.page_no(), undo->hdr_offset);
     }
 
     uint32_t next= mach_read_from_4(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
                                     FLST_NEXT + FIL_ADDR_PAGE +
                                     block->page.frame);
+    block->page.unfix();
     if (next == FIL_NULL)
       break;
     next_page_id.set_page_no(next);
-    mtr.commit();
-    mtr.start();
-    block= buf_page_get_gen(next_page_id, 0, RW_S_LATCH, block, BUF_GET, &mtr);
+    block= buf_pool.page_fix(next_page_id, nullptr, buf_pool_t::FIX_WAIT_READ);
     if (UNIV_UNLIKELY(!block))
       break;
     log_applier.assign_next(next_page_id);
   }
-  mtr.commit();
+
   apply_online_log= false;
 }
 
@@ -1012,7 +1004,7 @@ corrupted_type:
 
 	const trx_id_t trx_id= mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
 	if (trx_id >> 48) {
-		sql_print_error("InnoDB: corrupted TRX_ID %llx", trx_id);
+		sql_print_error("InnoDB: corrupted TRX_ID %" PRIx64, trx_id);
 		goto corrupted;
 	}
 	/* We will increment rseg->needs_purge, like trx_undo_reuse_cached()
@@ -1047,7 +1039,7 @@ corrupted_type:
 	read_trx_no:
 		trx_no = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
 		if (trx_no >> 48) {
-			sql_print_error("InnoDB: corrupted TRX_NO %llx",
+			sql_print_error("InnoDB: corrupted TRX_NO %" PRIx64,
 					trx_no);
 			goto corrupted;
 		}

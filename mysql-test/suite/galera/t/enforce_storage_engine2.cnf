@@ -7,7 +7,3 @@ sql_mode=''
 [mysqld.2]
 enforce_storage_engine=innodb
 sql_mode=''
-
-
-
-

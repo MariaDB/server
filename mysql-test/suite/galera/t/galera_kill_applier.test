@@ -17,21 +17,21 @@ SET GLOBAL wsrep_slave_threads=2;
 --let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle' LIMIT 1`
 
 --replace_result $applier_thread ID
---error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--error ER_KILL_DENIED_ERROR
 --eval KILL $applier_thread
 
 --replace_result $applier_thread ID
---error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--error ER_KILL_DENIED_ERROR
 --eval KILL QUERY $applier_thread
 
 --let $aborter_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep aborter idle' LIMIT 1`
 
 --replace_result $aborter_thread ID
---error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--error ER_KILL_DENIED_ERROR
 --eval KILL $aborter_thread
 
 --replace_result $aborter_thread ID
---error ER_KILL_DENIED_ERROR,ER_KILL_DENIED_ERROR
+--error ER_KILL_DENIED_ERROR
 --eval KILL QUERY $aborter_thread
 
 SET GLOBAL wsrep_slave_threads=DEFAULT;

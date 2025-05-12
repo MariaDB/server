@@ -2000,7 +2000,10 @@ prepare stmt from "create view v1 as select * from `t1` `b`";
 
 prepare stmt from "select ?";
 set @arg= 123456789.987654321;
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @arg;
+--enable_cursor_protocol
 execute stmt using @arg;
 set @arg= "string";
 select @arg;
@@ -2009,7 +2012,10 @@ set @arg= 123456;
 select @arg;
 execute stmt using @arg;
 set @arg= cast(-12345.54321 as decimal(20, 10));
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @arg;
+--enable_cursor_protocol
 execute stmt using @arg;
 deallocate prepare stmt;
 
@@ -3331,6 +3337,8 @@ SELECT @x_str_1, @x_int_1, @x_int_2, @x_int_3;
 --echo
 --echo -- Testing decs...
 
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 --echo
 EXECUTE stmt_dec USING @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
@@ -3338,6 +3346,7 @@ SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 --echo
 EXECUTE stmt_dec USING @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
 SELECT @x_int_1, @x_dec_1, @x_dec_2, @x_dec_3;
+--enable_cursor_protocol
 
 --echo
 DEALLOCATE PREPARE stmt_str;
@@ -3570,7 +3579,9 @@ execute st;
 show status like '%Handler_read%';
 flush status;
 --disable_ps2_protocol
+--disable_cursor_protocol
 select * from t1 use index() where a=3;
+--enable_cursor_protocol
 show status like '%Handler_read%';
 --enable_ps2_protocol
 flush status;

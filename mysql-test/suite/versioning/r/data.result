@@ -10,9 +10,9 @@ set timestamp=unix_timestamp('1991-01-02 00:00');
 delete from t1 where x=2;
 set timestamp=default;
 #MYSQL_DUMP --compact test
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
@@ -20,9 +20,9 @@ CREATE TABLE `t1` (
 INSERT INTO `t1` VALUES
 (3);
 #MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
@@ -32,13 +32,13 @@ INSERT INTO `t1` VALUES
 (2),
 (3);
 #MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `test`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
@@ -48,9 +48,9 @@ INSERT INTO `t1` VALUES
 (2),
 (3);
 #MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
@@ -91,19 +91,19 @@ select x, check_fields(x, row_start, row_end) from t2 for system_time all order 
 x	check_fields(x, row_start, row_end)
 1	[CORRECT]
 2	[CORRECT]
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
 INSERT INTO `t1` (`x`, row_start, row_end) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
 (2,'2010-10-10 10:10:10.101010','2038-01-19 03:14:07.999999');
-/*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t2` (
   `x` int(11) DEFAULT NULL,
   `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
@@ -111,10 +111,10 @@ CREATE TABLE `t2` (
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
 INSERT INTO `t2` (`x`, `row_start`, `row_end`) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
 (2,'2010-10-10 10:10:10.101010','2038-01-19 03:14:07.999999');
-/*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
 mariadb-dump: --dump-history can't be used with --as-of.
 mariadb-dump: --dump-history can't be used with --replace.
 mariadb-dump: --xml can't be used with --dump-history.
@@ -199,9 +199,9 @@ insert t1 (x) values (2);
 delete from t1 where x=1;
 mariadb-dump: Cannot use --dump-history for table `t1` with transaction-precise history
 mariadb-dump: Cannot use --dump-history for table `t1` with transaction-precise history
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
   `rs` bigint(20) unsigned GENERATED ALWAYS AS ROW START,

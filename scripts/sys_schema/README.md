@@ -1,8 +1,8 @@
-# The MySQL sys schema
+# The MariaDB sys schema
 
-A collection of views, functions and procedures to help MySQL administrators get insight in to MySQL Database usage.
+A collection of views, functions and procedures to help MariaDB administrators get insight into MariaDB Database usage.
 
-There are install files available for 5.6 and 5.7 respectively. To load these, you must position yourself within the directory that you downloaded to, as these top level files SOURCE individual files that are shared across versions in most cases (though not all).
+There are install files available. To load these, you must position yourself within the directory that you downloaded to, as these top level files SOURCE individual files that are shared across versions in most cases (though not all).
 
 ## Overview of objects
 
@@ -54,10 +54,10 @@ Summarizes statement activity, file IO and connections by host.
 
 When the host found is NULL, it is assumed to be a "background" thread.
 
-##### Structures (5.7)
+##### Structures
 
 ```SQL
-mysql> desc host_summary;
+mariadb> desc host_summary;
 +------------------------+---------------+------+-----+---------+-------+
 | Field                  | Type          | Null | Key | Default | Extra |
 +------------------------+---------------+------+-----+---------+-------+
@@ -76,7 +76,7 @@ mysql> desc host_summary;
 +------------------------+---------------+------+-----+---------+-------+
 12 rows in set (0.15 sec)
 
-mysql> desc x$host_summary;
+mariadb> desc x$host_summary;
 +------------------------+---------------+------+-----+---------+-------+
 | Field                  | Type          | Null | Key | Default | Extra |
 +------------------------+---------------+------+-----+---------+-------+
@@ -99,7 +99,7 @@ mysql> desc x$host_summary;
 ##### Example
 
 ```SQL 
-  mysql> select * from host_summary;
+  mariadb> select * from host_summary;
   +------+------------+-------------------+-----------------------+-------------+----------+-----------------+---------------------+-------------------+--------------+
   | host | statements | statement_latency | statement_avg_latency | table_scans | file_ios | file_io_latency | current_connections | total_connections | unique_users |
   +------+------------+-------------------+-----------------------+-------------+----------+-----------------+---------------------+-------------------+--------------+
@@ -118,7 +118,7 @@ When the host found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc host_summary_by_file_io;
+mariadb> desc host_summary_by_file_io;
 +------------+---------------+------+-----+---------+-------+
 | Field      | Type          | Null | Key | Default | Extra |
 +------------+---------------+------+-----+---------+-------+
@@ -128,7 +128,7 @@ mysql> desc host_summary_by_file_io;
 +------------+---------------+------+-----+---------+-------+
 3 rows in set (0.00 sec)
 
-mysql> desc x$host_summary_by_file_io;
+mariadb> desc x$host_summary_by_file_io;
 +------------+---------------+------+-----+---------+-------+
 | Field      | Type          | Null | Key | Default | Extra |
 +------------+---------------+------+-----+---------+-------+
@@ -142,7 +142,7 @@ mysql> desc x$host_summary_by_file_io;
 ##### Example
 
 ```SQL
-  mysql> select * from host_summary_by_file_io;
+  mariadb> select * from host_summary_by_file_io;
   +------------+-------+------------+
   | host       | ios   | io_latency |
   +------------+-------+------------+
@@ -162,7 +162,7 @@ When the host found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc host_summary_by_file_io_type;
+mariadb> desc host_summary_by_file_io_type;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -174,7 +174,7 @@ mysql> desc host_summary_by_file_io_type;
 +---------------+---------------------+------+-----+---------+-------+
 5 rows in set (0.70 sec)
 
-mysql> desc x$host_summary_by_file_io_type;
+mariadb> desc x$host_summary_by_file_io_type;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -190,7 +190,7 @@ mysql> desc x$host_summary_by_file_io_type;
 ##### Example
 
 ```SQL
-  mysql> select * from host_summary_by_file_io_type;
+  mariadb> select * from host_summary_by_file_io_type;
   +------------+--------------------------------------+-------+---------------+-------------+
   | host       | event_name                           | total | total_latency | max_latency |
   +------------+--------------------------------------+-------+---------------+-------------+
@@ -225,7 +225,7 @@ When the host found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc host_summary_by_stages;
+mariadb> desc host_summary_by_stages;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -237,7 +237,7 @@ mysql> desc host_summary_by_stages;
 +---------------+---------------------+------+-----+---------+-------+
 5 rows in set (0.06 sec)
 
-mysql> desc x$host_summary_by_stages;
+mariadb> desc x$host_summary_by_stages;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -253,7 +253,7 @@ mysql> desc x$host_summary_by_stages;
 ##### Example
 
 ```SQL
-  mysql> select *  from host_summary_by_stages;
+  mariadb> select *  from host_summary_by_stages;
   +------+--------------------------------+-------+---------------+-------------+
   | host | event_name                     | total | total_latency | avg_latency |
   +------+--------------------------------+-------+---------------+-------------+
@@ -287,7 +287,7 @@ When the host found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc host_summary_by_statement_latency;
+mariadb> desc host_summary_by_statement_latency;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -303,7 +303,7 @@ mysql> desc host_summary_by_statement_latency;
 +---------------+---------------+------+-----+---------+-------+
 9 rows in set (0.29 sec)
 
-mysql> desc x$host_summary_by_statement_latency;
+mariadb> desc x$host_summary_by_statement_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -323,7 +323,7 @@ mysql> desc x$host_summary_by_statement_latency;
 ##### Example
 
 ```SQL
-  mysql> select * from host_summary_by_statement_latency;
+  mariadb> select * from host_summary_by_statement_latency;
   +------+-------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
   | host | total | total_latency | max_latency | lock_latency | rows_sent | rows_examined | rows_affected | full_scans |
   +------+-------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
@@ -342,7 +342,7 @@ When the host found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc host_summary_by_statement_type;
+mariadb> desc host_summary_by_statement_type;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -359,7 +359,7 @@ mysql> desc host_summary_by_statement_type;
 +---------------+---------------------+------+-----+---------+-------+
 10 rows in set (0.30 sec)
 
-mysql> desc x$host_summary_by_statement_type;
+mariadb> desc x$host_summary_by_statement_type;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -380,7 +380,7 @@ mysql> desc x$host_summary_by_statement_type;
 ##### Example
 
 ```SQL
-  mysql> select * from host_summary_by_statement_type;
+  mariadb> select * from host_summary_by_statement_type;
   +------+----------------------+--------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
   | host | statement            | total  | total_latency | max_latency | lock_latency | rows_sent | rows_examined | rows_affected | full_scans |
   +------+----------------------+--------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
@@ -402,7 +402,7 @@ Summarizes the output of the INFORMATION_SCHEMA.INNODB_BUFFER_PAGE table, aggreg
 ##### Structures
 
 ```SQL
-mysql> desc innodb_buffer_stats_by_schema;
+mariadb> desc innodb_buffer_stats_by_schema;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -416,7 +416,7 @@ mysql> desc innodb_buffer_stats_by_schema;
 +---------------+---------------+------+-----+---------+-------+
 7 rows in set (0.08 sec)
 
-mysql> desc x$innodb_buffer_stats_by_schema;
+mariadb> desc x$innodb_buffer_stats_by_schema;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -434,7 +434,7 @@ mysql> desc x$innodb_buffer_stats_by_schema;
 ##### Example
 
 ```SQL
-mysql> select * from innodb_buffer_stats_by_schema;
+mariadb> select * from innodb_buffer_stats_by_schema;
 +--------------------------+------------+------------+-------+--------------+-----------+-------------+
 | object_schema            | allocated  | data       | pages | pages_hashed | pages_old | rows_cached |
 +--------------------------+------------+------------+-------+--------------+-----------+-------------+
@@ -453,7 +453,7 @@ Summarizes the output of the INFORMATION_SCHEMA.INNODB_BUFFER_PAGE table, aggreg
 ##### Structures
 
 ```SQL
-mysql> desc innodb_buffer_stats_by_table;
+mariadb> desc innodb_buffer_stats_by_table;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -468,7 +468,7 @@ mysql> desc innodb_buffer_stats_by_table;
 +---------------+---------------+------+-----+---------+-------+
 8 rows in set (0.09 sec)
 
-mysql> desc x$innodb_buffer_stats_by_table;
+mariadb> desc x$innodb_buffer_stats_by_table;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -487,7 +487,7 @@ mysql> desc x$innodb_buffer_stats_by_table;
 ##### Example
 
 ```SQL
-mysql> select * from innodb_buffer_stats_by_table;
+mariadb> select * from innodb_buffer_stats_by_table;
 +--------------------------+------------------------------------+------------+-----------+-------+--------------+-----------+-------------+
 | object_schema            | object_name                        | allocated  | data      | pages | pages_hashed | pages_old | rows_cached |
 +--------------------------+------------------------------------+------------+-----------+-------+--------------+-----------+-------------+
@@ -531,7 +531,7 @@ The lock waits are ordered by the age of the lock descending.
 ##### Structures
 
 ```SQL
-mysql> desc sys.innodb_lock_waits;
+mariadb> desc sys.innodb_lock_waits;
 +------------------------------+---------------------+------+-----+---------------------+-------+
 | Field                        | Type                | Null | Key | Default             | Extra |
 +------------------------------+---------------------+------+-----+---------------------+-------+
@@ -564,7 +564,7 @@ mysql> desc sys.innodb_lock_waits;
 +------------------------------+---------------------+------+-----+---------------------+-------+
 26 rows in set (0.01 sec)
 
-mysql> desc sys.x$innodb_lock_waits;
+mariadb> desc sys.x$innodb_lock_waits;
 +------------------------------+---------------------+------+-----+---------------------+-------+
 | Field                        | Type                | Null | Key | Default             | Extra |
 +------------------------------+---------------------+------+-----+---------------------+-------+
@@ -601,7 +601,7 @@ mysql> desc sys.x$innodb_lock_waits;
 ##### Example
 
 ```SQL
-mysql> SELECT * FROM innodb_lock_waits\G
+mariadb> SELECT * FROM innodb_lock_waits\G
 *************************** 1. row ***************************
                 wait_started: 2014-11-11 13:39:20
                     wait_age: 00:00:07
@@ -640,7 +640,7 @@ Shows the top IO consumers by thread, ordered by total latency.
 ##### Structures
 
 ```SQL
-mysql> desc io_by_thread_by_latency;
+mariadb> desc io_by_thread_by_latency;
 +----------------+---------------------+------+-----+---------+-------+
 | Field          | Type                | Null | Key | Default | Extra |
 +----------------+---------------------+------+-----+---------+-------+
@@ -655,7 +655,7 @@ mysql> desc io_by_thread_by_latency;
 +----------------+---------------------+------+-----+---------+-------+
 8 rows in set (0.14 sec)
 
-mysql> desc x$io_by_thread_by_latency;
+mariadb> desc x$io_by_thread_by_latency;
 +----------------+---------------------+------+-----+---------+-------+
 | Field          | Type                | Null | Key | Default | Extra |
 +----------------+---------------------+------+-----+---------+-------+
@@ -674,7 +674,7 @@ mysql> desc x$io_by_thread_by_latency;
 ##### Example
 
 ```SQL
-mysql> select * from io_by_thread_by_latency;
+mariadb> select * from io_by_thread_by_latency;
 +---------------------+-------+---------------+-------------+-------------+-------------+-----------+----------------+
 | user                | total | total_latency | min_latency | avg_latency | max_latency | thread_id | processlist_id |
 +---------------------+-------+---------------+-------------+-------------+-------------+-----------+----------------+
@@ -701,7 +701,7 @@ Shows the top global IO consumers by bytes usage by file.
 ##### Structures
 
 ```SQL
-mysql> desc io_global_by_file_by_bytes;
+mariadb> desc io_global_by_file_by_bytes;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -717,7 +717,7 @@ mysql> desc io_global_by_file_by_bytes;
 +---------------+---------------------+------+-----+---------+-------+
 9 rows in set (0.15 sec)
 
-mysql> desc x$io_global_by_file_by_bytes;
+mariadb> desc x$io_global_by_file_by_bytes;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -737,7 +737,7 @@ mysql> desc x$io_global_by_file_by_bytes;
 ##### Example
 
 ```SQL
-mysql> SELECT * FROM io_global_by_file_by_bytes LIMIT 5;
+mariadb> SELECT * FROM io_global_by_file_by_bytes LIMIT 5;
 +--------------------------------------------+------------+------------+-----------+-------------+---------------+-----------+------------+-----------+
 | file                                       | count_read | total_read | avg_read  | count_write | total_written | avg_write | total      | write_pct |
 +--------------------------------------------+------------+------------+-----------+-------------+---------------+-----------+------------+-----------+
@@ -758,7 +758,7 @@ Shows the top global IO consumers by latency by file.
 ##### Structures
 
 ```SQL
-mysql> desc io_global_by_file_by_latency;
+mariadb> desc io_global_by_file_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -774,7 +774,7 @@ mysql> desc io_global_by_file_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 9 rows in set (0.00 sec)
 
-mysql> desc x$io_global_by_file_by_latency;
+mariadb> desc x$io_global_by_file_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -794,7 +794,7 @@ mysql> desc x$io_global_by_file_by_latency;
 ##### Example
 
 ```SQL
-mysql> select * from io_global_by_file_by_latency limit 5;
+mariadb> select * from io_global_by_file_by_latency limit 5;
 +-----------------------------------------------------------+-------+---------------+------------+--------------+-------------+---------------+------------+--------------+
 | file                                                      | total | total_latency | count_read | read_latency | count_write | write_latency | count_misc | misc_latency |
 +-----------------------------------------------------------+-------+---------------+------------+--------------+-------------+---------------+------------+--------------+
@@ -815,7 +815,7 @@ Shows the top global IO consumer classes by bytes usage.
 ##### Structures
 
 ```SQL
-mysql> desc io_global_by_wait_by_bytes;
+mariadb> desc io_global_by_wait_by_bytes;
 +-----------------+---------------------+------+-----+---------+-------+
 | Field           | Type                | Null | Key | Default | Extra |
 +-----------------+---------------------+------+-----+---------+-------+
@@ -835,7 +835,7 @@ mysql> desc io_global_by_wait_by_bytes;
 +-----------------+---------------------+------+-----+---------+-------+
 13 rows in set (0.02 sec)
 
-mysql> desc x$io_global_by_wait_by_bytes;
+mariadb> desc x$io_global_by_wait_by_bytes;
 +-----------------+---------------------+------+-----+---------+-------+
 | Field           | Type                | Null | Key | Default | Extra |
 +-----------------+---------------------+------+-----+---------+-------+
@@ -859,7 +859,7 @@ mysql> desc x$io_global_by_wait_by_bytes;
 ##### Example
 
 ```SQL
-mysql> select * from io_global_by_wait_by_bytes;
+mariadb> select * from io_global_by_wait_by_bytes;
 +--------------------+--------+---------------+-------------+-------------+-------------+------------+------------+-----------+-------------+---------------+-------------+-----------------+
 | event_name         | total  | total_latency | min_latency | avg_latency | max_latency | count_read | total_read | avg_read  | count_write | total_written | avg_written | total_requested |
 +--------------------+--------+---------------+-------------+-------------+-------------+------------+------------+-----------+-------------+---------------+-------------+-----------------+
@@ -891,7 +891,7 @@ Shows the top global IO consumers by latency.
 ##### Structures
 
 ```SQL
-mysql> desc io_global_by_wait_by_latency;
+mariadb> desc io_global_by_wait_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -912,7 +912,7 @@ mysql> desc io_global_by_wait_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 14 rows in set (0.19 sec)
 
-mysql> desc x$io_global_by_wait_by_latency;
+mariadb> desc x$io_global_by_wait_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -937,7 +937,7 @@ mysql> desc x$io_global_by_wait_by_latency;
 ##### Example
 
 ```SQL
-mysql> SELECT * FROM io_global_by_wait_by_latency;
+mariadb> SELECT * FROM io_global_by_wait_by_latency;
 +-------------------------+-------+---------------+-------------+-------------+--------------+---------------+--------------+------------+------------+-----------+-------------+---------------+-------------+
 | event_name              | total | total_latency | avg_latency | max_latency | read_latency | write_latency | misc_latency | count_read | total_read | avg_read  | count_write | total_written | avg_written |
 +-------------------------+-------+---------------+-------------+-------------+--------------+---------------+--------------+------------+------------+-----------+-------------+---------------+-------------+
@@ -969,7 +969,7 @@ Shows the latest file IO, by file / thread.
 ##### Structures
 
 ```SQL
-mysql> desc latest_file_io;
+mariadb> desc latest_file_io;
 +-----------+--------------+------+-----+---------+-------+
 | Field     | Type         | Null | Key | Default | Extra |
 +-----------+--------------+------+-----+---------+-------+
@@ -981,7 +981,7 @@ mysql> desc latest_file_io;
 +-----------+--------------+------+-----+---------+-------+
 5 rows in set (0.10 sec)
 
-mysql> desc x$latest_file_io;
+mariadb> desc x$latest_file_io;
 +-----------+---------------------+------+-----+---------+-------+
 | Field     | Type                | Null | Key | Default | Extra |
 +-----------+---------------------+------+-----+---------+-------+
@@ -997,7 +997,7 @@ mysql> desc x$latest_file_io;
 ##### Example
 
 ```SQL
-mysql> select * from latest_file_io limit 5;
+mariadb> select * from latest_file_io limit 5;
 +----------------------+----------------------------------------+------------+-----------+-----------+
 | thread               | file                                   | latency    | operation | requested |
 +----------------------+----------------------------------------+------------+-----------+-----------+
@@ -1013,14 +1013,14 @@ mysql> select * from latest_file_io limit 5;
 
 ##### Description
 
-Summarizes memory use by host using the 5.7 Performance Schema instrumentation.
+Summarizes memory use by host using the Performance Schema instrumentation.
 
 When the host found is NULL, it is assumed to be a local "background" thread.
 
 ##### Structures
 
 ```SQL
-mysql> desc memory_by_host_by_current_bytes;
+mariadb> desc memory_by_host_by_current_bytes;
 +--------------------+---------------+------+-----+---------+-------+
 | Field              | Type          | Null | Key | Default | Extra |
 +--------------------+---------------+------+-----+---------+-------+
@@ -1033,7 +1033,7 @@ mysql> desc memory_by_host_by_current_bytes;
 +--------------------+---------------+------+-----+---------+-------+
 6 rows in set (0.24 sec)
 
-mysql> desc x$memory_by_host_by_current_bytes;
+mariadb> desc x$memory_by_host_by_current_bytes;
 +--------------------+---------------+------+-----+---------+-------+
 | Field              | Type          | Null | Key | Default | Extra |
 +--------------------+---------------+------+-----+---------+-------+
@@ -1050,7 +1050,7 @@ mysql> desc x$memory_by_host_by_current_bytes;
 ##### Example
 
 ```SQL
-mysql> select * from memory_by_host_by_current_bytes WHERE host IS NOT NULL;
+mariadb> select * from memory_by_host_by_current_bytes WHERE host IS NOT NULL;
    +------------+--------------------+-------------------+-------------------+-------------------+-----------------+
    | host       | current_count_used | current_allocated | current_avg_alloc | current_max_alloc | total_allocated |
    +------------+--------------------+-------------------+-------------------+-------------------+-----------------+
@@ -1063,14 +1063,14 @@ mysql> select * from memory_by_host_by_current_bytes WHERE host IS NOT NULL;
 
 ##### Description
 
-Summarizes memory use by user using the 5.7 Performance Schema instrumentation.
+Summarizes memory use by user using the Performance Schema instrumentation.
 
 The user columns shows either the background or foreground user name appropriately.
 
 ##### Structures
 
 ```SQL
-mysql> desc memory_by_thread_by_current_bytes;
+mariadb> desc memory_by_thread_by_current_bytes;
 +--------------------+---------------------+------+-----+---------+-------+
 | Field              | Type                | Null | Key | Default | Extra |
 +--------------------+---------------------+------+-----+---------+-------+
@@ -1084,7 +1084,7 @@ mysql> desc memory_by_thread_by_current_bytes;
 +--------------------+---------------------+------+-----+---------+-------+
 7 rows in set (0.49 sec)
 
-mysql> desc x$memory_by_thread_by_current_bytes;
+mariadb> desc x$memory_by_thread_by_current_bytes;
 +--------------------+---------------------+------+-----+---------+-------+
 | Field              | Type                | Null | Key | Default | Extra |
 +--------------------+---------------------+------+-----+---------+-------+
@@ -1102,7 +1102,7 @@ mysql> desc x$memory_by_thread_by_current_bytes;
 ##### Example
 
 ```SQL
-mysql> select * from sys.memory_by_thread_by_current_bytes limit 5;
+mariadb> select * from sys.memory_by_thread_by_current_bytes limit 5;
 +-----------+----------------+--------------------+-------------------+-------------------+-------------------+-----------------+
 | thread_id | user           | current_count_used | current_allocated | current_avg_alloc | current_max_alloc | total_allocated |
 +-----------+----------------+--------------------+-------------------+-------------------+-------------------+-----------------+
@@ -1118,14 +1118,14 @@ mysql> select * from sys.memory_by_thread_by_current_bytes limit 5;
 
 ##### Description
 
-Summarizes memory use by user using the 5.7 Performance Schema instrumentation.
+Summarizes memory use by user using the Performance Schema instrumentation.
 
 When the user found is NULL, it is assumed to be a "background" thread.
 
 ##### Structures
 
 ```SQL
-mysql> desc memory_by_user_by_current_bytes;
+mariadb> desc memory_by_user_by_current_bytes;
 +--------------------+---------------+------+-----+---------+-------+
 | Field              | Type          | Null | Key | Default | Extra |
 +--------------------+---------------+------+-----+---------+-------+
@@ -1138,7 +1138,7 @@ mysql> desc memory_by_user_by_current_bytes;
 +--------------------+---------------+------+-----+---------+-------+
 6 rows in set (0.06 sec)
 
-mysql> desc x$memory_by_user_by_current_bytes;
+mariadb> desc x$memory_by_user_by_current_bytes;
 +--------------------+---------------+------+-----+---------+-------+
 | Field              | Type          | Null | Key | Default | Extra |
 +--------------------+---------------+------+-----+---------+-------+
@@ -1155,7 +1155,7 @@ mysql> desc x$memory_by_user_by_current_bytes;
 ##### Example
 
 ```SQL
-mysql> select * from memory_by_user_by_current_bytes;
+mariadb> select * from memory_by_user_by_current_bytes;
 +------+--------------------+-------------------+-------------------+-------------------+-----------------+
 | user | current_count_used | current_allocated | current_avg_alloc | current_max_alloc | total_allocated |
 +------+--------------------+-------------------+-------------------+-------------------+-----------------+
@@ -1173,7 +1173,7 @@ Shows the current memory usage within the server globally broken down by allocat
 ##### Structures
 
 ```SQL
-mysql> desc memory_global_by_current_bytes;
+mariadb> desc memory_global_by_current_bytes;
 +-------------------+--------------+------+-----+---------+-------+
 | Field             | Type         | Null | Key | Default | Extra |
 +-------------------+--------------+------+-----+---------+-------+
@@ -1187,7 +1187,7 @@ mysql> desc memory_global_by_current_bytes;
 +-------------------+--------------+------+-----+---------+-------+
 7 rows in set (0.08 sec)
 
-mysql> desc x$memory_global_by_current_bytes;
+mariadb> desc x$memory_global_by_current_bytes;
 +-------------------+---------------+------+-----+---------+-------+
 | Field             | Type          | Null | Key | Default | Extra |
 +-------------------+---------------+------+-----+---------+-------+
@@ -1205,7 +1205,7 @@ mysql> desc x$memory_global_by_current_bytes;
 ##### Example
 
 ```SQL
-mysql> select * from memory_global_by_current_bytes;
+mariadb> select * from memory_global_by_current_bytes;
 +----------------------------------------+---------------+---------------+-------------------+------------+------------+----------------+
 | event_name                             | current_count | current_alloc | current_avg_alloc | high_count | high_alloc | high_avg_alloc |
 +----------------------------------------+---------------+---------------+-------------------+------------+------------+----------------+
@@ -1227,7 +1227,7 @@ Shows the total memory usage within the server globally.
 ##### Structures
 
 ```SQL
-mysql> desc memory_global_total;
+mariadb> desc memory_global_total;
 +-----------------+------+------+-----+---------+-------+
 | Field           | Type | Null | Key | Default | Extra |
 +-----------------+------+------+-----+---------+-------+
@@ -1235,7 +1235,7 @@ mysql> desc memory_global_total;
 +-----------------+------+------+-----+---------+-------+
 1 row in set (0.07 sec)
 
-mysql> desc x$memory_global_total;
+mariadb> desc x$memory_global_total;
 +-----------------+---------------+------+-----+---------+-------+
 | Field           | Type          | Null | Key | Default | Extra |
 +-----------------+---------------+------+-----+---------+-------+
@@ -1247,7 +1247,7 @@ mysql> desc x$memory_global_total;
 ##### Example
 
 ```SQL
-mysql> select * from memory_global_total;
+mariadb> select * from memory_global_total;
 +-----------------+
 | total_allocated |
 +-----------------+
@@ -1261,12 +1261,12 @@ mysql> select * from memory_global_total;
 
 Creates a union of the following information:
 
-   *  performance_schema.global_status (information_schema.GLOBAL_STATUS in MySQL 5.6)
+   *  performance_schema.global_status
    *  information_schema.INNODB_METRICS
-   *  Performance Schema global memory usage information (only in MySQL 5.7)
+   *  Performance Schema global memory usage information 
    *  Current time
 
-In MySQL 5.7 it is required that performance_schema = ON, though there is no requirements to which
+It is required that performance_schema = ON, though there is no requirements to which
 instruments and consumers that are enabled. See also the description of the Enabled column below.
 
 For view has the following columns:
@@ -1280,7 +1280,7 @@ For view has the following columns:
 ##### Structures
 
 ```SQL
-mysql> DESC metrics;
+mariadb> DESC metrics;
 +----------------+--------------+------+-----+---------+-------+
 | Field          | Type         | Null | Key | Default | Extra |
 +----------------+--------------+------+-----+---------+-------+
@@ -1306,7 +1306,7 @@ mysq> DESC metrics_56;
 ##### Example
 
 ```SQL
-mysql> SELECT * FROM metrics;
+mariadb> SELECT * FROM metrics;
 +-----------------------------------------------+-------------------------...+--------------------------------------+---------+
 | Variable_name                                 | Variable_value          ...| Type                                 | Enabled |
 +-----------------------------------------------+-------------------------...+--------------------------------------+---------+
@@ -1348,10 +1348,10 @@ Performs less locking than the legacy sources, whilst giving extra information.
 The output includes both background threads and user connections by default.  See also `session` / `x$session`
 for a view that contains only user session information.
 
-##### Structures (5.7)
+##### Structures
 
 ```SQL
-mysql> desc processlist;
+mariadb> desc processlist;
 +------------------------+------------------------------------------+------+-----+---------+-------+
 | Field                  | Type                                     | Null | Key | Default | Extra |
 +------------------------+------------------------------------------+------+-----+---------+-------+
@@ -1386,7 +1386,7 @@ mysql> desc processlist;
 +------------------------+------------------------------------------+------+-----+---------+-------+
 28 rows in set (0.04 sec)
 
-mysql> desc x$processlist;
+mariadb> desc x$processlist;
 +------------------------+------------------------------------------+------+-----+---------+-------+
 | Field                  | Type                                     | Null | Key | Default | Extra |
 +------------------------+------------------------------------------+------+-----+---------+-------+
@@ -1425,7 +1425,7 @@ mysql> desc x$processlist;
 ##### Example
 
 ```SQL
-mysql> select * from sys.processlist where conn_id is not null and command != 'daemon' and conn_id != connection_id()\G
+mariadb> select * from sys.processlist where conn_id is not null and command != 'daemon' and conn_id != connection_id()\G
 *************************** 1. row ***************************
                 thd_id: 44524
                conn_id: 44502
@@ -1466,7 +1466,7 @@ Used to check whether Performance Schema is not able to monitor all runtime data
 ##### Structure
 
 ```SQL
-mysql> desc ps_check_lost_instrumentation;
+mariadb> desc ps_check_lost_instrumentation;
 +----------------+---------------+------+-----+---------+-------+
 | Field          | Type          | Null | Key | Default | Extra |
 +----------------+---------------+------+-----+---------+-------+
@@ -1479,7 +1479,7 @@ mysql> desc ps_check_lost_instrumentation;
 ##### Example
 
 ```SQL
-mysql> select * from ps_check_lost_instrumentation;
+mariadb> select * from ps_check_lost_instrumentation;
 +----------------------------------------+----------------+
 | variable_name                          | variable_value |
 +----------------------------------------+----------------+
@@ -1497,7 +1497,7 @@ Present current auto_increment usage/capacity in all tables.
 ##### Structures
 
 ```SQL
-mysql> desc schema_auto_increment_columns;
+mariadb> desc schema_auto_increment_columns;
 +----------------------+------------------------+------+-----+---------+-------+
 | Field                | Type                   | Null | Key | Default | Extra |
 +----------------------+------------------------+------+-----+---------+-------+
@@ -1517,7 +1517,7 @@ mysql> desc schema_auto_increment_columns;
 ##### Example
 
 ```SQL
-mysql> select * from schema_auto_increment_columns limit 5;
+mariadb> select * from schema_auto_increment_columns limit 5;
 +-------------------+-------------------+-------------+-----------+-------------+-----------+-------------+---------------------+----------------+----------------------+
 | table_schema      | table_name        | column_name | data_type | column_type | is_signed | is_unsigned | max_value           | auto_increment | auto_increment_ratio |
 +-------------------+-------------------+-------------+-----------+-------------+-----------+-------------+---------------------+----------------+----------------------+
@@ -1540,7 +1540,7 @@ Ordered by the total wait time descending - top indexes are most contended.
 ##### Structures
 
 ```SQL
-mysql> desc schema_index_statistics;
+mariadb> desc schema_index_statistics;
 +----------------+---------------------+------+-----+---------+-------+
 | Field          | Type                | Null | Key | Default | Extra |
 +----------------+---------------------+------+-----+---------+-------+
@@ -1558,7 +1558,7 @@ mysql> desc schema_index_statistics;
 +----------------+---------------------+------+-----+---------+-------+
 11 rows in set (0.17 sec)
 
-mysql> desc x$schema_index_statistics;
+mariadb> desc x$schema_index_statistics;
 +----------------+---------------------+------+-----+---------+-------+
 | Field          | Type                | Null | Key | Default | Extra |
 +----------------+---------------------+------+-----+---------+-------+
@@ -1580,7 +1580,7 @@ mysql> desc x$schema_index_statistics;
 ##### Example
 
 ```SQL
-mysql> select * from schema_index_statistics limit 5;
+mariadb> select * from schema_index_statistics limit 5;
 +------------------+-------------+------------+---------------+----------------+---------------+----------------+--------------+----------------+--------------+----------------+
 | table_schema     | table_name  | index_name | rows_selected | select_latency | rows_inserted | insert_latency | rows_updated | update_latency | rows_deleted | delete_latency |
 +------------------+-------------+------------+---------------+----------------+---------------+----------------+--------------+----------------+--------------+----------------+
@@ -1603,7 +1603,7 @@ Note: On instances with a large numbers of objects, this could take some time to
 ##### Structure
 
 ```SQL
-mysql> desc schema_object_overview;
+mariadb> desc schema_object_overview;
 +-------------+-------------+------+-----+---------+-------+
 | Field       | Type        | Null | Key | Default | Extra |
 +-------------+-------------+------+-----+---------+-------+
@@ -1617,7 +1617,7 @@ mysql> desc schema_object_overview;
 ##### Example
 
 ```SQL
-mysql> select * from schema_object_overview;
+mariadb> select * from schema_object_overview;
 +--------------------+---------------+-------+
 | db                 | object_type   | count |
 +--------------------+---------------+-------+
@@ -1704,7 +1704,7 @@ Also includes the helper view (used by schema_table_statistics_with_buffer as we
 ##### Structures
 
 ```SQL
-mysql> desc schema_table_statistics;
+mariadb> desc schema_table_statistics;
 +-------------------+---------------------+------+-----+---------+-------+
 | Field             | Type                | Null | Key | Default | Extra |
 +-------------------+---------------------+------+-----+---------+-------+
@@ -1730,7 +1730,7 @@ mysql> desc schema_table_statistics;
 +-------------------+---------------------+------+-----+---------+-------+
 19 rows in set (0.12 sec)
 
-mysql> desc x$schema_table_statistics;
+mariadb> desc x$schema_table_statistics;
 +-------------------+---------------------+------+-----+---------+-------+
 | Field             | Type                | Null | Key | Default | Extra |
 +-------------------+---------------------+------+-----+---------+-------+
@@ -1756,7 +1756,7 @@ mysql> desc x$schema_table_statistics;
 +-------------------+---------------------+------+-----+---------+-------+
 19 rows in set (0.13 sec)
 
-mysql> desc x$ps_schema_table_statistics_io;
+mariadb> desc x$ps_schema_table_statistics_io;
 +---------------------------+---------------+------+-----+---------+-------+
 | Field                     | Type          | Null | Key | Default | Extra |
 +---------------------------+---------------+------+-----+---------+-------+
@@ -1777,7 +1777,7 @@ mysql> desc x$ps_schema_table_statistics_io;
 ##### Example
 
 ```SQL
-mysql> select * from schema_table_statistics\G
+mariadb> select * from schema_table_statistics\G
 *************************** 1. row ***************************
      table_schema: sys
        table_name: sys_config
@@ -1811,7 +1811,7 @@ Also includes the the helper view `x$schema_flattened_keys`.
 ##### Structures
 
 ```SQL
-mysql> desc sys.schema_redundant_indexes;
+mariadb> desc sys.schema_redundant_indexes;
 +----------------------------+--------------+------+-----+---------+-------+
 | Field                      | Type         | Null | Key | Default | Extra |
 +----------------------------+--------------+------+-----+---------+-------+
@@ -1828,7 +1828,7 @@ mysql> desc sys.schema_redundant_indexes;
 +----------------------------+--------------+------+-----+---------+-------+
 10 rows in set (0.00 sec)
 
-mysql> desc sys.x$schema_flattened_keys;
+mariadb> desc sys.x$schema_flattened_keys;
 +----------------+-------------+------+-----+---------+-------+
 | Field          | Type        | Null | Key | Default | Extra |
 +----------------+-------------+------+-----+---------+-------+
@@ -1845,7 +1845,7 @@ mysql> desc sys.x$schema_flattened_keys;
 ##### Example
 
 ```SQL
-mysql> select * from sys.schema_redundant_indexes\G
+mariadb> select * from sys.schema_redundant_indexes\G
 *************************** 1. row ***************************
               table_schema: test
                 table_name: rkey
@@ -1859,7 +1859,7 @@ redundant_index_non_unique: 1
             sql_drop_index: ALTER TABLE `test`.`rkey` DROP INDEX `j`
 1 row in set (0.20 sec)
 
-mysql> SHOW CREATE TABLE test.rkey\G
+mariadb> SHOW CREATE TABLE test.rkey\G
 *************************** 1. row ***************************
        Table: rkey
 Create Table: CREATE TABLE `rkey` (
@@ -1882,7 +1882,7 @@ Shows sessions that are blocked waiting on table metadata locks, and who is bloc
 ##### Structures
 
 ```SQL
-mysql> desc schema_table_lock_waits;
+mariadb> desc schema_table_lock_waits;
 +------------------------------+---------------------+------+-----+---------+-------+
 | Field                        | Type                | Null | Key | Default | Extra |
 +------------------------------+---------------------+------+-----+---------+-------+
@@ -1907,7 +1907,7 @@ mysql> desc schema_table_lock_waits;
 +------------------------------+---------------------+------+-----+---------+-------+
 18 rows in set (0.15 sec)
 
-mysql> desc x$schema_table_lock_waits;
+mariadb> desc x$schema_table_lock_waits;
 +------------------------------+---------------------+------+-----+---------+-------+
 | Field                        | Type                | Null | Key | Default | Extra |
 +------------------------------+---------------------+------+-----+---------+-------+
@@ -1936,7 +1936,7 @@ mysql> desc x$schema_table_lock_waits;
 ##### Example
 
 ```SQL
-mysql> select * from sys.schema_table_lock_waits\G
+mariadb> select * from sys.schema_table_lock_waits\G
 *************************** 1. row ***************************
                object_schema: test
                  object_name: t
@@ -1973,7 +1973,7 @@ Uses the x$ps_schema_table_statistics_io helper view from schema_table_statistic
 ##### Structures
 
 ```SQL
-mysql> desc schema_table_statistics_with_buffer;
+mariadb> desc schema_table_statistics_with_buffer;
 +----------------------------+---------------------+------+-----+---------+-------+
 | Field                      | Type                | Null | Key | Default | Extra |
 +----------------------------+---------------------+------+-----+---------+-------+
@@ -2005,7 +2005,7 @@ mysql> desc schema_table_statistics_with_buffer;
 +----------------------------+---------------------+------+-----+---------+-------+
 25 rows in set (0.05 sec)
 
-mysql> desc x$schema_table_statistics_with_buffer;
+mariadb> desc x$schema_table_statistics_with_buffer;
 +----------------------------+---------------------+------+-----+---------+-------+
 | Field                      | Type                | Null | Key | Default | Extra |
 +----------------------------+---------------------+------+-----+---------+-------+
@@ -2041,7 +2041,7 @@ mysql> desc x$schema_table_statistics_with_buffer;
 ##### Example
 
 ```SQL
-mysql> select * from schema_table_statistics_with_buffer limit 1\G
+mariadb> select * from schema_table_statistics_with_buffer limit 1\G
 *************************** 1. row ***************************
                  table_schema: mem
                    table_name: mysqlserver
@@ -2078,7 +2078,7 @@ Finds tables that are being accessed by full table scans ordering by the number 
 ##### Structures
 
 ```SQL
-mysql> desc schema_tables_with_full_table_scans;
+mariadb> desc schema_tables_with_full_table_scans;
 +-------------------+---------------------+------+-----+---------+-------+
 | Field             | Type                | Null | Key | Default | Extra |
 +-------------------+---------------------+------+-----+---------+-------+
@@ -2089,7 +2089,7 @@ mysql> desc schema_tables_with_full_table_scans;
 +-------------------+---------------------+------+-----+---------+-------+
 4 rows in set (0.02 sec)
 
-mysql> desc x$schema_tables_with_full_table_scans;
+mariadb> desc x$schema_tables_with_full_table_scans;
 +-------------------+---------------------+------+-----+---------+-------+
 | Field             | Type                | Null | Key | Default | Extra |
 +-------------------+---------------------+------+-----+---------+-------+
@@ -2104,7 +2104,7 @@ mysql> desc x$schema_tables_with_full_table_scans;
 ##### Example
 
 ```SQL
-mysql> select * from schema_tables_with_full_table_scans limit 5;
+mariadb> select * from schema_tables_with_full_table_scans limit 5;
 +--------------------+--------------------------------+-------------------+-----------+
 | object_schema      | object_name                    | rows_full_scanned | latency   |
 +--------------------+--------------------------------+-------------------+-----------+
@@ -2129,7 +2129,7 @@ PRIMARY (key) indexes are ignored.
 ##### Structure
 
 ```SQL
-mysql> desc schema_unused_indexes;
+mariadb> desc schema_unused_indexes;
 +---------------+-------------+------+-----+---------+-------+
 | Field         | Type        | Null | Key | Default | Extra |
 +---------------+-------------+------+-----+---------+-------+
@@ -2143,7 +2143,7 @@ mysql> desc schema_unused_indexes;
 ##### Example
 
 ```SQL
-mysql> select * from schema_unused_indexes limit 5;
+mariadb> select * from schema_unused_indexes limit 5;
 +--------------------+---------------------+--------------------+
 | object_schema      | object_name         | index_name         |
 +--------------------+---------------------+--------------------+
@@ -2165,10 +2165,10 @@ Performs less locking than the legacy sources, whilst giving extra information.
 
 The output of this view is restricted to threads from user sessions.  See also processlist / x$processlist which contains both user and background threads.
 
-##### Structures (5.7)
+##### Structures
 
 ```SQL
-mysql> desc session;
+mariadb> desc session;
 +------------------------+------------------------------------------+------+-----+---------+-------+
 | Field                  | Type                                     | Null | Key | Default | Extra |
 +------------------------+------------------------------------------+------+-----+---------+-------+
@@ -2203,7 +2203,7 @@ mysql> desc session;
 +------------------------+------------------------------------------+------+-----+---------+-------+
 28 rows in set (0.00 sec)
 
-mysql> desc x$session;
+mariadb> desc x$session;
 +------------------------+------------------------------------------+------+-----+---------+-------+
 | Field                  | Type                                     | Null | Key | Default | Extra |
 +------------------------+------------------------------------------+------+-----+---------+-------+
@@ -2242,7 +2242,7 @@ mysql> desc x$session;
 ##### Example
 
 ```SQL
-mysql> select * from sys.session\G
+mariadb> select * from sys.session\G
 *************************** 1. row ***************************
                 thd_id: 24
                conn_id: 2
@@ -2283,7 +2283,7 @@ Shows SSL version, cipher and the count of re-used SSL sessions per connection
 ##### Structures
 
 ```SQL
-mysql> desc sys.session_ssl_status;
+mariadb> desc sys.session_ssl_status;
 +---------------------+---------------------+------+-----+---------+-------+
 | Field               | Type                | Null | Key | Default | Extra |
 +---------------------+---------------------+------+-----+---------+-------+
@@ -2298,7 +2298,7 @@ mysql> desc sys.session_ssl_status;
 ##### Example
 
 ```SQL
-mysql> select * from session_ssl_status;
+mariadb> select * from session_ssl_status;
 +-----------+-------------+--------------------+---------------------+
 | thread_id | ssl_version | ssl_cipher         | ssl_sessions_reused |
 +-----------+-------------+--------------------+---------------------+
@@ -2313,12 +2313,12 @@ mysql> select * from session_ssl_status;
 
 ##### Description
 
-Lists a normalized statement view with aggregated statistics, mimics the MySQL Enterprise Monitor Query Analysis view, ordered by the total execution time per normalized statement
+Lists a normalized statement view with aggregated statistics, ordered by the total execution time per normalized statement
 
 ##### Structures
 
 ```SQL
-mysql> desc statement_analysis;
+mariadb> desc statement_analysis;
 +-------------------+---------------------+------+-----+---------------------+-------+
 | Field             | Type                | Null | Key | Default             | Extra |
 +-------------------+---------------------+------+-----+---------------------+-------+
@@ -2348,7 +2348,7 @@ mysql> desc statement_analysis;
 +-------------------+---------------------+------+-----+---------------------+-------+
 23 rows in set (0.26 sec)
 
-mysql> desc x$statement_analysis;
+mariadb> desc x$statement_analysis;
 +-------------------+---------------------+------+-----+---------------------+-------+
 | Field             | Type                | Null | Key | Default             | Extra |
 +-------------------+---------------------+------+-----+---------------------+-------+
@@ -2382,7 +2382,7 @@ mysql> desc x$statement_analysis;
 ##### Example
 
 ```SQL
-mysql> select * from statement_analysis limit 1\G
+mariadb> select * from statement_analysis limit 1\G
 *************************** 1. row ***************************
             query: SELECT * FROM `schema_object_o ... MA` , `information_schema` ...
                db: sys
@@ -2418,7 +2418,7 @@ Lists all normalized statements that have raised errors or warnings.
 ##### Structures
 
 ```SQL
-mysql> desc statements_with_errors_or_warnings;
+mariadb> desc statements_with_errors_or_warnings;
 +-------------+---------------------+------+-----+---------------------+-------+
 | Field       | Type                | Null | Key | Default             | Extra |
 +-------------+---------------------+------+-----+---------------------+-------+
@@ -2435,7 +2435,7 @@ mysql> desc statements_with_errors_or_warnings;
 +-------------+---------------------+------+-----+---------------------+-------+
 10 rows in set (0.55 sec)
 
-mysql> desc x$statements_with_errors_or_warnings;
+mariadb> desc x$statements_with_errors_or_warnings;
 +-------------+---------------------+------+-----+---------------------+-------+
 | Field       | Type                | Null | Key | Default             | Extra |
 +-------------+---------------------+------+-----+---------------------+-------+
@@ -2456,7 +2456,7 @@ mysql> desc x$statements_with_errors_or_warnings;
 ##### Example
 
 ```SQL
-mysql> select * from statements_with_errors_or_warnings LIMIT 1\G
+mariadb> select * from statements_with_errors_or_warnings LIMIT 1\G
 *************************** 1. row ***************************
       query: CREATE OR REPLACE ALGORITHM =  ... _delete` AS `rows_deleted` ...
          db: sys
@@ -2481,7 +2481,7 @@ This view ignores SHOW statements, as these always cause a full table scan, and 
 ##### Structures
 
 ```SQL
-mysql> desc statements_with_full_table_scans;
+mariadb> desc statements_with_full_table_scans;
 +--------------------------+------------------------+------+-----+---------------------+-------+
 | Field                    | Type                   | Null | Key | Default             | Extra |
 +--------------------------+------------------------+------+-----+---------------------+-------+
@@ -2502,7 +2502,7 @@ mysql> desc statements_with_full_table_scans;
 +--------------------------+------------------------+------+-----+---------------------+-------+
 14 rows in set (0.04 sec)
 
-mysql> desc x$statements_with_full_table_scans;
+mariadb> desc x$statements_with_full_table_scans;
 +--------------------------+------------------------+------+-----+---------------------+-------+
 | Field                    | Type                   | Null | Key | Default             | Extra |
 +--------------------------+------------------------+------+-----+---------------------+-------+
@@ -2527,7 +2527,7 @@ mysql> desc x$statements_with_full_table_scans;
 ##### Example
 
 ```SQL
-mysql> select * from statements_with_full_table_scans limit 1\G
+mariadb> select * from statements_with_full_table_scans limit 1\G
 *************************** 1. row ***************************
                    query: SELECT * FROM `schema_tables_w ... ex_usage` . `COUNT_READ` DESC
                       db: sys
@@ -2559,7 +2559,7 @@ Also includes two helper views:
 ##### Structures
 
 ```SQL
-mysql> desc statements_with_runtimes_in_95th_percentile;
+mariadb> desc statements_with_runtimes_in_95th_percentile;
 +-------------------+---------------------+------+-----+---------------------+-------+
 | Field             | Type                | Null | Key | Default             | Extra |
 +-------------------+---------------------+------+-----+---------------------+-------+
@@ -2582,7 +2582,7 @@ mysql> desc statements_with_runtimes_in_95th_percentile;
 +-------------------+---------------------+------+-----+---------------------+-------+
 16 rows in set (0.11 sec)
 
-mysql> desc x$statements_with_runtimes_in_95th_percentile;
+mariadb> desc x$statements_with_runtimes_in_95th_percentile;
 +-------------------+---------------------+------+-----+---------------------+-------+
 | Field             | Type                | Null | Key | Default             | Extra |
 +-------------------+---------------------+------+-----+---------------------+-------+
@@ -2605,7 +2605,7 @@ mysql> desc x$statements_with_runtimes_in_95th_percentile;
 +-------------------+---------------------+------+-----+---------------------+-------+
 16 rows in set (0.00 sec)
 
-mysql> desc x$ps_digest_avg_latency_distribution;
+mariadb> desc x$ps_digest_avg_latency_distribution;
 +--------+---------------+------+-----+---------+-------+
 | Field  | Type          | Null | Key | Default | Extra |
 +--------+---------------+------+-----+---------+-------+
@@ -2614,7 +2614,7 @@ mysql> desc x$ps_digest_avg_latency_distribution;
 +--------+---------------+------+-----+---------+-------+
 2 rows in set (0.10 sec)
 
-mysql> desc x$ps_digest_95th_percentile_by_avg_us;
+mariadb> desc x$ps_digest_95th_percentile_by_avg_us;
 +------------+---------------+------+-----+---------+-------+
 | Field      | Type          | Null | Key | Default | Extra |
 +------------+---------------+------+-----+---------+-------+
@@ -2627,7 +2627,7 @@ mysql> desc x$ps_digest_95th_percentile_by_avg_us;
 ##### Example
 
 ```SQL
-mysql> select * from statements_with_runtimes_in_95th_percentile\G
+mariadb> select * from statements_with_runtimes_in_95th_percentile\G
 *************************** 1. row ***************************
             query: SELECT * FROM `schema_object_o ... MA` , `information_schema` ...
                db: sys
@@ -2656,7 +2656,7 @@ Lists all normalized statements that have done sorts, ordered by total_latency d
 ##### Structures
 
 ```SQL
-mysql> desc statements_with_sorting;
+mariadb> desc statements_with_sorting;
 +-------------------+---------------------+------+-----+---------------------+-------+
 | Field             | Type                | Null | Key | Default             | Extra |
 +-------------------+---------------------+------+-----+---------------------+-------+
@@ -2676,7 +2676,7 @@ mysql> desc statements_with_sorting;
 +-------------------+---------------------+------+-----+---------------------+-------+
 13 rows in set (0.01 sec)
 
-mysql> desc x$statements_with_sorting;
+mariadb> desc x$statements_with_sorting;
 +-------------------+---------------------+------+-----+---------------------+-------+
 | Field             | Type                | Null | Key | Default             | Extra |
 +-------------------+---------------------+------+-----+---------------------+-------+
@@ -2700,7 +2700,7 @@ mysql> desc x$statements_with_sorting;
 ##### Example
 
 ```SQL
-mysql> select * from statements_with_sorting limit 1\G
+mariadb> select * from statements_with_sorting limit 1\G
 *************************** 1. row ***************************
             query: SELECT * FROM `schema_object_o ... MA` , `information_schema` ...
                db: sys
@@ -2726,7 +2726,7 @@ Lists all normalized statements that use temporary tables ordered by number of o
 ##### Structures
 
 ```SQL
-mysql> desc statements_with_temp_tables;
+mariadb> desc statements_with_temp_tables;
 +--------------------------+---------------------+------+-----+---------------------+-------+
 | Field                    | Type                | Null | Key | Default             | Extra |
 +--------------------------+---------------------+------+-----+---------------------+-------+
@@ -2744,7 +2744,7 @@ mysql> desc statements_with_temp_tables;
 +--------------------------+---------------------+------+-----+---------------------+-------+
 11 rows in set (0.30 sec)
 
-mysql> desc x$statements_with_temp_tables;
+mariadb> desc x$statements_with_temp_tables;
 +--------------------------+---------------------+------+-----+---------------------+-------+
 | Field                    | Type                | Null | Key | Default             | Extra |
 +--------------------------+---------------------+------+-----+---------------------+-------+
@@ -2766,7 +2766,7 @@ mysql> desc x$statements_with_temp_tables;
 ##### Example
 
 ```SQL
-mysql> select * from statements_with_temp_tables limit 1\G
+mariadb> select * from statements_with_temp_tables limit 1\G
 *************************** 1. row ***************************
                    query: SELECT * FROM `schema_object_o ... MA` , `information_schema` ...
                       db: sys
@@ -2789,10 +2789,10 @@ Summarizes statement activity, file IO and connections by user.
 
 When the user found is NULL, it is assumed to be a "background" thread.
 
-##### Structures (5.7)
+##### Structures
 
 ```SQL
-mysql> desc user_summary;
+mariadb> desc user_summary;
 +------------------------+---------------+------+-----+---------+-------+
 | Field                  | Type          | Null | Key | Default | Extra |
 +------------------------+---------------+------+-----+---------+-------+
@@ -2811,7 +2811,7 @@ mysql> desc user_summary;
 +------------------------+---------------+------+-----+---------+-------+
 12 rows in set (0.00 sec)
 
-mysql> desc x$user_summary;
+mariadb> desc x$user_summary;
 +------------------------+---------------+------+-----+---------+-------+
 | Field                  | Type          | Null | Key | Default | Extra |
 +------------------------+---------------+------+-----+---------+-------+
@@ -2834,7 +2834,7 @@ mysql> desc x$user_summary;
 ##### Example
 
 ```SQL
-mysql> select * from user_summary\G
+mariadb> select * from user_summary\G
 *************************** 1. row ***************************
                   user: root
             statements: 4981
@@ -2874,7 +2874,7 @@ When the user found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc user_summary_by_file_io;
+mariadb> desc user_summary_by_file_io;
 +------------+---------------+------+-----+---------+-------+
 | Field      | Type          | Null | Key | Default | Extra |
 +------------+---------------+------+-----+---------+-------+
@@ -2884,7 +2884,7 @@ mysql> desc user_summary_by_file_io;
 +------------+---------------+------+-----+---------+-------+
 3 rows in set (0.20 sec)
 
-mysql> desc x$user_summary_by_file_io;
+mariadb> desc x$user_summary_by_file_io;
 +------------+---------------+------+-----+---------+-------+
 | Field      | Type          | Null | Key | Default | Extra |
 +------------+---------------+------+-----+---------+-------+
@@ -2898,7 +2898,7 @@ mysql> desc x$user_summary_by_file_io;
 ##### Example
 
 ```SQL
-mysql> select * from user_summary_by_file_io;
+mariadb> select * from user_summary_by_file_io;
 +------------+-------+------------+
 | user       | ios   | io_latency |
 +------------+-------+------------+
@@ -2918,7 +2918,7 @@ When the user found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc user_summary_by_file_io_type;
+mariadb> desc user_summary_by_file_io_type;
 +-------------+---------------------+------+-----+---------+-------+
 | Field       | Type                | Null | Key | Default | Extra |
 +-------------+---------------------+------+-----+---------+-------+
@@ -2930,7 +2930,7 @@ mysql> desc user_summary_by_file_io_type;
 +-------------+---------------------+------+-----+---------+-------+
 5 rows in set (0.02 sec)
 
-mysql> desc x$user_summary_by_file_io_type;
+mariadb> desc x$user_summary_by_file_io_type;
 +-------------+---------------------+------+-----+---------+-------+
 | Field       | Type                | Null | Key | Default | Extra |
 +-------------+---------------------+------+-----+---------+-------+
@@ -2946,7 +2946,7 @@ mysql> desc x$user_summary_by_file_io_type;
 ##### Example
 
 ```SQL
-mysql> select * from user_summary_by_file_io_type;
+mariadb> select * from user_summary_by_file_io_type;
 +------------+--------------------------------------+-------+-----------+-------------+
 | user       | event_name                           | total | latency   | max_latency |
 +------------+--------------------------------------+-------+-----------+-------------+
@@ -2990,7 +2990,7 @@ When the user found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc user_summary_by_stages;
+mariadb> desc user_summary_by_stages;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3002,7 +3002,7 @@ mysql> desc user_summary_by_stages;
 +---------------+---------------------+------+-----+---------+-------+
 5 rows in set (0.01 sec)
 
-mysql> desc x$user_summary_by_stages;
+mariadb> desc x$user_summary_by_stages;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3018,7 +3018,7 @@ mysql> desc x$user_summary_by_stages;
 ##### Example
 
 ```SQL
-mysql> select * from user_summary_by_stages;
+mariadb> select * from user_summary_by_stages;
 +------+--------------------------------+-------+---------------+-------------+
 | user | event_name                     | total | total_latency | avg_latency |
 +------+--------------------------------+-------+---------------+-------------+
@@ -3052,7 +3052,7 @@ When the user found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc user_summary_by_statement_latency;
+mariadb> desc user_summary_by_statement_latency;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -3068,7 +3068,7 @@ mysql> desc user_summary_by_statement_latency;
 +---------------+---------------+------+-----+---------+-------+
 9 rows in set (0.00 sec)
 
-mysql> desc x$user_summary_by_statement_latency;
+mariadb> desc x$user_summary_by_statement_latency;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -3088,7 +3088,7 @@ mysql> desc x$user_summary_by_statement_latency;
 ##### Example
 
 ```SQL
-mysql> select * from user_summary_by_statement_latency;
+mariadb> select * from user_summary_by_statement_latency;
 +------+-------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
 | user | total | total_latency | max_latency | lock_latency | rows_sent | rows_examined | rows_affected | full_scans |
 +------+-------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
@@ -3107,7 +3107,7 @@ When the user found is NULL, it is assumed to be a "background" thread.
 ##### Structures
 
 ```SQL
-mysql> desc user_summary_by_statement_type;
+mariadb> desc user_summary_by_statement_type;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3124,7 +3124,7 @@ mysql> desc user_summary_by_statement_type;
 +---------------+---------------------+------+-----+---------+-------+
 10 rows in set (0.21 sec)
 
-mysql> desc x$user_summary_by_statement_type;
+mariadb> desc x$user_summary_by_statement_type;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3145,7 +3145,7 @@ mysql> desc x$user_summary_by_statement_type;
 ##### Example
 
 ```SQL
-mysql> select * from user_summary_by_statement_type;
+mariadb> select * from user_summary_by_statement_type;
 +------+------------------+-------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
 | user | statement        | total | total_latency | max_latency | lock_latency | rows_sent | rows_examined | rows_affected | full_scans |
 +------+------------------+-------+---------------+-------------+--------------+-----------+---------------+---------------+------------+
@@ -3178,7 +3178,7 @@ Lists the top wait classes by average latency, ignoring idle (this may be very l
 ##### Structures
 
 ```SQL
-mysql> desc wait_classes_global_by_avg_latency;
+mariadb> desc wait_classes_global_by_avg_latency;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -3191,7 +3191,7 @@ mysql> desc wait_classes_global_by_avg_latency;
 +---------------+---------------+------+-----+---------+-------+
 6 rows in set (0.11 sec)
 
-mysql> desc x$wait_classes_global_by_avg_latency;
+mariadb> desc x$wait_classes_global_by_avg_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3208,7 +3208,7 @@ mysql> desc x$wait_classes_global_by_avg_latency;
 ##### Example
 
 ```SQL
-mysql> select * from wait_classes_global_by_avg_latency where event_class != 'idle';
+mariadb> select * from wait_classes_global_by_avg_latency where event_class != 'idle';
 +-------------------+--------+---------------+-------------+-------------+-------------+
 | event_class       | total  | total_latency | min_latency | avg_latency | max_latency |
 +-------------------+--------+---------------+-------------+-------------+-------------+
@@ -3230,7 +3230,7 @@ Lists the top wait classes by total latency, ignoring idle (this may be very lar
 ##### Structures
 
 ```SQL
-mysql> desc wait_classes_global_by_latency;
+mariadb> desc wait_classes_global_by_latency;
 +---------------+---------------+------+-----+---------+-------+
 | Field         | Type          | Null | Key | Default | Extra |
 +---------------+---------------+------+-----+---------+-------+
@@ -3243,7 +3243,7 @@ mysql> desc wait_classes_global_by_latency;
 +---------------+---------------+------+-----+---------+-------+
 6 rows in set (0.00 sec)
 
-mysql> desc x$wait_classes_global_by_latency;
+mariadb> desc x$wait_classes_global_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3260,7 +3260,7 @@ mysql> desc x$wait_classes_global_by_latency;
 ##### Example
 
 ```SQL
-mysql> select * from wait_classes_global_by_latency;
+mariadb> select * from wait_classes_global_by_latency;
 +-------------------+--------+---------------+-------------+-------------+-------------+
 | event_class       | total  | total_latency | min_latency | avg_latency | max_latency |
 +-------------------+--------+---------------+-------------+-------------+-------------+
@@ -3282,7 +3282,7 @@ Lists the top wait events per user by their total latency, ignoring idle (this m
 ##### Structures
 
 ```SQL
-mysql> desc waits_by_user_by_latency;
+mariadb> desc waits_by_user_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3295,7 +3295,7 @@ mysql> desc waits_by_user_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 6 rows in set (0.00 sec)
 
-mysql> desc x$waits_by_user_by_latency;
+mariadb> desc x$waits_by_user_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3312,7 +3312,7 @@ mysql> desc x$waits_by_user_by_latency;
 ##### Example
 
 ```SQL
-mysql> select * from waits_by_user_by_latency;
+mariadb> select * from waits_by_user_by_latency;
 +------+-----------------------------------------------------+--------+---------------+-------------+-------------+
 | user | event                                               | total  | total_latency | avg_latency | max_latency |
 +------+-----------------------------------------------------+--------+---------------+-------------+-------------+
@@ -3343,7 +3343,7 @@ Lists the top wait events per host by their total latency, ignoring idle (this m
 ##### Structures
 
 ```SQL
-mysql> desc waits_by_host_by_latency;
+mariadb> desc waits_by_host_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3356,7 +3356,7 @@ mysql> desc waits_by_host_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 6 rows in set (0.36 sec)
 
-mysql> desc x$waits_by_host_by_latency;
+mariadb> desc x$waits_by_host_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3373,7 +3373,7 @@ mysql> desc x$waits_by_host_by_latency;
 ##### Example
 
 ```SQL
- mysql> select * from waits_by_host_by_latency;
+ mariadb> select * from waits_by_host_by_latency;
   +------+-----------------------------------------------------+--------+---------------+-------------+-------------+
   | host | event                                               | total  | total_latency | avg_latency | max_latency |
   +------+-----------------------------------------------------+--------+---------------+-------------+-------------+
@@ -3404,7 +3404,7 @@ Lists the top wait events by their total latency, ignoring idle (this may be ver
 ##### Structures
 
 ```SQL
-mysql> desc waits_global_by_latency;
+mariadb> desc waits_global_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3416,7 +3416,7 @@ mysql> desc waits_global_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 5 rows in set (0.01 sec)
 
-mysql> desc x$waits_global_by_latency;
+mariadb> desc x$waits_global_by_latency;
 +---------------+---------------------+------+-----+---------+-------+
 | Field         | Type                | Null | Key | Default | Extra |
 +---------------+---------------------+------+-----+---------+-------+
@@ -3432,7 +3432,7 @@ mysql> desc x$waits_global_by_latency;
 ##### Example
 
 ```SQL
-mysql> select * from waits_global_by_latency;
+mariadb> select * from waits_global_by_latency;
 +-----------------------------------------------------+---------+---------------+-------------+-------------+
 | events                                              | total   | total_latency | avg_latency | max_latency |
 +-----------------------------------------------------+---------+---------------+-------------+-------------+
@@ -3486,7 +3486,7 @@ VARCHAR(64)
 
 ##### Example
 ```SQL
-mysql> SELECT sys.extract_schema_from_file_name('/var/lib/mysql/employees/employee.ibd');
+mariadb> SELECT sys.extract_schema_from_file_name('/var/lib/mysql/employees/employee.ibd');
 +----------------------------------------------------------------------------+
 | sys.extract_schema_from_file_name('/var/lib/mysql/employees/employee.ibd') |
 +----------------------------------------------------------------------------+
@@ -3513,7 +3513,7 @@ VARCHAR(64)
 
 ##### Example
 ```SQL
-mysql> SELECT sys.extract_table_from_file_name('/var/lib/mysql/employees/employee.ibd');
+mariadb> SELECT sys.extract_table_from_file_name('/var/lib/mysql/employees/employee.ibd');
 +---------------------------------------------------------------------------+
 | sys.extract_table_from_file_name('/var/lib/mysql/employees/employee.ibd') |
 +---------------------------------------------------------------------------+
@@ -3538,7 +3538,7 @@ TEXT
 
 ##### Example
 ```SQL
-mysql> SELECT sys.format_bytes(2348723492723746) AS size;
+mariadb> SELECT sys.format_bytes(2348723492723746) AS size;
 +----------+
 | size     |
 +----------+
@@ -3546,7 +3546,7 @@ mysql> SELECT sys.format_bytes(2348723492723746) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mysql> SELECT sys.format_bytes(2348723492723) AS size;
+mariadb> SELECT sys.format_bytes(2348723492723) AS size;
 +----------+
 | size     |
 +----------+
@@ -3554,7 +3554,7 @@ mysql> SELECT sys.format_bytes(2348723492723) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mysql> SELECT sys.format_bytes(23487234) AS size;
+mariadb> SELECT sys.format_bytes(23487234) AS size;
 +-----------+
 | size      |
 +-----------+
@@ -3581,7 +3581,7 @@ VARCHAR(512) CHARSET UTF8
 
 ##### Example
 ```SQL
-mysql> select @@datadir;
+mariadb> select @@datadir;
 +-----------------------------------------------+
 | @@datadir                                     |
 +-----------------------------------------------+
@@ -3589,7 +3589,7 @@ mysql> select @@datadir;
 +-----------------------------------------------+
 1 row in set (0.06 sec)
 
-mysql> select format_path('/Users/mark/sandboxes/SmallTree/AMaster/data/mysql/proc.MYD') AS path;
+mariadb> select format_path('/Users/mark/sandboxes/SmallTree/AMaster/data/mysql/proc.MYD') AS path;
 +--------------------------+
 | path                     |
 +--------------------------+
@@ -3618,7 +3618,7 @@ LONGTEXT
 
 ##### Example
 ```SQL
-mysql> SELECT sys.format_statement(digest_text)
+mariadb> SELECT sys.format_statement(digest_text)
     ->   FROM performance_schema.events_statements_summary_by_digest
     ->  ORDER by sum_timer_wait DESC limit 5;
 +-------------------------------------------------------------------+
@@ -3651,7 +3651,7 @@ TEXT
 
 ##### Example
 ```SQL
-mysql> select format_time(342342342342345);
+mariadb> select format_time(342342342342345);
 +------------------------------+
 | format_time(342342342342345) |
 +------------------------------+
@@ -3659,7 +3659,7 @@ mysql> select format_time(342342342342345);
 +------------------------------+
 1 row in set (0.00 sec)
 
-mysql> select format_time(342342342);
+mariadb> select format_time(342342342);
 +------------------------+
 | format_time(342342342) |
 +------------------------+
@@ -3667,7 +3667,7 @@ mysql> select format_time(342342342);
 +------------------------+
 1 row in set (0.00 sec)
 
-mysql> select format_time(34234);
+mariadb> select format_time(34234);
  +--------------------+
 | format_time(34234) |
 +--------------------+
@@ -3697,7 +3697,7 @@ TEXT
 ##### Example
 
 ```SQL
-mysql> select @@sql_mode;
+mariadb> select @@sql_mode;
 +-----------------------------------------------------------------------------------+
 | @@sql_mode                                                                        |
 +-----------------------------------------------------------------------------------+
@@ -3705,10 +3705,10 @@ mysql> select @@sql_mode;
 +-----------------------------------------------------------------------------------+
 1 row in set (0.00 sec)
 
-mysql> set sql_mode = sys.list_add(@@sql_mode, 'ANSI_QUOTES');
+mariadb> set sql_mode = sys.list_add(@@sql_mode, 'ANSI_QUOTES');
 Query OK, 0 rows affected (0.06 sec)
 
-mysql> select @@sql_mode;
+mariadb> select @@sql_mode;
 +-----------------------------------------------------------------------------------------------+
 | @@sql_mode                                                                                    |
 +-----------------------------------------------------------------------------------------------+
@@ -3738,7 +3738,7 @@ TEXT
 ##### Example
 
 ```SQL
-mysql> select @@sql_mode;
+mariadb> select @@sql_mode;
 +-----------------------------------------------------------------------------------------------+
 | @@sql_mode                                                                                    |
 +-----------------------------------------------------------------------------------------------+
@@ -3746,10 +3746,10 @@ mysql> select @@sql_mode;
 +-----------------------------------------------------------------------------------------------+
 1 row in set (0.00 sec)
 
-mysql> set sql_mode = sys.list_drop(@@sql_mode, 'ONLY_FULL_GROUP_BY');
+mariadb> set sql_mode = sys.list_drop(@@sql_mode, 'ONLY_FULL_GROUP_BY');
 Query OK, 0 rows affected (0.03 sec)
 
-mysql> select @@sql_mode;
+mariadb> select @@sql_mode;
 +----------------------------------------------------------------------------+
 | @@sql_mode                                                                 |
 +----------------------------------------------------------------------------+
@@ -3775,7 +3775,7 @@ ENUM('YES', 'NO')
 
 ##### Example
 ```SQL
-mysql> SELECT sys.ps_is_account_enabled('localhost', 'root');
+mariadb> SELECT sys.ps_is_account_enabled('localhost', 'root');
 +------------------------------------------------+
 | sys.ps_is_account_enabled('localhost', 'root') |
 +------------------------------------------------+
@@ -3800,7 +3800,7 @@ ENUM('YES', 'NO')
 
 ##### Example
 ```SQL
-mysql> SELECT sys.ps_is_consumer_enabled('events_stages_history');
+mariadb> SELECT sys.ps_is_consumer_enabled('events_stages_history');
 +-----------------------------------------------------+
 | sys.ps_is_consumer_enabled('events_stages_history') |
 +-----------------------------------------------------+
@@ -3813,7 +3813,7 @@ mysql> SELECT sys.ps_is_consumer_enabled('events_stages_history');
 
 ##### Description
 
-Returns whether an instrument is enabled by default in this version of MySQL.
+Returns whether an instrument is enabled by default in this version of MariaDB.
 
 ##### Parameters
 
@@ -3825,7 +3825,7 @@ ENUM('YES', 'NO')
 
 ##### Example
 ```SQL
-mysql> SELECT sys.ps_is_instrument_default_enabled('statement/sql/select');
+mariadb> SELECT sys.ps_is_instrument_default_enabled('statement/sql/select');
 +--------------------------------------------------------------+
 | sys.ps_is_instrument_default_enabled('statement/sql/select') |
 +--------------------------------------------------------------+
@@ -3838,7 +3838,7 @@ mysql> SELECT sys.ps_is_instrument_default_enabled('statement/sql/select');
 
 ##### Description
 
-Returns whether an instrument is timed by default in this version of MySQL.
+Returns whether an instrument is timed by default in this version of MariaDB.
 
 ##### Parameters
 
@@ -3850,7 +3850,7 @@ ENUM('YES', 'NO')
 
 ##### Example
 ```SQL
-mysql> SELECT sys.ps_is_instrument_default_timed('statement/sql/select');
+mariadb> SELECT sys.ps_is_instrument_default_timed('statement/sql/select');
 +------------------------------------------------------------+
 | sys.ps_is_instrument_default_timed('statement/sql/select') |
 +------------------------------------------------------------+
@@ -3875,7 +3875,7 @@ ENUM('YES', 'NO', 'UNKNOWN')
 
 ##### Example
 ```SQL
-mysql> SELECT sys.ps_is_thread_instrumented(CONNECTION_ID());
+mariadb> SELECT sys.ps_is_thread_instrumented(CONNECTION_ID());
 +------------------------------------------------+
 | sys.ps_is_thread_instrumented(CONNECTION_ID()) |
 +------------------------------------------------+
@@ -3900,7 +3900,7 @@ BIGINT UNSIGNED
 
 ##### Example
 ```SQL
-mysql> SELECT sys.ps_thread_id(79);
+mariadb> SELECT sys.ps_thread_id(79);
 +----------------------+
 | sys.ps_thread_id(79) |
 +----------------------+
@@ -3908,7 +3908,7 @@ mysql> SELECT sys.ps_thread_id(79);
 +----------------------+
 1 row in set (0.00 sec)
 
-mysql> SELECT sys.ps_thread_id(CONNECTION_ID());
+mariadb> SELECT sys.ps_thread_id(CONNECTION_ID());
 +-----------------------------------+
 | sys.ps_thread_id(CONNECTION_ID()) |
 +-----------------------------------+
@@ -3932,12 +3932,11 @@ Outputs a JSON formatted stack of all statements, stages and events within Perfo
 (line separation added for output)
 
 ```SQL
- mysql> SELECT sys.ps_thread_stack(37, FALSE) AS thread_stack\G
+ mariadb> SELECT sys.ps_thread_stack(37, FALSE) AS thread_stack\G
 *************************** 1. row ***************************
-thread_stack: {"rankdir": "LR","nodesep": "0.10","stack_created": "2014-02-19 13:39:03",
-"mysql_version": "5.7.3-m13","mysql_user": "root@localhost","events": 
-[{"nesting_event_id": "0", "event_id": "10", "timer_wait": 256.35, "event_info": 
-"sql/select", "wait_info": "select @@version_comment limit 1\nerrors: 0\nwarnings: 0\nlock time:
+thread_stack: {"rankdir": "LR","nodesep": "0.10","stack_created": "2024-09-04 21:21:44",
+"mysql_version": "10.6.19-MariaDB","mysql_user": "msandbox@localhost","events": []}
+
 ...
 ```
 
@@ -4054,7 +4053,7 @@ TEXT
 
 ##### Example
 ```SQL
-mysql> SELECT sys.quote_identifier('my_identifier') AS Identifier;
+mariadb> SELECT sys.quote_identifier('my_identifier') AS Identifier;
 +-----------------+
 | Identifier      |
 +-----------------+
@@ -4062,7 +4061,7 @@ mysql> SELECT sys.quote_identifier('my_identifier') AS Identifier;
 +-----------------+
 1 row in set (0.00 sec)
 
-mysql> SELECT sys.quote_identifier('my`idenfier') AS Identifier;
+mariadb> SELECT sys.quote_identifier('my`idenfier') AS Identifier;
 +----------------+
 | Identifier     |
 +----------------+
@@ -4104,7 +4103,7 @@ VARCHAR(128)
 ##### Example
 ```SQL
 -- Get the configuration value from sys.sys_config falling back on 128 if the option is not present in the table.
-mysql> SELECT sys.sys_get_config('statement_truncate_len', 128) AS Value;
+mariadb> SELECT sys.sys_get_config('statement_truncate_len', 128) AS Value;
 +-------+
 | Value |
 +-------+
@@ -4113,7 +4112,7 @@ mysql> SELECT sys.sys_get_config('statement_truncate_len', 128) AS Value;
 1 row in set (0.00 sec)
 
 -- Check whether the option is already set, if not assign - IFNULL(...) one liner example.
-mysql> SET @sys.statement_truncate_len = IFNULL(@sys.statement_truncate_len, sys.sys_get_config('statement_truncate_len', 64));
+mariadb> SET @sys.statement_truncate_len = IFNULL(@sys.statement_truncate_len, sys.sys_get_config('statement_truncate_len', 64));
 Query OK, 0 rows affected (0.00 sec)
 
 -- Check whether the option is already set, if not assign - IF ... THEN ... END IF example.
@@ -4126,7 +4125,7 @@ END IF;
 
 ##### Description
 
-Returns the major version of MySQL Server.
+Returns the major version of MariaDB Server.
 
 ##### Returns
 
@@ -4134,12 +4133,12 @@ TINYINT UNSIGNED
 
 ##### Example
 ```SQL
-mysql> SELECT VERSION(), sys.version_major();
-+--------------------------------------+---------------------+
-| VERSION()                            | sys.version_major() |
-+--------------------------------------+---------------------+
-| 5.7.9-enterprise-commercial-advanced | 5                   |
-+--------------------------------------+---------------------+
+mariadb> SELECT VERSION(), sys.version_major();
++-----------------+---------------------+
+| VERSION()       | sys.version_major() |
++-----------------+---------------------+
+| 10.6.19-MariaDB |                  10 |
++-----------------+---------------------+
 1 row in set (0.00 sec)
 ```
 
@@ -4147,7 +4146,7 @@ mysql> SELECT VERSION(), sys.version_major();
 
 ##### Description
 
-Returns the minor (release series) version of MySQL Server.
+Returns the minor (release series) version of MariaDB Server.
 
 ##### Returns
 
@@ -4155,12 +4154,12 @@ TINYINT UNSIGNED
 
 ##### Example
 ```SQL
-mysql> SELECT VERSION(), sys.server_minor();
-+--------------------------------------+---------------------+
-| VERSION()                            | sys.version_minor() |
-+--------------------------------------+---------------------+
-| 5.7.9-enterprise-commercial-advanced | 7                   |
-+--------------------------------------+---------------------+
+mariadb> SELECT VERSION(), sys.server_minor();
++-----------------+---------------------+
+| VERSION()       | sys.version_minor() |
++-----------------+---------------------+
+| 10.6.19-MariaDB |                   6 |
++-----------------+---------------------+
 1 row in set (0.00 sec)
 ```
 
@@ -4168,7 +4167,7 @@ mysql> SELECT VERSION(), sys.server_minor();
 
 ##### Description
 
-Returns the patch release version of MySQL Server.
+Returns the patch release version of MariaDB Server.
 
 ##### Returns
 
@@ -4176,12 +4175,12 @@ TINYINT UNSIGNED
 
 ##### Example
 ```SQL
-mysql> SELECT VERSION(), sys.version_patch();
-+--------------------------------------+---------------------+
-| VERSION()                            | sys.version_patch() |
-+--------------------------------------+---------------------+
-| 5.7.9-enterprise-commercial-advanced | 9                   |
-+--------------------------------------+---------------------+
+mariadb> SELECT VERSION(), sys.version_patch();
++-----------------+---------------------+
+| VERSION()       | sys.version_patch() |
++-----------------+---------------------+
+| 10.6.19-MariaDB |                  19 |
++-----------------+---------------------+
 1 row in set (0.00 sec)
 ```
 
@@ -4205,7 +4204,7 @@ Useful for creating a "ps" synonym for "performance_schema", or "is" instead of 
 
 ##### Example
 ```SQL
-mysql> SHOW DATABASES;
+mariadb> SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
@@ -4217,7 +4216,7 @@ mysql> SHOW DATABASES;
 +--------------------+
 5 rows in set (0.00 sec)
 
-mysql> CALL sys.create_synonym_db('performance_schema', 'ps');
+mariadb> CALL sys.create_synonym_db('performance_schema', 'ps');
 +---------------------------------------+
 | summary                               |
 +---------------------------------------+
@@ -4227,7 +4226,7 @@ mysql> CALL sys.create_synonym_db('performance_schema', 'ps');
 
 Query OK, 0 rows affected (8.57 sec)
 
-mysql> SHOW DATABASES;
+mariadb> SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
@@ -4240,7 +4239,7 @@ mysql> SHOW DATABASES;
 +--------------------+
 6 rows in set (0.00 sec)
 
-mysql> SHOW FULL TABLES FROM ps;
+mariadb> SHOW FULL TABLES FROM ps;
 +-----------------------------------------+------------+
 | Tables_in_ps                            | Table_type |
 +-----------------------------------------+------------+
@@ -4260,7 +4259,6 @@ Create a report of the current status of the server for diagnostics purposes. Da
 * The GLOBAL VARIABLES
 * Several sys schema views including metrics or equivalent (depending on version and settings)
 * Queries in the 95th percentile
-* Several ndbinfo views for MySQL Cluster
 * Replication (both master and slave) information.
 
 Some of the sys schema views are calculated as initial (optional), overall, delta:
@@ -4277,10 +4275,6 @@ Some of the sys schema views are calculated as initial (optional), overall, delt
   Note: except for the metrics view the delta is only calculation between the first and last outputs.
 
 Requires the SUPER privilege for "SET sql_log_bin = 0;".
-
-Versions supported:
-* MySQL 5.6: 5.6.10 and later
-* MySQL 5.7: 5.7.9 and later
 
 Some configuration options are supported:
 
@@ -4323,10 +4317,10 @@ Supported values are:
 
 ##### Example
 ```SQL
-mysql> TEE diag.out;
-mysql> CALL sys.diagnostics(120, 30, 'current');
+mariadb> TEE diag.out;
+mariadb> CALL sys.diagnostics(120, 30, 'current');
 ...
-mysql> NOTEE;
+mariadb> NOTEE;
 ```
 
 #### ps_setup_disable_background_threads
@@ -4341,7 +4335,7 @@ None.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_disable_background_threads();
+mariadb> CALL sys.ps_setup_disable_background_threads();
 +--------------------------------+
 | summary                        |
 +--------------------------------+
@@ -4372,7 +4366,7 @@ The following configuration option is supported:
 
 ##### Example
 ```SQL
-mysql> CALL sys.execute_prepared_stmt('SELECT * FROM sys.sys_config');
+mariadb> CALL sys.execute_prepared_stmt('SELECT * FROM sys.sys_config');
 +------------------------+-------+---------------------+--------+
 | variable               | value | set_time            | set_by |
 +------------------------+-------+---------------------+--------+
@@ -4397,7 +4391,7 @@ Disables consumers within Performance Schema matching the input pattern.
 
 To disable all consumers:
 ```SQL
-mysql> CALL sys.ps_setup_disable_consumer('');
+mariadb> CALL sys.ps_setup_disable_consumer('');
 +--------------------------+
 | summary                  |
 +--------------------------+
@@ -4408,7 +4402,7 @@ mysql> CALL sys.ps_setup_disable_consumer('');
 
 To disable just the event_stage consumers:
 ```SQL
-mysql> CALL sys.ps_setup_disable_consumer('stage');
+mariadb> CALL sys.ps_setup_disable_consumer('stage');
 +------------------------+
 | summary                |
 +------------------------+
@@ -4431,7 +4425,7 @@ Disables instruments within Performance Schema  matching the input pattern.
 
 To disable all mutex instruments:
 ```SQL
-mysql> CALL sys.ps_setup_disable_instrument('wait/synch/mutex');
+mariadb> CALL sys.ps_setup_disable_instrument('wait/synch/mutex');
 +--------------------------+
 | summary                  |
 +--------------------------+
@@ -4441,7 +4435,7 @@ mysql> CALL sys.ps_setup_disable_instrument('wait/synch/mutex');
 ```
 To disable just a specific TCP/IP based network IO instrument:
 ```SQL
-mysql> CALL sys.ps_setup_disable_instrument('wait/io/socket/sql/server_tcpip_socket');
+mariadb> CALL sys.ps_setup_disable_instrument('wait/io/socket/sql/server_tcpip_socket');
 +------------------------+
 | summary                |
 +------------------------+
@@ -4451,7 +4445,7 @@ mysql> CALL sys.ps_setup_disable_instrument('wait/io/socket/sql/server_tcpip_soc
 ```
 To disable all instruments:
 ```SQL
-mysql> CALL sys.ps_setup_disable_instrument('');
+mariadb> CALL sys.ps_setup_disable_instrument('');
 +--------------------------+
 | summary                  |
 +--------------------------+
@@ -4472,7 +4466,7 @@ Disable the given connection/thread in Performance Schema.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_disable_thread(3);
+mariadb> CALL sys.ps_setup_disable_thread(3);
 +-------------------+
 | summary           |
 +-------------------+
@@ -4482,7 +4476,7 @@ mysql> CALL sys.ps_setup_disable_thread(3);
 ```
 To disable the current connection:
 ```SQL
-mysql> CALL sys.ps_setup_disable_thread(CONNECTION_ID());
+mariadb> CALL sys.ps_setup_disable_thread(CONNECTION_ID());
 +-------------------+
 | summary           |
 +-------------------+
@@ -4503,7 +4497,7 @@ None.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_enable_background_threads();
+mariadb> CALL sys.ps_setup_enable_background_threads();
 +-------------------------------+
 | summary                       |
 +-------------------------------+
@@ -4526,7 +4520,7 @@ Enables consumers within Performance Schema matching the input pattern.
 
 To enable all consumers:
 ```SQL
-mysql> CALL sys.ps_setup_enable_consumer('');
+mariadb> CALL sys.ps_setup_enable_consumer('');
 +-------------------------+
 | summary                 |
 +-------------------------+
@@ -4537,7 +4531,7 @@ mysql> CALL sys.ps_setup_enable_consumer('');
 
 To enable just "waits" consumers:
 ```SQL
-mysql> CALL sys.ps_setup_enable_consumer('waits');
+mariadb> CALL sys.ps_setup_enable_consumer('waits');
 +-----------------------+
 | summary               |
 +-----------------------+
@@ -4561,7 +4555,7 @@ Enables instruments within Performance Schema matching the input pattern.
 
 To enable all mutex instruments:
 ```SQL
-mysql> CALL sys.ps_setup_enable_instrument('wait/synch/mutex');
+mariadb> CALL sys.ps_setup_enable_instrument('wait/synch/mutex');
 +-------------------------+
 | summary                 |
 +-------------------------+
@@ -4571,7 +4565,7 @@ mysql> CALL sys.ps_setup_enable_instrument('wait/synch/mutex');
 ```
 To enable just a specific TCP/IP based network IO instrument:
 ```SQL
-mysql> CALL sys.ps_setup_enable_instrument('wait/io/socket/sql/server_tcpip_socket');
+mariadb> CALL sys.ps_setup_enable_instrument('wait/io/socket/sql/server_tcpip_socket');
 +-----------------------+
 | summary               |
 +-----------------------+
@@ -4581,7 +4575,7 @@ mysql> CALL sys.ps_setup_enable_instrument('wait/io/socket/sql/server_tcpip_sock
 ```
 To enable all instruments:
 ```SQL
-mysql> CALL sys.ps_setup_enable_instrument('');
+mariadb> CALL sys.ps_setup_enable_instrument('');
 +-------------------------+
 | summary                 |
 +-------------------------+
@@ -4603,7 +4597,7 @@ Enable the given connection/thread in Performance Schema.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_enable_thread(3);
+mariadb> CALL sys.ps_setup_enable_thread(3);
 +------------------+
 | summary          |
 +------------------+
@@ -4613,7 +4607,7 @@ mysql> CALL sys.ps_setup_enable_thread(3);
 ```
 To enable the current connection:
 ```SQL
-mysql> CALL sys.ps_setup_enable_thread(CONNECTION_ID());
+mariadb> CALL sys.ps_setup_enable_thread(CONNECTION_ID());
 +------------------+
 | summary          |
 +------------------+
@@ -4638,16 +4632,16 @@ None.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_save();
+mariadb> CALL sys.ps_setup_save();
 Query OK, 0 rows affected (0.08 sec)
 
-mysql> UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
+mariadb> UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
 Query OK, 547 rows affected (0.40 sec)
 Rows matched: 784  Changed: 547  Warnings: 0
 
 /* Run some tests that need more detailed instrumentation here */
 
-mysql> CALL sys.ps_setup_reload_saved();
+mariadb> CALL sys.ps_setup_reload_saved();
 Query OK, 0 rows affected (0.32 sec)
 ```
 
@@ -4663,7 +4657,7 @@ Resets the Performance Schema setup to the default settings.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_reset_to_default(true)\G
+mariadb> CALL sys.ps_setup_reset_to_default(true)\G
 *************************** 1. row ***************************
 status: Resetting: setup_actors
 DELETE
@@ -4678,7 +4672,7 @@ VALUES ('%', '%', '%')
 1 row in set (0.00 sec)
 ...
 
-mysql> CALL sys.ps_setup_reset_to_default(false)\G
+mariadb> CALL sys.ps_setup_reset_to_default(false)\G
 Query OK, 0 rows affected (0.00 sec)
 ```
 
@@ -4702,17 +4696,17 @@ Requires the SUPER privilege for "SET sql_log_bin = 0;".
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_save(-1);
+mariadb> CALL sys.ps_setup_save(-1);
 Query OK, 0 rows affected (0.08 sec)
 
-mysql> UPDATE performance_schema.setup_instruments 
+mariadb> UPDATE performance_schema.setup_instruments 
     ->    SET enabled = 'YES', timed = 'YES';
 Query OK, 547 rows affected (0.40 sec)
 Rows matched: 784  Changed: 547  Warnings: 0
 
 /* Run some tests that need more detailed instrumentation here */
 
-mysql> CALL sys.ps_setup_reload_saved();
+mariadb> CALL sys.ps_setup_reload_saved();
 Query OK, 0 rows affected (0.32 sec)
 ```
 
@@ -4720,10 +4714,8 @@ Query OK, 0 rows affected (0.32 sec)
 
 ##### Description
 
-Shows all currently disable Performance Schema configuration.
+Shows all currently disabled Performance Schema configurations.
 
-Disabled users is only available for MySQL 5.7.6 and later.
-In earlier versions it was only possible to enable users.
 
 ##### Parameters
 
@@ -4732,7 +4724,7 @@ In earlier versions it was only possible to enable users.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_show_disabled(TRUE, TRUE);
+mariadb> CALL sys.ps_setup_show_disabled(TRUE, TRUE);
 +----------------------------+
 | performance_schema_enabled |
 +----------------------------+
@@ -4815,7 +4807,7 @@ None
 ##### Example
 
 ```SQL
-mysql> CALL sys.ps_setup_show_disabled_consumers();
+mariadb> CALL sys.ps_setup_show_disabled_consumers();
 
 +---------------------------+
 | disabled_consumers        |
@@ -4841,7 +4833,7 @@ None
 ##### Example
 
 ```SQL
-mysql> CALL sys.ps_setup_show_disabled_instruments();
+mariadb> CALL sys.ps_setup_show_disabled_instruments();
 ```
 
 #### ps_setup_show_enabled
@@ -4857,7 +4849,7 @@ Shows all currently enabled Performance Schema configuration.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_setup_show_enabled(TRUE, TRUE);
+mariadb> CALL sys.ps_setup_show_enabled(TRUE, TRUE);
 +----------------------------+
 | performance_schema_enabled |
 +----------------------------+
@@ -4949,7 +4941,7 @@ None
 ##### Example
 
 ```SQL
-mysql> CALL sys.ps_setup_show_enabled_consumers();
+mariadb> CALL sys.ps_setup_show_enabled_consumers();
 
 +---------------------------+
 | enabled_consumers         |
@@ -4975,7 +4967,7 @@ None
 ##### Example
 
 ```SQL
-mysql> CALL sys.ps_setup_show_enabled_instruments();
+mariadb> CALL sys.ps_setup_show_enabled_instruments();
 ```
 
 #### ps_statement_avg_latency_histogram
@@ -4992,7 +4984,7 @@ None.
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_statement_avg_latency_histogram()\G
+mariadb> CALL sys.ps_statement_avg_latency_histogram()\G
 *************************** 1. row ***************************
 Performance Schema Statement Digest Average Latency Histogram:
 
@@ -5050,7 +5042,7 @@ Requires the SUPER privilege for "SET sql_log_bin = 0;".
 
 ##### Example
 ```SQL
-mysql> call ps_analyze_statement_digest('891ec6860f98ba46d89dd20b0c03652c', 10, 0.1, true, true);
+mariadb> call ps_analyze_statement_digest('891ec6860f98ba46d89dd20b0c03652c', 10, 0.1, true, true);
 +--------------------+
 | SUMMARY STATISTICS |
 +--------------------+
@@ -5145,7 +5137,7 @@ Requires the SUPER privilege for "SET sql_log_bin = 0;".
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_trace_thread(25, CONCAT('/tmp/stack-', REPLACE(NOW(), ' ', '-'), '.dot'), NULL, NULL, TRUE, TRUE, TRUE);
+mariadb> CALL sys.ps_trace_thread(25, CONCAT('/tmp/stack-', REPLACE(NOW(), ' ', '-'), '.dot'), NULL, NULL, TRUE, TRUE, TRUE);
 +-------------------+
 | summary           |
 +-------------------+
@@ -5201,7 +5193,7 @@ Truncates all summary tables within Performance Schema, resetting all aggregated
 
 ##### Example
 ```SQL
-mysql> CALL sys.ps_truncate_all_tables(false);
+mariadb> CALL sys.ps_truncate_all_tables(false);
 +---------------------+
 | summary             |
 +---------------------+
@@ -5306,22 +5298,22 @@ The following configuration options are supported:
 --    6. Perform analyzis based on the new snapshot.
 --    7. Perform analyzis based on the delta between the initial and new snapshots.
 
-mysql> CALL sys.statement_performance_analyzer('create_tmp', 'mydb.tmp_digests_ini', NULL);
+mariadb> CALL sys.statement_performance_analyzer('create_tmp', 'mydb.tmp_digests_ini', NULL);
 Query OK, 0 rows affected (0.08 sec)
 
-mysql> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
+mariadb> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
 Query OK, 0 rows affected (0.02 sec)
 
-mysql> CALL sys.statement_performance_analyzer('save', 'mydb.tmp_digests_ini', NULL);
+mariadb> CALL sys.statement_performance_analyzer('save', 'mydb.tmp_digests_ini', NULL);
 Query OK, 0 rows affected (0.00 sec)
 
-mysql> DO SLEEP(60);
+mariadb> DO SLEEP(60);
 Query OK, 0 rows affected (1 min 0.00 sec)
 
-mysql> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
+mariadb> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
 Query OK, 0 rows affected (0.02 sec)
 
-mysql> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile');
+mariadb> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile');
 +-----------------------------------------+
 | Next Output                             |
 +-----------------------------------------+
@@ -5331,7 +5323,7 @@ mysql> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_i
 
 ...
 
-mysql> CALL sys.statement_performance_analyzer('delta', 'mydb.tmp_digests_ini', 'with_runtimes_in_95th_percentile');
+mariadb> CALL sys.statement_performance_analyzer('delta', 'mydb.tmp_digests_ini', 'with_runtimes_in_95th_percentile');
 +-----------------------------------------+
 | Next Output                             |
 +-----------------------------------------+
@@ -5344,13 +5336,13 @@ mysql> CALL sys.statement_performance_analyzer('delta', 'mydb.tmp_digests_ini', 
 
 -- To create an overall report of the 95th percentile queries and the top 10 queries with full table scans:
 
-mysql> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
+mariadb> CALL sys.statement_performance_analyzer('snapshot', NULL, NULL);
 Query OK, 0 rows affected (0.01 sec)                                   
 
-mysql> SET @sys.statement_performance_analyzer.limit = 10;
+mariadb> SET @sys.statement_performance_analyzer.limit = 10;
 Query OK, 0 rows affected (0.00 sec)          
 
-mysql> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile,with_full_table_scans');
+mariadb> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_in_95th_percentile,with_full_table_scans');
 +-----------------------------------------+
 | Next Output                             |
 +-----------------------------------------+
@@ -5373,7 +5365,7 @@ mysql> CALL sys.statement_performance_analyzer('overall', NULL, 'with_runtimes_i
 -- Use a custom view showing the top 10 query sorted by total execution time refreshing the view every minute using
 -- the watch command in Linux.
 
-mysql> CREATE OR REPLACE VIEW mydb.my_statements AS
+mariadb> CREATE OR REPLACE VIEW mydb.my_statements AS
     -> SELECT sys.format_statement(DIGEST_TEXT) AS query,
     ->        SCHEMA_NAME AS db,
     ->        COUNT_STAR AS exec_count,
@@ -5387,10 +5379,10 @@ mysql> CREATE OR REPLACE VIEW mydb.my_statements AS
     -> ORDER BY SUM_TIMER_WAIT DESC;
 Query OK, 0 rows affected (0.01 sec)
 
-mysql> CALL sys.statement_performance_analyzer('create_table', 'mydb.digests_prev', NULL);
+mariadb> CALL sys.statement_performance_analyzer('create_table', 'mydb.digests_prev', NULL);
 Query OK, 0 rows affected (0.10 sec)
 
-shell$ watch -n 60 "mysql sys --table -e \"
+shell$ watch -n 60 "mariadb sys --table -e \"
 > SET @sys.statement_performance_analyzer.view = 'mydb.my_statements';
 > SET @sys.statement_performance_analyzer.limit = 10;
 > CALL statement_performance_analyzer('snapshot', NULL, NULL);
@@ -5398,7 +5390,7 @@ shell$ watch -n 60 "mysql sys --table -e \"
 > CALL statement_performance_analyzer('save', 'mydb.digests_prev', NULL);
 > \""
 
-Every 60.0s: mysql sys --table -e "                                                                                                   ...  Mon Dec 22 10:58:51 2014
+Every 60.0s: mariadb sys --table -e "                                                                                                   ...  Mon Dec 22 10:58:51 2014
 
 +----------------------------------+
 | Next Output                      |
@@ -5433,24 +5425,24 @@ name, then 'TEMPORARY' will be returned.
 
 ##### Example
 ```SQL
-mysql> CREATE DATABASE db1;
+mariadb> CREATE DATABASE db1;
 Query OK, 1 row affected (0.07 sec)
 
-mysql> use db1;
+mariadb> use db1;
 Database changed
-mysql> CREATE TABLE t1 (id INT PRIMARY KEY);
+mariadb> CREATE TABLE t1 (id INT PRIMARY KEY);
 Query OK, 0 rows affected (0.08 sec)
 
-mysql> CREATE TABLE t2 (id INT PRIMARY KEY);
+mariadb> CREATE TABLE t2 (id INT PRIMARY KEY);
 Query OK, 0 rows affected (0.08 sec)
 
-mysql> CREATE view v_t1 AS SELECT * FROM t1;
+mariadb> CREATE view v_t1 AS SELECT * FROM t1;
 Query OK, 0 rows affected (0.00 sec)
 
-mysql> CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+mariadb> CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
 Query OK, 0 rows affected (0.00 sec)
 
-mysql> CALL sys.table_exists('db1', 't1', @exists); SELECT @exists;
+mariadb> CALL sys.table_exists('db1', 't1', @exists); SELECT @exists;
 Query OK, 0 rows affected (0.00 sec)
 
 +------------+
@@ -5460,7 +5452,7 @@ Query OK, 0 rows affected (0.00 sec)
 +------------+
 1 row in set (0.00 sec)
 
-mysql> CALL sys.table_exists('db1', 't2', @exists); SELECT @exists;
+mariadb> CALL sys.table_exists('db1', 't2', @exists); SELECT @exists;
 Query OK, 0 rows affected (0.00 sec)
 
 +------------+
@@ -5470,7 +5462,7 @@ Query OK, 0 rows affected (0.00 sec)
 +------------+
 1 row in set (0.01 sec)
 
-mysql> CALL sys.table_exists('db1', 'v_t1', @exists); SELECT @exists;
+mariadb> CALL sys.table_exists('db1', 'v_t1', @exists); SELECT @exists;
 Query OK, 0 rows affected (0.00 sec)
 
 +---------+
@@ -5480,7 +5472,7 @@ Query OK, 0 rows affected (0.00 sec)
 +---------+
 1 row in set (0.00 sec)
 
-mysql> CALL sys.table_exists('db1', 't3', @exists); SELECT @exists;
+mariadb> CALL sys.table_exists('db1', 't3', @exists); SELECT @exists;
 Query OK, 0 rows affected (0.01 sec)
 
 +---------+

@@ -1,0 +1,52 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-34504 PURGE BINARY LOGS not working anymore
+#
+select @@slave_connections_needed_for_purge;
+@@slave_connections_needed_for_purge
+0
+set @old_dbug= @@global.debug_dbug;
+create table t1 (a int, b varchar(32768));
+insert into t1 values(1,repeat("a",32768));
+connection slave;
+select a from t1;
+a
+1
+set @@global.debug_dbug= "+d,pause_before_io_read_event";
+connection master;
+insert into t1 values(2,repeat("b",32768));
+insert into t1 values(3,repeat("c",32768));
+connection slave;
+set debug_sync='now wait_for io_thread_at_read_event';
+select a from t1;
+a
+1
+connection master;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+PURGE BINARY LOGS TO 'master-bin.000002';
+Warnings:
+Note	1375	Binary log XXX is not purged because it is in use by a slave thread
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+connection slave;
+set @@global.debug_dbug= @old_dbug;
+set debug_sync='now signal io_thread_continue_read_event';
+connection master;
+connection slave;
+select count(*) from t1;
+count(*)
+153
+connection master;
+PURGE BINARY LOGS TO 'master-bin.000002';
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+drop table t1;
+include/rpl_end.inc

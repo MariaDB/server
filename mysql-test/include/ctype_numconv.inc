@@ -1,7 +1,3 @@
-#remove this include after fix MDEV-27871
-# maybe some tests need to be excluded separately after fix
---source include/no_view_protocol.inc
-
 SET TIME_ZONE = _latin1 '+03:00';
 
 --echo #
@@ -464,6 +460,7 @@ show create table t1;
 drop table t1;
 
 --disable_ps2_protocol
+--disable_view_protocol
 # Ensure that row_count() value is reset after drop table.
 select 1;
 select hex(concat(row_count()));
@@ -475,6 +472,7 @@ select hex(concat(found_rows()));
 create table t1 as select concat(found_rows()) as c1;
 show create table t1;
 drop table t1;
+--enable_view_protocol
 --enable_ps2_protocol
 
 create table t1 as select concat(uuid_short()) as c1;
@@ -664,71 +662,71 @@ create table t1 as select concat(Dimension(GeomFromText('LINSTRING(0 0,10 10)'))
 show create table t1;
 drop table t1;
 
-select hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))));
+select hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)')))) as exp;
 create table t1 as select concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))));
+select hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)')))) as exp;
 create table t1 as select concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))));
+select hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)')))) as exp;
 create table t1 as select concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))));
+select hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))')))) as exp;
 create table t1 as select concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(IsEmpty(GeomFromText('POINT(1 1)'))));
+select hex(concat(IsEmpty(GeomFromText('POINT(1 1)')))) as exp;
 create table t1 as select concat(IsEmpty(GeomFromText('Point(1 1)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(IsSimple(GeomFromText('POINT(1 1)'))));
+select hex(concat(IsSimple(GeomFromText('POINT(1 1)')))) as exp;
 create table t1 as select concat(IsSimple(GeomFromText('Point(1 1)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))));
+select hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)')))) as exp;
 create table t1 as select concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))));
+select hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)')))) as exp;
 create table t1 as select concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))) as c1;
 drop table t1;
 
-select hex(concat(x(GeomFromText('Point(1 2)'))));
+select hex(concat(x(GeomFromText('Point(1 2)')))) as exp;
 create table t1 as select concat(x(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(y(GeomFromText('Point(1 2)'))));
+select hex(concat(y(GeomFromText('Point(1 2)')))) as exp;
 create table t1 as select concat(x(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(GLength(GeomFromText('LineString(1 2,2 2)'))));
+select hex(concat(GLength(GeomFromText('LineString(1 2,2 2)')))) as exp;
 create table t1 as select concat(GLength(GeomFromText('LineString(1 2, 2 2)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))));
+select hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))')))) as exp;
 create table t1 as select concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(GeometryType(GeomFromText('Point(1 2)'))));
+select hex(concat(GeometryType(GeomFromText('Point(1 2)')))) as exp;
 create table t1 as select concat(GeometryType(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(AsText(GeomFromText('Point(1 2)'))));
+select hex(concat(AsText(GeomFromText('Point(1 2)')))) as exp;
 create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 drop table t1;
@@ -874,7 +872,7 @@ create table t1 as select concat(sec_to_time(2378)) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')));
+select hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00'))) as exp;
 create table t1 as select concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')) as c1;
 show create table t1;
 drop table t1;
@@ -894,12 +892,12 @@ create table t1 as select concat(from_unixtime(1111885200)) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')));
+select hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00'))) as exp;
 create table t1 as select concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')) as c1;
 show create table t1;
 drop table t1;
 
-select hex(concat(date_add('2004-01-01 12:00:00', interval 1 day)));
+select hex(concat(date_add('2004-01-01 12:00:00', interval 1 day))) as exp;
 create table t1 as select concat(date_add('2004-01-01 12:00:00', interval 1 day)) as c1;
 show create table t1;
 select * from t1;
@@ -1646,9 +1644,14 @@ INSERT INTO t1 VALUES (1234567);
 SELECT GROUP_CONCAT(IFNULL(a,'')) FROM t1;
 SELECT GROUP_CONCAT(IF(a,a,'')) FROM t1;
 SELECT GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END) FROM t1;
+--disable_view_protocol
 --enable_metadata
+#Check after fix MDEV-31512
+--disable_cursor_protocol
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
+--enable_cursor_protocol
 --disable_metadata
+--enable_view_protocol
 --echo # All columns must be VARCHAR(9) with the same length:
 --disable_warnings
 CREATE TABLE t2 AS
@@ -1765,15 +1768,17 @@ SELECT
   DATE_SUB(CAST('2007-08-03 17:33:00' AS DATETIME), INTERVAL 1 MINUTE) AS field_datetime;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
---enable_metadata
 # PS protocol gives different "Max length" value for DATETIME.
 --disable_ps_protocol
+--disable_view_protocol
+--enable_metadata
 SELECT
   DATE_SUB('2007-08-03', INTERVAL 1 DAY) AS field_str1,
   DATE_SUB('2007-08-03 17:33:00', INTERVAL 1 MINUTE) AS field1_str2,
   DATE_SUB(DATE('2007-08-03'), INTERVAL 1 DAY) AS field_date,
   DATE_SUB(CAST('2007-08-03 17:33:00' AS DATETIME), INTERVAL 1 MINUTE) AS field_datetime;
 --disable_metadata
+--enable_view_protocol
 --enable_ps_protocol
 SELECT
   HEX(DATE_SUB('2007-08-03', INTERVAL 1 MINUTE)) AS field_str1,

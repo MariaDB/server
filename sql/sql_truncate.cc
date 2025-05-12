@@ -303,7 +303,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
                                         bool *hton_can_recreate)
 {
-  handlerton *hton;
+  const handlerton *hton;
   bool versioned;
   bool sequence= false;
   TABLE *table= NULL;
@@ -336,8 +336,15 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     versioned= table->versioned();
     hton= table->file->ht;
 #ifdef WITH_WSREP
+    /* Resolve should we replicate truncate. It should
+       be replicated if storage engine(s) associated
+       are replicated by Galera. If this is partitioned
+       table we need to find out default partition
+       handlerton.
+    */
     if (WSREP(thd) &&
-	!wsrep_should_replicate_ddl(thd, hton))
+        !wsrep_should_replicate_ddl(thd, table->file->partition_ht() ?
+                                    table->file->partition_ht() : hton))
       DBUG_RETURN(TRUE);
 #endif
 
@@ -359,12 +366,26 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     sequence= share->table_type == TABLE_TYPE_SEQUENCE;
     hton= share->db_type();
 #ifdef WITH_WSREP
-    if (WSREP(thd) &&
-	hton != view_pseudo_hton &&
-	!wsrep_should_replicate_ddl(thd, hton))
+    if (WSREP(thd) && hton != view_pseudo_hton)
     {
-      tdc_release_share(share);
-      DBUG_RETURN(TRUE);
+      /* Resolve should we replicate truncate. It should
+         be replicated if storage engine(s) associated
+         are replicated by Galera. If this is partitioned
+         table we need to find out default partition
+         handlerton.
+      */
+      const handlerton* const ht=
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        share->default_part_plugin ?
+          plugin_hton(share->default_part_plugin) :
+#endif
+        hton;
+
+      if (ht && !wsrep_should_replicate_ddl(thd, ht))
+      {
+        tdc_release_share(share);
+        DBUG_RETURN(TRUE);
+      }
     }
 #endif
 

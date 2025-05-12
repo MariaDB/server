@@ -83,12 +83,26 @@ connection server_1;
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
+connection server_2;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+connection server_3;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+connection server_1_con2;
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
+connection server_2;
+# Waitng for shutdown to be delayed..
+FOUND 1 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_2;
+set debug_sync= "now signal io_thd_do_reply";
+connection server_3;
+set debug_sync= "now signal io_thd_do_reply";
+# Reaping transaction..
 connection server_1;
 ERROR HY000: Lost connection to server during query
-# Check logs to ensure shutdown was delayed
-FOUND 1 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_2;
+# Reaping shutdown..
+connection server_1_con2;
 # Validate slave data is in correct state
 connection server_2;
 select count(*)=1 from t1;
@@ -184,12 +198,18 @@ connection server_1;
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
+connection server_1_con2;
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
+connection server_2;
+# Waitng for shutdown to be delayed..
+FOUND 2 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+# Reaping transaction..
 connection server_1;
 ERROR HY000: Lost connection to server during query
-# Check logs to ensure shutdown was delayed
-FOUND 2 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_2;
+# Reaping shutdown..
+connection server_1_con2;
 # Validate slave data is in correct state
 connection server_2;
 select count(*)=0 from t1;
@@ -298,12 +318,22 @@ connection server_1;
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
+connection server_3;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+connection server_1_con2;
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
+connection server_2;
+# Waitng for shutdown to be delayed..
+FOUND 3 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_3;
+set debug_sync= "now signal io_thd_do_reply";
+# Reaping transaction..
 connection server_1;
 ERROR HY000: Lost connection to server during query
-# Check logs to ensure shutdown was delayed
-FOUND 3 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_2;
+# Reaping shutdown..
+connection server_1_con2;
 # Validate slave data is in correct state
 connection server_2;
 select count(*)=0 from t1;
@@ -412,12 +442,22 @@ connection server_1;
 INSERT INTO t1 VALUES (1);
 connection server_1_con2;
 #-- Wait until master recognizes a connection is awaiting semi-sync ACK
+connection server_3;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
+connection server_1_con2;
 #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
+connection server_2;
+# Waitng for shutdown to be delayed..
+FOUND 4 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_3;
+set debug_sync= "now signal io_thd_do_reply";
+# Reaping transaction..
 connection server_1;
 ERROR HY000: Lost connection to server during query
-# Check logs to ensure shutdown was delayed
-FOUND 4 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
+connection server_2;
+# Reaping shutdown..
+connection server_1_con2;
 # Validate slave data is in correct state
 connection server_2;
 select count(*)=0 from t1;
@@ -501,15 +541,20 @@ insert into t1 values (2);
 connection server_1;
 # Wait for thd to begin semi-sync wait..
 # ..done
+connection server_2;
+set debug_sync= "now wait_for io_thd_at_slave_reply";
 disconnect con1;
 connection default;
 connection con2;
 SHUTDOWN WAIT FOR ALL SLAVES;
-# Ensure the primary waited for the ACK of the killed thread
+# Waitng for shutdown to be delayed..
+connection server_2;
 FOUND 5 /Delaying shutdown to await semi-sync ACK/ in mysqld.1.err
 connection default;
 connection server_1;
+connection con2;
 connection server_2;
+set debug_sync= "now signal io_thd_do_reply";
 include/stop_slave.inc
 connection server_3;
 include/stop_slave.inc

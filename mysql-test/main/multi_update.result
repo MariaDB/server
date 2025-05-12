@@ -991,19 +991,19 @@ create view v2 as select * from t2;
 create view v3 as select * from t2 where c0 < 3;
 create  procedure sp0() update t1, v2 set v2.pk = 1 where v2.c0 = t1.c1;
 call sp0();
-ERROR 42S22: Unknown column 't1.c1' in 'where clause'
+ERROR 42S22: Unknown column 't1.c1' in 'WHERE'
 call sp0();
-ERROR 42S22: Unknown column 't1.c1' in 'where clause'
+ERROR 42S22: Unknown column 't1.c1' in 'WHERE'
 create  procedure sp1() update (t1 join v2 on v2.c0 = t1.c1) set v2.pk = 1;
 call sp1();
-ERROR 42S22: Unknown column 't1.c1' in 'on clause'
+ERROR 42S22: Unknown column 't1.c1' in 'ON'
 call sp1();
-ERROR 42S22: Unknown column 't1.c1' in 'on clause'
+ERROR 42S22: Unknown column 't1.c1' in 'ON'
 create  procedure sp2() update (t1 join v3 on v3.c0 = t1.c1) set v3.pk = 1;
 call sp2();
-ERROR 42S22: Unknown column 't1.c1' in 'on clause'
+ERROR 42S22: Unknown column 't1.c1' in 'ON'
 call sp2();
-ERROR 42S22: Unknown column 't1.c1' in 'on clause'
+ERROR 42S22: Unknown column 't1.c1' in 'ON'
 create  procedure sp3()
 update (t1 join v2 on v2.c0 = t1.id) set v2.c0 = v2.c0+1;
 select * from t2;
@@ -1022,9 +1022,9 @@ pk	c0
 2	3
 create  procedure sp4() delete t1 from t1 join v2 on v2.c0 = t1.c1;
 call sp4();
-ERROR 42S22: Unknown column 't1.c1' in 'on clause'
+ERROR 42S22: Unknown column 't1.c1' in 'ON'
 call sp4();
-ERROR 42S22: Unknown column 't1.c1' in 'on clause'
+ERROR 42S22: Unknown column 't1.c1' in 'ON'
 drop procedure sp0;
 drop procedure sp1;
 drop procedure sp2;
@@ -1384,6 +1384,26 @@ c1	c2	c3
 12	5	8
 drop table t1,t2,t3,t;
 # End of 10.4 tests
+#
+# MDEV-31647 Stack looping and SIGSEGV in Item_args::walk_args on UPDATE
+#
+create table t1 (c int, c2 int) engine=innodb;
+update t1 set c=0 where c=(
+select 1 from (select 1 as v1) as v2
+natural join t1) order by last_value (c2) over (order by c2);
+ERROR HY000: Invalid use of group function
+update t1 set c=0 where c=(
+select 1 from (select 1 as v1) as v2
+natural join t1) order by last_value (c2) over ();
+ERROR HY000: Invalid use of group function
+update t1 set c=0 where c=(
+select 1 from (select 1 as v1) as v2
+natural join t1) order by c2;
+select 1 from (select 1 as v1) as v2
+natural join t1 order by last_value (c2) over (order by c2);
+1
+drop table t1;
+# End of 10.5 tests
 #
 # MDEV-31150: 2nd execution of multi-update with
 #             mergeable derived table in WHERE

@@ -23,11 +23,11 @@ SELECT @@query_cache_wlock_invalidate;
 @@query_cache_wlock_invalidate
 1
 SELECT session.query_cache_wlock_invalidate;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT local.query_cache_wlock_invalidate;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.query_cache_wlock_invalidate;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SET session query_cache_wlock_invalidate = 0;
 SELECT @@session.query_cache_wlock_invalidate;
 @@session.query_cache_wlock_invalidate

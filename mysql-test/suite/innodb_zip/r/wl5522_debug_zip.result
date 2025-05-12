@@ -9,8 +9,8 @@ call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t1 ");
 call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*ibdata1' page");
-call mtr.add_suppression("InnoDB: File '.*ibdata1' is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page \\d+ from file '.*test/t1\\.ibd'");
+call mtr.add_suppression("InnoDB: File '.*(ibdata1|t1\\.ibd)' is corrupted");
 FLUSH TABLES;
 SET SESSION innodb_strict_mode=1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb
@@ -91,7 +91,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug=@saved_debug_dbug;
 SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Got error 42 'Tablespace not found' from ./test/t1.ibd
+ERROR HY000: Got error 41 'Tablespace not found' from ./test/t1.ibd
 SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_cluster_root_adjust_failure";

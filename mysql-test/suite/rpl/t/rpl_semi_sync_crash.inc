@@ -74,7 +74,7 @@ source include/wait_for_slave_param.inc;
 
 SELECT @@GLOBAL.gtid_current_pos;
 
---let $restart_parameters=--skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+--let $restart_parameters=--skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 --let $allow_rpl_inited=1
 --source include/start_mysqld.inc
 --connection server_$server_to_crash

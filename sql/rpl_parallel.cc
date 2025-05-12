@@ -124,8 +124,8 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   else if (cmp == 0
            && rli->group_master_log_pos < qev->future_event_master_log_pos)
     rli->group_master_log_pos= qev->future_event_master_log_pos;
-  mysql_mutex_unlock(&rli->data_lock);
   mysql_cond_broadcast(&rli->data_cond);
+  mysql_mutex_unlock(&rli->data_lock);
 }
 
 
@@ -153,14 +153,12 @@ static void
 finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
                    rpl_parallel_entry *entry, rpl_group_info *rgi)
 {
-  THD *thd= rpt->thd;
-  wait_for_commit *wfc= &rgi->commit_orderer;
-  int err;
-
   if (rgi->get_finish_event_group_called())
     return;
 
-  thd->get_stmt_da()->set_overwrite_status(true);
+  THD *thd= rpt->thd;
+  wait_for_commit *wfc= &rgi->commit_orderer;
+  int err;
 
   if (unlikely(rgi->worker_error))
   {
@@ -320,10 +318,6 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
     wait_for_pending_deadlock_kill(thd, rgi);
   thd->clear_error();
   thd->reset_killed();
-  /*
-    Would do thd->get_stmt_da()->set_overwrite_status(false) here, but
-    reset_diagnostics_area() already does that.
-  */
   thd->get_stmt_da()->reset_diagnostics_area();
   wfc->wakeup_subsequent_commits(rgi->worker_error);
   rgi->did_mark_start_commit= false;
@@ -505,7 +499,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
   {
     thd->set_time_for_next_stage();
     thd->ENTER_COND(&entry->COND_parallel_entry, &entry->LOCK_parallel_entry,
-                    &stage_waiting_for_ftwrl, old_stage);
+                    &stage_waiting_for_ftwrl,
+                    (*did_enter_cond ? nullptr : old_stage));
     *did_enter_cond= true;
     do
     {
@@ -551,6 +546,7 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
 {
   PSI_stage_info old_stage;
   int res= 0;
+  bool did_enter_cond= false;
 
   /*
     Wait here while the queue is busy. This is done to make FLUSH TABLES WITH
@@ -567,24 +563,28 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   */
   DBUG_EXECUTE_IF("mark_busy_mdev_22370",my_sleep(1000000););
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-  if (thd)
+  if (pool->busy)
   {
-    thd->set_time_for_next_stage();
-    thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
-                    &stage_waiting_for_rpl_thread_pool, &old_stage);
-  }
-  while (pool->busy)
-  {
-    if (thd && unlikely(thd->check_killed()))
+    if (thd)
     {
-      res= 1;
-      break;
+      thd->set_time_for_next_stage();
+      thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
+                      &stage_waiting_for_rpl_thread_pool, &old_stage);
+      did_enter_cond= true;
     }
-    mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    do
+    {
+      if (thd && unlikely(thd->check_killed()))
+      {
+        res= 1;
+        break;
+      }
+      mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    } while (pool->busy);
   }
   if (!res)
     pool->busy= true;
-  if (thd)
+  if (did_enter_cond)
     thd->EXIT_COND(&old_stage);
   else
     mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
@@ -865,8 +865,12 @@ do_retry:
   err= 0;
   errmsg= NULL;
 #ifdef WITH_WSREP
-  thd->wsrep_cs().reset_error();
-  WSREP_DEBUG("retrying async replication event");
+  DBUG_EXECUTE_IF("sync.wsrep_retry_event_group", {
+    const char act[]= "now "
+                      "SIGNAL sync.wsrep_retry_event_group_reached "
+                      "WAIT_FOR signal.wsrep_retry_event_group";
+    debug_sync_set_action(thd, STRING_WITH_LEN(act));
+  };);
 #endif /* WITH_WSREP */
 
   /*
@@ -1013,15 +1017,20 @@ do_retry:
   */
   thd->reset_killed();
 #ifdef WITH_WSREP
-  if (wsrep_before_command(thd))
+  if (WSREP(thd))
   {
-    WSREP_WARN("Parallel slave worker failed at wsrep_before_command() hook");
-    err= 1;
-    goto err;
+    /* Exec after statement hook to make sure that the failed transaction
+     * gets cleared and reset error state. */
+    if (wsrep_after_statement(thd))
+    {
+      WSREP_WARN("Parallel slave worker failed at wsrep_after_statement() hook");
+      err= 1;
+      goto err;
+    }
+    thd->wsrep_cs().reset_error();
+    wsrep_start_trx_if_not_started(thd);
+    WSREP_DEBUG("parallel slave retry, after trx start");
   }
-  wsrep_start_trx_if_not_started(thd);
-  WSREP_DEBUG("parallel slave retry, after trx start");
-
 #endif /* WITH_WSREP */
   strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
@@ -1057,14 +1066,15 @@ do_retry:
     /* The loop is here so we can try again the next relay log file on EOF. */
     for (;;)
     {
+      int error;
       old_offset= cur_offset;
-      ev= Log_event::read_log_event(&rlog, description_event,
+      ev= Log_event::read_log_event(&rlog, &error, description_event,
                                     opt_slave_sql_verify_checksum);
       cur_offset= my_b_tell(&rlog);
 
       if (ev)
         break;
-      if (unlikely(rlog.error < 0))
+      if (unlikely(error))
       {
         errmsg= "slave SQL thread aborted because of I/O error";
         err= 1;
@@ -1227,7 +1237,6 @@ handle_rpl_parallel_thread(void *arg)
 
   my_thread_init();
   thd = new THD(next_thread_id());
-  thd->thread_stack = (char*)&thd;
   server_threads.insert(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
@@ -1496,11 +1505,23 @@ handle_rpl_parallel_thread(void *arg)
           after mark_start_commit(), we have to unmark, which has at least a
           theoretical possibility of leaving a window where it looks like all
           transactions in a GCO have started committing, while in fact one
-          will need to rollback and retry. This is not supposed to be possible
-          (since there is a deadlock, at least one transaction should be
-          blocked from reaching commit), but this seems a fragile ensurance,
-          and there were historically a number of subtle bugs in this area.
+          will need to rollback and retry.
+
+          Normally this will not happen, since the kill is there to resolve a
+          deadlock that is preventing at least one transaction from proceeding.
+          One case it can happen is with InnoDB dict stats update, which can
+          temporarily cause transactions to block each other, but locks are
+          released immediately, they don't linger until commit. There could be
+          other similar cases, there were historically a number of subtle bugs
+          in this area.
+
+          But once we start the commit, we can expect that no new lock
+          conflicts will be introduced. So by handling any lingering deadlock
+          kill at this point just before mark_start_commit(), we should be
+          robust even towards spurious deadlock kills.
         */
+        if (rgi->killed_for_retry != rpl_group_info::RETRY_KILL_NONE)
+          wait_for_pending_deadlock_kill(thd, rgi);
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
@@ -1575,9 +1596,7 @@ handle_rpl_parallel_thread(void *arg)
       else
       {
         delete qev->ev;
-        thd->get_stmt_da()->set_overwrite_status(true);
         err= thd->wait_for_prior_commit();
-        thd->get_stmt_da()->set_overwrite_status(false);
       }
 
       end_of_group=

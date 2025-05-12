@@ -2,6 +2,16 @@ if (!$AUTH_ED25519_SO) {
   skip No auth_ed25519 plugin;
 }
 
+if (!$CLIENT_ED25519_SO) {
+  skip No client_ed25519 plugin;
+}
+--error ER_CANT_OPEN_LIBRARY,ER_CANT_FIND_DL_ENTRY
+install soname 'client_ed25519';
+if ($errno == 1126) {
+  # this happens in bintars when C/C is linked with gnutls
+  skip client_ed25519 contains unresolved symbols;
+}
+
 source include/master-slave.inc;
 
 sync_slave_with_master;

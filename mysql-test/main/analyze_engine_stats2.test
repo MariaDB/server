@@ -18,15 +18,18 @@ create table t1 (
   primary key(a,b,c,d)
 ) engine=innodb;
 
+SET unique_checks=0, foreign_key_checks= 0;
+begin;
+
 # The data size is 160K * 1K = 160M 
 #  16M / (page_size=16K) = 1K pages.
-SET STATEMENT unique_checks=0,foreign_key_checks=0 FOR
 insert into t1 select
   repeat(uuid(), 7), 
   repeat(uuid(), 7), 
   repeat(uuid(), 7), 
   repeat(uuid(), 7)
 from seq_1_to_16384;
+commit;
 
 SET GLOBAL innodb_fast_shutdown=0;
 source include/restart_mysqld.inc;
@@ -36,10 +39,6 @@ set long_query_time=0.0;
 let $analyze_output= `analyze format=json
 select * from t1 force index (PRIMARY) order by a desc, b desc, c desc, d desc`;
 evalp set @js='$analyze_output';
-
-# Print it out for user-friendlines
---replace_regex /("(r_[a-z_]*_time_ms|pages[^"]*)": )[^, \n]*/\1"REPLACED"/
-select @js;
 
 set @pages_read_time_ms=
   (select json_value(@js,'$.query_block.nested_loop[0].table.r_engine_stats.pages_read_time_ms'));

@@ -95,11 +95,11 @@ SELECT @@default_storage_engine;
 @@default_storage_engine
 MEMORY
 SELECT local.default_storage_engine;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.default_storage_engine;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT default_storage_engine = @@session.default_storage_engine;
-ERROR 42S22: Unknown column 'default_storage_engine' in 'field list'
+ERROR 42S22: Unknown column 'default_storage_engine' in 'SELECT'
 SET @@default_storage_engine = @start_global_value;
 SET @@global.default_storage_engine = @start_global_value;
 SET @@session.default_storage_engine = @start_session_value;

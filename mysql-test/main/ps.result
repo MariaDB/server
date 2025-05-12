@@ -1735,15 +1735,15 @@ create table t1 (id int primary key auto_increment, value varchar(10));
 insert into t1 (id, value) values (1, 'FIRST'), (2, 'SECOND'), (3, 'THIRD');
 prepare stmt from "insert into t1 (id, value) select * from (select 4 as i, 'FOURTH' as v) as y on duplicate key update v = 'DUP'";
 execute stmt;
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'UPDATE'
 execute stmt;
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'UPDATE'
 deallocate prepare stmt;
 prepare stmt from "insert into t1 (id, value) select * from (select 4 as id, 'FOURTH' as value) as y on duplicate key update y.value = 'DUP'";
 execute stmt;
-ERROR 42S22: Unknown column 'y.value' in 'field list'
+ERROR 42S22: Unknown column 'y.value' in 'UPDATE'
 execute stmt;
-ERROR 42S22: Unknown column 'y.value' in 'field list'
+ERROR 42S22: Unknown column 'y.value' in 'UPDATE'
 deallocate prepare stmt;
 drop tables t1;
 prepare stmt from "create table t1 select ?";
@@ -4931,9 +4931,9 @@ ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
 PREPARE stmt FROM (SELECT 'SELECT 1');
 ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
 EXECUTE IMMEDIATE a;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'EXECUTE IMMEDIATE'
 PREPARE stmt FROM a;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'PREPARE..FROM'
 EXECUTE IMMEDIATE NULL;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
 PREPARE stmt FROM NULL;
@@ -4953,9 +4953,9 @@ ERROR 21000: Operand should contain 1 column(s)
 EXECUTE IMMEDIATE MAX('SELECT 1 AS c');
 ERROR HY000: Invalid use of group function
 EXECUTE IMMEDIATE DEFAULT(a);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'EXECUTE IMMEDIATE'
 EXECUTE IMMEDIATE VALUE(a);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'EXECUTE IMMEDIATE'
 CREATE FUNCTION f1() RETURNS VARCHAR(64) RETURN 't1';
 EXECUTE IMMEDIATE f1();
 ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions

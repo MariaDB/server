@@ -19,7 +19,10 @@ SELECT JsonValue(9223372036854775807);
 SELECT JsonValue(NULL);
 SELECT JsonValue(TRUE);
 SELECT JsonValue(FALSE);
+#Check after fix MDEV-31587
+--disable_cursor_protocol
 SELECT JsonValue();
+--enable_cursor_protocol
 SELECT JsonValue('[11, 22, 33]' json_) FROM t1;
 #
 SELECT Json_Make_Array();
@@ -60,7 +63,10 @@ SELECT Json_Make_Object(56, 3.1416, 'foo', NULL);
 SELECT Json_Make_Object(56 qty, 3.1416 price, 'foo' truc, NULL garanty);
 SELECT Json_Make_Object();
 SELECT Json_Make_Object(Json_Make_Array(56, 3.1416, 'foo'), NULL);
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT Json_Make_Array(Json_Make_Object(56 "qty", 3.1416 "price", 'foo') ,NULL);
+--enable_cursor_protocol
 SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL);
 --error ER_CANT_INITIALIZE_UDF
 SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty');

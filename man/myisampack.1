@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMYISAMPACK\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMYISAMPACK\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -34,11 +34,11 @@ packs the data file 40%\(en70%\&.
 .PP
 When the table is used later, the server reads into memory the information needed to decompress columns\&. This results in much better performance when accessing individual rows, because you only have to uncompress exactly one row\&.
 .PP
-MySQL uses
+MariaDB uses
 mmap()
 when possible to perform memory mapping on compressed tables\&. If
 mmap()
-does not work, MySQL falls back to normal read/write file operations\&.
+does not work, MariaDB falls back to normal read/write file operations\&.
 .PP
 Please note the following:
 .sp
@@ -51,7 +51,7 @@ Please note the following:
 .IP \(bu 2.3
 .\}
 If the
-\fBmysqld\fR
+\fBmariadbd\fR
 server was invoked with external locking disabled, it is not a good idea to invoke
 \fBmyisampack\fR
 if the table might be updated by the server during the packing process\&. It is safest to compress tables with the server stopped\&.
@@ -320,7 +320,7 @@ Display version information and exit\&.
 \fB\-w\fR
 .sp
 Wait and retry if the table is in use\&. If the
-\fBmysqld\fR
+\fBmariadbd\fR
 server was invoked with external locking disabled, it is not a good idea to invoke
 \fBmyisampack\fR
 if the table might be updated by the server during the packing process\&.
@@ -798,7 +798,7 @@ The number of bits used in the Huffman tree\&.
 After you run
 \fBmyisampack\fR, you must run
 \fBmyisamchk\fR
-to re\-create any indexes\&. At this time, you can also sort the index blocks and create statistics needed for the MySQL optimizer to work more efficiently:
+to re\-create any indexes\&. At this time, you can also sort the index blocks and create statistics needed for the MariaDB optimizer to work more efficiently:
 .sp
 .if n \{\
 .RS 4
@@ -810,10 +810,10 @@ shell> \fBmyisamchk \-rq \-\-sort\-index \-\-analyze \fR\fB\fItbl_name\fR\fR\fB\
 .RE
 .\}
 .PP
-After you have installed the packed table into the MySQL database directory, you should execute
-\fBmysqladmin flush\-tables\fR
+After you have installed the packed table into the MariaDB database directory, you should execute
+\fBmariadb-admin flush\-tables\fR
 to force
-\fBmysqld\fR
+\fBmariadbd\fR
 to start using the new table\&.
 .PP
 To unpack a packed table, use the
@@ -823,7 +823,7 @@ option to
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

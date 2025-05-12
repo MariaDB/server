@@ -4304,6 +4304,197 @@ DROP TABLE t1,t2;
 
 --echo # End of 10.4 tests
 
+--echo # MDEV-34506 2nd execution name resolution problem with pushdown into
+--echo #   unions
+--echo #
+--echo #  Statements affected by this bug need all the following to be true
+--echo #  1) a derived table table or view whose specification contains a set
+--echo #       operation at the top level.
+--echo #  2) a grouping operator (group by/having) operating on a column alias
+--echo #       other than in the first select of the union/intersect
+--echo #  3) an outer condition that will be pushed into all selects in this
+--echo #      union/intersect, either into the where or having clause
+--echo #
+--echo #  When pushing a condition into all selects of a unit with more than one
+--echo #  select, pushdown_cond_for_derived() renames items so we can re-use the
+--echo #  condition being pushed.
+--echo #  These names need to be saved and reset for correct name resolution on
+--echo #  second execution of prepared statements.
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(1,2,2),(4,5,6);
+insert into t1 values (17,8,9),(11,11,12);
+create table t2 (c4 int, c5 int, c6 int);
+insert into t2 values (7,8,9),(10,11,12);
+let $q=select * from
+  (
+    select c1,  sum(c3) as s from t1 group by c1
+    union
+    select c4 as c, sum(c6) as u from t2 group by c
+  ) dt
+  where c1 > 6;
+eval prepare stmt from '$q';
+execute stmt;
+execute stmt;
+
+eval prepare stmt from 'explain format=json $q';
+--source include/analyze-format.inc
+execute stmt;
+--source include/analyze-format.inc
+execute stmt;
+
+let $q=select * from
+  (
+    select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+    union
+    select c4, c5, sum(c6) as u from t2 group by c4, c5 having u > 3
+  ) dt
+  where c2 > 5;
+
+eval prepare stmt from '$q';
+execute stmt;
+execute stmt;
+
+eval prepare stmt from 'explain format=json $q';
+--source include/analyze-format.inc
+execute stmt;
+--source include/analyze-format.inc
+execute stmt;
+
+let $q=select *
+  from
+  (
+    select c1, c2, max(c3) as max_c, avg(c3) as avg_c
+      from t1
+      group by c1,c2
+      having max_c < 7
+    union
+    select c4, c5, max(c6) as u, avg(c6) as w
+      from t2
+      group by c4, c5
+      having u < 10
+  ) dt,
+  t2
+  where dt.max_c > 6 and t2.c6 > dt.c1;
+
+eval prepare stmt from '$q';
+execute stmt;
+execute stmt;
+
+eval prepare stmt from 'explain format=json $q';
+--source include/analyze-format.inc
+execute stmt;
+--source include/analyze-format.inc
+execute stmt;
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-35276: Assertion failure in find_producing_item upon a query
+--echo # from a view
+--echo #
+--echo # Note: for all followng queries with DEFAULT(f) hishdown is
+--echo # prohibited
+
+CREATE VIEW v AS select 0 AS f;
+
+SELECT * FROM v WHERE f = DEFAULT(f);
+
+CREATE TABLE t1 (c int DEFAULT 0);
+insert into t1 values (0), (1);
+
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+
+ALTER TABLE t1 ALTER c SET DEFAULT 1;
+
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+
+drop table t1;
+create table t1 (a int, c int DEFAULT a);
+insert into t1 values (0, -1), (1, -2);
+
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+
+DROP VIEW v;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-32395: update_depend_map_for_order: SEGV at
+--echo #             /mariadb-11.3.0/sql/sql_select.cc:16583
+--echo #
+
+create table t1 (c1 int);
+insert into t1 values (1), (2);
+create table t2 (c2 int);
+insert into t2 values (1), (2);
+create table t3 (c3 int);
+insert into t3 values (1), (2);
+
+set statement optimizer_switch='condition_pushdown_for_derived=off,condition_pushdown_for_subquery=off,condition_pushdown_from_having=off' for
+select t1.c1 as a from t2, t1 where t1.c1=t2.c2
+  order by (select c3 from t3 group by a having a=2);
+drop table t1, t2, t3;
+
+--echo # Test case 2
+
+CREATE TABLE t1 ( x BOOLEAN NOT NULL );
+INSERT INTO t1 ( x ) VALUES ( 1 ) ;
+UPDATE t1 SET x = 1 WHERE x = 1 ;
+INSERT INTO t1 ( x ) VALUES ( 1 ) , ( x IN ( SELECT x FROM ( SELECT ( SELECT EXISTS ( SELECT * FROM ( SELECT DISTINCT ( - CASE WHEN x = 1 THEN 1 ELSE x + 1 END >= x IS NOT NULL = 1 AND x = 1 ) OR x = x OR x = 'x' FROM t1 AS x GROUP BY x ) AS x WHERE 1 / x GROUP BY x HAVING ( 1 = 1 AND x = 1 ) ) FROM t1 GROUP BY EXISTS ( SELECT 1 ) ) FROM t1 UNION SELECT x FROM t1 ) AS x ) ) ;
+DROP TABLE t1;
+
+--echo # Test case 3
+
+CREATE TABLE t0 ( c6 INT , c21 INT ) ;
+INSERT INTO t0 VALUES ( 55 , -95 ) , ( 9 , 90 ) ;
+ALTER TABLE t0 ADD COLUMN c37 INT AFTER c6 ;
+INSERT INTO t0 VALUES ( ) , ( ) ;
+SELECT t0 . c6 AS c42 FROM ( SELECT t0 . c6 = TRIM( TRAILING FROM 96 ) SOUNDS LIKE CONVERT ( t0 . c6 , UNSIGNED ) >> PI ( ) AS c49 FROM t0 ) AS t1 JOIN t0 ON RTRIM ( - RAND ( -66 ) BETWEEN FIND_IN_SET ( 20 , UNHEX ( -80 ) IS NULL OR IF ( 85 , -83 , -113 ) ) AND -125 ) / EXP ( c21 ) = t1 . c49 ORDER BY c42 , ( c42 + ( SELECT c21 AS c61 FROM t0 WHERE t0 . c37 >= -19.601384 = RAND ( ) / TRIM( t0 . c21 FROM 'C@rG3D(#9*17(a.,rV' ) = -106 GROUP BY c21 , c42 HAVING c42 = -73 LIMIT 1 ) ) ;
+drop table t0;
+
+--echo #
+--echo # MDEV-32329 pushdown from having into where: Server crashes at sub_select
+--echo #
+
+WITH RECURSIVE cte AS ( SELECT 1 as x UNION SELECT x FROM cte)
+  SELECT ( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+  FROM cte
+  GROUP BY 1 ;
+
+--echo # Test case 2
+
+WITH
+   cte1 AS ( SELECT 1 as x UNION SELECT 1),
+   cte2 AS ( SELECT 1 as x UNION SELECT 1)
+SELECT
+  ( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+FROM cte2
+  GROUP BY 1 ;
+
+create table t1 (f int);
+create view v1 as select f, count(*) c from t1 group by f;
+
+--echo #
+--echo # MDEV-25012 Server crash in find_field_in_tables, Assertion `name' failed in find_field_in_table_ref
+--echo #
+select * from v1 where export_set(1, default(f), 'x', aes_decrypt('secret', f));
+show warnings;
+# cleanup
+drop view v1;
+drop table t1;
+
+create table t(c3 longtext) ;
+with cte1 as
+(
+  select default(c3) as a
+  from t group by 1
+)
+select * from cte1
+where cte1.a >= 1;
+drop table t;
+
+--echo # End of 10.5 tests
+
 --echo #
 --echo # MDEV-28958: condition pushable into view after simplification
 --echo #             contains constant TRUE/FALSE as subformula

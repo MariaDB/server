@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-IMPORT\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-IMPORT\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,44 +11,44 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqlimport
+.\" mariadb-import
 .\" importing: data
 .\" data: importing
 .\" files: text
 .\" text files: importing
 .SH "NAME"
-mariadb-import \- a data import program (mysqlimport is now a symlink to mariadb-import)
+mariadb-import \- a data import program (mariadb-import is now a symlink to mariadb-import)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqlimport\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\fB\ \fR\fB\fItextfile1\fR\fR\fB\ \&.\&.\&.\fR\ 'u
-\fBmysqlimport [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB \fR\fB\fItextfile1\fR\fR\fB \&.\&.\&.\fR
+.HP \w'\fBmariadb-import\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\fB\ \fR\fB\fItextfile1\fR\fR\fB\ \&.\&.\&.\fR\ 'u
+\fBmariadb-import [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB \fR\fB\fItextfile1\fR\fR\fB \&.\&.\&.\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 client provides a command\-line interface to the
 LOAD DATA INFILE
 SQL statement\&. Most options to
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 correspond directly to clauses of
 LOAD DATA INFILE
 syntax\&.
 .PP
 Invoke
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlimport [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB \fR\fB\fItextfile1\fR\fR\fB [\fR\fB\fItextfile2\fR\fR\fB \&.\&.\&.]\fR
+shell> \fBmariadb-import [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB \fR\fB\fItextfile1\fR\fR\fB [\fR\fB\fItextfile2\fR\fR\fB \&.\&.\&.]\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 For each text file named on the command line,
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 strips any extension from the file name and uses the result to determine the name of the table into which to import the file's contents\&. For example, files named
 patient\&.txt,
 patient\&.text, and
@@ -57,13 +57,13 @@ all would be imported into a table named
 patient\&.
 .PP
 .PP
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 supports the following options, which can be specified on the command line or in the
-[mysqlimport]
+[mariadb-import]
 and
 [client]
 option file groups\&.
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 also supports the options for processing option files\&.
 .sp
 .RS 4
@@ -74,8 +74,8 @@ also supports the options for processing option files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: help option
-.\" help option: mysqlimport
+.\" mariadb-import: help option
+.\" help option: mariadb-import
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -90,8 +90,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: character-sets-dir option
-.\" character-sets-dir option: mysqlimport
+.\" mariadb-import: character-sets-dir option
+.\" character-sets-dir option: mariadb-import
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -105,8 +105,8 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: columns option
-.\" columns option: mysqlimport
+.\" mariadb-import: columns option
+.\" columns option: mariadb-import
 \fB\-\-columns=\fR\fB\fIcolumn_list\fR\fR,
 \fB\-c \fR\fB\fIcolumn_list\fR\fR
 .sp
@@ -121,8 +121,8 @@ This option takes a comma\-separated list of column names as its value\&. The or
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: compress option
-.\" compress option: mysqlimport
+.\" mariadb-import: compress option
+.\" compress option: mariadb-import
 \fB\-\-compress\fR,
 \fB\-C\fR
 .sp
@@ -137,8 +137,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: debug option
-.\" debug option: mysqlimport
+.\" mariadb-import: debug option
+.\" debug option: mariadb-import
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
@@ -155,8 +155,8 @@ string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o'.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: debug-check option
-.\" debug-check option: mysqlimport
+.\" mariadb-import: debug-check option
+.\" debug-check option: mariadb-import
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -170,8 +170,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: debug-info option
-.\" debug-info option: mysqlimport
+.\" mariadb-import: debug-info option
+.\" debug-info option: mariadb-import
 \fB\-\-debug\-info\fR
 .sp
 Print debugging information and memory and CPU usage statistics when the program exits\&.
@@ -185,8 +185,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: default-auth option
-.\" default-auth option: mysqlimport
+.\" mariadb-import: default-auth option
+.\" default-auth option: mariadb-import
 \fB\-\-default\-auth=\fIplugin_name\fR
 .sp
 Default authentication client-side plugin to use\&.
@@ -200,8 +200,8 @@ Default authentication client-side plugin to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: default-character-set option
-.\" default-character-set option: mysqlimport
+.\" mariadb-import: default-character-set option
+.\" default-character-set option: mariadb-import
 \fB\-\-default\-character\-set=\fR\fB\fIcharset_name\fR\fR
 .sp
 Use
@@ -217,8 +217,8 @@ as the default character set\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: defaults-extra-file option
-.\" defaults-extra-file option: mysqlimport
+.\" mariadb-import: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-import
 \fB\-\-defaults\-extra\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been
@@ -233,8 +233,8 @@ read\&.  Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: defaults-file option
-.\" defaults-file option: mysqlimport
+.\" mariadb-import: defaults-file option
+.\" defaults-file option: mariadb-import
 \fB\-\-defaults\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&.
@@ -249,8 +249,8 @@ Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: delete option
-.\" delete option: mysqlimport
+.\" mariadb-import: delete option
+.\" delete option: mariadb-import
 \fB\-\-delete\fR,
 \fB\-d\fR
 .sp
@@ -265,17 +265,17 @@ Empty the table before importing the text file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: fields-terminated-by option
-.\" fields-terminated-by option: mysqlimport
+.\" mariadb-import: fields-terminated-by option
+.\" fields-terminated-by option: mariadb-import
 \fB\-\-fields\-terminated\-by=\&.\&.\&.\fR,
-.\" mysqlimport: fields-enclosed-by option
-.\" fields-enclosed-by option: mysqlimport
+.\" mariadb-import: fields-enclosed-by option
+.\" fields-enclosed-by option: mariadb-import
 \fB\-\-fields\-enclosed\-by=\&.\&.\&.\fR,
-.\" mysqlimport: fields-optionally-enclosed-by option
-.\" fields-optionally-enclosed-by option: mysqlimport
+.\" mariadb-import: fields-optionally-enclosed-by option
+.\" fields-optionally-enclosed-by option: mariadb-import
 \fB\-\-fields\-optionally\-enclosed\-by=\&.\&.\&.\fR,
-.\" mysqlimport: fields-escaped-by option
-.\" fields-escaped-by option: mysqlimport
+.\" mariadb-import: fields-escaped-by option
+.\" fields-escaped-by option: mariadb-import
 \fB\-\-fields\-escaped\-by=\&.\&.\&.\fR
 .sp
 These options have the same meaning as the corresponding clauses for
@@ -290,14 +290,14 @@ LOAD DATA INFILE\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: force option
-.\" force option: mysqlimport
+.\" mariadb-import: force option
+.\" force option: mariadb-import
 \fB\-\-force\fR,
 \fB\-f\fR
 .sp
 Ignore errors\&. For example, if a table for a text file does not exist, continue processing any remaining files\&. Without
 \fB\-\-force\fR,
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 exits if a table does not exist\&.
 .RE
 .sp
@@ -309,8 +309,8 @@ exits if a table does not exist\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: host option
-.\" host option: mysqlimport
+.\" mariadb-import: host option
+.\" host option: mariadb-import
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -326,8 +326,8 @@ localhost\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: ignore option
-.\" ignore option: mysqlimport
+.\" mariadb-import: ignore option
+.\" ignore option: mariadb-import
 \fB\-\-ignore\fR,
 \fB\-i\fR
 .sp
@@ -344,8 +344,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: ignore-foreign-keys option
-.\" ignore-foreign-keys option: mysqlimport
+.\" mariadb-import: ignore-foreign-keys option
+.\" ignore-foreign-keys option: mariadb-import
 \fB\-\-ignore\-foreign\-keys\fR,
 \fB\-k\fR
 .sp
@@ -360,8 +360,8 @@ Disable foreign key checks while importing the data\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: ignore-lines option
-.\" ignore-lines option: mysqlimport
+.\" mariadb-import: ignore-lines option
+.\" ignore-lines option: mariadb-import
 \fB\-\-ignore\-lines=\fR\fB\fIN\fR\fR
 .sp
 Ignore the first
@@ -377,8 +377,8 @@ lines of the data file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: lines-terminated-by option
-.\" lines-terminated-by option: mysqlimport
+.\" mariadb-import: lines-terminated-by option
+.\" lines-terminated-by option: mariadb-import
 \fB\-\-lines\-terminated\-by=\&.\&.\&.\fR
 .sp
 This option has the same meaning as the corresponding clause for
@@ -394,8 +394,8 @@ LOAD DATA INFILE\&. For example, to import Windows files that have lines termina
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: local option
-.\" local option: mysqlimport
+.\" mariadb-import: local option
+.\" local option: mariadb-import
 \fB\-\-local\fR,
 \fB\-L\fR
 .sp
@@ -410,8 +410,8 @@ Read input files locally from the client host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: lock-tables option
-.\" lock-tables option: mysqlimport
+.\" mariadb-import: lock-tables option
+.\" lock-tables option: mariadb-import
 \fB\-\-lock\-tables\fR,
 \fB\-l\fR
 .sp
@@ -428,8 +428,8 @@ tables for writing before processing any text files\&. This ensures that all tab
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: low-priority option
-.\" low-priority option: mysqlimport
+.\" mariadb-import: low-priority option
+.\" low-priority option: mariadb-import
 \fB\-\-low\-priority\fR
 .sp
 Use
@@ -448,8 +448,8 @@ MERGE)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: no-defaults option
-.\" no-defaults option: mysqlimport
+.\" mariadb-import: no-defaults option
+.\" no-defaults option: mariadb-import
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option file\&. This must be given as the
@@ -464,8 +464,24 @@ first argument\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: password option
-.\" password option: mysqlimport
+.\" mariadb-import: parallel option
+.\" paralle option: mariadb-import
+\fB\-\-parallel=\fR\fB\fIN\fR\fR,
+\fB\-j \fR\fB\fIN\fR\fR\fR
+.sp
+Number of LOAD DATA jobs executed in parallel. \-\-use-threads is a synonym\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-import: password option
+.\" password option: mariadb-import
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -478,7 +494,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqlimport\fR
+\fBmariadb-import\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
@@ -492,8 +508,8 @@ Specifying a password on the command line should be considered insecure\&. You c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: pipe option
-.\" pipe option: mysqlimport
+.\" mariadb-import: pipe option
+.\" pipe option: mariadb-import
 \fB\-\-pipe\fR,
 \fB\-W\fR
 .sp
@@ -508,8 +524,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: plugin-dir option
-.\" plugin-dir option: mysqlimport
+.\" mariadb-import: plugin-dir option
+.\" plugin-dir option: mariadb-import
 \fB\-\-plugin\-dir=\fR\fB\fIname\fR\fR
 .sp
  Directory for client-side plugins\&.
@@ -523,8 +539,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: port option
-.\" port option: mysqlimport
+.\" mariadb-import: port option
+.\" port option: mariadb-import
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -540,8 +556,8 @@ Forces --protocol=tcp when specified on the command line without other connectio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: protocol option
-.\" protocol option: mysqlimport
+.\" mariadb-import: protocol option
+.\" protocol option: mariadb-import
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -555,8 +571,8 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: print-defaults option
-.\" print-defaults option: mysqlimport
+.\" mariadb-import: print-defaults option
+.\" print-defaults option: mariadb-import
 \fB\-\-print\-defaults\fR
 .sp
 Print the program argument list and exit\&.
@@ -571,8 +587,8 @@ This must be given as the first argument\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: replace option
-.\" replace option: mysqlimport
+.\" mariadb-import: replace option
+.\" replace option: mariadb-import
 \fB\-\-replace\fR,
 \fB\-r\fR
 .sp
@@ -593,8 +609,8 @@ options control handling of input rows that duplicate existing rows on unique ke
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: silent option
-.\" silent option: mysqlimport
+.\" mariadb-import: silent option
+.\" silent option: mariadb-import
 \fB\-\-silent\fR,
 \fB\-s\fR
 .sp
@@ -609,8 +625,8 @@ Silent mode\&. Produce output only when errors occur\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: socket option
-.\" socket option: mysqlimport
+.\" mariadb-import: socket option
+.\" socket option: mariadb-import
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -627,8 +643,8 @@ Forces --protocol=socket when specified on the command line without other connec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL options
-.\" SSL options: mysqladmin
+.\" mariadb-import: SSL options
+.\" SSL options: mariadb-import
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with
@@ -643,8 +659,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL CA option
-.\" SSL CA option: mysqladmin
+.\" mariadb-import: SSL CA option
+.\" SSL CA option: mariadb-import
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -659,8 +675,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL CA Path option
-.\" SSL CA Path option: mysqladmin
+.\" mariadb-import: SSL CA Path option
+.\" SSL CA Path option: mariadb-import
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -675,8 +691,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Cert option
-.\" SSL Cert option: mysqladmin
+.\" mariadb-import: SSL Cert option
+.\" SSL Cert option: mariadb-import
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -691,8 +707,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Cipher option
-.\" SSL Cipher option: mysqladmin
+.\" mariadb-import: SSL Cipher option
+.\" SSL Cipher option: mariadb-import
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -707,8 +723,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Key option
-.\" SSL Key option: mysqladmin
+.\" mariadb-import: SSL Key option
+.\" SSL Key option: mariadb-import
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -723,8 +739,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Crl option
-.\" SSL CRL option: mysqladmin
+.\" mariadb-import: SSL Crl option
+.\" SSL CRL option: mariadb-import
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -739,8 +755,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Crlpath option
-.\" SSL Crlpath option: mysqladmin
+.\" mariadb-import: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-import
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -755,8 +771,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysqladmin
+.\" mariadb-import: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-import
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -770,8 +786,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: user option
-.\" user option: mysqlimport
+.\" mariadb-import: user option
+.\" user option: mariadb-import
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -786,13 +802,13 @@ The MariaDB user name to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: use-threads option
-.\" use-threads option: mysqlimport
+.\" mariadb-import: use-threads option
+.\" use-threads option: mariadb-import
 \fB\-\-use\-threads=\fR\fB\fIN\fR\fR
 .sp
 Load files in parallel using
 \fIN\fR
-threads\&.
+threads\&. Synonym for \-j, \-\-parallel=num
 .RE
 .sp
 .RS 4
@@ -803,8 +819,8 @@ threads\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: verbose option
-.\" verbose option: mysqlimport
+.\" mariadb-import: verbose option
+.\" verbose option: mariadb-import
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -819,8 +835,8 @@ Verbose mode\&. Print more information about what the program does\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlimport: version option
-.\" version option: mysqlimport
+.\" mariadb-import: version option
+.\" version option: mariadb-import
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -828,13 +844,13 @@ Display version information and exit\&.
 .RE
 .PP
 Here is a sample session that demonstrates use of
-\fBmysqlimport\fR:
+\fBmariadb-import\fR:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-e 'CREATE TABLE imptest(id INT, n VARCHAR(30))' test\fR
+shell> \fBmariadb \-e 'CREATE TABLE imptest(id INT, n VARCHAR(30))' test\fR
 shell> \fBed\fR
 a
 100     Max Sydow
@@ -847,9 +863,9 @@ shell> \fBod \-c imptest\&.txt\fR
 0000000   1   0   0  \et   M   a   x       S   y   d   o   w  \en   1   0
 0000020   1  \et   C   o   u   n   t       D   r   a   c   u   l   a  \en
 0000040
-shell> \fBmysqlimport \-\-local test imptest\&.txt\fR
+shell> \fBmariadb-import \-\-local test imptest\&.txt\fR
 test\&.imptest: Records: 2  Deleted: 0  Skipped: 0  Warnings: 0
-shell> \fBmysql \-e 'SELECT * FROM imptest' test\fR
+shell> \fBmariadb \-e 'SELECT * FROM imptest' test\fR
 +\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+
 | id   | n             |
 +\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+
@@ -863,7 +879,7 @@ shell> \fBmysql \-e 'SELECT * FROM imptest' test\fR
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

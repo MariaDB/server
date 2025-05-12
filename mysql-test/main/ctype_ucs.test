@@ -75,11 +75,13 @@ DROP TABLE t1;
 
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
+--disable_cursor_protocol
 --enable_prepare_warnings
 --disable_ps2_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
 --disable_prepare_warnings
 --enable_ps2_protocol
+--enable_cursor_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -92,9 +94,11 @@ remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
 --disable_ps2_protocol
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
+--disable_cursor_protocol
 --enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
 --disable_prepare_warnings
+--enable_cursor_protocol
 --enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
@@ -613,6 +617,7 @@ deallocate prepare stmt;
 #
 # Bug#22638 SOUNDEX broken for international characters
 #
+--disable_service_connection
 set names latin1;
 set character_set_connection=ucs2;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
@@ -623,6 +628,7 @@ select hex(soundex(_ucs2 0x041004110412));
 # Make sure that "U+00BF INVERTED QUESTION MARK" is not considered as letter
 select hex(soundex(_ucs2 0x00BF00C0));
 set names latin1;
+--enable_service_connection
 
 #
 # Bug #14290: character_maximum_length for text fields
@@ -794,10 +800,12 @@ DROP TABLE t1;
 --echo # Start of 5.5 tests
 --echo #
 
+--disable_service_connection
 SET NAMES latin1;
 SET collation_connection=ucs2_general_ci;
 --source include/ctype_numconv.inc
 SET NAMES latin1;
+--enable_service_connection
 
 --echo #
 --echo # Bug #13832953 	MY_STRNXFRM_UNICODE: ASSERTION `SRC' FAILED
@@ -1035,8 +1043,10 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED)
 --echo #
+--disable_service_connection
 SET NAMES utf8;
 SELECT CAST(CONVERT('1Ĳ3' USING ucs2) AS SIGNED);
+--enable_service_connection
 
 --echo #
 --echo # End of 10.1 tests
@@ -1070,6 +1080,7 @@ EXECUTE IMMEDIATE @stmt;
 --echo #
 --echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 --echo #
+--disable_service_connection
 SET NAMES utf8, collation_connection=ucs2_bin;
 SET @stmt='SELECT COLLATION(''a'')';
 EXECUTE IMMEDIATE @stmt;
@@ -1097,6 +1108,7 @@ EXECUTE IMMEDIATE @stmt;
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests
@@ -1209,7 +1221,49 @@ DROP VIEW v1;
 DROP TABLE t1;
 SET NAMES utf8mb3;
 
+--echo #
+--echo # MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+--echo #
+
+CREATE TABLE t1 (c TEXT CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+--echo #
+
+SELECT CAST(CONVERT('-9223372036854775808' USING ucs2) AS SIGNED) AS c1;
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_ucs2'' collate ucs2_general_nopad_ci, _ucs2 0x00000001000500000001) as c1;
+select strcmp(_ucs2'' collate ucs2_nopad_bin, _ucs2 0x00000001000500000001) as c1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-23895 Server crash, ASAN heap-buffer-overflow or Valgrind Invalid write in Item_func_rpad::val_str
+--echo #
+
+CREATE TABLE t1 (a CHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SET collation_connection= ucs2_danish_ci;
+SET last_insert_id=0;
+SELECT * FROM t1 WHERE RPAD(a, 50, LAST_INSERT_ID());
+DROP TABLE t1;
+SET names latin1;
+
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

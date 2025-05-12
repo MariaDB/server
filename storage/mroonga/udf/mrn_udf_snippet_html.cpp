@@ -17,6 +17,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
 #include <mrn_err.h>
@@ -193,6 +194,14 @@ MRN_API my_bool mroonga_snippet_html_init(UDF_INIT *init,
   mrn_snippet_html_info *info = NULL;
 
   init->ptr = NULL;
+
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "mroonga_snippet_html(): Mroonga isn't initialized");
+    goto error;
+  }
 
   if (args->arg_count < 1) {
     snprintf(message, MYSQL_ERRMSG_SIZE,

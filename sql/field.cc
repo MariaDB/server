@@ -1411,7 +1411,8 @@ int Field::store_hex_hybrid(const char *str, size_t length)
     goto warn;
   }
   nr= (ulonglong) longlong_from_hex_hybrid(str, length);
-  if ((length == 8) && !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
+  if ((length == 8) && cmp_type()== INT_RESULT &&
+      !(flags & UNSIGNED_FLAG) && (nr > LONGLONG_MAX))
   {
     nr= LONGLONG_MAX;
     goto warn;
@@ -2717,9 +2718,9 @@ void Field_null::sql_type(String &res) const
 bool Field_null::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
-  return new_field.type_handler() == type_handler() &&
-         new_field.charset == field_charset() &&
-         new_field.length == max_display_length();
+  return (new_field.type_handler() == type_handler() &&
+          new_field.charset->eq_collation(field_charset()) &&
+          new_field.length == max_display_length());
 }
 
 
@@ -7489,10 +7490,10 @@ int Field_str::store(double nr)
 bool Field_string::is_equal(const Column_definition &new_field) const
 {
   DBUG_ASSERT(!compression_method());
-  return new_field.type_handler() == type_handler() &&
-         new_field.char_length == char_length() &&
-         new_field.charset == field_charset() &&
-         new_field.length == max_display_length();
+  return (new_field.type_handler() == type_handler() &&
+          new_field.char_length == char_length() &&
+          new_field.charset->eq_collation(field_charset()) &&
+          new_field.length == max_display_length());
 }
 
 
@@ -7513,11 +7514,11 @@ Data_type_compatibility
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
 {
-  return !cmp_is_done_using_type_handler_of_this(cond, item) ?
-         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
-         charset() != cond->compare_collation() ?
-         Data_type_compatibility::INCOMPATIBLE_COLLATION :
-         Data_type_compatibility::OK;
+  return (!cmp_is_done_using_type_handler_of_this(cond, item) ?
+          Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
+          !charset()->eq_collation(cond->compare_collation()) ?
+          Data_type_compatibility::INCOMPATIBLE_COLLATION :
+          Data_type_compatibility::OK);
 }
 
 
@@ -7525,13 +7526,13 @@ Data_type_compatibility
 Field_longstr::cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                                      const Item *item) const
 {
-  return !cmp_is_done_using_type_handler_of_this(cond, item) ?
-         Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
-         (charset() != cond->compare_collation() &&
-          !(cond->compare_collation()->state & MY_CS_BINSORT) &&
-          !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
-         Data_type_compatibility::INCOMPATIBLE_COLLATION :
-         Data_type_compatibility::OK;
+  return (!cmp_is_done_using_type_handler_of_this(cond, item) ?
+          Data_type_compatibility::INCOMPATIBLE_DATA_TYPE :
+          (!charset()->eq_collation(cond->compare_collation()) &&
+           !(cond->compare_collation()->state & MY_CS_BINSORT) &&
+           !Utf8_narrow::should_do_narrowing(this, cond->compare_collation())) ?
+          Data_type_compatibility::INCOMPATIBLE_COLLATION :
+          Data_type_compatibility::OK);
 }
 
 
@@ -8442,11 +8443,11 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 bool Field_varstring::is_equal(const Column_definition &new_field) const
 {
-  return new_field.type_handler() == type_handler() &&
-         new_field.length == field_length &&
-         new_field.char_length == char_length() &&
-         !new_field.compression_method() == !compression_method() &&
-         new_field.charset == field_charset();
+  return (new_field.type_handler() == type_handler() &&
+          new_field.length == field_length &&
+          new_field.char_length == char_length() &&
+          !new_field.compression_method() == !compression_method() &&
+          new_field.charset->eq_collation(field_charset()));
 }
 
 
@@ -8713,7 +8714,7 @@ uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg) const
 */
 int Field_blob::copy_value(Field_blob *from)
 {
-  DBUG_ASSERT(field_charset() == from->charset());
+  DBUG_ASSERT(field_charset()->eq_collation(from->charset()));
   DBUG_ASSERT(!compression_method() == !from->compression_method());
   int rc= 0;
   uint32 length= from->get_length();
@@ -9018,6 +9019,24 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b) const
 }
 
 
+#ifndef DBUG_OFF
+/* helper to assert that new_table->blob_storage is NULL */
+static struct blob_storage_check
+{
+  union { bool b; intptr p; } val;
+  blob_storage_check() { val.p= -1; val.b= false; }
+} blob_storage_check;
+#endif
+Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
+{
+  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
+  if (newt->group_concat)
+    return new (root) Field_blob(field_length, maybe_null(), &field_name,
+                                 charset());
+  return Field::make_new_field(root, newt, keep_type);
+}
+
+
 Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                  uchar *new_ptr, uint32 length,
                                  uchar *new_null_ptr, uint new_null_bit)
@@ -9226,10 +9245,10 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 bool Field_blob::is_equal(const Column_definition &new_field) const
 {
-  return new_field.type_handler() == type_handler() &&
-         !new_field.compression_method() == !compression_method() &&
-         new_field.pack_length == pack_length() &&
-         new_field.charset == field_charset();
+  return (new_field.type_handler() == type_handler() &&
+          !new_field.compression_method() == !compression_method() &&
+          new_field.pack_length == pack_length() &&
+          new_field.charset->eq_collation(field_charset()));
 }
 
 
@@ -9606,8 +9625,7 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  val_buffer->set_charset(field_charset());
-  val_buffer->length(0);
+  val_buffer->copy("", 0, field_charset());
 
   while (tmp && bitnr < (uint) typelib->count)
   {
@@ -9728,7 +9746,7 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
     type, charset and have the same underlying length.
   */
   if (new_field.type_handler() != type_handler() ||
-      new_field.charset != field_charset() ||
+      !new_field.charset->eq_collation(field_charset()) ||
       new_field.pack_length != pack_length())
     return false;
 
@@ -9835,9 +9853,9 @@ Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
   case REAL_RESULT:
     return Data_type_compatibility::OK;
   case STRING_RESULT:
-    return charset() == cond->compare_collation() ?
-           Data_type_compatibility::OK :
-           Data_type_compatibility::INCOMPATIBLE_COLLATION;
+    return (charset()->eq_collation(cond->compare_collation()) ?
+            Data_type_compatibility::OK :
+            Data_type_compatibility::INCOMPATIBLE_COLLATION);
   case ROW_RESULT:
     DBUG_ASSERT(0);
     break;

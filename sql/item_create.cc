@@ -39,13 +39,12 @@
 #include <mysql/plugin_function.h>
 
 
-extern "C" uchar*
-get_native_fct_hash_key(const uchar *buff, size_t *length,
-                        my_bool /* unused */)
+extern "C" const uchar *get_native_fct_hash_key(const void *buff,
+                                                size_t *length, my_bool)
 {
-  Native_func_registry *func= (Native_func_registry*) buff;
+  auto func= static_cast<const Native_func_registry *>(buff);
   *length= func->name.length;
-  return (uchar*) func->name.str;
+  return reinterpret_cast<const uchar *>(func->name.str);
 }
 
 
@@ -67,10 +66,10 @@ extern Native_func_registry_array native_func_registry_array_geom;
 class Create_sp_func : public Create_qfunc
 {
 public:
-  virtual Item *create_with_db(THD *thd,
+  Item *create_with_db(THD *thd,
                                const LEX_CSTRING *db,
                                const LEX_CSTRING *name,
-                               bool use_explicit_name, List<Item> *item_list);
+                               bool use_explicit_name, List<Item> *item_list) override;
 
   static Create_sp_func s_singleton;
 
@@ -78,7 +77,7 @@ protected:
   /** Constructor. */
   Create_sp_func() = default;
   /** Destructor. */
-  virtual ~Create_sp_func() = default;
+  ~Create_sp_func() override = default;
 };
 
 
@@ -91,46 +90,46 @@ protected:
 class Create_func_abs : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_abs s_singleton;
 
 protected:
   Create_func_abs() = default;
-  virtual ~Create_func_abs() = default;
+  ~Create_func_abs() override = default;
 };
 
 
 class Create_func_acos : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_acos s_singleton;
 
 protected:
   Create_func_acos() = default;
-  virtual ~Create_func_acos() = default;
+  ~Create_func_acos() override = default;
 };
 
 
 class Create_func_addtime : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_addtime s_singleton;
 
 protected:
   Create_func_addtime() = default;
-  virtual ~Create_func_addtime() = default;
+  ~Create_func_addtime() override = default;
 };
 
 
 class Create_func_addmonths : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_addmonths s_singleton;
 
@@ -143,36 +142,36 @@ protected:
 class Create_func_aes_encrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_aes_encrypt s_singleton;
 
 protected:
   Create_func_aes_encrypt() = default;
-  virtual ~Create_func_aes_encrypt() = default;
+  ~Create_func_aes_encrypt() override = default;
 };
 
 
 class Create_func_aes_decrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_aes_decrypt s_singleton;
 
 protected:
   Create_func_aes_decrypt() = default;
-  virtual ~Create_func_aes_decrypt() = default;
+  ~Create_func_aes_decrypt() override = default;
 };
 
 
 class Create_func_kdf : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_kdf s_singleton;
 
@@ -185,112 +184,112 @@ protected:
 class Create_func_asin : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_asin s_singleton;
 
 protected:
   Create_func_asin() = default;
-  virtual ~Create_func_asin() = default;
+  ~Create_func_asin() override = default;
 };
 
 
 class Create_func_atan : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_atan s_singleton;
 
 protected:
   Create_func_atan() = default;
-  virtual ~Create_func_atan() = default;
+  ~Create_func_atan() override = default;
 };
 
 
 class Create_func_benchmark : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_benchmark s_singleton;
 
 protected:
   Create_func_benchmark() = default;
-  virtual ~Create_func_benchmark() = default;
+  ~Create_func_benchmark() override = default;
 };
 
 
 class Create_func_bin : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_bin s_singleton;
 
 protected:
   Create_func_bin() = default;
-  virtual ~Create_func_bin() = default;
+  ~Create_func_bin() override = default;
 };
 
 
 class Create_func_binlog_gtid_pos : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_binlog_gtid_pos s_singleton;
 
 protected:
   Create_func_binlog_gtid_pos() = default;
-  virtual ~Create_func_binlog_gtid_pos() = default;
+  ~Create_func_binlog_gtid_pos() override = default;
 };
 
 
 class Create_func_bit_count : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_bit_count s_singleton;
 
 protected:
   Create_func_bit_count() = default;
-  virtual ~Create_func_bit_count() = default;
+  ~Create_func_bit_count() override = default;
 };
 
 
 class Create_func_bit_length : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_bit_length s_singleton;
 
 protected:
   Create_func_bit_length() = default;
-  virtual ~Create_func_bit_length() = default;
+  ~Create_func_bit_length() override = default;
 };
 
 
 class Create_func_ceiling : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_ceiling s_singleton;
 
 protected:
   Create_func_ceiling() = default;
-  virtual ~Create_func_ceiling() = default;
+  ~Create_func_ceiling() override = default;
 };
 
 
 class Create_func_collation : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_collation s_singleton;
 
@@ -303,95 +302,95 @@ protected:
 class Create_func_chr : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_chr s_singleton;
 
 protected:
   Create_func_chr() = default;
-  virtual ~Create_func_chr() = default;
+  ~Create_func_chr() override = default;
 };
 
 
 class Create_func_char_length : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_char_length s_singleton;
 
 protected:
   Create_func_char_length() = default;
-  virtual ~Create_func_char_length() = default;
+  ~Create_func_char_length() override = default;
 };
 
 
 class Create_func_coercibility : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_coercibility s_singleton;
 
 protected:
   Create_func_coercibility() = default;
-  virtual ~Create_func_coercibility() = default;
+  ~Create_func_coercibility() override = default;
 };
 
 class Create_func_dyncol_check : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dyncol_check s_singleton;
 
 protected:
   Create_func_dyncol_check() = default;
-  virtual ~Create_func_dyncol_check() = default;
+  ~Create_func_dyncol_check() override = default;
 };
 
 class Create_func_dyncol_exists : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_dyncol_exists s_singleton;
 
 protected:
   Create_func_dyncol_exists() = default;
-  virtual ~Create_func_dyncol_exists() = default;
+  ~Create_func_dyncol_exists() override = default;
 };
 
 class Create_func_dyncol_list : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dyncol_list s_singleton;
 
 protected:
   Create_func_dyncol_list() = default;
-  virtual ~Create_func_dyncol_list() = default;
+  ~Create_func_dyncol_list() override = default;
 };
 
 class Create_func_dyncol_json : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dyncol_json s_singleton;
 
 protected:
   Create_func_dyncol_json() = default;
-  virtual ~Create_func_dyncol_json() = default;
+  ~Create_func_dyncol_json() override = default;
 };
 
 
 class Create_func_coalesce : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_coalesce s_singleton;
 
@@ -404,62 +403,62 @@ protected:
 class Create_func_compress : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_compress s_singleton;
 
 protected:
   Create_func_compress() = default;
-  virtual ~Create_func_compress() = default;
+  ~Create_func_compress() override = default;
 };
 
 
 class Create_func_concat : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_concat s_singleton;
 
 protected:
   Create_func_concat() = default;
-  virtual ~Create_func_concat() = default;
+  ~Create_func_concat() override = default;
 };
 
 
 class Create_func_concat_operator_oracle : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_concat_operator_oracle s_singleton;
 
 protected:
   Create_func_concat_operator_oracle() = default;
-  virtual ~Create_func_concat_operator_oracle() = default;
+  ~Create_func_concat_operator_oracle() override = default;
 };
 
 
 class Create_func_decode_histogram : public Create_func_arg2
 {
 public:
-  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_decode_histogram s_singleton;
 
 protected:
   Create_func_decode_histogram() = default;
-  virtual ~Create_func_decode_histogram() = default;
+  ~Create_func_decode_histogram() override = default;
 };
 
 
 class Create_func_decode_oracle : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list)
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
   {
     if (unlikely(!item_list || item_list->elements < 3))
     {
@@ -473,15 +472,15 @@ public:
 
 protected:
   Create_func_decode_oracle() = default;
-  virtual ~Create_func_decode_oracle() = default;
+  ~Create_func_decode_oracle() override = default;
 };
 
 
 class Create_func_decode : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list)
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
   {
     if (unlikely(!item_list || item_list->elements != 2))
     {
@@ -497,41 +496,41 @@ public:
 
 protected:
   Create_func_decode() {}
-  virtual ~Create_func_decode() {}
+  ~Create_func_decode() override {}
 };
 
 
 class Create_func_concat_ws : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_concat_ws s_singleton;
 
 protected:
   Create_func_concat_ws() = default;
-  virtual ~Create_func_concat_ws() = default;
+  ~Create_func_concat_ws() override = default;
 };
 
 
 class Create_func_connection_id : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_connection_id s_singleton;
 
 protected:
   Create_func_connection_id() = default;
-  virtual ~Create_func_connection_id() = default;
+  ~Create_func_connection_id() override = default;
 };
 
 
 class Create_func_database : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_database s_singleton;
 
@@ -544,65 +543,65 @@ protected:
 class Create_func_nvl2 : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_nvl2 s_singleton;
 
 protected:
   Create_func_nvl2() = default;
-  virtual ~Create_func_nvl2() = default;
+  ~Create_func_nvl2() override = default;
 };
 
 
 class Create_func_conv : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_conv s_singleton;
 
 protected:
   Create_func_conv() = default;
-  virtual ~Create_func_conv() = default;
+  ~Create_func_conv() override = default;
 };
 
 
 class Create_func_convert_tz : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_convert_tz s_singleton;
 
 protected:
   Create_func_convert_tz() = default;
-  virtual ~Create_func_convert_tz() = default;
+  ~Create_func_convert_tz() override = default;
 };
 
 
 class Create_func_cos : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_cos s_singleton;
 
 protected:
   Create_func_cos() = default;
-  virtual ~Create_func_cos() = default;
+  ~Create_func_cos() override = default;
 };
 
 
 class Create_func_cot : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_cot s_singleton;
 
 protected:
   Create_func_cot() = default;
-  virtual ~Create_func_cot() = default;
+  ~Create_func_cot() override = default;
 };
 
 
@@ -616,7 +615,7 @@ public:
 
 protected:
   Create_func_crc32() = default;
-  virtual ~Create_func_crc32() = default;
+  ~Create_func_crc32() override = default;
 };
 
 
@@ -637,21 +636,21 @@ protected:
 class Create_func_datediff : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_datediff s_singleton;
 
 protected:
   Create_func_datediff() = default;
-  virtual ~Create_func_datediff() = default;
+  ~Create_func_datediff() override = default;
 };
 
 
 class Create_func_date_format : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_date_format s_singleton;
 
@@ -666,208 +665,208 @@ protected:
 class Create_func_dayname : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dayname s_singleton;
 
 protected:
   Create_func_dayname() = default;
-  virtual ~Create_func_dayname() = default;
+  ~Create_func_dayname() override = default;
 };
 
 
 class Create_func_dayofmonth : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dayofmonth s_singleton;
 
 protected:
   Create_func_dayofmonth() = default;
-  virtual ~Create_func_dayofmonth() = default;
+  ~Create_func_dayofmonth() override = default;
 };
 
 
 class Create_func_dayofweek : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dayofweek s_singleton;
 
 protected:
   Create_func_dayofweek() = default;
-  virtual ~Create_func_dayofweek() = default;
+  ~Create_func_dayofweek() override = default;
 };
 
 
 class Create_func_dayofyear : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_dayofyear s_singleton;
 
 protected:
   Create_func_dayofyear() = default;
-  virtual ~Create_func_dayofyear() = default;
+  ~Create_func_dayofyear() override = default;
 };
 
 
 class Create_func_degrees : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_degrees s_singleton;
 
 protected:
   Create_func_degrees() = default;
-  virtual ~Create_func_degrees() = default;
+  ~Create_func_degrees() override = default;
 };
 
 
 class Create_func_des_decrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_des_decrypt s_singleton;
 
 protected:
   Create_func_des_decrypt() = default;
-  virtual ~Create_func_des_decrypt() = default;
+  ~Create_func_des_decrypt() override = default;
 };
 
 
 class Create_func_des_encrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_des_encrypt s_singleton;
 
 protected:
   Create_func_des_encrypt() = default;
-  virtual ~Create_func_des_encrypt() = default;
+  ~Create_func_des_encrypt() override = default;
 };
 
 
 class Create_func_elt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_elt s_singleton;
 
 protected:
   Create_func_elt() = default;
-  virtual ~Create_func_elt() = default;
+  ~Create_func_elt() override = default;
 };
 
 
 class Create_func_encode : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_encode s_singleton;
 
 protected:
   Create_func_encode() = default;
-  virtual ~Create_func_encode() = default;
+  ~Create_func_encode() override = default;
 };
 
 
 class Create_func_encrypt : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_encrypt s_singleton;
 
 protected:
   Create_func_encrypt() = default;
-  virtual ~Create_func_encrypt() = default;
+  ~Create_func_encrypt() override = default;
 };
 
 
 class Create_func_exp : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_exp s_singleton;
 
 protected:
   Create_func_exp() = default;
-  virtual ~Create_func_exp() = default;
+  ~Create_func_exp() override = default;
 };
 
 
 class Create_func_export_set : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_export_set s_singleton;
 
 protected:
   Create_func_export_set() = default;
-  virtual ~Create_func_export_set() = default;
+  ~Create_func_export_set() override = default;
 };
 
 
 class Create_func_field : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_field s_singleton;
 
 protected:
   Create_func_field() = default;
-  virtual ~Create_func_field() = default;
+  ~Create_func_field() override = default;
 };
 
 
 class Create_func_find_in_set : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_find_in_set s_singleton;
 
 protected:
   Create_func_find_in_set() = default;
-  virtual ~Create_func_find_in_set() = default;
+  ~Create_func_find_in_set() override = default;
 };
 
 
 class Create_func_floor : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_floor s_singleton;
 
 protected:
   Create_func_floor() = default;
-  virtual ~Create_func_floor() = default;
+  ~Create_func_floor() override = default;
 };
 
 
 class Create_func_format_pico_time : public Create_func_arg1
 {
 public:
-    virtual Item *create_1_arg(THD *thd, Item *arg1);
+    Item *create_1_arg(THD *thd, Item *arg1) override;
 
     static Create_func_format_pico_time s_singleton;
 
@@ -880,179 +879,179 @@ protected:
 class Create_func_format : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_format s_singleton;
 
 protected:
   Create_func_format() = default;
-  virtual ~Create_func_format() = default;
+  ~Create_func_format() override = default;
 };
 
 
 class Create_func_found_rows : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_found_rows s_singleton;
 
 protected:
   Create_func_found_rows() = default;
-  virtual ~Create_func_found_rows() = default;
+  ~Create_func_found_rows() override = default;
 };
 
 
 class Create_func_from_base64 : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_from_base64 s_singleton;
 
 protected:
   Create_func_from_base64() = default;
-  virtual ~Create_func_from_base64() = default;
+  ~Create_func_from_base64() override = default;
 };
 
 
 class Create_func_from_days : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_from_days s_singleton;
 
 protected:
   Create_func_from_days() = default;
-  virtual ~Create_func_from_days() = default;
+  ~Create_func_from_days() override = default;
 };
 
 
 class Create_func_from_unixtime : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_from_unixtime s_singleton;
 
 protected:
   Create_func_from_unixtime() = default;
-  virtual ~Create_func_from_unixtime() = default;
+  ~Create_func_from_unixtime() override = default;
 };
 
 
 class Create_func_get_lock : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_get_lock s_singleton;
 
 protected:
   Create_func_get_lock() = default;
-  virtual ~Create_func_get_lock() = default;
+  ~Create_func_get_lock() override = default;
 };
 
 
 class Create_func_greatest : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_greatest s_singleton;
 
 protected:
   Create_func_greatest() = default;
-  virtual ~Create_func_greatest() = default;
+  ~Create_func_greatest() override = default;
 };
 
 
 class Create_func_hex : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_hex s_singleton;
 
 protected:
   Create_func_hex() = default;
-  virtual ~Create_func_hex() = default;
+  ~Create_func_hex() override = default;
 };
 
 
 class Create_func_ifnull : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_ifnull s_singleton;
 
 protected:
   Create_func_ifnull() = default;
-  virtual ~Create_func_ifnull() = default;
+  ~Create_func_ifnull() override = default;
 };
 
 
 class Create_func_instr : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_instr s_singleton;
 
 protected:
   Create_func_instr() = default;
-  virtual ~Create_func_instr() = default;
+  ~Create_func_instr() override = default;
 };
 
 
 class Create_func_is_free_lock : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_is_free_lock s_singleton;
 
 protected:
   Create_func_is_free_lock() = default;
-  virtual ~Create_func_is_free_lock() = default;
+  ~Create_func_is_free_lock() override = default;
 };
 
 
 class Create_func_is_used_lock : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_is_used_lock s_singleton;
 
 protected:
   Create_func_is_used_lock() = default;
-  virtual ~Create_func_is_used_lock() = default;
+  ~Create_func_is_used_lock() override = default;
 };
 
 
 class Create_func_isnull : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_isnull s_singleton;
 
 protected:
   Create_func_isnull() = default;
-  virtual ~Create_func_isnull() = default;
+  ~Create_func_isnull() override = default;
 };
 
 
 class Create_func_json_normalize : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_normalize s_singleton;
 
@@ -1064,7 +1063,7 @@ protected:
 class Create_func_json_object_to_array : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_object_to_array s_singleton;
 
@@ -1076,7 +1075,7 @@ protected:
 class Create_func_json_equals : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_equals s_singleton;
 
@@ -1089,375 +1088,375 @@ protected:
 class Create_func_json_exists : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_exists s_singleton;
 
 protected:
   Create_func_json_exists() = default;
-  virtual ~Create_func_json_exists() = default;
+  ~Create_func_json_exists() override = default;
 };
 
 
 class Create_func_json_valid : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_valid s_singleton;
 
 protected:
   Create_func_json_valid() = default;
-  virtual ~Create_func_json_valid() = default;
+  ~Create_func_json_valid() override = default;
 };
 
 
 class Create_func_json_compact : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_compact s_singleton;
 
 protected:
   Create_func_json_compact() = default;
-  virtual ~Create_func_json_compact() = default;
+  ~Create_func_json_compact() override = default;
 };
 
 
 class Create_func_json_loose : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_loose s_singleton;
 
 protected:
   Create_func_json_loose() = default;
-  virtual ~Create_func_json_loose() = default;
+  ~Create_func_json_loose() override = default;
 };
 
 
 class Create_func_json_detailed: public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_detailed s_singleton;
 
 protected:
   Create_func_json_detailed() = default;
-  virtual ~Create_func_json_detailed() = default;
+  ~Create_func_json_detailed() override = default;
 };
 
 
 class Create_func_json_type : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_type s_singleton;
 
 protected:
   Create_func_json_type() = default;
-  virtual ~Create_func_json_type() = default;
+  ~Create_func_json_type() override = default;
 };
 
 
 class Create_func_json_depth : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_depth s_singleton;
 
 protected:
   Create_func_json_depth() = default;
-  virtual ~Create_func_json_depth() = default;
+  ~Create_func_json_depth() override = default;
 };
 
 
 class Create_func_json_value : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_value s_singleton;
 
 protected:
   Create_func_json_value() = default;
-  virtual ~Create_func_json_value() = default;
+  ~Create_func_json_value() override = default;
 };
 
 
 class Create_func_json_query : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_query s_singleton;
 
 protected:
   Create_func_json_query() = default;
-  virtual ~Create_func_json_query() = default;
+  ~Create_func_json_query() override = default;
 };
 
 
 class Create_func_json_keys: public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_keys s_singleton;
 
 protected:
   Create_func_json_keys() = default;
-  virtual ~Create_func_json_keys() = default;
+  ~Create_func_json_keys() override = default;
 };
 
 
 class Create_func_json_contains: public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_contains s_singleton;
 
 protected:
   Create_func_json_contains() = default;
-  virtual ~Create_func_json_contains() = default;
+  ~Create_func_json_contains() override = default;
 };
 
 
 class Create_func_json_contains_path : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_contains_path s_singleton;
 
 protected:
   Create_func_json_contains_path() = default;
-  virtual ~Create_func_json_contains_path() = default;
+  ~Create_func_json_contains_path() override = default;
 };
 
 
 class Create_func_json_extract : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_extract s_singleton;
 
 protected:
   Create_func_json_extract() = default;
-  virtual ~Create_func_json_extract() = default;
+  ~Create_func_json_extract() override = default;
 };
 
 
 class Create_func_json_search : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_search s_singleton;
 
 protected:
   Create_func_json_search() = default;
-  virtual ~Create_func_json_search() = default;
+  ~Create_func_json_search() override = default;
 };
 
 
 class Create_func_json_array : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_array s_singleton;
 
 protected:
   Create_func_json_array() = default;
-  virtual ~Create_func_json_array() = default;
+  ~Create_func_json_array() override = default;
 };
 
 
 class Create_func_json_array_append : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_array_append s_singleton;
 
 protected:
   Create_func_json_array_append() = default;
-  virtual ~Create_func_json_array_append() = default;
+  ~Create_func_json_array_append() override = default;
 };
 
 
 class Create_func_json_array_insert : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_array_insert s_singleton;
 
 protected:
   Create_func_json_array_insert() = default;
-  virtual ~Create_func_json_array_insert() = default;
+  ~Create_func_json_array_insert() override = default;
 };
 
 
 class Create_func_json_insert : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_insert s_singleton;
 
 protected:
   Create_func_json_insert() = default;
-  virtual ~Create_func_json_insert() = default;
+  ~Create_func_json_insert() override = default;
 };
 
 
 class Create_func_json_set : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_set s_singleton;
 
 protected:
   Create_func_json_set() = default;
-  virtual ~Create_func_json_set() = default;
+  ~Create_func_json_set() override = default;
 };
 
 
 class Create_func_json_replace : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_replace s_singleton;
 
 protected:
   Create_func_json_replace() = default;
-  virtual ~Create_func_json_replace() = default;
+  ~Create_func_json_replace() override = default;
 };
 
 
 class Create_func_json_remove : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_remove s_singleton;
 
 protected:
   Create_func_json_remove() = default;
-  virtual ~Create_func_json_remove() = default;
+  ~Create_func_json_remove() override = default;
 };
 
 
 class Create_func_json_object : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_object s_singleton;
 
 protected:
   Create_func_json_object() = default;
-  virtual ~Create_func_json_object() = default;
+  ~Create_func_json_object() override = default;
 };
 
 
 class Create_func_json_length : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_length s_singleton;
 
 protected:
   Create_func_json_length() = default;
-  virtual ~Create_func_json_length() = default;
+  ~Create_func_json_length() override = default;
 };
 
 
 class Create_func_json_merge : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_merge s_singleton;
 
 protected:
   Create_func_json_merge() = default;
-  virtual ~Create_func_json_merge() = default;
+  ~Create_func_json_merge() override = default;
 };
 
 
 class Create_func_json_merge_patch : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_json_merge_patch s_singleton;
 
 protected:
   Create_func_json_merge_patch() = default;
-  virtual ~Create_func_json_merge_patch() = default;
+  ~Create_func_json_merge_patch() override = default;
 };
 
 
 class Create_func_json_quote : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_quote s_singleton;
 
 protected:
   Create_func_json_quote() = default;
-  virtual ~Create_func_json_quote() = default;
+  ~Create_func_json_quote() override = default;
 };
 
 
 class Create_func_json_unquote : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_json_unquote s_singleton;
 
 protected:
   Create_func_json_unquote() = default;
-  virtual ~Create_func_json_unquote() = default;
+  ~Create_func_json_unquote() override = default;
 };
 
 
 class Create_func_json_overlaps: public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_overlaps s_singleton;
 
@@ -1469,7 +1468,7 @@ protected:
 class Create_func_json_schema_valid: public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_schema_valid s_singleton;
 
@@ -1481,7 +1480,7 @@ protected:
 class Create_func_json_key_value : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_key_value s_singleton;
 
@@ -1494,7 +1493,7 @@ protected:
 class Create_func_json_array_intersect : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_array_intersect s_singleton;
 
@@ -1507,7 +1506,7 @@ protected:
 class Create_func_json_object_filter_keys : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_json_object_filter_keys s_singleton;
 
@@ -1520,85 +1519,85 @@ protected:
 class Create_func_last_day : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_last_day s_singleton;
 
 protected:
   Create_func_last_day() = default;
-  virtual ~Create_func_last_day() = default;
+  ~Create_func_last_day() override = default;
 };
 
 
 class Create_func_last_insert_id : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_last_insert_id s_singleton;
 
 protected:
   Create_func_last_insert_id() = default;
-  virtual ~Create_func_last_insert_id() = default;
+  ~Create_func_last_insert_id() override = default;
 };
 
 
 class Create_func_lcase : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_lcase s_singleton;
 
 protected:
   Create_func_lcase() = default;
-  virtual ~Create_func_lcase() = default;
+  ~Create_func_lcase() override = default;
 };
 
 
 class Create_func_least : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_least s_singleton;
 
 protected:
   Create_func_least() = default;
-  virtual ~Create_func_least() = default;
+  ~Create_func_least() override = default;
 };
 
 
 class Create_func_length : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_length s_singleton;
 
 protected:
   Create_func_length() = default;
-  virtual ~Create_func_length() = default;
+  ~Create_func_length() override = default;
 };
 
 class Create_func_octet_length : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_octet_length s_singleton;
 
 protected:
   Create_func_octet_length() = default;
-  virtual ~Create_func_octet_length() = default;
+  ~Create_func_octet_length() override = default;
 };
 
 class Create_func_old_password : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_old_password s_singleton;
 
@@ -1611,7 +1610,7 @@ protected:
 class Create_func_password : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_password s_singleton;
 
@@ -1625,26 +1624,26 @@ protected:
 class Create_func_like_range_min : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_like_range_min s_singleton;
 
 protected:
   Create_func_like_range_min() = default;
-  virtual ~Create_func_like_range_min() = default;
+  ~Create_func_like_range_min() override = default;
 };
 
 
 class Create_func_like_range_max : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_like_range_max s_singleton;
 
 protected:
   Create_func_like_range_max() = default;
-  virtual ~Create_func_like_range_max() = default;
+  ~Create_func_like_range_max() override = default;
 };
 #endif
 
@@ -1652,88 +1651,88 @@ protected:
 class Create_func_ln : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_ln s_singleton;
 
 protected:
   Create_func_ln() = default;
-  virtual ~Create_func_ln() = default;
+  ~Create_func_ln() override = default;
 };
 
 
 class Create_func_load_file : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_load_file s_singleton;
 
 protected:
   Create_func_load_file() = default;
-  virtual ~Create_func_load_file() = default;
+  ~Create_func_load_file() override = default;
 };
 
 
 class Create_func_locate : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_locate s_singleton;
 
 protected:
   Create_func_locate() = default;
-  virtual ~Create_func_locate() = default;
+  ~Create_func_locate() override = default;
 };
 
 
 class Create_func_log : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_log s_singleton;
 
 protected:
   Create_func_log() = default;
-  virtual ~Create_func_log() = default;
+  ~Create_func_log() override = default;
 };
 
 
 class Create_func_log10 : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_log10 s_singleton;
 
 protected:
   Create_func_log10() = default;
-  virtual ~Create_func_log10() = default;
+  ~Create_func_log10() override = default;
 };
 
 
 class Create_func_log2 : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_log2 s_singleton;
 
 protected:
   Create_func_log2() = default;
-  virtual ~Create_func_log2() = default;
+  ~Create_func_log2() override = default;
 };
 
 
 class Create_func_lpad : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list)
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
   {
     return create_native_std(thd, name, item_list);
   }
@@ -1741,7 +1740,7 @@ public:
 
 protected:
   Create_func_lpad() = default;
-  virtual ~Create_func_lpad() = default;
+  ~Create_func_lpad() override = default;
   Item *create_native_std(THD *thd, const LEX_CSTRING *name,
                           List<Item> *items);
   Item *create_native_oracle(THD *thd, const LEX_CSTRING *name,
@@ -1753,7 +1752,7 @@ class Create_func_lpad_oracle : public Create_func_lpad
 {
 public:
   Item *create_native(THD *thd, const LEX_CSTRING *name,
-                      List<Item> *item_list)
+                      List<Item> *item_list) override
   {
     return create_native_oracle(thd, name, item_list);
   }
@@ -1764,114 +1763,114 @@ public:
 class Create_func_ltrim : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_ltrim s_singleton;
 
 protected:
   Create_func_ltrim() = default;
-  virtual ~Create_func_ltrim() = default;
+  ~Create_func_ltrim() override = default;
 };
 
 
 class Create_func_ltrim_oracle : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_ltrim_oracle s_singleton;
 
 protected:
   Create_func_ltrim_oracle() = default;
-  virtual ~Create_func_ltrim_oracle() = default;
+  ~Create_func_ltrim_oracle() override = default;
 };
 
 
 class Create_func_makedate : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_makedate s_singleton;
 
 protected:
   Create_func_makedate() = default;
-  virtual ~Create_func_makedate() = default;
+  ~Create_func_makedate() override = default;
 };
 
 
 class Create_func_maketime : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_maketime s_singleton;
 
 protected:
   Create_func_maketime() = default;
-  virtual ~Create_func_maketime() = default;
+  ~Create_func_maketime() override = default;
 };
 
 
 class Create_func_make_set : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_make_set s_singleton;
 
 protected:
   Create_func_make_set() = default;
-  virtual ~Create_func_make_set() = default;
+  ~Create_func_make_set() override = default;
 };
 
 
 class Create_func_master_pos_wait : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_master_pos_wait s_singleton;
 
 protected:
   Create_func_master_pos_wait() = default;
-  virtual ~Create_func_master_pos_wait() = default;
+  ~Create_func_master_pos_wait() override = default;
 };
 
 
 class Create_func_master_gtid_wait : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_master_gtid_wait s_singleton;
 
 protected:
   Create_func_master_gtid_wait() = default;
-  virtual ~Create_func_master_gtid_wait() = default;
+  ~Create_func_master_gtid_wait() override = default;
 };
 
 
 class Create_func_md5 : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_md5 s_singleton;
 
 protected:
   Create_func_md5() = default;
-  virtual ~Create_func_md5() = default;
+  ~Create_func_md5() override = default;
 };
 
 
 class Create_func_microsecond : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_microsecond s_singleton;
 
@@ -1884,7 +1883,7 @@ protected:
 class Create_func_mod : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_mod s_singleton;
 
@@ -1897,32 +1896,32 @@ protected:
 class Create_func_monthname : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_monthname s_singleton;
 
 protected:
   Create_func_monthname() = default;
-  virtual ~Create_func_monthname() = default;
+  ~Create_func_monthname() override = default;
 };
 
 
 class Create_func_name_const : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_name_const s_singleton;
 
 protected:
   Create_func_name_const() = default;
-  virtual ~Create_func_name_const() = default;
+  ~Create_func_name_const() override = default;
 };
 
 class Create_func_natural_sort_key : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1) override;
+  Item *create_1_arg(THD *thd, Item *arg1) override;
   static Create_func_natural_sort_key s_singleton;
 protected:
   Create_func_natural_sort_key() = default;
@@ -1932,98 +1931,98 @@ protected:
 class Create_func_nullif : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_nullif s_singleton;
 
 protected:
   Create_func_nullif() = default;
-  virtual ~Create_func_nullif() = default;
+  ~Create_func_nullif() override = default;
 };
 
 
 class Create_func_oct : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_oct s_singleton;
 
 protected:
   Create_func_oct() = default;
-  virtual ~Create_func_oct() = default;
+  ~Create_func_oct() override = default;
 };
 
 
 class Create_func_ord : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_ord s_singleton;
 
 protected:
   Create_func_ord() = default;
-  virtual ~Create_func_ord() = default;
+  ~Create_func_ord() override = default;
 };
 
 
 class Create_func_period_add : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_period_add s_singleton;
 
 protected:
   Create_func_period_add() = default;
-  virtual ~Create_func_period_add() = default;
+  ~Create_func_period_add() override = default;
 };
 
 
 class Create_func_period_diff : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_period_diff s_singleton;
 
 protected:
   Create_func_period_diff() = default;
-  virtual ~Create_func_period_diff() = default;
+  ~Create_func_period_diff() override = default;
 };
 
 
 class Create_func_pi : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_pi s_singleton;
 
 protected:
   Create_func_pi() = default;
-  virtual ~Create_func_pi() = default;
+  ~Create_func_pi() override = default;
 };
 
 
 class Create_func_pow : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_pow s_singleton;
 
 protected:
   Create_func_pow() = default;
-  virtual ~Create_func_pow() = default;
+  ~Create_func_pow() override = default;
 };
 
 
 class Create_func_quarter : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_quarter s_singleton;
 
@@ -2036,26 +2035,26 @@ protected:
 class Create_func_quote : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_quote s_singleton;
 
 protected:
   Create_func_quote() = default;
-  virtual ~Create_func_quote() = default;
+  ~Create_func_quote() override = default;
 };
 
 
 class Create_func_regexp_instr : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_regexp_instr s_singleton;
 
 protected:
   Create_func_regexp_instr() = default;
-  virtual ~Create_func_regexp_instr() = default;
+  ~Create_func_regexp_instr() override = default;
 };
 
 
@@ -2071,7 +2070,7 @@ public:
 
 protected:
   Create_func_regexp_replace() = default;
-  virtual ~Create_func_regexp_replace() = default;
+  ~Create_func_regexp_replace() override = default;
 };
 
 Create_func_regexp_replace Create_func_regexp_replace::s_singleton;
@@ -2090,7 +2089,7 @@ public:
 
 protected:
   Create_func_regexp_replace_oracle() = default;
-  virtual ~Create_func_regexp_replace_oracle() = default;
+  ~Create_func_regexp_replace_oracle() override = default;
 };
 
 Create_func_regexp_replace_oracle
@@ -2100,47 +2099,47 @@ Create_func_regexp_replace_oracle
 class Create_func_regexp_substr : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_regexp_substr s_singleton;
 
 protected:
   Create_func_regexp_substr() = default;
-  virtual ~Create_func_regexp_substr() = default;
+  ~Create_func_regexp_substr() override = default;
 };
 
 
 class Create_func_radians : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_radians s_singleton;
 
 protected:
   Create_func_radians() = default;
-  virtual ~Create_func_radians() = default;
+  ~Create_func_radians() override = default;
 };
 
 
 class Create_func_rand : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_rand s_singleton;
 
 protected:
   Create_func_rand() = default;
-  virtual ~Create_func_rand() = default;
+  ~Create_func_rand() override = default;
 };
 
 
 class Create_func_random_bytes : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_random_bytes s_singleton;
 
@@ -2153,7 +2152,7 @@ protected:
 class Create_func_release_all_locks : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_release_all_locks s_singleton;
 };
@@ -2162,60 +2161,60 @@ public:
 class Create_func_release_lock : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_release_lock s_singleton;
 
 protected:
   Create_func_release_lock() = default;
-  virtual ~Create_func_release_lock() = default;
+  ~Create_func_release_lock() override = default;
 };
 
 
 class Create_func_replace_oracle : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_replace_oracle s_singleton;
 
 protected:
   Create_func_replace_oracle() = default;
-  virtual ~Create_func_replace_oracle() = default;
+  ~Create_func_replace_oracle() override = default;
 };
 
 
 class Create_func_reverse : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_reverse s_singleton;
 
 protected:
   Create_func_reverse() = default;
-  virtual ~Create_func_reverse() = default;
+  ~Create_func_reverse() override = default;
 };
 
 
 class Create_func_round : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_round s_singleton;
 
 protected:
   Create_func_round() = default;
-  virtual ~Create_func_round() = default;
+  ~Create_func_round() override = default;
 };
 
 
 class Create_func_row_count : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_row_count s_singleton;
 
@@ -2228,8 +2227,8 @@ protected:
 class Create_func_rpad : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list)
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
   {
     return create_native_std(thd, name, item_list);
   }
@@ -2237,7 +2236,7 @@ public:
 
 protected:
   Create_func_rpad() = default;
-  virtual ~Create_func_rpad() = default;
+  ~Create_func_rpad() override = default;
   Item *create_native_std(THD *thd, const LEX_CSTRING *name,
                           List<Item> *items);
   Item *create_native_oracle(THD *thd, const LEX_CSTRING *name,
@@ -2249,7 +2248,7 @@ class Create_func_rpad_oracle : public Create_func_rpad
 {
 public:
   Item *create_native(THD *thd, const LEX_CSTRING *name,
-                      List<Item> *item_list)
+                      List<Item> *item_list) override
   {
     return create_native_oracle(thd, name, item_list);
   }
@@ -2260,39 +2259,39 @@ public:
 class Create_func_rtrim : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_rtrim s_singleton;
 
 protected:
   Create_func_rtrim() = default;
-  virtual ~Create_func_rtrim() = default;
+  ~Create_func_rtrim() override = default;
 };
 
 
 class Create_func_rtrim_oracle : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_rtrim_oracle s_singleton;
 
 protected:
   Create_func_rtrim_oracle() = default;
-  virtual ~Create_func_rtrim_oracle() = default;
+  ~Create_func_rtrim_oracle() override = default;
 };
 
 
 class Create_func_sec_to_time : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_sec_to_time s_singleton;
 
 protected:
   Create_func_sec_to_time() = default;
-  virtual ~Create_func_sec_to_time() = default;
+  ~Create_func_sec_to_time() override = default;
 };
 
 class Create_func_sformat : public Create_native_func
@@ -2309,235 +2308,235 @@ protected:
 class Create_func_sha : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_sha s_singleton;
 
 protected:
   Create_func_sha() = default;
-  virtual ~Create_func_sha() = default;
+  ~Create_func_sha() override = default;
 };
 
 
 class Create_func_sha2 : public Create_func_arg2
 {
 public:
-  virtual Item* create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_sha2 s_singleton;
 
 protected:
   Create_func_sha2() = default;
-  virtual ~Create_func_sha2() = default;
+  ~Create_func_sha2() override = default;
 };
 
 
 class Create_func_sign : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_sign s_singleton;
 
 protected:
   Create_func_sign() = default;
-  virtual ~Create_func_sign() = default;
+  ~Create_func_sign() override = default;
 };
 
 
 class Create_func_sin : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_sin s_singleton;
 
 protected:
   Create_func_sin() = default;
-  virtual ~Create_func_sin() = default;
+  ~Create_func_sin() override = default;
 };
 
 
 class Create_func_sleep : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_sleep s_singleton;
 
 protected:
   Create_func_sleep() = default;
-  virtual ~Create_func_sleep() = default;
+  ~Create_func_sleep() override = default;
 };
 
 
 class Create_func_soundex : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_soundex s_singleton;
 
 protected:
   Create_func_soundex() = default;
-  virtual ~Create_func_soundex() = default;
+  ~Create_func_soundex() override = default;
 };
 
 
 class Create_func_space : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_space s_singleton;
 
 protected:
   Create_func_space() = default;
-  virtual ~Create_func_space() = default;
+  ~Create_func_space() override = default;
 };
 
 
 class Create_func_sqrt : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_sqrt s_singleton;
 
 protected:
   Create_func_sqrt() = default;
-  virtual ~Create_func_sqrt() = default;
+  ~Create_func_sqrt() override = default;
 };
 
 
 class Create_func_str_to_date : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_str_to_date s_singleton;
 
 protected:
   Create_func_str_to_date() = default;
-  virtual ~Create_func_str_to_date() = default;
+  ~Create_func_str_to_date() override = default;
 };
 
 
 class Create_func_strcmp : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_strcmp s_singleton;
 
 protected:
   Create_func_strcmp() = default;
-  virtual ~Create_func_strcmp() = default;
+  ~Create_func_strcmp() override = default;
 };
 
 
 class Create_func_substr_index : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_substr_index s_singleton;
 
 protected:
   Create_func_substr_index() = default;
-  virtual ~Create_func_substr_index() = default;
+  ~Create_func_substr_index() override = default;
 };
 
 
 class Create_func_substr_oracle : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_substr_oracle s_singleton;
 
 protected:
   Create_func_substr_oracle() = default;
-  virtual ~Create_func_substr_oracle() = default;
+  ~Create_func_substr_oracle() override = default;
 };
 
 
 class Create_func_subtime : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_subtime s_singleton;
 
 protected:
   Create_func_subtime() = default;
-  virtual ~Create_func_subtime() = default;
+  ~Create_func_subtime() override = default;
 };
 
 
 class Create_func_tan : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_tan s_singleton;
 
 protected:
   Create_func_tan() = default;
-  virtual ~Create_func_tan() = default;
+  ~Create_func_tan() override = default;
 };
 
 
 class Create_func_time_format : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_time_format s_singleton;
 
 protected:
   Create_func_time_format() = default;
-  virtual ~Create_func_time_format() = default;
+  ~Create_func_time_format() override = default;
 };
 
 
 class Create_func_time_to_sec : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_time_to_sec s_singleton;
 
 protected:
   Create_func_time_to_sec() = default;
-  virtual ~Create_func_time_to_sec() = default;
+  ~Create_func_time_to_sec() override = default;
 };
 
 
 class Create_func_timediff : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_timediff s_singleton;
 
 protected:
   Create_func_timediff() = default;
-  virtual ~Create_func_timediff() = default;
+  ~Create_func_timediff() override = default;
 };
 
 
 class Create_func_to_base64 : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_to_base64 s_singleton;
 
 protected:
   Create_func_to_base64() = default;
-  virtual ~Create_func_to_base64() = default;
+  ~Create_func_to_base64() override = default;
 };
 
 
@@ -2558,125 +2557,125 @@ protected:
 class Create_func_to_days : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_to_days s_singleton;
 
 protected:
   Create_func_to_days() = default;
-  virtual ~Create_func_to_days() = default;
+  ~Create_func_to_days() override = default;
 };
 
 class Create_func_to_seconds : public Create_func_arg1
 {
 public:
-  virtual Item* create_1_arg(THD *thd, Item *arg1);
+  Item* create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_to_seconds s_singleton;
 
 protected:
   Create_func_to_seconds() = default;
-  virtual ~Create_func_to_seconds() = default;
+  ~Create_func_to_seconds() override = default;
 };
 
 
 class Create_func_ucase : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_ucase s_singleton;
 
 protected:
   Create_func_ucase() = default;
-  virtual ~Create_func_ucase() = default;
+  ~Create_func_ucase() override = default;
 };
 
 
 class Create_func_uncompress : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_uncompress s_singleton;
 
 protected:
   Create_func_uncompress() = default;
-  virtual ~Create_func_uncompress() = default;
+  ~Create_func_uncompress() override = default;
 };
 
 
 class Create_func_uncompressed_length : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_uncompressed_length s_singleton;
 
 protected:
   Create_func_uncompressed_length() = default;
-  virtual ~Create_func_uncompressed_length() = default;
+  ~Create_func_uncompressed_length() override = default;
 };
 
 
 class Create_func_unhex : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_unhex s_singleton;
 
 protected:
   Create_func_unhex() = default;
-  virtual ~Create_func_unhex() = default;
+  ~Create_func_unhex() override = default;
 };
 
 
 class Create_func_unix_timestamp : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_unix_timestamp s_singleton;
 
 protected:
   Create_func_unix_timestamp() = default;
-  virtual ~Create_func_unix_timestamp() = default;
+  ~Create_func_unix_timestamp() override = default;
 };
 
 
 class Create_func_uuid_short : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_uuid_short s_singleton;
 
 protected:
   Create_func_uuid_short() = default;
-  virtual ~Create_func_uuid_short() = default;
+  ~Create_func_uuid_short() override = default;
 };
 
 
 class Create_func_version : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_version s_singleton;
 
 protected:
   Create_func_version() = default;
-  virtual ~Create_func_version() = default;
+  ~Create_func_version() override = default;
 };
 
 
 class Create_func_week : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                      List<Item> *item_list) override;
 
   static Create_func_week s_singleton;
 
@@ -2689,26 +2688,26 @@ protected:
 class Create_func_weekday : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_weekday s_singleton;
 
 protected:
   Create_func_weekday() = default;
-  virtual ~Create_func_weekday() = default;
+  ~Create_func_weekday() override = default;
 };
 
 
 class Create_func_weekofyear : public Create_func_arg1
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_1_arg(THD *thd, Item *arg1) override;
 
   static Create_func_weekofyear s_singleton;
 
 protected:
   Create_func_weekofyear() = default;
-  virtual ~Create_func_weekofyear() = default;
+  ~Create_func_weekofyear() override = default;
 };
 
 
@@ -2716,26 +2715,26 @@ protected:
 class Create_func_wsrep_last_written_gtid : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_wsrep_last_written_gtid s_singleton;
 
 protected:
   Create_func_wsrep_last_written_gtid() = default;
-  virtual ~Create_func_wsrep_last_written_gtid() = default;
+  ~Create_func_wsrep_last_written_gtid() override = default;
 };
 
 
 class Create_func_wsrep_last_seen_gtid : public Create_func_arg0
 {
 public:
-  virtual Item *create_builder(THD *thd);
+  Item *create_builder(THD *thd) override;
 
   static Create_func_wsrep_last_seen_gtid s_singleton;
 
 protected:
   Create_func_wsrep_last_seen_gtid() = default;
-  virtual ~Create_func_wsrep_last_seen_gtid() = default;
+  ~Create_func_wsrep_last_seen_gtid() override = default;
 };
 
 
@@ -2749,7 +2748,7 @@ public:
 
 protected:
   Create_func_wsrep_sync_wait_upto() = default;
-  virtual ~Create_func_wsrep_sync_wait_upto() = default;
+  ~Create_func_wsrep_sync_wait_upto() override = default;
 };
 #endif /* WITH_WSREP */
 
@@ -2757,40 +2756,40 @@ protected:
 class Create_func_xml_extractvalue : public Create_func_arg2
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
 
   static Create_func_xml_extractvalue s_singleton;
 
 protected:
   Create_func_xml_extractvalue() = default;
-  virtual ~Create_func_xml_extractvalue() = default;
+  ~Create_func_xml_extractvalue() override = default;
 };
 
 
 class Create_func_xml_update : public Create_func_arg3
 {
 public:
-  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override;
 
   static Create_func_xml_update s_singleton;
 
 protected:
   Create_func_xml_update() = default;
-  virtual ~Create_func_xml_update() = default;
+  ~Create_func_xml_update() override = default;
 };
 
 
 class Create_func_year_week : public Create_native_func
 {
 public:
-  virtual Item *create_native(THD *thd, const LEX_CSTRING *name,
-                              List<Item> *item_list);
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override;
 
   static Create_func_year_week s_singleton;
 
 protected:
   Create_func_year_week() = default;
-  virtual ~Create_func_year_week() = default;
+  ~Create_func_year_week() override = default;
 };
 
 
@@ -6046,7 +6045,7 @@ Create_func_uuid_short::create_builder(THD *thd)
 {
   DBUG_ENTER("Create_func_uuid_short::create");
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  thd->lex->safe_to_cache_query= 0;
+  thd->lex->uncacheable(UNCACHEABLE_RAND);  // disallow cache and query merges
   DBUG_RETURN(new (thd->mem_root) Item_func_uuid_short(thd));
 }
 
@@ -6506,9 +6505,8 @@ bool Native_functions_hash::init(size_t count)
 {
   DBUG_ENTER("Native_functions_hash::init");
 
-  if (my_hash_init(key_memory_native_functions, this,
-                   system_charset_info, (ulong) count, 0, 0, (my_hash_get_key)
-                   get_native_fct_hash_key, NULL, MYF(0)))
+  if (my_hash_init(key_memory_native_functions, this, system_charset_info,
+                   (ulong) count, 0, 0, get_native_fct_hash_key, NULL, MYF(0)))
     DBUG_RETURN(true);
 
   DBUG_RETURN(false);

@@ -1,25 +1,22 @@
 SET @start_buffer_pool_size = @@GLOBAL.innodb_buffer_pool_size;
-'#---------------------BS_STVARS_022_01----------------------#'
-SELECT COUNT(@@GLOBAL.innodb_buffer_pool_size);
-COUNT(@@GLOBAL.innodb_buffer_pool_size)
-1
-1 Expected
 '#---------------------BS_STVARS_022_02----------------------#'
-SET @@GLOBAL.innodb_buffer_pool_size=10485760;
-Expected succeeded
-SELECT COUNT(@@GLOBAL.innodb_buffer_pool_size);
-COUNT(@@GLOBAL.innodb_buffer_pool_size)
+SELECT @@GLOBAL.innodb_buffer_pool_size_max;
+@@GLOBAL.innodb_buffer_pool_size_max
+8388608
+SELECT @@GLOBAL.innodb_buffer_pool_size = @@GLOBAL.innodb_buffer_pool_size_max;
+@@GLOBAL.innodb_buffer_pool_size = @@GLOBAL.innodb_buffer_pool_size_max
 1
-1 Expected
+SET GLOBAL innodb_buffer_pool_size = @@GLOBAL.innodb_buffer_pool_size_max + 1048576;
+Warnings:
+Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '9437184'
+SELECT @@GLOBAL.innodb_buffer_pool_size = @@GLOBAL.innodb_buffer_pool_size_max;
+@@GLOBAL.innodb_buffer_pool_size = @@GLOBAL.innodb_buffer_pool_size_max
+1
 '#---------------------BS_STVARS_022_03----------------------#'
 SELECT @@GLOBAL.innodb_buffer_pool_size = VARIABLE_VALUE
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
 WHERE VARIABLE_NAME='innodb_buffer_pool_size';
 @@GLOBAL.innodb_buffer_pool_size = VARIABLE_VALUE
-1
-1 Expected
-SELECT COUNT(@@GLOBAL.innodb_buffer_pool_size);
-COUNT(@@GLOBAL.innodb_buffer_pool_size)
 1
 1 Expected
 SELECT COUNT(VARIABLE_VALUE)
@@ -49,5 +46,8 @@ COUNT(@@GLOBAL.innodb_buffer_pool_size)
 1
 1 Expected
 SELECT innodb_buffer_pool_size = @@SESSION.innodb_buffer_pool_size;
-ERROR 42S22: Unknown column 'innodb_buffer_pool_size' in 'field list'
-# restart
+ERROR 42S22: Unknown column 'innodb_buffer_pool_size' in 'SELECT'
+SET GLOBAL innodb_buffer_pool_size = @start_buffer_pool_size;
+SELECT @@innodb_buffer_pool_size = @start_buffer_pool_size;
+@@innodb_buffer_pool_size = @start_buffer_pool_size
+1

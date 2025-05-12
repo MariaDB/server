@@ -20,6 +20,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include "mrn.hpp"
 #include "mrn_mysql.h"
 #include "mrn_mysql_compat.h"
 
@@ -296,6 +297,7 @@ static PSI_mutex_info mrn_mutexes[] =
 #endif
 
 /* global variables */
+bool mrn_initialized = false;
 handlerton *mrn_hton_ptr;
 HASH mrn_open_tables;
 mysql_mutex_t mrn_open_tables_mutex;
@@ -556,6 +558,9 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_END_ALTER_COPY:
     inspected = "HA_EXTRA_END_ALTER_COPY";
     break;
+  case HA_EXTRA_ABORT_ALTER_COPY:
+    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
+    break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";
@@ -591,6 +596,11 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
     inspected = "HA_EXTRA_END_ALTER_COPY";
     break;
 #endif
+#ifdef MRN_HAVE_HA_EXTRA_ABORT_ALTER_COPY
+  case HA_EXTRA_ABORT_ALTER_COPY:
+    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
+    break;
+#endif
 #ifdef MRN_HAVE_HA_EXTRA_NO_AUTOINC_LOCKING
   case HA_EXTRA_NO_AUTOINC_LOCKING:
     inspected = "HA_EXTRA_NO_AUTOINC_LOCKING";
@@ -601,25 +611,22 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
 }
 #endif
 
-static uchar *mrn_open_tables_get_key(const uchar *record,
-                                      size_t *length,
-                                      my_bool not_used __attribute__ ((unused)))
+static const uchar *mrn_open_tables_get_key(const void *record, size_t *length,
+                                            my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
-  MRN_SHARE *share = reinterpret_cast<MRN_SHARE *>(const_cast<uchar *>(record));
+  auto share = static_cast<const MRN_SHARE *>(record);
   *length = share->table_name_length;
-  DBUG_RETURN(reinterpret_cast<uchar *>(share->table_name));
+  DBUG_RETURN(reinterpret_cast<const uchar *>(share->table_name));
 }
 
-static uchar *mrn_long_term_share_get_key(const uchar *record,
-                                          size_t *length,
-                                          my_bool not_used __attribute__ ((unused)))
+static const uchar *mrn_long_term_share_get_key(const void *record,
+                                                size_t *length, my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
-  MRN_LONG_TERM_SHARE *long_term_share =
-    reinterpret_cast<MRN_LONG_TERM_SHARE *>(const_cast<uchar *>(record));
+  auto long_term_share= static_cast<const MRN_LONG_TERM_SHARE *>(record);
   *length = long_term_share->table_name_length;
-  DBUG_RETURN(reinterpret_cast<uchar *>(long_term_share->table_name));
+  DBUG_RETURN(reinterpret_cast<const uchar *>(long_term_share->table_name));
 }
 
 /* status */
@@ -697,13 +704,12 @@ static grn_logger mrn_logger = {
   NULL
 };
 
-static uchar *mrn_allocated_thds_get_key(const uchar *record,
-                                         size_t *length,
-                                         my_bool not_used __attribute__ ((unused)))
+static const uchar *mrn_allocated_thds_get_key(const void *record,
+                                               size_t *length, my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
   *length = sizeof(THD *);
-  DBUG_RETURN(const_cast<uchar *>(record));
+  DBUG_RETURN(static_cast<const uchar *>(record));
 }
 
 /* system functions */
@@ -1963,6 +1969,8 @@ static int mrn_init(void *p)
   mrn::PathMapper::default_mysql_data_home_path = mysql_data_home;
 #endif
 
+  mrn_initialized = true;
+
   return 0;
 
 error_allocated_long_term_share_hash_init:
@@ -2056,6 +2064,8 @@ static int mrn_deinit(void *p)
   }
   mysql_mutex_destroy(&mrn_query_log_mutex);
   mysql_mutex_destroy(&mrn_log_mutex);
+
+  mrn_initialized = false;
 
   return 0;
 }
@@ -16661,7 +16671,7 @@ bool ha_mroonga::can_switch_engines()
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::wrapper_get_foreign_key_list(const THD *thd,
+int ha_mroonga::wrapper_get_foreign_key_list(THD *thd,
                                            List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16675,7 +16685,7 @@ int ha_mroonga::wrapper_get_foreign_key_list(const THD *thd,
 }
 
 #ifdef MRN_SUPPORT_FOREIGN_KEYS
-int ha_mroonga::storage_get_foreign_key_list(const THD *thd,
+int ha_mroonga::storage_get_foreign_key_list(THD *thd,
                                              List<FOREIGN_KEY_INFO> *f_key_list)
 {
   int error;
@@ -16785,7 +16795,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
 }
 #endif
 
-int ha_mroonga::get_foreign_key_list(const THD *thd,
+int ha_mroonga::get_foreign_key_list(THD *thd,
                                      List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16799,7 +16809,7 @@ int ha_mroonga::get_foreign_key_list(const THD *thd,
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::wrapper_get_parent_foreign_key_list(const THD *thd,
+int ha_mroonga::wrapper_get_parent_foreign_key_list(THD *thd,
                                             List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16812,7 +16822,7 @@ int ha_mroonga::wrapper_get_parent_foreign_key_list(const THD *thd,
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::storage_get_parent_foreign_key_list(const THD *thd,
+int ha_mroonga::storage_get_parent_foreign_key_list(THD *thd,
                                             List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16820,7 +16830,7 @@ int ha_mroonga::storage_get_parent_foreign_key_list(const THD *thd,
   DBUG_RETURN(res);
 }
 
-int ha_mroonga::get_parent_foreign_key_list(const THD *thd,
+int ha_mroonga::get_parent_foreign_key_list(THD *thd,
                                             List<FOREIGN_KEY_INFO> *f_key_list)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -16834,10 +16844,10 @@ int ha_mroonga::get_parent_foreign_key_list(const THD *thd,
   DBUG_RETURN(res);
 }
 
-uint ha_mroonga::wrapper_referenced_by_foreign_key()
+inline bool ha_mroonga::wrapper_referenced_by_foreign_key() const noexcept
 {
   MRN_DBUG_ENTER_METHOD();
-  uint res;
+  bool res;
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
   res = wrap_handler->referenced_by_foreign_key();
@@ -16846,17 +16856,17 @@ uint ha_mroonga::wrapper_referenced_by_foreign_key()
   DBUG_RETURN(res);
 }
 
-uint ha_mroonga::storage_referenced_by_foreign_key()
+inline bool ha_mroonga::storage_referenced_by_foreign_key() const noexcept
 {
   MRN_DBUG_ENTER_METHOD();
-  uint res = handler::referenced_by_foreign_key();
+  bool res = handler::referenced_by_foreign_key();
   DBUG_RETURN(res);
 }
 
-uint ha_mroonga::referenced_by_foreign_key()
+bool ha_mroonga::referenced_by_foreign_key() const noexcept
 {
   MRN_DBUG_ENTER_METHOD();
-  uint res;
+  bool res;
   if (share->wrapper_mode)
   {
     res = wrapper_referenced_by_foreign_key();

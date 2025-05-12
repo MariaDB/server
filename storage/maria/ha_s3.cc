@@ -78,7 +78,7 @@
 #define DEFAULT_AWS_HOST_NAME "s3.amazonaws.com"
 
 static PAGECACHE s3_pagecache;
-static ulong s3_block_size, s3_protocol_version;
+static ulong s3_block_size, s3_protocol_version, s3_provider;
 static ulong s3_pagecache_division_limit, s3_pagecache_age_threshold;
 static ulong s3_pagecache_file_hash_size;
 static ulonglong s3_pagecache_buffer_size;
@@ -86,6 +86,8 @@ static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
 static char *s3_host_name;
 static int s3_port;
 static my_bool s3_use_http;
+static my_bool s3_ssl_no_verify;
+static my_bool s3_no_content_type;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
 static my_bool s3_debug= 0, s3_slave_ignore_updates= 0;
 static my_bool s3_replicate_alter_as_create_select= 0;
@@ -222,6 +224,10 @@ static MYSQL_SYSVAR_BOOL(use_http, s3_use_http,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "If true, force use of HTTP protocol",
        NULL /*check*/, NULL /*update*/, 0 /*default*/);
+static MYSQL_SYSVAR_BOOL(ssl_no_verify, s3_ssl_no_verify,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "If true, SSL certificate verifiction for the S3 endpoint is disabled",
+       NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,
       "AWS access key",
@@ -234,6 +240,15 @@ static MYSQL_SYSVAR_STR(region, s3_region,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
       "AWS region",
        0, 0, "");
+static MYSQL_SYSVAR_BOOL(no_content_type, s3_no_content_type,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "If true, disables the Content-Type header, required for some providers",
+      NULL, NULL, 0);
+static MYSQL_SYSVAR_ENUM(provider, s3_provider,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Enable S3 provider specific compatibility tweaks "
+                         "\"Default\", \"Amazon\", or \"Huawei\". ",
+                         NULL, NULL, 0, &s3_provider_typelib);
 
 ha_create_table_option s3_table_option_list[]=
 {
@@ -320,6 +335,9 @@ static my_bool s3_info_init(S3_INFO *info)
   lex_string_set(&info->host_name,  s3_host_name);
   info->port= s3_port;
   info->use_http= s3_use_http;
+  info->ssl_no_verify= s3_ssl_no_verify;
+  info->no_content_type = s3_no_content_type;
+  info->provider= s3_provider;
   lex_string_set(&info->access_key, s3_access_key);
   lex_string_set(&info->secret_key, s3_secret_key);
   lex_string_set(&info->region,     s3_region);
@@ -576,6 +594,7 @@ int ha_s3::create(const char *name, TABLE *table_arg,
     s3_deinit(s3_client);
     if (error)
       maria_delete_table_files(name, 1, 0);
+  }
   else
 #endif /* MOVE_TABLE_TO_S3 */
   {
@@ -1120,12 +1139,15 @@ static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(host_name),
   MYSQL_SYSVAR(port),
   MYSQL_SYSVAR(use_http),
+  MYSQL_SYSVAR(ssl_no_verify),
   MYSQL_SYSVAR(bucket),
   MYSQL_SYSVAR(access_key),
   MYSQL_SYSVAR(secret_key),
   MYSQL_SYSVAR(region),
   MYSQL_SYSVAR(slave_ignore_updates),
   MYSQL_SYSVAR(replicate_alter_as_create_select),
+  MYSQL_SYSVAR(no_content_type),
+  MYSQL_SYSVAR(provider),
   NULL
 };
 

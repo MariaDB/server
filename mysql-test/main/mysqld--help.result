@@ -780,6 +780,15 @@ The following specify which files/extra groups are read (specified before remain
  --optimizer-index-block-copy-cost=# 
  Cost of copying a key block from the cache to intern
  storage as part of an index scan.
+ --optimizer-join-limit-pref-ratio=# 
+ For queries with JOIN and ORDER BY LIMIT : make the
+ optimizer consider a join order that allows to short-cut
+ execution after producing #LIMIT matches if that promises
+ N times speedup. (A conservative setting here would be is
+ a high value, like 100 so the short-cutting plan is used
+ if it promises a speedup of 100x or more). Short-cutting
+ plans are inherently risky so the default is 0 which
+ means do not consider this optimization
  --optimizer-key-compare-cost=# 
  Cost of checking a key against the end key condition.
  --optimizer-key-copy-cost=# 
@@ -1308,6 +1317,7 @@ The following specify which files/extra groups are read (specified before remain
  Minimum number of connected slaves required for automatic
  binary log purge with max_binlog_total_size,
  binlog_expire_logs_seconds or binlog_expire_logs_days.
+ Default is 0 when Galera is enabled and 1 otherwise.
  --slave-ddl-exec-mode=name 
  How replication events should be executed. Legal values
  are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
@@ -1807,6 +1817,7 @@ optimizer-disk-read-cost 10.24
 optimizer-disk-read-ratio 0.02
 optimizer-extra-pruning-depth 8
 optimizer-index-block-copy-cost 0.0356
+optimizer-join-limit-pref-ratio 0
 optimizer-key-compare-cost 0.011361
 optimizer-key-copy-cost 0.015685
 optimizer-key-lookup-cost 0.435777
@@ -1892,14 +1903,14 @@ profiling-history-size 15
 progress-report-time 5
 protocol-version 10
 proxy-protocol-networks 
-query-alloc-block-size 16384
+query-alloc-block-size 32768
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
 query-cache-size 1048576
 query-cache-strip-comments FALSE
 query-cache-type OFF
 query-cache-wlock-invalidate FALSE
-query-prealloc-size 24576
+query-prealloc-size 32768
 range-alloc-block-size 4096
 read-binlog-speed-limit 0
 read-buffer-size 131072

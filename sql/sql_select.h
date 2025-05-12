@@ -821,13 +821,13 @@ class Duplicate_weedout_picker : public Semi_join_strategy_picker
   
   bool is_used;
 public:
-  void set_empty()
+  void set_empty() override
   {
     dupsweedout_tables= 0;
     first_dupsweedout_table= MAX_TABLES;
     is_used= FALSE;
   }
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   
   bool check_qep(JOIN *join,
                  uint idx,
@@ -837,9 +837,9 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *stratey,
-                 POSITION *loose_scan_pos);
+                 POSITION *loose_scan_pos) override;
 
-  void mark_used() { is_used= TRUE; }
+  void mark_used() override { is_used= TRUE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -867,13 +867,13 @@ class Firstmatch_picker : public Semi_join_strategy_picker
   bool in_firstmatch_prefix() { return (first_firstmatch_table != MAX_TABLES); }
   void invalidate_firstmatch_prefix() { first_firstmatch_table= MAX_TABLES; }
 public:
-  void set_empty()
+  void set_empty() override
   {
     invalidate_firstmatch_prefix();
     is_used= FALSE;
   }
 
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -882,9 +882,9 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 POSITION *loose_scan_pos);
+                 POSITION *loose_scan_pos) override;
 
-  void mark_used() { is_used= TRUE; }
+  void mark_used() override { is_used= TRUE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -910,13 +910,13 @@ public:
   uint loosescan_parts; /* Number of keyparts to be kept distinct */
   
   bool is_used;
-  void set_empty()
+  void set_empty() override
   {
     first_loosescan_table= MAX_TABLES; 
     is_used= FALSE;
   }
 
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -925,8 +925,8 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 POSITION *loose_scan_pos);
-  void mark_used() { is_used= TRUE; }
+                 POSITION *loose_scan_pos) override;
+  void mark_used() override { is_used= TRUE; }
 
   friend class Loose_scan_opt;
   friend void best_access_path(JOIN      *join,
@@ -958,13 +958,13 @@ class Sj_materialization_picker : public Semi_join_strategy_picker
   table_map sjm_scan_need_tables;
 
 public:
-  void set_empty()
+  void set_empty() override
   {
     sjm_scan_need_tables= 0;
     sjm_scan_last_inner= 0;
     is_used= FALSE;
   }
-  void set_from_prev(POSITION *prev);
+  void set_from_prev(POSITION *prev) override;
   bool check_qep(JOIN *join,
                  uint idx,
                  table_map remaining_tables, 
@@ -973,8 +973,8 @@ public:
                  double *read_time,
                  table_map *handled_fanout,
                  sj_strategy_enum *strategy,
-                 POSITION *loose_scan_pos);
-  void mark_used() { is_used= TRUE; }
+                 POSITION *loose_scan_pos) override;
+  void mark_used() override { is_used= TRUE; }
 
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
@@ -1295,6 +1295,20 @@ public:
     passing 1st non-const table to filesort(). NULL means no such table exists.
   */
   TABLE    *sort_by_table;
+
+  /*
+    If true, there is ORDER BY x LIMIT n clause and for certain join orders, it
+    is possible to short-cut the join execution, i.e. stop it as soon as n
+    output rows were produced. See join_limit_shortcut_is_applicable().
+  */
+  bool    limit_shortcut_applicable;
+
+  /*
+    Used during join optimization: if true, we're building a join order that
+    will short-cut join execution as soon as #LIMIT rows are produced.
+  */
+  bool    limit_optimization_mode;
+
   /* 
     Number of tables in the join. 
     (In MySQL, it is named 'tables' and is also the number of elements in 
@@ -1428,6 +1442,7 @@ public:
 
   Pushdown_query *pushdown_query;
   JOIN_TAB *original_join_tab;
+  uint	   original_table_count;
   uint	   sort_space;
 
 /******* Join optimization state members start *******/
@@ -1611,7 +1626,7 @@ public:
 
     Then, ORDER/GROUP BY and Window Function code add columns that need to
     be saved to be available in the post-group-by context. These extra columns
-    are added to the front, because this->all_fields points to the suffix of
+    are added to the front, because this->fields_list points to the suffix of
     this list.
   */
   List<Item> all_fields;
@@ -2004,7 +2019,7 @@ int opt_sum_query(THD* thd,
                   List<TABLE_LIST> &tables, List<Item> &all_fields, COND *conds);
 
 /* from sql_delete.cc, used by opt_range.cc */
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b);
+extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
 /** class to copying an field/item to a key struct */
 
@@ -2154,7 +2169,7 @@ public:
 
 
   enum Type type() const override { return ITEM_STORE_KEY; }
-  const char *name() const  override { return "func"; }
+  const char *name() const override { return "func"; }
 
  protected:  
   enum store_key_result copy_inner() override
@@ -2207,7 +2222,7 @@ public:
   {}
 
   enum Type type() const override { return CONST_ITEM_STORE_KEY; }
-  const char *name() const  override { return "const"; }
+  const char *name() const override { return "const"; }
   bool store_key_is_const() override { return true; }
 
 protected:  
@@ -2695,5 +2710,10 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
 
+#define PREV_BITS(type, N_BITS) ((type)my_set_bits(N_BITS))
+
+double estimate_post_group_cardinality(JOIN *join, double join_output_card);
+
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
+
 #endif /* SQL_SELECT_INCLUDED */

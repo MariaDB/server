@@ -132,10 +132,8 @@ Tablespace::open_or_create(bool is_temp)
 
 			mysql_mutex_lock(&fil_system.mutex);
 			space = fil_space_t::create(
-				m_space_id, fsp_flags,
-				is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				NULL);
+				uint32_t(m_space_id), fsp_flags,
+				false, nullptr);
 			if (!space) {
 				mysql_mutex_unlock(&fil_system.mutex);
 				return DB_ERROR;

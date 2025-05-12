@@ -120,11 +120,15 @@ bool trans_begin(THD *thd, uint flags)
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
+    bool was_in_trans= thd->server_status &
+      (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
     thd->server_status&=
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= MY_TEST(ha_commit_trans(thd, TRUE));
+    if (was_in_trans)
+      trans_reset_one_shot_chistics(thd);
 #ifdef WITH_WSREP
     if (wsrep_thd_is_local(thd))
     {

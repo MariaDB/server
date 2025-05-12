@@ -438,10 +438,12 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     SHOW_VAR show;
     CHARSET_INFO *charset;
     size_t val_length, length;
+    mysql_mutex_lock(&LOCK_global_system_variables);
     mysql_mutex_lock(&LOCK_plugin);
     if (!*node->test_load)
     {
       mysql_mutex_unlock(&LOCK_plugin);
+      mysql_mutex_unlock(&LOCK_global_system_variables);
       continue;
     }
     sys_var *svar= node->m_svar;
@@ -454,13 +456,12 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     show.name= svar->name.str;
     show.value= (char *) svar;
 
-    mysql_mutex_lock(&LOCK_global_system_variables);
     const char *value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
                                         &charset, val_buf, &val_length);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
 
     if (is_plugin)
       mysql_mutex_unlock(&LOCK_plugin);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
 
     length= net_length_size(svar->name.length) +
       svar->name.length +
@@ -565,13 +566,13 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
   @return Pointer to the key buffer.
 */
 
-uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
-                                                size_t *length,
-                                                my_bool not_used __attribute__((unused)))
+const uchar *Session_sysvars_tracker::sysvars_get_key(const void *entry,
+                                                      size_t *length, my_bool)
 {
-  auto key=&(((sysvar_node_st *) entry)->m_svar->offset);
+  ptrdiff_t *key=
+      &((static_cast<const sysvar_node_st *>(entry))->m_svar->offset);
   *length= sizeof(*key);
-  return (uchar *) key;
+  return reinterpret_cast<const uchar *>(key);
 }
 
 

@@ -6,24 +6,40 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 --source include/galera_have_debug_sync.inc
+--source include/force_restart.inc
 
 # sync point controlling session
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
 SET SESSION wsrep_sync_wait=0;
+FLUSH STATUS;
 
 # secondary conflicting DML victim session
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
 SET SESSION wsrep_sync_wait=0;
 
---let $table_admin_command = ALTER
+--let $table_admin_command = ALTER TABLE
 --let $table_admin_command_end = ENGINE=INNODB
 --source galera_ddl_fk_conflict.inc
 
---let $table_admin_command = TRUNCATE
---let $table_admin_command_end = 
+--let $table_admin_command = TRUNCATE TABLE
+--let $table_admin_command_end =
 --source galera_ddl_fk_conflict.inc
 
-# CHECK and ANALYZE are not affected
+--let $table_admin_command = DROP TABLE
+--let $table_admin_command_end =
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
 
+--let $table_admin_command = DROP TABLE IF EXISTS
+--let $table_admin_command_end =
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
+
+--let $table_admin_command = DROP TABLE IF EXISTS nonexisting,
+--let $table_admin_command_end =
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
+
+# CHECK and ANALYZE are not affected

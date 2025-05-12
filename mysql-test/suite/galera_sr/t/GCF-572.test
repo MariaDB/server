@@ -61,7 +61,6 @@ SET SESSION wsrep_trx_fragment_size = 10000;
 
 START TRANSACTION;
 INSERT INTO t1 VALUE (10, 'node1');
-SELECT * FROM mysql.wsrep_streaming_log;
 
 --connection node_1a
 INSERT INTO t1 VALUES(15, 'node2');

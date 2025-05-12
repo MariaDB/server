@@ -397,14 +397,14 @@ class Gis_point: public Geometry
 public:
   Gis_point() = default;                              /* Remove gcc warning */
   virtual ~Gis_point() = default;                     /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
   
   int get_xy(double *x, double *y) const
   {
@@ -427,7 +427,7 @@ public:
     return 1;
   }
 
-  int get_x(double *x) const
+  int get_x(double *x) const override
   {
     if (no_data(m_data, SIZEOF_STORED_DOUBLE))
       return 1;
@@ -435,7 +435,7 @@ public:
     return 0;
   }
 
-  int get_y(double *y) const
+  int get_y(double *y) const override
   {
     const char *data= m_data;
     if (no_data(data, SIZEOF_STORED_DOUBLE * 2)) return 1;
@@ -443,16 +443,16 @@ public:
     return 0;
   }
 
-  int geom_length(double *len, const char **end) const;
-  int area(double *ar, const char **end) const;
-  bool dimension(uint32 *dim, const char **end) const
+  int geom_length(double *len, const char **end) const override;
+  int area(double *ar, const char **end) const override;
+  bool dimension(uint32 *dim, const char **end) const override
   {
     *dim= 0;
     *end= 0;					/* No default end */
     return 0;
   }
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
   double calculate_haversine(const Geometry *g, const double sphere_radius,
                              int *error);
   int spherical_distance_multipoints(Geometry *g, const double r, double *result,
@@ -467,29 +467,29 @@ class Gis_line_string: public Geometry
 public:
   Gis_line_string() = default;                        /* Remove gcc warning */
   virtual ~Gis_line_string() = default;               /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
-  int geom_length(double *len, const char **end) const;
-  int area(double *ar, const char **end) const;
-  int is_closed(int *closed) const;
-  int num_points(uint32 *n_points) const;
-  int start_point(String *point) const;
-  int end_point(String *point) const;
-  int point_n(uint32 n, String *result) const;
-  bool dimension(uint32 *dim, const char **end) const
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
+  int geom_length(double *len, const char **end) const override;
+  int area(double *ar, const char **end) const override;
+  int is_closed(int *closed) const override;
+  int num_points(uint32 *n_points) const override;
+  int start_point(String *point) const override;
+  int end_point(String *point) const override;
+  int point_n(uint32 n, String *result) const override;
+  bool dimension(uint32 *dim, const char **end) const override
   {
     *dim= 1;
     *end= 0;					/* No default end */
     return 0;
   }
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
 };
 
 
@@ -500,29 +500,29 @@ class Gis_polygon: public Geometry
 public:
   Gis_polygon() = default;                            /* Remove gcc warning */
   virtual ~Gis_polygon() = default;                   /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
-  int area(double *ar, const char **end) const;
-  int exterior_ring(String *result) const;
-  int num_interior_ring(uint32 *n_int_rings) const;
-  int interior_ring_n(uint32 num, String *result) const;
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
+  int area(double *ar, const char **end) const override;
+  int exterior_ring(String *result) const override;
+  int num_interior_ring(uint32 *n_int_rings) const override;
+  int interior_ring_n(uint32 num, String *result) const override;
   int centroid_xy(double *x, double *y) const;
-  int centroid(String *result) const;
-  bool dimension(uint32 *dim, const char **end) const
+  int centroid(String *result) const override;
+  bool dimension(uint32 *dim, const char **end) const override
   {
     *dim= 2;
     *end= 0;					/* No default end */
     return 0;
   }
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
 };
 
 
@@ -537,25 +537,25 @@ class Gis_multi_point: public Geometry
 public:
   Gis_multi_point() = default;                        /* Remove gcc warning */
   virtual ~Gis_multi_point() = default;               /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
-  int num_geometries(uint32 *num) const;
-  int geometry_n(uint32 num, String *result) const;
-  bool dimension(uint32 *dim, const char **end) const
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
+  int num_geometries(uint32 *num) const override;
+  int geometry_n(uint32 num, String *result) const override;
+  bool dimension(uint32 *dim, const char **end) const override
   {
     *dim= 0;
     *end= 0;					/* No default end */
     return 0;
   }
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
   int spherical_distance_multipoints(Geometry *g, const double r, double *res,
                                      int *error);
 };
@@ -568,27 +568,27 @@ class Gis_multi_line_string: public Geometry
 public:
   Gis_multi_line_string() = default;                  /* Remove gcc warning */
   virtual ~Gis_multi_line_string() = default;         /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
-  int num_geometries(uint32 *num) const;
-  int geometry_n(uint32 num, String *result) const;
-  int geom_length(double *len, const char **end) const;
-  int is_closed(int *closed) const;
-  bool dimension(uint32 *dim, const char **end) const
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
+  int num_geometries(uint32 *num) const override;
+  int geometry_n(uint32 num, String *result) const override;
+  int geom_length(double *len, const char **end) const override;
+  int is_closed(int *closed) const override;
+  bool dimension(uint32 *dim, const char **end) const override
   {
     *dim= 1;
     *end= 0;					/* No default end */
     return 0;
   }
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
 };
 
 
@@ -599,27 +599,27 @@ class Gis_multi_polygon: public Geometry
 public:
   Gis_multi_polygon() = default;                      /* Remove gcc warning */
   virtual ~Gis_multi_polygon() = default;             /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
-  int num_geometries(uint32 *num) const;
-  int geometry_n(uint32 num, String *result) const;
-  int area(double *ar, const char **end) const;
-  int centroid(String *result) const;
-  bool dimension(uint32 *dim, const char **end) const
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
+  int num_geometries(uint32 *num) const override;
+  int geometry_n(uint32 num, String *result) const override;
+  int area(double *ar, const char **end) const override;
+  int centroid(String *result) const override;
+  bool dimension(uint32 *dim, const char **end) const override
   {
     *dim= 2;
     *end= 0;					/* No default end */
     return 0;
   }
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
-  uint init_from_opresult(String *bin, const char *opres, uint res_len);
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
+  uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
 };
 
 
@@ -630,22 +630,22 @@ class Gis_geometry_collection: public Geometry
 public:
   Gis_geometry_collection() = default;                /* Remove gcc warning */
   virtual ~Gis_geometry_collection() = default;       /* Remove gcc warning */
-  uint32 get_data_size() const;
-  bool init_from_wkt(Gis_read_stream *trs, String *wkb);
-  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res);
-  uint init_from_opresult(String *bin, const char *opres, uint res_len);
-  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb);
-  bool get_data_as_wkt(String *txt, const char **end) const;
+  uint32 get_data_size() const override;
+  bool init_from_wkt(Gis_read_stream *trs, String *wkb) override;
+  uint init_from_wkb(const char *wkb, uint len, wkbByteOrder bo, String *res) override;
+  uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
+  bool init_from_json(json_engine_t *je, bool er_on_3D, String *wkb) override;
+  bool get_data_as_wkt(String *txt, const char **end) const override;
   bool get_data_as_json(String *txt, uint max_dec_digits,
-                        const char **end) const;
-  bool get_mbr(MBR *mbr, const char **end) const;
-  int area(double *ar, const char **end) const;
-  int geom_length(double *len, const char **end) const;
-  int num_geometries(uint32 *num) const;
-  int geometry_n(uint32 num, String *result) const;
-  bool dimension(uint32 *dim, const char **end) const;
-  int store_shapes(Gcalc_shape_transporter *trn) const;
-  const Class_info *get_class_info() const;
+                        const char **end) const override;
+  bool get_mbr(MBR *mbr, const char **end) const override;
+  int area(double *ar, const char **end) const override;
+  int geom_length(double *len, const char **end) const override;
+  int num_geometries(uint32 *num) const override;
+  int geometry_n(uint32 num, String *result) const override;
+  bool dimension(uint32 *dim, const char **end) const override;
+  int store_shapes(Gcalc_shape_transporter *trn) const override;
+  const Class_info *get_class_info() const override;
 };
 
 struct Geometry_buffer : public

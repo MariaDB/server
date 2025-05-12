@@ -1,5 +1,5 @@
---- suite/storage_engine/misc.result	2018-02-23 03:01:49.673249912 +0200
-+++ suite/storage_engine/misc.reject	2018-02-23 03:02:05.669249564 +0200
+--- suite/storage_engine/misc.result
++++ suite/storage_engine/misc.reject
 @@ -28,6 +28,10 @@
  SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
  FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ORDER BY TABLE_NAME;

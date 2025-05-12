@@ -343,13 +343,13 @@ static PFS_engine_table_share *all_shares[]=
 class PFS_silent_check_intact : public Table_check_intact
 {
 protected:
-  virtual void report_error(uint code, const char *fmt, ...) {}
+  void report_error(uint code, const char *fmt, ...) override {}
 
 public:
   PFS_silent_check_intact()
   {}
 
-  ~PFS_silent_check_intact()
+  ~PFS_silent_check_intact() override
   {}
 };
 
@@ -672,12 +672,12 @@ class PFS_internal_schema_access : public ACL_internal_schema_access
 public:
   PFS_internal_schema_access() = default;
 
-  ~PFS_internal_schema_access() = default;
+  ~PFS_internal_schema_access() override = default;
 
   ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const;
+                                   privilege_t *save_priv) const override;
 
-  const ACL_internal_table_access *lookup(const char *name) const;
+  const ACL_internal_table_access *lookup(const char *name) const override;
 };
 
 ACL_internal_access_result
@@ -760,28 +760,34 @@ static bool allow_drop_table_privilege() {
 PFS_readonly_acl pfs_readonly_acl;
 
 ACL_internal_access_result
-PFS_readonly_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_readonly_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
   const privilege_t always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL | LOCK_TABLES_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
-    return ACL_INTERNAL_ACCESS_DENIED;
-
-  return ACL_INTERNAL_ACCESS_CHECK_GRANT;
+  if (any_combination_will_do)
+    return want_access & ~always_forbidden
+           ? ACL_INTERNAL_ACCESS_CHECK_GRANT: ACL_INTERNAL_ACCESS_DENIED;
+  else
+    return want_access & always_forbidden
+           ? ACL_INTERNAL_ACCESS_DENIED : ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
 
 
 PFS_readonly_world_acl pfs_readonly_world_acl;
 
 ACL_internal_access_result
-PFS_readonly_world_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_readonly_world_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
-  ACL_internal_access_result res= PFS_readonly_acl::check(want_access, save_priv);
+  ACL_internal_access_result res=
+    PFS_readonly_acl::check(want_access, save_priv, any_combination_will_do);
   if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
   {
-    if (want_access == SELECT_ACL)
+    if (any_combination_will_do ?
+        ((want_access & SELECT_ACL) != NO_ACL) : (want_access == SELECT_ACL))
       res= ACL_INTERNAL_ACCESS_GRANTED;
   }
   return res;
@@ -790,9 +796,11 @@ PFS_readonly_world_acl::check(privilege_t want_access, privilege_t *save_priv) c
 PFS_readonly_processlist_acl pfs_readonly_processlist_acl;
 
 ACL_internal_access_result PFS_readonly_processlist_acl::check(
-    privilege_t want_access, privilege_t *save_priv) const {
+    privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
+{
   ACL_internal_access_result res =
-      PFS_readonly_acl::check(want_access, save_priv);
+      PFS_readonly_acl::check(want_access, save_priv, any_combination_will_do);
 
   if ((res == ACL_INTERNAL_ACCESS_CHECK_GRANT) && (want_access == SELECT_ACL)) {
     THD *thd = current_thd;
@@ -818,34 +826,41 @@ ACL_internal_access_result PFS_readonly_processlist_acl::check(
 PFS_truncatable_acl pfs_truncatable_acl;
 
 ACL_internal_access_result
-PFS_truncatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_truncatable_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
   const privilege_t always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL | LOCK_TABLES_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
-    return ACL_INTERNAL_ACCESS_DENIED;
-
-  return ACL_INTERNAL_ACCESS_CHECK_GRANT;
+  if (any_combination_will_do)
+    return want_access & ~always_forbidden
+           ? ACL_INTERNAL_ACCESS_CHECK_GRANT: ACL_INTERNAL_ACCESS_DENIED;
+  else
+    return want_access & always_forbidden
+           ? ACL_INTERNAL_ACCESS_DENIED : ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
 
 
 PFS_truncatable_world_acl pfs_truncatable_world_acl;
 
 ACL_internal_access_result
-PFS_truncatable_world_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_truncatable_world_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
-  ACL_internal_access_result res= PFS_truncatable_acl::check(want_access, save_priv);
+  ACL_internal_access_result res=
+    PFS_truncatable_acl::check(want_access, save_priv, any_combination_will_do);
   if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
   {
-    if (want_access == DROP_ACL)
+    if (any_combination_will_do ?
+        ((want_access & SELECT_ACL) != NO_ACL) : (want_access == SELECT_ACL))
+      res= ACL_INTERNAL_ACCESS_GRANTED;
+    else if (any_combination_will_do ?
+        ((want_access & DROP_ACL) != NO_ACL) : (want_access == DROP_ACL))
     {
       if (allow_drop_table_privilege())
         res= ACL_INTERNAL_ACCESS_GRANTED;
     }
-    else if (want_access == SELECT_ACL)
-      res= ACL_INTERNAL_ACCESS_GRANTED;
   }
   return res;
 }
@@ -854,43 +869,47 @@ PFS_truncatable_world_acl::check(privilege_t want_access, privilege_t *save_priv
 PFS_updatable_acl pfs_updatable_acl;
 
 ACL_internal_access_result
-PFS_updatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_updatable_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
   const privilege_t always_forbidden= INSERT_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
-    return ACL_INTERNAL_ACCESS_DENIED;
-
-  return ACL_INTERNAL_ACCESS_CHECK_GRANT;
+  if (any_combination_will_do)
+    return want_access & ~always_forbidden
+           ? ACL_INTERNAL_ACCESS_CHECK_GRANT: ACL_INTERNAL_ACCESS_DENIED;
+  else
+    return want_access & always_forbidden
+           ? ACL_INTERNAL_ACCESS_DENIED : ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
 
 PFS_editable_acl pfs_editable_acl;
 
 ACL_internal_access_result
-PFS_editable_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_editable_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
   const privilege_t always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
     | INDEX_ACL | ALTER_ACL | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
-    return ACL_INTERNAL_ACCESS_DENIED;
-
-  return ACL_INTERNAL_ACCESS_CHECK_GRANT;
+  if (any_combination_will_do)
+    return want_access & ~always_forbidden
+           ? ACL_INTERNAL_ACCESS_CHECK_GRANT: ACL_INTERNAL_ACCESS_DENIED;
+  else
+    return want_access & always_forbidden
+           ? ACL_INTERNAL_ACCESS_DENIED : ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
 
 PFS_unknown_acl pfs_unknown_acl;
 
 ACL_internal_access_result
-PFS_unknown_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_unknown_acl::check(privilege_t want_access,
+    privilege_t *save_priv, bool any_combination_will_do) const
 {
   const privilege_t always_forbidden= CREATE_ACL
     | REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | TRIGGER_ACL;
-
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
-    return ACL_INTERNAL_ACCESS_DENIED;
 
   /*
     There is no point in hiding (by enforcing ACCESS_DENIED for SELECT_ACL
@@ -902,7 +921,12 @@ PFS_unknown_acl::check(privilege_t want_access, privilege_t *save_priv) const
     The same goes for other DML (INSERT_ACL | UPDATE_ACL | DELETE_ACL),
     for ease of use: error messages will be less surprising.
   */
-  return ACL_INTERNAL_ACCESS_CHECK_GRANT;
+  if (any_combination_will_do)
+    return want_access & ~always_forbidden
+           ? ACL_INTERNAL_ACCESS_CHECK_GRANT: ACL_INTERNAL_ACCESS_DENIED;
+  else
+    return want_access & always_forbidden
+           ? ACL_INTERNAL_ACCESS_DENIED : ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
 
 /**

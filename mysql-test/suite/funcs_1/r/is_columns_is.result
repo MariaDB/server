@@ -57,6 +57,7 @@ def	information_schema	CLIENT_STATISTICS	TOTAL_SSL_CONNECTIONS	24	NULL	NO	bigint
 def	information_schema	CLIENT_STATISTICS	UPDATE_COMMANDS	16	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	CHARACTER_SET_NAME	2	NULL	YES	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	COLLATION_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	COLLATIONS	COMMENT	7	NULL	NO	varchar	80	240	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(80)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	ID	3	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(11)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	IS_COMPILED	5	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
 def	information_schema	COLLATIONS	IS_DEFAULT	4	NULL	YES	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
@@ -389,7 +390,7 @@ def	information_schema	STATISTICS	INDEX_TYPE	14	NULL	NO	varchar	16	48	NULL	NULL	
 def	information_schema	STATISTICS	NON_UNIQUE	4	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(1)			select		NEVER	NULL	NO	NO
 def	information_schema	STATISTICS	NULLABLE	13	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
 def	information_schema	STATISTICS	PACKED	12	NULL	YES	varchar	10	30	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(10)			select		NEVER	NULL	NO	NO
-def	information_schema	STATISTICS	SEQ_IN_INDEX	7	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(2)			select		NEVER	NULL	NO	NO
+def	information_schema	STATISTICS	SEQ_IN_INDEX	7	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(2) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	STATISTICS	SUB_PART	11	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(3)			select		NEVER	NULL	NO	NO
 def	information_schema	STATISTICS	TABLE_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
 def	information_schema	STATISTICS	TABLE_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
@@ -641,6 +642,7 @@ NULL	information_schema	COLLATIONS	ID	bigint	NULL	NULL	NULL	NULL	bigint(11)
 3.0000	information_schema	COLLATIONS	IS_DEFAULT	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 3.0000	information_schema	COLLATIONS	IS_COMPILED	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 NULL	information_schema	COLLATIONS	SORTLEN	bigint	NULL	NULL	NULL	NULL	bigint(3)
+3.0000	information_schema	COLLATIONS	COMMENT	varchar	80	240	utf8mb3	utf8mb3_general_ci	varchar(80)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	CHARACTER_SET_NAME	varchar	32	96	utf8mb3	utf8mb3_general_ci	varchar(32)
 3.0000	information_schema	COLLATION_CHARACTER_SET_APPLICABILITY	FULL_COLLATION_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
@@ -963,7 +965,7 @@ NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)
 NULL	information_schema	STATISTICS	NON_UNIQUE	bigint	NULL	NULL	NULL	NULL	bigint(1)
 3.0000	information_schema	STATISTICS	INDEX_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	STATISTICS	INDEX_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
-NULL	information_schema	STATISTICS	SEQ_IN_INDEX	bigint	NULL	NULL	NULL	NULL	bigint(2)
+NULL	information_schema	STATISTICS	SEQ_IN_INDEX	int	NULL	NULL	NULL	NULL	int(2) unsigned
 3.0000	information_schema	STATISTICS	COLUMN_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	STATISTICS	COLLATION	varchar	1	3	utf8mb3	utf8mb3_general_ci	varchar(1)
 NULL	information_schema	STATISTICS	CARDINALITY	bigint	NULL	NULL	NULL	NULL	bigint(21)

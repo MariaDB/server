@@ -110,11 +110,11 @@ grp	a	c	id	a	c	d	a
 3	6	D	3	6	C	6	6
 NULL	NULL		NULL	NULL	NULL	NULL	NULL
 explain select t1.*,t2.*,t3.a from t1 left join t2 on (t3.a=t2.a) left join t1 as t3 on (t1.a=t3.a);
-ERROR 42S22: Unknown column 't3.a' in 'on clause'
+ERROR 42S22: Unknown column 't3.a' in 'ON'
 select t1.*,t2.*,t3.a from t1 left join t2 on (t3.a=t2.a) left join t1 as t3 on (t1.a=t3.a);
-ERROR 42S22: Unknown column 't3.a' in 'on clause'
+ERROR 42S22: Unknown column 't3.a' in 'ON'
 select t1.*,t2.*,t3.a from t1 left join t2 on (t3.a=t2.a) left join t1 as t3 on (t2.a=t3.a);
-ERROR 42S22: Unknown column 't3.a' in 'on clause'
+ERROR 42S22: Unknown column 't3.a' in 'ON'
 select t1.*,t2.* from t1 inner join t2 using (a);
 grp	a	c	id	a	c	d
 1	1	a	1	1	a	1
@@ -404,7 +404,7 @@ insert into t3 values (1);
 insert into t4 values (1,1);
 insert into t5 values (1,1);
 explain select * from t3 left join t4 on t4.seq_1_id = t2.t2_id left join t1 on t1.t1_id = t4.seq_0_id left join t5 on t5.seq_0_id = t1.t1_id left join t2 on t2.t2_id = t5.seq_1_id where t3.t3_id = 23;
-ERROR 42S22: Unknown column 't2.t2_id' in 'on clause'
+ERROR 42S22: Unknown column 't2.t2_id' in 'ON'
 drop table t1,t2,t3,t4,t5;
 create table t1 (n int, m int, o int, key(n));
 create table t2 (n int not null, m int, o int, primary key(n));
@@ -2703,7 +2703,7 @@ join
 t3 on
 (t3.f=t1.a)
 ) on (t2.c=t1.a );
-ERROR 42S22: Unknown column 't1.a' in 'on clause'
+ERROR 42S22: Unknown column 't1.a' in 'ON'
 explain
 select *
 from
@@ -2713,7 +2713,7 @@ join
 t3 on
 (t3.f=(select max(g) from t4 where t4.h=t1.a))
 ) on (t2.c=t1.a );
-ERROR 42S22: Unknown column 't1.a' in 'where clause'
+ERROR 42S22: Unknown column 't1.a' in 'WHERE'
 drop table t1,t2,t3,t4;
 create table t1 (a int);
 insert into t1 values (1),(2);
@@ -2724,7 +2724,7 @@ insert into t3 values (1),(2);
 select * from ( select * from t1 left join t2
 on b in (select x from t3 as sq1)
 ) as sq2;
-ERROR 42S22: Unknown column 'x' in 'field list'
+ERROR 42S22: Unknown column 'x' in 'SELECT'
 drop table t1,t2,t3;
 # end of 10.2 tests
 #

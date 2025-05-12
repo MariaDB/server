@@ -39,11 +39,11 @@ position(binary 'll' in 'hello')	position('a' in binary 'hello')
 select left('hello',null), right('hello',null);
 left('hello',null)	right('hello',null)
 NULL	NULL
-select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5) ;
+select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5);
 left('hello',2)	right('hello',2)	substring('hello',2,2)	mid('hello',1,5)
 he	lo	el	hello
-select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) ;
-concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1))
+select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) as exp;
+exp
 happy
 select substring_index('www.tcx.se','.',-2),substring_index('www.tcx.se','.',1);
 substring_index('www.tcx.se','.',-2)	substring_index('www.tcx.se','.',1)
@@ -171,23 +171,23 @@ the king of
 select substring_index('the king of the the hill','the',3);
 substring_index('the king of the the hill','the',3)
 the king of the 
-select concat(':',ltrim('  left  '),':',rtrim('  right  '),':');
-concat(':',ltrim('  left  '),':',rtrim('  right  '),':')
+select concat(':',ltrim('  left  '),':',rtrim('  right  '),':') as exp;
+exp
 :left  :  right:
-select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':');
-concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':')
+select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':') as exp;
+exp
 :left  :  right:
-select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':');
-concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':')
+select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':') as exp;
+exp
 :left: right:
-select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':');
-concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':')
+select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':') as exp;
+exp
 :m:y:s:
-select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':');
-concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':')
+select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':') as exp;
+exp
 :my:sql:
-select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':');
-concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':')
+select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':') as exp;
+exp
 :my:sql:
 select TRIM("foo" FROM "foo"), TRIM("foo" FROM "foook"), TRIM("foo" FROM "okfoo");
 TRIM("foo" FROM "foo")	TRIM("foo" FROM "foook")	TRIM("foo" FROM "okfoo")
@@ -201,8 +201,8 @@ NULL
 select concat_ws(',','',NULL,'a');
 concat_ws(',','',NULL,'a')
 ,a
-SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"');
-CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"')
+SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"') as exp;
+exp
 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 insert('txs',2,1,'hi')	insert('is ',4,0,'a')	insert('txxxxt',2,4,'es')
@@ -215,8 +215,8 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					replace('aaaa','a','bbbb')	253	16	16	Y	0	39	8
 replace('aaaa','a','bbbb')
 bbbbbbbbbbbbbbbb
-select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') ;
-replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL')
+select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') as exp;
+exp
 this is a REAL test
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 soundex('')	soundex('he')	soundex('hello all folks')	soundex('#3556 in bugdb')
@@ -311,11 +311,11 @@ NULL	NULL
 select least(1,2,3) | greatest(16,32,8), least(5,4)*1,greatest(-1.0,1.0)*1,least(3,2,1)*1.0,greatest(1,1.1,1.0),least("10",9),greatest("A","B","0");
 least(1,2,3) | greatest(16,32,8)	least(5,4)*1	greatest(-1.0,1.0)*1	least(3,2,1)*1.0	greatest(1,1.1,1.0)	least("10",9)	greatest("A","B","0")
 33	4	1.0	1.0	1.1	9	B
-select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000);
-decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000)
+select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000) as exp;
+exp
 1
-select decode(encode("abcdef","monty"),"monty")="abcdef";
-decode(encode("abcdef","monty"),"monty")="abcdef"
+select decode(encode("abcdef","monty"),"monty")="abcdef" as exp;
+exp
 1
 select quote('\'\"\\test');
 quote('\'\"\\test')
@@ -331,11 +331,11 @@ Warning	1365	Division by 0
 select length(quote(concat(char(0),"test")));
 length(quote(concat(char(0),"test")))
 8
-select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235))));
-hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235))))
+select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235)))) as exp;
+exp
 27E0E3E6E7E8EAEB27
-select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL);
-unhex(hex("foobar"))	hex(unhex("1234567890ABCDEF"))	unhex("345678")	unhex(NULL)
+select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL) as exp;
+unhex(hex("foobar"))	hex(unhex("1234567890ABCDEF"))	unhex("345678")	exp
 foobar	1234567890ABCDEF	4Vx	NULL
 select hex(unhex("1")), hex(unhex("12")), hex(unhex("123")), hex(unhex("1234")), hex(unhex("12345")), hex(unhex("123456"));
 hex(unhex("1"))	hex(unhex("12"))	hex(unhex("123"))	hex(unhex("1234"))	hex(unhex("12345"))	hex(unhex("123456"))
@@ -408,17 +408,17 @@ bugstatus int(10) unsigned default NULL,
 submitter int(10) unsigned default NULL
 ) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1,'Link',1,1,1,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2001-02-28 08:40:16',20010228084016,0,4);
-SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') FROM t1;
-CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"')
+SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') as exp FROM t1;
+exp
 "Link";"1";"1";"1";"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";"2001-02-28 08:40:16";"20010228084016";"0";"4"
-SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') FROM t1;
-CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"')
+SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') as exp FROM t1;
+exp
 "Link";"1";"1";"1";"0";"4"
-SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) FROM t1;
-CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter)
+SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) as exp FROM t1;
+exp
 Link";"1";"1";"1";"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";"2001-02-28 08:40:16";"20010228084016";"0";"4
-SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') from t1 group by bugdesc;
-bugdesc	REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb')
+SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') as exp from t1 group by bugdesc;
+bugdesc	exp
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 drop table t1;
 CREATE TABLE t1 (id int(11) NOT NULL auto_increment, tmp text NOT NULL, KEY id (id)) ENGINE=MyISAM;
@@ -744,10 +744,10 @@ encode('abcd','ab')
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `bin(130)` varchar(64) DEFAULT NULL,
-  `oct(130)` varchar(64) DEFAULT NULL,
-  `conv(130,16,10)` varchar(64) DEFAULT NULL,
-  `hex(130)` varchar(6) DEFAULT NULL,
+  `bin(130)` varchar(65) DEFAULT NULL,
+  `oct(130)` varchar(65) DEFAULT NULL,
+  `conv(130,16,10)` varchar(65) DEFAULT NULL,
+  `hex(130)` varchar(16) DEFAULT NULL,
   `char(130)` varbinary(4) DEFAULT NULL,
   `format(130,10)` varchar(25) DEFAULT NULL,
   `left(_latin2'a',1)` varchar(1) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
@@ -2016,35 +2016,35 @@ hello
 select insert('hello', 4294967297, 4294967297, 'hi');
 insert('hello', 4294967297, 4294967297, 'hi')
 hello
-select insert('hello', -18446744073709551615, -18446744073709551615, 'hi');
-insert('hello', -18446744073709551615, -18446744073709551615, 'hi')
+select insert('hello', -18446744073709551615, -18446744073709551615, 'hi') as exp;
+exp
 hello
 Warnings:
 Warning	1916	Got overflow when converting '-18446744073709551615' to INT. Value truncated
 Warning	1916	Got overflow when converting '-18446744073709551615' to INT. Value truncated
-select insert('hello', 18446744073709551615, 18446744073709551615, 'hi');
-insert('hello', 18446744073709551615, 18446744073709551615, 'hi')
+select insert('hello', 18446744073709551615, 18446744073709551615, 'hi') as exp;
+exp
 hello
-select insert('hello', -18446744073709551616, -18446744073709551616, 'hi');
-insert('hello', -18446744073709551616, -18446744073709551616, 'hi')
+select insert('hello', -18446744073709551616, -18446744073709551616, 'hi') as exp;
+exp
 hello
 Warnings:
 Warning	1916	Got overflow when converting '-18446744073709551616' to INT. Value truncated
 Warning	1916	Got overflow when converting '-18446744073709551616' to INT. Value truncated
-select insert('hello', 18446744073709551616, 18446744073709551616, 'hi');
-insert('hello', 18446744073709551616, 18446744073709551616, 'hi')
+select insert('hello', 18446744073709551616, 18446744073709551616, 'hi') as exp;
+exp
 hello
 Warnings:
 Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
 Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
-select insert('hello', -18446744073709551617, -18446744073709551617, 'hi');
-insert('hello', -18446744073709551617, -18446744073709551617, 'hi')
+select insert('hello', -18446744073709551617, -18446744073709551617, 'hi') as exp;
+exp
 hello
 Warnings:
 Warning	1916	Got overflow when converting '-18446744073709551617' to INT. Value truncated
 Warning	1916	Got overflow when converting '-18446744073709551617' to INT. Value truncated
-select insert('hello', 18446744073709551617, 18446744073709551617, 'hi');
-insert('hello', 18446744073709551617, 18446744073709551617, 'hi')
+select insert('hello', 18446744073709551617, 18446744073709551617, 'hi') as exp;
+exp
 hello
 Warnings:
 Warning	1916	Got overflow when converting '18446744073709551617' to INT. Value truncated
@@ -2766,25 +2766,25 @@ CREATE TABLE t1 (a VARCHAR(20), b INT);
 CREATE TABLE t2 (a VARCHAR(20), b INT);
 INSERT INTO t1 VALUES ('ABC', 1);
 INSERT INTO t2 VALUES ('ABC', 1);
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a) as exp
 FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
-DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+exp
 secret
-SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a) as exp
 FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
-DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+exp
 secret
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC')
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC') as exp
 FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
-DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC')
+exp
 secret
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 INSERT INTO t1 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 INSERT INTO t2 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a) as exp
 FROM t2 WHERE t2.b = 1 GROUP BY t2.b;
-DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a)
+exp
 secret
 DROP TABLE t1, t2;
 #
@@ -3066,10 +3066,8 @@ SELECT (rpad(1.0,2048,1)) IS NOT FALSE;
 1
 SELECT ((+0) IN
 ((0b111111111111111111111111111111111111111111111111111),(rpad(1.0,2048,1)),
-(32767.1)));
-((+0) IN
-((0b111111111111111111111111111111111111111111111111111),(rpad(1.0,2048,1)),
-(32767.1)))
+(32767.1))) as exp;
+exp
 0
 SELECT ((rpad(1.0,2048,1)) = ('4(') ^ (0.1));
 ((rpad(1.0,2048,1)) = ('4(') ^ (0.1))
@@ -5023,8 +5021,8 @@ DROP TABLE t1;
 #
 # MDEV-24742 Server crashes in Charset::numchars / String::numchars
 #
-SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
-NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux')
+SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux') as exp;
+exp
 NULL
 #
 # Bug#31374305 - FORMAT() NOT DISPLAYING WHOLE NUMBER SIDE CORRECTLY
@@ -5261,7 +5259,7 @@ conv(i,16,2)
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `conv(i,16,2)` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `conv(i,16,2)` varchar(65) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1,t2;
 #
@@ -5318,7 +5316,105 @@ SELECT SUBSTR(0,@a) FROM t;
 SUBSTR(0,@a)
 DROP TABLE t;
 #
+# MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+#
+CREATE TABLE t1 (c BLOB);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+OCT(c)
+1000000000000000000000
+SELECT BIN(c) FROM t1;
+BIN(c)
+1000000000000000000000000000000000000000000000000000000000000000
+DROP TABLE t1;
+DO OCT(-9223372036854775808);
+#
+# MDEV-28652 SUBSTRING(str,pos,len) returns incorrect result in view (returns an empty string)
+#
+create view v1 as select substring('hello', 1, 4294967295);
+select * from v1;
+substring('hello', 1, 4294967295)
+hello
+drop view v1;
+#
 # End of 10.5 tests
+#
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-29552 LEFT and RIGHT with big value for parameter 'len' >0 return empty value in view
+#
+create view v1 as select left('hello', 4294967295);
+select * from v1;
+left('hello', 4294967295)
+hello
+drop view v1;
+#
+# MDEV-33942 View cuts off the end of string with the utf8 character set in INSERT function
+#
+SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
+D120D18E
+CREATE VIEW v1 AS SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+SELECT * FROM v1;
+HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
+D120D18E
+DROP VIEW v1;
+#
+# MDEV-28686 Assertion `0' in Type_handler_string_result::make_sort_key or unexpected result
+#
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT e, GROUP_CONCAT(s) FROM t GROUP BY CONVERT((LPAD(e, -1) AND e) USING utf8);
+e	GROUP_CONCAT(s)
+1970-01-02	1970-01-01,1980-01-01
+DROP TABLE t;
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+CONVERT((LPAD(e, -1) AND e) USING utf8)
+NULL
+SET sql_mode=STRICT_TRANS_TABLES;
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+CONVERT((LPAD(e, -1) AND e) USING utf8)
+NULL
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+#
+# MDEV-32755 Stack-Buffer-Overflow at /mariadb-11.3.0/strings/int2str.c:122
+#
+CREATE TABLE t0 ( c55 INT , c38 INT ) ;
+INSERT INTO t0 VALUES ( -54 , -27 ) , ( -107 , -62 ) ;
+CREATE INDEX i0 ON t0 ( c38 ) ;
+INSERT INTO t0 ( c55 ) VALUES ( 43 ) , ( 77 ) ;
+SELECT t0 . c55 AS c47 FROM
+( SELECT c15 AS c40 FROM
+( SELECT c55 AS c15 FROM t0 ) AS t1
+JOIN t0 ON t1.c15 = t1.c15 SOUNDS LIKE + CONV ( -2919286674558440404 , -17 , -2 ) ) AS t2
+JOIN t0 ON t0.c38 = t0.c38;
+c47
+DROP TABLE t0;
+SELECT CONV(-29223372036854775809, -10, 18446744073709551614);
+CONV(-29223372036854775809, -10, 18446744073709551614)
+-1000000000000000000000000000000000000000000000000000000000000000
+SELECT CONV(1<<63, 10, -2);
+CONV(1<<63, 10, -2)
+-1000000000000000000000000000000000000000000000000000000000000000
+#
+# MDEV-35416 CONV(1<<63, 10, -2) fails with --view-protocol
+#
+CREATE TABLE t1 AS SELECT CONV(1<<63, 10, -2) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(65) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.6 tests
 #
 #
 # MDEV-25704 Function random_bytes

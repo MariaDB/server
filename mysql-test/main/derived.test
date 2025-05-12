@@ -866,6 +866,8 @@ INSERT INTO example1463 VALUES ('David', 'Unknown', 100);
 INSERT INTO example1463 VALUES ('Edward', 'Success', 150);
 INSERT INTO example1463 VALUES ('Edward', 'Pending', 150);
 
+#Enable after fix MDEV-31720
+--disable_cursor_protocol
 SELECT Customer, Success, SUM(OrderSize)
  FROM (SELECT Customer,
  CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
@@ -873,6 +875,7 @@ SELECT Customer, Success, SUM(OrderSize)
  FROM example1463) as subQ
  GROUP BY Success, Customer
  WITH ROLLUP;
+--enable_cursor_protocol
 SELECT Customer, Success, SUM(OrderSize)
  FROM (SELECT Customer,
  CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
@@ -1511,3 +1514,20 @@ deallocate prepare stmt;
 drop table t1,t2,t3;
 
 --echo # End of MariaDB 11.1 tests
+
+--echo #
+--echo # MDEV-34880: Incorrect result for query with derived table having TEXT field
+--echo #
+CREATE TABLE t1 (id int NOT NULL  PRIMARY KEY, notes TEXT NOT NULL);
+INSERT INTO t1 VALUES (1, 'test1'), (2, 'test2');
+
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1;
+
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1 AND
+  notes = 'test1';
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #

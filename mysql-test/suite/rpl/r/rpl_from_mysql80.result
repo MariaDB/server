@@ -1,0 +1,54 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+START SLAVE UNTIL Master_log_file='master-bin.000001', Master_log_pos= 1178;
+SELECT MASTER_POS_WAIT('master-bin.000001', 1178, 60);
+SELECT * FROM t1 ORDER BY a;
+a	b	c
+1	0	
+2	0	hulu
+3	0	bulu
+include/wait_for_slave_sql_to_stop.inc
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1594]
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=2297;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'No' to 'No'
+START SLAVE IO_THREAD;
+START SLAVE SQL_THREAD;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_error.inc [errno=1594]
+SELECT * FROM t1 ORDER BY a;
+a	b	c
+1	0	
+2	0	hulu
+3	0	bulu
+4	0	skip
+5	0	after compressed
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	{"a": "hulu", "b": "[zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy][zyzzy]", "c": "bulu"}
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'No' to 'No'
+START SLAVE IO_THREAD;
+START SLAVE SQL_THREAD;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_to_start.inc
+DROP TABLE t1, t2;
+CALL mtr.add_suppression('TRANSACTION_PAYLOAD_EVENT event. You can avoid this event by specifying');
+CALL mtr.add_suppression('PARTIAL_UPDATE_ROWS_EVENT event. You can avoid this event by specifying');
+connection master;
+include/rpl_end.inc

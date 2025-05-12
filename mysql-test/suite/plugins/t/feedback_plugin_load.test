@@ -18,7 +18,9 @@ select plugin_status from information_schema.plugins where plugin_name='feedback
 # so lets get back to it if it ever happens.
 
 # Lets say the plugin was used X times before this SELECT
+--disable_cursor_protocol
 SELECT variable_value INTO @feedback_used FROM information_schema.feedback where variable_name = 'FEEDBACK used';
+--enable_cursor_protocol
 
 # Now $feedback_used == X+1, and 'FEEDBACK used' is also X+1. And variable_value is increased again when we run the next SELECT
 SELECT variable_value = @feedback_used + 1 as 'MUST BE 1' FROM information_schema.feedback where variable_name = 'FEEDBACK used';

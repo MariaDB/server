@@ -57,6 +57,12 @@ disable_libfmt()
   sed '/libfmt-dev/d' -i debian/control
 }
 
+remove_package_notes()
+{
+  # binutils >=2.39 + disto makefile /usr/share/debhelper/dh_package_notes/package-notes.mk
+  sed -e '/package.notes/d' -i debian/rules debian/control
+}
+
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 uname_machine=$(uname -m)
 
@@ -94,6 +100,7 @@ in
     ;&
   "bullseye")
     add_lsb_base_depends
+    remove_package_notes
     ;&
   "bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
@@ -103,7 +110,7 @@ in
       replace_uring_with_aio
     fi
     ;&
-  "trixie"|"sid")
+  "trixie"|"forky"|"sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
     ;;
@@ -114,6 +121,7 @@ in
     ;&
   "jammy"|"kinetic")
     add_lsb_base_depends
+    remove_package_notes
     ;&
   "lunar"|"mantic")
     if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
@@ -121,7 +129,7 @@ in
       replace_uring_with_aio
     fi
     ;&
-  "noble")
+  "noble"|"oracular"|"plucky"|"questing")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.
@@ -184,7 +192,7 @@ fi
 
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
-if which eatmydata > /dev/null
+if command -v eatmydata > /dev/null
 then
   BUILDPACKAGE_DPKGCMD+=("eatmydata")
 fi

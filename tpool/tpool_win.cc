@@ -45,9 +45,7 @@ class thread_pool_win : public thread_pool
       if (!m_pool)
         return;
 
-      if (m_pool->m_worker_destroy_callback)
-        m_pool->m_worker_destroy_callback();
-
+      m_pool->m_worker_destroy_callback();
       m_pool->m_thread_count--;
     }
     /** This needs to be called before every IO or simple task callback.*/
@@ -63,8 +61,7 @@ class thread_pool_win : public thread_pool
       m_pool = pool;
       m_pool->m_thread_count++;
       // Call the thread init function.
-      if (m_pool->m_worker_init_callback)
-        m_pool->m_worker_init_callback();
+      m_pool->m_worker_init_callback();
     }
   };
 
@@ -143,7 +140,7 @@ class thread_pool_win : public thread_pool
     /**
      Submit async IO.
     */
-    virtual int submit_io(aiocb* cb) override
+    int submit_io(aiocb* cb) override
     {
       memset((OVERLAPPED *)cb, 0, sizeof(OVERLAPPED));
 
@@ -191,7 +188,7 @@ class thread_pool_win : public thread_pool
     /**
       Binds the file handle via CreateThreadpoolIo().
     */
-    virtual int bind(native_file_handle& fd) override
+    int bind(native_file_handle& fd) override
     {
       fd.m_ptp_io =
         CreateThreadpoolIo(fd.m_handle, io_completion_callback, 0, &(m_pool.m_env));
@@ -203,7 +200,7 @@ class thread_pool_win : public thread_pool
     /**
       Unbind the file handle via CloseThreadpoolIo.
     */
-    virtual int unbind(const native_file_handle& fd) override
+    int unbind(const native_file_handle& fd) override
     {
       if (fd.m_ptp_io)
         CloseThreadpoolIo(fd.m_ptp_io);
@@ -261,7 +258,7 @@ public:
 
     task->execute();
   }
-  virtual void submit_task(task *task) override
+  void submit_task(task *task) override
   {
     auto entry= m_task_cache.get();
     task->add_ref();

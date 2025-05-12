@@ -5,6 +5,10 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
+--enable_query_log
+
 let $have_deadlock=`select @@GLOBAL.innodb_deadlock_detect`;
 
 connection default;
@@ -14,7 +18,14 @@ CREATE TABLE t1(
 	PRIMARY KEY(id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE dl(
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, 
+    cnt INT UNSIGNED
+) ENGINE=InnoDB;
+
 INSERT INTO t1 VALUES(1), (2), (3);
+# Preserve the initial value of the deadlock counter
+INSERT INTO dl(cnt) SELECT variable_value FROM information_schema.global_status WHERE variable_name LIKE 'Innodb_deadlocks';
 
 # We are not interested query results, only errors
 --disable_result_log
@@ -61,6 +72,7 @@ disconnect con2;
 # and does the update.
 #
 connection default;
+--let $valid_deadlock_cnt= 1
 if (!$have_deadlock) {
 --error 0,ER_LOCK_WAIT_TIMEOUT
 reap;
@@ -68,12 +80,21 @@ reap;
 if ($have_deadlock) {
 --error 0,ER_LOCK_DEADLOCK
 reap;
+--disable_query_log
+INSERT INTO dl(cnt) SELECT variable_value FROM information_schema.global_status WHERE variable_name LIKE 'Innodb_deadlocks';
+set @init_deadlock_cnt = (SELECT min(k.cnt) FROM dl k);
+--let $valid_deadlock_cnt= `SELECT (max(t.cnt-@init_deadlock_cnt) = 1) FROM dl t`
+--enable_query_log
 }
+# Indicates that the deadlock counter works well.
+# Use the default =1 where is no deadlock detection,
+# to enable unconditional check.
+--echo 'Deadlock counter is valid';
+--echo $valid_deadlock_cnt
 
 ROLLBACK;
 
 --enable_result_log
-
 DROP TABLE t1;
-
+DROP TABLE dl;
 --source include/wait_until_count_sessions.inc

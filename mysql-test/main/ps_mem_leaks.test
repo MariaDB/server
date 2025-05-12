@@ -5,6 +5,7 @@
 # The cmake  option -DWITH_PROTECT_STATEMENT_MEMROOT is used only
 # for debug build
 --source include/have_debug.inc
+--source include/have_partition.inc
 
 --echo #
 --echo # MDEV-32369: Memory leak when executing PS for query with IN subquery
@@ -112,6 +113,236 @@ DROP TABLE t1;
 --echo # End of 10.4 tests
 
 --echo #
+--echo # MDEV-34447: Memory leakage is detected on running the test main.ps against the server 11.1
+--echo #
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+
+PREPARE stmt FROM 'UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+EXECUTE stmt;
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # Memory leak also could take place on running the DELETE statement
+--echo # with the LIMIT clause. Check it.
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+
+CREATE PROCEDURE p1(p1 INT)
+  DELETE FROM t1 LIMIT p1;
+
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+
+--echo # Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-34757: assertion of (mem_root->flags & 4) == 0 fails in 2nd ps execution with partition pruning
+--echo #
+# same as the first MDEV-34444 testcase but with explain
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+
+PREPARE stmt FROM 'EXPLAIN UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+# we are testing 2nd ps assertion failure, not explain output, which
+# may vary from version to version
+--disable_result_log
+EXECUTE stmt;
+--enable_result_log
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+--disable_result_log
+EXECUTE stmt;
+--enable_result_log
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+# 2nd ps mem leak; partition pruning
+set @var1=5;
+set @var2=4;
+create table t1 (a int) partition by list(a) (
+  partition p0 values in (null,1,2),
+  partition p1 values in (3,4)
+);
+create table t2 (a int);
+insert into t1 values (1),(2),(3),(4);
+insert into t2 values (4);
+PREPARE stmt FROM 'UPDATE t1 t1 SET a = (SELECT 1 FROM t2 WHERE a = t1.a) where a = ?';
+execute stmt using @var1;
+select * from t1;
+execute stmt using @var2;
+select * from t1;
+deallocate prepare stmt;
+drop table t1, t2;
+
+# same but with explain
+set @var1=5;
+set @var2=4;
+create table t1 (a int) partition by list(a) (
+  partition p0 values in (null,1,2),
+  partition p1 values in (3,4)
+);
+create table t2 (a int);
+insert into t1 values (1),(2),(3),(4);
+insert into t2 values (4);
+PREPARE stmt FROM 'EXPLAIN UPDATE t1 t1 SET a = (SELECT 1 FROM t2 WHERE a = t1.a) where a = ?';
+execute stmt using @var1;
+select * from t1;
+execute stmt using @var2;
+select * from t1;
+deallocate prepare stmt;
+drop table t1, t2;
+
+# top level impossible where
+set @var1=1;
+set @var2=2;
+CREATE TABLE t1 ( id INT(10), value INT(10) );
+CREATE TABLE t2 ( id INT(10) );
+insert into t1 values (1,10),(2,10),(3,10);
+insert into t2 values (1),(2);
+
+PREPARE stmt FROM 'UPDATE t1 t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id) WHERE  ?=?';
+execute stmt using @var1, @var2;
+execute stmt using @var1, @var1;
+deallocate prepare stmt;
+DROP TABLE t1,t2;
+
+# top level impossible where, with explain
+set @var1=1;
+set @var2=2;
+CREATE TABLE t1 ( id INT(10), value INT(10) );
+CREATE TABLE t2 ( id INT(10) );
+insert into t1 values (1,10),(2,10),(3,10);
+insert into t2 values (1),(2);
+
+PREPARE stmt FROM 'EXPLAIN UPDATE t1 t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id) WHERE  ?=?';
+execute stmt using @var1, @var2;
+execute stmt using @var1, @var1;
+deallocate prepare stmt;
+DROP TABLE t1,t2;
+
+# Now we do delete instead of update
+
+# same as the second MDEV-34447 testcase but with explain
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+
+CREATE PROCEDURE p1(p1 INT)
+  EXPLAIN DELETE FROM t1 LIMIT p1;
+
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+
+--echo # Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+# partition pruning
+set @var1=5;
+set @var2=4;
+create table t1 (a int) partition by list(a) (
+  partition p0 values in (1,2),
+  partition p1 values in (3,4)
+);
+create table t2 (a int);
+insert into t1 values (1),(2),(3),(4);
+insert into t2 values (4);
+PREPARE stmt FROM 'DELETE FROM t1 where a = ?';
+execute stmt using @var1;
+select * from t1;
+execute stmt using @var2;
+select * from t1;
+deallocate prepare stmt;
+drop table t1, t2;
+
+# same but with explain
+set @var1=5;
+set @var2=4;
+create table t1 (a int) partition by list(a) (
+  partition p0 values in (1,2),
+  partition p1 values in (3,4)
+);
+create table t2 (a int);
+insert into t1 values (1),(2),(3),(4);
+insert into t2 values (4);
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1 where a = ?';
+execute stmt using @var1;
+select * from t1;
+execute stmt using @var2;
+select * from t1;
+deallocate prepare stmt;
+drop table t1, t2;
+
+# top level impossible where
+set @var1=1;
+set @var2=2;
+CREATE TABLE t1 ( id INT(10), value INT(10) );
+CREATE TABLE t2 ( id INT(10) );
+insert into t1 values (1,10),(2,10),(3,10);
+insert into t2 values (1),(2);
+
+PREPARE stmt FROM 'DELETE FROM t1 WHERE  ?=?';
+execute stmt using @var1, @var2;
+execute stmt using @var1, @var1;
+deallocate prepare stmt;
+DROP TABLE t1,t2;
+
+# top level impossible where, with explain
+set @var1=1;
+set @var2=2;
+CREATE TABLE t1 ( id INT(10), value INT(10) );
+CREATE TABLE t2 ( id INT(10) );
+insert into t1 values (1,10),(2,10),(3,10);
+insert into t2 values (1),(2);
+
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1 WHERE  ?=?';
+execute stmt using @var1, @var2;
+execute stmt using @var1, @var1;
+deallocate prepare stmt;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-33858: Assertion `(mem_root->flags & 4) == 0' fails on 2nd execution of PS with -DWITH_PROTECT_STATEMENT_MEMROOT=ON
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2); # Optional, fails either way
+PREPARE stmt FROM "UPDATE t SET a = 0 LIMIT ?";
+EXECUTE stmt USING 0;
+EXECUTE stmt USING 1;
+
+# CLeanup
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-35249: Assertion `(mem_root->flags & 4) == 0' failed in convert_subq_to_jtbm
+--echo #
+
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1,2,3),(4,5,6);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t;
+CREATE VIEW v2 AS SELECT * FROM v1;
+PREPARE stmt FROM 'UPDATE t SET a = 0 WHERE b IN (SELECT c FROM v2)';
+EXECUTE stmt;
+EXECUTE stmt;
+
+# Cleanup
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t;
+
+--echo # End of 10.5 tests
+
+--echo #
 --echo # MDEV-33769: Memory leak found in the test main.rownum run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
 --echo #
 CREATE OR REPLACE TABLE t1(a INT);
@@ -134,3 +365,87 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-34447: Memory leakage is detected on running the test main.ps against the server 11.1
+--echo #
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+
+PREPARE stmt FROM 'UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+EXECUTE stmt;
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # Memory leak also could take place on running the DELETE statement
+--echo # with the LIMIT clause. Check it.
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+
+CREATE PROCEDURE p1(p1 INT)
+  DELETE FROM t1 LIMIT p1;
+
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+
+--echo # Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-34649: Memory leaks on running DELETE statement in PS mode with positional parameters
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(30)) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES (1, 'one'), (0, NULL), (3, 'three'), (4, 'four');
+PREPARE stmt FROM 'DELETE FROM t1 WHERE b=?' ;
+SET @arg00=NULL;
+EXECUTE stmt USING @arg00;
+SET @arg00='one';
+# Without the patch, attempt to run the same prepared statement the second time
+# would result in memory leaks
+EXECUTE stmt USING @arg00;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 11.1
+
+--echo #
+--echo # MDEV-34517: Memory leak on re-compilation of a failing statement inside a stored routine
+--echo #
+CREATE TABLE t1 (a INT);
+
+CREATE PROCEDURE p1()
+  SELECT * FROM t1;
+
+SET @save_dbug = @@debug_dbug;
+
+CALL p1();
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
+--echo # Recomplilation of the statement 'SELECT * FORM t1' on
+--echo # the second run of the procedure p1 shouldn't result in memory leaks
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_1st_time';
+
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+--echo # Recompilation is requested the second time
+SET @@debug_dbug='+d,sp_instr_reparsing_2nd_time';
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_2nd_time';
+
+--echo # Clean up
+SET @@debug_dbug=@save_dbug;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 11.2 tests

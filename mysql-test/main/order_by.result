@@ -795,18 +795,18 @@ col1	col	t2_col
 2	2	2
 3	3	1
 select col1 as col, col from t1 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as c1, t2.col as c2 from t1, t2 where t1.col1=t2.col2
 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as c1, t2.col as c2 from t1, t2 where t1.col1=t2.col2
 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select col1 from t1, t2 where t1.col1=t2.col2 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as t1_col, t2.col2 from t1, t2 where t1.col1=t2.col2
 order by col;
-ERROR 23000: Column 'col' in order clause is ambiguous
+ERROR 23000: Column 'col' in ORDER BY is ambiguous
 select t1.col as t1_col, t2.col from t1, t2 where t1.col1=t2.col2
 order by col;
 t1_col	col
@@ -957,45 +957,45 @@ num
 2
 3
 SELECT a + 1 AS num, num + 1 FROM t1;
-ERROR 42S22: Unknown column 'num' in 'field list'
+ERROR 42S22: Unknown column 'num' in 'SELECT'
 SELECT a + 1 AS num, (select num + 2 FROM t1 LIMIT 1) FROM t1;
 num	(select num + 2 FROM t1 LIMIT 1)
 2	4
 3	5
 SELECT a.a + 1 AS num FROM t1 a JOIN t1 b ON num = b.a;
-ERROR 42S22: Unknown column 'num' in 'on clause'
+ERROR 42S22: Unknown column 'num' in 'ON'
 DROP TABLE t1;
 CREATE TABLE bug25126 (
 val int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY
 );
 UPDATE bug25126 SET MissingCol = MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'field list'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET val = val ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET val = val ORDER BY val;
 UPDATE bug25126 SET val = 1 ORDER BY val;
 UPDATE bug25126 SET val = 1 ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET val = 1 ORDER BY val, MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET val = MissingCol ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'ORDER BY'
 UPDATE bug25126 SET MissingCol = 1 ORDER BY val, MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'field list'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET MissingCol = 1 ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'field list'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET MissingCol = val ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'field list'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 UPDATE bug25126 SET MissingCol = MissingCol ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'field list'
+ERROR 42S22: Unknown column 'MissingCol' in 'SET'
 DROP TABLE bug25126;
 CREATE TABLE t1 (a int);
 SELECT p.a AS val, q.a AS val1 FROM t1 p, t1 q ORDER BY val > 1;
 val	val1
 SELECT p.a AS val, q.a AS val FROM t1 p, t1 q ORDER BY val;
-ERROR 23000: Column 'val' in order clause is ambiguous
+ERROR 23000: Column 'val' in ORDER BY is ambiguous
 SELECT p.a AS val, q.a AS val FROM t1 p, t1 q ORDER BY val > 1;
-ERROR 23000: Column 'val' in order clause is ambiguous
+ERROR 23000: Column 'val' in ORDER BY is ambiguous
 DROP TABLE t1;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (3), (2), (4), (1);
@@ -1538,9 +1538,9 @@ INSERT INTO t1 (a) VALUES (1), (2);
 INSERT INTO t2 (a,b) VALUES (1,2), (2,3);
 INSERT INTO t3 (c) VALUES (1), (2);
 SELECT
-(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a) as exp
 FROM t3;
-(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+exp
 2
 NULL
 DROP TABLE t1, t2, t3;
@@ -4446,6 +4446,8 @@ CREATE TABLE t1(a VARCHAR(1027), b INT);
 INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
 SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
 SET tmp_memory_table_size= 1056*2;
+Warnings:
+Warning	1292	Truncated incorrect tmp_memory_table_size value: '2112'
 SELECT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 34
@@ -4521,7 +4523,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 50,
           "r_hit_ratio": 0,
           "query_block": {

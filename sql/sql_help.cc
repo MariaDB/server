@@ -226,7 +226,7 @@ int search_topics(THD *thd, TABLE *topics, struct st_find_field *find_fields,
 
   while (!read_record_info.read_record())
   {
-    if (!select->cond->val_int())		// Doesn't match like
+    if (!select->cond->val_bool())		// Doesn't match like
       continue;
     memorize_variant_topic(thd,topics,count,find_fields,
 			   names,name,description,example);
@@ -270,7 +270,7 @@ int search_keyword(THD *thd, TABLE *keywords,
 
   while (!read_record_info.read_record() && count<2)
   {
-    if (!select->cond->val_int())		// Dosn't match like
+    if (!select->cond->val_bool())		// Dosn't match like
       continue;
 
     *key_id= (int)find_fields[help_keyword_help_keyword_id].field->val_int();
@@ -404,7 +404,7 @@ int search_categories(THD *thd, TABLE *categories,
     DBUG_RETURN(0);
   while (!read_record_info.read_record())
   {
-    if (select && !select->cond->val_int())
+    if (select && !select->cond->val_bool())
       continue;
     String *lname= new (thd->mem_root) String;
     get_field(thd->mem_root,pfname,lname);
@@ -442,7 +442,7 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
 
   while (!read_record_info.read_record())
   {
-    if (!select->cond->val_int())
+    if (!select->cond->val_bool())
       continue;
     String *name= new (thd->mem_root) String();
     get_field(thd->mem_root,pfname,name);

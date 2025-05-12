@@ -204,17 +204,17 @@ drop table t0, t1;
 create table t1 (i int);
 insert into t1 values (1),(2);
 analyze select a from t1;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 analyze delete from t1 where a=2;
-ERROR 42S22: Unknown column 'a' in 'where clause'
+ERROR 42S22: Unknown column 'a' in 'WHERE'
 analyze update t1 set a=2;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SET'
 create table t2 like t1;
 insert into t2 select * from t1;
 analyze update t2,t1 set t2.i=5 where t2.a=t1.a;
-ERROR 42S22: Unknown column 't2.a' in 'where clause'
+ERROR 42S22: Unknown column 't2.a' in 'WHERE'
 analyze delete t1 from t2,t1 where t2.a=t1.a;
-ERROR 42S22: Unknown column 't2.a' in 'where clause'
+ERROR 42S22: Unknown column 't2.a' in 'WHERE'
 drop table t1, t2;
 #
 # MDEV-6395: ANALYZE UPDATE/DELETE with impossible where does not produce any output

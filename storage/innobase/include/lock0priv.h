@@ -474,9 +474,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
 	ut_ad(!lock->is_table());
 #ifdef SUX_LOCK_GENERIC
-	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*lock));
 #else
 	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*lock)
 	      || (xtest() && !lock->trx->mutex_is_locked()));
 #endif
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
@@ -495,14 +497,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	return(bit);
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return next lock, NULL if none exists */
 UNIV_INLINE
-lock_t*
-lock_rec_get_next_on_page(
-/*======================*/
-	lock_t*		lock);		/*!< in: a record lock */
+lock_t *lock_rec_get_next_on_page(const lock_t *lock);
 
 /*********************************************************************//**
 Gets the next explicit lock request on a record.

@@ -178,14 +178,19 @@ DROP TABLE t1;
 #
 # Bug #6089: queries which don't use any tables
 #
-
+# Check after fix MDEV-31522
+--disable_cursor_protocol
 SELECT 'foo';
+--enable_cursor_protocol
 SELECT FOUND_ROWS();
 SELECT SQL_CALC_FOUND_ROWS 'foo';
 SELECT FOUND_ROWS();
 SELECT SQL_CALC_FOUND_ROWS 'foo' limit 0;
+# Check after fix MDEV-31522
+--disable_cursor_protocol
 SELECT FOUND_ROWS();
 SELECT FOUND_ROWS();
+--enable_cursor_protocol
 
 SELECT SQL_CALC_FOUND_ROWS 'foo' UNION SELECT 'bar' LIMIT 0;
 SELECT FOUND_ROWS();

@@ -363,21 +363,20 @@ static handler *federatedx_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *
-federatedx_share_get_key(FEDERATEDX_SHARE *share, size_t *length,
-                         my_bool not_used __attribute__ ((unused)))
+static const uchar *federatedx_share_get_key(const void *share_,
+                                             size_t *length, my_bool)
 {
+  auto share= static_cast<const FEDERATEDX_SHARE *>(share_);
   *length= share->share_key_length;
-  return (uchar*) share->share_key;
+  return reinterpret_cast<const uchar *>(share->share_key);
 }
 
-
-static uchar *
-federatedx_server_get_key(FEDERATEDX_SERVER *server, size_t *length,
-                          my_bool not_used __attribute__ ((unused)))
+static const uchar *federatedx_server_get_key(const void *server_,
+                                              size_t *length, my_bool)
 {
+  auto server= static_cast<const FEDERATEDX_SERVER *>(server_);
   *length= server->key_length;
-  return server->key;
+  return reinterpret_cast<const uchar *>(server->key);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -467,10 +466,12 @@ int federatedx_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federatedx_share_get_key, 0, 0) &&
-      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federatedx_server_get_key, 0, 0))
+  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables,
+                    &my_charset_bin, 32, 0, 0, federatedx_share_get_key, 0,
+                    0) &&
+      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers,
+                    &my_charset_bin, 32, 0, 0, federatedx_server_get_key, 0,
+                    0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -1503,20 +1504,20 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
        sizeof(int) + 8);
   key.append(scheme);
   key.q_append('\0');
-  server->hostname= (const char *) (intptr) key.length();
+  size_t hostname_pos= key.length();
   key.append(hostname);
   key.q_append('\0');
-  server->database= (const char *) (intptr) key.length();
+  size_t database_pos= key.length();
   key.append(database);
   key.q_append('\0');
   key.q_append((uint32) share->port);
-  server->socket= (const char *) (intptr) key.length();
+  size_t socket_pos= key.length();
   key.append(socket);
   key.q_append('\0');
-  server->username= (const char *) (intptr) key.length();
+  size_t username_pos= key.length();
   key.append(username);
   key.q_append('\0');
-  server->password= (const char *) (intptr) key.length();
+  size_t password_pos= key.length();
   key.append(password);
   key.c_ptr_safe();                             // Ensure we have end \0
 
@@ -1524,13 +1525,12 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
   /* Copy and add end \0 */
   server->key= (uchar *)  strmake_root(mem_root, key.ptr(), key.length());
 
-  /* pointer magic */
-  server->scheme+= (intptr) server->key;
-  server->hostname+= (intptr) server->key;
-  server->database+= (intptr) server->key;
-  server->username+= (intptr) server->key;
-  server->password+= (intptr) server->key;
-  server->socket+= (intptr) server->key;
+  server->scheme= (const char *)server->key;
+  server->hostname= (const char *)server->key + hostname_pos;
+  server->database= (const char *)server->key + database_pos;
+  server->username= (const char *)server->key + username_pos;
+  server->password= (const char *)server->key + password_pos;
+  server->socket= (const char*)server->key + socket_pos;
   server->port= share->port;
 
   if (!share->socket)
@@ -1844,7 +1844,7 @@ public:
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&
            sql_errno <= ER_NET_WRITE_INTERRUPTED;

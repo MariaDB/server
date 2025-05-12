@@ -3,8 +3,10 @@
 # only SingleDelete increases
 CREATE TABLE t1 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
 INSERT INTO t1 VALUES (1,1);
+--disable_cursor_protocol
 select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
 select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--enable_cursor_protocol
 --disable_query_log
 let $i = 1;
 while ($i <= 10000) {
@@ -21,8 +23,10 @@ select case when variable_value-@d < 10 then 'true' else 'false' end from inform
 # both SingleDelete and Delete increases
 CREATE TABLE t2 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
 INSERT INTO t2 VALUES (1,1);
+--disable_cursor_protocol
 select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
 select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--enable_cursor_protocol
 --disable_query_log
 let $i = 1;
 while ($i <= 10000) {
@@ -38,8 +42,10 @@ select case when variable_value-@d > 9000 then 'true' else 'false' end from info
 # only Delete increases
 CREATE TABLE t3 (id INT, value int, PRIMARY KEY (id)) ENGINE=RocksDB;
 INSERT INTO t3 VALUES (1,1);
+--disable_cursor_protocol
 select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
 select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--enable_cursor_protocol
 --disable_query_log
 let $i = 1;
 while ($i <= 10000) {
@@ -55,8 +61,10 @@ select case when variable_value-@d > 9000 then 'true' else 'false' end from info
 # only SingleDelete increases
 CREATE TABLE t4 (id INT, PRIMARY KEY (id)) ENGINE=RocksDB;
 INSERT INTO t4 VALUES (1);
+--disable_cursor_protocol
 select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
 select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--enable_cursor_protocol
 --disable_query_log
 let $i = 1;
 while ($i <= 10000) {
@@ -72,8 +80,10 @@ select case when variable_value-@d < 10 then 'true' else 'false' end from inform
 # only SingleDelete increases
 CREATE TABLE t5 (id1 INT, id2 INT, PRIMARY KEY (id1, id2), INDEX(id2)) ENGINE=RocksDB;
 INSERT INTO t5 VALUES (1, 1);
+--disable_cursor_protocol
 select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
 select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--enable_cursor_protocol
 --disable_query_log
 let $i = 1;
 while ($i <= 10000) {

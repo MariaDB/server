@@ -87,7 +87,9 @@ UNINSTALL PLUGIN example;
 #
 INSTALL PLUGIN example SONAME 'ha_example';
 
+--disable_cursor_protocol
 select @@session.sql_mode into @old_sql_mode;
+--enable_cursor_protocol
 
 # first, try normal sql_mode (no error, send OK)
 set session sql_mode='';

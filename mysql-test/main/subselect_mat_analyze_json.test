@@ -1,0 +1,95 @@
+set @save_optimizer_switch=@@optimizer_switch;
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (null), (1), (2), (3);
+insert into t2 values (3), (4);
+
+set @@optimizer_switch = "materialization=on,in_to_exists=off,semijoin=off";
+
+--source include/explain-no-costs.inc
+explain format=json select * from t1 where a in (select b from t2);
+--echo # "Complete match" execution strategy
+--source include/analyze-format.inc
+analyze format=json select * from t1 where a in (select b from t2);
+
+--echo # "Partial match" is used due to NOT IN
+--source include/analyze-format.inc
+analyze format=json select * from t1 where a not in (select b from t2);
+
+--echo # Subselect in GROUP BY
+--source include/analyze-format.inc
+analyze format=json select a from t1 group by a in (select b from t2);
+
+--source include/analyze-format.inc
+analyze format=json select a from t1 group by a not in (select b from t2);
+
+--echo # Subselect in ORDER BY
+--source include/analyze-format.inc
+analyze format=json select a from t1 order by a in (select b from t2);
+
+--echo # Subselect in HAVING
+--source include/analyze-format.inc
+analyze format=json select a from t1 having a not in (select b from t2);
+
+--echo # Nested IN
+--source include/analyze-format.inc
+analyze format=json select a from t1 where a in (select a from t1 where a in (select b from t2));
+
+create table t3 (c int);
+insert into t3 (c) values (3), (null), (4);
+
+--echo # Subquery in ON-clause of outer join
+--source include/analyze-format.inc
+analyze format=json select a from t1 left join t2 on a not in (select c from t3);
+
+--source include/analyze-format.inc
+analyze format=json
+select (b, b + 1, b + 2) not in
+       (select count(distinct a), a + 1, a + 2 from t1 group by a + 1, a + 2)
+from t2;
+
+drop table t1, t2, t3;
+
+
+--echo #
+--echo # Tables with more than one column
+--echo #
+create table t1 (a1 char(1), a2 char(1));
+insert into t1 values (null, 'b');
+create table t2 (b1 char(1), b2 char(2));
+insert into t2 values ('a','b'), ('c', 'd'), (null, 'e'), ('f', 'g');
+
+--echo # Force rowid-merge partial matching
+set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
+--source include/explain-no-costs.inc
+explain format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
+--source include/analyze-format.inc
+analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
+
+--echo # Force table scan partial matching
+set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=on";
+--source include/analyze-format.inc
+analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
+
+--echo # Subquery in SELECT list
+--source include/explain-no-costs.inc
+explain format=json select t1.*, (a1, a2) in (select * from t2) as in_res from t1;
+
+--source include/analyze-format.inc
+analyze format=json select t1.*, (a1, a2) in (select * from t2) as in_res from t1;
+
+--source include/analyze-format.inc
+analyze format=json select t1.*, (a1, a2) not in (select * from t2) as in_res from t1;
+
+set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
+--source include/analyze-format.inc
+analyze format=json select t1.*, (a1, a2) in (select * from t2) as in_res from t1;
+
+--source include/analyze-format.inc
+analyze format=json select t1.*, (a1, a2) not in (select * from t2) as in_res from t1;
+
+drop table t1,t2;
+
+
+set @@optimizer_switch=@save_optimizer_switch;

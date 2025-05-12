@@ -42,7 +42,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.052271677,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -55,7 +55,7 @@ EXPLAIN
           "ref": ["const"],
           "loops": 1,
           "rows": 1,
-          "cost": 0.002024411,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "nation.n_name = 'PERU'"
         }
@@ -71,7 +71,7 @@ EXPLAIN
           "ref": ["dbt3_s001.nation.n_nationkey"],
           "loops": 1,
           "rows": 6,
-          "cost": 0.008193756,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -94,7 +94,7 @@ EXPLAIN
           },
           "loops": 6,
           "rows": 15,
-          "cost": 0.04205351,
+          "cost": "COST_REPLACED",
           "filtered": 7.199999809,
           "attached_condition": "orders.o_orderDATE between '1992-01-01' and '1992-06-30'"
         }
@@ -138,7 +138,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.052271677,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -151,7 +151,7 @@ EXPLAIN
           "ref": ["const"],
           "loops": 1,
           "rows": 1,
-          "cost": 0.002024411,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "nation.n_name = 'PERU'"
         }
@@ -167,7 +167,7 @@ EXPLAIN
           "ref": ["dbt3_s001.nation.n_nationkey"],
           "loops": 1,
           "rows": 6,
-          "cost": 0.008193756,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -190,7 +190,7 @@ EXPLAIN
           },
           "loops": 6,
           "rows": 15,
-          "cost": 0.04205351,
+          "cost": "COST_REPLACED",
           "filtered": 7.199999809,
           "attached_condition": "orders.o_orderDATE between '1992-01-01' and '1992-06-30'"
         }
@@ -509,7 +509,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.40015207,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -518,7 +518,7 @@ EXPLAIN
           "possible_keys": ["PRIMARY", "i_n_regionkey"],
           "loops": 1,
           "rows": 25,
-          "cost": 0.013945725,
+          "cost": "COST_REPLACED",
           "filtered": 40,
           "attached_condition": "nation.n_regionkey in (1,2)"
         }
@@ -534,7 +534,7 @@ EXPLAIN
           "ref": ["dbt3_s001.nation.n_nationkey"],
           "loops": 10,
           "rows": 6,
-          "cost": 0.08009436,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -557,7 +557,7 @@ EXPLAIN
           },
           "loops": 60,
           "rows": 15,
-          "cost": 0.306111985,
+          "cost": "COST_REPLACED",
           "filtered": 6.666666508,
           "attached_condition": "orders.o_orderDATE between '1992-10-09' and '1993-06-08'",
           "first_match": "customer"
@@ -630,7 +630,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.40015207,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -639,7 +639,7 @@ EXPLAIN
           "possible_keys": ["PRIMARY", "i_n_regionkey"],
           "loops": 1,
           "rows": 25,
-          "cost": 0.013945725,
+          "cost": "COST_REPLACED",
           "filtered": 40,
           "attached_condition": "nation.n_regionkey in (1,2)"
         }
@@ -655,7 +655,7 @@ EXPLAIN
           "ref": ["dbt3_s001.nation.n_nationkey"],
           "loops": 10,
           "rows": 6,
-          "cost": 0.08009436,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -678,7 +678,7 @@ EXPLAIN
           },
           "loops": 60,
           "rows": 15,
-          "cost": 0.306111985,
+          "cost": "COST_REPLACED",
           "filtered": 6.666666508,
           "attached_condition": "orders.o_orderDATE between '1992-10-09' and '1993-06-08'",
           "first_match": "customer"
@@ -906,7 +906,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.382051418,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -915,7 +915,7 @@ EXPLAIN
           "possible_keys": ["PRIMARY"],
           "loops": 1,
           "rows": 150,
-          "cost": 0.03493875,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -942,7 +942,7 @@ EXPLAIN
                     "possible_keys": ["i_o_orderdate", "i_o_custkey"],
                     "loops": 1,
                     "rows": 1500,
-                    "cost": 0.2532975,
+                    "cost": "COST_REPLACED",
                     "filtered": 16.13333321,
                     "attached_condition": "orders.o_orderDATE between '1992-01-09' and '1993-03-08'"
                   }
@@ -1064,7 +1064,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.37364371,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1073,7 +1073,7 @@ EXPLAIN
           "possible_keys": ["PRIMARY"],
           "loops": 1,
           "rows": 150,
-          "cost": 0.026531042,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -1100,7 +1100,7 @@ EXPLAIN
                     "possible_keys": ["i_o_orderdate", "i_o_custkey"],
                     "loops": 1,
                     "rows": 1500,
-                    "cost": 0.2532975,
+                    "cost": "COST_REPLACED",
                     "filtered": 16.13333321,
                     "attached_condition": "orders.o_orderDATE between '1992-01-09' and '1993-03-08'"
                   }
@@ -1394,7 +1394,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.085533248,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1403,32 +1403,34 @@ EXPLAIN
           "possible_keys": ["distinct_key"],
           "loops": 1,
           "rows": 28,
-          "cost": 0.03691572,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": 0.053826401,
-              "having_condition": "count(orders.o_custkey) > 1",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "orders",
-                      "access_type": "range",
-                      "possible_keys": ["i_o_orderdate"],
-                      "key": "i_o_orderdate",
-                      "key_length": "4",
-                      "used_key_parts": ["o_orderDATE"],
-                      "loops": 1,
-                      "rows": 28,
-                      "cost": 0.035889016,
-                      "filtered": 100,
-                      "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "having_condition": "count(orders.o_custkey) > 1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "orders",
+                        "access_type": "range",
+                        "possible_keys": ["i_o_orderdate"],
+                        "key": "i_o_orderdate",
+                        "key_length": "4",
+                        "used_key_parts": ["o_orderDATE"],
+                        "loops": 1,
+                        "rows": 28,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'"
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -1445,7 +1447,7 @@ EXPLAIN
           "ref": ["<subquery2>.o_custkey"],
           "loops": 28,
           "rows": 1,
-          "cost": 0.048617528,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -1481,7 +1483,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.054856476,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1490,32 +1492,34 @@ EXPLAIN
           "possible_keys": ["distinct_key"],
           "loops": 1,
           "rows": 28,
-          "cost": 0.03691572,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": 0.053826401,
-              "having_condition": "count(orders.o_custkey) > 1",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "orders",
-                      "access_type": "range",
-                      "possible_keys": ["i_o_orderdate"],
-                      "key": "i_o_orderdate",
-                      "key_length": "4",
-                      "used_key_parts": ["o_orderDATE"],
-                      "loops": 1,
-                      "rows": 28,
-                      "cost": 0.035889016,
-                      "filtered": 100,
-                      "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "having_condition": "count(orders.o_custkey) > 1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "orders",
+                        "access_type": "range",
+                        "possible_keys": ["i_o_orderdate"],
+                        "key": "i_o_orderdate",
+                        "key_length": "4",
+                        "used_key_parts": ["o_orderDATE"],
+                        "loops": 1,
+                        "rows": 28,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'"
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -1532,7 +1536,7 @@ EXPLAIN
           "ref": ["<subquery2>.o_custkey"],
           "loops": 28,
           "rows": 1,
-          "cost": 0.017940756,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -3452,7 +3456,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.222764041,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -3469,7 +3473,7 @@ EXPLAIN
           "used_key_parts": ["ps_partkey", "ps_suppkey"],
           "loops": 1,
           "rows": 176,
-          "cost": 0.019403477,
+          "cost": "COST_REPLACED",
           "filtered": 23.86363602,
           "attached_condition": "partsupp_small.ps_suppkey in (1,2,3)",
           "using_index": true,
@@ -3487,7 +3491,7 @@ EXPLAIN
           "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
           "loops": 42,
           "rows": 30,
-          "cost": 0.203360564,
+          "cost": "COST_REPLACED",
           "filtered": 2.380952358,
           "using_index": true
         }
@@ -3510,7 +3514,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.222764041,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -3527,7 +3531,7 @@ EXPLAIN
           "used_key_parts": ["ps_partkey", "ps_suppkey"],
           "loops": 1,
           "rows": 176,
-          "cost": 0.019403477,
+          "cost": "COST_REPLACED",
           "filtered": 23.86363602,
           "attached_condition": "partsupp_small.ps_suppkey in (1,2,3)",
           "using_index": true,
@@ -3545,7 +3549,7 @@ EXPLAIN
           "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
           "loops": 42,
           "rows": 30,
-          "cost": 0.203360564,
+          "cost": "COST_REPLACED",
           "filtered": 2.380952358,
           "using_index": true
         }
@@ -3577,7 +3581,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.222764041,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -3594,7 +3598,7 @@ EXPLAIN
           "used_key_parts": ["ps_partkey", "ps_suppkey"],
           "loops": 1,
           "rows": 176,
-          "cost": 0.019403477,
+          "cost": "COST_REPLACED",
           "filtered": 23.86363602,
           "attached_condition": "partsupp_small.ps_suppkey in (1,2,3)",
           "using_index": true,
@@ -3612,7 +3616,7 @@ EXPLAIN
           "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
           "loops": 42,
           "rows": 30,
-          "cost": 0.203360564,
+          "cost": "COST_REPLACED",
           "filtered": 2.380952358
         }
       }
@@ -3762,7 +3766,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 4.129940741,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "duplicates_removal": [
@@ -3776,7 +3780,7 @@ EXPLAIN
               "used_key_parts": ["s_suppkey"],
               "loops": 1,
               "rows": 1,
-              "cost": 0.001478954,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "attached_condition": "supplier.s_suppkey < 2",
               "using_index": true
@@ -3798,7 +3802,7 @@ EXPLAIN
               "ref": ["dbt3_s001.supplier.s_suppkey"],
               "loops": 1,
               "rows": 17,
-              "cost": 0.003160332,
+              "cost": "COST_REPLACED",
               "filtered": 79.54545593,
               "attached_condition": "partsupp_small.ps_partkey is not null",
               "using_index": true
@@ -3815,7 +3819,7 @@ EXPLAIN
               "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
               "loops": 14,
               "rows": 30,
-              "cost": 0.069152188,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "using_index": true
             }
@@ -3831,7 +3835,7 @@ EXPLAIN
               "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
               "loops": 420.35,
               "rows": 30,
-              "cost": 1.994712365,
+              "cost": "COST_REPLACED",
               "filtered": 0.237896994,
               "using_index": true
             }
@@ -3866,7 +3870,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 4.129940741,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "duplicates_removal": [
@@ -3880,7 +3884,7 @@ EXPLAIN
               "used_key_parts": ["s_suppkey"],
               "loops": 1,
               "rows": 1,
-              "cost": 0.001478954,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "attached_condition": "supplier.s_suppkey < 2",
               "using_index": true
@@ -3902,7 +3906,7 @@ EXPLAIN
               "ref": ["dbt3_s001.supplier.s_suppkey"],
               "loops": 1,
               "rows": 17,
-              "cost": 0.003160332,
+              "cost": "COST_REPLACED",
               "filtered": 79.54545593,
               "attached_condition": "partsupp_small.ps_partkey is not null",
               "using_index": true
@@ -3919,7 +3923,7 @@ EXPLAIN
               "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
               "loops": 14,
               "rows": 30,
-              "cost": 0.069152188,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "using_index": true
             }
@@ -3935,7 +3939,7 @@ EXPLAIN
               "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
               "loops": 420.35,
               "rows": 30,
-              "cost": 1.994712365,
+              "cost": "COST_REPLACED",
               "filtered": 0.237896994,
               "using_index": true
             }
@@ -3987,7 +3991,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 4.129940741,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "duplicates_removal": [
@@ -4001,7 +4005,7 @@ EXPLAIN
               "used_key_parts": ["s_suppkey"],
               "loops": 1,
               "rows": 1,
-              "cost": 0.001478954,
+              "cost": "COST_REPLACED",
               "filtered": 100,
               "attached_condition": "supplier.s_suppkey < 2",
               "using_index": true
@@ -4023,7 +4027,7 @@ EXPLAIN
               "ref": ["dbt3_s001.supplier.s_suppkey"],
               "loops": 1,
               "rows": 17,
-              "cost": 0.003160332,
+              "cost": "COST_REPLACED",
               "filtered": 79.54545593,
               "attached_condition": "partsupp_small.ps_partkey is not null",
               "using_index": true
@@ -4040,7 +4044,7 @@ EXPLAIN
               "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
               "loops": 14,
               "rows": 30,
-              "cost": 0.069152188,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           },
@@ -4055,7 +4059,7 @@ EXPLAIN
               "ref": ["dbt3_s001.partsupp_small.ps_partkey"],
               "loops": 420.35,
               "rows": 30,
-              "cost": 1.994712365,
+              "cost": "COST_REPLACED",
               "filtered": 0.237896994,
               "using_index": true
             }

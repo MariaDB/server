@@ -56,22 +56,6 @@ inline size_t dict_get_db_name_len(const char *name)
 
 
 /*********************************************************************//**
-Open a table from its database and table name, this is currently used by
-foreign constraint parser to get the referenced table.
-@return complete table name with database and table name, allocated from
-heap memory passed in */
-char*
-dict_get_referenced_table(
-/*======================*/
-	const char*	name,		/*!< in: foreign key table name */
-	const char*	database_name,	/*!< in: table db name */
-	ulint		database_name_len,/*!< in: db name length */
-	const char*	table_name,	/*!< in: table name */
-	ulint		table_name_len,	/*!< in: table name length */
-	dict_table_t**	table,		/*!< out: table object or NULL */
-	mem_heap_t*	heap,		/*!< in: heap memory */
-	CHARSET_INFO*	from_cs);	/*!< in: table name charset */
-/*********************************************************************//**
 Frees a foreign key struct. */
 void
 dict_foreign_free(
@@ -102,15 +86,9 @@ dict_table_is_partition(const dict_table_t* table)
 	return (strstr(table->name.m_name, "#p#")
 		|| strstr(table->name.m_name, "#P#"));
 }
-/********************************************************************//**
-Return the end of table name where we have removed dbname and '/'.
-@return table name */
-const char*
-dict_remove_db_name(
-/*================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+#define dict_remove_db_name(name) \
+	(table_name_t{const_cast<char*>(name)}.dbend() + 1)
 
 /** Operation to perform when opening a table */
 enum dict_table_op_t {
@@ -168,21 +146,21 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
-/** Decrement the count of open handles */
-void dict_table_close(dict_table_t *table);
+/** Release a metadata lock.
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+void mdl_release(THD *thd, MDL_ticket *mdl) noexcept;
 
-/** Decrements the count of open handles of a table.
-@param[in,out]	table		table
-@param[in]	dict_locked	whether dict_sys.latch is being held
-@param[in]	thd		thread to release MDL
-@param[in]	mdl		metadata lock or NULL if the thread is a
-				foreground one. */
-void
-dict_table_close(
-	dict_table_t*	table,
-	bool		dict_locked,
-	THD*		thd = NULL,
-	MDL_ticket*	mdl = NULL);
+/** Release a table reference and a metadata lock.
+@param table  referenced table
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+inline void dict_table_close(dict_table_t* table, THD *thd, MDL_ticket *mdl)
+  noexcept
+{
+  table->release();
+  mdl_release(thd, mdl);
+}
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -401,15 +379,6 @@ dict_index_remove_from_cache(
 	dict_index_t*	index);
 
 /**********************************************************************//**
-Change the id of a table object in the dictionary cache. This is used in
-DISCARD TABLESPACE. */
-void
-dict_table_change_id_in_cache(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table object already in cache */
-	table_id_t	new_id)	/*!< in: new id to set */
-	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
 Removes a foreign constraint struct from the dictionary cache. */
 void
 dict_foreign_remove_from_cache(
@@ -566,15 +535,15 @@ dict_print_info_on_foreign_keys(
 	trx_t*		trx,	/*!< in: transaction */
 	dict_table_t*	table);	/*!< in: table */
 
-/**********************************************************************//**
-Outputs info on a foreign key of a table in a format suitable for
-CREATE TABLE. */
+/** Output info on a foreign key of a table in a format suitable for
+CREATE TABLE.
+@param trx          transaction
+@param foreign      constraint
+@param add_newline  whether to add a newline */
 std::string
-dict_print_info_on_foreign_key_in_create_format(
-/*============================================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	ibool		add_newline);	/*!< in: whether to add a newline */
+dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
+                                                const dict_foreign_t *foreign,
+                                                bool add_newline);
 
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
@@ -698,35 +667,32 @@ bool
 dict_table_has_indexed_v_cols(
 	const dict_table_t*	table);
 
-/********************************************************************//**
-Gets the approximately estimated number of rows in the table.
+TPOOL_SUPPRESS_TSAN
+/** Get the estimated number of rows in the table.
 @return estimated number of rows */
-UNIV_INLINE
-ib_uint64_t
-dict_table_get_n_rows(
-/*==================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Increment the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_inc(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
-/********************************************************************//**
-Decrement the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_dec(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
+inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
+{
+  ut_ad(table->stat_initialized());
+  return table->stat_n_rows;
+}
+
+/** Increment the number of rows in the table by one.
+Note that this operation is not protected by any latch,
+the number is approximate. */
+TPOOL_SUPPRESS_TSAN inline void dict_table_n_rows_inc(dict_table_t *table)
+{
+  if (auto n_rows= table->stat_n_rows + 1)
+    table->stat_n_rows= n_rows;
+}
+
+/** Decrement the number of rows in the table by one.
+Note that this operation is not protected by any latch,
+the number is approximate. */
+TPOOL_SUPPRESS_TSAN inline void dict_table_n_rows_dec(dict_table_t *table)
+{
+  if (auto n_rows= table->stat_n_rows)
+    table->stat_n_rows= n_rows - 1;
+}
 
 /** Get nth virtual column
 @param[in]	table	target table
@@ -1384,7 +1350,7 @@ public:
   static const char fatal_msg[];
 
   /** @return a new temporary table ID */
-  table_id_t acquire_temporary_table_id()
+  table_id_t acquire_temporary_table_id() noexcept
   {
     return temp_table_id.fetch_add(1, std::memory_order_relaxed);
   }
@@ -1394,55 +1360,32 @@ public:
   @return          temporary table
   @retval nullptr  if the table does not exist
   (should only happen during the rollback of CREATE...SELECT) */
-  dict_table_t *acquire_temporary_table(table_id_t id)
-  {
-    ut_ad(frozen());
-    dict_table_t *table;
-    ulint fold = ut_fold_ull(id);
-    HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
-                ut_ad(table->cached), table->id == id);
-    if (UNIV_LIKELY(table != nullptr))
-    {
-      DBUG_ASSERT(table->is_temporary());
-      DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
-      table->acquire();
-    }
-    return table;
-  }
+  dict_table_t *acquire_temporary_table(table_id_t id) const noexcept;
 
   /** Look up a persistent table.
   @param id     table ID
   @return table
   @retval nullptr if not cached */
-  dict_table_t *find_table(table_id_t id)
-  {
-    ut_ad(frozen());
-    dict_table_t *table;
-    ulint fold= ut_fold_ull(id);
-    HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*, table,
-                ut_ad(table->cached), table->id == id);
-    DBUG_ASSERT(!table || !table->is_temporary());
-    return table;
-  }
+  dict_table_t *find_table(table_id_t id) const noexcept;
 
-  bool is_initialised() const { return m_initialised; }
+  bool is_initialised() const noexcept { return m_initialised; }
 
   /** Initialise the data dictionary cache. */
-  void create();
+  void create() noexcept;
 
   /** Close the data dictionary cache on shutdown. */
-  void close();
+  void close() noexcept;
 
   /** Resize the hash tables based on the current buffer pool size. */
-  void resize();
+  void resize() noexcept;
 
   /** Add a table definition to the data dictionary cache */
-  inline void add(dict_table_t* table);
+  inline void add(dict_table_t *table) noexcept;
   /** Remove a table definition from the data dictionary cache.
   @param[in,out]	table	cached table definition to be evicted
   @param[in]	lru	whether this is part of least-recently-used evictiono
   @param[in]	keep	whether to keep (not free) the object */
-  void remove(dict_table_t* table, bool lru = false, bool keep = false);
+  void remove(dict_table_t *table, bool lru= false, bool keep= false) noexcept;
 
 #ifdef UNIV_DEBUG
   /** Find a table */
@@ -1480,24 +1423,24 @@ public:
 
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is holding the latch */
-  bool frozen() const { return latch.have_any(); }
+  bool frozen() const noexcept { return latch.have_any(); }
   /** @return whether the current thread is holding a shared latch */
-  bool frozen_not_locked() const { return latch.have_rd(); }
+  bool frozen_not_locked() const noexcept { return latch.have_rd(); }
   /** @return whether the current thread holds the exclusive latch */
-  bool locked() const { return latch.have_wr(); }
+  bool locked() const noexcept { return latch.have_wr(); }
 #endif
 private:
   /** Acquire the exclusive latch */
   ATTRIBUTE_NOINLINE
-  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line));
+  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept;
 public:
   /** @return the my_hrtime_coarse().val of the oldest lock_wait() start,
   assuming that requests are served on a FIFO basis */
-  ulonglong oldest_wait() const
+  ulonglong oldest_wait() const noexcept
   { return latch_ex_wait_start.load(std::memory_order_relaxed); }
 
   /** Exclusively lock the dictionary cache. */
-  void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
+  void lock(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept
   {
     if (!latch.wr_lock_try())
       lock_wait(SRW_LOCK_ARGS(file, line));
@@ -1505,18 +1448,18 @@ public:
 
 #ifdef UNIV_PFS_RWLOCK
   /** Unlock the data dictionary cache. */
-  ATTRIBUTE_NOINLINE void unlock();
+  ATTRIBUTE_NOINLINE void unlock() noexcept;
   /** Acquire a shared lock on the dictionary cache. */
-  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line) noexcept;
   /** Release a shared lock on the dictionary cache. */
-  ATTRIBUTE_NOINLINE void unfreeze();
+  ATTRIBUTE_NOINLINE void unfreeze() noexcept;
 #else
   /** Unlock the data dictionary cache. */
-  void unlock() { latch.wr_unlock(); }
+  void unlock() noexcept { latch.wr_unlock(); }
   /** Acquire a shared lock on the dictionary cache. */
-  void freeze() { latch.rd_lock(); }
+  void freeze() noexcept { latch.rd_lock(); }
   /** Release a shared lock on the dictionary cache. */
-  void unfreeze() { latch.rd_unlock(); }
+  void unfreeze() noexcept { latch.rd_unlock(); }
 #endif
 
   /** Estimate the used memory occupied by the data dictionary
@@ -1539,24 +1482,13 @@ public:
   /** Evict unused, unlocked tables from table_LRU.
   @param half whether to consider half the tables only (instead of all)
   @return number of tables evicted */
-  ulint evict_table_LRU(bool half);
+  ulint evict_table_LRU(bool half) noexcept;
 
   /** Look up a table in the dictionary cache.
   @param name   table name
   @return table handle
   @retval nullptr if not found */
-  dict_table_t *find_table(const span<const char> &name) const
-  {
-    ut_ad(frozen());
-    for (dict_table_t *table= static_cast<dict_table_t*>
-         (HASH_GET_FIRST(&table_hash, table_hash.calc_hash
-                         (my_crc32c(0, name.data(), name.size()))));
-         table; table= table->name_hash)
-      if (strlen(table->name.m_name) == name.size() &&
-          !memcmp(table->name.m_name, name.data(), name.size()))
-        return table;
-    return nullptr;
-  }
+  dict_table_t *find_table(const span<const char> &name) const noexcept;
 
   /** Look up or load a table definition
   @param name   table name
@@ -1564,13 +1496,22 @@ public:
   @return table handle
   @retval nullptr if not found */
   dict_table_t *load_table(const span<const char> &name,
-                           dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE);
+                           dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE)
+    noexcept;
 
   /** Attempt to load the system tables on startup
   @return whether any discrepancy with the expected definition was found */
-  bool load_sys_tables();
+  bool load_sys_tables() noexcept;
   /** Create or check system tables on startup */
-  dberr_t create_or_check_sys_tables();
+  dberr_t create_or_check_sys_tables() noexcept;
+
+  bool is_sys_table(table_id_t table_id) const noexcept
+  {
+    return (table_id > 0 && table_id <= 4) ||
+      table_id == sys_foreign->id ||
+      table_id == sys_foreign_cols->id ||
+      table_id == sys_virtual->id;
+  }
 };
 
 /** the data dictionary cache */
@@ -1704,6 +1645,27 @@ UNIV_INLINE
 bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
+
+/** Helper for opening the InnoDB persistent statistics tables */
+class dict_stats final
+{
+  MDL_context *mdl_context= nullptr;
+  MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
+  dict_table_t *table_stats= nullptr, *index_stats= nullptr;
+
+public:
+  dict_stats()= default;
+
+  /** Open the statistics tables.
+  @return whether the operation failed */
+  bool open(THD *thd) noexcept;
+
+  /** Close the statistics tables after !open_tables(thd). */
+  void close() noexcept;
+
+  dict_table_t *table() const noexcept { return table_stats; }
+  dict_table_t *index() const noexcept { return index_stats; }
+};
 
 #include "dict0dict.inl"
 

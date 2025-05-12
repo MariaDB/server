@@ -17,4 +17,3 @@ SELECT * FROM test.c;
 # Cleanup
 DROP TABLE c;
 DROP TABLE p;
-

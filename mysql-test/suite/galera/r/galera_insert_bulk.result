@@ -2,6 +2,8 @@ connection node_2;
 connection node_1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_apply_cb';
+connection node_1;
 SET foreign_key_checks = 0;
 SET unique_checks = 0;
 START TRANSACTION;
@@ -10,11 +12,20 @@ SET foreign_key_checks = 1;
 SET unique_checks = 1;
 INSERT INTO t1 VALUES (1001);
 connection node_1;
+SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR sync.wsrep_apply_cb_reached';
+SET DEBUG_SYNC = 'wsrep_after_certification SIGNAL signal.wsrep_apply_cb';
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 DROP TABLE t1;
+SET GLOBAL DEBUG_DBUG = '';
+SET DEBUG_SYNC = 'RESET';
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SET GLOBAL DEBUG_DBUG = 'd,sync.wsrep_apply_cb';
+connection node_1;
+SET foreign_key_checks = 0;
+SET unique_checks = 0;
 START TRANSACTION;
 connection node_2;
 SET foreign_key_checks = 1;
@@ -23,8 +34,14 @@ START TRANSACTION;
 INSERT INTO t1 VALUES (1001);
 connection node_1;
 COMMIT;
-2
+3
 connection node_2;
+SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR sync.wsrep_apply_cb_reached';
+SET DEBUG_SYNC = 'wsrep_after_certification SIGNAL signal.wsrep_apply_cb';
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 DROP TABLE t1;
+SET GLOBAL DEBUG_DBUG = '';
+SET DEBUG_SYNC = 'RESET';
+disconnect node_2;
+disconnect node_1;

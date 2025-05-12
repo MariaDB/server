@@ -16,6 +16,9 @@
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -23,8 +26,6 @@
 --let $node_4=node_4
 --source include/auto_increment_offset_save.inc
 
---let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
---source include/wait_condition.inc
 SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 --connection node_1

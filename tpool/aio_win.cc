@@ -92,7 +92,9 @@ public:
 
   static void aio_completion_thread_proc(tpool_generic_win_aio* aio)
   {
+    aio->m_pool->m_worker_init_callback();
     aio->completion_thread_work();
+    aio->m_pool->m_worker_destroy_callback();
   }
 
   ~tpool_generic_win_aio()
@@ -102,7 +104,7 @@ public:
     m_thread.join();
   }
 
-  virtual int submit_io(aiocb* cb) override
+  int submit_io(aiocb* cb) override
   {
     memset((OVERLAPPED *)cb, 0, sizeof(OVERLAPPED));
     cb->m_internal = this;
@@ -123,12 +125,12 @@ public:
   }
 
   // Inherited via aio
-  virtual int bind(native_file_handle& fd) override
+  int bind(native_file_handle& fd) override
   {
     return CreateIoCompletionPort(fd, m_completion_port, 0, 0) ? 0
       : GetLastError();
   }
-  virtual int unbind(const native_file_handle& fd) override { return 0; }
+  int unbind(const native_file_handle& fd) override { return 0; }
 };
 
 aio* create_win_aio(thread_pool* pool, int max_io)

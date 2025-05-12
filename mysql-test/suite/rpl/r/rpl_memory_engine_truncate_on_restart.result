@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t (val int) engine=MEMORY;
+# DELETE trigger should never be activated
+create trigger tr after delete on t for each row update t2 set val = 1;
+insert into t values (1),(2);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Check pre-restart values
+include/diff_tables.inc [master:test.t,slave:test.t]
+# Restarting master should empty master and slave `t`
+connection master;
+include/rpl_restart_server.inc [server_number=1]
+connection master;
+# Validating MEMORY table on master is empty after restart
+# MYSQL_BINLOG datadir/binlog_file --result-file=assert_file
+include/assert_grep.inc [Query to truncate the MEMORY table should be the contents of the new event]
+# Ensuring slave MEMORY table is empty
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t,slave:test.t]
+# Ensure new events replicate correctly
+connection master;
+insert into t values (3),(4);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# Validate values on slave, after master restart, do not include those inserted previously
+include/diff_tables.inc [master:test.t,slave:test.t]
+#
+# Cleanup
+connection master;
+drop table t;
+include/rpl_end.inc
+# End of rpl_memory_engine_truncate_on_restart.test

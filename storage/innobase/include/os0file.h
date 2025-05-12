@@ -144,9 +144,6 @@ static const ulint OS_FILE_READ_WRITE = 444;
 /** Used by MySQLBackup */
 static const ulint OS_FILE_READ_ALLOW_DELETE = 555;
 
-/* Options for file_create */
-static const ulint OS_FILE_AIO = 61;
-static const ulint OS_FILE_NORMAL = 62;
 /* @} */
 
 /** Types for file create @{ */
@@ -217,27 +214,28 @@ public:
                       buf_tmp_buffer_t *slot= nullptr) :
     bpage(bpage), slot(slot), type(type) {}
 
-  bool is_read() const { return (type & READ_SYNC) != 0; }
-  bool is_write() const { return (type & WRITE_SYNC) != 0; }
-  bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
-  bool is_doublewritten() const { return (type & 4) != 0; }
+  bool is_read() const noexcept { return (type & READ_SYNC) != 0; }
+  bool is_write() const noexcept { return (type & WRITE_SYNC) != 0; }
+  bool is_async() const noexcept
+  { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
+  bool is_doublewritten() const noexcept { return (type & 4) != 0; }
 
   /** Create a write request for the doublewrite buffer. */
-  IORequest doublewritten() const
+  IORequest doublewritten() const noexcept
   {
     ut_ad(type == WRITE_ASYNC || type == PUNCH);
     return IORequest{bpage, slot, node, Type(type | 4)};
   }
 
-  void write_complete(int io_error) const;
-  void read_complete(int io_error) const;
-  void fake_read_complete(os_offset_t offset) const;
+  void write_complete(int io_error) const noexcept;
+  void read_complete(int io_error) const noexcept;
+  void fake_read_complete(os_offset_t offset) const noexcept;
 
   /** If requested, free storage space associated with a section of the file.
   @param off   byte offset from the start (SEEK_SET)
   @param len   size of the hole in bytes
   @return DB_SUCCESS or error code */
-  dberr_t maybe_punch_hole(os_offset_t off, ulint len)
+  dberr_t maybe_punch_hole(os_offset_t off, ulint len) noexcept
   {
     return off && len && node && (type & (PUNCH ^ WRITE_ASYNC))
       ? punch_hole(off, len)
@@ -249,7 +247,7 @@ private:
   @param off   byte offset from the start (SEEK_SET)
   @param len   size of the hole in bytes
   @return DB_SUCCESS or error code */
-  dberr_t punch_hole(os_offset_t off, ulint len) const;
+  dberr_t punch_hole(os_offset_t off, ulint len) const noexcept;
 
 public:
   /** Page to be written on write operation */
@@ -332,8 +330,7 @@ struct os_file_stat_t {
 the temporary file is created in the in the mysql server configuration
 parameter (--tmpdir).
 @return temporary file handle, or NULL on error */
-FILE*
-os_file_create_tmpfile();
+FILE *os_file_create_tmpfile() noexcept;
 
 /**
 This function attempts to create a directory named pathname. The new directory
@@ -345,10 +342,8 @@ fail_if_exists arguments is true.
 @param[in]	fail_if_exists	if true, pre-existing directory is treated
 				as an error.
 @return true if call succeeds, false on error */
-bool
-os_file_create_directory(
-	const char*	pathname,
-	bool		fail_if_exists);
+bool os_file_create_directory(const char *pathname, bool fail_if_exists)
+  noexcept;
 
 /** NOTE! Use the corresponding macro os_file_create_simple(), not directly
 this function!
@@ -367,7 +362,7 @@ os_file_create_simple_func(
 	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
-	bool*		success);
+	bool*		success) noexcept;
 
 /** NOTE! Use the corresponding macro
 os_file_create_simple_no_error_handling(), not directly this function!
@@ -387,7 +382,7 @@ os_file_create_simple_no_error_handling_func(
 	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
-	bool*		success)
+	bool*		success) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 #ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
@@ -395,7 +390,7 @@ os_file_create_simple_no_error_handling_func(
 @param fd      file descriptor
 @param name    file name
 @return 0 on success */
-int os_file_lock(int fd, const char *name);
+int os_file_lock(int fd, const char *name) noexcept;
 #endif
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
@@ -404,12 +399,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	if true read only mode checks are enforced
 @param[in]	success		true if succeeded
@@ -419,10 +408,9 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
-	bool*		success)
+	bool*		success) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Deletes a file. The file has to be closed before calling this.
@@ -558,9 +546,9 @@ os_file_write
 
 The wrapper functions have the prefix of "innodb_". */
 
-# define os_file_create(key, name, create, purpose, type, read_only,	\
+# define os_file_create(key, name, create, type, read_only,	\
 			success)					\
-	pfs_os_file_create_func(key, name, create, purpose,	type,	\
+	pfs_os_file_create_func(key, name, create,	type,	\
 		read_only, success, __FILE__, __LINE__)
 
 # define os_file_create_simple(key, name, create, access,		\
@@ -663,12 +651,6 @@ Add instrumentation to monitor file creation/open.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	read_only	if true read only mode checks are enforced
 @param[out]	success		true if succeeded
 @param[in]	src_file	file name where func invoked
@@ -681,7 +663,6 @@ pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success,
@@ -831,9 +812,9 @@ pfs_os_file_delete_if_exists_func(
 
 /* If UNIV_PFS_IO is not defined, these I/O APIs point
 to original un-instrumented file I/O APIs */
-# define os_file_create(key, name, create, purpose, type, read_only,	\
+# define os_file_create(key, name, create, type, read_only,	\
 			success)					\
-	os_file_create_func(name, create, purpose, type, read_only,	\
+	os_file_create_func(name, create, type, read_only,	\
 			success)
 
 # define os_file_create_simple(key, name, create_mode, access,		\
@@ -870,48 +851,22 @@ to original un-instrumented file I/O APIs */
 @param[in]	file		handle to a file
 @return file size if OK, else set m_total_size to ~0 and m_alloc_size
 	to errno */
-os_file_size_t
-os_file_get_size(
-	const char*	filename)
+os_file_size_t os_file_get_size(const char *filename) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Gets a file size.
-@param[in]	file		handle to a file
-@return file size, or (os_offset_t) -1 on failure */
-os_offset_t
-os_file_get_size(
-	os_file_t	file)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Extend a file.
-
-On Windows, extending a file allocates blocks for the file,
-unless the file is sparse.
-
-On Unix, we will extend the file with ftruncate(), if
-file needs to be sparse. Otherwise posix_fallocate() is used
-when available, and if not, binary zeroes are added to the end
-of file.
-
-@param[in]	name	file name
-@param[in]	file	file handle
-@param[in]	size	desired file size
-@param[in]	sparse	whether to create a sparse file (no preallocating)
-@return	whether the operation succeeded */
-bool
-os_file_set_size(
-	const char*	name,
-	os_file_t	file,
-	os_offset_t	size,
-	bool		is_sparse = false)
+/** Determine the logical size of a file.
+This may change the current write position of the file to the end of the file.
+(Not currently a problem; InnoDB typically uses positioned I/O.)
+@param file  handle to an open file
+@return file size, in octets
+@retval -1 on failure */
+os_offset_t os_file_get_size(os_file_t file) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Truncates a file at its current position.
 @param[in/out]	file	file to be truncated
 @return true if success */
-bool
-os_file_set_eof(
-	FILE*		file);	/*!< in: file to be truncated */
+bool os_file_set_eof(FILE *file) noexcept;
 
 /** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
@@ -924,16 +879,14 @@ os_file_truncate(
 	const char*	pathname,
 	os_file_t	file,
 	os_offset_t	size,
-	bool		allow_shrink = false);
+	bool		allow_shrink = false) noexcept;
 
 /** NOTE! Use the corresponding macro os_file_flush(), not directly this
 function!
 Flushes the write buffers of a given file to the disk.
 @param[in]	file		handle to a file
 @return true if success */
-bool
-os_file_flush_func(
-	os_file_t	file);
+bool os_file_flush_func(os_file_t file) noexcept;
 
 /** Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
@@ -945,7 +898,7 @@ the OS error number + OS_FILE_ERROR_MAX is returned.
                                         to the log
 @return error number, or OS error number + OS_FILE_ERROR_MAX */
 ulint os_file_get_last_error(bool report_all_errors,
-                             bool on_error_silent= false);
+                             bool on_error_silent= false) noexcept;
 
 /** NOTE! Use the corresponding macro os_file_read(), not directly this
 function!
@@ -964,7 +917,7 @@ os_file_read_func(
 	void*			buf,
 	os_offset_t		offset,
 	ulint			n,
-	ulint*			o)
+	ulint*			o) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Rewind file to its start, read at most size - 1 bytes from it to str, and
@@ -977,7 +930,7 @@ void
 os_file_read_string(
 	FILE*		file,
 	char*		str,
-	ulint		size);
+	ulint		size) noexcept;
 
 /** NOTE! Use the corresponding macro os_file_write(), not directly this
 function!
@@ -1007,7 +960,7 @@ bool
 os_file_status(
 	const char*	path,
 	bool*		exists,
-	os_file_type_t* type);
+	os_file_type_t* type) noexcept;
 
 /** This function reduces a null-terminated full remote path name into
 the path that is sent by MySQL for DATA DIRECTORY clause.  It replaces
@@ -1021,34 +974,30 @@ This function manipulates that path in place.
 If the path format is not as expected, just return.  The result is used
 to inform a SHOW CREATE TABLE command.
 @param[in,out]	data_dir_path		Full path/data_dir_path */
-void
-os_file_make_data_dir_path(
-	char*	data_dir_path);
+void os_file_make_data_dir_path(char *data_dir_path) noexcept;
 
 /** Create all missing subdirectories along the given path.
 @return DB_SUCCESS if OK, otherwise error code. */
-dberr_t
-os_file_create_subdirs_if_needed(
-	const char*	path);
+dberr_t os_file_create_subdirs_if_needed(const char* path) noexcept;
 
 #ifdef UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR
 /* Test the function os_file_get_parent_dir. */
 void
-unit_test_os_file_get_parent_dir();
+unit_test_os_file_get_parent_dir() noexcept;
 #endif /* UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR */
 
 /**
 Initializes the asynchronous io system. */
-int os_aio_init();
+int os_aio_init() noexcept;
 
 /**
 Frees the asynchronous io system. */
-void os_aio_free();
+void os_aio_free() noexcept;
 
 /** Submit a fake read request during crash recovery.
 @param type   fake read request
 @param offset additional context */
-void os_fake_read(const IORequest &type, os_offset_t offset);
+void os_fake_read(const IORequest &type, os_offset_t offset) noexcept;
 
 /** Request a read or write.
 @param type		I/O request
@@ -1057,36 +1006,36 @@ void os_fake_read(const IORequest &type, os_offset_t offset);
 @param n		number of bytes
 @retval DB_SUCCESS if request was queued successfully
 @retval DB_IO_ERROR on I/O error */
-dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
+dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
+  noexcept;
 
 /** @return number of pending reads */
-size_t os_aio_pending_reads();
+size_t os_aio_pending_reads() noexcept;
 /** @return approximate number of pending reads */
-size_t os_aio_pending_reads_approx();
+size_t os_aio_pending_reads_approx() noexcept;
 /** @return number of pending writes */
-size_t os_aio_pending_writes();
+size_t os_aio_pending_writes() noexcept;
+/** @return approximate number of pending writes */
+size_t os_aio_pending_writes_approx() noexcept;
 
 /** Wait until there are no pending asynchronous writes.
 @param declare  whether the wait will be declared in tpool */
-void os_aio_wait_until_no_pending_writes(bool declare);
+void os_aio_wait_until_no_pending_writes(bool declare) noexcept;
 
 /** Wait until all pending asynchronous reads have completed.
 @param declare  whether the wait will be declared in tpool */
-void os_aio_wait_until_no_pending_reads(bool declare);
+void os_aio_wait_until_no_pending_reads(bool declare) noexcept;
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */
-void
-os_aio_print(FILE* file);
+void os_aio_print(FILE *file) noexcept;
 
 /** Refreshes the statistics used to print per-second averages. */
-void
-os_aio_refresh_stats();
+void os_aio_refresh_stats() noexcept;
 
 /** Checks that all slots in the system have been freed, that is, there are
 no pending io operations. */
-bool
-os_aio_all_slots_free();
+bool os_aio_all_slots_free() noexcept;
 
 
 /** This function returns information about the specified file
@@ -1101,12 +1050,7 @@ os_file_get_status(
 	const char*	path,
 	os_file_stat_t* stat_info,
 	bool		check_rw_perm,
-	bool		read_only);
-
-/** Set the file create umask
-@param[in]	umask		The umask to use for file creation. */
-void
-os_file_set_umask(ulint umask);
+	bool		read_only) noexcept;
 
 #ifdef _WIN32
 
@@ -1117,7 +1061,7 @@ Make file sparse, on Windows.
 @param[in]	is_sparse if true, make file sparse,
 			otherwise "unsparse" the file
 @return true on success, false on error */
-bool os_file_set_sparse_win32(os_file_t file, bool is_sparse = true);
+bool os_file_set_sparse_win32(os_file_t file, bool is_sparse = true) noexcept;
 
 /**
 Changes file size on Windows
@@ -1134,12 +1078,24 @@ If file is normal, file system allocates storage.
 @param[in]	file		file handle
 @param[in]	size		size to preserve in bytes
 @return true if success */
-bool
-os_file_change_size_win32(
-	const char*	pathname,
-	os_file_t	file,
-	os_offset_t	size);
+bool os_file_set_size(const char *pathname, os_file_t file, os_offset_t size)
+  noexcept;
 
+inline bool
+os_file_set_size(const char* name, os_file_t file, os_offset_t size, bool)
+  noexcept
+{
+  return os_file_set_size(name, file, size);
+}
+#else
+/** Extend a file by appending NUL.
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file with ftruncate()
+@return	whether the operation succeeded */
+bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
+                      bool is_sparse= false) noexcept;
 #endif /*_WIN32 */
 
 /** Free storage space associated with a section of the file.
@@ -1151,14 +1107,14 @@ dberr_t
 os_file_punch_hole(
 	os_file_t	fh,
 	os_offset_t	off,
-	os_offset_t	len)
+	os_offset_t	len) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 /* Determine if a path is an absolute path or not.
 @param[in]	OS directory or file path to evaluate
 @retval true if an absolute path
 @retval false if a relative path */
-inline bool is_absolute_path(const char *path)
+inline bool is_absolute_path(const char *path) noexcept
 {
   switch (path[0]) {
 #ifdef _WIN32

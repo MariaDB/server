@@ -2,7 +2,7 @@
 
 set -ue
 
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2010-2022 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,18 +19,24 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for rsync-based state snapshot transfer
+# This is a reference script for rsync-based state snapshot transfer.
+
+. $(dirname "$0")/wsrep_sst_common
+
+wsrep_check_programs rsync
 
 RSYNC_REAL_PID=0   # rsync process id
 STUNNEL_REAL_PID=0 # stunnel process id
 
-OS="$(uname)"
-[ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
+MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
 
-. $(dirname "$0")/wsrep_sst_common
-wsrep_check_datadir
+RSYNC_PID="$DATA/$MODULE.pid"
+RSYNC_CONF="$DATA/$MODULE.conf"
 
-wsrep_check_programs rsync
+STUNNEL_CONF="$DATA/stunnel.conf"
+STUNNEL_PID="$DATA/stunnel.pid"
+
+MAGIC_FILE="$DATA/rsync_sst_complete"
 
 cleanup_joiner()
 {
@@ -95,51 +101,62 @@ check_pid_and_port()
 
     local utils='rsync|stunnel'
 
-    if ! check_port $pid "$port" "$utils"; then
-        local port_info
-        local busy=0
+    local port_info
+    local final
 
-        if [ $lsof_available -ne 0 ]; then
-            port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | \
-                        grep -F '(LISTEN)')
-            echo "$port_info" | \
-            grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port[[:space:]]" && busy=1
-        else
-            local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
-            if [ $sockstat_available -ne 0 ]; then
-                local opts='-p'
-                if [ "$OS" = 'FreeBSD' ]; then
-                    # sockstat on FreeBSD requires the "-s" option
-                    # to display the connection state:
-                    opts='-sp'
-                    # in addition, sockstat produces an additional column:
-                    filter='([^[:space:]]+[[:space:]]+){5}[^[:space:]]+'
-                fi
-                port_info=$(sockstat "$opts" "$port" 2>/dev/null | \
-                    grep -E '[[:space:]]LISTEN' | grep -o -E "$filter")
+    if ! check_port $pid "$port" "$utils"; then
+        if [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
+            if [ $ss_available -ne 0 ]; then
+                port_info=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
+                    grep -E '[[:space:]]users:[[:space:]]?\(' | \
+                    grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+" || :)
             else
-                port_info=$(ss -nlpH "( sport = :$port )" 2>/dev/null | \
-                    grep -F 'users:(' | grep -o -E "$filter")
+                if [ $sockstat_available -gt 1 ]; then
+                    # The sockstat command on FreeBSD does not return
+                    # the connection state without special option, but
+                    # it supports filtering by connection state.
+                    # Additionally, the sockstat utility on FreeBSD
+                    # produces an one extra column:
+                    port_info=$($socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                        grep -o -E "([^[:space:]]+[[:space:]]+){5}[^[:space:]]+" || :)
+                else
+                    port_info=$($socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                        grep -E '[[:space:]]LISTEN([[:space:]]|$)' | \
+                        grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+" || :)
+                fi
             fi
-            echo "$port_info" | \
-            grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port\$" && busy=1
+            final='$'
+        else
+            port_info=$($socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
+                grep -w -F '(LISTEN)' || :)
+            final='[[:space:]]'
+        fi
+
+        local busy=0
+        if [ -n "$port_info" ]; then
+            local address='(\*|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7}|[0-9]+(\.[0-9]+){3})'
+            local filter="[[:space:]]($address|\\[$address\\])(%[^:]+)?:$port$final"
+            echo "$port_info" | grep -q -E "$filter" && busy=1
         fi
 
         if [ $busy -eq 0 ]; then
-            if ! echo "$port_info" | grep -qw -F "[$addr]:$port" && \
-               ! echo "$port_info" | grep -qw -F -- "$addr:$port"
-            then
-                if ! ps -p $pid >/dev/null 2>&1; then
-                    wsrep_log_error \
-                        "rsync or stunnel daemon (PID: $pid)" \
-                        "terminated unexpectedly."
-                    exit 16 # EBUSY
-                fi
-                return 1
+            if ! ps -p $pid >/dev/null 2>&1; then
+                wsrep_log_error \
+                    "the rsync or stunnel daemon (PID: $pid)" \
+                    "terminated unexpectedly."
+                exit 16 # EBUSY
             fi
+            return 1
         fi
 
-        if ! check_port $pid "$port" "$utils"; then
+        local rc=0
+        check_port $pid "$port" "$utils" || rc=$?
+        if [ $rc -eq 16 ]; then
+            # We will ignore the return code EBUSY, which indicates
+            # a failed attempt to run the utility for retrieving
+            # socket information (on some systems):
+            return 1
+        elif [ $rc -ne 0 ]; then
             wsrep_log_error "rsync or stunnel daemon port '$port'" \
                             "has been taken by another program"
             exit 16 # EBUSY
@@ -149,13 +166,6 @@ check_pid_and_port()
     check_pid "$pid_file" && [ $CHECK_PID -eq $pid ]
 }
 
-DATA="$WSREP_SST_OPT_DATA"
-
-STUNNEL_CONF="$DATA/stunnel.conf"
-STUNNEL_PID="$DATA/stunnel.pid"
-
-MAGIC_FILE="$DATA/rsync_sst_complete"
-
 get_binlog
 
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
@@ -163,93 +173,12 @@ if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     binlog_base=$(basename "$WSREP_SST_OPT_BINLOG")
 fi
 
-OLD_PWD="$(pwd)"
-
-if [ -n "$DATA" -a "$DATA" != '.' ]; then
-    [ ! -d "$DATA" ] && mkdir -p "$DATA"
-    cd "$DATA"
-fi
-DATA_DIR="$(pwd)"
-
-cd "$OLD_PWD"
-
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
 
 ar_log_dir="$DATA_DIR"
 ib_log_dir="$DATA_DIR"
 ib_home_dir="$DATA_DIR"
 ib_undo_dir="$DATA_DIR"
-
-# if no command line argument and INNODB_LOG_GROUP_HOME is not set,
-# then try to get it from the my.cnf:
-if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-    INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
-    INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
-fi
-
-if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
-     "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
-then
-    # handle both relative and absolute paths:
-    cd "$DATA"
-    [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
-    cd "$INNODB_LOG_GROUP_HOME"
-    ib_log_dir="$(pwd)"
-    cd "$OLD_PWD"
-fi
-
-# if no command line argument and INNODB_DATA_HOME_DIR environment
-# variable is not set, try to get it from the my.cnf:
-if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
-    INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
-fi
-
-if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
-     "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
-then
-    # handle both relative and absolute paths:
-    cd "$DATA"
-    [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
-    cd "$INNODB_DATA_HOME_DIR"
-    ib_home_dir="$(pwd)"
-    cd "$OLD_PWD"
-fi
-
-# if no command line argument and INNODB_UNDO_DIR is not set,
-# then try to get it from the my.cnf:
-if [ -z "$INNODB_UNDO_DIR" ]; then
-    INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
-    INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
-fi
-
-if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
-     "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
-then
-    # handle both relative and absolute paths:
-    cd "$DATA"
-    [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
-    cd "$INNODB_UNDO_DIR"
-    ib_undo_dir="$(pwd)"
-    cd "$OLD_PWD"
-fi
-
-# if no command line argument then try to get it from the my.cnf:
-if [ -z "$ARIA_LOG_DIR" ]; then
-    ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
-    ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
-fi
-
-if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
-     "$ARIA_LOG_DIR" != "$DATA_DIR" ]
-then
-    # handle both relative and absolute paths:
-    cd "$DATA"
-    [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
-    cd "$ARIA_LOG_DIR"
-    ar_log_dir="$(pwd)"
-    cd "$OLD_PWD"
-fi
 
 encgroups='--mysqld|sst'
 
@@ -321,7 +250,7 @@ if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
     elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         # check if the address is an ip-address (v4 or v6):
         if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
-           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(\:[0-9a-fA-F]*)+)$'
+           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7})$'
         then
             CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
         else
@@ -348,22 +277,7 @@ fi
 readonly SECRET_TAG='secret'
 readonly BYPASS_TAG='bypass'
 
-SST_PID="$DATA/wsrep_sst.pid"
-
-# give some time for previous SST to complete:
-check_round=0
-while check_pid "$SST_PID" 0; do
-    wsrep_log_info "Previous SST is not completed, waiting for it to exit"
-    check_round=$(( check_round+1 ))
-    if [ $check_round -eq 20 ]; then
-        wsrep_log_error "previous SST script still running."
-        exit 114 # EALREADY
-    fi
-    sleep 1
-done
-
-trap simple_cleanup EXIT
-echo $$ > "$SST_PID"
+wait_previous_sst
 
 # give some time for stunnel from the previous SST to complete:
 check_round=0
@@ -371,17 +285,12 @@ while check_pid "$STUNNEL_PID" 1 "$STUNNEL_CONF"; do
     wsrep_log_info "Lingering stunnel daemon found at startup," \
                    "waiting for it to exit"
     check_round=$(( check_round+1 ))
-    if [ $check_round -eq 10 ]; then
-        wsrep_log_error "stunnel daemon still running."
+    if [ $check_round -eq 30 ]; then
+        wsrep_log_error "stunnel daemon still running..."
         exit 114 # EALREADY
     fi
     sleep 1
 done
-
-MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
-
-RSYNC_PID="$DATA/$MODULE.pid"
-RSYNC_CONF="$DATA/$MODULE.conf"
 
 # give some time for rsync from the previous SST to complete:
 check_round=0
@@ -389,8 +298,8 @@ while check_pid "$RSYNC_PID" 1 "$RSYNC_CONF"; do
     wsrep_log_info "Lingering rsync daemon found at startup," \
                    "waiting for it to exit"
     check_round=$(( check_round+1 ))
-    if [ $check_round -eq 10 ]; then
-        wsrep_log_error "rsync daemon still running."
+    if [ $check_round -eq 30 ]; then
+        wsrep_log_error "rsync daemon still running..."
         exit 114 # EALREADY
     fi
     sleep 1
@@ -599,65 +508,81 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of normal directories done"
 
-        # Transfer InnoDB data files
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
-              -f '- **' "$ib_home_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
+        if [ -d "$ib_home_dir" ]; then
 
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
-            exit 255 # unknown error
+            # Transfer InnoDB data files
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --dirs --delete --quiet \
+                  $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
+                  -f '- **' "$ib_home_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
+
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
+                exit 255 # unknown error
+            fi
+
+            wsrep_log_info "Transfer of InnoDB data files done"
+
         fi
 
-        wsrep_log_info "Transfer of InnoDB data files done"
+        if [ -d "$ib_log_dir" ]; then
 
-        # second, we transfer the InnoDB log file
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile0' \
-              -f '- **' "$ib_log_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
+            # second, we transfer the InnoDB log file
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --dirs --delete --quiet \
+                  $WHOLE_FILE_OPT -f '+ /ib_logfile0' \
+                  -f '- **' "$ib_log_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
-            exit 255 # unknown error
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
+                exit 255 # unknown error
+            fi
+
+            wsrep_log_info "Transfer of InnoDB log files done"
+
         fi
 
-        wsrep_log_info "Transfer of InnoDB log files done"
+        if [ "$ib_undo_dir" ]; then
 
-        # third, we transfer InnoDB undo logs
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /undo*' \
-              -f '- **' "$ib_undo_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
+            # third, we transfer InnoDB undo logs
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --dirs --delete --quiet \
+                  $WHOLE_FILE_OPT -f '+ /undo*' \
+                  -f '- **' "$ib_undo_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
 
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
-            exit 255 # unknown error
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
+                exit 255 # unknown error
+            fi
+
+            wsrep_log_info "Transfer of InnoDB undo logs done"
+
         fi
 
-        wsrep_log_info "Transfer of InnoDB undo logs done"
+        if [ "$ar_log_dir" ]; then
 
-        # fourth, we transfer Aria logs
-        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-              --owner --group --perms --links --specials \
-              --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /aria_log_control' -f '+ /aria_log.*' \
-              -f '- **' "$ar_log_dir/" \
-              "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
+            # fourth, we transfer Aria logs
+            rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+                  --owner --group --perms --links --specials \
+                  --ignore-times --inplace --dirs --delete --quiet \
+                  $WHOLE_FILE_OPT -f '+ /aria_log_control' -f '+ /aria_log.*' \
+                  -f '- **' "$ar_log_dir/" \
+                  "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
 
-        if [ $RC -ne 0 ]; then
-            wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
-            exit 255 # unknown error
+            if [ $RC -ne 0 ]; then
+                wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
+                exit 255 # unknown error
+            fi
+
+            wsrep_log_info "Transfer of Aria logs done"
+
         fi
-
-        wsrep_log_info "Transfer of Aria logs done"
 
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
@@ -744,6 +669,8 @@ FILTER="-f '- /lost+found'
 else # joiner
 
     check_sockets_utils
+
+    create_dirs
 
     ADDR="$WSREP_SST_OPT_HOST"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
@@ -867,19 +794,18 @@ EOF
 
     echo "ready $ADDR:$RSYNC_PORT/$MODULE"
 
-    MYSQLD_PID="$WSREP_SST_OPT_PARENT"
-
     # wait for SST to complete by monitoring magic file
     while [ ! -r "$MAGIC_FILE" ] && check_pid "$TRANSFER_PID" && \
-          ps -p $MYSQLD_PID >/dev/null 2>&1
+          ps -p $WSREP_SST_OPT_PARENT >/dev/null 2>&1
     do
         sleep 1
     done
 
-    if ! ps -p $MYSQLD_PID >/dev/null 2>&1; then
+    if ! ps -p $WSREP_SST_OPT_PARENT >/dev/null 2>&1; then
         wsrep_log_error \
-            "Parent mysqld process (PID: $MYSQLD_PID) terminated unexpectedly."
-        kill -- -$MYSQLD_PID
+            "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
+            "terminated unexpectedly."
+        kill -- -$WSREP_SST_OPT_PARENT
         sleep 1
         exit 32
     fi
@@ -988,6 +914,8 @@ EOF
             cd "$OLD_PWD"
         fi
     fi
+
+    simulate_long_sst
 
     # Remove special tags from the magic file, and from the output:
     coords=$(head -n1 "$MAGIC_FILE")

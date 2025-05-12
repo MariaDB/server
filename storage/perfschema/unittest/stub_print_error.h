@@ -23,21 +23,23 @@
 #include <my_global.h>
 #include <my_sys.h>
 #include <pfs_global.h>
+#include "aligned.h"
+#include "assume_aligned.h"
 
 bool pfs_initialized= false;
 
 void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf flags)
 {
-  void *ptr= malloc(size);
+  size= MY_ALIGN(size, CPU_LEVEL1_DCACHE_LINESIZE);
+  void *ptr= aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
   if (ptr && (flags & MY_ZEROFILL))
-    memset(ptr, 0, size);
+    memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(ptr, 0, size);
   return ptr;
 }
 
 void pfs_free(PFS_builtin_memory_class *, size_t, void *ptr)
 {
-  if (ptr != NULL)
-    free(ptr);
+  aligned_free(ptr);
 }
 
 void *pfs_malloc_array(PFS_builtin_memory_class *klass, size_t n, size_t size, myf flags)

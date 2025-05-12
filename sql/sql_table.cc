@@ -1313,7 +1313,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   LEX_CUSTRING version;
-  LEX_CSTRING partition_engine_name= {NULL, 0};
   StringBuffer<160> unknown_tables(system_charset_info);
   DDL_LOG_STATE local_ddl_log_state;
   const char *comment_start;
@@ -1400,6 +1399,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     const LEX_CSTRING db= table->db;
     const LEX_CSTRING table_name= table->table_name;
     LEX_CSTRING cpath= {0,0};
+    LEX_CSTRING partition_engine_name= {NULL, 0};
     handlerton *hton= 0;
     Table_type table_type;
     size_t path_length= 0;
@@ -1582,12 +1582,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     else
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton))
+      if (WSREP(thd) && hton)
       {
-        error= 1;
-        goto err;
+        handlerton *ht= hton;
+        // For partitioned tables resolve underlying handlerton
+        if (table->table && table->table->file->partition_ht())
+          ht= table->table->file->partition_ht();
+        if (!wsrep_should_replicate_ddl(thd, ht))
+        {
+          error= 1;
+          goto err;
+        }
       }
-#endif
+#endif /* WITH_WSREP */
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -1858,18 +1865,6 @@ err:
   if (non_temp_tables_count)
     query_cache_invalidate3(thd, tables, 0);
 
-  /*
-    We are always logging drop of temporary tables.
-    The reason is to handle the following case:
-    - Use statement based replication
-    - CREATE TEMPORARY TABLE foo (logged)
-    - set row based replication
-    - DROP TEMPORARY TABLE foo   (needs to be logged)
-    This should be fixed so that we remember if creation of the
-    temporary table was logged and only log it if the creation was
-    logged.
-  */
-
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
   {
@@ -2112,8 +2107,10 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   PRIMARY keys are prioritized.
 */
 
-static int sort_keys(KEY *a, KEY *b)
+static int sort_keys(const void *a_, const void *b_)
 {
+  const KEY *a= static_cast<const KEY *>(a_);
+  const KEY *b= static_cast<const KEY *>(b_);
   ulong a_flags= a->flags, b_flags= b->flags;
   
   /*
@@ -2459,6 +2456,34 @@ bool Column_definition::prepare_stage1_typelib(THD *thd,
 bool Column_definition::prepare_stage1_string(THD *thd,
                                               MEM_ROOT *mem_root)
 {
+  if (real_field_type() == FIELD_TYPE_STRING &&
+      length*charset->mbmaxlen > 1024)
+  {
+    DBUG_ASSERT(charset->mbmaxlen > 4);
+    /*
+      Convert long CHAR columns to VARCHAR.
+      CHAR has an octet length limit of 1024 bytes.
+      The code in Binlog_type_info_fixed_string::Binlog_type_info_fixed_string
+      relies on this limit. If octet length of a CHAR column is greater
+      than 1024, then it cannot write its metadata to binlog properly.
+      In case of the filename character set with mbmaxlen=5,
+      the maximum possible character length is 1024/5=204 characters.
+      Upgrade to VARCHAR if octet length is greater than 1024.
+    */
+    char warn_buff[MYSQL_ERRMSG_SIZE];
+    if (thd->is_strict_mode())
+    {
+      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
+               static_cast<ulong>(1024 / charset->mbmaxlen));
+      return true;
+    }
+    set_handler(&type_handler_varchar);
+    my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
+                field_name.str, "CHAR", "VARCHAR");
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_AUTO_CONVERT,
+                 warn_buff);
+  }
+
   create_length_to_internal_length_string();
   if (prepare_blob_field(thd))
     return true;
@@ -2722,6 +2747,308 @@ key_add_part_check_null(const handler *file, KEY *key_info,
 }
 
 
+static
+my_bool key_check_without_overlaps(THD *thd, HA_CREATE_INFO *create_info,
+                                   Alter_info *alter_info,
+                                   Key &key)
+{
+  DBUG_ENTER("key_check_without_overlaps");
+  if (!key.without_overlaps)
+    DBUG_RETURN(FALSE);
+  // append_system_key_parts is already called, so we should check all the
+  // columns except the last two.
+  const auto &period_start= create_info->period_info.period.start;
+  const auto &period_end= create_info->period_info.period.end;
+  List_iterator<Key_part_spec> part_it_forwarded(key.columns);
+  List_iterator<Key_part_spec> part_it(key.columns);
+  part_it_forwarded++;
+  part_it_forwarded++;
+  while (part_it_forwarded++)
+  {
+    Key_part_spec *key_part= part_it++;
+
+    if (period_start.streq(key_part->field_name)
+        || period_end.streq(key_part->field_name))
+    {
+      my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key.name.str,
+               key_part->field_name.str);
+      DBUG_RETURN(TRUE);
+    }
+  }
+
+  if (key.key_create_info.algorithm == HA_KEY_ALG_HASH ||
+      key.key_create_info.algorithm == HA_KEY_ALG_LONG_HASH)
+
+  {
+    my_error(ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS, MYF(0), key.name.str);
+    DBUG_RETURN(TRUE);
+  }
+  for (Key &key2: alter_info->key_list)
+  {
+    if (key2.type != Key::FOREIGN_KEY)
+      continue;
+    DBUG_ASSERT(&key != &key2);
+    const Foreign_key &fk= (Foreign_key&)key2;
+    if (fk.update_opt != FK_OPTION_CASCADE)
+      continue;
+    for (Key_part_spec& kp: key.columns)
+    {
+      for (Key_part_spec& kp2: fk.columns)
+      {
+        if (kp.field_name.streq(kp2.field_name))
+        {
+          my_error(ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS, MYF(0), key.name.str);
+          DBUG_RETURN(TRUE);
+        }
+      }
+    }
+  }
+  create_info->period_info.unique_keys++;
+
+  DBUG_RETURN(FALSE);
+}
+
+static
+my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
+                           const handler *file,
+                           const Key &key, Key_part_spec &kp,
+                           uint max_key_length, uint max_key_part_length,
+                           bool *is_hash_field_needed)
+{
+  DBUG_ENTER("init_key_part_spec");
+
+  const Lex_ident &field_name= kp.field_name;
+  Create_field *column= NULL;
+
+  for (Create_field &c: alter_info->create_list)
+    if (c.field_name.streq(field_name))
+      column= &c;
+
+  /*
+    Either field is not present or field visibility is > INVISIBLE_USER
+  */
+  if (!column || (column->invisible > INVISIBLE_USER && !kp.generated))
+  {
+    my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), field_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
+  if (!DBUG_IF("test_invisible_index")
+      && column->invisible > INVISIBLE_USER
+      && !(column->flags & VERS_SYSTEM_FIELD) && !key.invisible)
+  {
+    my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
+  const Type_handler *type_handler= column->type_handler();
+  switch(key.type)
+  {
+  case Key::FULLTEXT:
+    if (type_handler->Key_part_spec_init_ft(&kp, *column))
+    {
+      my_error(ER_BAD_FT_COLUMN, MYF(0), field_name.str);
+      DBUG_RETURN(-1);
+    }
+    break;
+
+  case Key::SPATIAL:
+    if (type_handler->Key_part_spec_init_spatial(&kp, *column))
+      DBUG_RETURN(TRUE);
+    break;
+
+  case Key::PRIMARY:
+    if (column->vcol_info)
+    {
+      my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    if (type_handler->Key_part_spec_init_primary(&kp, *column, file))
+      DBUG_RETURN(TRUE);
+    break;
+
+  case Key::MULTIPLE:
+    if (type_handler->Key_part_spec_init_multiple(&kp, *column, file))
+      DBUG_RETURN(TRUE);
+    break;
+
+  case Key::FOREIGN_KEY:
+    if (type_handler->Key_part_spec_init_foreign(&kp, *column, file))
+      DBUG_RETURN(TRUE);
+    break;
+
+  case Key::UNIQUE:
+    if (type_handler->Key_part_spec_init_unique(&kp, *column, file,
+                                                is_hash_field_needed))
+      DBUG_RETURN(TRUE);
+    break;
+
+  case Key::IGNORE_KEY:
+    DBUG_ASSERT(0);
+    break;
+  }
+
+  uint key_part_length= type_handler->calc_key_length(*column);
+
+  if (kp.length)
+  {
+    if (f_is_blob(column->pack_flag))
+    {
+      key_part_length= MY_MIN(kp.length,
+                              blob_length_by_type(column->real_field_type())
+                              * column->charset->mbmaxlen);
+      if (key_part_length > max_key_length ||
+          key_part_length > max_key_part_length)
+      {
+        if (key.type == Key::MULTIPLE)
+        {
+          key_part_length= MY_MIN(max_key_length, max_key_part_length);
+          /* not a critical problem */
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
+                              key_part_length);
+          /* Align key length to multibyte char boundary */
+          key_part_length-= key_part_length % column->charset->mbmaxlen;
+        }
+      }
+    }
+      // Catch invalid use of partial keys
+    else if (!f_is_geom(column->pack_flag) &&
+             // is the key partial?
+             kp.length != key_part_length &&
+             // is prefix length bigger than field length?
+             (kp.length > key_part_length ||
+              // can the field have a partial key?
+              !type_handler->type_can_have_key_part() ||
+              // a packed field can't be used in a partial key
+              f_is_packed(column->pack_flag) ||
+              // does the storage engine allow prefixed search?
+              ((file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS) &&
+               // and is this a 'unique' key?
+               (key.type == Key::PRIMARY || key.type == Key::UNIQUE))))
+    {
+      my_message(ER_WRONG_SUB_KEY, ER_THD(thd, ER_WRONG_SUB_KEY), MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
+      key_part_length= kp.length;
+  }
+  else if (key_part_length == 0 && (column->flags & NOT_NULL_FLAG) &&
+           !*is_hash_field_needed)
+  {
+    my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(), field_name.str);
+    DBUG_RETURN(TRUE);
+  }
+  if (key_part_length > max_key_part_length)
+  {
+    if (key.type == Key::MULTIPLE)
+    {
+      key_part_length= max_key_part_length;
+      /* not a critical problem */
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
+                          key_part_length);
+      /* Align key length to multibyte char boundary */
+      key_part_length-= key_part_length % column->charset->mbmaxlen;
+    }
+    else if (key.type == Key::PRIMARY)
+    {
+      key_part_length= MY_MIN(max_key_length, max_key_part_length);
+      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+      DBUG_RETURN(TRUE);
+    }
+  }
+
+  if (key.type == Key::UNIQUE && key_part_length > MY_MIN(max_key_length,
+                                                          max_key_part_length))
+    *is_hash_field_needed= true;
+
+  /* We can not store key_part_length more than 2^16 - 1 in frm. */
+  if (*is_hash_field_needed && kp.length > UINT_MAX16)
+  {
+    my_error(ER_TOO_LONG_KEYPART, MYF(0),  UINT_MAX16);
+    DBUG_RETURN(TRUE);
+  }
+
+  kp.length= key_part_length;
+
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  @brief Initialize the key length and algorithm (if long hash).
+
+  This function does:
+  1. Append system key parts (versioning, periods)
+  2. Call Type_handler key_part initialization function.
+  3. Determine the length of each key_part.
+  4. Calculate the total Key length.
+  5. Determine if the key is long unique based on its length
+     smd result from type handler. It'll be saved in
+     key_create_info.algorithm as HA_KEY_ALG_LONG_HASH.
+
+  @return   FALSE   OK
+  @return   TRUE    error
+ */
+static
+my_bool init_key_info(THD *thd, Alter_info *alter_info,
+                      HA_CREATE_INFO *create_info,
+                      const handler *file)
+{
+  DBUG_ENTER("init_key_info");
+  uint max_key_length= file->max_key_length();
+  uint max_key_part_length= file->max_key_part_length();
+
+  for (Key &key: alter_info->key_list)
+  {
+    if (key.type == Key::FOREIGN_KEY)
+      continue;
+
+    int parts_added= append_system_key_parts(thd, create_info, &key);
+    if (parts_added < 0)
+      DBUG_RETURN(true);
+
+    bool is_hash_field_needed= false;
+    for (Key_part_spec &kp: key.columns)
+    {
+      if (init_key_part_spec(thd, alter_info, file, key, kp,
+                             max_key_length, max_key_part_length,
+                             &is_hash_field_needed))
+        DBUG_RETURN(TRUE);
+
+      key.length+= kp.length;
+      if (key.length > max_key_length)
+      {
+        if (key.type == Key::UNIQUE)
+          is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
+        else if (key.type <= Key::MULTIPLE)
+        {
+          my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
+          DBUG_RETURN(TRUE);
+        }
+      }
+
+      KEY_CREATE_INFO *key_cinfo= &key.key_create_info;
+
+      if (is_hash_field_needed)
+      {
+        if (key_cinfo->algorithm == HA_KEY_ALG_UNDEF)
+          key_cinfo->algorithm= HA_KEY_ALG_LONG_HASH;
+
+        if (key_cinfo->algorithm != HA_KEY_ALG_HASH &&
+            key_cinfo->algorithm != HA_KEY_ALG_LONG_HASH)
+        {
+          my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
+          DBUG_RETURN(TRUE);
+        }
+      }
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
+
 /*
   Prepare for a table creation.
   Stage 1: prepare the field list.
@@ -2779,7 +3106,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
 
     DBUG_ASSERT(sql_field->charset);
 
-    if (check_column_name(sql_field->field_name.str))
+    if (check_column_name(sql_field->field_name))
     {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), sql_field->field_name.str);
       DBUG_RETURN(TRUE);
@@ -2823,7 +3150,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 {
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
-  uint		field,null_fields,max_key_length;
+  uint		field,null_fields;
   ulong		record_offset= 0;
   KEY_PART_INFO *key_part_info;
   int		field_no,dup_no;
@@ -2834,7 +3161,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   int select_field_count= C_CREATE_SELECT(create_table_mode);
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   const bool create_simple= thd->lex->create_simple();
-  bool is_hash_field_needed= false;
   const CHARSET_INFO *scs= system_charset_info;
   DBUG_ENTER("mysql_prepare_create_table");
 
@@ -2848,10 +3174,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
+  select_field_pos= get_select_field_pos(alter_info, select_field_count,
+                                         create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
-  max_key_length= file->max_key_length();
 
   /* Handle creation of sequences */
   if (create_info->sequence)
@@ -2887,7 +3213,16 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 	/*
 	  If this was a CREATE ... SELECT statement, accept a field
 	  redefinition if we are changing a field in the SELECT part
+
+          The cases are:
+
+          field_no < select_field_pos: both field and dup are table fields;
+          dup_no >= select_field_pos: both field and dup are select fields or
+            field is implicit systrem field and dup is select field.
+
+          We are not allowed to put row_start/row_end into SELECT expression.
 	*/
+        DBUG_ASSERT(dup_no < field_no);
 	if (field_no < select_field_pos || dup_no >= select_field_pos ||
             dup_field->invisible >= INVISIBLE_SYSTEM)
 	{
@@ -2946,7 +3281,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
       auto_increment++;
-    if (parse_option_list(thd, create_info->db_type, &sql_field->option_struct,
+    extend_option_list(thd, create_info->db_type, !sql_field->field,
+                       &sql_field->option_list,
+                       create_info->db_type->field_options);
+    if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
                           thd->mem_root))
@@ -3007,6 +3345,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   bool primary_key=0,unique_key=0;
   Key *key, *key2;
   uint tmp, key_number;
+
+  if (init_key_info(thd, alter_info, create_info, file))
+    DBUG_RETURN(TRUE);
 
   /* Calculate number of key segements */
   *key_count= 0;
@@ -3145,10 +3486,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     key_info->name.length= strlen(key_name);
     key->name= key_info->name;
 
-    int parts_added= append_system_key_parts(thd, create_info, key);
-    if (parts_added < 0)
-      DBUG_RETURN(true);
-    key_parts += parts_added;
     key_info++;
   }
   tmp=file->max_keys();
@@ -3167,11 +3504,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   key_number=0;
   for (; (key=key_iterator++) ; key_number++)
   {
-    uint key_length=0;
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
-    is_hash_field_needed= false;
+    bool is_hash_field_needed= key->key_create_info.algorithm
+                               == HA_KEY_ALG_LONG_HASH;
     if (key->type == Key::IGNORE_KEY)
     {
       /* ignore redundant keys */
@@ -3181,6 +3518,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       if (!key)
 	break;
     }
+
+    if (key_check_without_overlaps(thd, create_info, alter_info, *key))
+      DBUG_RETURN(true);
 
     switch (key->type) {
     case Key::MULTIPLE:
@@ -3215,12 +3555,16 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     if (key->generated)
       key_info->flags|= HA_GENERATED_KEY;
 
+    key_info->key_length= key->length;
     key_info->user_defined_key_parts=(uint8) key->columns.elements;
     key_info->key_part=key_part_info;
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
+    key_info->without_overlaps= key->without_overlaps;
     key_info->option_list= key->option_list;
-    if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
+    extend_option_list(thd, create_info->db_type, !key->old,
+                  &key_info->option_list, create_info->db_type->index_options);
+    if (parse_option_list(thd, &key_info->option_struct,
                           &key_info->option_list,
                           create_info->db_type->index_options, FALSE,
                           thd->mem_root))
@@ -3300,37 +3644,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     CHARSET_INFO *ft_key_charset=0;  // for FULLTEXT
     for (uint column_nr=0 ; (column=cols++) ; column_nr++)
     {
-      Key_part_spec *dup_column;
-
       it.rewind();
       field=0;
       while ((sql_field=it++) &&
 	     lex_string_cmp(scs, &column->field_name, &sql_field->field_name))
 	field++;
-      /*
-         Either field is not present or field visibility is > INVISIBLE_USER
-      */
-      if (!sql_field || (sql_field->invisible > INVISIBLE_USER &&
-                         !column->generated))
-      {
-	my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
-	DBUG_RETURN(TRUE);
-      }
-      if (sql_field->invisible > INVISIBLE_USER &&
-          !(sql_field->flags & VERS_SYSTEM_FIELD) &&
-          !key->invisible && !DBUG_IF("test_invisible_index"))
-      {
-        my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
-        DBUG_RETURN(TRUE);
-      }
-      while ((dup_column= cols2++) != column)
-      {
-        if (!lex_string_cmp(scs, &column->field_name, &dup_column->field_name))
-	{
-	  my_error(ER_DUP_FIELDNAME, MYF(0), column->field_name.str);
-	  DBUG_RETURN(TRUE);
-	}
-      }
 
       if (sql_field->compression_method())
       {
@@ -3340,12 +3658,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       }
 
       cols2.rewind();
-      switch(key->type) {
-
+      switch(key->type)
+      {
       case Key::FULLTEXT:
-        if (sql_field->type_handler()->Key_part_spec_init_ft(column,
-	                                                     *sql_field) ||
-            (ft_key_charset && sql_field->charset != ft_key_charset))
+        if (ft_key_charset && sql_field->charset != ft_key_charset)
         {
           my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
           DBUG_RETURN(-1);
@@ -3353,66 +3669,49 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         ft_key_charset= sql_field->charset;
         break;
 
-      case Key::SPATIAL:
-        if (sql_field->type_handler()->Key_part_spec_init_spatial(column,
-                                                                  *sql_field) ||
-            sql_field->check_vcol_for_key(thd))
-          DBUG_RETURN(TRUE);
-        if (!(sql_field->flags & NOT_NULL_FLAG))
-        {
-          my_message(ER_SPATIAL_CANT_HAVE_NULL,
-                     ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
-          DBUG_RETURN(TRUE);
-        }
-        break;
-
       case Key::PRIMARY:
-        if (sql_field->vcol_info)
-        {
-          my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
-          DBUG_RETURN(TRUE);
-        }
-        if (sql_field->type_handler()->Key_part_spec_init_primary(column,
-	                                                          *sql_field,
-	                                                          file))
-          DBUG_RETURN(TRUE);
         if (!(sql_field->flags & NOT_NULL_FLAG))
         {
-          /* Implicitly set primary key fields to NOT NULL for ISO conf. */
+          /* Implicitly set primary key fields to NOT NULL for ISO conformance. */
           sql_field->flags|= NOT_NULL_FLAG;
           sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
           null_fields--;
         }
         break;
 
-      case Key::MULTIPLE:
-        if (sql_field->type_handler()->Key_part_spec_init_multiple(column,
-                                                                   *sql_field,
-                                                                   file) ||
-            sql_field->check_vcol_for_key(thd) ||
-            key_add_part_check_null(file, key_info, sql_field, column))
-          DBUG_RETURN(TRUE);
-        break;
-
-      case Key::FOREIGN_KEY:
-        if (sql_field->type_handler()->Key_part_spec_init_foreign(column,
-                                                                  *sql_field,
-                                                                  file) ||
-            sql_field->check_vcol_for_key(thd) ||
-            key_add_part_check_null(file, key_info, sql_field, column))
-          DBUG_RETURN(TRUE);
-        break;
-
       case Key::UNIQUE:
-        if (sql_field->type_handler()->Key_part_spec_init_unique(column,
-                                                      *sql_field, file,
-                                                      &is_hash_field_needed) ||
-            sql_field->check_vcol_for_key(thd) ||
-            key_add_part_check_null(file, key_info, sql_field, column))
+      case Key::MULTIPLE:
+      case Key::FOREIGN_KEY:
+        if (key_add_part_check_null(file, key_info, sql_field, column))
+          DBUG_RETURN(TRUE);
+        if (sql_field->check_vcol_for_key(thd))
           DBUG_RETURN(TRUE);
         break;
+
       case Key::IGNORE_KEY:
         break;
+
+      case Key::SPATIAL:
+        if (!(sql_field->flags & NOT_NULL_FLAG))
+        {
+          my_message(ER_SPATIAL_CANT_HAVE_NULL,
+                     ER_THD(thd, ER_SPATIAL_CANT_HAVE_NULL), MYF(0));
+          DBUG_RETURN(TRUE);
+        }
+        if (sql_field->check_vcol_for_key(thd))
+          DBUG_RETURN(TRUE);
+        break;
+      }
+
+      for (const Key_part_spec &kp2: key->columns)
+      {
+        if (column == &kp2)
+          break;
+        if (kp2.field_name.streq(column->field_name))
+        {
+          my_error(ER_DUP_FIELDNAME, MYF(0), column->field_name.str);
+          DBUG_RETURN(TRUE);
+        }
       }
 
       if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
@@ -3428,129 +3727,30 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
       key_part_info->key_part_flag= column->asc ? 0 : HA_REVERSE_SORT;
-      uint key_part_length= sql_field->type_handler()->
-                              calc_key_length(*sql_field);
-
-      if (column->length)
-      {
-        if (f_is_blob(sql_field->pack_flag))
-        {
-          key_part_length= MY_MIN(column->length,
-                                  blob_length_by_type(sql_field->real_field_type())
-                                  * sql_field->charset->mbmaxlen);
-          if (key_part_length > max_key_length ||
-              key_part_length > file->max_key_part_length())
-          {
-            if (key->type == Key::MULTIPLE)
-            {
-              key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
-              /* not a critical problem */
-              push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                  ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
-                                  key_part_length);
-              /* Align key length to multibyte char boundary */
-              key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
-            }
-          }
-        }
-        // Catch invalid use of partial keys 
-        else if (!f_is_geom(sql_field->pack_flag) &&
-                 // is the key partial? 
-                 column->length != key_part_length &&
-                 // is prefix length bigger than field length? 
-                 (column->length > key_part_length ||
-                  // can the field have a partial key? 
-                  !sql_field->type_handler()->type_can_have_key_part() ||
-                  // a packed field can't be used in a partial key
-                  f_is_packed(sql_field->pack_flag) ||
-                  // does the storage engine allow prefixed search?
-                  ((file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS) &&
-                   // and is this a 'unique' key?
-                   (key_info->flags & HA_NOSAME))))
-        {
-          my_message(ER_WRONG_SUB_KEY, ER_THD(thd, ER_WRONG_SUB_KEY), MYF(0));
-          DBUG_RETURN(TRUE);
-        }
-        else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
-          key_part_length= column->length;
-      }
-      else if (key_part_length == 0 && (sql_field->flags & NOT_NULL_FLAG) &&
-              !is_hash_field_needed)
-      {
-	my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(),
-                 column->field_name.str);
-	  DBUG_RETURN(TRUE);
-      }
-      if (key_part_length > file->max_key_part_length() &&
-          key->type != Key::FULLTEXT)
-      {
-        if (key->type == Key::MULTIPLE)
-        {
-          key_part_length= file->max_key_part_length();
-          /* not a critical problem */
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
-                              key_part_length);
-          /* Align key length to multibyte char boundary */
-          key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
-        }
-        else
-        {
-          if (key->type != Key::UNIQUE)
-          {
-            key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
-            my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-            DBUG_RETURN(TRUE);
-          }
-        }
-      }
-
-      if (key->type == Key::UNIQUE
-          && key_part_length > MY_MIN(max_key_length,
-                                      file->max_key_part_length()))
-        is_hash_field_needed= true;
-
-      /* We can not store key_part_length more then 2^16 - 1 in frm */
-      if (is_hash_field_needed && column->length > UINT_MAX16)
-      {
-        my_error(ER_TOO_LONG_KEYPART, MYF(0),  UINT_MAX16);
-        DBUG_RETURN(TRUE);
-      }
-      else
-        key_part_info->length= (uint16) key_part_length;
+      key_part_info->length= column->length;
       /* Use packed keys for long strings on the first column */
       if (!((*db_options) & HA_OPTION_NO_PACK_KEYS) &&
           !((create_info->table_options & HA_OPTION_NO_PACK_KEYS)) &&
-          (key_part_length >= KEY_DEFAULT_PACK_LENGTH) &&
+          (column->length >= KEY_DEFAULT_PACK_LENGTH) &&
           !is_hash_field_needed)
       {
         key_info->flags|= sql_field->type_handler()->KEY_pack_flags(column_nr);
       }
       /* Check if the key segment is partial, set the key flag accordingly */
-      if (key_part_length != sql_field->type_handler()->
+      if (column->length != sql_field->type_handler()->
                                           calc_key_length(*sql_field) &&
-          key_part_length != sql_field->type_handler()->max_octet_length())
+          column->length != sql_field->type_handler()->max_octet_length())
         key_info->flags|= HA_KEY_HAS_PART_KEY_SEG;
 
-      key_length+= key_part_length;
       key_part_info++;
     }
-    if (!key_info->name.str || check_column_name(key_info->name.str))
+    if (!key_info->name.str || check_column_name(key_info->name))
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name.str);
       DBUG_RETURN(TRUE);
     }
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
-    key_info->key_length=(uint16) key_length;
-    if (key_info->key_length > max_key_length && key->type == Key::UNIQUE)
-      is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
-    if (key_length > max_key_length && key->type != Key::FULLTEXT &&
-        !is_hash_field_needed)
-    {
-      my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
-      DBUG_RETURN(TRUE);
-    }
 
     /* Check long unique keys */
     if (is_hash_field_needed)
@@ -3560,12 +3760,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         my_error(ER_NO_AUTOINCREMENT_WITH_UNIQUE, MYF(0),
                  sql_field->field_name.str,
                  key_info->name.str);
-        DBUG_RETURN(TRUE);
-      }
-      if (key_info->algorithm != HA_KEY_ALG_UNDEF &&
-          key_info->algorithm != HA_KEY_ALG_HASH )
-      {
-        my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
         DBUG_RETURN(TRUE);
       }
     }
@@ -3607,39 +3801,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     // Check if a duplicate index is defined.
     check_duplicate_key(thd, key, key_info, &alter_info->key_list);
 
-    key_info->without_overlaps= key->without_overlaps;
-    if (key_info->without_overlaps)
-    {
-      if (key_info->algorithm == HA_KEY_ALG_HASH ||
-          key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-
-      {
-without_overlaps_err:
-        my_error(ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS, MYF(0), key_info->name.str);
-        DBUG_RETURN(true);
-      }
-      key_iterator2.rewind();
-      while ((key2 = key_iterator2++))
-      {
-        if (key2->type != Key::FOREIGN_KEY)
-          continue;
-        DBUG_ASSERT(key != key2);
-        Foreign_key *fk= (Foreign_key*) key2;
-        if (fk->update_opt != FK_OPTION_CASCADE)
-          continue;
-        for (Key_part_spec& kp: key->columns)
-        {
-          for (Key_part_spec& kp2: fk->columns)
-          {
-            if (!lex_string_cmp(scs, &kp.field_name, &kp2.field_name))
-            {
-              goto without_overlaps_err;
-            }
-          }
-        }
-      }
-      create_info->period_info.unique_keys++;
-    }
     key_info->is_ignored= key->key_create_info.is_ignored;
     key_info++;
   }
@@ -3810,14 +3971,16 @@ without_overlaps_err:
 
   /* Give warnings for not supported table options */
   if (create_info->used_fields & HA_CREATE_USED_TRANSACTIONAL &&
-      !file->has_transactional_option())
+      !file->has_transactional_option() && !thd->rgi_slave)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_OPTION,
                         ER_THD(thd, ER_UNKNOWN_OPTION), "transactional");
 
-  if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
-                          &create_info->option_list,
-                          file->partition_ht()->table_options, FALSE,
-                          thd->mem_root))
+  extend_option_list(thd, file->partition_ht(),
+              !thd->lex->create_like() && create_table_mode > C_ALTER_TABLE,
+              &create_info->option_list, file->partition_ht()->table_options);
+  if (parse_option_list(thd, &create_info->option_struct,
+                    &create_info->option_list,
+                    file->partition_ht()->table_options, FALSE, thd->mem_root))
       DBUG_RETURN(TRUE);
 
   DBUG_EXECUTE_IF("key",
@@ -4047,20 +4210,6 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
     {
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
       return -1;
-    }
-
-    const auto &period_start= create_info->period_info.period.start;
-    const auto &period_end= create_info->period_info.period.end;
-    List_iterator<Key_part_spec> part_it(key->columns);
-    while (Key_part_spec *key_part= part_it++)
-    {
-      if (period_start.streq(key_part->field_name)
-          || period_end.streq(key_part->field_name))
-      {
-        my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key->name.str,
-                 key_part->field_name.str);
-        return -1;
-      }
     }
     const auto &period= create_info->period_info.period;
     key->columns.push_back(new (thd->mem_root)
@@ -4834,9 +4983,26 @@ bool wsrep_check_sequence(THD* thd,
     // In Galera cluster we support only InnoDB sequences
     if (db_type != DB_TYPE_INNODB)
     {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "non-InnoDB sequences in Galera cluster");
-      return(true);
+      // Currently any dynamic storage engine is not possible to identify
+      // using DB_TYPE_XXXX and ENGINE=SEQUENCE is one of them.
+      // Therefore, we get storage engine name from lex.
+      const LEX_CSTRING *tb_name= thd->lex->m_sql_cmd->option_storage_engine_name()->name();
+      // (1) CREATE TABLE ... ENGINE=SEQUENCE  OR
+      // (2) ALTER TABLE ... ENGINE=           OR
+      //     Note in ALTER TABLE table->s->sequence != nullptr
+      // (3) CREATE SEQUENCE ... ENGINE=
+      if ((thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+           lex_string_eq(tb_name, STRING_WITH_LEN("SEQUENCE"))) ||
+          (thd->lex->sql_command == SQLCOM_ALTER_TABLE) ||
+          (thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE))
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "non-InnoDB sequences in Galera cluster");
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_NOT_SUPPORTED_YET,
+                            "ENGINE=%s not supported by Galera", tb_name->str);
+	return(true);
+      }
     }
 
     // In Galera cluster it is best to use INCREMENT BY 0 with CACHE
@@ -6068,7 +6234,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(drop->name))
+        if (table->s->period.name.streq(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -6360,9 +6526,9 @@ remove_key:
         }
         if (!part_elem)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_PARTITION_DOES_NOT_EXIST,
-                              ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                       ER_PARTITION_DOES_NOT_EXIST,
+                       ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
           names_it.remove();
         }
       }
@@ -6469,8 +6635,10 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
 }
 
 
-static int compare_uint(const uint *s, const uint *t)
+static int compare_uint(const void *s_, const void *t_)
 {
+  const uint *s= static_cast<const uint *>(s_);
+  const uint *t= static_cast<const uint *>(t_);
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 
@@ -7254,7 +7422,16 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(1);
 
   /* Some very basic checks. */
-  if (table->s->fields != alter_info->create_list.elements ||
+  uint fields= table->s->fields;
+
+  /* There is no field count on fully-invisible fields, count them. */
+  for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
+  {
+    if ((*f_ptr)->invisible >= INVISIBLE_FULL)
+      fields--;
+  }
+
+  if (fields != alter_info->create_list.elements ||
       table->s->db_type() != create_info->db_type ||
       table->s->tmp_table ||
       (table->s->row_type != create_info->row_type))
@@ -7265,6 +7442,9 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
   for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
   {
     Field *field= *f_ptr;
+    /* Skip hidden generated field like long hash index. */
+    if (field->invisible >= INVISIBLE_SYSTEM)
+      continue;
     Create_field *tmp_new_field= tmp_new_field_it++;
 
     /* Check that NULL behavior is the same. */
@@ -7276,8 +7456,12 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info))
+      bool err;
+      if (!field->vcol_info->is_equivalent(thd, table->s, create_info->table->s,
+                                           tmp_new_field->field->vcol_info, err))
         DBUG_RETURN(false);
+      if (err)
+        DBUG_RETURN(true);
     }
 
     /*
@@ -7313,13 +7497,13 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(false);
 
   /* Go through keys and check if they are compatible. */
-  KEY *table_key;
-  KEY *table_key_end= table->key_info + table->s->keys;
+  KEY *table_key= table->s->key_info;
+  KEY *table_key_end= table_key + table->s->keys;
   KEY *new_key;
   KEY *new_key_end= key_info_buffer + key_count;
 
   /* Step through all keys of the first table and search matching keys. */
-  for (table_key= table->key_info; table_key < table_key_end; table_key++)
+  for (; table_key < table_key_end; table_key++)
   {
     /* Search a key with the same name. */
     for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
@@ -7363,7 +7547,7 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
   for (new_key= key_info_buffer; new_key < new_key_end; new_key++)
   {
     /* Search a key with the same name. */
-    for (table_key= table->key_info; table_key < table_key_end; table_key++)
+    for (table_key= table->s->key_info; table_key < table_key_end; table_key++)
     {
       if (!lex_string_cmp(system_charset_info, &table_key->name,
                           &new_key->name))
@@ -8913,7 +9097,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       LEX_CSTRING tmp_name;
       bzero((char*) &key_create_info, sizeof(key_create_info));
       if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-        key_info->algorithm= HA_KEY_ALG_UNDEF;
+        key_info->algorithm= alter_ctx->fast_alter_partition ?
+          HA_KEY_ALG_HASH : HA_KEY_ALG_UNDEF;
+      /*
+        For fast alter partition we set HA_KEY_ALG_HASH above to make sure it
+        doesn't lose the hash property.
+        Otherwise we let mysql_prepare_create_table() decide if the hash field
+        is needed depending on the (possibly changed) data types.
+      */
       key_create_info.algorithm= key_info->algorithm;
       /*
         We copy block size directly as some engines, like Area, sets this
@@ -9035,7 +9226,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     for (bool found= false; !found && (drop= drop_it++); )
     {
       found= drop->type == Alter_drop::PERIOD &&
-             table->s->period.name.streq(drop->name);
+             table->s->period.name.streq(Lex_ident(drop->name));
     }
 
     if (drop)
@@ -9078,7 +9269,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      if (share->period.constr_name.streq(check->name.str))
+      if (share->period.constr_name.streq(check->name))
       {
         if (!drop_period && !keep)
         {
@@ -9290,18 +9481,20 @@ static Create_field *get_field_by_old_name(Alter_info *alter_info,
 enum fk_column_change_type
 {
   FK_COLUMN_NO_CHANGE, FK_COLUMN_DATA_CHANGE,
-  FK_COLUMN_RENAMED, FK_COLUMN_DROPPED
+  FK_COLUMN_RENAMED, FK_COLUMN_DROPPED, FK_COLUMN_NOT_NULL
 };
 
 /**
   Check that ALTER TABLE's changes on columns of a foreign key are allowed.
 
   @param[in]   thd              Thread context.
+  @param[in]   table            table to be altered
   @param[in]   alter_info       Alter_info describing changes to be done
                                 by ALTER TABLE.
-  @param[in]   fk_columns       List of columns of the foreign key to check.
+  @param[in]   fk               Foreign key information.
   @param[out]  bad_column_name  Name of field on which ALTER TABLE tries to
                                 do prohibited operation.
+  @param[in]   referenced       Check the referenced fields
 
   @note This function takes into account value of @@foreign_key_checks
         setting.
@@ -9312,17 +9505,28 @@ enum fk_column_change_type
                                  change in foreign key column.
   @retval FK_COLUMN_RENAMED      Foreign key column is renamed.
   @retval FK_COLUMN_DROPPED      Foreign key column is dropped.
+  @retval FK_COLUMN_NOT_NULL     Foreign key column cannot be null
+                                 if ON...SET NULL or ON UPDATE
+                                 CASCADE conflicts with NOT NULL
 */
 
 static enum fk_column_change_type
-fk_check_column_changes(THD *thd, Alter_info *alter_info,
-                        List<LEX_CSTRING> &fk_columns,
-                        const char **bad_column_name)
+fk_check_column_changes(THD *thd, const TABLE *table,
+                        Alter_info *alter_info,
+                        FOREIGN_KEY_INFO *fk,
+                        const char **bad_column_name,
+                        bool referenced=false)
 {
+  List<LEX_CSTRING> &fk_columns= referenced
+    ? fk->referenced_fields
+    : fk->foreign_fields;
   List_iterator_fast<LEX_CSTRING> column_it(fk_columns);
   LEX_CSTRING *column;
+  int n_col= 0;
 
   *bad_column_name= NULL;
+  enum fk_column_change_type result= FK_COLUMN_NO_CHANGE;
+  bool strict_mode= thd->is_strict_mode();
 
   while ((column= column_it++))
   {
@@ -9341,8 +9545,8 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
           SE that foreign keys should be updated to use new name of column
           like it happens in case of in-place algorithm.
         */
-        *bad_column_name= column->str;
-        return FK_COLUMN_RENAMED;
+        result= FK_COLUMN_RENAMED;
+        goto func_exit;
       }
 
       /*
@@ -9355,17 +9559,55 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
       new_field->flags&= ~AUTO_INCREMENT_FLAG;
       const bool equal_result= old_field->is_equal(*new_field);
       new_field->flags= flags;
+      const bool old_field_not_null= old_field->flags & NOT_NULL_FLAG;
+      const bool new_field_not_null= new_field->flags & NOT_NULL_FLAG;
 
-      if ((equal_result == IS_EQUAL_NO) ||
-          ((new_field->flags & NOT_NULL_FLAG) &&
-           !(old_field->flags & NOT_NULL_FLAG)))
+      if ((equal_result == IS_EQUAL_NO))
       {
         /*
           Column in a FK has changed significantly and it
           may break referential intergrity.
         */
-        *bad_column_name= column->str;
-        return FK_COLUMN_DATA_CHANGE;
+        result= FK_COLUMN_DATA_CHANGE;
+        goto func_exit;
+      }
+
+      if (strict_mode && old_field_not_null != new_field_not_null)
+      {
+        if (referenced && !new_field_not_null)
+        {
+          /*
+            Don't allow referenced column to change from
+            NOT NULL to NULL when foreign key relation is
+            ON UPDATE CASCADE and the referencing column
+            is declared as NOT NULL
+          */
+          if (fk->update_method == FK_OPTION_CASCADE &&
+              !fk->is_nullable(false, n_col))
+          {
+            result= FK_COLUMN_DATA_CHANGE;
+            goto func_exit;
+          }
+        }
+        else if (!referenced && new_field_not_null)
+        {
+          /*
+            Don't allow the foreign column to change
+            from NULL to NOT NULL when foreign key type is
+            1) UPDATE SET NULL
+            2) DELETE SET NULL
+            3) UPDATE CASCADE and referenced column is declared as NULL
+	  */
+          if (fk->update_method == FK_OPTION_SET_NULL ||
+              fk->delete_method == FK_OPTION_SET_NULL ||
+              (fk->update_method == FK_OPTION_CASCADE &&
+               fk->referenced_key_name &&
+               fk->is_nullable(true, n_col)))
+          {
+            result= FK_COLUMN_NOT_NULL;
+            goto func_exit;
+          }
+        }
       }
     }
     else
@@ -9379,12 +9621,15 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         field being dropped since it is easy to break referential
         integrity in this case.
       */
-      *bad_column_name= column->str;
-      return FK_COLUMN_DROPPED;
+      result= FK_COLUMN_DROPPED;
+      goto func_exit;
     }
+    n_col++;
   }
-
   return FK_COLUMN_NO_CHANGE;
+func_exit:
+  *bad_column_name= column->str;
+  return result;
 }
 
 
@@ -9476,9 +9721,8 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     enum fk_column_change_type changes;
     const char *bad_column_name;
 
-    changes= fk_check_column_changes(thd, alter_info,
-                                     f_key->referenced_fields,
-                                     &bad_column_name);
+    changes= fk_check_column_changes(thd, table, alter_info, f_key,
+                                     &bad_column_name, true);
 
     switch(changes)
     {
@@ -9512,6 +9756,9 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
                f_key->foreign_id->str, buff.c_ptr());
       DBUG_RETURN(true);
     }
+    /* FK_COLUMN_NOT_NULL error happens only when changing
+    the foreign key column from NULL to NOT NULL */
+    case FK_COLUMN_NOT_NULL:
     default:
       DBUG_ASSERT(0);
     }
@@ -9550,8 +9797,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     enum fk_column_change_type changes;
     const char *bad_column_name;
 
-    changes= fk_check_column_changes(thd, alter_info,
-                                     f_key->foreign_fields,
+    changes= fk_check_column_changes(thd, table, alter_info, f_key,
                                      &bad_column_name);
 
     switch(changes)
@@ -9571,6 +9817,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       DBUG_RETURN(true);
     case FK_COLUMN_DROPPED:
       my_error(ER_FK_COLUMN_CANNOT_DROP, MYF(0), bad_column_name,
+               f_key->foreign_id->str);
+      DBUG_RETURN(true);
+    case FK_COLUMN_NOT_NULL:
+      my_error(ER_FK_COLUMN_NOT_NULL, MYF(0), bad_column_name,
                f_key->foreign_id->str);
       DBUG_RETURN(true);
     default:
@@ -10116,7 +10366,7 @@ bool online_alter_check_autoinc(const THD *thd, const Alter_info *alter_info,
 }
 
 static
-const char *online_alter_check_supported(const THD *thd,
+const char *online_alter_check_supported(THD *thd,
                                          const Alter_info *alter_info,
                                          const TABLE *table,
                                          const TABLE *new_table, bool *online)
@@ -10258,7 +10508,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
-  bool fast_alter_partition= false;
 #endif
   bool partial_alter= false;
   /*
@@ -10439,10 +10688,21 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (WSREP(thd) && table &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
-       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table->s->db_type()))
-    DBUG_RETURN(true);
-#endif /* WITH_WSREP */
+       thd->lex->sql_command == SQLCOM_DROP_INDEX))
+  {
+    handlerton *ht= table->s->db_type();
+
+    // If alter used ENGINE= we use that
+    if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+      ht= create_info->db_type;
+    // For partitioned tables resolve underlying handlerton
+    else if (table->file->partition_ht())
+      ht= table->file->partition_ht();
+
+    if (!wsrep_should_replicate_ddl(thd, ht))
+      DBUG_RETURN(true);
+  }
+#endif
 
   DEBUG_SYNC(thd, "alter_table_after_open_tables");
 
@@ -10840,7 +11100,7 @@ do_continue:;
       Partitioning: part_info is prepared and returned via thd->work_part_info
     */
     if (prep_alter_part_table(thd, table, alter_info, create_info,
-                              &partition_changed, &fast_alter_partition))
+                        &partition_changed, &alter_ctx.fast_alter_partition))
     {
       DBUG_RETURN(true);
     }
@@ -10877,7 +11137,7 @@ do_continue:;
     Note, one can run a separate "ALTER TABLE t1 FORCE;" statement
     before or after the partition change ALTER statement to upgrade data types.
   */
-  if (IF_PARTITIONING(!fast_alter_partition, 1))
+  if (!alter_ctx.fast_alter_partition)
     Create_field::upgrade_data_types(alter_info->create_list);
 
   if (create_info->check_fields(thd, alter_info,
@@ -10889,7 +11149,7 @@ do_continue:;
     promote_first_timestamp_column(&alter_info->create_list);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (fast_alter_partition)
+  if (alter_ctx.fast_alter_partition)
   {
     /*
       ALGORITHM and LOCK clauses are generally not allowed by the
@@ -11540,7 +11800,8 @@ do_continue:;
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  engine_changed= ((new_table->file->ht != table->file->ht) &&
+  engine_changed= ((new_table->file->storage_ht() !=
+                    table->file->storage_ht()) &&
                    ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                      !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
@@ -11575,7 +11836,7 @@ do_continue:;
 
   debug_crash_here("ddl_log_alter_after_copy");      // Use old table
   /*
-    We are new ready to use the new table. Update the state in the
+    We are now ready to use the new table. Update the state in the
     ddl log so that we recovery know that the new table is ready and
     in case of crash it should use the new one and log the query
     to the binary log.
@@ -11820,6 +12081,7 @@ end_temporary:
 
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
+  thd_progress_end(thd);
   *recreate_info= Recreate_info(copied, deleted);
   thd->my_ok_with_recreate_info(*recreate_info,
                                 (ulong) thd->get_stmt_da()->
@@ -11947,7 +12209,7 @@ class Has_default_error_handler : public Internal_error_handler
 public:
   bool handle_condition(THD *, uint sql_errno, const char *,
                         Sql_condition::enum_warning_level *,
-                        const char *, Sql_condition **)
+                        const char *, Sql_condition **) override
   {
     return sql_errno == ER_NO_DEFAULT_FOR_FIELD;
   }
@@ -11969,7 +12231,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   do
   {
     const auto *descr_event= rgi->rli->relay_log.description_event_for_exec;
-    auto *ev= Log_event::read_log_event(log_file, descr_event, 0, 1, ~0UL);
+    auto *ev= Log_event::read_log_event(log_file, &error, descr_event, 0, 1, ~0UL);
     error= log_file->error;
     if (unlikely(!ev))
     {
@@ -11996,6 +12258,61 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   return MY_TEST(error);
 }
 #endif
+
+
+/** Handle the error when copying data from source to target table.
+@param error          error code
+@param ignore         alter ignore statement
+@param to             target table handler
+@param thd            Mysql Thread
+@param alter_ctx      Runtime context for alter statement
+@retval false in case of error
+@retval true in case of skipping the row and continue alter operation */
+static bool
+copy_data_error_ignore(int &error, bool ignore, TABLE *to,
+                       THD *thd, Alter_table_ctx *alter_ctx)
+{
+  if (to->file->is_fatal_error(error, HA_CHECK_DUP))
+  {
+    /* Not a duplicate key error. */
+    to->file->print_error(error, MYF(0));
+    error= 1;
+    return false;
+  }
+  /* Duplicate key error. */
+  if (unlikely(alter_ctx->fk_error_if_delete_row))
+  {
+    /* We are trying to omit a row from the table which serves
+    as parent in a foreign key. This might have broken
+    referential integrity so emit an error. Note that we
+    can't ignore this error even if we are
+    executing ALTER IGNORE TABLE. IGNORE allows to skip rows, but
+    doesn't allow to break unique or foreign key constraints, */
+    my_error(ER_FK_CANNOT_DELETE_PARENT, MYF(0),
+             alter_ctx->fk_error_id,
+             alter_ctx->fk_error_table);
+    return false;
+  }
+  if (ignore)
+    return true;
+  /* Ordinary ALTER TABLE. Report duplicate key error. */
+  uint key_nr= to->file->get_dup_key(error);
+  if (key_nr <= MAX_KEY)
+  {
+    const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
+    if (key_nr == 0 && to->s->keys > 0 &&
+        (to->key_info[0].key_part[0].field->flags &
+            AUTO_INCREMENT_FLAG))
+      err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
+    print_keydup_error(to,
+                       key_nr >= to->s->keys ? NULL :
+                       &to->key_info[key_nr],
+                       err_msg, MYF(0));
+  }
+  else
+    to->file->print_error(error, MYF(0));
+  return false;
+}
 
 static int
 copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
@@ -12048,6 +12365,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   backup_set_alter_copy_lock(thd, from);
+  DEBUG_SYNC(thd, "copy_data_between_tables_after_set_backup_lock");
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(),
                           alter_info->keys_onoff);
@@ -12363,9 +12681,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (!ignore)
-    to->file->extra(HA_EXTRA_END_ALTER_COPY);
-
+  if (!ignore && error <= 0)
+  {
+    int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
+    if (alt_error > 0)
+    {
+      error= alt_error;
+      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
+      copy_data_error_ignore(error, false, to, thd, alter_ctx);
+    }
+  }
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
@@ -12666,14 +12991,15 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
         protocol->store_null();
       else
       {
+        DEBUG_SYNC(thd, "mysql_checksum_table_before_calculate_checksum");
         int error= t->file->calculate_checksum();
+        DEBUG_SYNC(thd, "mysql_checksum_table_after_calculate_checksum");
         if (thd->killed)
         {
           /*
              we've been killed; let handler clean up, and remove the
              partial current row from the recordset (embedded lib)
           */
-          t->file->ha_rnd_end();
           thd->protocol->remove_last_row();
           goto err;
         }
@@ -12759,8 +13085,7 @@ bool check_engine(THD *thd, const char *db_name,
   {
     if (no_substitution)
     {
-      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;

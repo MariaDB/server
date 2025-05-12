@@ -7,7 +7,9 @@ CREATE TABLE t (a TEXT);
 # events of interest are guaranteed to stay in 000001 log
 RESET MASTER;
 --eval INSERT INTO t SET a=repeat('a', 1024)
+--disable_cursor_protocol
 SELECT a into @a from t;
+--enable_cursor_protocol
 FLUSH LOGS;
 DELETE FROM t;
 

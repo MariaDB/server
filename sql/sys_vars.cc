@@ -704,6 +704,7 @@ Sys_binlog_format(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_format_check),
        ON_UPDATE(fix_binlog_format_after_update));
 
+
 static bool binlog_direct_check(sys_var *self, THD *thd, set_var *var)
 {
   if (var->type == OPT_GLOBAL)
@@ -1254,10 +1255,14 @@ static bool update_binlog_space_limit(sys_var *, THD *,
 {
 #ifdef HAVE_REPLICATION
   /* Refresh summary of binlog sizes */
-  mysql_bin_log.lock_index();
-  binlog_space_limit= internal_binlog_space_limit;
-  slave_connections_needed_for_purge=
+  ulonglong loc_binlog_space_limit= internal_binlog_space_limit;
+  uint loc_slave_connections_needed_for_purge=
     internal_slave_connections_needed_for_purge;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_bin_log.lock_index();
+  binlog_space_limit= loc_binlog_space_limit;
+  slave_connections_needed_for_purge=
+    loc_slave_connections_needed_for_purge;
 
   if (opt_bin_log)
   {
@@ -1265,14 +1270,17 @@ static bool update_binlog_space_limit(sys_var *, THD *,
       mysql_bin_log.count_binlog_space();
     /* Inform can_purge_log() that it should do a recheck of log_in_use() */
     sending_new_binlog_file++;
-     mysql_bin_log.unlock_index();
+    mysql_bin_log.unlock_index();
     mysql_bin_log.purge(1);
+    mysql_mutex_lock(&LOCK_global_system_variables);
     return 0;
   }
   mysql_bin_log.unlock_index();
+  mysql_mutex_lock(&LOCK_global_system_variables);
 #endif
   return 0;
 }
+
 
 static Sys_var_on_access_global<Sys_var_ulonglong,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE>
@@ -1303,12 +1311,14 @@ Sys_slave_connections_needed_for_purge(
       "slave_connections_needed_for_purge",
       "Minimum number of connected slaves required for automatic binary "
       "log purge with max_binlog_total_size, binlog_expire_logs_seconds "
-      "or binlog_expire_logs_days.",
+      "or binlog_expire_logs_days. Default is 0 when Galera is enabled and 1 "
+      "otherwise.",
        GLOBAL_VAR(internal_slave_connections_needed_for_purge),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_binlog_space_limit));
+
 
 static Sys_var_mybool Sys_flush(
        "flush", "Flush MyISAM tables to disk between SQL commands",
@@ -1786,7 +1796,10 @@ Sys_max_binlog_stmt_cache_size(
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  mysql_bin_log.set_max_size(max_binlog_size);
+  ulong saved= max_binlog_size;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_bin_log.set_max_size(saved);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 static Sys_var_on_access_global<Sys_var_ulong,
@@ -1922,18 +1935,39 @@ Sys_pseudo_thread_id(
        "pseudo_thread_id",
        "This variable is for internal server use",
        SESSION_ONLY(pseudo_thread_id),
-       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       NO_CMD_LINE, VALID_RANGE(0, MY_THREAD_ID_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG);
 
 static bool
 check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
 {
-  if (var->type != OPT_GLOBAL &&
-      error_if_in_trans_or_substatement(thd,
+  if (var->type != OPT_GLOBAL)
+  {
+    if (error_if_in_trans_or_substatement(thd,
           ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
           ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
     return true;
+    /*
+      All binlogged statements on a temporary table must be binlogged in the
+      same domain_id; it is not safe to run them in parallel in different
+      domains, temporary table must be exclusive to a single thread.
+      In row-based binlogging, temporary tables do not end up in the binlog,
+      so there is no such issue.
 
+      ToDo: When merging to next (non-GA) release, introduce a more specific
+      error that describes that the problem is changing gtid_domain_id with
+      open temporary tables in statement/mixed binlogging mode; it is not
+      really due to doing it inside a "transaction".
+    */
+    if (thd->has_thd_temporary_tables() &&
+        !thd->is_current_stmt_binlog_format_row() &&
+        var->save_result.ulonglong_value != thd->variables.gtid_domain_id)
+    {
+      my_error(ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+               MYF(0));
+        return true;
+    }
+  }
   return false;
 }
 
@@ -2174,15 +2208,6 @@ struct gtid_binlog_state_data { rpl_gtid *list; uint32 list_len; };
 bool
 Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
 {
-  String str, *res;
-  struct gtid_binlog_state_data *data;
-  rpl_gtid *list;
-  uint32 list_len;
-
-  DBUG_ASSERT(var->type == OPT_GLOBAL);
-
-  if (!(res= var->value->val_str(&str)))
-    return true;
   if (thd->in_active_multi_stmt_transaction())
   {
     my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
@@ -2198,6 +2223,31 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
     my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
     return true;
   }
+  return false;
+}
+
+
+bool
+Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
+{
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  bool result;
+  String str, *res;
+  struct gtid_binlog_state_data *data;
+  rpl_gtid *list;
+  uint32 list_len;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!(res= var->value->val_str(&str)))
+    return true;
   if (res->length() == 0)
   {
     list= NULL;
@@ -2219,31 +2269,13 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
   data->list= list;
   data->list_len= list_len;
   var->save_result.ptr= data;
-  return false;
-}
-
-
-bool
-Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
-{
-  bool res;
-
-  DBUG_ASSERT(var->type == OPT_GLOBAL);
-
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-
-  struct gtid_binlog_state_data *data=
-    (struct gtid_binlog_state_data *)var->save_result.ptr;
+  
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  res= (reset_master(thd, data->list, data->list_len, 0) != 0);
+  result= (reset_master(thd, data->list, data->list_len, 0) != 0);
   mysql_mutex_lock(&LOCK_global_system_variables);
   my_free(data->list);
   my_free(data);
-  return res;
+  return result;
 }
 
 
@@ -2878,6 +2910,20 @@ static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
        VALID_RANGE(SELECTIVITY_SAMPLING_THRESHOLD, UINT_MAX),
        DEFAULT(SELECTIVITY_SAMPLING_LIMIT), BLOCK_SIZE(1));
 
+static Sys_var_ulonglong Sys_optimizer_join_limit_pref_ratio(
+       "optimizer_join_limit_pref_ratio",
+       "For queries with JOIN and ORDER BY LIMIT : make the optimizer "
+       "consider a join order that allows to short-cut execution after "
+       "producing #LIMIT matches if that promises N times speedup. "
+       "(A conservative setting here would be is a high value, like 100 so "
+       "the short-cutting plan is used if it promises a speedup of 100x or "
+       "more). Short-cutting plans are inherently risky so the default is 0 "
+       "which means do not consider this optimization",
+       SESSION_VAR(optimizer_join_limit_pref_ratio),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX),
+       DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "optimizer_use_condition_selectivity",
        "Controls selectivity of which conditions the optimizer takes into "
@@ -3015,7 +3061,7 @@ static Sys_var_uint Sys_port(
 #endif
        "built-in default (" STRINGIFY_ARG(MYSQL_PORT) "), whatever comes first",
        READ_ONLY GLOBAL_VAR(mysqld_port), CMD_LINE(REQUIRED_ARG, 'P'),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX16), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_preload_buff_size(
        "preload_buffer_size",
@@ -3035,6 +3081,14 @@ static Sys_var_proxy_user Sys_proxy_user(
 static Sys_var_external_user Sys_exterenal_user(
        "external_user", "The external user account used when logging in");
 
+
+static bool update_record_cache(sys_var *self, THD *thd, enum_var_type type)
+{
+  if (type == OPT_GLOBAL)
+    my_default_record_cache_size= global_system_variables.read_buff_size;
+  return false;
+}
+
 static Sys_var_ulong Sys_read_buff_size(
        "read_buffer_size",
        "Each thread that does a sequential scan allocates a buffer of "
@@ -3042,7 +3096,8 @@ static Sys_var_ulong Sys_read_buff_size(
        "you may want to increase this value",
        SESSION_VAR(read_buff_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE*2, INT_MAX32), DEFAULT(128*1024),
-       BLOCK_SIZE(IO_SIZE));
+       BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(update_record_cache));
 
 static bool check_read_only(sys_var *self, THD *thd, set_var *var)
 {
@@ -3490,6 +3545,14 @@ Sys_server_id(
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
+
+char *server_uid_ptr= &server_uid[0];
+
+static Sys_var_charptr Sys_server_uid(
+      "server_uid", "Automatically calculated server unique id hash",
+       READ_ONLY GLOBAL_VAR(server_uid_ptr),
+       CMD_LINE_HELP_ONLY,
+       DEFAULT(server_uid));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
@@ -4176,7 +4239,8 @@ static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
 Sys_threadpool_mode(
   "thread_pool_mode",
-  "Chose implementation of the threadpool",
+  "Chose implementation of the threadpool. Use 'windows' unless you have a "
+  "workload with a lot of concurrent connections and minimal contention",
   READ_ONLY GLOBAL_VAR(threadpool_mode), CMD_LINE(REQUIRED_ARG),
   threadpool_mode_names, DEFAULT(TP_MODE_WINDOWS)
   );
@@ -4373,7 +4437,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
        "will automatically convert it to an on-disk MyISAM or Aria table.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "tmp_memory_table_size",
@@ -4382,7 +4446,7 @@ static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "Same as tmp_table_size.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_disk_table_size(
        "tmp_disk_table_size",
@@ -6330,7 +6394,9 @@ static const char *wsrep_binlog_format_names[]=
 static Sys_var_enum Sys_wsrep_forced_binlog_format(
        "wsrep_forced_binlog_format", "binlog format to take effect over user's choice",
        GLOBAL_VAR(wsrep_forced_binlog_format), CMD_LINE(REQUIRED_ARG),
-       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC));
+       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_forced_binlog_format_check));
 
 static Sys_var_mybool Sys_wsrep_recover_datadir(
        "wsrep_recover", "Recover database state after crash and exit",
@@ -6567,7 +6633,7 @@ static Sys_var_uint Sys_extra_port(
        "Extra port number to use for tcp connections in a "
        "one-thread-per-connection manner. 0 means don't use another port",
        READ_ONLY GLOBAL_VAR(mysqld_extra_port), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX16), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                               PRIV_SET_SYSTEM_GLOBAL_VAR_EXTRA_MAX_CONNECTIONS>
@@ -6604,7 +6670,8 @@ static const char *log_slow_filter_names[]=
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
        "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
-       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG,
+                                              OPT_LOG_SLOW_FILTER),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
        DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1) &

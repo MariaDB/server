@@ -312,7 +312,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)
   */
 
-  thd->where="order clause";
+  thd->where= THD_WHERE::ORDER_CLAUSE;
   ORDER *order= sl->order_list.first;
   for (; order; order=order->next)
   {
@@ -327,7 +327,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
       if (!count || count > first_elem->elements)
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                 order_item->full_name(), thd->where);
+                 order_item->full_name(), thd_where(thd));
         DBUG_RETURN(true);
       }
       order->in_field_list= 1;

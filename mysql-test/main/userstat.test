@@ -9,8 +9,10 @@
 
 --enable_prepare_warnings
 --disable_ps2_protocol
+--disable_cursor_protocol
 select variable_value from information_schema.global_status where variable_name="handler_read_key" into @global_read_key;
 --disable_prepare_warnings
+--enable_cursor_protocol
 show columns from information_schema.client_statistics;
 show columns from information_schema.user_statistics;
 show columns from information_schema.index_statistics;
@@ -28,6 +30,7 @@ update t1 set b=1;
 update t1 set b=5 where a=2;
 delete from t1 where a=3;
 
+--disable_cursor_protocol
 /* Empty query */
 select * from t1 where a=999;
 
@@ -37,11 +40,11 @@ drop table t1;
 --connect (ssl_con,localhost,root,,,,,SSL)
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 --connection default
+--enable_cursor_protocol
 
 #
 # Test the commit and rollback are counted
 #
-
 create table t1 (a int, primary key (a), b int default 0) engine=innodb;
 begin;
 insert into t1 values(1,1);
@@ -54,11 +57,13 @@ insert into t1 values(3,3);
 rollback;
 drop table t1;
 
+--disable_cursor_protocol
 select sleep(1);
 
 show status like "rows%";
 show status like "ha%";
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
+--enable_cursor_protocol
 
 --disconnect ssl_con
 
@@ -130,6 +135,11 @@ set global userstat= 0;
 drop function f;
 --enable_ps2_protocol
 
---echo #
 --echo # End of 10.2 tests
+
 --echo #
+--echo # MDEV-36586 USER_STATISTICS.BUSY_TIME is in microseconds
+--echo #
+select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
+
+--echo # End of 10.11 tests

@@ -1,0 +1,86 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+SET @old_innodb_enable_xap_unlock_unmodified_for_primary_debug=
+  @@GLOBAL.innodb_enable_xap_unlock_unmodified_for_primary_debug;
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug= 1;
+
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+
+CREATE TABLE t(id INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+
+--let $i = 2
+
+while ($i) {
+  --source include/wait_all_purged.inc
+
+  INSERT INTO t VALUES (10), (20), (30);
+
+  --connect(prevent_purge,localhost,root,,)
+  start transaction with consistent snapshot;
+
+  --connection default
+  DELETE FROM t WHERE id = 20;
+
+  SET @@GLOBAL.debug_dbug=
+    "+d,enable_row_purge_remove_clust_if_poss_low_sync_point";
+
+  # Cover both lock_release_on_prepare() and lock_release_on_prepare_try()
+  # functions
+  if ($i == 1) {
+    SET @@GLOBAL.debug_dbug="+d,skip_lock_release_on_prepare_try";
+  }
+
+  XA START '1';
+  UPDATE t SET id=40 WHERE id=30;
+  XA END '1';
+
+  --connection prevent_purge
+  COMMIT;
+
+  # stop purge worker after it requested page X-latch, but before
+  # lock_update_delete() call
+  SET DEBUG_SYNC=
+    'now WAIT_FOR row_purge_remove_clust_if_poss_low_before_delete';
+  SET @@GLOBAL.debug_dbug=
+    "-d,enable_row_purge_remove_clust_if_poss_low_sync_point";
+
+  --connection default
+  # lock_rec_unlock_unmodified() is executed either under lock_sys.wr_lock() or
+  # under a combination of lock_sys.rd_lock() + record locks hash table cell
+  # latch. Stop it before page latch request.
+  SET DEBUG_SYNC=
+    "lock_rec_unlock_unmodified_start SIGNAL lock_sys_latched WAIT_FOR cont";
+  --send XA PREPARE '1'
+
+  --connection prevent_purge
+  # let purge thread to continue execution and invoke lock_update_delete(),
+  # which, in turns, requests locks_sys related latches.
+  SET DEBUG_SYNC= 'now SIGNAL row_purge_remove_clust_if_poss_low_cont';
+  SET DEBUG_SYNC= 'now SIGNAL cont';
+  --disconnect prevent_purge
+
+  --connection default
+  # deadlock if the bug is not fixed, as lock_rec_unlock_unmodified() requests
+  # page latch acquired by purge worker, and the purge worker requests lock_sys
+  # related latches in lock_update_delete() call, acquired by the current XA
+  # in lock_rec_unlock_unmodified() caller.
+  --reap
+  XA COMMIT '1';
+
+  SET DEBUG_SYNC="RESET";
+
+  TRUNCATE TABLE t;
+
+  --dec $i
+}
+
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+DROP TABLE t;
+
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug=
+  @old_innodb_enable_xap_unlock_unmodified_for_primary_debug;
+
+--source include/wait_until_count_sessions.inc

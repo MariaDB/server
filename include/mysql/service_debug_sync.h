@@ -351,7 +351,11 @@ extern void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
 /* compatibility macro */
+#ifdef __cplusplus
+#define DEBUG_SYNC_C(name) DEBUG_SYNC(nullptr, name)
+#else
 #define DEBUG_SYNC_C(name) DEBUG_SYNC(NULL, name)
+#endif
 
 #ifdef __cplusplus
 }

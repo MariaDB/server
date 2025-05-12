@@ -1,5 +1,5 @@
---- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_temporary.result	2017-06-22 00:33:46.423995639 +0300
-+++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_temporary.reject	2017-06-22 15:27:50.643658456 +0300
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_temporary.result
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/tbl_temporary.reject
 @@ -1,11 +1,14 @@
  DROP TABLE IF EXISTS t1;
  CREATE TABLE t1 (c CHAR(1)) ENGINE=MyISAM;

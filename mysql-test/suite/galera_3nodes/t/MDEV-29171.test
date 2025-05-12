@@ -90,7 +90,7 @@ show variables like 'wsrep_gtid_domain_id';
 # If bug is present, node_3 remains on domain id 100
 #
 --connection node_3
---let $restart_parameters = --wsrep_sst_donor="node2"
+--let $restart_parameters = --wsrep_sst_donor=node2
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
 --source include/start_mysqld.inc
 
@@ -119,8 +119,8 @@ set global wsrep_gtid_domain_id=100;
 
 --connection node_2
 set global wsrep_gtid_domain_id=100;
-CALL mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+CALL mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");
 
 --connection node_3
 set global wsrep_gtid_domain_id=100;
-CALL mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+CALL mtr.add_suppression("WSREP: Ignoring server id .* for non bootstrap node");

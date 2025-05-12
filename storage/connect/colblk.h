@@ -27,12 +27,12 @@ class DllExport COLBLK : public XOBJECT {
 
  public:
   // Implementation
-  virtual int     GetType(void) {return TYPE_COLBLK;}
-  virtual int     GetResultType(void) {return Buf_Type;}
-  virtual int     GetScale(void) {return Format.Prec;}
+  int     GetType(void) override {return TYPE_COLBLK;}
+  int     GetResultType(void) override {return Buf_Type;}
+  int     GetScale(void) override {return Format.Prec;}
   virtual int     GetPrecision(void) {return Precision;}
-  virtual int     GetLength(void) {return Long;}
-  virtual int     GetLengthEx(void);
+  int     GetLength(void) override {return Long;}
+  int     GetLengthEx(void) override;
   virtual int     GetAmType() {return TYPE_AM_ERROR;}
   virtual void    SetOk(void) {Status |= BUF_EMPTY;}
   virtual PTDB    GetTo_Tdb(void) {return To_Tdb;}
@@ -65,17 +65,17 @@ class DllExport COLBLK : public XOBJECT {
           void    SetNullable(bool b) {Nullable = b;}
           void    SetName(PSZ name_var) { Name= name_var; }
   // Methods
-  virtual void    Reset(void);
-  virtual bool    Compare(PXOB xp);
-  virtual bool    SetFormat(PGLOBAL, FORMAT&);
+  void    Reset(void) override;
+  bool    Compare(PXOB xp) override;
+  bool    SetFormat(PGLOBAL, FORMAT&) override;
   virtual bool    IsSpecial(void) {return false;}
-  virtual bool    Eval(PGLOBAL g);
+  bool    Eval(PGLOBAL g) override;
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void    SetTo_Val(PVAL) {}
   virtual void    ReadColumn(PGLOBAL g);
   virtual void    WriteColumn(PGLOBAL g);
-  virtual void    Printf(PGLOBAL g, FILE *, uint);
-  virtual void    Prints(PGLOBAL g, char *, uint);
+  void    Printf(PGLOBAL g, FILE *, uint) override;
+  void    Prints(PGLOBAL g, char *, uint) override;
   virtual bool    VarSize(void) {return false;}
           bool    InitValue(PGLOBAL g);
 
@@ -108,13 +108,12 @@ class DllExport SPCBLK : public COLBLK {
   SPCBLK(PCOLUMN cp);
 
   // Implementation
-  virtual int  GetAmType(void) = 0;
   virtual bool GetRnm(void) {return false;}
 
   // Methods
-  virtual bool IsSpecial(void) {return true;}
-  virtual void ReadColumn(PGLOBAL g) = 0;
-  virtual void WriteColumn(PGLOBAL g);
+  bool IsSpecial(void) override {return true;}
+  void ReadColumn(PGLOBAL g) override = 0;
+  void WriteColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used
@@ -130,11 +129,11 @@ class DllExport RIDBLK : public SPCBLK {
   RIDBLK(PCOLUMN cp, bool rnm);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_ROWID;}
-  virtual bool GetRnm(void) {return Rnm;}
+  int  GetAmType(void) override {return TYPE_AM_ROWID;}
+  bool GetRnm(void) override {return Rnm;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   bool Rnm;                         // False for RowID, True for RowNum
@@ -149,11 +148,11 @@ class DllExport FIDBLK : public SPCBLK {
   FIDBLK(PCOLUMN cp, OPVAL op);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_FILID;}
+  int  GetAmType(void) override {return TYPE_AM_FILID;}
 
   // Methods
-  virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual void ReadColumn(PGLOBAL g);
+  void Reset(void) override {}       // This is a pseudo constant column
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   PCSZ  Fn;                         // The current To_File of the table
@@ -169,11 +168,11 @@ class DllExport TIDBLK : public SPCBLK {
   TIDBLK(PCOLUMN cp);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_TABID;}
+  int  GetAmType(void) override {return TYPE_AM_TABID;}
 
   // Methods
-  virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual void ReadColumn(PGLOBAL g);
+  void Reset(void) override {}       // This is a pseudo constant column
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used
@@ -192,11 +191,11 @@ class DllExport PRTBLK : public SPCBLK {
   PRTBLK(PCOLUMN cp);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_PRTID;}
+  int  GetAmType(void) override {return TYPE_AM_PRTID;}
 
   // Methods
-  virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual void ReadColumn(PGLOBAL g);
+  void Reset(void) override {}       // This is a pseudo constant column
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used
@@ -215,11 +214,11 @@ class DllExport SIDBLK : public SPCBLK {
   SIDBLK(PCOLUMN cp);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_SRVID;}
+  int  GetAmType(void) override {return TYPE_AM_SRVID;}
 
   // Methods
-  virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual void ReadColumn(PGLOBAL g);
+  void Reset(void) override {}       // This is a pseudo constant column
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used

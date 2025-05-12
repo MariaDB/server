@@ -57,6 +57,7 @@
 */
 
 #include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "sql_insert.h"
 #include "sql_update.h"                         // compare_record
@@ -279,7 +280,8 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       unfix_fields(fields);
 
     res= setup_fields(thd, Ref_ptr_array(),
-                      fields, MARK_COLUMNS_WRITE, 0, NULL, 0);
+                      fields, MARK_COLUMNS_WRITE, 0, NULL, 0,
+                      THD_WHERE::INSERT_LIST);
 
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
@@ -395,7 +397,8 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
 
   /* Check the fields we are going to modify */
   if (setup_fields(thd, Ref_ptr_array(),
-                   update_fields, MARK_COLUMNS_WRITE, 0, NULL, 0))
+                   update_fields, MARK_COLUMNS_WRITE, 0, NULL, 0,
+                   THD_WHERE::UPDATE_CLAUSE))
   {
     thd->lex->sql_command= sql_command_save;
     return -1;
@@ -726,6 +729,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
   unsigned char *readbuff= NULL;
+  List<List_item> insert_values_cache;
+  bool cache_insert_values= FALSE;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -783,7 +788,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
                                  update_fields, update_values, duplic, ignore,
-                                 &unused_conds, FALSE)))
+                                 &unused_conds, FALSE, &cache_insert_values)))
   {
     retval= thd->is_error();
     if (res < 0)
@@ -976,8 +981,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   if (fields.elements || !value_count || table_list->view != 0)
   {
-    if (table->triggers &&
-        table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
+    if (table->field != table->field_to_fill())
     {
       /* BEFORE INSERT triggers exist, the check will be done later, per row */
     }
@@ -1032,8 +1036,41 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   if (returning)
     fix_rownum_pointers(thd, thd->lex->returning(), &info.accepted_rows);
 
+  if (cache_insert_values)
+  {
+    insert_values_cache.empty();
+    while ((values= its++))
+    {
+      List<Item> *caches= new (thd->mem_root) List_item;
+      List_iterator_fast<Item> iv(*values);
+      Item *item;
+      if (caches == 0)
+      {
+        error= 1;
+        goto values_loop_end;
+      }
+      caches->empty();
+      while((item= iv++))
+      {
+        Item_cache *cache= item->get_cache(thd);
+        if (!cache)
+        {
+          error= 1;
+          goto values_loop_end;
+        }
+        cache->setup(thd, item);
+        caches->push_back(cache);
+      }
+      insert_values_cache.push_back(caches);
+    }
+    its.rewind();
+  }
+
   do
   {
+    List_iterator_fast<List_item> itc(insert_values_cache);
+    List_iterator_fast<List_item> *itr;
+
     DBUG_PRINT("info", ("iteration %llu", iteration));
     if (iteration && bulk_parameters_set(thd))
     {
@@ -1041,7 +1078,24 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       goto values_loop_end;
     }
 
-    while ((values= its++))
+    if (cache_insert_values)
+    {
+      List_item *caches;
+      while ((caches= itc++))
+      {
+        List_iterator_fast<Item> ic(*caches);
+        Item_cache *cache;
+        while((cache= (Item_cache*) ic++))
+        {
+          cache->cache_value();
+        }
+      }
+      itc.rewind();
+      itr= &itc;
+    }
+    else
+      itr= &its;
+    while ((values= (*itr)++))
     {
       thd->get_stmt_da()->inc_current_row_for_warning();
       if (fields.elements || !value_count)
@@ -1051,8 +1105,9 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           INSERT INTO t1 (fields) VALUES ...
           INSERT INTO t1 VALUES ()
         */
-        restore_record(table,s->default_values);	// Get empty record
+        restore_default_record_for_insert(table);
         table->reset_default_fields();
+
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
@@ -1079,7 +1134,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         */
         if (thd->lex->used_tables || // Column used in values()
             table->s->visible_fields != table->s->fields)
-	  restore_record(table,s->default_values);	// Get empty record
+          restore_default_record_for_insert(table);
         else
         {
           TABLE_SHARE *share= table->s;
@@ -1099,6 +1154,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           }
         }
         table->reset_default_fields();
+
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table,
                                                           table->
                                                           field_to_fill(),
@@ -1112,24 +1168,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  }
 	  error=1;
 	  break;
-        }
-      }
-
-      /*
-        with triggers a field can get a value *conditionally*, so we have to
-        repeat has_no_default_value() check for every row
-      */
-      if (table->triggers &&
-          table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
-      {
-        for (Field **f=table->field ; *f ; f++)
-        {
-          if (unlikely(!(*f)->has_explicit_value() &&
-                       has_no_default_value(thd, *f, table_list)))
-          {
-            error= 1;
-            goto values_loop_end;
-          }
         }
       }
 
@@ -1157,7 +1195,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         break;
       info.accepted_rows++;
     }
-    its.rewind();
+    itr->rewind();
     iteration++;
   } while (bulk_parameters_iterations(thd));
 
@@ -1347,7 +1385,18 @@ values_loop_end:
     */
    if (returning)
       result->send_eof();
-   else
+   else if (!(thd->in_sub_stmt & SUB_STMT_TRIGGER))
+     /*
+       Set the status and the number of affected rows in Diagnostics_area
+       only in case the INSERT statement is not processed as part of a trigger
+       invoked by some other DML statement. Else we would result in incorrect
+       number of affected rows for bulk DML operations, e.g. the UPDATE
+       statement (called via PS protocol). It would happen since the data
+       member Diagnostics_area::m_affected_rows modified twice per DML
+       statement - first time at the end of handling the INSERT statement
+       invoking by a trigger fired on handling the original DML statement,
+       and the second time at the end of handling the original DML statement.
+     */
       my_ok(thd, info.copied + info.deleted +
                ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                 info.touched : info.updated), id);
@@ -1369,14 +1418,25 @@ values_loop_end:
               (long) thd->get_stmt_da()->current_statement_warn_count());
     if (returning)
       result->send_eof();
-    else
+    else if (!(thd->in_sub_stmt & SUB_STMT_TRIGGER))
+      /*
+        Set the status and the number of affected rows in Diagnostics_area
+        only in case the INSERT statement is not processed as part of a trigger
+        invoked by some other DML statement. Else we would result in incorrect
+        number of affected rows for bulk DML operations, e.g. the UPDATE
+        statement (called via PS protocol). It would happen since the data
+        member Diagnostics_area::m_affected_rows modified twice per DML
+        statement - first time at the end of handling the INSERT statement
+        invoking by a trigger fired on handling the original DML statement,
+        and the second time at the end of handling the original DML statement.
+      */
       ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
   thd->abort_on_warning= 0;
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->first_cond_optimization= 0;
+    thd->lex->current_select->leaf_tables_saved= true;
   }
 
   my_free(readbuff);
@@ -1597,7 +1657,8 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!table_list->table || table_list->is_multitable())
+    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
+        table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
                table_list->view_db.str, table_list->view_name.str);
@@ -1646,6 +1707,7 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
     table_list          Global/local table list
     where               Where clause (for insert ... select)
     select_insert       TRUE if INSERT ... SELECT statement
+    cache_insert_values insert's VALUES(...) has to be pre-computed
 
   TODO (in far future)
     In cases of:
@@ -1668,7 +1730,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &update_fields, List<Item> &update_values,
                          enum_duplicates duplic, bool ignore,
                          COND **where,
-                         bool select_insert)
+                         bool select_insert, bool * const cache_insert_values)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
@@ -1722,8 +1784,8 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     context->resolve_in_table_list_only(table_list);
 
     res= setup_returning_fields(thd, table_list) ||
-         setup_fields(thd, Ref_ptr_array(),
-                      *values, MARK_COLUMNS_READ, 0, NULL, 0) ||
+         setup_fields(thd, Ref_ptr_array(), *values, MARK_COLUMNS_READ, 0,
+                      NULL, 0, THD_WHERE::VALUES_CLAUSE) ||
           check_insert_fields(thd, context->table_list, fields, *values,
                               !insert_into_view, 0, &map);
 
@@ -1772,6 +1834,15 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
       thd->vers_insert_history(row_start); // check privileges
   }
 
+  /*
+    Check if we read from the same table we're inserting into.
+    Queries like INSERT INTO t1 VALUES ((SELECT ... FROM t1...)) have
+    to pre-compute the VALUES part.
+    Reading from the same table in the RETURNING clause is not allowed.
+
+    INSERT...SELECT detects this case in select_insert::prepare and also
+    uses buffering to handle it correcly.
+  */
   if (!select_insert)
   {
     Item *fake_conds= 0;
@@ -1779,10 +1850,30 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     if ((duplicate= unique_table(thd, table_list, table_list->next_global,
                                  CHECK_DUP_ALLOW_DIFFERENT_ALIAS)))
     {
-      update_non_unique_table_error(table_list, "INSERT", duplicate);
-      DBUG_RETURN(1);
+      /*
+        This is INSERT INTO ... VALUES (...) and it must pre-compute the
+        values to be inserted.
+      */
+      (*cache_insert_values)= true;
     }
+    else
+      (*cache_insert_values)= false;
+
     select_lex->fix_prepare_information(thd, &fake_conds, &fake_conds);
+
+    if ((*cache_insert_values) && thd->lex->has_returning())
+    {
+      // Check if the table we're inserting into is also in RETURNING clause
+      TABLE_LIST *dup=
+         unique_table_in_insert_returning_subselect(thd, table_list,
+                                                    thd->lex->returning());
+      if (dup)
+      {
+        if (dup != ERROR_TABLE)
+          update_non_unique_table_error(table_list, "INSERT", duplicate);
+        DBUG_RETURN(1);
+      }
+    }
   }
   /*
     Only call prepare_for_posistion() if we are not performing a DELAYED
@@ -1842,10 +1933,6 @@ int vers_insert_history_row(TABLE *table)
   Field *row_end= table->vers_end_field();
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
-
-  if (table->vfield &&
-      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ))
-    return HA_ERR_GENERIC;
 
   return table->file->ha_write_row(table->record[0]);
 }
@@ -2172,6 +2259,9 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
+          /*
+            Optimized dup handling via UPDATE (and insert history for versioned).
+          */
           if (table->versioned(VERS_TRX_ID))
           {
             DBUG_ASSERT(table->vers_write);
@@ -2207,25 +2297,39 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
         }
         else
         {
+          /*
+            Normal dup handling via DELETE (or UPDATE to history for versioned)
+            and repeating the cycle of INSERT.
+          */
           if (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->versioned(VERS_TIMESTAMP))
+          bool do_delete= !table->versioned(VERS_TIMESTAMP);
+          if (do_delete)
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
+            /* Update existing row to history */
             store_record(table, record[2]);
             restore_record(table, record[1]);
             table->vers_update_end();
             error= table->file->ha_update_row(table->record[1],
                                               table->record[0]);
             restore_record(table, record[2]);
+            if (error == HA_ERR_FOUND_DUPP_KEY ||        /* Unique index, any SE */
+                error == HA_ERR_FOREIGN_DUPLICATE_KEY || /* Unique index, InnoDB */
+                error == HA_ERR_RECORD_IS_THE_SAME)      /* No index */
+            {
+              /* Such history row was already generated from previous cycles */
+              error= table->file->ha_delete_row(table->record[1]);
+              do_delete= true;
+            }
           }
           if (unlikely(error))
             goto err;
-          if (!table->versioned(VERS_TIMESTAMP))
+          if (do_delete)
             info->deleted++;
           else
             info->updated++;
@@ -2369,7 +2473,7 @@ public:
       forced_insert_id(0), query(query_arg), time_zone(0),
       user(0), host(0), ip(0)
     {}
-  ~delayed_row()
+  ~delayed_row() override
   {
     my_free(query.str);
     my_free(record);
@@ -2453,7 +2557,7 @@ public:
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
     DBUG_VOID_RETURN;
   }
-  ~Delayed_insert()
+  ~Delayed_insert() override
   {
     /* The following is not really needed, but just for safety */
     delayed_row *row;
@@ -2473,6 +2577,7 @@ public:
     delayed_insert_threads--;
 
     my_free(thd.query());
+    thd.reset_query_inner();
     thd.security_ctx->user= 0;
     thd.security_ctx->host= 0;
   }
@@ -2725,12 +2830,21 @@ end_create:
   DBUG_RETURN(thd->is_error());
 }
 
-#define memdup_vcol(thd, vcol)                                            \
-  if (vcol)                                                               \
-  {                                                                       \
-    (vcol)= (Virtual_column_info*)(thd)->memdup((vcol), sizeof(*(vcol))); \
-    (vcol)->expr= NULL;                                                   \
+static inline
+bool memdup_vcol(THD *thd, Virtual_column_info *&vcol)
+{
+  if (vcol)
+  {
+    vcol= (Virtual_column_info*)(thd->memdup(vcol, sizeof(*vcol)));
+    if (!vcol)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    vcol->expr= NULL;
   }
+  return false;
+}
 
 /**
   As we can't let many client threads modify the same TABLE
@@ -2874,9 +2988,12 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     (*field)->flags|= ((*org_field)->flags & LONG_UNIQUE_HASH_FIELD);
     (*field)->invisible= (*org_field)->invisible;
-    memdup_vcol(client_thd, (*field)->vcol_info);
-    memdup_vcol(client_thd, (*field)->default_value);
-    memdup_vcol(client_thd, (*field)->check_constraint);
+    if (memdup_vcol(client_thd, (*field)->vcol_info))
+      goto error;
+    if (memdup_vcol(client_thd, (*field)->default_value))
+      goto error;
+    if (memdup_vcol(client_thd, (*field)->check_constraint))
+      goto error;
     if (*org_field == found_next_number_field)
       (*field)->table->found_next_number_field= *field;
   }
@@ -2893,6 +3010,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                  &error_reported,
                                  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING)))
       goto error;
+
+    copy->update_keypart_vcol_info();
   }
 
   switch_defaults_to_nullable_trigger_fields(copy);
@@ -3134,13 +3253,13 @@ void kill_delayed_threads(void)
 class Delayed_prelocking_strategy : public Prelocking_strategy
 {
 public:
-  virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
+  bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
                               Sroutine_hash_entry *rt, sp_head *sp,
-                              bool *need_prelocking);
-  virtual bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
-                            TABLE_LIST *table_list, bool *need_prelocking);
-  virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
-                           TABLE_LIST *table_list, bool *need_prelocking);
+                              bool *need_prelocking) override;
+  bool handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+                            TABLE_LIST *table_list, bool *need_prelocking) override;
+  bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
+                           TABLE_LIST *table_list, bool *need_prelocking) override;
 };
 
 
@@ -3265,7 +3384,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
   else
   {
     DBUG_ENTER("handle_delayed_insert");
-    thd->thread_stack= (char*) &thd;
     if (init_thr_lock())
     {
       thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
@@ -3540,7 +3658,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
     DBUG_LEAVE;
   }
   my_thread_end();
-  pthread_exit(0);
 
   return 0;
 }
@@ -3893,6 +4010,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   int res;
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
+  bool cache_insert_values= false;
   DBUG_ENTER("mysql_insert_select_prepare");
 
   /*
@@ -3903,7 +4021,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if ((res= mysql_prepare_insert(thd, lex->query_tables, lex->field_list, 0,
                                  lex->update_list, lex->value_list,
                                  lex->duplicates, lex->ignore,
-                                 &select_lex->where, TRUE)))
+                                 &select_lex->where, TRUE, &cache_insert_values)))
     DBUG_RETURN(res);
 
   /*
@@ -3913,6 +4031,7 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   if (sel_res)
     sel_res->prepare(lex->returning()->item_list, NULL);
 
+  DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
   TABLE_LIST *table;
   uint insert_tables;
@@ -4060,7 +4179,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     }
 
     res= res || setup_fields(thd, Ref_ptr_array(), *info.update_values,
-                             MARK_COLUMNS_READ, 0, NULL, 0) ||
+                             MARK_COLUMNS_READ, 0, NULL, 0,
+                             THD_WHERE::UPDATE_CLAUSE) ||
                 /*
                   Check that all col=expr pairs are compatible for assignment in
                     INSERT INTO t1 SELECT ... FROM t2
@@ -4125,7 +4245,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     */
     table->file->ha_start_bulk_insert((ha_rows) 0);
   }
-  restore_record(table,s->default_values);		// Get empty record
+  restore_default_record_for_insert(table);
   table->reset_default_fields();
   table->next_number_field=table->found_next_number_field;
 
@@ -4188,6 +4308,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 int select_insert::prepare2(JOIN *)
 {
   DBUG_ENTER("select_insert::prepare2");
+  switch_to_nullable_trigger_fields(*fields, table);
   if (table->validate_default_values_of_unset_fields(thd))
     DBUG_RETURN(1);
   if (thd->lex->describe)
@@ -4206,7 +4327,7 @@ int select_insert::prepare2(JOIN *)
 }
 
 
-void select_insert::cleanup()
+void select_insert::reset_for_next_ps_execution()
 {
   /* select_insert/select_create are never re-used in prepared statement */
   DBUG_ASSERT(0);
@@ -4268,7 +4389,7 @@ int select_insert::send_data(List<Item> &values)
         originally touched by INSERT ... SELECT, so we have to restore
         their original values for the next row.
       */
-      restore_record(table, s->default_values);
+      restore_default_record_for_insert(table);
     }
     if (table->next_number_field)
     {
@@ -4309,7 +4430,11 @@ bool select_insert::store_values(List<Item> &values)
 bool select_insert::prepare_eof()
 {
   int error;
-  bool const trans_table= table->file->has_transactions_and_rollback();
+  // make sure any ROW format pending event is logged in the same binlog cache
+  bool const trans_table= (thd->is_current_stmt_binlog_format_row() &&
+                           table->file->row_logging) ?
+    table->file->row_logging_has_trans :
+    table->file->has_transactions_and_rollback();
   bool changed;
   bool binary_logged= 0;
   killed_state killed_status= thd->killed;
@@ -4317,6 +4442,13 @@ bool select_insert::prepare_eof()
   DBUG_ENTER("select_insert::prepare_eof");
   DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
                        trans_table, table->file->table_type()));
+
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     select_insert::abort_result_set().
+
+  ****************************************************************************/
 
 #ifdef WITH_WSREP
   error= (thd->wsrep_cs().current_error()) ? -1 :
@@ -4332,7 +4464,16 @@ bool select_insert::prepare_eof()
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
-  table->file->extra(HA_EXTRA_END_ALTER_COPY);
+  if (error <= 0)
+  {
+    error= table->file->extra(HA_EXTRA_END_ALTER_COPY);
+    if (error == HA_ERR_FOUND_DUPP_KEY)
+    {
+      uint key_nr= table->file->get_dup_key(error);
+      if ((int)key_nr >= 0 && key_nr < table->s->keys)
+        print_keydup_error(table, &table->key_info[key_nr], MYF(0));
+    }
+  }
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
@@ -4454,6 +4595,12 @@ void select_insert::abort_result_set()
    */
   if (table && table->file->is_open())
   {
+  /****************************************************************************
+
+    NOTE: if you change here be aware that almost the same code is in
+     select_insert::prepare_eof().
+
+  ****************************************************************************/
     bool changed, transactional_table;
     /*
       If we are not in prelocked mode, we end the bulk insert started
@@ -4466,7 +4613,7 @@ void select_insert::abort_result_set()
       table->file->ha_rnd_end();
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-
+    table->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
     /*
       If at least one row has been inserted/modified and will stay in
       the table (the table doesn't have transactions) we must write to
@@ -4481,7 +4628,14 @@ void select_insert::abort_result_set()
       If table creation failed, the number of rows modified will also be
       zero, so no check for that is made.
     */
-    changed= (info.copied || info.deleted || info.updated);
+    if ((changed= (info.copied || info.deleted || info.updated)))
+    {
+      /*
+        We must invalidate the table in the query cache before binlog writing
+        and ha_autocommit_or_rollback.
+      */
+      query_cache_invalidate3(thd, table, 1);
+    }
     transactional_table= table->file->has_transactions_and_rollback();
     if (thd->transaction->stmt.modified_non_trans_table ||
         thd->log_current_statement())
@@ -4505,7 +4659,8 @@ void select_insert::abort_result_set()
 	  query_cache_invalidate3(thd, table, 1);
     }
     DBUG_ASSERT(transactional_table || !changed ||
-		thd->transaction->stmt.modified_non_trans_table);
+		(thd->transaction->stmt.modified_non_trans_table ||
+                 thd->transaction->all.modified_non_trans_table));
 
     table->s->table_creation_was_logged|= binary_logged;
     table->file->ha_release_auto_increment();
@@ -4579,19 +4734,13 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   bool save_table_creation_was_logged;
   DBUG_ENTER("select_create::create_table_from_items");
 
+  tmp_table.reset();
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
-
-  tmp_table.s->db_create_options=0;
-  tmp_table.null_row= 0;
-  tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
-
-  if (create_info->fix_create_fields(thd, alter_info, *table_list))
-    DBUG_RETURN(NULL);
 
   while ((item=it++))
   {
@@ -4629,6 +4778,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
+
+  if (create_info->fix_create_fields(thd, alter_info, *table_list))
+    DBUG_RETURN(NULL);
 
   /*
     Item*::type_handler() always returns pointers to
@@ -5201,9 +5353,14 @@ bool select_create::send_eof()
     /* Remember xid's for the case of row based logging */
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
     ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-    trans_commit_stmt(thd);
-    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
-      trans_commit_implicit(thd);
+    if (trans_commit_stmt(thd) ||
+	(!(thd->variables.option_bits & OPTION_GTID_BEGIN) &&
+	 trans_commit_implicit(thd)))
+    {
+        abort_result_set();
+        DBUG_RETURN(true);
+    }
+
     thd->binlog_xid= 0;
 
 #ifdef WITH_WSREP
@@ -5323,7 +5480,13 @@ void select_create::abort_result_set()
 
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
+  /*
+    In the error case, we remove any partially created table. So clear any
+    incident event generates due to cache error, as it no longer relevant.
+  */
+  binlog_clear_incident(thd);
 
+  bool drop_table_was_logged= false;
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -5370,6 +5533,7 @@ void select_create::abort_result_set()
                          create_info->db_type == partition_hton,
                          &create_info->tabledef_version,
                          tmp_table);
+          drop_table_was_logged= true;
           debug_crash_here("ddl_log_create_after_binlog");
           thd->binlog_xid= 0;
         }
@@ -5394,8 +5558,21 @@ void select_create::abort_result_set()
 
   if (create_info->table_was_deleted)
   {
-    /* Unlock locked table that was dropped by CREATE. */
-    (void) trans_rollback_stmt(thd);
+    if (drop_table_was_logged)
+    {
+      /* for DROP binlogging the error status has to be canceled first */
+      Diagnostics_area new_stmt_da(thd->query_id, false, true);
+      Diagnostics_area *old_stmt_da= thd->get_stmt_da();
+
+      thd->set_stmt_da(&new_stmt_da);
+      (void) trans_rollback_stmt(thd);
+      thd->set_stmt_da(old_stmt_da);
+    }
+    else
+    {
+      /* Unlock locked table that was dropped by CREATE. */
+      (void) trans_rollback_stmt(thd);
+    }
     thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
   }
 

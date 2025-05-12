@@ -41,7 +41,7 @@ INSERT INTO t1 VALUES ('1'),('௨');
 INSERT INTO t2 VALUES ('\\p{Cyrillic}'),('\\p{Greek}'),('\\p{Latin}');
 INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
-INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
+INSERT INTO t2 VALUES ('\\p{L}'), /* buggy before v10.45 ('\\p{Ll}'),('\\p{Lu}'),*/ ('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
 SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
 DROP TABLE t1, t2;
@@ -325,13 +325,10 @@ SELECT REGEXP_INSTR('вася','в');
 SELECT REGEXP_INSTR('вася','а');
 SELECT REGEXP_INSTR('вася','с');
 SELECT REGEXP_INSTR('вася','я');
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('в' USING koi8r));
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('а' USING koi8r));
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('с' USING koi8r));
-SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('я' USING koi8r));
---enable_view_protocol
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('в' USING koi8r)) as exp;
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('а' USING koi8r)) as exp;
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('с' USING koi8r)) as exp;
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('я' USING koi8r)) as exp;
 
 --echo #
 --echo # Checking REGEXP_SUBSTR
@@ -351,10 +348,7 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b')+0;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*');
---enable_view_protocol
+SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*') as exp;
 
 --echo #
 --echo # MDEV-6027 RLIKE: "." no longer matching new line
@@ -371,16 +365,13 @@ SELECT 'a\nb' RLIKE 'a.b';
 SELECT 'a\nb' RLIKE '(?-s)a.b';
 SET default_regex_flags=DEFAULT;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 # note that old pcre2 reports a different offset
 --replace_result 29 30
 --error ER_REGEXP_ERROR
-SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$') as exp;
 SET default_regex_flags='DUPNAMES';
-SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
-SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
---enable_view_protocol
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$') as exp;
+SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$') as exp;
 SET default_regex_flags=DEFAULT;
 
 SELECT 'AB' RLIKE 'A B';
@@ -416,10 +407,7 @@ SET default_regex_flags=DEFAULT;
 --echo #
 --echo # MDEV-6965 non-captured group \2 in regexp_replace
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');
---enable_view_protocol
+SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that') as exp;
 
 --echo #
 --echo # MDEV-8102 REGEXP function fails to match hex values when expression is stored as a variable
@@ -454,9 +442,6 @@ SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;
 SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,Golf,Hotel,India,Juliet,Kilo,Lima,Mike,StrataL3,November,Oscar,StrataL2,Sand,P3,P4SwitchTest,Arsys,Poppa,ExtensionMgr,Arp,Quebec,Romeo,StrataApiV2,PtReyes,Sierra,SandAcl,Arrow,Artools,BridgeTest,Tango,SandT,PAlaska,Namespace,Agent,Qos,PatchPanel,ProjectReport,Ark,Gimp,Agent,SliceAgent,Arnet,Bgp,Ale,Tommy,Central,AsicPktTestLib,Hsc,SandL3,Abuild,Pca9555,Standby,ControllerDut,CalSys,SandLib,Sb820,PointV2,BfnLib,Evpn,BfnSdk,Sflow,ManagementActive,AutoTest,GatedTest,Bgp,Sand,xinetd,BfnAgentLib,bf-utils,Hello,BfnState,Eos,Artest,Qos,Scd,ThermoMgr,Uniform,EosUtils,Eb,FanController,Central,BfnL3,BfnL2,tcp_wrappers,Victor,Environment,Route,Failover,Whiskey,Xray,Gimp,BfnFixed,Strata,SoCal,XApi,Msrp,XpProfile,tcpdump,PatchPanel,ArosTest,FhTest,Arbus,XpAcl,MacConc,XpApi,telnet,QosTest,Alpha2,BfnVlan,Stp,VxlanControllerTest,MplsAgent,Bravo2,Lanz,BfnMbb,Intf,XCtrl,Unicast,SandTunnel,L3Unicast,Ipsec,MplsTest,Rsvp,EthIntf,StageMgr,Sol,MplsUtils,Nat,Ira,P4NamespaceDut,Counters,Charlie2,Aqlc,Mlag,Power,OpenFlow,Lag,RestApi,BfdTest,strongs,Sfa,CEosUtils,Adt746,MaintenanceMode,MlagDut,EosImage,IpEth,MultiProtocol,Launcher,Max3179,Snmp,Acl,IpEthTest,PhyEee,bf-syslibs,tacc,XpL2,p4-ar-switch,p4-bf-switch,LdpTest,BfnPhy,Mirroring,Phy6,Ptp'  REGEXP '^((?!\b(Strata|StrataApi|StrataApiV2)\b).)*$');
 --enable_result_log
 --enable_warnings
-#enable after fix MDEV-27871
---disable_view_protocol
---enable_view_protocol
 
 #
 # MDEV-12942 REGEXP_INSTR returns 1 when using brackets

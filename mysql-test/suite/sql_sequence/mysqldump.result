@@ -3,13 +3,13 @@ CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
 insert into t1 values (1),(2);
 CREATE SEQUENCE x1 engine=innodb;
 # dump whole database
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 DO SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
@@ -19,13 +19,13 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables order 1
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 DO SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
@@ -35,13 +35,13 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables order 2
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 DO SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
@@ -51,9 +51,9 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables only tables
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
+/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `a` (`a`)
@@ -63,7 +63,7 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables only sequences
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 DO SETVAL(`a1`, 1, 0);
 CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;

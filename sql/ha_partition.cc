@@ -1474,8 +1474,8 @@ bool print_admin_msg(THD* thd, uint len,
      Also we likely need to lock mutex here (in both cases with protocol and
      push_warning).
   */
-  DBUG_PRINT("info",("print_admin_msg:  %s, %s, %s, %s", name, op_name,
-                     msg_type, msgbuf));
+  DBUG_PRINT("info",("print_admin_msg:  %s, %s, %s, %s", name, op_name->str,
+                     msg_type->str, msgbuf));
   protocol->prepare_for_resend();
   protocol->store(name, length, system_charset_info);
   protocol->store(op_name, system_charset_info);
@@ -2141,7 +2141,9 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
   error= copy_partitions(copied, deleted);
   for (i= 0; i < part_count; i++)
-    m_added_file[i]->extra(HA_EXTRA_END_ALTER_COPY);
+    m_added_file[i]->extra(error
+                           ? HA_EXTRA_ABORT_ALTER_COPY
+                           : HA_EXTRA_END_ALTER_COPY);
   if (unlikely(error))
   {
     /*
@@ -3210,6 +3212,24 @@ err1:
   DBUG_RETURN(2);
 }
 
+Compare_keys ha_partition::compare_key_parts(
+  const Field &old_field,
+  const Column_definition &new_field,
+  const KEY_PART_INFO &old_part,
+  const KEY_PART_INFO &new_part) const
+{
+  Compare_keys res= m_file[0]->compare_key_parts(old_field, new_field,
+                                                 old_part, new_part);
+  /*
+    Partitions have the same storage engine (until MDEV-22168) so the
+    calls should all return the same value for now.
+  */
+  for (uint i= 1; i < m_tot_parts; i++)
+    if (res != m_file[i]->compare_key_parts(old_field, new_field,
+                                            old_part, new_part))
+      return Compare_keys::NotEqual;
+  return res;
+}
 
 /**
   Setup m_engine_array
@@ -3478,9 +3498,9 @@ bool ha_partition::re_create_par_file(const char *name)
   @return Partition name
 */
 
-static uchar *get_part_name(PART_NAME_DEF *part, size_t *length,
-                            my_bool not_used __attribute__((unused)))
+static const uchar *get_part_name(const void *part_, size_t *length, my_bool)
 {
+  auto part= reinterpret_cast<const PART_NAME_DEF *>(part_);
   *length= part->length;
   return part->partition_name;
 }
@@ -3566,8 +3586,7 @@ bool ha_partition::populate_partition_name_hash()
   tot_names= m_is_sub_partitioned ? m_tot_parts + num_parts : num_parts;
   if (my_hash_init(key_memory_Partition_share,
                    &part_share->partition_name_hash, system_charset_info,
-                   tot_names, 0, 0, (my_hash_get_key) get_part_name, my_free,
-                   HASH_UNIQUE))
+                   tot_names, 0, 0, get_part_name, my_free, HASH_UNIQUE))
   {
     unlock_shared_ha_data();
     DBUG_RETURN(TRUE);
@@ -4389,31 +4408,19 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   DBUG_ENTER("ha_partition::store_lock");
   DBUG_ASSERT(thd == current_thd);
 
-  /*
-    This can be called from get_lock_data() in mysql_lock_abort_for_thread(),
-    even when thd != table->in_use. In that case don't use partition pruning,
-    but use all partitions instead to avoid using another threads structures.
-  */
-  if (thd != table->in_use)
-  {
-    for (i= 0; i < m_tot_parts; i++)
-      to= m_file[i]->store_lock(thd, to, lock_type);
-  }
-  else
-  {
-    MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
-                                lock_type == TL_IGNORE ?
-                                &m_locked_partitions :
-                                &m_part_info->lock_partitions;
+  MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
+                              lock_type == TL_IGNORE ?
+                              &m_locked_partitions :
+                              &m_part_info->lock_partitions;
 
-    for (i= bitmap_get_first_set(used_partitions);
-         i < m_tot_parts;
-         i= bitmap_get_next_set(used_partitions, i))
-    {
-      DBUG_PRINT("info", ("store lock %u iteration", i));
-      to= m_file[i]->store_lock(thd, to, lock_type);
-    }
+  for (i= bitmap_get_first_set(used_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(used_partitions, i))
+  {
+    DBUG_PRINT("info", ("store lock %u iteration", i));
+    to= m_file[i]->store_lock(thd, to, lock_type);
   }
+
   DBUG_RETURN(to);
 }
 
@@ -4721,7 +4728,10 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
   */
-  error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
+  {
+    Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
+    error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
+  }
   DBUG_ASSERT(!error);
   DBUG_ASSERT(old_part_id == m_last_part);
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), old_part_id));
@@ -4737,7 +4747,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   }
 
 
-  m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
   DBUG_ASSERT(!m_file[new_part_id]->row_logging);
   if (new_part_id == old_part_id)
@@ -4771,6 +4780,8 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     if (unlikely(error))
       goto exit;
   }
+
+  m_last_part= new_part_id;
 
 exit:
   /*
@@ -4833,35 +4844,15 @@ int ha_partition::delete_row(const uchar *buf)
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
 #ifndef DBUG_OFF
-  THD* thd = ha_thd();
   /*
     The protocol for deleting a row is:
     1) position the handler (cursor) on the row to be deleted,
        either through the last read row (rnd or index) or by rnd_pos.
     2) call delete_row with the full record as argument.
 
-    This means that m_last_part should already be set to actual partition
-    where the row was read from. And if that is not the same as the
-    calculated part_id we found a misplaced row, we return an error to
-    notify the user that something is broken in the row distribution
-    between partitions! Since we don't check all rows on read, we return an
-    error instead of forwarding the delete to the correct (m_last_part)
-    partition!
-
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
-
-    For partitions by system_time, get_part_for_buf() is always either current
-    or last historical partition, but DELETE HISTORY can delete from any
-    historical partition. So, skip the check in this case.
   */
-  if (!thd->lex->vers_conditions.delete_history)
-  {
-    uint32 part_id;
-    error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);
-    DBUG_ASSERT(!error);
-    DBUG_ASSERT(part_id == m_last_part);
-  }
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->lock_partitions), m_last_part));
 #endif
@@ -5664,7 +5655,7 @@ bool ha_partition::init_record_priority_queue()
   m_start_key.key= (const uchar*)ptr;
 
   /* Initialize priority queue, initialized to reading forward. */
-  int (*cmp_func)(void *, uchar *, uchar *);
+  int (*cmp_func)(void *, const void *, const void *);
   void *cmp_arg= (void*) this;
   if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
     cmp_func= cmp_key_rowid_part_id;
@@ -5912,8 +5903,10 @@ int ha_partition::index_read_map(uchar *buf, const uchar *key,
 
 
 /* Compare two part_no partition numbers */
-static int cmp_part_ids(uchar *ref1, uchar *ref2)
+static int cmp_part_ids(const void *ref1_, const void *ref2_)
 {
+  auto ref1= static_cast<const uchar *>(ref1_);
+  auto ref2= static_cast<const uchar *>(ref2_);
   uint32 diff2= uint2korr(ref2);
   uint32 diff1= uint2korr(ref1);
   if (diff2 > diff1)
@@ -5929,9 +5922,12 @@ static int cmp_part_ids(uchar *ref1, uchar *ref2)
     Provide ordering by (key_value, part_no).
 */
 
-extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_part_id(void *ptr, const void *ref1_, const void *ref2_)
 {
-  ha_partition *file= (ha_partition*)ptr;
+  const ha_partition *file= static_cast<const ha_partition *>(ptr);
+  const uchar *ref1= static_cast<const uchar *>(ref1_);
+  const uchar *ref2= static_cast<const uchar *>(ref2_);
+
   if (int res= key_rec_cmp(file->m_curr_key_info,
                            ref1 + PARTITION_BYTES_IN_POS,
                            ref2 + PARTITION_BYTES_IN_POS))
@@ -5943,9 +5939,13 @@ extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
   @brief
     Provide ordering by (key_value, underying_table_rowid, part_no).
 */
-extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_rowid_part_id(void *ptr, const void *ref1_,
+                                     const void *ref2_)
 {
-  ha_partition *file= (ha_partition*)ptr;
+  const ha_partition *file= static_cast<const ha_partition *>(ptr);
+  const uchar *ref1= static_cast<const uchar *>(ref1_);
+  const uchar *ref2= static_cast<const uchar *>(ref2_);
+
   int res;
 
   if ((res= key_rec_cmp(file->m_curr_key_info, ref1 + PARTITION_BYTES_IN_POS,
@@ -8497,10 +8497,12 @@ int ha_partition::handle_ordered_prev(uchar *buf)
   Helper function for sorting according to number of rows in descending order.
 */
 
-int ha_partition::compare_number_of_records(ha_partition *me,
-                                            const uint32 *a,
-                                            const uint32 *b)
+int ha_partition::compare_number_of_records(void *me_, const void *a_,
+                                            const void *b_)
 {
+  const ha_partition *me= static_cast<const ha_partition *>(me_);
+  const uint32 *a= static_cast<const uint32 *>(a_);
+  const uint32 *b= static_cast<const uint32 *>(b_);
   handler **file= me->m_file;
   /* Note: sorting in descending order! */
   if (file[*a]->stats.records > file[*b]->stats.records)
@@ -8800,7 +8802,7 @@ int ha_partition::info(uint flag)
     my_qsort2((void*) m_part_ids_sorted_by_num_of_records,
               m_tot_parts,
               sizeof(uint32),
-              (qsort2_cmp) compare_number_of_records,
+              compare_number_of_records,
               this);
 
     file= m_file[handler_instance];
@@ -9469,6 +9471,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_ABORT_ALTER_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
@@ -10356,7 +10359,8 @@ void ha_partition::print_error(int error, myf errflag)
 
   /* Should probably look for my own errors first */
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
-      ! (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE))
+      ! (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+         (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE)))
   {
     m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;
@@ -10550,7 +10554,7 @@ public:
       m_tot_parts(tot_parts)
   {}
 
-  ~ha_partition_inplace_ctx()
+  ~ha_partition_inplace_ctx() override
   {
     if (handler_ctx_array)
     {

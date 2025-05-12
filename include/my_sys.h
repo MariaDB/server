@@ -29,6 +29,7 @@ C_MODE_START
 #include <stdarg.h>
 #include <typelib.h>
 #include <my_alloca.h>
+#include <my_cmp.h>
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
 
@@ -162,6 +163,7 @@ extern my_thread_id (*sf_malloc_dbug_id)(void);
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 extern MALLOC_SIZE_CB update_malloc_size;
+extern int64 my_malloc_init_memory_allocated;
 
 	/* defines when allocating data */
 extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
@@ -172,9 +174,13 @@ extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
+extern my_bool my_use_large_pages;
 
-int my_init_large_pages(my_bool super_large_pages);
+int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
+#if defined _WIN32 || defined HAVE_MMAP
+char *my_large_virtual_alloc(size_t *size);
+#endif
 void my_large_free(void *ptr, size_t size);
 void my_large_page_truncate(size_t *size);
 
@@ -256,9 +262,9 @@ extern void (*my_sigtstp_cleanup)(void),
 					/* Executed before jump to shell */
 	    (*my_sigtstp_restart)(void);
 					/* Executed when coming from shell */
-extern MYSQL_PLUGIN_IMPORT int my_umask;		/* Default creation mask  */
-extern int my_umask_dir,
-	   my_recived_signals,	/* Signals we have got */
+extern MYSQL_PLUGIN_IMPORT mode_t my_umask;	/* Default creation mask  */
+extern mode_t my_umask_dir;
+extern int my_recived_signals,	/* Signals we have got */
 	   my_safe_to_handle_signal, /* Set when allowed to SIGTSTP */
 	   my_dont_interrupt;	/* call remember_intr when set */
 #ifdef _WIN32
@@ -486,8 +492,6 @@ typedef struct st_io_cache		/* Used when caching files */
   size_t alloced_buffer;
 } IO_CACHE;
 
-typedef int (*qsort2_cmp)(const void *, const void *, const void *);
-
 typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);
 
@@ -636,7 +640,7 @@ extern File my_open(const char *FileName,int Flags,myf MyFlags);
 extern File my_register_filename(File fd, const char *FileName,
 				 enum file_type type_of_file,
 				 uint error_message_number, myf MyFlags);
-extern File my_create(const char *FileName,int CreateFlags,
+extern File my_create(const char *FileName, mode_t CreateFlags,
 		      int AccessFlags, myf MyFlags);
 extern int my_close(File Filedes,myf MyFlags);
 extern int my_mkdir(const char *dir, int Flags, myf MyFlags);
@@ -644,7 +648,7 @@ extern int my_readlink(char *to, const char *filename, myf MyFlags);
 extern int my_is_symlink(const char *filename);
 extern int my_realpath(char *to, const char *filename, myf MyFlags);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
-				   int createflags, int access_flags,
+				   mode_t createflags, int access_flags,
 				   myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);
@@ -666,6 +670,8 @@ extern size_t my_fwrite(FILE *stream,const uchar *Buffer,size_t Count,
 extern my_off_t my_fseek(FILE *stream,my_off_t pos,int whence,myf MyFlags);
 extern my_off_t my_ftell(FILE *stream,myf MyFlags);
 extern void (*my_sleep_for_space)(unsigned int seconds);
+
+extern int my_get_exepath(char *buf, size_t size, const char *argv0);
 
 /* implemented in my_memmem.c */
 extern void *my_memmem(const void *haystack, size_t haystacklen,
@@ -788,8 +794,8 @@ extern void radixsort_for_str_ptr(uchar* base[], uint number_of_elements,
 extern qsort_t my_qsort(void *base_ptr, size_t total_elems, size_t size,
                         qsort_cmp cmp);
 extern qsort_t my_qsort2(void *base_ptr, size_t total_elems, size_t size,
-                         qsort2_cmp cmp, void *cmp_argument);
-extern qsort2_cmp get_ptr_compare(size_t);
+                         qsort_cmp2 cmp, void *cmp_argument);
+extern qsort_cmp2 get_ptr_compare(size_t);
 void my_store_ptr(uchar *buff, size_t pack_length, my_off_t pos);
 my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
@@ -892,6 +898,7 @@ extern void my_free_lock(void *ptr);
 #define my_free_lock(A) my_free((A))
 #endif
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
+#define DEFAULT_ROOT_BLOCK_SIZE 1024
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
 extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
                             size_t block_size, size_t pre_alloc_size,
@@ -1045,11 +1052,7 @@ extern int my_win_pclose(FILE*);
 #endif
 
 /* my_getpagesize */
-#ifdef HAVE_GETPAGESIZE
-#define my_getpagesize()        getpagesize()
-#else
 int my_getpagesize(void);
-#endif
 
 int my_msync(int, void *, size_t, int);
 
@@ -1120,7 +1123,7 @@ static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
   return (cs1->cs_name.str == cs2->cs_name.str);
 }
 extern my_bool init_compiled_charsets(myf flags);
-extern void add_compiled_collation(struct charset_info_st *cs);
+extern int add_compiled_collation(struct charset_info_st *cs);
 extern void add_compiled_extra_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,

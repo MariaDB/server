@@ -168,11 +168,11 @@ SELECT @@div_precision_increment;
 @@div_precision_increment
 1
 SELECT local.div_precision_increment;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.div_precision_increment;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT div_precision_increment = @@session.div_precision_increment;
-ERROR 42S22: Unknown column 'div_precision_increment' in 'field list'
+ERROR 42S22: Unknown column 'div_precision_increment' in 'SELECT'
 SET @@global.div_precision_increment = @start_global_value;
 SELECT @@global.div_precision_increment;
 @@global.div_precision_increment

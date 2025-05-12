@@ -136,17 +136,20 @@ SELECT fid, ST_AsText(ST_GeometryN(g, 1)) from gis_geometrycollection;
 --replace_column 9 # 10 #
 explain extended SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_point;
 
+--disable_view_protocol
 SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+
 --replace_column 9 # 10 #
 explain extended SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--enable_view_protocol
 
 DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 
@@ -169,7 +172,7 @@ ALTER TABLE t1 ADD fid INT NOT NULL;
 SHOW FIELDS FROM t1;
 DROP TABLE t1;
 
-SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)'))));
+SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)')))) AS val;
 explain extended SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)'))));
 explain extended SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_PointFromText('POINT(1 4)'))));
 SELECT ST_SRID(ST_GeomFromText('LineString(1 1,2 2)',101));
@@ -398,14 +401,19 @@ insert into t1 values (ST_pointfromtext('point(1,1)'));
 
 drop table t1;
 
-select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000))));
-select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440))));
+select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000)))) AS val;
+select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440)))) AS val;
 
+--disable_view_protocol
 --enable_metadata
 create table t1 (g GEOMETRY);
 select * from t1;
+#Check after fix MDEV-31540
+--disable_cursor_protocol
 select ST_asbinary(g) from t1;
+--enable_cursor_protocol
 --disable_metadata
+--enable_view_protocol
 drop table t1;
 
 create table t1 (a TEXT, b GEOMETRY NOT NULL, INDEX(b(5)));
@@ -831,8 +839,10 @@ CREATE TABLE t3 (
 );
 
 # --error ER_TOO_MANY_KEY_PARTS
---error ER_WRONG_ARGUMENTS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
+--error ER_WRONG_ARGUMENTS
+CREATE SPATIAL INDEX idx0 ON t2 (col0, col2);
 
 
 CREATE TABLE t4 (

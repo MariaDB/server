@@ -43,3 +43,14 @@ a
 4828532208463511553
 drop table t1;
 #End of 4.1 tests
+# Start of 10.5 tests
+#
+# MDEV-21029 Incorrect result for expression with the <=> operator and IS NULL
+#
+CREATE TABLE t0(c0 INT);
+INSERT INTO t0 VALUES (1);
+SELECT (c0 > (NULL <=> 0)) IS NULL AS c1 FROM t0;
+c1
+0
+DROP TABLE t0;
+# End of 10.5 tests

@@ -355,7 +355,7 @@ a`
 show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid	1	#	GTID #-#-#
-master-bin.000002	#	Query	1	#	DELETE FROM `db1``; select 'oops!'`.`t``1`
+master-bin.000002	#	Query	1	#	TRUNCATE TABLE `db1``; select 'oops!'`.`t``1`
 connection slave;
 include/start_slave.inc
 connection master;

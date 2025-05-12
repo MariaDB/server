@@ -134,7 +134,12 @@ remove_file $MYSQLTEST_VARDIR/tmp/rpl_rotate_logs.tmp;
 --eval SELECT @time_for_purge:=DATE_ADD('$tmpval', INTERVAL 1 SECOND)
 --enable_result_log
 
+# Disable the warning "is not purged because it is the current active binlog".
+# This warning will appear or not, depending on whether the timestamp of
+# master-bin.000003 ends up earlier than @time_for_purge or not in the test run.
+--disable_warnings
 purge master logs before (@time_for_purge);
+--enable_warnings
 source include/show_binary_logs.inc;
 insert into t2 values (65);
 sync_slave_with_master;
@@ -190,10 +195,12 @@ sync_slave_with_master;
 #
 --error 1220
 show binlog events in 'non existing_binlog_file';
+--disable_warnings
 purge master logs before now();
 --error 1220
 show binlog events in '';
 purge master logs before now();
+--enable_warnings
 
 --echo End of 5.0 tests
 --echo #cleanup

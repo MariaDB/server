@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADBD\fR" "8" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADBD\fR" "8" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,28 +11,28 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqld: MariaDB server
-.\" MariaDB server: mysqld
+.\" mariadbd: MariaDB server
+.\" MariaDB server: mariadbd
 .SH "NAME"
-mariadbd \- the MariaDB server (mysqld is now a symlink to mariadbd)
+mariadbd \- the MariaDB server (mariadbd is now a symlink to mariadbd)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqld\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysqld [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadbd\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadbd [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysqld\fR, also known as MariaDB Server, is the main program that does most of the work in a MariaDB installation\&. MariaDB Server manages access to the MariaDB data directory that contains databases and tables\&. The data directory is also the default location for other information such as log files and status files\&.
+\fBmariadbd\fR, also known as MariaDB Server, is the main program that does most of the work in a MariaDB installation\&. MariaDB Server manages access to the MariaDB data directory that contains databases and tables\&. The data directory is also the default location for other information such as log files and status files\&.
 .PP
 When MariaDB server starts, it listens for network connections from client programs and manages access to databases on behalf of those clients\&.
 .PP
 The
-\fBmysqld\fR
+\fBmariadbd\fR
 program has many options that can be specified at startup\&. For a complete list of options, run this command:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqld \-\-verbose \-\-help\fR
+shell> \fBmariadbd \-\-verbose \-\-help\fR
 .fi
 .if n \{\
 .RE
@@ -45,7 +45,7 @@ the MariaDB Knowledge Base\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

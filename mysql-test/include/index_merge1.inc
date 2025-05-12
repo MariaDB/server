@@ -301,31 +301,28 @@ select count(*) from t0;
 
 # Test for BUG#4177
 
-# enable view-protocol after fix MDEV-27871
---disable_view_protocol
-
 drop table t4;
 create table t4 (a int);
 insert into t4 values (1),(4),(3);
 set @save_join_buffer_size=@@join_buffer_size;
 set join_buffer_size= 4096;
-explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
+explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5) as exp
  from t0 as A force index(i1,i2), t0 as B force index (i1,i2)
   where (A.key1 < 500000 or A.key2 < 3)
   and   (B.key1 < 500000 or B.key2 < 3);
 
-select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
+select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5) as exp
  from t0 as A force index(i1,i2), t0 as B force index (i1,i2)
   where (A.key1 < 500000 or A.key2 < 3)
   and   (B.key1 < 500000 or B.key2 < 3);
 
 update t0 set key1=1;
-explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
+explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5) as exp
  from t0 as A force index(i1,i2), t0 as B force index (i1,i2)
   where (A.key1 = 1 or A.key2 = 1)
   and   (B.key1 = 1 or B.key2 = 1);
 
-select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
+select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5) as exp
  from t0 as A force index(i1,i2), t0 as B force index (i1,i2)
   where (A.key1 = 1 or A.key2 = 1)
   and   (B.key1 = 1 or B.key2 = 1);
@@ -338,12 +335,12 @@ update t0 set key2=1, key3=1, key4=1, key5=1,key6=1,key7=1 where key7 < 500;
 # scan cost estimates depend on ha_myisam::ref_length)
 --replace_column 9 #
 --replace_result "4,4,4,4,4,4,4" X "4,4,4,4,4,4" X "i6,i7" "i6,i7?" "i6" "i6,i7?"
-explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
+explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5) as exp
  from t0 as A straight_join t0 as B
  where (A.key1 = 1 and A.key2 = 1 and A.key3 = 1 and A.key4=1 and A.key5=1 and A.key6=1 and A.key7 = 1 or A.key8=1)
   and (B.key1 = 1 and B.key2 = 1 and B.key3 = 1 and B.key4=1 and B.key5=1 and B.key6=1 and B.key7 = 1 or B.key8=1);
 
-select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
+select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5) as exp
  from t0 as A straight_join t0 as B
  where (A.key1 = 1 and A.key2 = 1 and A.key3 = 1 and A.key4=1 and A.key5=1 and A.key6=1 and A.key7 = 1 or A.key8=1)
   and (B.key1 = 1 and B.key2 = 1 and B.key3 = 1 and B.key4=1 and B.key5=1 and B.key6=1 and B.key7 = 1 or B.key8=1);
@@ -352,8 +349,6 @@ set join_buffer_size= @save_join_buffer_size;
 # Test for BUG#4177 ends
 
 drop table t0, t1, t2, t3, t4;
-
---enable_view_protocol
 
 # BUG#16166
 CREATE TABLE t1 (

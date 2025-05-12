@@ -45,7 +45,7 @@ public:
     unsigned_flag= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_aton>(thd, this); }
 };
 
@@ -72,7 +72,7 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet_ntoa>(thd, this); }
 };
 
@@ -90,7 +90,7 @@ public:
   {
     null_value= false;
   }
-  bool need_parentheses_in_default() { return false; }
+  bool need_parentheses_in_default() override { return false; }
 };
 
 
@@ -118,7 +118,7 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
   String *val_str(String *to) override;
@@ -156,7 +156,7 @@ public:
     return FALSE;
   }
   String *val_str_ascii(String *to) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
 };
 
@@ -178,10 +178,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -201,10 +201,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv6") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -223,9 +223,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_compat") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -244,9 +244,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_mapped") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 #endif // ITEM_INETFUNC_INCLUDED

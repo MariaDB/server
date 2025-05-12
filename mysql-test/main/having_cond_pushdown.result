@@ -1397,23 +1397,25 @@ EXPLAIN
               "filtered": 100,
               "materialized": {
                 "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "cost": "COST_REPLACED",
-                  "temporary_table": {
-                    "nested_loop": [
-                      {
-                        "table": {
-                          "table_name": "t2",
-                          "access_type": "ALL",
-                          "loops": 1,
-                          "rows": 4,
-                          "cost": "COST_REPLACED",
-                          "filtered": 100,
-                          "attached_condition": "t2.x < 5 and t2.x > 1"
+                "materialization": {
+                  "query_block": {
+                    "select_id": 2,
+                    "cost": "COST_REPLACED",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 4,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5 and t2.x > 1"
+                          }
                         }
-                      }
-                    ]
+                      ]
+                    }
                   }
                 }
               }
@@ -1464,23 +1466,25 @@ EXPLAIN
               "filtered": 100,
               "materialized": {
                 "unique": 1,
-                "query_block": {
-                  "select_id": 3,
-                  "cost": "COST_REPLACED",
-                  "temporary_table": {
-                    "nested_loop": [
-                      {
-                        "table": {
-                          "table_name": "t2",
-                          "access_type": "ALL",
-                          "loops": 1,
-                          "rows": 4,
-                          "cost": "COST_REPLACED",
-                          "filtered": 100,
-                          "attached_condition": "t2.x < 5 and t2.x > 1"
+                "materialization": {
+                  "query_block": {
+                    "select_id": 3,
+                    "cost": "COST_REPLACED",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 4,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5 and t2.x > 1"
+                          }
                         }
-                      }
-                    ]
+                      ]
+                    }
                   }
                 }
               }
@@ -1556,24 +1560,26 @@ EXPLAIN
               "filtered": 100,
               "materialized": {
                 "unique": 1,
-                "query_block": {
-                  "select_id": 2,
-                  "cost": "COST_REPLACED",
-                  "having_condition": "`MAX(t2.y)` < 14",
-                  "temporary_table": {
-                    "nested_loop": [
-                      {
-                        "table": {
-                          "table_name": "t2",
-                          "access_type": "ALL",
-                          "loops": 1,
-                          "rows": 4,
-                          "cost": "COST_REPLACED",
-                          "filtered": 100,
-                          "attached_condition": "t2.x < 5"
+                "materialization": {
+                  "query_block": {
+                    "select_id": 2,
+                    "cost": "COST_REPLACED",
+                    "having_condition": "`MAX(t2.y)` < 14",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 4,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5"
+                          }
                         }
-                      }
-                    ]
+                      ]
+                    }
                   }
                 }
               }
@@ -1624,24 +1630,26 @@ EXPLAIN
               "filtered": 100,
               "materialized": {
                 "unique": 1,
-                "query_block": {
-                  "select_id": 3,
-                  "cost": "COST_REPLACED",
-                  "having_condition": "`MAX(t2.y)` < 14",
-                  "temporary_table": {
-                    "nested_loop": [
-                      {
-                        "table": {
-                          "table_name": "t2",
-                          "access_type": "ALL",
-                          "loops": 1,
-                          "rows": 4,
-                          "cost": "COST_REPLACED",
-                          "filtered": 100,
-                          "attached_condition": "t2.x < 5"
+                "materialization": {
+                  "query_block": {
+                    "select_id": 3,
+                    "cost": "COST_REPLACED",
+                    "having_condition": "`MAX(t2.y)` < 14",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 4,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5"
+                          }
                         }
-                      }
-                    ]
+                      ]
+                    }
                   }
                 }
               }
@@ -6019,4 +6027,280 @@ SELECT a,b FROM t1 GROUP BY a,b HAVING a = (b IS NULL);
 a	b
 0	11
 DROP TABLE t1;
+#
+# MDEV-19520 Extend condition normalization to include 'NOT a'
+# having Item_func_not in item tree breaks assumptions during the
+# optimization phase about transformation possibilities in fix_fields().
+# Remove Item_func_not by extending normalization during parsing.
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+SELECT a FROM t1 GROUP BY a HAVING NOT a;
+a
+0
+DROP TABLE t1;
 End of 10.4 tests
+#
+# MDEV-29363: Constant subquery causing a crash in pushdown optimization
+#
+CREATE TABLE t1 (a INT, b INT, c INT);
+INSERT INTO t1 VALUES (3, 3, 4), (NULL, NULL, 2);
+EXPLAIN FORMAT=JSON SELECT a,b,c FROM t1 GROUP BY a,b,c
+HAVING a = (SELECT MIN(b) AS min_b FROM t1) and (a = b or a = c);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "filesort": {
+      "sort_key": "t1.b, t1.c",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 2,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t1.a = (subquery#2) and (t1.b = (subquery#2) or t1.c = (subquery#2))"
+            }
+          }
+        ],
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT a,b,c FROM t1 GROUP BY a,b,c
+HAVING a = (SELECT MIN(b) AS min_b FROM t1) and (a = b or a = c);
+a	b	c
+3	3	4
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a,b
+HAVING a = (SELECT MIN(a) AS min_a FROM t1) AND (a = 3 or a > b);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "filesort": {
+      "sort_key": "t1.b",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 2,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t1.a = (subquery#2) and (1 or (subquery#2) > t1.b)"
+            }
+          }
+        ],
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT a FROM t1 GROUP BY a,b
+HAVING a = (SELECT MIN(a) AS min_a FROM t1) AND (a = 3 or a > b);
+a
+3
+DROP TABLE t1;
+#
+# MDEV-32424: Pushdown: server crashes at JOIN::save_explain_data()
+# (fixed by the patch for MDEV-29363)
+#
+CREATE TABLE t1 (a INT, b INT, c INT);
+INSERT INTO t1 VALUES (1, 1, 3), (3, 2, 3);
+SELECT a,b,c FROM t1 GROUP BY a,b,c
+HAVING a = (SELECT MIN(b) AS min_b FROM t1) and a IN (b, c);
+a	b	c
+1	1	3
+DROP TABLE t1;
+#
+# MDEV-32293: Pushdown: server crashes at check_simple_equality()
+# (fixed by the patch for MDEV-29363)
+#
+CREATE VIEW v1 AS SELECT 1 AS a;
+SELECT * FROM v1 GROUP BY a HAVING a = 'b' AND a = (a IS NULL);
+a
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'b'
+DROP VIEW v1;
+#
+# MDEV-32304: Pushdown: server crashes at Item_field::used_tables()
+# (fixed by the patch for MDEV-29363)
+#
+CREATE VIEW v1 AS SELECT 1 AS a;
+SELECT * FROM v1
+GROUP BY a HAVING a = (a IS NULL OR a IS NULL);
+a
+DROP VIEW v1;
+#
+# MDEV-32608: Expression with constant subquery causes a crash
+# in pushdown from HAVING
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (2, 1), (3, 2);
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+GROUP BY b
+HAVING (SELECT MAX(b) FROM t1) = a AND a + b = 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "having_condition": "t1.a = (subquery#2)",
+    "filesort": {
+      "sort_key": "t1.b",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 2,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "(subquery#2) + t1.b = 3"
+            }
+          }
+        ],
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT * FROM t1
+GROUP BY b
+HAVING (SELECT MAX(b) FROM t1) = a AND a + b = 3;
+a	b
+2	1
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+GROUP BY b
+HAVING (SELECT MAX(b) FROM t1) = a AND a > b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "having_condition": "t1.a = (subquery#2)",
+    "filesort": {
+      "sort_key": "t1.b",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 2,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "(subquery#2) > t1.b"
+            }
+          }
+        ],
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT * FROM t1
+GROUP BY b
+HAVING (SELECT MAX(b) FROM t1) = a AND a > b;
+a	b
+2	1
+DROP TABLE t1;
+#
+# MDEV-25084: Moving equality with constant right side
+#             from HAVING to WHERE
+# (fixed by the patch for MDEV-26402)
+#
+CREATE TABLE t1 (a CHAR(3)) CHARSET=sjis;
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
+f	a
+DROP TABLE t1;
+End of 10.5 tests

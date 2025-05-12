@@ -1296,7 +1296,10 @@ SET TIME_ZONE='+02:00';
 --echo #
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('2005-05-04'),('2000-02-23');
+#check after fix MDEV-31495
+--disable_cursor_protocol
 SELECT a, FROM_UNIXTIME(CONCAT(a,'10')) AS f1, FROM_UNIXTIME(CONCAT(a,'10'))+0 AS f2 FROM t1;
+--enable_cursor_protocol
 SELECT * FROM t1 GROUP BY FROM_UNIXTIME(CONCAT(a,'10'))+0;
 DROP TABLE t1;
 
@@ -1610,7 +1613,10 @@ SELECT DATE_ADD('2001-01-01 10:20:30',INTERVAL 250000000000.0 SECOND) AS c1, DAT
 --echo #
 --enable_metadata
 --disable_view_protocol
+#check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT DATE_ADD('2011-01-02 12:13:14', INTERVAL 1 MINUTE);
+--enable_cursor_protocol
 --enable_view_protocol
 --disable_metadata
 
@@ -2243,12 +2249,14 @@ SET @sav_slow_query_log= @@session.slow_query_log;
 --disable_ps2_protocol
 # @@slow_query_log ON check
 SET @@session.slow_query_log= ON;
+--disable_cursor_protocol
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
 --enable_ps2_protocol
 
 --enable_prepare_warnings
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+--enable_cursor_protocol
 if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
 {
   SELECT @ts_cur, @ts_func, @ts_trig;
@@ -2260,12 +2268,13 @@ DELETE FROM t_trig;
 --disable_ps2_protocol
 # @@slow_query_log OFF check
 SET @@session.slow_query_log= OFF;
+--disable_cursor_protocol
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
 --enable_ps2_protocol
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
 --disable_prepare_warnings
-
+--enable_cursor_protocol
 if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
 {
   SELECT @ts_cur, @ts_func, @ts_trig;
@@ -3201,7 +3210,10 @@ SELECT TIME('- 01:00:00'), TIME('- 1 01:00:00');
 #enable after fix MDEV-29534
 --disable_view_protocol
 SET time_zone='+00:00';
+#check after fix MDEV-31495
+--disable_cursor_protocol
 SELECT NULLIF(FROM_UNIXTIME('foo'), '2012-12-12 21:10:14');
+--enable_cursor_protocol
 SET time_zone=DEFAULT;
 --enable_view_protocol
 
@@ -3253,6 +3265,17 @@ SELECT
   CAST(TIMEDIFF(8390000,385959) AS TIME(6)) AS c4;
 
 SET @@timestamp= DEFAULT;
+
+--echo #
+--echo # MDEV-31302 Assertion `mon > 0 && mon < 13' failed in my_time_t sec_since_epoch(int, int, int, int, int, int)
+--echo #
+
+CREATE TABLE t1 (a DATE);
+SET @@time_zone='+1:00';
+INSERT INTO t1 VALUES ('2024-00-01');
+SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+SET @@time_zone=DEFAULT;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests

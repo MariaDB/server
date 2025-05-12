@@ -10,3 +10,16 @@ connection default;
 disconnect a;
 drop user a@localhost;
 
+--echo #
+--echo # MDEV-35384 Table performance_schema.session_status and other two tables are not shown in information_schema.tables for normal users
+--echo #
+create user foo@localhost;
+connect foo,localhost,foo;
+sorted_result;
+select table_schema,engine from information_schema.tables where table_name='session_status';
+select count(*) > 0 as 'table is readable' from performance_schema.session_status;
+connection default;
+disconnect foo;
+drop user foo@localhost;
+
+--echo # End of 10.6 tests

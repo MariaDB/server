@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-33010: Crash when pushing condition with CHARSET()/COERCIBILITY()
+--echo #             into derived table
+--echo #
+CREATE TABLE t1 (c1 BIGINT, KEY (c1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (c2 DOUBLE UNSIGNED);
+INSERT INTO t2 VALUES (1);
+
+SET optimizer_switch='derived_merge=off';
+
+EXPLAIN EXTENDED
+  SELECT dt1_c1 FROM
+    (SELECT c1 AS dt1_c1 FROM t1) AS dt1
+    JOIN
+    (SELECT 1 AS dt2_c2 FROM t2) AS dt2
+      ON CHARSET(dt2_c2) BETWEEN dt1_c1 AND dt1_c1;
+
+EXPLAIN EXTENDED
+     SELECT dt1_c1 FROM
+       (SELECT c1 AS dt1_c1 FROM t1) AS dt1
+       JOIN
+       (SELECT 1 AS dt2_c2 FROM t2) AS dt2
+          ON COERCIBILITY(dt2_c2) BETWEEN dt1_c1 AND dt1_c1;
+
+SET optimizer_switch=DEFAULT;
+DROP TABLE t1, t2;
+
+--echo # End of 10.4 tests

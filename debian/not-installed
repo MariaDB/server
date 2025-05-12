@@ -10,18 +10,19 @@ usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does
 usr/bin/mysql_config # Debian packaging has mysql_config as symlink to mariadb_config
 usr/bin/mysql_embedded # Symlink to mariadb-embedded which is intentionally not included
 usr/bin/sst_dump # Use the one from rocksdb-tools package
+usr/lib/*/libdbbc.a # ColumnStore static library
+usr/lib/*/libidbboot.a # ColumnStore static library
+usr/lib/*/libprocessor.a #  ColumnStore static library
+usr/lib/*/libwe_xml.a #  ColumnStore static library
+usr/lib/*/libdbbc.a #  ColumnStore static library
+usr/lib/*/libidbboot.a #  ColumnStore static library
+usr/lib/*/libprocessor.a #  ColumnStore static library
+usr/lib/*/libwe_xml.a #  ColumnStore static library
+usr/lib/*/pkgconfig/mariadb.pc
 usr/bin/uca-dump
 usr/bin/wsrep_sst_backup
-usr/lib/aarch64-linux-gnu/libdbbc.a # ColumnStore header file
-usr/lib/aarch64-linux-gnu/libidbboot.a # ColumnStore header file
-usr/lib/aarch64-linux-gnu/libprocessor.a # ColumnStore header file
-usr/lib/aarch64-linux-gnu/libwe_xml.a # ColumnStore header file
 usr/lib/sysusers.d/mariadb.conf # Not used (yet) in Debian systemd
 usr/lib/tmpfiles.d/mariadb.conf # Not used (yet) in Debian systemd
-usr/lib/x86_64-linux-gnu/libdbbc.a # ColumnStore header file
-usr/lib/x86_64-linux-gnu/libidbboot.a # ColumnStore header file
-usr/lib/x86_64-linux-gnu/libprocessor.a # ColumnStore header file
-usr/lib/x86_64-linux-gnu/libwe_xml.a # ColumnStore header file
 usr/sbin/rcmysql
 usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mariadb/mroonga/COPYING")
 usr/share/doc/mariadb-server/CREDITS
@@ -63,3 +64,4 @@ usr/share/mariadb/systemd/mariadb@.socket # Installed by rules file
 usr/share/mariadb/systemd/mysqld.service  # Installed by rules file
 usr/share/mariadb/systemd/mysql.service  # Installed by rules file
 usr/share/mariadb/systemd/use_galera_new_cluster.conf
+usr/share/man/man1/wsrep_sst_backup.1

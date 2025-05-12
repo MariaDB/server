@@ -866,33 +866,21 @@ create table t3 (col1 datetime not null);
 create view v1 as select * from t1;
 create view v2 as select * from v1;
 create view v3 as select v2.col1 from v2,t2 where v2.col1 = t2.col1;
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into t1 values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from t1));
--- error ER_UPDATE_TABLE_USED
 insert into t1 values ((select max(col1) from t1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v2 values ((select max(col1) from t1));
--- error ER_UPDATE_TABLE_USED
 insert into v2 values ((select max(col1) from v2));
--- error ER_VIEW_PREVENT_UPDATE
 insert into t1 values ((select max(col1) from v2));
--- error ER_UPDATE_TABLE_USED
 insert into v2 values ((select max(col1) from v2));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v3 (col1) values ((select max(col1) from v1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v3 (col1) values ((select max(col1) from t1));
--- error ER_VIEW_PREVENT_UPDATE
 insert into v3 (col1) values ((select max(col1) from v2));
 # check with TZ tables in list
--- error ER_VIEW_PREVENT_UPDATE
-insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2));
+--error ER_WARN_DATA_OUT_OF_RANGE
+insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2 LIMIT 1));
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 -- error ER_BAD_NULL_ERROR
 insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
@@ -1212,9 +1200,19 @@ create view v3 as select * from t1 where 20 < (select (s1) from v2);
 -- error ER_NON_INSERTABLE_TABLE
 insert into v3 values (30);
 create view v4 as select * from v2 where 20 < (select (s1) from t1);
--- error ER_NON_INSERTABLE_TABLE
+select * from t1;
 insert into v4 values (30);
-drop view v4, v3, v2, v1;
+select * from t1;
+create view v5 as select * from v2 where s1 < (select min(s1) from t1) WITH CHECK OPTION;
+--echo # can't insert only less then minimum
+--error ER_VIEW_CHECK_FAILED
+insert into v5 values (40);
+--echo # allow insert the new minimum
+insert into v5 values (10);
+--echo # always emply view (can't be something less than minimum)
+select * from v5;
+select * from t1;
+drop view v5, v4, v3, v2, v1;
 drop table t1;
 
 #
@@ -1337,8 +1335,6 @@ execute stmt1 using @a;
 set @a= 301;
 execute stmt1 using @a;
 deallocate prepare stmt1;
-insert into v3(a) select sum(302);
-insert into v3(a) select sum(303) over ();
 --sorted_result
 select * from v3;
 
@@ -2048,7 +2044,9 @@ drop view abc;
 flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
+--disable_cursor_protocol
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like "Created_tmp%";
 --enable_ps_protocol
@@ -2059,9 +2057,11 @@ set @tmp=@@optimizer_switch;
 set @@optimizer_switch='derived_merge=OFF';
 create table t1(f1 char(1));
 create view v1 as select * from t1;
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
 --enable_ps2_protocol
+--enable_cursor_protocol
 --disable_ps_protocol
 show status like "Created_tmp%";
 --enable_ps_protocol
@@ -3118,6 +3118,7 @@ DROP VIEW IF EXISTS v1;
 
 let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
+--disable_cursor_protocol
 --enable_prepare_warnings
 eval $query;
 --error ER_PARSE_ERROR
@@ -3125,6 +3126,7 @@ eval CREATE VIEW v1 AS $query;
 --echo # Previously the following would fail.
 eval $query;
 --disable_prepare_warnings
+--enable_cursor_protocol
 
 #
 # Bug#24532 The return data type of IS TRUE is different from similar operations
@@ -4164,6 +4166,7 @@ INSERT INTO t2 VALUES
   (9,90), (16, 160), (11,110), (1,10), (18,180), (2,20),
   (14,140), (15, 150), (12,120), (3,30), (17,170), (19,190);
 
+--disable_cursor_protocol
 EXPLAIN EXTENDED
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 FLUSH STATUS;
@@ -4183,6 +4186,7 @@ SHOW STATUS LIKE 'Handler_read_%';
 set statement optimizer_where_cost=100 FOR explain extended SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 
 DROP VIEW v;
+--enable_cursor_protocol
 
 DROP TABLE t1, t2;
 --enable_ps2_protocol
@@ -6741,6 +6745,51 @@ DROP VIEW v2;
 DROP TABLE t;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-29537: Creation of view with UNION and SELECT ... FOR UPDATE
+--echo # in definition is failed with error
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE;
+
+SELECT * FROM v1;
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+                  UNION
+                  (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE);
+SELECT * FROM v1;
+
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-35090: (Item_func_current_user) Assertion
+--echo # `typeid(*copy) == typeid(*this)' failed in
+--echo # Item_func_or_sum::do_build_clone
+--echo #
+
+CREATE VIEW v AS SELECT 1;
+
+SELECT * FROM v WHERE UpdateXML('<user>N/A</user>','/a',CURRENT_USER());
+
+# Cleanup
+DROP VIEW v;
+
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-13115: SELECT .. SKIP LOCKED - ensure SHOW CREATE VIEW is correct

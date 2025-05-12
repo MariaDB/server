@@ -6269,20 +6269,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'gbk_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'gbk_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'gbk_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6407,20 +6407,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'gbk_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'gbk_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'gbk_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'gbk_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'gbk_chinese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6546,20 +6546,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'gbk_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'gbk_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'gbk_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'gbk_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'gbk_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'gbk_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'gbk_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'gbk_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'gbk_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'gbk_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'gbk_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6684,20 +6684,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'gbk_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'gbk_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'gbk_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'gbk_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'gbk_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'gbk_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'gbk_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'gbk_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'gbk_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'gbk_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'gbk_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'gbk_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6786,6 +6786,15 @@ ERROR HY000: Invalid gbk character string: '\xAA\xA1'
 EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
 ERROR HY000: Invalid gbk character string: '\xAA\xA1'
 SET sql_mode=DEFAULT;
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_gbk'' collate gbk_chinese_nopad_ci, _gbk 0x0001050001);
+strcmp(_gbk'' collate gbk_chinese_nopad_ci, _gbk 0x0001050001)
+-1
+select strcmp(_gbk'' collate gbk_nopad_bin, _gbk 0x0001050001);
+strcmp(_gbk'' collate gbk_nopad_bin, _gbk 0x0001050001)
+-1
 #
 # End of 10.5 tests
 #

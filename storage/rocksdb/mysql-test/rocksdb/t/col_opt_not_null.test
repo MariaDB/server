@@ -95,7 +95,11 @@ let $extra_col_opts = NOT NULL;
 set @col_opt_not_nullsave_time_zone=@@time_zone;
 set time_zone='UTC';
 
+--disable_cursor_protocol
+--disable_ps_protocol
 --source type_date_time.inc
+--enable_ps_protocol
+--enable_cursor_protocol
 
 SET TIMESTAMP=UNIX_TIMESTAMP('2013-12-12 12:12:12');
 
@@ -122,9 +126,13 @@ SET TIMESTAMP=UNIX_TIMESTAMP('2013-12-12 12:12:12');
 --let $col_default = '2012'
 --source col_not_null.inc
 
+--disable_cursor_protocol
+--disable_ps_protocol
 --let $col_type = YEAR(2)
 --let $col_default = '12'
 --source col_not_null.inc
+--enable_ps_protocol
+--enable_cursor_protocol
 
 set time_zone= @col_opt_not_nullsave_time_zone;
 
@@ -156,8 +164,10 @@ set time_zone= @col_opt_not_nullsave_time_zone;
 --echo # Floating point columns (FLOAT, DOUBLE)
 --echo ########################
 
+--disable_ps_protocol
 --source type_float.inc
-  
+--enable_ps_protocol
+
 --let $col_type = FLOAT
 --let $col_default = 1.1
 --source col_not_null.inc

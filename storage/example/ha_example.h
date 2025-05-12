@@ -74,13 +74,13 @@ public:
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */
-  const char *index_type(uint inx) { return "HASH"; }
+  const char *index_type(uint inx) override { return "HASH"; }
 
   /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */
-  ulonglong table_flags() const
+  ulonglong table_flags() const override
   {
     /*
       We are saying that this engine is just statement capable to have
@@ -100,7 +100,7 @@ public:
     If all_parts is set, MariaDB wants to know the flags for the combined
     index, up to and including 'part'.
   */
-  ulong index_flags(uint inx, uint part, bool all_parts) const
+  ulong index_flags(uint inx, uint part, bool all_parts) const override
   {
     return 0;
   }
@@ -112,7 +112,7 @@ public:
     send. Return *real* limits of your storage engine here; MariaDB will do
     min(your_limits, MySQL_limits) automatically.
    */
-  uint max_supported_record_length() const { return HA_MAX_REC_LENGTH; }
+  uint max_supported_record_length() const override { return HA_MAX_REC_LENGTH; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -123,7 +123,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_keys()          const { return 0; }
+  uint max_supported_keys() const override { return 0; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -134,7 +134,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_key_parts()     const { return 0; }
+  uint max_supported_key_parts() const override { return 0; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -145,12 +145,12 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_key_length()    const { return 0; }
+  uint max_supported_key_length() const override { return 0; }
 
   /** @brief
     Called in test_quick_select to determine cost of table scan
   */
-  virtual IO_AND_CPU_COST scan_time()
+  virtual IO_AND_CPU_COST scan_time() override
   {
     IO_AND_CPU_COST cost;
     /* 0 blocks,  0.001 ms / row */
@@ -162,8 +162,8 @@ public:
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-  virtual IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows rows,
-                                       ulonglong blocks)
+  IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows rows,
+                                       ulonglong blocks) override
   {
     IO_AND_CPU_COST cost;
     cost.io= blocks * DISK_READ_COST;
@@ -174,7 +174,7 @@ public:
   /** @brief
     Cost of fetching 'rows' records through rnd_pos()
   */
-  virtual IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override
   {
    IO_AND_CPU_COST cost;
     /* 0 blocks,  0.001 ms / row */
@@ -192,61 +192,61 @@ public:
   /** @brief
     We implement this in ha_example.cc; it's a required method.
   */
-  int open(const char *name, int mode, uint test_if_locked);    // required
+  int open(const char *name, int mode, uint test_if_locked) override;    // required
 
   /** @brief
     We implement this in ha_example.cc; it's a required method.
   */
-  int close(void);                                              // required
+  int close(void) override;                                              // required
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int write_row(const uchar *buf);
+  int write_row(const uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int update_row(const uchar *old_data, const uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int delete_row(const uchar *buf);
+  int delete_row(const uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
   int index_read_map(uchar *buf, const uchar *key,
-                     key_part_map keypart_map, enum ha_rkey_function find_flag);
+                     key_part_map keypart_map, enum ha_rkey_function find_flag) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int index_next(uchar *buf);
+  int index_next(uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int index_prev(uchar *buf);
+  int index_prev(uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int index_first(uchar *buf);
+  int index_first(uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
     skip it and and MariaDB will treat it as not implemented.
   */
-  int index_last(uchar *buf);
+  int index_last(uchar *buf) override;
 
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times
@@ -256,24 +256,24 @@ public:
     cursor to the start of the table; no need to deallocate and allocate
     it again. This is a required method.
   */
-  int rnd_init(bool scan);                                      //required
-  int rnd_end();
-  int rnd_next(uchar *buf);                                     ///< required
-  int rnd_pos(uchar *buf, uchar *pos);                          ///< required
-  void position(const uchar *record);                           ///< required
-  int info(uint);                                               ///< required
-  int extra(enum ha_extra_function operation);
-  int external_lock(THD *thd, int lock_type);                   ///< required
-  int delete_all_rows(void);
+  int rnd_init(bool scan) override;                                      //required
+  int rnd_end() override;
+  int rnd_next(uchar *buf) override;                                     ///< required
+  int rnd_pos(uchar *buf, uchar *pos) override;                          ///< required
+  void position(const uchar *record) override;                           ///< required
+  int info(uint) override;                                               ///< required
+  int extra(enum ha_extra_function operation) override;
+  int external_lock(THD *thd, int lock_type) override;                   ///< required
+  int delete_all_rows(void) override;
   ha_rows records_in_range(uint inx, const key_range *min_key,
-                           const key_range *max_key, page_range *pages);
-  int delete_table(const char *from);
+                           const key_range *max_key, page_range *pages) override;
+  int delete_table(const char *from) override;
   int create(const char *name, TABLE *form,
-             HA_CREATE_INFO *create_info);                      ///< required
+             HA_CREATE_INFO *create_info) override;                      ///< required
   enum_alter_inplace_result
   check_if_supported_inplace_alter(TABLE* altered_table,
-                                   Alter_inplace_info* ha_alter_info);
+                                   Alter_inplace_info* ha_alter_info) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type);     ///< required
+                             enum thr_lock_type lock_type) override;     ///< required
 };

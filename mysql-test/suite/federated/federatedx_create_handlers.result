@@ -494,12 +494,12 @@ CREATE TABLE federated.t3 (a INT);
 INSERT INTO federated.t3 VALUES (1),(2),(3);
 CREATE TABLE federated.t4 (a INT);
 connection master;
-CREATE SERVER fedlink FOREIGN DATA WRAPPER mysql 
+CREATE SERVER fedlink FOREIGN DATA WRAPPER mariadb
 OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'federated',
 PORT SLAVE_PORT);
 CREATE TABLE federated.t3 (a INT)
 ENGINE=FEDERATED
-CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
+CONNECTION='mariadb://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
   PARTITION BY list (a)
 (PARTITION p1 VALUES IN (1) CONNECTION='fedlink/t3',
 PARTITION p2 VALUES IN (2) CONNECTION='fedlink/t4');
@@ -1171,14 +1171,14 @@ abc
 abc
 # Check handling of incorrect ORDER BY clause
 SELECT a FROM federated.t1 UNION SELECT a FROM federated.t2 ORDER BY 2;
-ERROR 42S22: Unknown column '2' in 'order clause'
+ERROR 42S22: Unknown column '2' in 'ORDER BY'
 PREPARE stmt FROM
 "SELECT a FROM federated.t1 UNION ALL SELECT a FROM federated.t2 ORDER BY 2";
-ERROR 42S22: Unknown column '2' in 'order clause'
+ERROR 42S22: Unknown column '2' in 'ORDER BY'
 SELECT a FROM federated.t1 UNION ALL SELECT a FROM federated.t2 ORDER BY 2,1,3;
-ERROR 42S22: Unknown column '2' in 'order clause'
+ERROR 42S22: Unknown column '2' in 'ORDER BY'
 SELECT a FROM federated.t1 UNION ALL SELECT a FROM federated.t2 ORDER BY t1.a;
-ERROR 42000: Table 't1' from one of the SELECTs cannot be used in ORDER clause
+ERROR 42000: Table 't1' from one of the SELECTs cannot be used in ORDER BY
 SELECT * from federated.t1 INTERSECT
 SELECT * from federated.t2 UNION ALL
 SELECT * from federated.t2 EXCEPT
@@ -1192,7 +1192,7 @@ SELECT * from federated.t2 UNION ALL
 SELECT * from federated.t2 EXCEPT
 SELECT * from federated.t1
 ORDER BY 3;
-ERROR 42S22: Unknown column '3' in 'order clause'
+ERROR 42S22: Unknown column '3' in 'ORDER BY'
 # UNION of mixed Federated/MyISAM tables, pushing parts of UNIONs
 SELECT * FROM federated.t1 UNION SELECT * FROM t3 ORDER BY a;
 a
@@ -1203,7 +1203,7 @@ t3_myisam1
 t3_myisam2
 t3_myisam3
 SELECT * FROM federated.t1 UNION SELECT * FROM t3 ORDER BY 2;
-ERROR 42S22: Unknown column '2' in 'order clause'
+ERROR 42S22: Unknown column '2' in 'ORDER BY'
 #
 # MDEV-32382 FederatedX error on pushdown of statement having CTE
 #

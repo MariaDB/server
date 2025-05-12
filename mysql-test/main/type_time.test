@@ -1635,3 +1635,22 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c TIME(1));
+INSERT INTO t0 VALUES ('00:00:00.0'),('00:00:00.4'),('00:00:00.6');
+--source include/search_condition.inc
+DROP TABLE t0;
+
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

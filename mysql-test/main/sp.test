@@ -19,9 +19,9 @@
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
 
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Need regular protocol but ps-protocol was specified
+   --skip Need regular protocol but ps-protocol and cursor-protocol were specified
 }
 
 --source include/default_charset.inc
@@ -3024,8 +3024,10 @@ create procedure bug5251()
 begin
 end|
 
+--disable_cursor_protocol
 select created into @c1 from mysql.proc
   where db='test' and name='bug5251'|
+--enable_cursor_protocol
 --sleep 2
 alter procedure bug5251 comment 'foobar'|
 select count(*) from mysql.proc
@@ -8255,12 +8257,16 @@ drop procedure if exists p;
 --enable_warnings
 set @old_mode= @@sql_mode;
 set @@sql_mode= cast(pow(2,32)-1 as unsigned integer);
+--disable_cursor_protocol
 select @@sql_mode into @full_mode;
+--enable_cursor_protocol
 create procedure p() as begin end;
 call p();
 set @@sql_mode= @old_mode;
 # Rename SQL modes that differ in name between the server and the table definition.
+--disable_cursor_protocol
 select replace(@full_mode, 'ALLOW_INVALID_DATES', 'INVALID_DATES') into @full_mode;
+--enable_cursor_protocol
 select name from mysql.proc where name = 'p' and sql_mode = @full_mode;
 drop procedure p;
 
@@ -10584,7 +10590,95 @@ DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-35910: Pushdown of conditions with local SP variables
+--echo #             into materialized derived table
+--echo #             Pushdown of conditions with local variables from HAVING
+--echo #             into WHERE
+--echo #
+
+CREATE TABLE t1(
+  pk INT PRIMARY KEY AUTO_INCREMENT,
+  a INT,
+  b INT
+);
+INSERT INTO t1(a,b) VALUES (1, 2), (3, 2), (4, 5);
+INSERT INTO t1(a,b) VALUES (3, 7), (4, 1), (3, 4);
+
+DELIMITER $$;
+CREATE PROCEDURE pushdownDerivedSp()
+BEGIN
+    DECLARE localA INT DEFAULT 1;
+    DECLARE localB INT DEFAULT 2;
+    SELECT dt.a
+    FROM (
+      SELECT t1.a, MIN(t1.b) as minB
+      FROM t1
+      GROUP BY t1.a
+    ) AS dt
+    WHERE dt.minB = localB AND dt.a = localA + localB;
+END$$
+
+CREATE PROCEDURE explainPushdownDerivedSp()
+BEGIN
+    DECLARE localA INT DEFAULT 1;
+    DECLARE localB INT DEFAULT 2;
+    EXPLAIN format=json SELECT dt.a
+    FROM (
+      SELECT t1.a, MIN(t1.b) as minB
+      FROM t1
+      GROUP BY t1.a
+    ) AS dt
+    WHERE dt.minB = localB AND dt.a = localA + localB;
+END$$
+
+CREATE PROCEDURE pushdownFromHavingSp()
+BEGIN
+    DECLARE localA INT DEFAULT 1;
+    DECLARE localB INT DEFAULT 2;
+    SELECT t1.a, SUM(b)
+    FROM t1
+    GROUP BY t1.a
+    HAVING t1.a > localA AND SUM(b) > 10 OR t1.a <= localB AND SUM(b) <= 2;
+END$$
+
+CREATE PROCEDURE explainPushdownFromHavingSp()
+BEGIN
+    DECLARE localA INT DEFAULT 1;
+    DECLARE localB INT DEFAULT 2;
+    EXPLAIN format=json
+    SELECT t1.a, SUM(b)
+    FROM t1
+    GROUP BY t1.a
+    HAVING t1.a > localA AND SUM(b) > 10 OR t1.a <= localB AND SUM(b) <= 2;
+END$$
+
+DELIMITER ;$$
+
+CALL pushdownDerivedSp();
+set statement optimizer_switch='condition_pushdown_for_derived=off'
+for CALL pushdownDerivedSp();
+
+CALL explainPushdownDerivedSp();
+set statement optimizer_switch='condition_pushdown_for_derived=off' for
+CALL explainPushdownDerivedSp();
+
+CALL pushdownFromHavingSp();
+set statement optimizer_switch='condition_pushdown_from_having=off' for
+CALL pushdownFromHavingSp();
+
+CALL explainPushdownFromHavingSp();
+set statement optimizer_switch='condition_pushdown_from_having=off' for
+CALL explainPushdownFromHavingSp();
+
+DROP PROCEDURE pushdownDerivedSp;
+DROP PROCEDURE explainPushdownDerivedSp;
+DROP PROCEDURE pushdownFromHavingSp;
+DROP PROCEDURE explainPushdownFromHavingSp;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-29129: Performance regression starting in 10.6: unlimited "select order by limit"
@@ -10672,10 +10766,9 @@ CREATE OR REPLACE FUNCTION database() RETURNS int RETURN 333;
 SELECT database();
 DROP FUNCTION database;
 
-
-# Cleanup
 DROP TABLE t1;
 
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
@@ -10690,6 +10783,4 @@ CREATE PROCEDURE sp() SET @=1;
 --error ER_PARSE_ERROR
 CREATE PROCEDURE sp() SELECT @;
 
---echo #
 --echo # End of 10.7 tests
---echo #

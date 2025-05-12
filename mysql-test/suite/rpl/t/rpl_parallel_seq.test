@@ -147,7 +147,9 @@ if (`select $iter = 1`)
 --connection master
 CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
 # select may return non-deterministically, don't print its result
+--disable_cursor_protocol
 SELECT NEXT VALUE FOR s3 into @tmpvar;
+--enable_cursor_protocol
 --source include/save_master_gtid.inc
 
 --connection slave

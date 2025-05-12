@@ -1,0 +1,39 @@
+#
+# MDEV-15477: SESSION_SYSVARS_TRACKER does not track last_gtid
+#
+SET gtid_seq_no=1000;
+SET @@session.session_track_system_variables='last_gtid';
+create table t1 (a int) engine=innodb;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- last_gtid: 0-1-1000
+
+select @@last_gtid;
+@@last_gtid
+0-1-1000
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- last_gtid: 0-1-1000
+
+insert into t1 values (1);
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- last_gtid: 0-1-1001
+
+select @@last_gtid;
+@@last_gtid
+0-1-1001
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- last_gtid: 0-1-1001
+
+drop table t1;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- last_gtid: 0-1-1002
+
+reset master;
+#
+# MDEV-35086 Trying to lock mutex when the mutex was already locked (session_tracker.cc), server hangs
+#
+set session_track_system_variables='*';
+alter table t1 nowait force;
+ERROR 42S02: Table 'test.t1' doesn't exist
+use mysql;
+set session_track_system_variables=default;
+# End of 10.5 tests

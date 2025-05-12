@@ -16,17 +16,17 @@ SELECT @session_start_value;
 en_US
 '#--------------------FN_DYNVARS_060_01------------------#'
 SELECT lc_time_names;
-ERROR 42S22: Unknown column 'lc_time_names' in 'field list'
+ERROR 42S22: Unknown column 'lc_time_names' in 'SELECT'
 SET lc_time_names=ar_AE;
 SELECT @@session.lc_time_names;
 @@session.lc_time_names
 ar_AE
 SET session lc_time_names=ar_AE;
 SELECT session lc_time_names;
-ERROR 42S22: Unknown column 'session' in 'field list'
+ERROR 42S22: Unknown column 'session' in 'SELECT'
 SET global lc_time_names=ar_AE;
 SELECT global lc_time_names;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 '#--------------------FN_DYNVARS_060_02-------------------------#'
 SET @@lc_time_names = en_ZA;
 SET @@lc_time_names = DEFAULT;
@@ -69,7 +69,7 @@ res
 1
 '#--------------------FN_DYNVARS_060_05-------------------------#'
 SET @@lc_time_names = en_US | en_GB ;
-ERROR 42S22: Unknown column 'en_US' in 'field list'
+ERROR 42S22: Unknown column 'en_US' in 'SET'
 '#--------------------FN_DYNVARS_060_06-------------------------#'
 SET @@session.lc_time_names=ar_AE;
 SELECT @@session.lc_time_names;

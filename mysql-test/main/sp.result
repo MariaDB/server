@@ -4443,7 +4443,7 @@ begin
 update t3 set id=2, county=value(c);
 end|
 call bug15441('county')|
-ERROR 42S22: Unknown column 'c' in 'field list'
+ERROR 42S22: Unknown column 'c' in 'SELECT'
 drop procedure bug15441|
 create procedure bug15441(county varchar(25))
 begin
@@ -6933,9 +6933,9 @@ BEGIN
 SELECT a FROM t1 A WHERE A.b IN (SELECT b FROM t2 AS B);
 END|
 CALL p1;
-ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY'
 CALL p1;
-ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY'
 DROP PROCEDURE p1;
 DROP TABLE t1, t2;
 #
@@ -7908,11 +7908,11 @@ drop table t1,t2;
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 CREATE PROCEDURE sp() SELECT * FROM t1 AS t1x JOIN t1 AS t1y USING (c);
 CALL sp;
-ERROR 42S22: Unknown column 'c' in 'from clause'
+ERROR 42S22: Unknown column 'c' in 'FROM'
 CALL sp;
-ERROR 42S22: Unknown column 'c' in 'from clause'
+ERROR 42S22: Unknown column 'c' in 'FROM'
 CALL sp;
-ERROR 42S22: Unknown column 'c' in 'from clause'
+ERROR 42S22: Unknown column 'c' in 'FROM'
 alter table t1 add column c int;
 CALL sp;
 c	a	b	a	b
@@ -7931,11 +7931,11 @@ CALL sp;
 ERROR HY000: Table 'v1' was not locked with LOCK TABLES
 UNLOCK TABLES;
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'order clause'
+ERROR 42S22: Unknown column 'b' in 'ORDER BY'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'order clause'
+ERROR 42S22: Unknown column 'b' in 'ORDER BY'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'order clause'
+ERROR 42S22: Unknown column 'b' in 'ORDER BY'
 DROP PROCEDURE sp;
 CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
 LOCK TABLE t2 READ;
@@ -7943,11 +7943,11 @@ CALL sp;
 ERROR HY000: Table 'v1' was not locked with LOCK TABLES
 UNLOCK TABLES;
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 DROP PROCEDURE sp;
 DROP VIEW v1;
 DROP TABLE t1, t2;
@@ -8379,7 +8379,7 @@ DROP PROCEDURE p1;
 #
 CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT 1;
 CALL p1(a);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'CALL'
 drop procedure p1;
 CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT a|
 CREATE OR REPLACE PROCEDURE p2 ()
@@ -8964,6 +8964,223 @@ DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 # End of 10.4 tests
 #
+# MDEV-35910: Pushdown of conditions with local SP variables
+#             into materialized derived table
+#             Pushdown of conditions with local variables from HAVING
+#             into WHERE
+#
+CREATE TABLE t1(
+pk INT PRIMARY KEY AUTO_INCREMENT,
+a INT,
+b INT
+);
+INSERT INTO t1(a,b) VALUES (1, 2), (3, 2), (4, 5);
+INSERT INTO t1(a,b) VALUES (3, 7), (4, 1), (3, 4);
+CREATE PROCEDURE pushdownDerivedSp()
+BEGIN
+DECLARE localA INT DEFAULT 1;
+DECLARE localB INT DEFAULT 2;
+SELECT dt.a
+FROM (
+SELECT t1.a, MIN(t1.b) as minB
+FROM t1
+GROUP BY t1.a
+) AS dt
+WHERE dt.minB = localB AND dt.a = localA + localB;
+END$$
+CREATE PROCEDURE explainPushdownDerivedSp()
+BEGIN
+DECLARE localA INT DEFAULT 1;
+DECLARE localB INT DEFAULT 2;
+EXPLAIN format=json SELECT dt.a
+FROM (
+SELECT t1.a, MIN(t1.b) as minB
+FROM t1
+GROUP BY t1.a
+) AS dt
+WHERE dt.minB = localB AND dt.a = localA + localB;
+END$$
+CREATE PROCEDURE pushdownFromHavingSp()
+BEGIN
+DECLARE localA INT DEFAULT 1;
+DECLARE localB INT DEFAULT 2;
+SELECT t1.a, SUM(b)
+FROM t1
+GROUP BY t1.a
+HAVING t1.a > localA AND SUM(b) > 10 OR t1.a <= localB AND SUM(b) <= 2;
+END$$
+CREATE PROCEDURE explainPushdownFromHavingSp()
+BEGIN
+DECLARE localA INT DEFAULT 1;
+DECLARE localB INT DEFAULT 2;
+EXPLAIN format=json
+SELECT t1.a, SUM(b)
+FROM t1
+GROUP BY t1.a
+HAVING t1.a > localA AND SUM(b) > 10 OR t1.a <= localB AND SUM(b) <= 2;
+END$$
+CALL pushdownDerivedSp();
+a
+3
+set statement optimizer_switch='condition_pushdown_for_derived=off'
+for CALL pushdownDerivedSp();
+a
+3
+CALL explainPushdownDerivedSp();
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010268108,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 6,
+          "cost": 0.010268108,
+          "filtered": 100,
+          "attached_condition": "dt.minB = <cache>(localB@1) and dt.a = <cache>(localA@0 + localB@1)",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.014784479,
+              "having_condition": "minB = <cache>(localB@1)",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 6,
+                    "cost": 0.01097403,
+                    "filtered": 100,
+                    "attached_condition": "t1.a = <cache>(localA@0 + localB@1)"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set statement optimizer_switch='condition_pushdown_for_derived=off' for
+CALL explainPushdownDerivedSp();
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010268108,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 6,
+          "cost": 0.010268108,
+          "filtered": 100,
+          "attached_condition": "dt.minB = <cache>(localB@1) and dt.a = <cache>(localA@0 + localB@1)",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.014784479,
+              "filesort": {
+                "sort_key": "t1.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 6,
+                        "cost": 0.01097403,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+CALL pushdownFromHavingSp();
+a	SUM(b)
+1	2
+3	13
+set statement optimizer_switch='condition_pushdown_from_having=off' for
+CALL pushdownFromHavingSp();
+a	SUM(b)
+1	2
+3	13
+CALL explainPushdownFromHavingSp();
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.014784479,
+    "having_condition": "t1.a > <cache>(localA@0) and sum(t1.b) > 10 or t1.a <= <cache>(localB@1) and sum(t1.b) <= 2",
+    "filesort": {
+      "sort_key": "t1.a",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 6,
+              "cost": 0.01097403,
+              "filtered": 100,
+              "attached_condition": "t1.a > <cache>(localA@0) or t1.a <= <cache>(localB@1)"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+set statement optimizer_switch='condition_pushdown_from_having=off' for
+CALL explainPushdownFromHavingSp();
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.014784479,
+    "having_condition": "t1.a > <cache>(localA@0) and sum(t1.b) > 10 or t1.a <= <cache>(localB@1) and sum(t1.b) <= 2",
+    "filesort": {
+      "sort_key": "t1.a",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 6,
+              "cost": 0.01097403,
+              "filtered": 100
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+DROP PROCEDURE pushdownDerivedSp;
+DROP PROCEDURE explainPushdownDerivedSp;
+DROP PROCEDURE pushdownFromHavingSp;
+DROP PROCEDURE explainPushdownFromHavingSp;
+DROP TABLE t1;
+# End of 10.5 tests
 #
 # MDEV-29129: Performance regression starting in 10.6: unlimited "select order by limit"
 #
@@ -9089,6 +9306,7 @@ database()
 test
 DROP FUNCTION database;
 DROP TABLE t1;
+# End of 10.6 tests
 #
 # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
 #
@@ -9098,6 +9316,4 @@ CREATE PROCEDURE sp() SET @=1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '=1' at line 1
 CREATE PROCEDURE sp() SELECT @;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
-#
 # End of 10.7 tests
-#

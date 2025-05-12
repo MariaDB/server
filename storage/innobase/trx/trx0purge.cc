@@ -188,7 +188,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   /* This function is invoked during transaction commit, which is not
   allowed to fail. If we get a corrupted undo header, we will crash here. */
   ut_a(undo_page);
-  trx_ulogf_t *undo_header= undo_page->page.frame + undo->hdr_offset;
+  const uint16_t undo_header_offset= undo->hdr_offset;
+  trx_ulogf_t *undo_header= undo_page->page.frame + undo_header_offset;
 
   ut_ad(rseg->needs_purge > trx->id);
   ut_ad(rseg->last_page_no != FIL_NULL);
@@ -265,9 +266,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   than to intentionally violate ACID by committing something
   that is known to be corrupted. */
   ut_a(flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,
-                      uint16_t(page_offset(undo_header) +
-                               TRX_UNDO_HISTORY_NODE), rseg->space->free_limit,
-                      mtr) == DB_SUCCESS);
+                      uint16_t(undo_header_offset + TRX_UNDO_HISTORY_NODE),
+                      rseg->space->free_limit, mtr) == DB_SUCCESS);
 
   mtr->write<2>(*undo_page, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE +
                 undo_page->page.frame, undo_state);
@@ -285,8 +285,9 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
   ut_ad(mtr.memo_contains_flagged(rseg_hdr, MTR_MEMO_PAGE_X_FIX));
   ut_ad(mtr.memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 
-  while (!fseg_free_step_not_header(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
-                                    block->page.frame, &mtr))
+  while (!fseg_free_step_not_header(block,
+				    TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
+				    &mtr))
   {
     rseg_hdr->fix();
     block->fix();
@@ -309,8 +310,8 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
     mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
-  while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
-                         block->page.frame, &mtr));
+  while (!fseg_free_step(block, TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
+                         &mtr));
 }
 
 void purge_sys_t::rseg_enable(trx_rseg_t &rseg)
@@ -482,6 +483,7 @@ loop:
     free_segment:
       ut_ad(rseg.curr_size >= seg_size);
       rseg.curr_size-= seg_size;
+      DBUG_EXECUTE_IF("undo_segment_leak", goto skip_purge_free;);
       trx_purge_free_segment(rseg_hdr, b, mtr);
       break;
     case TRX_UNDO_CACHED:
@@ -491,23 +493,28 @@ loop:
         if (undo->hdr_page_no == hdr_addr.page)
           goto found_cached;
       ut_ad("inconsistent undo logs" == 0);
-      if (false)
-      found_cached:
-        UT_LIST_REMOVE(rseg.undo_cached, undo);
+    found_cached:
       static_assert(FIL_NULL == 0xffffffff, "");
       if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
                                          rseg_hdr->page.frame)))
         trx_rseg_format_upgrade(rseg_hdr, &mtr);
-      mtr.memset(rseg_hdr, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                 undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
-      ut_free(undo);
+      DBUG_EXECUTE_IF("skip_cached_undo", goto skip_purge_free;);
+      if (UNIV_LIKELY(undo != nullptr))
+      {
+        UT_LIST_REMOVE(rseg.undo_cached, undo);
+        mtr.memset(rseg_hdr, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
+                   undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
+        ut_free(undo);
+      }
       mtr.write<8,mtr_t::MAYBE_NOP>(*rseg_hdr, TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
                                     rseg_hdr->page.frame,
                                     trx_sys.get_max_trx_id() - 1);
       goto free_segment;
     }
   }
-
+#ifndef DBUG_OFF
+skip_purge_free:
+#endif /* !DBUG_OFF */
   hdr_addr= prev_hdr_addr;
 
   mtr.commit();
@@ -774,26 +781,21 @@ not_free:
 
 buf_block_t *purge_sys_t::get_page(page_id_t id)
 {
-  buf_block_t*& undo_page= pages[id];
+  ut_ad(!recv_sys.recovery_on);
 
-  if (undo_page)
-    return undo_page;
+  buf_block_t *&h= pages[id];
+  buf_block_t *undo_page= h;
 
-  mtr_t mtr;
-  mtr.start();
-  undo_page=
-    buf_page_get_gen(id, 0, RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED, &mtr);
-
-  if (UNIV_LIKELY(undo_page != nullptr))
+  if (!undo_page)
   {
-    undo_page->fix();
-    mtr.commit();
-    return undo_page;
+    undo_page= buf_pool.page_fix(id); // batch_cleanup() will unfix()
+    if (!undo_page)
+      pages.erase(id);
+    else
+      h= undo_page;
   }
 
-  mtr.commit();
-  pages.erase(id);
-  return nullptr;
+  return undo_page;
 }
 
 bool purge_sys_t::rseg_get_next_history_log()
@@ -926,7 +928,8 @@ bool purge_sys_t::choose_next_log()
         goto purge_nothing;
     }
 
-    offset= page_offset(undo_rec);
+    offset= uint16_t(undo_rec - b->page.frame);
+    ut_ad(undo_rec - b->page.frame == page_offset(undo_rec));
     tail.undo_no= trx_undo_rec_get_undo_no(undo_rec);
     page_no= id.page_no();
   }
@@ -968,12 +971,14 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
     return {nullptr, 0};
   }
 
+  buf_block_t *rec2_page= b;
   if (const trx_undo_rec_t *rec2=
       trx_undo_page_get_next_rec(b, offset, hdr_page_no, hdr_offset))
   {
   got_rec:
     ut_ad(page_no == page_id.page_no());
-    offset= page_offset(rec2);
+    ut_ad(page_offset(rec2) == rec2 - rec2_page->page.frame);
+    offset= uint16_t(rec2 - rec2_page->page.frame);
     tail.undo_no= trx_undo_rec_get_undo_no(rec2);
   }
   else if (hdr_page_no != page_no ||
@@ -989,6 +994,7 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
         rec2= trx_undo_page_get_first_rec(next_page, hdr_page_no, hdr_offset);
         if (rec2)
         {
+          rec2_page= next_page;
           page_no= next;
           goto got_rec;
         }
@@ -1046,64 +1052,65 @@ inline trx_purge_rec_t purge_sys_t::fetch_next_rec()
 /** Close all tables that were opened in a purge batch for a worker.
 @param node   purge task context
 @param thd    purge coordinator thread handle */
-static void trx_purge_close_tables(purge_node_t *node, THD *thd)
+static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
 {
   for (auto &t : node->tables)
   {
-    if (!t.second.first);
-    else if (t.second.first == reinterpret_cast<dict_table_t*>(-1));
-    else
+    dict_table_t *table= t.second.first;
+    if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
+      table->release();
+  }
+
+  MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
+
+  for (auto &t : node->tables)
+  {
+    dict_table_t *table= t.second.first;
+    if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
     {
-      dict_table_close(t.second.first, false, thd, t.second.second);
       t.second.first= reinterpret_cast<dict_table_t*>(-1);
+      if (mdl_context != nullptr && t.second.second != nullptr)
+        mdl_context->release_lock(t.second.second);
     }
   }
 }
 
 void purge_sys_t::wait_FTS(bool also_sys)
 {
-  bool paused;
-  do
-  {
-    latch.wr_lock(SRW_LOCK_CALL);
-    paused= m_FTS_paused || (also_sys && m_SYS_paused);
-    latch.wr_unlock();
+  for (const uint32_t mask= also_sys ? ~0U : ~PAUSED_SYS; m_FTS_paused & mask;)
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  while (paused);
 }
 
 __attribute__((nonnull))
-/** Aqcuire a metadata lock on a table.
+/** Acquire a metadata lock on a table.
 @param table        table handle
 @param mdl_context  metadata lock acquisition context
-@param mdl          metadata lcok
+@param mdl          metadata lock
 @return table handle
 @retval nullptr if the table is not found or accessible
 @retval -1      if the purge of history must be suspended due to DDL */
 static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
                                              MDL_context *mdl_context,
-                                             MDL_ticket **mdl)
+                                             MDL_ticket **mdl) noexcept
 {
   ut_ad(dict_sys.frozen_not_locked());
   *mdl= nullptr;
 
   if (!table->is_readable() || table->corrupted)
-  {
-    table->release();
     return nullptr;
-  }
 
   size_t db_len= dict_get_db_name_len(table->name.m_name);
   if (db_len == 0)
-    return table; /* InnoDB system tables are not covered by MDL */
+  {
+    /* InnoDB system tables are not covered by MDL */
+  got_table:
+    table->acquire();
+    return table;
+  }
 
   if (purge_sys.must_wait_FTS())
-  {
   must_wait:
-    table->release();
     return reinterpret_cast<dict_table_t*>(-1);
-  }
 
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
@@ -1111,7 +1118,7 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
 
   if (!table->parse_name<true>(db_buf, tbl_buf, &db_len, &tbl_len))
     /* The name of an intermediate table starts with #sql */
-    return table;
+    goto got_table;
 
   {
     MDL_request request;
@@ -1124,37 +1131,38 @@ static dict_table_t *trx_purge_table_acquire(dict_table_t *table,
       goto must_wait;
   }
 
-  return table;
+  goto got_table;
 }
 
 /** Open a table handle for the purge of committed transaction history
 @param table_id     InnoDB table identifier
 @param mdl_context  metadata lock acquisition context
-@param mdl          metadata lcok
+@param mdl          metadata lock
 @return table handle
 @retval nullptr if the table is not found or accessible
 @retval -1      if the purge of history must be suspended due to DDL */
 static dict_table_t *trx_purge_table_open(table_id_t table_id,
                                           MDL_context *mdl_context,
-                                          MDL_ticket **mdl)
+                                          MDL_ticket **mdl) noexcept
 {
-  dict_sys.freeze(SRW_LOCK_CALL);
+  dict_table_t *table;
 
-  dict_table_t *table= dict_sys.find_table(table_id);
-
-  if (table)
-    table->acquire();
-  else
+  for (;;)
   {
+    dict_sys.freeze(SRW_LOCK_CALL);
+    table= dict_sys.find_table(table_id);
+    if (table)
+      break;
     dict_sys.unfreeze();
     dict_sys.lock(SRW_LOCK_CALL);
     table= dict_load_table_on_id(table_id, DICT_ERR_IGNORE_FK_NOKEY);
-    if (table)
-      table->acquire();
     dict_sys.unlock();
     if (!table)
       return nullptr;
-    dict_sys.freeze(SRW_LOCK_CALL);
+    /* At this point, the freshly loaded table may already have been evicted.
+    We must look it up again while holding a shared dict_sys.latch.  We keep
+    trying this until the table is found in the cache or it cannot be found
+    in the dictionary (because the table has been dropped or rebuilt). */
   }
 
   table= trx_purge_table_acquire(table, mdl_context, mdl);
@@ -1173,10 +1181,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
 
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
-  {
-    purge_node_t *node= static_cast<purge_node_t*>(thr->child);
-    trx_purge_close_tables(node, thd);
-  }
+    trx_purge_close_tables(static_cast<purge_node_t*>(thr->child), thd);
 
   m_active= false;
   wait_FTS(false);
@@ -1199,7 +1204,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
         if (t.second.first == reinterpret_cast<dict_table_t*>(-1))
         {
           if (table)
-            dict_table_close(table, false, thd, *mdl);
+            dict_table_close(table, thd, *mdl);
           goto retry;
         }
       }
@@ -1211,123 +1216,105 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
 
 /** Run a purge batch.
 @param n_purge_threads	number of purge threads
+@param thd              purge coordinator thread handle
+@param n_work_items     number of work items (currently tables) to process
 @return new purge_sys.head */
-static purge_sys_t::iterator
-trx_purge_attach_undo_recs(ulint n_purge_threads, THD *thd)
+static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
+                                                        ulint *n_work_items)
 {
-	que_thr_t*	thr;
-	ulint		i;
+  que_thr_t *thr;
+  purge_sys_t::iterator head= purge_sys.tail;
 
-	ut_a(n_purge_threads > 0);
-	ut_a(UT_LIST_GET_LEN(purge_sys.query->thrs) >= n_purge_threads);
+  /* Fetch and parse the UNDO records. The UNDO records are added
+  to a per purge node vector. */
+  thr= nullptr;
 
-	purge_sys_t::iterator head = purge_sys.tail;
+  std::unordered_map<table_id_t, purge_node_t *>
+    table_id_map(TRX_PURGE_TABLE_BUCKETS);
+  purge_sys.m_active= true;
+
+  MDL_context *const mdl_context=
+    static_cast<MDL_context*>(thd_mdl_context(thd));
+  ut_ad(mdl_context);
+
+  while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
+  {
+    /* Track the max {trx_id, undo_no} for truncating the
+    UNDO logs once we have purged the records. */
+
+    if (head <= purge_sys.tail)
+      head= purge_sys.tail;
+
+    /* Fetch the next record, and advance the purge_sys.tail. */
+    trx_purge_rec_t purge_rec= purge_sys.fetch_next_rec();
+
+    if (!purge_rec.undo_rec)
+    {
+      if (!purge_rec.roll_ptr)
+        break;
+      ut_ad(purge_rec.roll_ptr == 1);
+      continue;
+    }
+
+    table_id_t table_id= trx_undo_rec_get_table_id(purge_rec.undo_rec);
+
+    purge_node_t *&table_node= table_id_map[table_id];
+    if (table_node)
+      ut_ad(!table_node->in_progress);
+    if (!table_node)
+    {
+      std::pair<dict_table_t *, MDL_ticket *> p;
+      p.first= trx_purge_table_open(table_id, mdl_context, &p.second);
+      if (p.first == reinterpret_cast<dict_table_t *>(-1))
+        p.first= purge_sys.close_and_reopen(table_id, thd, &p.second);
+
+      if (!thr || !(thr= UT_LIST_GET_NEXT(thrs, thr)))
+        thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
+      ++*n_work_items;
+      table_node= static_cast<purge_node_t *>(thr->child);
+
+      ut_a(que_node_get_type(table_node) == QUE_NODE_PURGE);
+      ut_d(auto pair=) table_node->tables.emplace(table_id, p);
+      ut_ad(pair.second);
+      if (p.first)
+        goto enqueue;
+    }
+    else if (table_node->tables[table_id].first)
+    {
+    enqueue:
+      table_node->undo_recs.push(purge_rec);
+      ut_ad(!table_node->in_progress);
+    }
+
+    const size_t size{purge_sys.n_pages_handled()};
+    if (size >= size_t{srv_purge_batch_size} ||
+        size >= buf_pool.usable_size() * 3 / 4)
+      break;
+  }
 
 #ifdef UNIV_DEBUG
-	i = 0;
-	/* Debug code to validate some pre-requisites and reset done flag. */
-	for (thr = UT_LIST_GET_FIRST(purge_sys.query->thrs);
-	     thr != NULL && i < n_purge_threads;
-	     thr = UT_LIST_GET_NEXT(thrs, thr), ++i) {
+  thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
+  for (ulint i= 0; thr && i < *n_work_items;
+       i++, thr= UT_LIST_GET_NEXT(thrs, thr))
+  {
+    purge_node_t *node= static_cast<purge_node_t*>(thr->child);
+    ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
+    ut_ad(!node->in_progress);
+    node->in_progress= true;
+  }
 
-		purge_node_t*		node;
-
-		/* Get the purge node. */
-		node = (purge_node_t*) thr->child;
-
-		ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
-		ut_ad(node->undo_recs.empty());
-		ut_ad(!node->in_progress);
-		ut_d(node->in_progress = true);
-	}
-
-	/* There should never be fewer nodes than threads, the inverse
-	however is allowed because we only use purge threads as needed. */
-	ut_ad(i == n_purge_threads);
+  for (; thr; thr= UT_LIST_GET_NEXT(thrs, thr))
+  {
+    purge_node_t *node= static_cast<purge_node_t*>(thr->child);
+    ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
+    ut_ad(!node->in_progress);
+    ut_ad(node->undo_recs.empty());
+  }
 #endif
 
-	/* Fetch and parse the UNDO records. The UNDO records are added
-	to a per purge node vector. */
-	thr = UT_LIST_GET_FIRST(purge_sys.query->thrs);
+  ut_ad(head <= purge_sys.tail);
 
-	ut_ad(head <= purge_sys.tail);
-
-	i = 0;
-
-	std::unordered_map<table_id_t, purge_node_t*>
-		table_id_map(TRX_PURGE_TABLE_BUCKETS);
-	purge_sys.m_active = true;
-
-	MDL_context* const mdl_context
-		= static_cast<MDL_context*>(thd_mdl_context(thd));
-	ut_ad(mdl_context);
-
-	const size_t max_pages = std::min(buf_pool.curr_size * 3 / 4,
-					  size_t{srv_purge_batch_size});
-
-	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
-		/* Track the max {trx_id, undo_no} for truncating the
-		UNDO logs once we have purged the records. */
-
-		if (head <= purge_sys.tail) {
-			head = purge_sys.tail;
-		}
-
-		/* Fetch the next record, and advance the purge_sys.tail. */
-		trx_purge_rec_t purge_rec = purge_sys.fetch_next_rec();
-
-		if (!purge_rec.undo_rec) {
-			if (!purge_rec.roll_ptr) {
-				break;
-			}
-			ut_ad(purge_rec.roll_ptr == 1);
-			continue;
-		}
-
-		table_id_t table_id = trx_undo_rec_get_table_id(
-			purge_rec.undo_rec);
-
-		purge_node_t*& table_node = table_id_map[table_id];
-
-		if (!table_node) {
-			std::pair<dict_table_t*,MDL_ticket*> p;
-			p.first = trx_purge_table_open(table_id, mdl_context,
-						       &p.second);
-			if (p.first == reinterpret_cast<dict_table_t*>(-1)) {
-				p.first = purge_sys.close_and_reopen(
-					table_id, thd, &p.second);
-			}
-
-			thr = UT_LIST_GET_NEXT(thrs, thr);
-
-			if (!(++i % n_purge_threads)) {
-				thr = UT_LIST_GET_FIRST(
-					purge_sys.query->thrs);
-			}
-
-			table_node = static_cast<purge_node_t*>(thr->child);
-			ut_a(que_node_get_type(table_node) == QUE_NODE_PURGE);
-			ut_d(auto i=)
-			table_node->tables.emplace(table_id, p);
-			ut_ad(i.second);
-			if (p.first) {
-				goto enqueue;
-			}
-		} else if (table_node->tables[table_id].first) {
-enqueue:
-			table_node->undo_recs.push(purge_rec);
-		}
-
-		if (purge_sys.n_pages_handled() >= max_pages) {
-			break;
-		}
-	}
-
-	purge_sys.m_active = false;
-
-	ut_ad(head <= purge_sys.tail);
-
-	return head;
+  return head;
 }
 
 extern tpool::waitable_task purge_worker_task;
@@ -1353,6 +1340,8 @@ static void trx_purge_wait_for_workers_to_complete()
 TRANSACTIONAL_INLINE
 void purge_sys_t::batch_cleanup(const purge_sys_t::iterator &head)
 {
+  m_active= false;
+
   /* Release the undo pages. */
   for (auto p : pages)
     p.second->unfix();
@@ -1385,68 +1374,89 @@ Run a purge batch.
 @return number of undo log pages handled in the batch */
 TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, ulint history_size)
 {
-	ut_ad(n_tasks > 0);
+  ut_ad(n_tasks > 0);
 
-	purge_sys.clone_oldest_view();
+  purge_sys.clone_oldest_view();
 
-#ifdef UNIV_DEBUG
-	if (srv_purge_view_update_only_debug) {
-		return(0);
-	}
-#endif /* UNIV_DEBUG */
+  ut_d(if (srv_purge_view_update_only_debug) return 0);
 
-	THD* const thd = current_thd;
+  THD *const thd= current_thd;
 
-	/* Fetch the UNDO recs that need to be purged. */
-	const purge_sys_t::iterator head
-		=  trx_purge_attach_undo_recs(n_tasks, thd);
-	const size_t n_pages = purge_sys.n_pages_handled();
+  /* Fetch the UNDO recs that need to be purged. */
+  ulint n_work= 0;
+  const purge_sys_t::iterator head= trx_purge_attach_undo_recs(thd, &n_work);
+  const size_t n_pages= purge_sys.n_pages_handled();
 
-	{
-		ulint delay = n_pages ? srv_max_purge_lag : 0;
-		if (UNIV_UNLIKELY(delay)) {
-			if (delay >= history_size) {
-		no_throttle:
-				delay = 0;
-			} else if (const ulint max_delay =
-				   srv_max_purge_lag_delay) {
-				delay = std::min(max_delay,
-						 10000 * history_size / delay
-						 - 5000);
-			} else {
-				goto no_throttle;
-			}
-		}
-		srv_dml_needed_delay = delay;
-	}
+  {
+    ulint delay= n_pages ? srv_max_purge_lag : 0;
+    if (UNIV_UNLIKELY(delay))
+    {
+      if (delay >= history_size)
+      no_throttle:
+        delay= 0;
+      else if (const ulint max_delay= srv_max_purge_lag_delay)
+        delay= std::min(max_delay, 10000 * history_size / delay - 5000);
+      else
+        goto no_throttle;
+    }
+    srv_dml_needed_delay= delay;
+  }
 
-	que_thr_t* thr = nullptr;
+  ut_ad(n_tasks);
+  que_thr_t *thr= nullptr;
 
-	/* Submit tasks to workers queue if using multi-threaded purge. */
-	for (ulint i = n_tasks; --i; ) {
-		thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
-		ut_a(thr);
-		srv_que_task_enqueue_low(thr);
-		srv_thread_pool->submit_task(&purge_worker_task);
-	}
+  if (n_work)
+  {
+    for (auto i= n_work; i--; )
+    {
+      if (!thr)
+	thr= UT_LIST_GET_FIRST(purge_sys.query->thrs);
+      else
+	thr= UT_LIST_GET_NEXT(thrs, thr);
 
-	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
+      if (!thr)
+	break;
 
-	que_run_threads(thr);
+      ut_ad(thr->state == QUE_THR_COMPLETED);
+      thr->state= QUE_THR_RUNNING;
+      thr->run_node= thr;
+      thr->prev_node= thr->common.parent;
+      purge_sys.query->state= QUE_FORK_ACTIVE;
+      purge_sys.query->last_sel_node= nullptr;
+      srv_que_task_enqueue_low(thr);
+    }
 
-	trx_purge_wait_for_workers_to_complete();
+    /*
+      To reduce context switches we only submit at most n_tasks-1 worker task.
+      (we can use less tasks, if there is not enough work)
 
-	for (thr = UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
-	     thr = UT_LIST_GET_NEXT(thrs, thr)) {
-		purge_node_t* node = static_cast<purge_node_t*>(thr->child);
-		trx_purge_close_tables(node, thd);
-		node->tables.clear();
-	}
+      The coordinator does worker's job, instead of waiting and sitting idle,
+      then waits for all others to finish.
 
-	purge_sys.batch_cleanup(head);
+      This also means if innodb_purge_threads=1, the coordinator does all
+      the work alone.
+    */
+    const ulint workers{std::min(n_work, n_tasks) - 1};
+    for (ulint i= 0; i < workers; i++)
+      srv_thread_pool->submit_task(&purge_worker_task);
+    srv_purge_worker_task_low();
 
-	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);
-	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages);
+    if (workers)
+      trx_purge_wait_for_workers_to_complete();
 
-	return n_pages;
+    for (thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr && n_work--;
+         thr= UT_LIST_GET_NEXT(thrs, thr))
+    {
+      purge_node_t *node= static_cast<purge_node_t*>(thr->child);
+      trx_purge_close_tables(node, thd);
+      node->tables.clear();
+    }
+  }
+
+  purge_sys.batch_cleanup(head);
+
+  MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);
+  MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages);
+
+  return n_pages;
 }

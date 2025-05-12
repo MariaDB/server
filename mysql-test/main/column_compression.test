@@ -453,10 +453,7 @@ INSERT INTO t1 SET a=REPEAT('x',127);
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
 
-
---echo #
 --echo # End of 10.4 tests
---echo #
 
 --echo #
 --echo # MDEV-19727 Add Type_handler::Key_part_spec_init_ft
@@ -476,5 +473,50 @@ CREATE TABLE t1 (a TEXT COMPRESSED, FULLTEXT INDEX(a));
 
 --disable_prepare_warnings
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 --echo #
+create table t1 (c text compressed);
+insert into t1 values ('foo'),(repeat('a',55000));
+select length(group_concat(c order by 1)) from t1;
+create table t2 as select group_concat(c order by 1), concat(c), c from t1;
+show create table t2;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-16698 ASAN: heap-use-after-free in field_longstr::uncompress
+--echo #
+
+CREATE TABLE t5 (
+  i1 smallint(11) unsigned zerofill ,
+  e1 enum('','a') ,
+  b1 mediumblob /*!100301 COMPRESSED*/ ,
+  d2 date NOT NULL DEFAULT '1900-01-01',
+  pk bigint(20) unsigned NOT NULL DEFAULT 0,
+  d1 timestamp NULL ,
+  v1 varbinary(3362) ,
+  t1 time NOT NULL DEFAULT '00:00:00'
+);
+INSERT INTO t5 VALUES
+(00000000004,'','ufhjdtv','1992-07-25',1,'2035-06-05 09:02:48','f','13:25:21'),
+(00000000001,'','jdt','1998-07-03',2,'1994-05-05 19:59:20','','09:09:19'),
+(00000000000,'','d','2007-12-05',3,'0000-00-00 00:00:00','tvs','02:51:15');
+--disable_result_log
+SELECT GROUP_CONCAT(t5.i1, IF(t5.e1, t5.b1, t5.e1),
+    IF(t5.d1, t5.t1, t5.d1), t5.v1,
+    IF(t5.i1, t5.i1, t5.d2), t5.v1, t5.b1
+    ORDER BY 2,6 SEPARATOR ';')
+FROM (t5 JOIN t5 AS tt ON (tt.pk != t5.pk));
+DROP TABLE t5;
+--enable_result_log
+
+create table t1 (pk int not null, b1 blob compressed, v1 varbinary(100))engine=innodb;
+insert into t1 values (1,'ufhjdtv','f'),(2,'jdt',''),(3,'d','tvs');
+select group_concat(t1.v1, t1.b1 order by 1) from (t1 join t1 as tt on (tt.pk != t1.pk));
+drop table t1;
+
+CREATE TABLE t1 (a CHAR(1), b TEXT /*!100302 COMPRESSED */);
+INSERT INTO t1 VALUES ('c','n'),('d','mmmmmmmmmm');
+SELECT GROUP_CONCAT( b, a ORDER BY 2 ) AS f FROM t1;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests

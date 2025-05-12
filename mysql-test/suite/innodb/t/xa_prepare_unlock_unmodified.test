@@ -1,0 +1,98 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+SET @old_innodb_enable_xap_unlock_unmodified_for_primary_debug=
+  @@GLOBAL.innodb_enable_xap_unlock_unmodified_for_primary_debug;
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug= 1;
+
+# Make sure there is no dynamic memory allocation during getting offsets for
+# 32 columns of secondary index with 32 columns of primary index in
+# lock_rec_unlock_unmodified().
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(
+    SELECT CONCAT(
+      'CREATE TABLE t1(pk',
+         GROUP_CONCAT(seq SEPARATOR ' INT, pk'), ' INT, a',
+         GROUP_CONCAT(seq SEPARATOR ' INT, a'), ' INT, b',
+         GROUP_CONCAT(seq SEPARATOR ' INT, b'), ' INT, c INT, PRIMARY KEY(pk',
+         GROUP_CONCAT(seq SEPARATOR ', pk'), '), INDEX i1(a',
+         GROUP_CONCAT(seq SEPARATOR ', a'), '), INDEX i2(b',
+         GROUP_CONCAT(seq SEPARATOR ', b'), ')) ENGINE=InnoDB;')
+      FROM seq_1_to_32);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(
+    SELECT CONCAT(
+      'INSERT INTO t1 VALUES (',
+         GROUP_CONCAT('1' SEPARATOR ','), ',',
+         GROUP_CONCAT('1' SEPARATOR ','), ',',
+         GROUP_CONCAT('1' SEPARATOR ','), ',0), (',
+
+         GROUP_CONCAT('2' SEPARATOR ','), ',',
+         GROUP_CONCAT('1' SEPARATOR ','), ',',
+         GROUP_CONCAT('2' SEPARATOR ','), ',0), (',
+
+         GROUP_CONCAT('3' SEPARATOR ','), ',',
+         GROUP_CONCAT('2' SEPARATOR ','), ',',
+         GROUP_CONCAT('1' SEPARATOR ','), ',0), (',
+
+         GROUP_CONCAT('4' SEPARATOR ','), ',',
+         GROUP_CONCAT('2' SEPARATOR ','), ',',
+         GROUP_CONCAT('2' SEPARATOR ','), ',0);')
+      FROM seq_1_to_32);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
+SET @old_timeout= @@GLOBAL.innodb_lock_wait_timeout;
+SET GLOBAL innodb_lock_wait_timeout= 1;
+
+XA START "t1";
+UPDATE t1 FORCE INDEX (i2) SET c=c+1 WHERE a1=1 AND b1=1;
+XA END "t1";
+# If there is dynamic memory allocation during getting offsets for
+# 32 columns of secondary index with 32 columns of primary index in
+# lock_rec_unlock_unmodified(), the following statement will cause assertion
+# failure in debug build.
+XA PREPARE "t1";
+
+--connect(con1,localhost,root,,)
+# (pk, 2, 1, 0) record is X-locked but not modified in clustered index with the
+# above XA transaction, if the bug is not fixed, the following SELECT will be
+# blocked by the XA transaction if XA PREPARE does not release the unmodified
+# record.
+SELECT a1, b1, c  FROM t1 FORCE INDEX (i1) WHERE a1=2 AND b1=1 FOR UPDATE;
+--disconnect con1
+
+--connection default
+XA COMMIT "t1";
+
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug=
+  @old_innodb_enable_xap_unlock_unmodified_for_primary_debug;
+
+SET GLOBAL innodb_lock_wait_timeout= @old_timeout;
+
+# Check that we can't create secondary index with more than 32 columns.
+DELIMITER $$;
+--error ER_TOO_MANY_KEY_PARTS
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(
+    SELECT CONCAT(
+      'ALTER TABLE t1 ADD COLUMN d',
+         GROUP_CONCAT(seq SEPARATOR ' INT, ADD COLUMN d'),
+         ' INT, ADD INDEX i3(d',
+         GROUP_CONCAT(seq SEPARATOR ', d'), ');')
+      FROM seq_1_to_33);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc

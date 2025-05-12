@@ -186,6 +186,7 @@ xb_fil_cur_open(
 	}
 #else
 	err = fstat(cursor->file.m_file, &cursor->statinfo);
+	MSAN_STAT_WORKAROUND(&cursor->statinfo);
 #endif
 	if (max_file_size < (ulonglong)cursor->statinfo.st_size) {
 		cursor->statinfo.st_size = (ulonglong)max_file_size;
@@ -283,7 +284,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 	}
 
 	if (space->full_crc32()) {
-		return buf_page_is_corrupted(true, page, space->flags);
+		return buf_page_is_corrupted(false, page, space->flags);
 	}
 
 	/* Validate encrypted pages. The first page is never encrypted.
@@ -316,7 +317,7 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 		}
 
 		if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-			return buf_page_is_corrupted(true, tmp_page,
+			return buf_page_is_corrupted(false, tmp_page,
 						     space->flags);
 		}
 	}
@@ -336,11 +337,11 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 			    && cursor->zip_size)
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED
 			|| page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
-			|| buf_page_is_corrupted(true, tmp_page,
+			|| buf_page_is_corrupted(false, tmp_page,
 						 space->flags));
 	}
 
-	return buf_page_is_corrupted(true, page, space->flags);
+	return buf_page_is_corrupted(false, page, space->flags);
 }
 PRAGMA_REENABLE_CHECK_STACK_FRAME
 

@@ -32,6 +32,7 @@ let $c1=
 eval
 explain
 select o_orderkey, o_totalprice from orders where $c1;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select o_orderkey, o_totalprice from orders where $c1;
@@ -45,6 +46,7 @@ select * from orders where $c1;
 eval
 explain
 delete from orders where $c1;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 delete from orders where $c1;
@@ -180,6 +182,7 @@ let $c5=
 eval
 explain
 select c_name, c_acctbal from customer where $c5;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select c_name, c_acctbal from customer where $c5;
@@ -193,6 +196,7 @@ select * from customer where $c5;
 eval
 explain
 delete from customer where $c5;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 delete from customer where $c5;
@@ -286,6 +290,7 @@ let $c8=
 eval
 explain
 select c_name, c_acctbal from customer where $c8;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select c_name, c_acctbal from customer where $c8;
@@ -299,6 +304,7 @@ select * from customer where $c8;
 eval
 explain
 delete from customer where $c8;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 delete from customer where $c8;
@@ -354,6 +360,7 @@ let $c10=
 eval
 explain
 select c_name, c_acctbal from customer where $c10;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select c_name, c_acctbal from customer where $c10;
@@ -367,6 +374,7 @@ select * from customer where $c10;
 eval
 explain
 delete from customer where $c10;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 delete from customer where $c10;
@@ -848,12 +856,14 @@ let $c12 = l_partkey in
 eval
 explain
 select count(*) from lineitem where $c12;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select count(*) from lineitem where $c12;
 eval
 explain
 select l_partkey from lineitem where $c12;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select l_partkey from lineitem where $c12;
@@ -866,6 +876,7 @@ select * from lineitem where $c12;
 eval
 explain
 delete from lineitem where $c12;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 delete from lineitem where $c12;
@@ -965,12 +976,14 @@ let $c13 = l_partkey in (
 eval
 explain
 select count(*) from lineitem where $c13;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select count(*) from lineitem where $c13;
 eval
 explain
 select l_partkey from lineitem where $c13;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 select l_partkey from lineitem where $c13;
@@ -983,6 +996,7 @@ select * from lineitem where $c13;
 eval
 explain
 delete from lineitem where $c13;
+--source include/explain-no-costs.inc
 eval
 explain format=json
 delete from lineitem where $c13;

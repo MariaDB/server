@@ -34,8 +34,8 @@ struct worker_throbj {
 
 struct hstcpsvr : public hstcpsvr_i, private noncopyable {
   hstcpsvr(const config& c);
-  ~hstcpsvr();
-  virtual std::string start_listen();
+  ~hstcpsvr() override;
+  std::string start_listen() override;
  private:
   hstcpsvr_shared_c cshared;
   volatile hstcpsvr_shared_v vshared;
@@ -115,7 +115,7 @@ hstcpsvr::start_listen()
     arg.cshared = &cshared;
     arg.vshared = &vshared;
     arg.worker_id = i;
-    std::auto_ptr< thread<worker_throbj> > thr(
+    std::unique_ptr< thread<worker_throbj> > thr(
       new thread<worker_throbj>(arg, stack_size));
     threads.push_back_ptr(thr);
   }

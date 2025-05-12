@@ -80,6 +80,25 @@ alter sequence t1 start=100;
 show create sequence t1;
 select * from t1;
 select next value for t1;
+let $check_innodb_flags =
+select flag & 12288 is_sequence from information_schema.innodb_sys_tables
+where name='test/t1';
+evalp $check_innodb_flags;
+alter table t1 sequence=0;
+begin;
+delete from t1;
+rollback;
+evalp $check_innodb_flags;
+alter table t1 sequence=1;
+evalp $check_innodb_flags;
+alter table t1 sequence=0, algorithm=copy;
+evalp $check_innodb_flags;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 sequence=1, algorithm=inplace;
+alter table t1 sequence=1, algorithm=copy;
+evalp $check_innodb_flags;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 sequence=0, algorithm=inplace;
 drop sequence t1;
 
 --echo #
@@ -201,6 +220,63 @@ drop sequence s;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-32350 Can't selectively restore sequences using innodb tables from
+--echo # backup
+--echo #
+
+--disable_ps_protocol
+
+create sequence s2 engine=innodb;
+alter table s2 discard tablespace;
+--error ER_GET_ERRNO
+SELECT NEXTVAL(s2);
+create sequence s1 engine=innodb;
+select * from s1;
+flush tables s1 for export;
+--let $MYSQLD_DATADIR= `select @@datadir`
+--move_file $MYSQLD_DATADIR/test/s1.cfg $MYSQLD_DATADIR/test/s2.cfg
+--copy_file $MYSQLD_DATADIR/test/s1.ibd $MYSQLD_DATADIR/test/s2.ibd
+unlock tables;
+--error ER_GET_ERRNO
+select * from s2;
+--error ER_GET_ERRNO
+SELECT NEXTVAL(s2);
+--error ER_GET_ERRNO
+alter sequence s2 restart;
+alter table s2 import tablespace;
+select * from s2;
+SELECT NEXTVAL(s2);
+select NEXTVAL(s1);
+flush table s1,s2;
+select * from s1;
+select * from s2;
+drop sequence s1,s2;
+
+--enable_ps_protocol
+
+--echo #
+--echo # MDEV-35144 CREATE TABLE ... LIKE uses current innodb_compression_default instead of the create value
+--echo #
+
+set @@innodb_compression_default= off;
+create or replace sequence s engine=innodb;
+set @@innodb_compression_default= on;
+create or replace table s_import like s;
+
+show create table s;
+show create table s_import;
+
+alter table s_import discard tablespace;
+flush table s for export;
+--copy_file $MYSQLD_DATADIR/test/s.ibd $MYSQLD_DATADIR/test/s_import.ibd
+--copy_file $MYSQLD_DATADIR/test/s.cfg $MYSQLD_DATADIR/test/s_import.cfg
+UNLOCK TABLES;
+alter table s_import import tablespace;
+drop table s,s_import;
+
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-31607 ER_DUP_KEY in mysql.table_stats upon REANME on sequence

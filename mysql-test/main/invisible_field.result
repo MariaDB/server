@@ -234,7 +234,7 @@ a	d	e	f
 1	d blob	3	1
 1	d blob	41	1
 select a,b,c,d,e,f from t2;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 drop table t2;
 #now this will copy invisible fields
 create table t2 as select a,b,c,d,e,f from t1;
@@ -310,7 +310,7 @@ a	d	e	f
 1	d blob	41	1
 #v does not have invisible column;
 select a,b,c,d,e,f from v;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 insert into v values(1,21,32,4);
 select * from v;
 a	d	e	f
@@ -321,7 +321,7 @@ a	d	e	f
 1	d blob	41	1
 1	21	32	4
 insert into v(a,b,c,d,e,f) values(1,12,3,4,5,6);
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'INSERT INTO'
 drop view v;
 create view v as select a,b,c,d,e,f from t1;
 desc v;

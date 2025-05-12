@@ -92,30 +92,30 @@ public:
 private:
   /** Initialise the persistent storage of the doublewrite buffer.
   @param header   doublewrite page header in the TRX_SYS page */
-  inline void init(const byte *header);
+  inline void init(const byte *header) noexcept;
 
   /** Flush possible buffered writes to persistent storage. */
-  bool flush_buffered_writes(const ulint size);
+  bool flush_buffered_writes(const ulint size) noexcept;
 
 public:
   /** Initialise the doublewrite buffer data structures. */
-  void init();
+  void init() noexcept;
   /** Create or restore the doublewrite buffer in the TRX_SYS page.
   @return whether the operation succeeded */
-  bool create();
+  bool create() noexcept;
   /** Free the doublewrite buffer. */
-  void close();
+  void close() noexcept;
 
   /** Acquire the mutex */
-  void lock() { mysql_mutex_lock(&mutex); }
+  void lock() noexcept { mysql_mutex_lock(&mutex); }
   /** @return the number of completed batches */
-  ulint batches() const
+  ulint batches() const noexcept
   { mysql_mutex_assert_owner(&mutex); return writes_completed; }
   /** @return the number of final pages written */
-  ulint written() const
+  ulint written() const noexcept
   { mysql_mutex_assert_owner(&mutex); return pages_written; }
   /** Release the mutex */
-  void unlock() { mysql_mutex_unlock(&mutex); }
+  void unlock() noexcept { mysql_mutex_unlock(&mutex); }
 
   /** Initialize the doublewrite buffer memory structure on recovery.
   If we are upgrading from a version before MySQL 4.1, then this
@@ -126,30 +126,30 @@ public:
   @param file File handle
   @param path Path name of file
   @return DB_SUCCESS or error code */
-  dberr_t init_or_load_pages(pfs_os_file_t file, const char *path);
+  dberr_t init_or_load_pages(pfs_os_file_t file, const char *path) noexcept;
 
   /** Process and remove the double write buffer pages for all tablespaces. */
-  void recover();
+  void recover() noexcept;
 
   /** Update the doublewrite buffer on data page write completion. */
-  void write_completed();
+  void write_completed() noexcept;
   /** Flush possible buffered writes to persistent storage.
   It is very important to call this function after a batch of writes has been
   posted, and also when we may have to wait for a page latch!
   Otherwise a deadlock of threads can occur. */
-  void flush_buffered_writes();
+  void flush_buffered_writes() noexcept;
   /** Update the doublewrite buffer on write batch completion
   @param request  the completed batch write request */
-  void flush_buffered_writes_completed(const IORequest &request);
+  void flush_buffered_writes_completed(const IORequest &request) noexcept;
 
   /** Schedule a page write. If the doublewrite memory buffer is full,
   flush_buffered_writes() will be invoked to make space.
   @param request    asynchronous write request
   @param size       payload size in bytes */
-  void add_to_batch(const IORequest &request, size_t size);
+  void add_to_batch(const IORequest &request, size_t size) noexcept;
 
   /** Determine whether the doublewrite buffer has been created */
-  bool is_created() const
+  bool is_created() const noexcept
   { return UNIV_LIKELY(block1 != page_id_t(0, 0)); }
 
   /** @return whether the doublewrite buffer is in use */
@@ -166,7 +166,7 @@ public:
   }
 
   /** @return whether a page identifier is part of the doublewrite buffer */
-  bool is_inside(const page_id_t id) const
+  bool is_inside(const page_id_t id) const noexcept
   {
     if (!is_created())
       return false;
@@ -178,13 +178,16 @@ public:
   }
 
   /** Wait for flush_buffered_writes() to be fully completed */
-  void wait_flush_buffered_writes()
+  void wait_flush_buffered_writes() noexcept
   {
     mysql_mutex_lock(&mutex);
     while (batch_running)
       my_cond_wait(&cond, &mutex.m_mutex);
     mysql_mutex_unlock(&mutex);
   }
+
+  /** Print double write state information. */
+  ATTRIBUTE_COLD void print_info() const noexcept;
 };
 
 /** The doublewrite buffer */

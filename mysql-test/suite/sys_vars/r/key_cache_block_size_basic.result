@@ -126,11 +126,11 @@ SELECT @@key_cache_block_size;
 @@key_cache_block_size
 1024
 SELECT local.key_cache_block_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.key_cache_block_size;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT key_cache_block_size = @@session.key_cache_block_size;
-ERROR 42S22: Unknown column 'key_cache_block_size' in 'field list'
+ERROR 42S22: Unknown column 'key_cache_block_size' in 'SELECT'
 SET @@global.key_cache_block_size = @start_value;
 SELECT @@global.key_cache_block_size;
 @@global.key_cache_block_size

@@ -2,6 +2,7 @@
 --source include/have_innodb.inc
 --source include/have_file_key_management_plugin.inc
 
+--disable_cursor_protocol
 SELECT CAST(variable_value AS INT) INTO @old_encrypted
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_temp_blocks_encrypted';
@@ -9,6 +10,7 @@ WHERE variable_name = 'innodb_encryption_n_temp_blocks_encrypted';
 SELECT CAST(variable_value AS INT) INTO @old_decrypted
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_temp_blocks_decrypted';
+--enable_cursor_protocol
 
 CREATE TEMPORARY TABLE t1(f1 CHAR(200), f2 CHAR(200)) ENGINE=InnoDB;
 INSERT INTO t1 (f1,f2) SELECT '', '' FROM seq_1_to_8192;

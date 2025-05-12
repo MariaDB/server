@@ -24,34 +24,74 @@
 #define SPIDER_SIMPLE_RECORDS             3
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
 
+struct TABLE;
+
+/*
+  The SPIDER_CONN_LOOP_CHECK has been added to the loop_check queue to
+  check for self-reference.
+*/
 #define SPIDER_LOP_CHK_QUEUED             (1 << 0)
+/*
+  The SPIDER_CONN_LOOP_CHECK is a merge of multiple
+  SPIDER_CONN_LOOP_CHECKs with the same data node table
+*/
 #define SPIDER_LOP_CHK_MERAGED            (1 << 1)
+/*
+  The SPIDER_CONN_LOOP_CHECK has been ignored because it has already
+  been marked as checked
+*/
 #define SPIDER_LOP_CHK_IGNORED            (1 << 2)
 
+/* Used for self-reference check. */
 typedef struct st_spider_conn_loop_check
 {
+  /*
+    Could be 0, SPIDER_LOP_CHK_QUEUED, SPIDER_LOP_CHK_MERAGED, or
+    SPIDER_LOP_CHK_IGNORED
+  */
   uint               flag;
+  /* hash value of to_name, used for the hash conn->loop_checked */
   my_hash_value_type hash_value_to;
-  my_hash_value_type hash_value_full;
-  LEX_CSTRING        from_name;
+  /*
+    The fully qualified name of the current spider table, which will
+    also be used to construct the user var name to set in the data
+    node
+  */
   LEX_CSTRING        cur_name;
+  /*
+    The fully qualified data node table name, also used as key in
+    conn->loop_check_queue
+  */
   LEX_CSTRING        to_name;
+  /*
+    A concatenation of from_value, cur_name and to_name, used as key
+    in hash conn->loop_checked
+  */
   LEX_CSTRING        full_name;
+  /*
+    The first component of the uservar value on the current server,
+    consisting of information of a table that uses the current spider
+    table as a data node
+  */
   LEX_CSTRING        from_value;
+  /*
+    The uservar value to set in the data node, a concatenation of info
+    of tables, mac addresses and process ids of tables that use the
+    current spider table as the data node
+  */
   LEX_CSTRING        merged_value;
-  st_spider_conn_loop_check *next;
 } SPIDER_CONN_LOOP_CHECK;
 
-uchar *spider_conn_get_key(
-  SPIDER_CONN *conn,
+const uchar *spider_conn_get_key(
+  const void *conn,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
-uchar *spider_ipport_conn_get_key(
-  SPIDER_IP_PORT_CONN *ip_port,
+const uchar *spider_ipport_conn_get_key(
+  const void *ip_port,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 int spider_conn_init(
@@ -399,3 +439,11 @@ SPIDER_CONN* spider_get_conn_from_idle_connection
  int *error_num
  );
 void spider_free_ipport_conn(void *info);
+
+void spider_lock_before_query(SPIDER_CONN *conn, int *need_mon);
+
+int spider_unlock_after_query(SPIDER_CONN *conn, int ret);
+
+int spider_unlock_after_query_1(SPIDER_CONN *conn);
+
+int spider_unlock_after_query_2(SPIDER_CONN *conn, ha_spider *spider, int link_idx, TABLE *table);

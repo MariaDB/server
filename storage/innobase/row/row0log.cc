@@ -3821,7 +3821,7 @@ UndorecApplier::get_old_rec(const dtuple_t &tuple, dict_index_t *index,
     if (is_same(roll_ptr))
       return version;
     trx_undo_prev_version_build(version, index, *offsets, heap, &prev_version,
-                                nullptr, nullptr, 0);
+                                &mtr, 0, nullptr, nullptr);
     version= prev_version;
   }
   while (version);
@@ -3990,7 +3990,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
       copy_rec= rec_copy(mem_heap_alloc(
         heap, rec_offs_size(offsets)), match_rec, offsets);
     trx_undo_prev_version_build(match_rec, clust_index, offsets, heap,
-                                &prev_version, nullptr, nullptr, 0);
+                                &prev_version, &mtr, 0, nullptr, nullptr);
 
     prev_offsets= rec_get_offsets(prev_version, clust_index, prev_offsets,
                                   clust_index->n_core_fields,
@@ -4029,20 +4029,19 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
   if (!(this->cmpl_info & UPD_NODE_NO_ORD_CHANGE))
   {
     for (ulint i = 0; i < dict_table_get_n_v_cols(table); i++)
-       dfield_get_type(
-         dtuple_get_nth_v_field(row, i))->mtype = DATA_MISSING;
-  }
-
-  if (is_update)
-  {
-    old_row= dtuple_copy(row, heap);
-    row_upd_replace(old_row, &old_ext, clust_index, update, heap);
+     dfield_get_type(dtuple_get_nth_v_field(row, i))->mtype = DATA_MISSING;
   }
 
   if (table->n_v_cols)
     row_upd_replace_vcol(row, table, update, false, nullptr,
                          (cmpl_info & UPD_NODE_NO_ORD_CHANGE)
                          ? nullptr : undo_rec);
+
+  if (is_update)
+  {
+    old_row= dtuple_copy(row, heap);
+    row_upd_replace(old_row, &old_ext, clust_index, update, heap);
+  }
 
   bool success= true;
   dict_index_t *index= dict_table_get_next_index(clust_index);

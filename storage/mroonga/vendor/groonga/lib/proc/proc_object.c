@@ -69,13 +69,15 @@ command_object_remove(grn_ctx *ctx,
                       grn_obj **args,
                       grn_user_data *user_data)
 {
-  grn_obj *db;
   grn_obj *name;
   grn_bool force;
   grn_obj *target;
   grn_bool failed_to_open;
 
-  db = grn_ctx_db(ctx);
+  if (!grn_ctx_db(ctx)) {
+    GRN_PLUGIN_ERROR(ctx, GRN_INVALID_ARGUMENT, "invalid db assigned");
+    return NULL;
+  }
   name = grn_plugin_proc_get_var(ctx, user_data, "name", -1);
   force = grn_plugin_proc_get_var_bool(ctx, user_data, "force", -1, GRN_FALSE);
 

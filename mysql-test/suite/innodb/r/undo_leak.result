@@ -1,0 +1,25 @@
+# restart: --debug_dbug=d,undo_segment_leak
+SET GLOBAL INNODB_FILE_PER_TABLE=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_4096;
+UPDATE t1 SET f1 = f1 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f2 = f2 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f1 = f2 + 1 WHERE f1 > 1000;
+UPDATE t1 SET f2 = f1 + 1 WHERE f1 > 1000;
+DELETE FROM t1;
+DROP TABLE t1;
+set GLOBAL innodb_fast_shutdown=0;
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	79691776
+# restart
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	12582912

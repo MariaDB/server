@@ -1,0 +1,68 @@
+SET @old_innodb_enable_xap_unlock_unmodified_for_primary_debug=
+@@GLOBAL.innodb_enable_xap_unlock_unmodified_for_primary_debug;
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug= 1;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+CREATE TABLE t(id INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+InnoDB		0 transactions not purged
+INSERT INTO t VALUES (10), (20), (30);
+connect prevent_purge,localhost,root,,;
+start transaction with consistent snapshot;
+connection default;
+DELETE FROM t WHERE id = 20;
+SET @@GLOBAL.debug_dbug=
+"+d,enable_row_purge_remove_clust_if_poss_low_sync_point";
+XA START '1';
+UPDATE t SET id=40 WHERE id=30;
+XA END '1';
+connection prevent_purge;
+COMMIT;
+SET DEBUG_SYNC=
+'now WAIT_FOR row_purge_remove_clust_if_poss_low_before_delete';
+SET @@GLOBAL.debug_dbug=
+"-d,enable_row_purge_remove_clust_if_poss_low_sync_point";
+connection default;
+SET DEBUG_SYNC=
+"lock_rec_unlock_unmodified_start SIGNAL lock_sys_latched WAIT_FOR cont";
+XA PREPARE '1';
+connection prevent_purge;
+SET DEBUG_SYNC= 'now SIGNAL row_purge_remove_clust_if_poss_low_cont';
+SET DEBUG_SYNC= 'now SIGNAL cont';
+disconnect prevent_purge;
+connection default;
+XA COMMIT '1';
+SET DEBUG_SYNC="RESET";
+TRUNCATE TABLE t;
+InnoDB		0 transactions not purged
+INSERT INTO t VALUES (10), (20), (30);
+connect prevent_purge,localhost,root,,;
+start transaction with consistent snapshot;
+connection default;
+DELETE FROM t WHERE id = 20;
+SET @@GLOBAL.debug_dbug=
+"+d,enable_row_purge_remove_clust_if_poss_low_sync_point";
+SET @@GLOBAL.debug_dbug="+d,skip_lock_release_on_prepare_try";
+XA START '1';
+UPDATE t SET id=40 WHERE id=30;
+XA END '1';
+connection prevent_purge;
+COMMIT;
+SET DEBUG_SYNC=
+'now WAIT_FOR row_purge_remove_clust_if_poss_low_before_delete';
+SET @@GLOBAL.debug_dbug=
+"-d,enable_row_purge_remove_clust_if_poss_low_sync_point";
+connection default;
+SET DEBUG_SYNC=
+"lock_rec_unlock_unmodified_start SIGNAL lock_sys_latched WAIT_FOR cont";
+XA PREPARE '1';
+connection prevent_purge;
+SET DEBUG_SYNC= 'now SIGNAL row_purge_remove_clust_if_poss_low_cont';
+SET DEBUG_SYNC= 'now SIGNAL cont';
+disconnect prevent_purge;
+connection default;
+XA COMMIT '1';
+SET DEBUG_SYNC="RESET";
+TRUNCATE TABLE t;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+DROP TABLE t;
+SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug=
+@old_innodb_enable_xap_unlock_unmodified_for_primary_debug;

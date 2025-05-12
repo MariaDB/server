@@ -50,7 +50,7 @@ on slave must be 2
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-4
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 connection server_1;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
@@ -136,7 +136,7 @@ on slave must be 5
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-2-7
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 connection server_2;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..
@@ -221,7 +221,7 @@ on slave must be 7
 SELECT @@GLOBAL.gtid_current_pos;
 @@GLOBAL.gtid_current_pos
 0-1-9
-# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1
+# restart: --skip-slave-start=1 --rpl-semi-sync-slave-enabled=1 --init-rpl-role=SLAVE
 connection server_1;
 # Ensuring variable rpl_semi_sync_slave_enabled is ON..
 # Ensuring status rpl_semi_sync_slave_status is OFF..

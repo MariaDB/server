@@ -552,10 +552,10 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
     @retval +1                  first_rec is greater than second_rec
 */
 
-int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
+int key_rec_cmp(const KEY *const *key, const uchar *first_rec,
+                const uchar *second_rec)
 {
-  KEY **key= (KEY**) key_p;
-  KEY *key_info= *(key++);                     // Start with first key
+  const KEY *key_info= *(key++);                     // Start with first key
   uint key_parts, key_part_num;
   KEY_PART_INFO *key_part= key_info->key_part;
   uchar *rec0= key_part->field->ptr - key_part->offset;
@@ -646,10 +646,10 @@ next_loop:
     @retval +1  key1 > key2 
 */
 
-int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2, 
+int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
                   uint tuple_length)
 {
-  uchar *key1_end= key1 + tuple_length;
+  const uchar *key1_end= key1 + tuple_length;
   int UNINIT_VAR(len);
   int res;
   for (;key1 < key1_end; key1 += len, key2 += len, part++)
@@ -675,7 +675,6 @@ int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2,
   }
   return 0;
 }
-
 
 /**
   Get hash value for the key from a key buffer 
@@ -758,13 +757,13 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 
     if (is_string)
     {
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length= cs->charpos(pos + pack_length,
-                                        pos + pack_length + length,
-                                        length / cs->mbmaxlen);
-        set_if_smaller(length, char_length);
-      }
+      /*
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+
+        In this case, the passed key tuple is already a prefix, no
+        special handling is required.
+      */
       cs->hash_sort(pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
@@ -868,25 +867,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Compare the strings taking into account length in characters
-        and collation
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+        In this case, we get properly truncated prefixes here.
       */
-      size_t byte_len1= length1, byte_len2= length2;
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length1= cs->charpos(pos1 + pack_length,
-                                         pos1 + pack_length + length1,
-                                         length1 / cs->mbmaxlen);
-        size_t char_length2= cs->charpos(pos2 + pack_length,
-                                         pos2 + pack_length + length2,
-                                         length2 / cs->mbmaxlen);
-        set_if_smaller(length1, char_length1);
-        set_if_smaller(length2, char_length2);
-      }
-      if (length1 != length2 ||
-          cs->strnncollsp(pos1 + pack_length, byte_len1,
-                          pos2 + pack_length, byte_len2))
-        return TRUE;
+      if (cs->strnncollsp(pos1 + pack_length, length1,
+                          pos2 + pack_length, length2))
+        return true;
       key1+= pack_length; key2+= pack_length;
     }
     else

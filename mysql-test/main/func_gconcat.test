@@ -409,11 +409,14 @@ drop table t1;
 #
 create table t1 (f1 int unsigned, f2 varchar(255));
 insert into t1 values (1,repeat('a',255)),(2,repeat('b',255));
+#Enable after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 --disable_view_protocol
 select f2,group_concat(f1) from t1 group by f2;
 --enable_view_protocol
 --disable_metadata
+--enable_cursor_protocol
 drop table t1;
 
 # End of 4.1 tests
@@ -499,11 +502,14 @@ set names latin1;
 #
 create table t1 (f1 int unsigned, f2 varchar(255));
 insert into t1 values (1,repeat('a',255)),(2,repeat('b',255));
+#Enable after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 --disable_view_protocol
 select f2,group_concat(f1) from t1 group by f2;
 --enable_view_protocol
 --disable_metadata
+--enable_cursor_protocol
 drop table t1;
 
 #
@@ -950,10 +956,7 @@ SELECT * FROM (SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLU
 SELECT * FROM v1;
 DROP VIEW v1;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30');
---enable_view_protocol
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30') as exp;
 CREATE VIEW v1 AS
 SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30');
 SELECT * FROM v1;

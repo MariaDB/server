@@ -636,6 +636,7 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
   my_uca_scanner_param param;
   int space_weight= my_space_weight(&cs->uca->level[0]);
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
   my_uca_scanner_init_any(&scanner, s, slen);
@@ -691,6 +692,7 @@ MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
   my_uca_scanner scanner;
   my_uca_scanner_param param;
   register ulong m1= *nr1, m2= *nr2;
+  DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
   my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
   my_uca_scanner_init_any(&scanner, s, slen);
@@ -961,7 +963,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_uca,
-  my_ci_get_collation_name_uca
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 
@@ -987,7 +990,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_uca,
-  my_ci_get_collation_name_uca
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 
@@ -1011,7 +1015,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
   my_min_str_mb_simple,
   my_max_str_mb_simple,
   my_ci_get_id_uca,
-  my_ci_get_collation_name_uca
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 
@@ -1035,7 +1040,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
   my_min_str_mb_simple_nopad,
   my_max_str_mb_simple,
   my_ci_get_id_uca,
-  my_ci_get_collation_name_uca
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 

@@ -140,10 +140,22 @@ public:
     DBUG_ASSERT(idx < array.elements);
     return *(((Elem*)array.buffer) + idx);
   }
+
   /// Const variant of at(), which cannot change data
   const Elem& at(size_t idx) const
   {
     return *(((Elem*)array.buffer) + idx);
+  }
+
+  Elem& operator[](size_t idx)
+  {
+    return at(idx);
+  }
+
+  /// Const variant of operator[]
+  const Elem& operator[](size_t idx) const
+  {
+    return at(idx);
   }
 
   /// @returns pointer to first element
@@ -168,6 +180,19 @@ public:
   const Elem *back() const
   {
     return ((const Elem*)array.buffer) + array.elements - 1;
+  }
+
+  static const size_t NOT_FOUND= (size_t)-1;
+
+  /// @returns index of the first element equal to el, or NOT_FOUND
+  size_t find_first(const Elem &el) const
+  {
+    for (size_t i=0; i < size() ; i++)
+    {
+      if (el == at(i))
+        return i;
+    }
+    return NOT_FOUND;
   }
 
   size_t size() const { return array.elements; }
@@ -279,17 +304,14 @@ public:
     delete_dynamic(&array);
   }
 
-  typedef int (*CMP_FUNC)(const Elem *el1, const Elem *el2);
-
-  void sort(CMP_FUNC cmp_func)
+  void sort(int (*cmp_func)(const void *, const void *))
   {
-    my_qsort(array.buffer, array.elements, sizeof(Elem), (qsort_cmp)cmp_func);
+    my_qsort(array.buffer, array.elements, sizeof(Elem), cmp_func);
   }
 
-  typedef int (*CMP_FUNC2)(void *, const Elem *el1, const Elem *el2);
-  void sort(CMP_FUNC2 cmp_func, void *data)
+  void sort(qsort_cmp2 cmp_func, void *data)
   {
-    my_qsort2(array.buffer, array.elements, sizeof(Elem), (qsort2_cmp)cmp_func, data);
+    my_qsort2(array.buffer, array.elements, sizeof(Elem), cmp_func, data);
   }
 };
 

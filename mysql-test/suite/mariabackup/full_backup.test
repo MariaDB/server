@@ -2,12 +2,15 @@
 
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
+SET GLOBAL innodb_max_purge_lag_wait=0;
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 > $backup_log 2>&1;
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 --innodb-log-write-ahead-size=4095 > $backup_log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --parallel=10 --innodb-log-write-ahead-size=10000 > $backup_log 2>&1;
 --enable_result_log
 
 # The following warning must not appear after MDEV-27343 fix
@@ -16,6 +19,8 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=
 --source include/search_pattern_in_file.inc
 --remove_file $backup_log
 
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 INSERT INTO t VALUES(2);
 
 

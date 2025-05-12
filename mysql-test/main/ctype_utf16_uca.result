@@ -5327,8 +5327,8 @@ INSERT INTO t1 (s1) VALUES
 (_ucs2 0x1011103910191004103A1038 /* cooked rice */),
 (_ucs2 0x101C1000103A10181000103A),
 (_ucs2 0x101C103910181000103A /* tea */);
-SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) FROM t1 ORDER BY id;
-id	IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2))))
+SELECT id, IF(LEFT(s1,1)='-',s1,CONCAT(HEX(WEIGHT_STRING(s1)),'\t', HEX(CONVERT(s1 USING ucs2)))) as exp FROM t1 ORDER BY id;
+id	exp
 1	2259	108C
 2	22593ACB	1037
 3	22593ACC	1038
@@ -7413,20 +7413,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix
@@ -7551,20 +7551,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16_unicode_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix
@@ -7690,20 +7690,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix
@@ -7828,20 +7828,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16_unicode_520_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16_unicode_520_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 0061006200630020
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16_unicode_520_nopad_ci', 'abc  ')) as exp;
+exp
 00610062006300200020
 #
 # Collation mix

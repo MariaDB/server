@@ -24,6 +24,7 @@
 */
 
 #ifdef _ARCH_PWR8
+#ifdef __GLIBC__
 #include <sys/platform/ppc.h>
 /* Very low priority */
 #define HMT_very_low() __ppc_set_ppr_very_low()
@@ -37,6 +38,18 @@
 #define HMT_medium_high() __ppc_set_ppr_med_high()
 /* High priority */
 #define HMT_high() asm volatile("or 3,3,3")
+#else /* GLIBC */
+#if defined(__FreeBSD__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
+#define HMT_very_low() __asm__ volatile ("or 31,31,31")
+#define HMT_low() __asm__ volatile ("or 1,1,1")
+#define HMT_medium_low() __asm__ volatile ("or 6,6,6")
+#define HMT_medium() __asm__ volatile ("or 2,2,2")
+#define HMT_medium_high() __asm__ volatile ("or 5,5,5")
+#define HMT_high() asm volatile("or 3,3,3")
+#endif /* GLIBC */
 #else
 #define HMT_very_low()
 #define HMT_low()
@@ -81,14 +94,18 @@ static inline void MY_RELAX_CPU(void)
   __asm__ __volatile__ ("pause");
 #endif
 #elif defined(_ARCH_PWR8)
-  __ppc_get_timebase();
-#elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
+  /* Changed from __ppc_get_timebase for musl and clang compatibility */
+  __builtin_ppc_get_timebase();
+#elif defined __GNUC__ && defined __riscv
+  /* The GCC-only __builtin_riscv_pause() or the pause instruction is
+  encoded like a fence instruction with special parameters. On RISC-V
+  implementations that do not support arch=+zihintpause this
+  instruction could be interpreted as a more expensive memory fence;
+  it should not be an illegal instruction. */
+  __asm__ volatile(".long 0x0100000f" ::: "memory");
+#elif defined __GNUC__
   /* Mainly, prevent the compiler from optimizing away delay loops */
   __asm__ __volatile__ ("":::"memory");
-#else
-  int32 var, oldval = 0;
-  my_atomic_cas32_strong_explicit(&var, &oldval, 1, MY_MEMORY_ORDER_RELAXED,
-                                  MY_MEMORY_ORDER_RELAXED);
 #endif
 }
 

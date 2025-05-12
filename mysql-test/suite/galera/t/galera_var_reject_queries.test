@@ -5,10 +5,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-if (`select version() not like '10.10.3-%'`) {
-  skip disabled until new C/C;
-}
-
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
@@ -26,7 +22,7 @@ SELECT * FROM t1;
 # Original behavior was lost connection,
 # but since 10.1, we allow controlling connection to remain alive
 #
---error 0,2013
+--error 0,2013,2026
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
 
 --connection node_1a

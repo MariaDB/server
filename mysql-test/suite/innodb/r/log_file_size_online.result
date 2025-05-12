@@ -19,8 +19,22 @@ SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	4194304
 FOUND 1 /InnoDB: Resized log to 4\.000MiB/ in mysqld.1.err
-UPDATE t SET b='' WHERE a<10;
+SET @save=@@global.innodb_log_file_buffering;
+SET GLOBAL innodb_log_file_buffering=OFF;
+SET GLOBAL innodb_log_file_buffering=ON;
+SET GLOBAL innodb_log_file_buffering=@save;
+SET GLOBAL innodb_log_file_mmap=OFF;
+Got one of the listed errors
+connect con1,localhost,root;
+SET GLOBAL innodb_log_file_size=7340032;
+connection default;
+KILL QUERY @id;
+connection con1;
+connection default;
 SET GLOBAL innodb_log_file_size=5242880;
+connection con1;
+UPDATE t SET b='' WHERE a<10;
+connection default;
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880
@@ -28,6 +42,9 @@ SELECT global_value FROM information_schema.system_variables
 WHERE variable_name = 'innodb_log_file_size';
 global_value
 5242880
+connection con1;
+disconnect con1;
+connection default;
 # restart
 SELECT * FROM t WHERE a<10;
 a	b
@@ -40,8 +57,20 @@ a	b
 7	
 8	
 9	
+SELECT COUNT(*),LENGTH(b) FROM t GROUP BY b;
+COUNT(*)	LENGTH(b)
+9	0
+19991	255
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880
-FOUND 1 /InnoDB: Resized log to 5\.000MiB/ in mysqld.1.err
+SET GLOBAL innodb_log_file_size=6291456;
+SHOW VARIABLES LIKE 'innodb_log_file_size';
+Variable_name	Value
+innodb_log_file_size	6291456
+SET GLOBAL innodb_log_file_size=5242880;
+SHOW VARIABLES LIKE 'innodb_log_file_size';
+Variable_name	Value
+innodb_log_file_size	5242880
+FOUND 1 /InnoDB: Resized log to 6\.000MiB/ in mysqld.1.err
 DROP TABLE t;

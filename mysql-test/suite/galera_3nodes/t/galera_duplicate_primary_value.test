@@ -1,0 +1,82 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/big_test.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1d, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1e, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--connection node_1
+CREATE TABLE t1(a int not null primary key auto_increment, b int) engine=innodb;
+INSERT INTO t1(b) VALUES (1);
+
+--connection node_1c
+begin;
+insert into t1 values (2,2);
+
+--connection node_1d
+begin;
+insert into t1 values (3,3);
+
+--connection node_1a
+SET GLOBAL DEBUG_DBUG='+d,wsrep_after_kill';
+
+--connection node_2
+insert into t1 values (2,6);
+
+--connection node_1a
+SET SESSION wsrep_sync_wait=0;
+SET DEBUG_SYNC='now WAIT_FOR wsrep_after_kill_reached';
+SET GLOBAL DEBUG_DBUG='';
+SET GLOBAL DEBUG_DBUG='+d,wsrep_after_kill_2';
+
+--connection node_3
+insert into t1 values (3,9);
+
+--connection node_1a
+SET DEBUG_SYNC='now WAIT_FOR wsrep_after_kill_reached_2';
+SET GLOBAL DEBUG_DBUG='';
+SET DEBUG_SYNC='now SIGNAL wsrep_after_kill_continue';
+
+--connection node_1c
+--error 1213
+COMMIT;
+
+--connection node_1a
+SET GLOBAL DEBUG_DBUG='';
+SET DEBUG_SYNC='now SIGNAL wsrep_after_kill_continue_2';
+
+--connection node_1d
+--error 1213
+COMMIT;
+
+--connection node_2
+SELECT * from t1;
+
+--connection node_3
+SELECT * from t1;
+
+--connection node_1a
+SET DEBUG_SYNC = reset;
+
+--connection node_1e
+set debug_sync = reset;
+
+--connection node_1
+SELECT * from t1;
+
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_1c
+--disconnect node_1d
+--disconnect node_1e
+
+drop table t1;

@@ -33,6 +33,93 @@ const DTCollation &DTCollation_numeric::singleton()
   return tmp;
 }
 
+
+bool
+DTCollation::merge_charset_and_collation(Sql_used *used,
+                                         const Charset_collation_map_st &map,
+                                         CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl,
+                                         my_repertoire_t repertoire)
+{
+  Lex_exact_charset_opt_extended_collate cscl(cs, true);
+  if (cscl.merge_collation_override(used, map, cl))
+    return true;
+  set(cscl.collation().charset_info(), DERIVATION_EXPLICIT, repertoire);
+  return false;
+}
+
+
+bool DTCollation::merge_collation(Sql_used *used,
+                                  const Charset_collation_map_st &map,
+                                  const Lex_extended_collation_st &cl,
+                                  my_repertoire_t repertoire,
+                                  bool allow_ignorable_with_context_collation)
+{
+  if (derivation != DERIVATION_IGNORABLE)
+  {
+    // A known character set + an extended collation
+    return merge_charset_and_collation(used, map, collation, cl, repertoire);
+  }
+
+  if (cl.type() == Lex_extended_collation::TYPE_EXACT)
+  {
+    /*
+      An unknown character set + an exact collation.
+      Just use this exact collation.
+      Examples:
+      - Expressions derived from an explicit NULL:
+          SELECT NULL         COLLATE utf8mb4_general_ci;
+          SELECT CONCAT(NULL) COLLATE utf8mb4_general_ci;
+        Any collation is applicable to an explicit NULL.
+
+      - Expressions with PS parameters (at PREPARE time, not bound yet)
+          SELECT ?         COLLATE utf8mb4_general_ci;
+          SELECT CONCAT(?) COLLATE utf8mb4_general_ci;
+        The collation will be checked for applicability to the
+        character set of the actual bound parameter at the EXECUTE time.
+        We're now in PREPARE: let's assume it will be applicable.
+    */
+    set(cl.charset_info(), DERIVATION_EXPLICIT, repertoire);
+    return false;
+  }
+
+  // An unknown character set + a contextually typed collation
+  if (allow_ignorable_with_context_collation)
+  {
+    /*
+      Expressions with non-bound PS parameters, PREPARE time.
+        SELECT ?         COLLATE uca1400_ai_ci;
+        SELECT CONCAT(?) COLLATE uca1400_ai_ci;
+      There is a chance the character set of the actual bound parameter
+      will be known at the EXECUTE time (unless an explicit NULL is bound).
+
+      For now let's use utf8mb4 to resolve collations like uca1400_ai_ci.
+      The real character set of the actual bound parameter expression will be
+      later used to resolve the collation again, during the EXECUTE time.
+    */
+    return merge_charset_and_collation(used, map,
+                                       &my_charset_utf8mb4_general_ci,
+                                       cl, repertoire);
+  }
+
+  /*
+    Expressions with an unknown character set:
+    - Either without PS parameters at all:
+        SELECT NULL         COLLATE uca1400_ai_ci;
+        SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+    - Or with PS parameters bound to NULL at EXECUTE time:
+        EXECUTE IMMEDIATE
+          'SELECT ? COLLATE uca1400_ai_ci' USING NULL;
+        EXECUTE IMMEDIATE
+          'SELECT CONCAT(?) COLLATE uca1400_ai_ci' USING NULL;
+        EXECUTE IMMEDIATE
+          'SELECT ? COLLATE uca1400_ai_ci' USING CONCAT(NULL);
+  */
+  my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "NULL");
+  return true;
+}
+
+
 Named_type_handler<Type_handler_row> type_handler_row("row");
 
 Named_type_handler<Type_handler_null> type_handler_null("null");
@@ -1213,7 +1300,7 @@ uint32 Type_numeric_attributes::find_max_octet_length(Item **item, uint nitems)
 {
   uint32 octet_length= 0;
   for (uint i= 0; i < nitems ; i++)
-    set_if_bigger(octet_length, item[i]->max_length);
+    set_if_bigger(octet_length, item[i]->character_octet_length());
   return octet_length;
 }
 
@@ -4359,6 +4446,13 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 }
 
 
+int Type_handler_bool::Item_save_in_field(Item *item, Field *field,
+                                          bool no_conversions) const
+{
+  return item->save_bool_in_field(field, no_conversions);
+}
+
+
 /***********************************************************************/
 
 bool Type_handler_row::
@@ -4517,6 +4611,12 @@ Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
+}
+
+Item_cache *
+Type_handler_bool::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_bool(thd);
 }
 
 Item_cache *
@@ -5149,7 +5249,22 @@ bool Type_handler_real_result::Item_val_bool(Item *item) const
 
 bool Type_handler_int_result::Item_val_bool(Item *item) const
 {
-  return item->val_int() != 0;
+  /*
+    Some Item descendants have DBUG_ASSERT(!is_cond()) is their
+    val_int() implementations, which means val_int() must not be used
+    to evaluate a condition: val_bool() must be used instead.
+    If we come here, it means item's class does not override val_bool()
+    and we need to evaluate the boolean value from the integer value
+    as a fall-back method. To avoid the assert, let's hide the IS_COND flag.
+    Eventually we'll need to implement val_bool() in all Item descendants and
+    remove the trick with flags. This change would be too ricky for 10.6.
+    Let's do it in a later version.
+  */
+  item_base_t flags= item->base_flags;
+  item->base_flags &= ~item_base_t::IS_COND;
+  bool rc= item->val_int() != 0;
+  item->base_flags= flags;
+  return rc;
 }
 
 bool Type_handler_temporal_result::Item_val_bool(Item *item) const
@@ -5844,9 +5959,9 @@ cmp_item *Type_handler_timestamp_common::make_cmp_item(THD *thd,
 
 /***************************************************************************/
 
-static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
+static int srtcmp_in(void *cs_, const void *x_, const void *y_)
 {
-  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  CHARSET_INFO *cs= static_cast<CHARSET_INFO *>(cs_);
   const String *x= static_cast<const String *>(x_);
   const String *y= static_cast<const String *>(y_);
   return cs->strnncollsp(x->ptr(), x->length(), y->ptr(), y->length());
@@ -5856,11 +5971,9 @@ in_vector *Type_handler_string_result::make_in_vector(THD *thd,
                                                       const Item_func_in *func,
                                                       uint nargs) const
 {
-  return new (thd->mem_root) in_string(thd, nargs, (qsort2_cmp) srtcmp_in,
-                                       func->compare_collation());
-
+  return new (thd->mem_root)
+      in_string(thd, nargs, srtcmp_in, func->compare_collation());
 }
-
 
 in_vector *Type_handler_int_result::make_in_vector(THD *thd,
                                                    const Item_func_in *func,
@@ -6152,7 +6265,7 @@ longlong Type_handler_timestamp_common::
 longlong Type_handler_numeric::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  return func->val_int_native();
+  return is_unsigned() ? func->val_uint_native() : func->val_int_native();
 }
 
 
@@ -7844,10 +7957,15 @@ Type_handler_datetime_common::convert_item_for_comparison(
                           const char *sqlstate,
                           Sql_condition::enum_warning_level *level,
                           const char *msg,
-                          Sql_condition **cond_hdl)
+                          Sql_condition **cond_hdl) override
     {
-      hit++;
-      return *level >= Sql_condition::WARN_LEVEL_WARN;
+      if (sql_errno == ER_TRUNCATED_WRONG_VALUE ||
+          sql_errno == ER_DATETIME_FUNCTION_OVERFLOW)
+      {
+        hit++;
+        return *level >= Sql_condition::WARN_LEVEL_WARN;
+      }
+      return false;
     }
   } cnt_handler;
 
@@ -9324,6 +9442,7 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
   Datetime dt(thd, item, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd));
   return
     !dt.is_valid_datetime() ||
+    dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE) ||
     TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 
@@ -9703,9 +9822,11 @@ Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
   return name0.length && !cmp(&name0, &name1);
 }
 
-int initialize_data_type_plugin(st_plugin_int *plugin)
+int initialize_data_type_plugin(void *plugin_)
 {
-  st_mariadb_data_type *data= (st_mariadb_data_type*) plugin->plugin->info;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  st_mariadb_data_type *data=
+      static_cast<st_mariadb_data_type *>(plugin->plugin->info);
   data->type_handler->set_name(Name(plugin->name));
   if (plugin->plugin->init && plugin->plugin->init(NULL))
   {

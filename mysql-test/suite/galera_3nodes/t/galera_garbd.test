@@ -9,13 +9,8 @@
 --source include/big_test.inc
 
 # Save galera ports
---connection node_1
 --source suite/galera/include/galera_base_port.inc
 --let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
-
---connection node_2
---source suite/galera/include/galera_base_port.inc
---let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
 
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
@@ -81,10 +76,10 @@ let $restart_noprint=2;
 # Workaround for galera#101
 
 --connection node_1
-CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 
 --connection node_3
-CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender 1\\.0( \\(.*\\))? is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");

@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -1060,8 +1059,8 @@ int spider_ping_table_cache_compare(
 long long spider_ping_table_body(
   UDF_INIT *initid,
   UDF_ARGS *args,
-  char *is_null,
-  char *error
+  unsigned char *is_null,
+  unsigned char *error
 ) {
   int error_num = 0, link_idx, flags, full_mon_count, current_mon_count,
     success_count, fault_count, tmp_error_num = 0;
@@ -1602,6 +1601,7 @@ int spider_ping_table_mon_from_table(
   TABLE_SHARE *table_share = share->table_share;
   char link_idx_str[SPIDER_CONNECT_INFO_MAX_LEN + 1];
   int link_idx_str_length;
+  char *db_or_server;
   uint sql_command = thd_sql_command(thd);
   DBUG_ENTER("spider_ping_table_mon_from_table");
   if (table_share->tmp_table != NO_TMP_TABLE)
@@ -1674,6 +1674,9 @@ int spider_ping_table_mon_from_table(
     goto end;
   }
 
+  db_or_server= table_mon_list->share->tgt_dbs[0];
+  if (!db_or_server)
+    db_or_server= table_mon_list->share->server_names[0];
   if (table_mon_list->mon_status == SPIDER_LINK_MON_NG)
   {
     DBUG_PRINT("info",
@@ -1683,8 +1686,7 @@ int spider_ping_table_mon_from_table(
     pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
     error_num = ER_SPIDER_LINK_MON_NG_NUM;
     my_printf_error(error_num,
-      ER_SPIDER_LINK_MON_NG_STR, MYF(0),
-      table_mon_list->share->tgt_dbs[0],
+      ER_SPIDER_LINK_MON_NG_STR, MYF(0), db_or_server,
       table_mon_list->share->tgt_table_names[0]);
     my_afree(buf);
     goto end_with_free_table_mon_list;
@@ -1722,8 +1724,7 @@ int spider_ping_table_mon_from_table(
             "spider mon_table_result->result_status=SPIDER_LINK_MON_DRAW_FEW_MON 1"));
           error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
           my_printf_error(error_num,
-            ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
-            table_mon_list->share->tgt_dbs[0],
+            ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0), db_or_server,
             table_mon_list->share->tgt_table_names[0]);
           break;
         }
@@ -1772,7 +1773,7 @@ int spider_ping_table_mon_from_table(
               error_num = ER_SPIDER_LINK_MON_OK_NUM;
               my_printf_error(error_num,
                 ER_SPIDER_LINK_MON_OK_STR, MYF(0),
-                table_mon_list->share->tgt_dbs[0],
+                db_or_server,
                 table_mon_list->share->tgt_table_names[0]);
               break;
             }
@@ -1781,7 +1782,7 @@ int spider_ping_table_mon_from_table(
               error_num = ER_SPIDER_LINK_MON_NG_NUM;
               my_printf_error(error_num,
                 ER_SPIDER_LINK_MON_NG_STR, MYF(0),
-                table_mon_list->share->tgt_dbs[0],
+                db_or_server,
                 table_mon_list->share->tgt_table_names[0]);
               break;
             }
@@ -1791,14 +1792,14 @@ int spider_ping_table_mon_from_table(
               error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
               my_printf_error(error_num,
                 ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
-                table_mon_list->share->tgt_dbs[0],
+                db_or_server,
                 table_mon_list->share->tgt_table_names[0]);
               break;
             }
             error_num = ER_SPIDER_LINK_MON_DRAW_NUM;
             my_printf_error(error_num,
               ER_SPIDER_LINK_MON_DRAW_STR, MYF(0),
-              table_mon_list->share->tgt_dbs[0],
+              db_or_server,
               table_mon_list->share->tgt_table_names[0]);
             break;
           }
@@ -1825,29 +1826,25 @@ int spider_ping_table_mon_from_table(
         case SPIDER_LINK_MON_OK:
           error_num = ER_SPIDER_LINK_MON_OK_NUM;
           my_printf_error(error_num,
-            ER_SPIDER_LINK_MON_OK_STR, MYF(0),
-            table_mon_list->share->tgt_dbs[0],
+            ER_SPIDER_LINK_MON_OK_STR, MYF(0), db_or_server,
             table_mon_list->share->tgt_table_names[0]);
           break;
         case SPIDER_LINK_MON_NG:
           error_num = ER_SPIDER_LINK_MON_NG_NUM;
           my_printf_error(error_num,
-            ER_SPIDER_LINK_MON_NG_STR, MYF(0),
-            table_mon_list->share->tgt_dbs[0],
+            ER_SPIDER_LINK_MON_NG_STR, MYF(0), db_or_server,
             table_mon_list->share->tgt_table_names[0]);
           break;
         case SPIDER_LINK_MON_DRAW_FEW_MON:
           error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
           my_printf_error(error_num,
-            ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
-            table_mon_list->share->tgt_dbs[0],
+            ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0), db_or_server,
             table_mon_list->share->tgt_table_names[0]);
           break;
         default:
           error_num = ER_SPIDER_LINK_MON_DRAW_NUM;
           my_printf_error(error_num,
-            ER_SPIDER_LINK_MON_DRAW_STR, MYF(0),
-            table_mon_list->share->tgt_dbs[0],
+            ER_SPIDER_LINK_MON_DRAW_STR, MYF(0), db_or_server,
             table_mon_list->share->tgt_table_names[0]);
           break;
       }

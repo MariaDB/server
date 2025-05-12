@@ -793,10 +793,10 @@ class Json_schema_reference : public Json_schema_keyword
 bool create_object_and_handle_keyword(THD *thd, json_engine_t *je,
                                       List<Json_schema_keyword> *keyword_list,                           
                                       List<Json_schema_keyword> *all_keywords);
-uchar* get_key_name_for_property(const char *key_name, size_t *length,
-                    my_bool /* unused */);
-uchar* get_key_name_for_func(const char *key_name, size_t *length,
-                    my_bool /* unused */);
+const uchar *get_key_name_for_property(const void *key_name, size_t *length,
+                                       my_bool);
+const uchar *get_key_name_for_func(const void *key_name, size_t *length,
+                                   my_bool);
 
 enum keyword_flag
 {

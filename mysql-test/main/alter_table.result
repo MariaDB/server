@@ -690,7 +690,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 alter table table_24562 order by (select 12 from dual);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(select 12 from dual)' at line 1
 alter table table_24562 order by no_such_col;
-ERROR 42S22: Unknown column 'no_such_col' in 'order clause'
+ERROR 42S22: Unknown column 'no_such_col' in 'ORDER BY'
 drop table table_24562;
 create table t1 (mycol int(10) not null);
 alter table t1 alter column mycol set default 0;
@@ -3081,8 +3081,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `altcol1` blob DEFAULT '',
-  KEY `altcol1` (`altcol1`(2300)),
-  KEY `h` (`altcol1`(2300))
+  KEY `altcol1` (`altcol1`(2300))
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE
 show create table t2;
 Table	Create Table

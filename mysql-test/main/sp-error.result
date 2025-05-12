@@ -1,4 +1,3 @@
-drop table if exists t1, t2;
 SELECT * FROM mysql.proc INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/proc.txt';
 delete from mysql.proc;
 create procedure syntaxerror(t int)|
@@ -7,7 +6,6 @@ create procedure syntaxerror(t int)|
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 create procedure syntaxerror(t int)|
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
-drop table if exists t3|
 create table t3 ( x int )|
 insert into t3 values (2), (3)|
 create procedure bad_into(out param int)
@@ -162,7 +160,6 @@ open cc;
 close c;
 end|
 ERROR 42000: Undefined CURSOR: cc
-drop table if exists t1|
 create table t1 (val int)|
 create procedure p()
 begin
@@ -187,7 +184,6 @@ drop procedure p|
 alter procedure bar3 sql security invoker|
 ERROR 42000: PROCEDURE test.bar3 does not exist
 drop table t1|
-drop table if exists t1|
 create table t1 (val int, x float)|
 insert into t1 values (42, 3.1), (19, 1.2)|
 create procedure p()
@@ -272,7 +268,6 @@ declare continue handler for sqlstate '42S99' set x = 1;
 declare c cursor for select * from t1;
 end|
 ERROR 42000: Cursor declaration after handler declaration
-drop procedure if exists p|
 create procedure p(in x int, inout y int, out z int)
 begin
 set y = x+y;
@@ -303,7 +298,6 @@ lock tables t1 read, mysql.proc read|
 unlock tables|
 lock tables mysql.proc write|
 unlock tables|
-drop function if exists f1|
 create function f1(i int) returns int
 begin
 insert into t1 (val) values (i);
@@ -340,16 +334,15 @@ open c;
 close c;
 end|
 call bug1965()|
-ERROR 42S22: Unknown column 'valname' in 'order clause'
+ERROR 42S22: Unknown column 'valname' in 'ORDER BY'
 drop procedure bug1965|
 select 1 into a|
 ERROR 42000: Undeclared variable: a
-drop table if exists t3|
 create table t3 (column_1_0 int)|
 create procedure bug1653()
 update t3 set column_1 = 0|
 call bug1653()|
-ERROR 42S22: Unknown column 'column_1' in 'field list'
+ERROR 42S22: Unknown column 'column_1' in 'SET'
 drop table t3|
 create table t3 (column_1 int)|
 call bug1653()|
@@ -371,7 +364,7 @@ update t1 set v = 42;
 end|
 insert into t1 values (666, 51.3)|
 call bug2272()|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'SET'
 truncate table t1|
 drop procedure bug2272|
 create procedure bug2329_1()
@@ -385,9 +378,9 @@ declare v int;
 replace t1 set v = 5;
 end|
 call bug2329_1()|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'INSERT INTO'
 call bug2329_2()|
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'INSERT INTO'
 drop procedure bug2329_1|
 drop procedure bug2329_2|
 create function bug3287() returns int
@@ -411,7 +404,6 @@ end case|
 call bug3287(2)|
 ERROR 20000: Case not found for CASE statement
 drop procedure bug3287|
-drop table if exists t3|
 create table t3 (s1 int, primary key (s1))|
 insert into t3 values (5),(6)|
 create procedure bug3279(out y int) 
@@ -453,7 +445,6 @@ create procedure bug4344() drop procedure bug4344|
 ERROR HY000: Can't drop or alter a PROCEDURE from within another stored routine
 create procedure bug4344() drop function bug4344|
 ERROR HY000: Can't drop or alter a FUNCTION from within another stored routine
-drop procedure if exists bug3294|
 create procedure bug3294()
 begin
 declare continue handler for sqlexception drop table t5;
@@ -464,10 +455,6 @@ create table t5 (x int)|
 call bug3294()|
 ERROR 42S02: Unknown table 'test.t5'
 drop procedure bug3294|
-drop procedure if exists bug8776_1|
-drop procedure if exists bug8776_2|
-drop procedure if exists bug8776_3|
-drop procedure if exists bug8776_4|
 create procedure bug8776_1()
 begin
 declare continue handler for sqlstate '42S0200test' begin end;
@@ -501,7 +488,6 @@ ERROR 0A000: LOCK is not allowed in stored procedures
 create procedure bug6600()
 unlock table t1|
 ERROR 0A000: UNLOCK is not allowed in stored procedures
-drop procedure if exists bug9566|
 create procedure bug9566()
 begin
 select * from t1;
@@ -511,7 +497,6 @@ alter procedure bug9566 comment 'Some comment'|
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 unlock tables|
 drop procedure bug9566|
-drop procedure if exists bug7299|
 create procedure bug7299()
 begin
 declare v int;
@@ -552,7 +537,6 @@ declare exit handler for condname1 select 1;
 declare exit handler for sqlstate '42000' select 2;
 end|
 ERROR 42000: Duplicate handler declared in the same block
-drop procedure if exists bug9073|
 create procedure bug9073()
 begin
 declare condname1 condition for sqlstate '42000';
@@ -593,8 +577,6 @@ select b;
 return b;
 end|
 ERROR 0A000: Not allowed to return a result set from a function
-drop function if exists bug8408_f|
-drop procedure if exists bug8408_p|
 create function bug8408_f() returns int
 begin
 call bug8408_p();
@@ -622,11 +604,9 @@ val	x	bug8408()
 7	7	3
 drop function bug8408|
 truncate table t1|
-drop procedure if exists bug10537|
 create procedure bug10537()
 load data local infile '/tmp/somefile' into table t1|
 ERROR 0A000: LOAD DATA is not allowed in stored procedures
-drop function if exists bug8409|
 create function bug8409()
 returns int
 begin
@@ -677,7 +657,6 @@ create procedure bug9529_9012345678901234567890123456789012345678901234567890123
 begin
 end|
 ERROR 42000: Identifier name 'bug9529_901234567890123456789012345678901234567890123456789012345' is too long
-drop procedure if exists bug17015_0123456789012345678901234567890123456789012345678901234|
 create procedure bug17015_0123456789012345678901234567890123456789012345678901234()
 begin
 end|
@@ -685,7 +664,6 @@ show procedure status like 'bug17015%'|
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	bug17015_0123456789012345678901234567890123456789012345678901234	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
 drop procedure bug17015_0123456789012345678901234567890123456789012345678901234|
-drop procedure if exists bug10969|
 create procedure bug10969()
 begin
 declare s1 int default 0;
@@ -729,10 +707,6 @@ TEMP_SUM
 ERROR 24000: Cursor is not open
 drop procedure SP001;
 drop table t1, t2;
-drop function if exists bug11394|
-drop function if exists bug11394_1|
-drop function if exists bug11394_2|
-drop procedure if exists bug11394|
 create function bug11394(i int) returns int
 begin
 if i <= 0 then
@@ -780,8 +754,6 @@ CREATE TABLE t_bug_12490(a int);
 CREATE TRIGGER BUG_12490 BEFORE UPDATE ON t_bug_12490 FOR EACH ROW HELP CONTENTS;
 ERROR 0A000: HELP is not allowed in stored procedures
 DROP TABLE t_bug_12490;
-drop function if exists bug11834_1;
-drop function if exists bug11834_2;
 create function bug11834_1() returns int return 10;
 create function bug11834_2() returns int return bug11834_1();
 prepare stmt from "select bug11834_2()";
@@ -796,14 +768,12 @@ execute stmt;
 ERROR 42000: FUNCTION test.bug11834_1 does not exist
 deallocate prepare stmt;
 drop function bug11834_2;
-DROP FUNCTION IF EXISTS bug12953|
 CREATE FUNCTION bug12953() RETURNS INT
 BEGIN
 OPTIMIZE TABLE t1;
 RETURN 1;
 END|
 ERROR 0A000: Not allowed to return a result set from a function
-DROP FUNCTION IF EXISTS bug12995|
 CREATE FUNCTION bug12995() RETURNS INT
 BEGIN
 HANDLER t1 OPEN;
@@ -824,8 +794,6 @@ END|
 ERROR 0A000: HANDLER is not allowed in stored procedures
 SELECT bug12995()|
 ERROR 42000: FUNCTION test.bug12995 does not exist
-drop procedure if exists bug12712;
-drop function if exists bug12712;
 create procedure bug12712()
 set session autocommit = 0;
 select @@autocommit;
@@ -871,10 +839,6 @@ ERROR HY000: Not allowed to set autocommit from a stored function or trigger
 create trigger bug12712
 before insert on t1 for each row set session autocommit = 0;
 ERROR HY000: Not allowed to set autocommit from a stored function or trigger
-drop procedure if exists bug13510_1|
-drop procedure if exists bug13510_2|
-drop procedure if exists bug13510_3|
-drop procedure if exists bug13510_4|
 create procedure bug13510_1()
 begin
 declare password varchar(10);
@@ -911,7 +875,6 @@ names
 foo4
 drop procedure bug13510_3|
 drop procedure bug13510_4|
-drop function if exists bug_13627_f|
 CREATE TABLE t1 (a int)|
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN DROP TRIGGER test1; END |
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
@@ -1054,9 +1017,6 @@ select count(*) into param1 from t3;
 end|
 ERROR 3D000: No database selected
 use test;
-DROP PROCEDURE IF EXISTS bug13037_p1;
-DROP PROCEDURE IF EXISTS bug13037_p2;
-DROP PROCEDURE IF EXISTS bug13037_p3;
 CREATE PROCEDURE bug13037_p1()
 BEGIN
 IF bug13037_foo THEN
@@ -1074,13 +1034,13 @@ SELECT bug13037_foo;
 END|
 
 CALL bug13037_p2();
-ERROR 42S22: Unknown column 'bug13037_bar' in 'field list'
+ERROR 42S22: Unknown column 'bug13037_bar' in 'SET'
 CALL bug13037_p3();
-ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
+ERROR 42S22: Unknown column 'bug13037_foo' in 'SELECT'
 CALL bug13037_p2();
-ERROR 42S22: Unknown column 'bug13037_bar' in 'field list'
+ERROR 42S22: Unknown column 'bug13037_bar' in 'SET'
 CALL bug13037_p3();
-ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
+ERROR 42S22: Unknown column 'bug13037_foo' in 'SELECT'
 DROP PROCEDURE bug13037_p2;
 DROP PROCEDURE bug13037_p3;
 create database mysqltest1;
@@ -1096,7 +1056,6 @@ Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client
 mysqltest2	p1	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
 drop database mysqltest2;
 use test;
-DROP FUNCTION IF EXISTS bug13012|
 CREATE FUNCTION bug13012() RETURNS INT
 BEGIN
 REPAIR TABLE t1;
@@ -1115,9 +1074,6 @@ ERROR 0A000: Not allowed to return a result set from a function
 drop table t1|
 drop procedure bug13012_1|
 drop function bug13012_2|
-drop function if exists bug11555_1;
-drop function if exists bug11555_2;
-drop view if exists v1, v2, v3, v4;
 create function bug11555_1() returns int return (select max(i) from t1);
 create function bug11555_2() returns int return bug11555_1();
 create view v1 as select bug11555_1();
@@ -1154,7 +1110,6 @@ ERROR 42S02: Table 'test.t2' doesn't exist
 drop function bug11555_1;
 drop table t1;
 drop view v1;
-drop procedure if exists ` bug15658`;
 create procedure ``() select 1;
 ERROR 42000: Incorrect routine name ''
 create procedure ` `() select 1;
@@ -1173,8 +1128,6 @@ show procedure status;
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 test	 bug15658	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
 drop procedure ` bug15658`;
-drop function if exists bug14270;
-drop table if exists t1;
 create table t1 (s1 int primary key);
 create function bug14270() returns int
 begin
@@ -1189,7 +1142,6 @@ return 1;
 end|
 ERROR 0A000: Not allowed to return a result set from a function
 drop table t1;
-drop procedure if exists bug15091;
 create procedure bug15091()
 begin
 declare selectstr varchar(6000) default ' ';
@@ -1200,10 +1152,8 @@ c.operatorid,
 'in (',conditionstr, ')');
 end|
 ERROR 42000: Undeclared variable: c
-drop function if exists bug16896;
 create aggregate function bug16896() returns int return 1;
 ERROR HY000: Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function
-DROP PROCEDURE IF EXISTS bug14702;
 CREATE IF NOT EXISTS PROCEDURE bug14702()
 BEGIN
 END;
@@ -1214,7 +1164,6 @@ CREATE PROCEDURE IF NOT EXISTS bug14702()
 BEGIN
 END;
 DROP PROCEDURE IF EXISTS bug14702;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT);
 CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 INTO @a;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @a' at line 1
@@ -1238,30 +1187,23 @@ ERROR HY000: View's SELECT contains a variable or parameter
 PREPARE stmt FROM "CREATE VIEW v AS SELECT ?";
 ERROR HY000: View's SELECT contains a variable or parameter
 DROP TABLE t1;
-drop tables if exists t1;
-drop procedure if exists bug24491;
 create table t1 (id int primary key auto_increment, value varchar(10));
 insert into t1 (id, value) values (1, 'FIRST'), (2, 'SECOND'), (3, 'THIRD');
 create procedure bug24491()
 insert into t1 (id, value) select * from (select 4 as i, 'FOURTH' as v) as y on duplicate key update v = 'DUP';
 call bug24491();
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'UPDATE'
 call bug24491();
-ERROR 42S22: Unknown column 'v' in 'field list'
+ERROR 42S22: Unknown column 'v' in 'UPDATE'
 drop procedure bug24491;
 create procedure bug24491()
 insert into t1 (id, value) select * from (select 4 as id, 'FOURTH' as value) as y on duplicate key update y.value = 'DUP';
 call bug24491();
-ERROR 42S22: Unknown column 'y.value' in 'field list'
+ERROR 42S22: Unknown column 'y.value' in 'UPDATE'
 call bug24491();
-ERROR 42S22: Unknown column 'y.value' in 'field list'
+ERROR 42S22: Unknown column 'y.value' in 'UPDATE'
 drop procedure bug24491;
 drop tables t1;
-DROP FUNCTION IF EXISTS bug18914_f1;
-DROP FUNCTION IF EXISTS bug18914_f2;
-DROP PROCEDURE IF EXISTS bug18914_p1;
-DROP PROCEDURE IF EXISTS bug18914_p2;
-DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (i INT);
 CREATE PROCEDURE bug18914_p1() CREATE TABLE t2 (i INT);
 CREATE PROCEDURE bug18914_p2() DROP TABLE IF EXISTS no_such_table;
@@ -1290,9 +1232,6 @@ DROP FUNCTION bug18914_f2;
 DROP PROCEDURE bug18914_p1;
 DROP PROCEDURE bug18914_p2;
 DROP TABLE t1;
-drop table if exists bogus_table_20713;
-drop function if exists func_20713_a;
-drop function if exists func_20713_b;
 create table bogus_table_20713( id int(10) not null primary key);
 insert into bogus_table_20713 values (1), (2), (3);
 create function func_20713_a() returns int(11)
@@ -1344,11 +1283,6 @@ select @in_func;
 2
 drop function if exists func_20713_a;
 drop function if exists func_20713_b;
-drop table if exists table_25345_a;
-drop table if exists table_25345_b;
-drop procedure if exists proc_25345;
-drop function if exists func_25345;
-drop function if exists func_25345_b;
 create table table_25345_a (a int);
 create table table_25345_b (b int);
 create procedure proc_25345()
@@ -1390,14 +1324,12 @@ drop procedure proc_25345;
 drop function func_25345;
 drop function func_25345_b;
 End of 5.0 tests
-drop function if exists bug16164;
 create function bug16164() returns int
 begin
 show authors;
 return 42;
 end|
 ERROR 0A000: Not allowed to return a result set from a function
-drop function if exists bug20701;
 create function bug20701() returns varchar(25) binary return "test";
 drop function bug20701;
 create function bug20701() returns varchar(25) return "test";
@@ -1454,8 +1386,6 @@ end
 until true end repeat retry;
 end//
 ERROR 42000: LEAVE with no matching label: retry
-drop procedure if exists proc_28360;
-drop function if exists func_28360;
 CREATE PROCEDURE proc_28360()
 BEGIN
 ALTER DATABASE `#mysql50#upgrade-me` UPGRADE DATA DIRECTORY NAME;
@@ -1467,7 +1397,6 @@ ALTER DATABASE `#mysql50#upgrade-me` UPGRADE DATA DIRECTORY NAME;
 RETURN 0;
 END//
 ERROR HY000: Can't drop or alter a DATABASE from within another stored routine
-DROP PROCEDURE IF EXISTS p1;
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE c char(100);
@@ -1483,7 +1412,6 @@ FETCH cur1 INTO c;
 select c;
 CLOSE cur1;
 END' at line 4
-DROP DATABASE IF EXISTS mysqltest;
 CREATE DATABASE mysqltest;
 USE mysqltest;
 DROP DATABASE mysqltest;
@@ -1505,9 +1433,6 @@ ERROR HY000: Not allowed to set autocommit from a stored function or trigger
 create trigger t1
 before insert on t2 for each row set password = password('foo');|
 ERROR HY000: Not allowed to set autocommit from a stored function or trigger
-drop function if exists f1;
-drop function if exists f2;
-drop table if exists t1, t2;
 create function f1() returns int
 begin
 drop temporary table t1;
@@ -1553,10 +1478,6 @@ drop function f2;
 drop table t2;
 ERROR 42S02: Unknown table 'test.t2'
 End of 5.1 tests
-drop procedure if exists proc_33983_a;
-drop procedure if exists proc_33983_b;
-drop procedure if exists proc_33983_c;
-drop procedure if exists proc_33983_d;
 create procedure proc_33983_a()
 begin
 label1:
@@ -1608,7 +1529,14 @@ CALL p1((SELECT * FROM t1))|
 ERROR 21000: Subquery returns more than 1 row
 DROP PROCEDURE IF EXISTS p1|
 DROP TABLE t1|
-drop procedure if exists proc_8759;
+create procedure p1()
+begin
+create table t1 (a int) engine=MyISAM;
+drop table t1;
+end|
+call p1();
+call p1();
+drop procedure p1;
 create procedure proc_8759()
 begin
 declare should_be_illegal condition for sqlstate '00000';
@@ -1620,7 +1548,6 @@ begin
 declare continue handler for sqlstate '00000' set @x=0;
 end$$
 ERROR 42000: Bad SQLSTATE: '00000'
-drop procedure if exists proc_36510;
 create procedure proc_36510()
 begin
 declare should_be_illegal condition for sqlstate '00123';
@@ -1643,7 +1570,6 @@ begin
 declare continue handler for 0 set @x=0;
 end$$
 ERROR HY000: Incorrect CONDITION value: '0'
-drop procedure if exists p1;
 set @old_recursion_depth = @@max_sp_recursion_depth;
 set @@max_sp_recursion_depth = 255;
 create procedure p1(a int)
@@ -1715,12 +1641,6 @@ End of 5.1 tests
 
 # - Case 1
 
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP PROCEDURE IF EXISTS p3;
-DROP PROCEDURE IF EXISTS p4;
-DROP PROCEDURE IF EXISTS p5;
-DROP PROCEDURE IF EXISTS p6;
 CREATE PROCEDURE p1()
 BEGIN
 SELECT CAST('10 ' as unsigned integer);
@@ -1814,7 +1734,6 @@ DROP PROCEDURE p6;
 
 # - Case 3: check that "Exception trumps No Data".
 
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 CREATE PROCEDURE p1()
@@ -1843,8 +1762,6 @@ DROP TABLE t1;
 #
 # Bug#36185: Incorrect precedence for warning and exception handlers
 #
-DROP TABLE IF EXISTS t1;
-DROP PROCEDURE IF EXISTS p1;
 CREATE TABLE t1 (a INT, b INT NOT NULL);
 CREATE PROCEDURE p1()
 BEGIN
@@ -1916,9 +1833,6 @@ SET sql_mode = @sql_mode_saved;
 #
 # Bug#55850: Trigger warnings not cleared.
 #
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
-DROP PROCEDURE IF EXISTS p1;
 CREATE TABLE t1(x SMALLINT, y SMALLINT, z SMALLINT);
 CREATE TABLE t2(a SMALLINT, b SMALLINT, c SMALLINT,
 d SMALLINT, e SMALLINT, f SMALLINT);
@@ -2538,8 +2452,6 @@ DROP PROCEDURE p13;
 
 # Bug#12731619: NESTED SP HANDLERS CAN TRIGGER ASSERTION
 
-DROP FUNCTION IF EXISTS f1;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(msg VARCHAR(255));
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
@@ -2580,13 +2492,6 @@ DROP TABLE t1;
 
 # Check that handled SQL-conditions are properly cleared from DA.
 
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP PROCEDURE IF EXISTS p3;
-DROP PROCEDURE IF EXISTS p4;
-DROP PROCEDURE IF EXISTS p5;
 CREATE TABLE t1(a CHAR, b CHAR, c CHAR);
 CREATE TABLE t2(a SMALLINT, b SMALLINT, c SMALLINT);
 
@@ -2756,8 +2661,6 @@ DROP TABLE t2;
 # Check DECLARE statements that raise conditions before handlers
 # are declared.
 
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
 SET sql_mode = ''|
 CREATE PROCEDURE p1()
 BEGIN
@@ -2785,8 +2688,6 @@ DROP PROCEDURE p2;
 #
 # Bug#13113222 RQG_SIGNAL_RESIGNAL FAILED WITH ASSERTION.
 #
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SELECT 'triggered p1';
@@ -2812,9 +2713,6 @@ DROP PROCEDURE p2;
 # Bug#12652873: 61392: Continue handler for NOT FOUND being triggered
 # from internal stored function.
 
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP TABLE IF EXISTS t1;
 
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);

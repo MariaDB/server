@@ -70,20 +70,6 @@ do {								\
 	}							\
 } while (0)
 
-/** A row of INFORMATION_SCHEMA.innodb_locks */
-struct i_s_locks_row_t;
-
-/** Objects of trx_i_s_cache_t::locks_hash */
-struct i_s_hash_chain_t;
-
-/** Objects of this type are added to the hash table
-trx_i_s_cache_t::locks_hash */
-struct i_s_hash_chain_t {
-	i_s_locks_row_t*	value;	/*!< row of
-					INFORMATION_SCHEMA.innodb_locks*/
-	i_s_hash_chain_t*	next;	/*!< next item in the hash chain */
-};
-
 /** This structure represents INFORMATION_SCHEMA.innodb_locks row */
 struct i_s_locks_row_t {
 	trx_id_t	lock_trx_id;	/*!< transaction identifier */
@@ -106,7 +92,7 @@ struct i_s_locks_row_t {
 	table_id_t	lock_table_id;
 					/*!< table identifier from
 					lock_get_table_id */
-	i_s_hash_chain_t hash_chain;	/*!< hash table chain node for
+	i_s_locks_row_t *next;		/*!< hash table chain node for
 					trx_i_s_cache_t::locks_hash */
 	/* @} */
 };

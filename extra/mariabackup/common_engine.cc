@@ -64,8 +64,10 @@ Table::copy(ds_ctxt_t *ds, MYSQL *con, bool no_lock, bool, unsigned thread_num) 
 	for (const auto &fname : m_fnames) {
 		File file = mysql_file_open(0, fname.c_str(),O_RDONLY | O_SHARE, MYF(0));
 		if (file < 0) {
-			msg(thread_num, "Error on file %s open during %s table copy",
-				fname.c_str(), full_tname.c_str());
+			char buf[MYSYS_STRERROR_SIZE];
+			msg(thread_num, "Error %i on file %s open during %s table copy: %s",
+			    errno, fname.c_str(), full_tname.c_str(),
+			    my_strerror(buf, sizeof(buf), errno));
 			goto exit;
 		}
 		files.push_back(file);

@@ -137,11 +137,11 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   THD *thd= current_thd;
   Name_resolution_context *context= &thd->lex->current_select->context;
   TABLE_LIST *save_list= context->table_list;
-  const char *save_where= thd->where;
+  THD_WHERE save_where= thd->where;
 
   item= item->safe_charset_converter(thd, cs);
   context->table_list= NULL;
-  thd->where= "convert character set partition constant";
+  thd->where= THD_WHERE::VALUES_CLAUSE;
   if (item && item->fix_fields_if_needed(thd, (Item**)NULL))
     item= NULL;
   thd->where= save_where;
@@ -717,9 +717,11 @@ static bool handle_list_of_fields(THD *thd, List_iterator<const char> it,
     }
     else
     {
-      if (table->s->db_type()->partition_flags &&
-          (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION) &&
-          (table->s->db_type()->partition_flags() & HA_CAN_PARTITION))
+      handlerton *ht= table->s->db_type();
+      if (ht->partition_flags &&
+          ((ht->partition_flags() &
+            (HA_USE_AUTO_PARTITION | HA_CAN_PARTITION)) ==
+           (HA_USE_AUTO_PARTITION | HA_CAN_PARTITION)))
       {
         /*
           This engine can handle automatic partitioning and there is no
@@ -836,7 +838,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
 
   func_expr->walk(&Item::change_context_processor, 0,
                   &lex.first_select_lex()->context);
-  thd->where= "partition function";
+  thd->where= THD_WHERE::PARTITION_FUNCTION;
   /*
     In execution we must avoid the use of thd->change_item_tree since
     we might release memory before statement is completed. We do this
@@ -1924,6 +1926,7 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
   bool result= TRUE;
   partition_info *part_info= table->part_info;
   enum_column_usage saved_column_usage= thd->column_usage;
+  handlerton *ht;
   DBUG_ENTER("fix_partition_func");
 
   if (part_info->fixed)
@@ -2053,8 +2056,9 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
     goto end;
   if (unlikely(check_primary_key(table)))
     goto end;
-  if (unlikely((!(table->s->db_type()->partition_flags &&
-      (table->s->db_type()->partition_flags() & HA_CAN_PARTITION_UNIQUE))) &&
+  ht= table->s->db_type();
+  if (unlikely((!(ht->partition_flags &&
+      (ht->partition_flags() & HA_CAN_PARTITION_UNIQUE))) &&
                check_unique_keys(table)))
     goto end;
   if (unlikely(set_up_partition_bitmaps(thd, part_info)))
@@ -2779,12 +2783,14 @@ bool partition_key_modified(TABLE *table, const MY_BITMAP *fields)
 {
   Field **fld;
   partition_info *part_info= table->part_info;
+  handlerton *ht;
   DBUG_ENTER("partition_key_modified");
 
   if (!part_info)
     DBUG_RETURN(FALSE);
-  if (table->s->db_type()->partition_flags &&
-      (table->s->db_type()->partition_flags() & HA_CAN_UPDATE_PARTITION_KEY))
+  ht= table->s->db_type();
+  if (ht->partition_flags &&
+      (ht->partition_flags() & HA_CAN_UPDATE_PARTITION_KEY))
     DBUG_RETURN(FALSE);
   for (fld= part_info->full_part_field_array; *fld; fld++)
     if (bitmap_is_set(fields, (*fld)->field_index))
@@ -5004,11 +5010,10 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
          if default partitioning is used.
       */
 
+      handlerton *ht= table->s->db_type();
       if (tab_part_info->part_type != HASH_PARTITION ||
-          ((table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION) &&
-           !tab_part_info->use_default_num_partitions) ||
-          ((!(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)) &&
-           tab_part_info->use_default_num_partitions))
+          !(ht->partition_flags() & HA_USE_AUTO_PARTITION) ==
+          tab_part_info->use_default_num_partitions)
       {
         my_error(ER_REORG_NO_PARAM_ERROR, MYF(0));
         goto err;

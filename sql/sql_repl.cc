@@ -436,7 +436,6 @@ static int send_file(THD *thd)
    Internal to mysql_binlog_send() routine that recalculates checksum for
    1. FD event (asserted) that needs additional arrangement prior sending to slave.
    2. Start_encryption_log_event whose Ignored flag is set
-TODO DBUG_ASSERT can be removed if this function is used for more general cases
 */
 
 inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
@@ -448,13 +447,6 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   /* recalculate the crc for this event */
   uint data_len = uint4korr(packet->ptr() + ev_offset + EVENT_LEN_OFFSET);
   ha_checksum crc;
-  DBUG_ASSERT((data_len ==
-              LOG_EVENT_MINIMAL_HEADER_LEN + FORMAT_DESCRIPTION_HEADER_LEN +
-              BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN) ||
-              (data_len ==
-              LOG_EVENT_MINIMAL_HEADER_LEN + BINLOG_CRYPTO_SCHEME_LENGTH +
-              BINLOG_KEY_VERSION_LENGTH + BINLOG_NONCE_LENGTH +
-              BINLOG_CHECKSUM_LEN));
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
   int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
@@ -612,14 +604,26 @@ static my_bool log_in_use_callback(THD *thd, st_log_in_use *arg)
 }
 
 
-bool log_in_use(const char* log_name, uint min_connected)
+/*
+  Check if a log is in use.
+
+  @return 0  Not used
+  @return 1  A slave is reading from the log
+  @return 2  There are less than 'min_connected' slaves that
+             has recived the log.
+*/
+
+int log_in_use(const char* log_name, uint min_connected)
 {
   st_log_in_use arg;
   arg.log_name= log_name;
   arg.connected_slaves= 0;
 
-  return ((server_threads.iterate(log_in_use_callback, &arg) ||
-           arg.connected_slaves < min_connected));
+  if (server_threads.iterate(log_in_use_callback, &arg))
+    return 1;
+  if (arg.connected_slaves < min_connected)
+    return 2;
+  return 0;
 }
 
 
@@ -659,8 +663,8 @@ bool purge_master_logs(THD* thd, const char* to_log)
 
   mysql_bin_log.make_log_name(search_file_name, to_log);
   return purge_error_message(thd,
-			     mysql_bin_log.purge_logs(search_file_name, 0, 1,
-						      1, NULL));
+			     mysql_bin_log.purge_logs(thd, search_file_name,
+                                                      0, 1, 1, 1, NULL));
 }
 
 
@@ -683,7 +687,9 @@ bool purge_master_logs_before_date(THD* thd, time_t purge_time)
     return 0;
   }
   return purge_error_message(thd,
-                             mysql_bin_log.purge_logs_before_date(purge_time));
+                             mysql_bin_log.purge_logs_before_date(thd,
+                                                                  purge_time,
+                                                                  1));
 }
 
 void set_read_error(binlog_send_info *info, int error)
@@ -3348,6 +3354,8 @@ err:
   }
   else if (info->errmsg != NULL)
     safe_strcpy(info->error_text, sizeof(info->error_text), info->errmsg);
+  else if (info->error_text[0] == 0)
+    safe_strcpy(info->error_text, sizeof(info->error_text), ER(info->error));
 
   my_message(info->error, info->error_text, MYF(0));
 
@@ -4500,7 +4508,7 @@ bool mysql_show_binlog_events(THD* thd)
     if (lex_mi->pos > binlog_size)
     {
       snprintf(errmsg_buf, sizeof(errmsg_buf), "Invalid pos specified. Requested from pos:%llu is "
-              "greater than actual file size:%lu\n", lex_mi->pos,
+              "greater than actual file size:%lu", lex_mi->pos,
               (ulong)s.st_size);
       errmsg= errmsg_buf;
       goto err;
@@ -4526,7 +4534,8 @@ bool mysql_show_binlog_events(THD* thd)
     my_off_t scan_pos = BIN_LOG_HEADER_SIZE;
     while (scan_pos < pos)
     {
-      ev= Log_event::read_log_event(&log, description_event,
+      int error;
+      ev= Log_event::read_log_event(&log, &error, description_event,
                                     opt_master_verify_checksum);
       scan_pos = my_b_tell(&log);
       if (ev == NULL || !ev->is_valid())
@@ -4601,8 +4610,9 @@ bool mysql_show_binlog_events(THD* thd)
       writing about this in the server log would be confusing as it isn't
       related to server operational status.
     */
+    int error;
     for (event_count = 0;
-         (ev = Log_event::read_log_event(&log,
+         (ev = Log_event::read_log_event(&log, &error,
                                          description_event,
                                          (opt_master_verify_checksum ||
                                           verify_checksum_once), false)); )
@@ -4646,7 +4656,7 @@ bool mysql_show_binlog_events(THD* thd)
 	      break;
     }
 
-    if (unlikely(event_count < unit->lim.get_select_limit() && log.error))
+    if (unlikely(event_count < unit->lim.get_select_limit() && error))
     {
       errmsg = "Wrong offset or I/O error";
       mysql_mutex_unlock(log_lock);

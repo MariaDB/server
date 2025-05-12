@@ -91,6 +91,7 @@ while ($domain_cnt)
 FLUSH BINARY LOGS;
 --let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
 --eval PURGE BINARY LOGS TO '$purge_to_binlog'
+--source include/show_binary_logs.inc
 --eval SET @@SESSION.gtid_domain_id=$err_domain_id
 --eval SET @@SESSION.server_id=10*$err_domain_id + $err_server_id
 eval INSERT INTO t SELECT 1+MAX(a) FROM t;

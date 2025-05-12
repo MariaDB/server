@@ -35,11 +35,8 @@ extern "C" {
 #include <mrn_operations.hpp>
 #include <mrn_database.hpp>
 
-#if __cplusplus >= 201402
-#  define mrn_override override
-#else
-#  define mrn_override
-#endif
+#define mrn_override override
+
 
 #if (MYSQL_VERSION_ID >= 50514 && MYSQL_VERSION_ID < 50600)
 #  define MRN_HANDLER_HAVE_FINAL_ADD_INDEX 1
@@ -406,7 +403,7 @@ private:
 public:
   ha_mroonga(handlerton *hton, TABLE_SHARE *share_arg);
   ~ha_mroonga();
-  const char *table_type() const;           // required
+  const char *table_type() const override;           // required
   const char *index_type(uint inx) mrn_override;
   const char **bas_ext() const;                                    // required
 
@@ -455,10 +452,10 @@ public:
   int update_row(const uchar *old_data, const uchar *new_data) mrn_override;
   int delete_row(const uchar *buf) mrn_override;
 
-  uint max_supported_record_length()   const mrn_override;
-  uint max_supported_keys()            const mrn_override;
-  uint max_supported_key_parts()       const mrn_override;
-  uint max_supported_key_length()      const mrn_override;
+  uint max_supported_record_length() const   mrn_override;
+  uint max_supported_keys() const            mrn_override;
+  uint max_supported_key_parts() const       mrn_override;
+  uint max_supported_key_length() const      mrn_override;
   uint max_supported_key_part_length() const mrn_override;
 
   ha_rows records_in_range(uint inx, const key_range *min_key,
@@ -621,9 +618,9 @@ protected:
   char *get_tablespace_name(THD *thd, char *name, uint name_len);
 #endif
   bool can_switch_engines() mrn_override;
-  int get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
-  int get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
-  uint referenced_by_foreign_key() mrn_override;
+  int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  bool referenced_by_foreign_key() const noexcept mrn_override;
   void init_table_handle_for_HANDLER() mrn_override;
   void free_foreign_key_create_info(char* str) mrn_override;
 #ifdef MRN_HAVE_HA_REBIND_PSI
@@ -1273,12 +1270,12 @@ private:
 #endif
   bool wrapper_can_switch_engines();
   bool storage_can_switch_engines();
-  int wrapper_get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int storage_get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int wrapper_get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int storage_get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  uint wrapper_referenced_by_foreign_key();
-  uint storage_referenced_by_foreign_key();
+  int wrapper_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int storage_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int wrapper_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int storage_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  bool wrapper_referenced_by_foreign_key() const noexcept;
+  bool storage_referenced_by_foreign_key() const noexcept;
   void wrapper_init_table_handle_for_HANDLER();
   void storage_init_table_handle_for_HANDLER();
   void wrapper_free_foreign_key_create_info(char* str);

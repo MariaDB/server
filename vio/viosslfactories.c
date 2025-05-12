@@ -364,16 +364,22 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
 
   /*
     Set the ciphers that can be used
-    NOTE: SSL_CTX_set_cipher_list will return 0 if
+    NOTE: SSL_CTX_set_ciphersuites/SSL_CTX_set_cipher_list will return 0 if
     none of the provided ciphers could be selected
   */
-  if (cipher &&
-      SSL_CTX_set_ciphersuites(ssl_fd->ssl_context, cipher) == 0 &&
-      SSL_CTX_set_cipher_list(ssl_fd->ssl_context, cipher) == 0)
+  if (cipher)
   {
-    *error= SSL_INITERR_CIPHERS;
-    DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    goto err2;
+    int cipher_result= 0;
+
+    cipher_result|= SSL_CTX_set_ciphersuites(ssl_fd->ssl_context, cipher);
+    cipher_result|= SSL_CTX_set_cipher_list(ssl_fd->ssl_context, cipher);
+
+    if (cipher_result == 0)
+    {
+      *error= SSL_INITERR_CIPHERS;
+      DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
+      goto err2;
+    }
   }
 
   /* Load certs from the trusted ca */

@@ -21,6 +21,8 @@
 #include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
+#include "sql_acl.h"
+#include <sql_common.h>
 
 #ifdef HAVE_REPLICATION
 
@@ -496,7 +498,7 @@ file '%s')", fname);
     if (init_intvar_from_file(&master_log_pos, &mi->file, 4) ||
         init_strvar_from_file(mi->host, sizeof(mi->host), &mi->file, 0) ||
         init_strvar_from_file(mi->user, sizeof(mi->user), &mi->file, "test") ||
-        init_strvar_from_file(mi->password, SCRAMBLED_PASSWORD_CHAR_LENGTH+1,
+        init_strvar_from_file(mi->password, sizeof(mi->password),
                               &mi->file, 0) ||
         init_intvar_from_file(&port, &mi->file, MYSQL_PORT) ||
         init_intvar_from_file(&connect_retry, &mi->file,
@@ -864,12 +866,12 @@ void end_master_info(Master_info* mi)
 }
 
 /* Multi-Master By P.Linux */
-uchar *get_key_master_info(Master_info *mi, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+const uchar *get_key_master_info(const void *mi_, size_t *length, my_bool)
 {
+  auto mi= static_cast<const Master_info *>(mi_);
   /* Return lower case name */
   *length= mi->cmp_connection_name.length;
-  return (uchar*) mi->cmp_connection_name.str;
+  return reinterpret_cast<const uchar *>(mi->cmp_connection_name.str);
 }
 
 /*
@@ -879,8 +881,9 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
   Stops associated slave threads and frees master_info
 */
 
-void free_key_master_info(Master_info *mi)
+void free_key_master_info(void *mi_)
 {
+  Master_info *mi= static_cast<Master_info*>(mi_);
   DBUG_ENTER("free_key_master_info");
   mysql_mutex_unlock(&LOCK_active_mi);
 
@@ -1117,17 +1120,15 @@ bool Master_info_index::init_all_master_info()
   }
 
   /* Initialize Master_info Hash Table */
-  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info, 
-                   MAX_REPLICATION_THREAD, 0, 0, 
-                   (my_hash_get_key) get_key_master_info, 
-                   (my_hash_free_key)free_key_master_info, HASH_UNIQUE))
+  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info,
+                   MAX_REPLICATION_THREAD, 0, 0, get_key_master_info,
+                   free_key_master_info, HASH_UNIQUE))
   {                                                      
     sql_print_error("Initializing Master_info hash table failed");
     DBUG_RETURN(1);
   }
 
   thd= new THD(next_thread_id());  /* Needed by start_slave_threads */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   reinit_io_cache(&index_file, READ_CACHE, 0L,0,0);
@@ -1373,17 +1374,16 @@ Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
              ("connection_name: '%.*s'", (int) connection_name->length,
               connection_name->str));
 
-  /* Make name lower case for comparison */
-  IdentBufferCasedn<MAX_CONNECTION_NAME> buff(*connection_name);
+  if (!connection_name->str)
+    connection_name= &empty_clex_str;
   mi= (Master_info*) my_hash_search(&master_info_hash,
-                                    (const uchar*) buff.ptr(), buff.length());
+                                    (uchar*) connection_name->str,
+                                    connection_name->length);
   if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)
   {
     my_error(WARN_NO_MASTER_INFO,
-             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING :
-                 0),
-             (int) connection_name->length,
-             connection_name->str);
+             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING : 0),
+             (int) connection_name->length, connection_name->str);
   }
   DBUG_RETURN(mi);
 }
@@ -1642,6 +1642,9 @@ bool Master_info_index::start_all_slaves(THD *thd)
   DBUG_ENTER("start_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
+  if (check_global_access(thd, PRIV_STMT_START_SLAVE))
+    DBUG_RETURN(true);
+
   for (uint i= 0; i< master_info_hash.records; i++)
   {
     Master_info *mi;
@@ -1719,6 +1722,9 @@ bool Master_info_index::stop_all_slaves(THD *thd)
   DBUG_ENTER("stop_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(thd);
+
+  if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
+    DBUG_RETURN(true);
 
   for (uint i= 0; i< master_info_hash.records; i++)
   {
@@ -2066,6 +2072,50 @@ bool Master_info_index::flush_all_relay_logs()
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(result);
+}
+
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout)
+{
+  DBUG_ASSERT(mi);
+  DBUG_ASSERT(mi->mysql);
+  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &timeout);
+  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &timeout);
+
+#ifdef HAVE_OPENSSL
+  if (mi->ssl)
+  {
+    mysql_ssl_set(mysql, mi->ssl_key, mi->ssl_cert, mi->ssl_ca, mi->ssl_capath,
+                  mi->ssl_cipher);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->ssl_crl);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->ssl_crlpath);
+    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &mi->ssl_verify_server_cert);
+  }
+  else
+#endif
+    mysql->options.use_ssl= 0;
+
+  /*
+    If server's default charset is not supported (like utf16, utf32) as client
+    charset, then set client charset to 'latin1' (default client charset).
+  */
+  if (is_supported_parser_charset(default_charset_info))
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
+  else
+  {
+    sql_print_information("'%s' can not be used as client character set. "
+                          "'%s' will be used as default client character set "
+                          "while connecting to master.",
+                          default_charset_info->cs_name.str,
+                          default_client_charset_info->cs_name.str);
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
+                  default_client_charset_info->cs_name.str);
+  }
+
+  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
+  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
+    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 }
 
 #endif /* HAVE_REPLICATION */

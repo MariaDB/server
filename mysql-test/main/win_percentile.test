@@ -62,12 +62,9 @@ select name from t1 a where (select  percentile_disc(0.5) within group (order by
 
 --echo #disallowed fields in order by
 --error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
-select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
+select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) as result from t1;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
---enable_view_protocol
+select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) as result from t1;
 
 --echo #parameter value should be in the range of [0,1]
 --error ER_ARGUMENT_OUT_OF_RANGE

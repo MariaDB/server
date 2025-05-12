@@ -1462,6 +1462,13 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
 
   switch (general_type_code) {
   case WRITE_ROWS_EVENT:
+    /*
+      A write rows event containing no after image (can happen for REPLACE
+      INTO t() VALUES ()), count this correctly as 1 row and no 0.
+    */
+    if (unlikely(m_rows_buf == m_rows_end))
+      print_event_info->row_events++;
+    /* Fall through. */
   case DELETE_ROWS_EVENT:
     row_events= 1;
     break;
@@ -1586,6 +1593,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   /* If the write rows event contained no values for the AI */
   if (((general_type_code == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
   {
+    print_event_info->row_events++;
     if (my_b_printf(file, "### INSERT INTO %`s.%`s VALUES ()\n",
                     map->get_db_name(), map->get_table_name()))
       goto err;
@@ -1619,9 +1627,16 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
     /* Print the second image (for UPDATE only) */
     if (sql_clause2)
     {
-      if (!(length= print_verbose_one_row(file, td, print_event_info,
-                                      &m_cols_ai, value,
-                                      (const uchar*) sql_clause2)))
+      /* If the update rows event contained no values for the AI */
+      if (unlikely(bitmap_is_clear_all(&m_cols_ai)))
+      {
+        length= (bitmap_bits_set(&m_cols_ai) + 7) / 8;
+        if (my_b_printf(file, "### SET /* no columns */\n"))
+          goto err;
+      }
+      else if (!(length= print_verbose_one_row(file, td, print_event_info,
+                                               &m_cols_ai, value,
+                                               (const uchar*) sql_clause2)))
         goto err;
       value+= length;
     }
@@ -1913,7 +1928,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
 
   if ((flags & LOG_EVENT_SUPPRESS_USE_F))
   {
-    if (!is_trans_keyword())
+    if (!is_trans_keyword(print_event_info->is_xa_trans()))
       print_event_info->db[0]= '\0';
   }
   else if (db)
@@ -1929,8 +1944,11 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
   if (when_sec_part && when_sec_part <= TIME_MAX_SECOND_PART)
   {
-    *end++= '.';
-    end=int10_to_str(when_sec_part, end, 10);
+    char buff2[1 + 6 + 1];
+    /* Ensure values < 100000 are printed with leading zeros, MDEV-31761. */
+    snprintf(buff2, sizeof(buff2), ".%06lu", when_sec_part);
+    DBUG_ASSERT(strlen(buff2) == 1 + 6);
+    end= strmov(end, buff2);
   }
   end= strmov(end, print_event_info->delimiter);
   *end++='\n';
@@ -2031,7 +2049,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
     print_event_info->auto_increment_offset=    auto_increment_offset;
   }
 
-  /* TODO: print the catalog when we feature SET CATALOG */
+  /* TODO: print the catalog when we feature USE CATALOG */
 
   if (likely(charset_inited) &&
       (unlikely(!print_event_info->charset_inited ||
@@ -2045,12 +2063,15 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
                       cs_info->cs_name.str, print_event_info->delimiter))
         goto err;
     }
+    else if (my_b_printf(file, "# Ignored (Unknown charset) "))
+      goto err;
+
     if (my_b_printf(file,"SET "
                     "@@session.character_set_client=%s,"
                     "@@session.collation_connection=%d,"
                     "@@session.collation_server=%d"
                     "%s\n",
-                    cs_info->cs_name.str,
+                    cs_info ? cs_info->cs_name.str : "Unknown",
                     uint2korr(charset+2),
                     uint2korr(charset+4),
                     print_event_info->delimiter))
@@ -3730,6 +3751,7 @@ st_print_event_info::st_print_event_info()
   bzero(time_zone_str, sizeof(time_zone_str));
   delimiter[0]= ';';
   delimiter[1]= 0;
+  gtid_ev_flags2= 0;
   flags2_inited= 0;
   flags2= 0;
   sql_mode_inited= 0;
@@ -3765,6 +3787,11 @@ st_print_event_info::st_print_event_info()
 #endif
 }
 
+my_bool st_print_event_info::is_xa_trans()
+{
+  return (gtid_ev_flags2 &
+          (Gtid_log_event::FL_PREPARED_XA | Gtid_log_event::FL_COMPLETED_XA));
+}
 
 bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
 {
@@ -3836,7 +3863,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->allow_parallel != !!(flags2 & FL_ALLOW_PARALLEL))
     {
       if (my_b_printf(&cache,
-                  "/*!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
+                  "/*M!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
                       !(flags2 & FL_ALLOW_PARALLEL),
                       print_event_info->delimiter))
         goto err;
@@ -3848,7 +3875,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->domain_id != domain_id)
     {
       if (my_b_printf(&cache,
-                      "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
+                      "/*M!100001 SET @@session.gtid_domain_id=%u*/%s\n",
                       domain_id, print_event_info->delimiter))
         goto err;
       print_event_info->domain_id= domain_id;
@@ -3858,7 +3885,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (!print_event_info->server_id_printed ||
         print_event_info->server_id != server_id)
     {
-      if (my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
+      if (my_b_printf(&cache, "/*M!100001 SET @@session.server_id=%u*/%s\n",
                       server_id, print_event_info->delimiter))
         goto err;
       print_event_info->server_id= server_id;
@@ -3866,7 +3893,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     }
 
     if (!is_flashback)
-      if (my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+      if (my_b_printf(&cache, "/*M!100001 SET @@session.gtid_seq_no=%s*/%s\n",
                       buf, print_event_info->delimiter))
         goto err;
   }
@@ -3884,6 +3911,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                     "START TRANSACTION\n%s\n", print_event_info->delimiter))
       goto err;
   }
+
+  print_event_info->gtid_ev_flags2= flags2;
 
   return cache.flush_data();
 err:

@@ -174,6 +174,11 @@ public:
 		ulint*	sum_new_sizes)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** @return whether shrinking failed during
+	previous attempt of system tablespace shrinking */
+	bool is_shrink_fail() noexcept { return m_auto_shrink_fail; }
+
+	void set_shrink_fail() noexcept { m_auto_shrink_fail= true; }
 private:
 	/** Check the tablespace header for this tablespace.
 	@return DB_SUCCESS or error code */
@@ -271,6 +276,10 @@ private:
 	/** Shrink the system tablespace if the value is
 	enabled */
 	bool		m_auto_shrink;
+
+	/** Set to true only when InnoDB system tablespace
+	shrink fails during startup */
+	bool		m_auto_shrink_fail;
 };
 
 /* GLOBAL OBJECTS */

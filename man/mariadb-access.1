@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-ACCESS\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-ACCESS\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,17 +11,17 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqlaccess
+.\" mariadb-access
 .SH "NAME"
-mariadb-access \- client for checking access privileges (mysqlaccess is now a symlink to mariadb-access)
+mariadb-access \- client for checking access privileges (mariadb-access is now a symlink to mariadb-access)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqlaccess\ [\fR\fB\fIhost_name\fR\fR\fB\ [\fR\fB\fIuser_name\fR\fR\fB\ [\fR\fB\fIdb_name\fR\fR\fB]]]\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysqlaccess [\fR\fB\fIhost_name\fR\fR\fB [\fR\fB\fIuser_name\fR\fR\fB [\fR\fB\fIdb_name\fR\fR\fB]]] [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadb-access\ [\fR\fB\fIhost_name\fR\fR\fB\ [\fR\fB\fIuser_name\fR\fR\fB\ [\fR\fB\fIdb_name\fR\fR\fB]]]\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-access [\fR\fB\fIhost_name\fR\fR\fB [\fR\fB\fIuser_name\fR\fR\fB [\fR\fB\fIdb_name\fR\fR\fB]]] [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 is a diagnostic tool written by Yves Carlier\&. It checks the access privileges for a host name, user name, and database combination\&. Note that
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 checks access using only the
 user,
 db, and
@@ -33,20 +33,20 @@ procs_priv
 tables\&.
 .PP
 Invoke
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlaccess [\fR\fB\fIhost_name\fR\fR\fB [\fR\fB\fIuser_name\fR\fR\fB [\fR\fB\fIdb_name\fR\fR\fB]]] [\fR\fB\fIoptions\fR\fR\fB]\fR
+shell> \fBmariadb-access [\fR\fB\fIhost_name\fR\fR\fB [\fR\fB\fIuser_name\fR\fR\fB [\fR\fB\fIdb_name\fR\fR\fB]]] [\fR\fB\fIoptions\fR\fR\fB]\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 supports the following options\&.
 .sp
 .RS 4
@@ -57,8 +57,8 @@ supports the following options\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: help option
-.\" help option: mysqlaccess
+.\" mariadb-access: help option
+.\" help option: mariadb-access
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -73,8 +73,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: brief option
-.\" brief option: mysqlaccess
+.\" mariadb-access: brief option
+.\" brief option: mariadb-access
 \fB\-\-brief\fR,
 \fB\-b\fR
 .sp
@@ -89,12 +89,12 @@ Generate reports in single\-line tabular format\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: commit option
-.\" commit option: mysqlaccess
+.\" mariadb-access: commit option
+.\" commit option: mariadb-access
 \fB\-\-commit\fR
 .sp
 Copy the new access privileges from the temporary tables to the original grant tables\&. The grant tables must be flushed for the new privileges to take effect\&. (For example, execute a
-\fBmysqladmin reload\fR
+\fBmariadb-admin reload\fR
 command\&.)
 .RE
 .sp
@@ -106,8 +106,8 @@ command\&.)
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: copy option
-.\" copy option: mysqlaccess
+.\" mariadb-access: copy option
+.\" copy option: mariadb-access
 \fB\-\-copy\fR
 .sp
 Reload the temporary grant tables from original ones\&.
@@ -121,8 +121,8 @@ Reload the temporary grant tables from original ones\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: db option
-.\" db option: mysqlaccess
+.\" mariadb-access: db option
+.\" db option: mariadb-access
 \fB\-\-db=\fR\fB\fIdb_name\fR\fR,
 \fB\-d \fR\fB\fIdb_name\fR\fR
 .sp
@@ -137,8 +137,8 @@ Specify the database name\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: debug option
-.\" debug option: mysqlaccess
+.\" mariadb-access: debug option
+.\" debug option: mariadb-access
 \fB\-\-debug=\fR\fB\fIN\fR\fR
 .sp
 Specify the debug level\&.
@@ -154,8 +154,8 @@ can be an integer from 0 to 3\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: host option
-.\" host option: mysqlaccess
+.\" mariadb-access: host option
+.\" host option: mariadb-access
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -170,12 +170,12 @@ The host name to use in the access privileges\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: howto option
-.\" howto option: mysqlaccess
+.\" mariadb-access: howto option
+.\" howto option: mariadb-access
 \fB\-\-howto\fR
 .sp
 Display some examples that show how to use
-\fBmysqlaccess\fR\&.
+\fBmariadb-access\fR\&.
 .RE
 .sp
 .RS 4
@@ -186,8 +186,8 @@ Display some examples that show how to use
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: old_server option
-.\" old_server option: mysqlaccess
+.\" mariadb-access: old_server option
+.\" old_server option: mariadb-access
 \fB\-\-old_server\fR
 .sp
 Connect to a very old MySQL server (before MySQL 3\&.21) that does not know how to handle full
@@ -202,8 +202,8 @@ WHERE clauses\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: password option
-.\" password option: mysqlaccess
+.\" mariadb-access: password option
+.\" password option: mariadb-access
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -214,7 +214,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. See
@@ -229,8 +229,8 @@ Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: plan option
-.\" plan option: mysqlaccess
+.\" mariadb-access: plan option
+.\" plan option: mariadb-access
 \fB\-\-plan\fR
 .sp
 Display suggestions and ideas for future releases\&.
@@ -244,8 +244,8 @@ Display suggestions and ideas for future releases\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: preview option
-.\" preview option: mysqlaccess
+.\" mariadb-access: preview option
+.\" preview option: mariadb-access
 \fB\-\-preview\fR
 .sp
 Show the privilege differences after making changes to the temporary grant tables\&.
@@ -259,8 +259,8 @@ Show the privilege differences after making changes to the temporary grant table
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: relnotes option
-.\" relnotes option: mysqlaccess
+.\" mariadb-access: relnotes option
+.\" relnotes option: mariadb-access
 \fB\-\-relnotes\fR
 .sp
 Display the release notes\&.
@@ -274,8 +274,8 @@ Display the release notes\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: rhost option
-.\" rhost option: mysqlaccess
+.\" mariadb-access: rhost option
+.\" rhost option: mariadb-access
 \fB\-\-rhost=\fR\fB\fIhost_name\fR\fR,
 \fB\-H \fR\fB\fIhost_name\fR\fR
 .sp
@@ -290,8 +290,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: rollback option
-.\" rollback option: mysqlaccess
+.\" mariadb-access: rollback option
+.\" rollback option: mariadb-access
 \fB\-\-rollback\fR
 .sp
 Undo the most recent changes to the temporary grant tables\&.
@@ -305,8 +305,8 @@ Undo the most recent changes to the temporary grant tables\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: spassword option
-.\" spassword option: mysqlaccess
+.\" mariadb-access: spassword option
+.\" spassword option: mariadb-access
 \fB\-\-spassword[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-P[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -317,7 +317,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. See
@@ -332,8 +332,8 @@ Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: superuser option
-.\" superuser option: mysqlaccess
+.\" mariadb-access: superuser option
+.\" superuser option: mariadb-access
 \fB\-\-superuser=\fR\fB\fIuser_name\fR\fR,
 \fB\-U \fR\fB\fIuser_name\fR\fR
 .sp
@@ -348,8 +348,8 @@ Specify the user name for connecting as the superuser\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: table option
-.\" table option: mysqlaccess
+.\" mariadb-access: table option
+.\" table option: mariadb-access
 \fB\-\-table\fR,
 \fB\-t\fR
 .sp
@@ -364,8 +364,8 @@ Generate reports in table format\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: user option
-.\" user option: mysqlaccess
+.\" mariadb-access: user option
+.\" user option: mariadb-access
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -380,8 +380,8 @@ The user name to use in the access privileges\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlaccess: version option
-.\" version option: mysqlaccess
+.\" mariadb-access: version option
+.\" version option: mariadb-access
 \fB\-\-version\fR,
 \fB\-v\fR
 .sp
@@ -389,33 +389,33 @@ Display version information and exit\&.
 .RE
 .PP
 If your MariaDB distribution is installed in some non\-standard location, you must change the location where
-\fBmysqlaccess\fR
+\fBmariadb-access\fR
 expects to find the
-\fBmysql\fR
+\fBmariadb\fR
 client\&. Edit the
-mysqlaccess
+mariadb-access
 script at approximately line 18\&. Search for a line that looks like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-$MYSQL     = '/usr/local/bin/mysql';    # path to mysql executable
+$MYSQL     = '/usr/local/bin/mariadb';    # path to mariadb executable
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 Change the path to reflect the location where
-\fBmysql\fR
+\fBmariadb\fR
 actually is stored on your system\&. If you do not do this, a
 Broken pipe
 error will occur when you run
-\fBmysqlaccess\fR\&.
+\fBmariadb-access\fR\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

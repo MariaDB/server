@@ -81,16 +81,17 @@ static int update_server_record_in_cache(FOREIGN_SERVER *existing,
 /* utility functions */
 static void merge_server_struct(FOREIGN_SERVER *from, FOREIGN_SERVER *to);
 
-static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
-			       my_bool not_used __attribute__((unused)))
+static const uchar *servers_cache_get_key(const void *server_, size_t *length,
+                                          my_bool)
 {
+  auto server= static_cast<const FOREIGN_SERVER *>(server_);
   DBUG_ENTER("servers_cache_get_key");
   DBUG_PRINT("info", ("server_name_length %zd server_name %s",
                       server->server_name_length,
                       server->server_name));
 
-  *length= (uint) server->server_name_length;
-  DBUG_RETURN((uchar*) server->server_name);
+  *length= server->server_name_length;
+  DBUG_RETURN(reinterpret_cast<const uchar *>(server->server_name));
 }
 
 static PSI_memory_key key_memory_servers;
@@ -232,8 +233,8 @@ bool servers_init(bool dont_read_servers_table)
     DBUG_RETURN(TRUE);
 
   /* initialise our servers cache */
-  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32, 0, 0,
-                   (my_hash_get_key) servers_cache_get_key, 0, 0))
+  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32,
+                   0, 0, servers_cache_get_key, 0, 0))
   {
     return_val= TRUE; /* we failed, out of memory? */
     goto end;
@@ -251,7 +252,6 @@ bool servers_init(bool dont_read_servers_table)
   */
   if (!(thd=new THD(0)))
     DBUG_RETURN(TRUE);
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:servers_init"),
                        default_charset_info);
@@ -285,7 +285,7 @@ end:
 
 static bool servers_load(THD *thd, TABLE_LIST *tables)
 {
-  TABLE *table;
+  TABLE *table= tables[0].table;
   READ_RECORD read_record_info;
   bool return_val= TRUE;
   DBUG_ENTER("servers_load");
@@ -294,7 +294,8 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
   free_root(&mem, MYF(0));
   init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
+  table->use_all_columns();
+  if (init_read_record(&read_record_info,thd,table, NULL, NULL,
                        1,0, FALSE))
     DBUG_RETURN(1);
   while (!(read_record_info.read_record()))
@@ -407,7 +408,6 @@ get_server_from_table_to_cache(TABLE *table)
   FOREIGN_SERVER *server= (FOREIGN_SERVER *)alloc_root(&mem,
                                                        sizeof(FOREIGN_SERVER));
   DBUG_ENTER("get_server_from_table_to_cache");
-  table->use_all_columns();
 
   /* get each field into the server struct ptr */
   ptr= get_field(&mem, table->field[0]);
@@ -464,7 +464,7 @@ get_server_from_table_to_cache(TABLE *table)
 
   RETURN VALUES
     0  - no error
-    other - error code
+    other - ER_ error code
 */
 
 static int 
@@ -548,15 +548,19 @@ insert_server_record_into_cache(FOREIGN_SERVER *server)
     advance of insertion into the mysql.servers table
 
   RETURN VALUE
-    VOID
-
+    0 - no errors
+    >0 - ER_ error code
 */
 
-static void 
+static int
 store_server_fields(TABLE *table, FOREIGN_SERVER *server)
 {
 
   table->use_all_columns();
+
+  if (table->s->fields < 9)
+    return ER_CANT_FIND_SYSTEM_REC;
+
   /*
     "server" has already been prepped by prepare_server_struct_for_<>
     so, all we need to do is check if the value is set (> -1 for port)
@@ -565,30 +569,43 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
     have changed will be set. If an insert, then all will be set,
     even if with empty strings
   */
-  if (server->host)
+  if (server->host &&
     table->field[1]->store(server->host,
-                           (uint) strlen(server->host), system_charset_info);
-  if (server->db)
+                           (uint) strlen(server->host), system_charset_info))
+    goto err;
+  if (server->db &&
     table->field[2]->store(server->db,
-                           (uint) strlen(server->db), system_charset_info);
-  if (server->username)
+                           (uint) strlen(server->db), system_charset_info))
+    goto err;
+  if (server->username &&
     table->field[3]->store(server->username,
-                           (uint) strlen(server->username), system_charset_info);
-  if (server->password)
+                           (uint) strlen(server->username), system_charset_info))
+    goto err;
+  if (server->password &&
     table->field[4]->store(server->password,
-                           (uint) strlen(server->password), system_charset_info);
-  if (server->port > -1)
-    table->field[5]->store(server->port);
-
-  if (server->socket)
+                           (uint) strlen(server->password), system_charset_info))
+    goto err;
+  if (server->port > -1 &&
+    table->field[5]->store(server->port))
+    goto err;
+  if (server->socket &&
     table->field[6]->store(server->socket,
-                           (uint) strlen(server->socket), system_charset_info);
-  if (server->scheme)
+                           (uint) strlen(server->socket), system_charset_info))
+    goto err;
+  if (server->scheme &&
     table->field[7]->store(server->scheme,
-                           (uint) strlen(server->scheme), system_charset_info);
-  if (server->owner)
+                           (uint) strlen(server->scheme), system_charset_info))
+    goto err;
+  if (server->owner &&
     table->field[8]->store(server->owner,
-                           (uint) strlen(server->owner), system_charset_info);
+                           (uint) strlen(server->owner), system_charset_info))
+    goto err;
+  return 0;
+
+err:
+  THD *thd= table->in_use;
+  DBUG_ASSERT(thd->is_error());
+  return thd->get_stmt_da()->get_sql_errno();
 }
 
 /*
@@ -610,7 +627,7 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
 
   RETURN VALUE
     0 - no errors
-    >0 - error code
+    >0 - ER_ error code
 
   */
 
@@ -644,7 +661,8 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
       error= 1;
     }
     /* store each field to be inserted */
-    store_server_fields(table, server);
+    if ((error= store_server_fields(table, server)))
+      DBUG_RETURN(error);
 
     DBUG_PRINT("info",("record for server '%s' not found!",
                        server->server_name));
@@ -974,9 +992,15 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
 
   table->use_all_columns();
   /* set the field that's the PK to the value we're looking for */
-  table->field[0]->store(server->server_name,
+  if (table->field[0]->store(server->server_name,
                          server->server_name_length,
-                         system_charset_info);
+                         system_charset_info))
+  {
+    DBUG_ASSERT(0); /* Protected by servers_cache */
+    THD *thd= table->in_use;
+    DBUG_ASSERT(thd->is_error());
+    return thd->get_stmt_da()->get_sql_errno();
+  }
 
   if (unlikely((error=
                 table->file->ha_index_read_idx_map(table->record[0], 0,
@@ -994,7 +1018,8 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
   {
     /* ok, so we can update since the record exists in the table */
     store_record(table,record[1]);
-    store_server_fields(table, server);
+    if ((error= store_server_fields(table, server)))
+      goto end;
     if (unlikely((error=table->file->ha_update_row(table->record[1],
                                                    table->record[0])) &&
                  error != HA_ERR_RECORD_IS_THE_SAME))

@@ -332,6 +332,7 @@ SELECT * FROM mysql.column_stats;
 --sorted_result
 SELECT * FROM mysql.index_stats;
 
+--disable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --disable_ps2_protocol
 eval
@@ -344,6 +345,7 @@ SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
   FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
 SHOW CREATE TABLE t1;

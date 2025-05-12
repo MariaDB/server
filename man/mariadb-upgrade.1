@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-UPGRADE\fR" "1" "20 July 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-UPGRADE\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,26 +11,26 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql_upgrade
-.\" upgrading MySQL
-.\" MySQL: upgrading
+.\" mariadb-upgrade
+.\" upgrading MariaDB
+.\" MariaDB: upgrading
 .SH "NAME"
-mariadb-upgrade \- check tables for MariaDB upgrade (mysql_upgrade is now a symlink to mariadb-upgrade)
+mariadb-upgrade \- check tables for MariaDB upgrade (mariadb-upgrade is now a symlink to mariadb-upgrade)
 .SH "SYNOPSIS"
-.HP \w'\fBmysql_upgrade\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysql_upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadb-upgrade\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 examines all tables in all databases for incompatibilities with the current version of the MariaDB Server\&.
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 also upgrades the system tables so that you can take advantage of new privileges or capabilities that might have been added\&.
 .PP
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 should be executed each time you upgrade MariaDB\&.
 .PP
 If a table is found to have a possible incompatibility,
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 performs a table check\&. If any problems are found, a table repair is attempted\&.
 .if n \{\
 .sp
@@ -46,7 +46,7 @@ performs a table check\&. If any problems are found, a table repair is attempted
 .br
 .PP
 On Windows Server 2008 and Windows Vista, you must run
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 with administrator privileges\&. You can do this by running a Command Prompt as Administrator and running the command\&. Failure to do so may result in the upgrade failing to execute correctly\&.
 .sp .5v
 .RE
@@ -70,31 +70,31 @@ performing an upgrade\&.
 .RE
 .PP
 To use
-\fBmysql_upgrade\fR, make sure that the server is running, and then invoke it like this:
+\fBmariadb-upgrade\fR, make sure that the server is running, and then invoke it like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql_upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
+shell> \fBmariadb-upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 After running
-\fBmysql_upgrade\fR, stop the server and restart it so that any changes made to the system tables take effect\&.
+\fBmariadb-upgrade\fR, stop the server and restart it so that any changes made to the system tables take effect\&.
 .PP
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 executes the following commands to check and repair tables and to upgrade the system tables:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-mysqlcheck \-\-all\-databases \-\-check\-upgrade \-\-auto\-repair
-mysql < \fIfix_priv_tables\fR
-mysqlcheck \-\-all\-databases \-\-check\-upgrade \-\-fix\-db\-names \-\-fix\-table\-names
+mariadb-check \-\-all\-databases \-\-check\-upgrade \-\-auto\-repair
+mariadb < \fIfix_priv_tables\fR
+mariadb-check \-\-all\-databases \-\-check\-upgrade \-\-fix\-db\-names \-\-fix\-table\-names
 .fi
 .if n \{\
 .RE
@@ -111,9 +111,9 @@ Notes about the preceding commands:
 .IP \(bu 2.3
 .\}
 Because
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 invokes
-\fBmysqlcheck\fR
+\fBmariadb-check\fR
 with the
 \fB\-\-all\-databases\fR
 option, it processes all tables in all databases, which might take a long time to complete\&. Each table is locked and therefore unavailable to other sessions while it is being processed\&. Check and repair operations can be time\-consuming, particularly for large tables\&.
@@ -146,43 +146,43 @@ statement\&.
 .\}
 \fIfix_priv_tables\fR
 represents a script generated internally by
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 that contains SQL statements to upgrade the tables in the
 mysql
 database\&.
 .RE
 .PP
 All checked and repaired tables are marked with the current MariaDB version number\&. This ensures that next time you run
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 with the same version of the server, it can tell whether there is any need to check or repair the table again\&.
-.\" mysql_upgrade_info file: mysql_upgrade
-.\" mysql_upgrade: mysql_upgrade_info file
+.\" mariadb-upgrade_info file: mariadb-upgrade
+.\" mariadb-upgrade: mariadb-upgrade_info file
 .PP
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 also saves the MariaDB version number in a file named
-mysql_upgrade_info
+mariadb-upgrade_info
 in the data directory\&. This is used to quickly check whether all tables have been checked for this release so that table\-checking can be skipped\&. To ignore this file and perform the check regardless, use the
 \fB\-\-force\fR
 option\&.
 .PP
-For this reason, \fBmysql_upgrade\fR needs to be run as a user with write access to the data directory\&.
+For this reason, \fBmariadb-upgrade\fR needs to be run as a user with write access to the data directory\&.
 .PP
 If you install MariaDB from RPM packages on Linux, you must install the server and client RPMs\&.
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 is included in the server RPM but requires the client RPM because the latter includes
-\fBmysqlcheck\fR\&.
+\fBmariadb-check\fR\&.
 .PP
 .PP
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 supports the following options, which can be specified on the command line or in the
-[mysql_upgrade]
+[mariadb-upgrade]
 and
 [client]
 option file groups\&. Other options are passed to
-\fBmysqlcheck\fR\&. For example, it might be necessary to specify the
+\fBmariadb-check\fR\&. For example, it might be necessary to specify the
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR
 option\&.
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 also supports the options for processing option files\&.
 .sp
 .RS 4
@@ -193,8 +193,8 @@ also supports the options for processing option files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: help option
-.\" help option: mysql_upgrade
+.\" mariadb-upgrade: help option
+.\" help option: mariadb-upgrade
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -209,8 +209,8 @@ Display a short help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: basedir option
-.\" basedir option: mysql_upgrade
+.\" mariadb-upgrade: basedir option
+.\" basedir option: mariadb-upgrade
 \fB\-\-basedir=\fR\fB\fIpath\fR\fR
 .sp
 Old option accepted for backward compatibility but ignored\&.
@@ -224,8 +224,8 @@ Old option accepted for backward compatibility but ignored\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: character-sets-dir option
-.\" character-sets-dir option: mysql_upgrade
+.\" mariadb-upgrade: character-sets-dir option
+.\" character-sets-dir option: mariadb-upgrade
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 Old option accepted for backward compatibility but ignored\&.
@@ -239,8 +239,8 @@ Old option accepted for backward compatibility but ignored\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: check-if-upgrade-is-needed option
-.\" check-if-upgrade-is-needed option: mysql_upgrade
+.\" mariadb-upgrade: check-if-upgrade-is-needed option
+.\" check-if-upgrade-is-needed option: mariadb-upgrade
 \fB\-\-check\-if\-upgrade\-is\-needed\fR
 .sp
 Exit with a status code indicating if an upgrade is needed\&. Returns 0 if upgrade needed or current version couldn't be determined, 1 when no action required\&.
@@ -254,8 +254,8 @@ Exit with a status code indicating if an upgrade is needed\&. Returns 0 if upgra
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: datadir option
-.\" datadir option: mysql_upgrade
+.\" mariadb-upgrade: datadir option
+.\" datadir option: mariadb-upgrade
 \fB\-\-datadir=\fR\fB\fIpath\fR\fR
 .sp
 Old option accepted for backward compatibility but ignored\&.
@@ -269,8 +269,8 @@ Old option accepted for backward compatibility but ignored\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: debug option
-.\" debug option: mysql_upgrade
+.\" mariadb-upgrade: debug option
+.\" debug option: mariadb-upgrade
 \fB\-\-debug=\fR\fB\fIpath\fR\fR,
 \fB\-# \fIpath\fR\fR
 .sp
@@ -285,8 +285,8 @@ For debug builds, output debug log\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: debug-check option
-.\" debug-check option: mysql_upgrade
+.\" mariadb-upgrade: debug-check option
+.\" debug-check option: mariadb-upgrade
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -300,8 +300,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: debug-info option
-.\" debug-info option: mysql_upgrade
+.\" mariadb-upgrade: debug-info option
+.\" debug-info option: mariadb-upgrade
 \fB\-\-debug\-info\fR,
 \fB\-T\fR
 .sp
@@ -316,8 +316,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: default-character-set option
-.\" default-character-set option: mysql_upgrade
+.\" mariadb-upgrade: default-character-set option
+.\" default-character-set option: mariadb-upgrade
 \fB\-\-default\-character\-set=\fR\fB\fIname\fR\fR
 .sp
 Old option accepted for backward compatibility but ignored\&.
@@ -331,16 +331,16 @@ Old option accepted for backward compatibility but ignored\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: force option
-.\" force option: mysql_upgrade
+.\" mariadb-upgrade: force option
+.\" force option: mariadb-upgrade
 \fB\-\-force\fR
 .sp
 Ignore the
-mysql_upgrade_info
+mariadb-upgrade_info
 file and force execution of
-\fBmysqlcheck\fR
+\fBmariadb-check\fR
 even if
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 has already been executed for the current version of MariaDB\&.
 .RE
 .sp
@@ -352,8 +352,8 @@ has already been executed for the current version of MariaDB\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: host option
-.\" host option: mysql_upgrade
+.\" mariadb-upgrade: host option
+.\" host option: mariadb-upgrade
 \fB\-\-host\fR
 .sp
 Connect to MariaDB on the given host\&.
@@ -367,8 +367,8 @@ Connect to MariaDB on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: password option
-.\" password option: mysql_upgrade
+.\" mariadb-upgrade: password option
+.\" password option: mariadb-upgrade
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -381,7 +381,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
@@ -395,8 +395,8 @@ Specifying a password on the command line should be considered insecure\&. You c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: port option
-.\" port option: mysql_upgrade
+.\" mariadb-upgrade: port option
+.\" port option: mariadb-upgrade
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -411,8 +411,8 @@ The TCP/IP port number to use for the connection\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: protocol option
-.\" protocol option: mysql_upgrade
+.\" mariadb-upgrade: protocol option
+.\" protocol option: mariadb-upgrade
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -426,8 +426,8 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: silent option
-.\" silent option: mysql_upgrade
+.\" mariadb-upgrade: silent option
+.\" silent option: mariadb-upgrade
 \fB\-\-silent\fR
 .sp
 Print less information\&.
@@ -441,8 +441,8 @@ Print less information\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: socket option
-.\" socket option: mysql_upgrade
+.\" mariadb-upgrade: socket option
+.\" socket option: mariadb-upgrade
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -458,8 +458,8 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL options
-.\" SSL options: mysql_upgrade
+.\" mariadb-upgrade: SSL options
+.\" SSL options: mariadb-upgrade
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with 
@@ -474,8 +474,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL CA option
-.\" SSL CA option: mysql_upgrade
+.\" mariadb-upgrade: SSL CA option
+.\" SSL CA option: mariadb-upgrade
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -490,8 +490,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL CA Path option
-.\" SSL CA Path option: mysql_upgrade
+.\" mariadb-upgrade: SSL CA Path option
+.\" SSL CA Path option: mariadb-upgrade
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -506,8 +506,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL Cert option
-.\" SSL Cert option: mysql_upgrade
+.\" mariadb-upgrade: SSL Cert option
+.\" SSL Cert option: mariadb-upgrade
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -522,8 +522,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL Cipher option
-.\" SSL Cipher option: mysql_upgrade
+.\" mariadb-upgrade: SSL Cipher option
+.\" SSL Cipher option: mariadb-upgrade
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -538,8 +538,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL Key option
-.\" SSL Key option: mysql_upgrade
+.\" mariadb-upgrade: SSL Key option
+.\" SSL Key option: mariadb-upgrade
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -554,8 +554,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL Crl option
-.\" SSL CRL option: mysql_upgrade
+.\" mariadb-upgrade: SSL Crl option
+.\" SSL CRL option: mariadb-upgrade
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -570,8 +570,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL Crlpath option
-.\" SSL Crlpath option: mysql_upgrade
+.\" mariadb-upgrade: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-upgrade
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -586,8 +586,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysql_upgrade
+.\" mariadb-upgrade: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-upgrade
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -601,8 +601,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: tmpdir option
-.\" tmpdir option: mysql_upgrade
+.\" mariadb-upgrade: tmpdir option
+.\" tmpdir option: mariadb-upgrade
 \fB\-\-tmpdir=\fR\fB\fIpath\fR\fR,
 \fB\-t \fR\fB\fIpath\fR\fR
 .sp
@@ -617,8 +617,8 @@ The path name of the directory to use for creating temporary files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: upgrade-system-tables option
-.\" upgrade-system-tables option: mysql_upgrade
+.\" mariadb-upgrade: upgrade-system-tables option
+.\" upgrade-system-tables option: mariadb-upgrade
 \fB\-\-upgrade\-system\-tables\fR\fR,
 \fB\-s \fR
 .sp
@@ -633,8 +633,8 @@ Only upgrade the system tables in the mysql database\&. Tables in other database
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: user option
-.\" user option: mysql_upgrade
+.\" mariadb-upgrade: user option
+.\" user option: mariadb-upgrade
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -649,15 +649,15 @@ The MariaDB user name to use when connecting to the server and not using the cur
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: verbose option
-.\" verbose option: mysql_upgrade
+.\" mariadb-upgrade: verbose option
+.\" verbose option: mariadb-upgrade
 \fB\-\-verbose\fR
 .sp
 Display more output about the process\&. Using it twice will print connection 
 arguments; using it 3 times will print out all CHECK, RENAME and ALTER TABLE 
 commands used during the check phase; using it 4 times (added in MariaDB 10.0.14)
 will also write out all mariadb-check commands used; using it 5 times will print all
-the mariadb commands used and their results while running mysql_fix_privilege_tables script\&.
+the mariadb commands used and their results while running mariadb-fix-privilege-tables script\&.
 .RE
 .sp
 .RS 4
@@ -668,8 +668,8 @@ the mariadb commands used and their results while running mysql_fix_privilege_ta
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: version option
-.\" version option: mysql_upgrade
+.\" mariadb-upgrade: version option
+.\" version option: mariadb-upgrade
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -684,8 +684,8 @@ Output version information and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: version-check option
-.\" version-check option: mysql_upgrade
+.\" mariadb-upgrade: version-check option
+.\" version-check option: mariadb-upgrade
 \fB\-\-version\-check\fR,
 \fB\-k\fR
 .sp
@@ -703,18 +703,18 @@ it was built/distributed. Defaults to on; use \fB\-\-skip\-version\-check\fR to 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql_upgrade: write-binlog option
-.\" write-binlog option: mysql_upgrade
+.\" mariadb-upgrade: write-binlog option
+.\" write-binlog option: mariadb-upgrade
 \fB\-\-write\-binlog\fR
 .sp
 Cause binary logging to be enabled while
-\fBmysql_upgrade\fR
+\fBmariadb-upgrade\fR
 runs\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

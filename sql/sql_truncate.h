@@ -40,9 +40,9 @@ public:
     @param thd the current thread.
     @return false on success.
   */
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_TRUNCATE;
   }

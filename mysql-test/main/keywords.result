@@ -579,62 +579,62 @@ SELECT test.year(); -- FUNCTION test.year does not exist. Check
 SELECT test.create(); -- FUNCTION test.create does not exist. Che
 CALL p2('SELECT $(VAR) FROM t1');
 --------
-SELECT non_keyword FROM t1; -- Unknown column 'non_keyword' in 'field l
+SELECT non_keyword FROM t1; -- Unknown column 'non_keyword' in 'SELECT'
 --------
-SELECT lpad FROM t1; -- Unknown column 'lpad' in 'field list'
+SELECT lpad FROM t1; -- Unknown column 'lpad' in 'SELECT'
 --------
-SELECT rpad FROM t1; -- Unknown column 'rpad' in 'field list'
+SELECT rpad FROM t1; -- Unknown column 'rpad' in 'SELECT'
 --------
-SELECT adddate FROM t1; -- Unknown column 'adddate' in 'field list'
+SELECT adddate FROM t1; -- Unknown column 'adddate' in 'SELECT'
 --------
-SELECT substr FROM t1; -- Unknown column 'substr' in 'field list'
+SELECT substr FROM t1; -- Unknown column 'substr' in 'SELECT'
 --------
-SELECT substring FROM t1; -- Unknown column 'substring' in 'field lis
+SELECT substring FROM t1; -- Unknown column 'substring' in 'SELECT'
 --------
-SELECT trim_oracle FROM t1; -- Unknown column 'trim_oracle' in 'field l
+SELECT trim_oracle FROM t1; -- Unknown column 'trim_oracle' in 'SELECT'
 --------
-SELECT ascii FROM t1; -- Unknown column 'ascii' in 'field list'
+SELECT ascii FROM t1; -- Unknown column 'ascii' in 'SELECT'
 --------
 SELECT replace FROM t1; -- ..syntax.. near 'FROM t1' at line 1
 --------
-SELECT weight_string FROM t1; -- Unknown column 'weight_string' in 'field
+SELECT weight_string FROM t1; -- Unknown column 'weight_string' in 'SELEC
 --------
 SELECT char FROM t1; -- ..syntax.. near 'FROM t1' at line 1
 --------
-SELECT trim FROM t1; -- Unknown column 'trim' in 'field list'
+SELECT trim FROM t1; -- Unknown column 'trim' in 'SELECT'
 --------
-SELECT year FROM t1; -- Unknown column 'year' in 'field list'
+SELECT year FROM t1; -- Unknown column 'year' in 'SELECT'
 --------
 SELECT create FROM t1; -- ..syntax.. near 'create FROM t1' at line
 CALL p2('SELECT t1.$(VAR) FROM t1');
 --------
-SELECT t1.non_keyword FROM t1; -- Unknown column 't1.non_keyword' in 'fiel
+SELECT t1.non_keyword FROM t1; -- Unknown column 't1.non_keyword' in 'SELE
 --------
-SELECT t1.lpad FROM t1; -- Unknown column 't1.lpad' in 'field list'
+SELECT t1.lpad FROM t1; -- Unknown column 't1.lpad' in 'SELECT'
 --------
-SELECT t1.rpad FROM t1; -- Unknown column 't1.rpad' in 'field list'
+SELECT t1.rpad FROM t1; -- Unknown column 't1.rpad' in 'SELECT'
 --------
-SELECT t1.adddate FROM t1; -- Unknown column 't1.adddate' in 'field li
+SELECT t1.adddate FROM t1; -- Unknown column 't1.adddate' in 'SELECT'
 --------
-SELECT t1.substr FROM t1; -- Unknown column 't1.substr' in 'field lis
+SELECT t1.substr FROM t1; -- Unknown column 't1.substr' in 'SELECT'
 --------
-SELECT t1.substring FROM t1; -- Unknown column 't1.substring' in 'field 
+SELECT t1.substring FROM t1; -- Unknown column 't1.substring' in 'SELECT
 --------
-SELECT t1.trim_oracle FROM t1; -- Unknown column 't1.trim_oracle' in 'fiel
+SELECT t1.trim_oracle FROM t1; -- Unknown column 't1.trim_oracle' in 'SELE
 --------
-SELECT t1.ascii FROM t1; -- Unknown column 't1.ascii' in 'field list
+SELECT t1.ascii FROM t1; -- Unknown column 't1.ascii' in 'SELECT'
 --------
-SELECT t1.replace FROM t1; -- Unknown column 't1.replace' in 'field li
+SELECT t1.replace FROM t1; -- Unknown column 't1.replace' in 'SELECT'
 --------
-SELECT t1.weight_string FROM t1; -- Unknown column 't1.weight_string' in 'fi
+SELECT t1.weight_string FROM t1; -- Unknown column 't1.weight_string' in 'SE
 --------
-SELECT t1.char FROM t1; -- Unknown column 't1.char' in 'field list'
+SELECT t1.char FROM t1; -- Unknown column 't1.char' in 'SELECT'
 --------
-SELECT t1.trim FROM t1; -- Unknown column 't1.trim' in 'field list'
+SELECT t1.trim FROM t1; -- Unknown column 't1.trim' in 'SELECT'
 --------
-SELECT t1.year FROM t1; -- Unknown column 't1.year' in 'field list'
+SELECT t1.year FROM t1; -- Unknown column 't1.year' in 'SELECT'
 --------
-SELECT t1.create FROM t1; -- Unknown column 't1.create' in 'field lis
+SELECT t1.create FROM t1; -- Unknown column 't1.create' in 'SELECT'
 CALL p2('DROP TABLE $(VAR)');
 --------
 DROP TABLE non_keyword; -- Unknown table 'test.non_keyword'

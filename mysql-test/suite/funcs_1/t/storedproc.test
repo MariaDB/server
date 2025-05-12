@@ -10,7 +10,10 @@
 #                  
 ############################################################################
 
---disable_ps_protocol
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
+{
+   --skip Test temporarily disabled for ps-protocol and cursor-protocol
+}
 --source include/default_charset.inc
 set sql_mode="";
 
@@ -29733,4 +29736,3 @@ DROP TABLE IF EXISTS res_t1;
 let $message= .                               +++ END OF SCRIPT +++;
 --source include/show_msg80.inc
 # ==============================================================================
---enable_ps_protocol

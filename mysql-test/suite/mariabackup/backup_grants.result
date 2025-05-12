@@ -1,17 +1,21 @@
 CREATE user backup@localhost IDENTIFIED BY 'xyz';
 NOT FOUND /missing required privilege/ in backup.log
+NOT FOUND /xyz/ in mariadb_backup_info
 FOUND 1 /missing required privilege RELOAD/ in backup.log
 FOUND 1 /missing required privilege PROCESS/ in backup.log
 FOUND 1 /GRANT USAGE ON/ in backup.log
 GRANT RELOAD, PROCESS on *.* to backup@localhost;
 NOT FOUND /missing required privilege/ in backup.log
+NOT FOUND /xyz/ in mariadb_backup_info
 FOUND 1 /missing required privilege SLAVE MONITOR/ in backup.log
 GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 NOT FOUND /missing required privilege/ in backup.log
+NOT FOUND /xyz/ in mariadb_backup_info
 REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
 FOUND 1 /missing required privilege REPLICATION SLAVE ADMIN/ in backup.log
 FOUND 1 /missing required privilege SLAVE MONITOR/ in backup.log
 GRANT REPLICATION SLAVE ADMIN ON *.* TO backup@localhost;
 GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 NOT FOUND /missing required privilege/ in backup.log
+NOT FOUND /xyz/ in mariadb_backup_info
 DROP USER backup@localhost;

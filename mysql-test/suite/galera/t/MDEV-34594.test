@@ -1,0 +1,68 @@
+--source include/galera_cluster.inc
+--source include/log_bin.inc
+
+--echo #
+--echo # Case 1: test with binlog_format ROW
+--echo #
+--connection node_1
+SET @@binlog_format=ROW;
+CREATE TABLE t1 (a INT UNIQUE) SELECT 1 AS a,2 AS b UNION SELECT 2 AS a,3 AS c;
+#
+# Note that this has two rows (1,2) and (1,3) where (1,3) contains duplicate key
+# but we requested REPLACE --> ::update_row() is called to update (1,2) --> (1,3)
+#
+CREATE TABLE t2 (a INT UNIQUE) REPLACE SELECT 1 AS a,2 AS b UNION SELECT 1 AS a,3 AS c;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Case 2: test with binlog_format MIXED
+--echo #
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--source include/wait_condition.inc
+SET @@binlog_format=MIXED;
+CREATE TABLE t1 (a INT UNIQUE) SELECT 1 AS a,2 AS b UNION SELECT 2 AS a,3 AS c;
+CREATE TABLE t2 (a INT UNIQUE) REPLACE SELECT 1 AS a,2 AS b UNION SELECT 1 AS a,3 AS c;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Case 3: test with binlog_format STATEMENT
+--echo #
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--source include/wait_condition.inc
+SET @@binlog_format=STATEMENT;
+CREATE TABLE t1 (a INT UNIQUE) SELECT 1 AS a,2 AS b UNION SELECT 2 AS a,3 AS c;
+CREATE TABLE t2 (a INT UNIQUE) REPLACE SELECT 1 AS a,2 AS b UNION SELECT 1 AS a,3 AS c;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2' OR TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--source include/wait_condition.inc

@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-34542  Assertion `lock_trx_has_sys_table_locks(trx) == __null'
+--echo #   failed in void row_mysql_unfreeze_data_dictionary(trx_t*)
+--echo #
+--echo #
+CREATE TABLE t1 (c1 CHAR(1) ,c2 INT) ENGINE=INNODB
+                PARTITION BY LINEAR HASH ((c2)) PARTITIONS 512;
+CREATE TABLE t2 (a INT) ENGINE=INNODB;
+
+set @old_table_open_cache= @@table_open_cache;
+XA START 'a';
+INSERT INTO mysql.innodb_index_stats SELECT * FROM mysql.innodb_index_stats WHERE table_name='';
+SET GLOBAL table_open_cache=10;
+INSERT into t2 (a) VALUES (1);
+SELECT * FROM t1;
+XA END 'a';
+XA PREPARE 'a';
+# Added sleep to make sure that InnoDB main thread is to remove
+# the innodb_index_stats from table cache
+SELECT sleep(3);
+XA ROLLBACK 'a';
+DROP TABLE t1, t2;
+SET GLOBAL table_open_cache=@old_table_open_cache;

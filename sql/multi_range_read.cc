@@ -835,9 +835,9 @@ int Mrr_ordered_index_reader::refill_buffer(bool initial)
     status_var_increment(thd->status_var.ha_mrr_key_refills_count);
   }
 
-  key_buffer->sort((key_buffer->type() == Lifo_buffer::FORWARD)? 
-                     (qsort2_cmp)Mrr_ordered_index_reader::compare_keys_reverse : 
-                     (qsort2_cmp)Mrr_ordered_index_reader::compare_keys, 
+  key_buffer->sort((key_buffer->type() == Lifo_buffer::FORWARD)
+                       ? Mrr_ordered_index_reader::compare_keys_reverse
+                       : Mrr_ordered_index_reader::compare_keys,
                    this);
   DBUG_RETURN(0);
 }
@@ -869,9 +869,11 @@ int Mrr_ordered_index_reader::init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
 }
 
 
-static int rowid_cmp_reverse(void *file, uchar *a, uchar *b)
+static int rowid_cmp_reverse(void *file, const void *a, const void *b)
 {
-  return - ((handler*)file)->cmp_ref(a, b);
+  return -(static_cast<handler *>(file))
+              ->cmp_ref(static_cast<const uchar *>(a),
+                        static_cast<const uchar *>(b));
 }
 
 
@@ -1007,7 +1009,7 @@ int Mrr_ordered_rndpos_reader::refill_from_index_reader()
   if (!index_reader_needs_refill)
     index_reader->interrupt_read();
   /* Sort the buffer contents by rowid */
-  rowid_buffer->sort((qsort2_cmp)rowid_cmp_reverse, (void*)file);
+  rowid_buffer->sort(rowid_cmp_reverse, (void*)file);
 
   rowid_buffer->setup_reading(file->ref_length,
                               is_mrr_assoc ? sizeof(range_id_t) : 0);
@@ -1476,14 +1478,16 @@ void DsMrr_impl::dsmrr_close()
   my_qsort2-compatible static member function to compare key tuples 
 */
 
-int Mrr_ordered_index_reader::compare_keys(void* arg, uchar* key1_arg, 
-                                           uchar* key2_arg)
+int Mrr_ordered_index_reader::compare_keys(void *arg, const void *key1_arg_,
+                                           const void *key2_arg_)
 {
-  Mrr_ordered_index_reader *reader= (Mrr_ordered_index_reader*)arg;
+  auto key1_arg= static_cast<const uchar *>(key1_arg_);
+  auto key2_arg= static_cast<const uchar *>(key2_arg_);
+  auto reader= static_cast<const Mrr_ordered_index_reader *>(arg);
   TABLE *table= reader->file->get_table();
   KEY_PART_INFO *part= table->key_info[reader->file->active_index].key_part;
-  uchar *key1, *key2;
-   
+  const uchar *key1, *key2;
+
   if (reader->keypar.use_key_pointers)
   {
     /* the buffer stores pointers to keys, get to the keys */
@@ -1500,8 +1504,8 @@ int Mrr_ordered_index_reader::compare_keys(void* arg, uchar* key1_arg,
 }
 
 
-int Mrr_ordered_index_reader::compare_keys_reverse(void* arg, uchar* key1, 
-                                                   uchar* key2)
+int Mrr_ordered_index_reader::compare_keys_reverse(void *arg, const void *key1,
+                                                   const void *key2)
 {
   return -compare_keys(arg, key1, key2);
 }

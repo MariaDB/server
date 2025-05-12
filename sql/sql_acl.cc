@@ -54,6 +54,7 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
+#include "scope.h"
 
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
@@ -78,7 +79,7 @@ const char *safe_vio_type_name(Vio *vio)
   return vio_type_name(vio_type(vio), &unused);
 }
 
-#include "sql_acl_getsort.ic"
+#include "sql_acl_getsort.inl"
 
 static LEX_CSTRING native_password_plugin_name= {
   STRING_WITH_LEN("mysql_native_password")
@@ -257,6 +258,28 @@ public:
       return false;
 
     return compare_hostname(&host, host2, ip2 ? ip2 : host2);
+  }
+
+  enum PASSWD_ERROR_ACTION
+  {
+    PASSWD_ERROR_CLEAR,
+    PASSWD_ERROR_INCREMENT
+  };
+
+  void update_password_errors(PASSWD_ERROR_ACTION action)
+  {
+    switch (action)
+    {
+      case PASSWD_ERROR_INCREMENT:
+        password_errors++;
+        break;
+      case PASSWD_ERROR_CLEAR:
+        password_errors= 0;
+        break;
+      default:
+        DBUG_ASSERT(0);
+        break;
+    }
   }
 };
 
@@ -547,18 +570,20 @@ public:
 };
 
 
-static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)))
+static const uchar *acl_entry_get_key(const void *entry_, size_t *length,
+                                      my_bool)
 {
+  auto entry= static_cast<const acl_entry *>(entry_);
   *length=(uint) entry->length;
-  return (uchar*) entry->key;
+  return reinterpret_cast<const uchar *>(entry->key);
 }
 
-static uchar* acl_role_get_key(ACL_ROLE *entry, size_t *length,
-                               my_bool not_used __attribute__((unused)))
+static const uchar *acl_role_get_key(const void *entry_, size_t *length,
+                                     my_bool)
 {
+  auto entry= static_cast<const ACL_ROLE *>(entry_);
   *length=(uint) entry->user.length;
-  return (uchar*) entry->user.str;
+  return reinterpret_cast<const uchar *>(entry->user.str);
 }
 
 struct ROLE_GRANT_PAIR : public Sql_alloc
@@ -573,11 +598,12 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
             const char *rolename, bool with_admin_option);
 };
 
-static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
-                                  my_bool not_used __attribute__((unused)))
+static const uchar *acl_role_map_get_key(const void *entry_, size_t *length,
+                                         my_bool)
 {
+  auto entry= static_cast<const ROLE_GRANT_PAIR *>(entry_);
   *length=(uint) entry->hashkey.length;
-  return (uchar*) entry->hashkey.str;
+  return reinterpret_cast<const uchar *>(entry->hashkey.str);
 }
 
 bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
@@ -666,7 +692,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
-typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
@@ -684,10 +709,10 @@ static DYNAMIC_ARRAY acl_wild_hosts;
 static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
+static int acl_compare(const void *a, const void *b);
+static int acl_user_compare(const void *a, const void *b);
 static void rebuild_acl_users();
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
+static int acl_db_compare(const void *a, const void *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
 static void rebuild_check_host(void);
@@ -704,9 +729,9 @@ static bool add_role_user_mapping(const char *uname, const char *hname, const ch
 static bool get_YN_as_bool(Field *field);
 
 #define ROLE_CYCLE_FOUND 2
-static int traverse_role_graph_up(ACL_ROLE *, void *,
-                                  int (*) (ACL_ROLE *, void *),
-                                  int (*) (ACL_ROLE *, ACL_ROLE *, void *));
+static int
+traverse_role_graph_up(ACL_ROLE *, void *, int (*)(ACL_USER_BASE *, void *),
+                       int (*)(ACL_USER_BASE *, ACL_ROLE *, void *));
 
 static int traverse_role_graph_down(ACL_USER_BASE *, void *,
                              int (*) (ACL_USER_BASE *, void *),
@@ -949,9 +974,9 @@ class User_table_tabular: public User_table
 {
  public:
 
-  LEX_CSTRING& name() const { return MYSQL_TABLE_NAME_USER; }
+  LEX_CSTRING& name() const override { return MYSQL_TABLE_NAME_USER; }
 
-  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const
+  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const override
   {
     mysql_mutex_assert_owner(&acl_cache->lock);
     u->alloc_auth(root, 1);
@@ -994,7 +1019,7 @@ class User_table_tabular: public User_table
     return 0;
   }
 
-  bool set_auth(const ACL_USER &u) const
+  bool set_auth(const ACL_USER &u) const override
   {
     if (u.nauth != 1)
       return 1;
@@ -1015,7 +1040,7 @@ class User_table_tabular: public User_table
     return 0;
   }
 
-  privilege_t get_access() const
+  privilege_t get_access() const override
   {
     privilege_t access(Grant_table_base::get_access());
     if ((num_fields() <= 13) && (access & CREATE_ACL))
@@ -1077,7 +1102,7 @@ class User_table_tabular: public User_table
     return access & GLOBAL_ACLS;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(const privilege_t rights, bool revoke) const override
   {
     ulonglong priv(SELECT_ACL);
     for (uint i= start_priv_columns; i < end_priv_columns; i++, priv <<= 1)
@@ -1087,132 +1112,132 @@ class User_table_tabular: public User_table
     }
   }
 
-  SSL_type get_ssl_type () const
+  SSL_type get_ssl_type () const override
   {
     Field *f= get_field(end_priv_columns, MYSQL_TYPE_ENUM);
     return (SSL_type)(f ? f->val_int()-1 : 0);
   }
-  int set_ssl_type (SSL_type x) const
+  int set_ssl_type (SSL_type x) const override
   {
     if (Field *f= get_field(end_priv_columns, MYSQL_TYPE_ENUM))
       return f->store(x+1, 0);
     else
       return 1;
   }
-  const char* get_ssl_cipher (MEM_ROOT *root) const
+  const char* get_ssl_cipher (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 1, MYSQL_TYPE_BLOB);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_ssl_cipher (const char *s, size_t l) const
+  int set_ssl_cipher (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 1, MYSQL_TYPE_BLOB))
       return f->store(s, l, &my_charset_latin1);
     else
       return 1;
   }
-  const char* get_x509_issuer (MEM_ROOT *root) const
+  const char* get_x509_issuer (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 2, MYSQL_TYPE_BLOB);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_x509_issuer (const char *s, size_t l) const
+  int set_x509_issuer (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 2, MYSQL_TYPE_BLOB))
       return f->store(s, l, &my_charset_latin1);
     else
       return 1;
   }
-  const char* get_x509_subject (MEM_ROOT *root) const
+  const char* get_x509_subject (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 3, MYSQL_TYPE_BLOB);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_x509_subject (const char *s, size_t l) const
+  int set_x509_subject (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 3, MYSQL_TYPE_BLOB))
       return f->store(s, l, &my_charset_latin1);
     else
       return 1;
   }
-  longlong get_max_questions () const
+  longlong get_max_questions () const override
   {
     Field *f= get_field(end_priv_columns + 4, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_questions (longlong x) const
+  int set_max_questions (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 4, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  longlong get_max_updates () const
+  longlong get_max_updates () const override
   {
     Field *f= get_field(end_priv_columns + 5, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_updates (longlong x) const
+  int set_max_updates (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 5, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  longlong get_max_connections () const
+  longlong get_max_connections () const override
   {
     Field *f= get_field(end_priv_columns + 6, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_connections (longlong x) const
+  int set_max_connections (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 6, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  longlong get_max_user_connections () const
+  longlong get_max_user_connections () const override
   {
     Field *f= get_field(end_priv_columns + 7, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_user_connections (longlong x) const
+  int set_max_user_connections (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 7, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  double get_max_statement_time () const
+  double get_max_statement_time () const override
   {
     Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_NEWDECIMAL);
     return f ? f->val_real() : 0;
   }
-  int set_max_statement_time (double x) const
+  int set_max_statement_time (double x) const override
   {
     if (Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_NEWDECIMAL))
       return f->store(x);
     else
       return 1;
   }
-  bool get_is_role () const
+  bool get_is_role () const override
   {
     Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_ENUM);
     return f ? f->val_int()-1 : 0;
   }
-  int set_is_role (bool x) const
+  int set_is_role (bool x) const override
   {
     if (Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_ENUM))
       return f->store(x+1, 0);
     else
       return 1;
   }
-  const char* get_default_role (MEM_ROOT *root) const
+  const char* get_default_role (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_STRING);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_default_role (const char *s, size_t l) const
+  int set_default_role (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_STRING))
       return f->store(s, l, system_charset_info);
@@ -1222,12 +1247,12 @@ class User_table_tabular: public User_table
   /* On a MariaDB 10.3 user table, the account locking accessors will try to
      get the content of the max_statement_time column, but they will fail due
      to the typecheck in get_field. */
-  bool get_account_locked () const
+  bool get_account_locked () const override
   {
     Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_ENUM);
     return f ? f->val_int()-1 : 0;
   }
-  int set_account_locked (bool x) const
+  int set_account_locked (bool x) const override
   {
     if (Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_ENUM))
       return f->store(x+1, 0);
@@ -1235,14 +1260,14 @@ class User_table_tabular: public User_table
     return 1;
   }
 
-  bool get_password_expired () const
+  bool get_password_expired () const override
   {
     uint field_num= end_priv_columns + 10;
 
     Field *f= get_field(field_num, MYSQL_TYPE_ENUM);
     return f ? f->val_int()-1 : 0;
   }
-  int set_password_expired (bool x) const
+  int set_password_expired (bool x) const override
   {
     uint field_num= end_priv_columns + 10;
 
@@ -1250,14 +1275,14 @@ class User_table_tabular: public User_table
       return f->store(x+1, 0);
     return 1;
   }
-  my_time_t get_password_last_changed () const
+  my_time_t get_password_last_changed () const override
   {
     ulong unused_dec;
     if (Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_TIMESTAMP2))
       return f->get_timestamp(&unused_dec);
     return 0;
   }
-  int set_password_last_changed (my_time_t x) const
+  int set_password_last_changed (my_time_t x) const override
   {
     if (Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_TIMESTAMP2))
     {
@@ -1266,7 +1291,7 @@ class User_table_tabular: public User_table
     }
     return 1;
   }
-  longlong get_password_lifetime () const
+  longlong get_password_lifetime () const override
   {
     if (Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_SHORT))
     {
@@ -1276,7 +1301,7 @@ class User_table_tabular: public User_table
     }
     return 0;
   }
-  int set_password_lifetime (longlong x) const
+  int set_password_lifetime (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_SHORT))
     {
@@ -1291,7 +1316,7 @@ class User_table_tabular: public User_table
     return 1;
   }
 
-  virtual ~User_table_tabular() = default;
+  ~User_table_tabular() override = default;
  private:
   friend class Grant_tables;
 
@@ -1316,7 +1341,7 @@ class User_table_tabular: public User_table
     return f->real_type() == type ? f : NULL;
   }
 
-  int setup_sysvars() const
+  int setup_sysvars() const override
   {
     username_char_length= MY_MIN(m_table->field[1]->char_length(),
                                  USERNAME_CHAR_LENGTH);
@@ -1390,9 +1415,9 @@ class User_table_tabular: public User_table
 */
 class User_table_json: public User_table
 {
-  LEX_CSTRING& name() const { return MYSQL_TABLE_NAME[USER_TABLE]; }
+  LEX_CSTRING& name() const override { return MYSQL_TABLE_NAME[USER_TABLE]; }
 
-  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const
+  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const override
   {
     size_t array_len;
     const char *array;
@@ -1471,7 +1496,7 @@ class User_table_json: public User_table
     return 0;
   }
 
-  bool set_auth(const ACL_USER &u) const
+  bool set_auth(const ACL_USER &u) const override
   {
     size_t array_len;
     const char *array;
@@ -1595,7 +1620,7 @@ class User_table_json: public User_table
     return access & ALL_KNOWN_ACL;
   }
 
-  privilege_t get_access() const
+  privilege_t get_access() const override
   {
     ulonglong version_id= (ulonglong) get_int_value("version_id");
     ulonglong access= (ulonglong) get_int_value("access");
@@ -1622,7 +1647,7 @@ class User_table_json: public User_table
     return adjust_access(version_id, access) & GLOBAL_ACLS;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(const privilege_t rights, bool revoke) const override
   {
     privilege_t access= get_access();
     if (revoke)
@@ -1635,77 +1660,77 @@ class User_table_json: public User_table
   const char *unsafe_str(const char *s) const
   { return s[0] ? s : NULL; }
 
-  SSL_type get_ssl_type () const
+  SSL_type get_ssl_type () const override
   { return (SSL_type)get_int_value("ssl_type"); }
-  int set_ssl_type (SSL_type x) const
+  int set_ssl_type (SSL_type x) const override
   { return set_int_value("ssl_type", x); }
-  const char* get_ssl_cipher (MEM_ROOT *root) const
+  const char* get_ssl_cipher (MEM_ROOT *root) const override
   { return unsafe_str(get_str_value(root, "ssl_cipher")); }
-  int set_ssl_cipher (const char *s, size_t l) const
+  int set_ssl_cipher (const char *s, size_t l) const override
   { return set_str_value("ssl_cipher", s, l); }
-  const char* get_x509_issuer (MEM_ROOT *root) const
+  const char* get_x509_issuer (MEM_ROOT *root) const override
   { return unsafe_str(get_str_value(root, "x509_issuer")); }
-  int set_x509_issuer (const char *s, size_t l) const
+  int set_x509_issuer (const char *s, size_t l) const override
   { return set_str_value("x509_issuer", s, l); }
-  const char* get_x509_subject (MEM_ROOT *root) const
+  const char* get_x509_subject (MEM_ROOT *root) const override
   { return unsafe_str(get_str_value(root, "x509_subject")); }
-  int set_x509_subject (const char *s, size_t l) const
+  int set_x509_subject (const char *s, size_t l) const override
   { return set_str_value("x509_subject", s, l); }
-  longlong get_max_questions () const
+  longlong get_max_questions () const override
   { return get_int_value("max_questions"); }
-  int set_max_questions (longlong x) const
+  int set_max_questions (longlong x) const override
   { return set_int_value("max_questions", x); }
-  longlong get_max_updates () const
+  longlong get_max_updates () const override
   { return get_int_value("max_updates"); }
-  int set_max_updates (longlong x) const
+  int set_max_updates (longlong x) const override
   { return set_int_value("max_updates", x); }
-  longlong get_max_connections () const
+  longlong get_max_connections () const override
   { return get_int_value("max_connections"); }
-  int set_max_connections (longlong x) const
+  int set_max_connections (longlong x) const override
   { return set_int_value("max_connections", x); }
-  longlong get_max_user_connections () const
+  longlong get_max_user_connections () const override
   { return get_int_value("max_user_connections"); }
-  int set_max_user_connections (longlong x) const
+  int set_max_user_connections (longlong x) const override
   { return set_int_value("max_user_connections", x); }
-  double get_max_statement_time () const
+  double get_max_statement_time () const override
   { return get_double_value("max_statement_time"); }
-  int set_max_statement_time (double x) const
+  int set_max_statement_time (double x) const override
   { return set_double_value("max_statement_time", x); }
-  bool get_is_role () const
+  bool get_is_role () const override
   { return get_bool_value("is_role"); }
-  int set_is_role (bool x) const
+  int set_is_role (bool x) const override
   { return set_bool_value("is_role", x); }
-  const char* get_default_role (MEM_ROOT *root) const
+  const char* get_default_role (MEM_ROOT *root) const override
   { return get_str_value(root, "default_role"); }
-  int set_default_role (const char *s, size_t l) const
+  int set_default_role (const char *s, size_t l) const override
   { return set_str_value("default_role", s, l); }
-  bool get_account_locked () const
+  bool get_account_locked () const override
   { return get_bool_value("account_locked"); }
-  int set_account_locked (bool x) const
+  int set_account_locked (bool x) const override
   { return set_bool_value("account_locked", x); }
-  my_time_t get_password_last_changed () const
+  my_time_t get_password_last_changed () const override
   { return static_cast<my_time_t>(get_int_value("password_last_changed")); }
-  int set_password_last_changed (my_time_t x) const
+  int set_password_last_changed (my_time_t x) const override
   { return set_int_value("password_last_changed", static_cast<longlong>(x)); }
-  int set_password_lifetime (longlong x) const
+  int set_password_lifetime (longlong x) const override
   { return set_int_value("password_lifetime", x); }
-  longlong get_password_lifetime () const
+  longlong get_password_lifetime () const override
   { return get_int_value("password_lifetime", -1); }
   /*
      password_last_changed=0 means the password is manually expired.
      In MySQL 5.7+ this state is described using the password_expired column
      in mysql.user
   */
-  bool get_password_expired () const
+  bool get_password_expired () const override
   { return get_int_value("password_last_changed", -1) == 0; }
-  int set_password_expired (bool x) const
+  int set_password_expired (bool x) const override
   { return x ? set_password_last_changed(0) : 0; }
 
-  ~User_table_json() = default;
+  ~User_table_json() override = default;
  private:
   friend class Grant_tables;
   static const uint JSON_SIZE=1024;
-  int setup_sysvars() const
+  int setup_sysvars() const override
   {
     using_global_priv_table= true;
     username_char_length= MY_MIN(m_table->field[1]->char_length(),
@@ -2238,13 +2263,15 @@ error:
 }
 
 
-static void free_acl_user(ACL_USER *user)
+static void free_acl_user(void *user_)
 {
+  ACL_USER *user= static_cast<ACL_USER *>(user_);
   delete_dynamic(&(user->role_grants));
 }
 
-static void free_acl_role(ACL_ROLE *role)
+static void free_acl_role(void *role_)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(role_);
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
 }
@@ -2350,11 +2377,10 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  // check for SET PASSWORD
   if (!plugin)
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_PLUGIN_IS_NOT_LOADED,
-                        ER_THD(thd, ER_PLUGIN_IS_NOT_LOADED), plugin_name);
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), plugin_name);
     return ER_PLUGIN_IS_NOT_LOADED;
   }
 
@@ -2408,6 +2434,21 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   res= 0;
 end:
+  switch(res)
+  {
+    case ER_OUTOFMEMORY:        // should be reported by my_malloc
+    case ER_NOT_VALID_PASSWORD: // should be reported by plugin
+    case ER_PASSWD_LENGTH:      // should be reported by plugin
+      DBUG_ASSERT(thd->is_error());
+      /* fall through*/
+    case 0:
+      break;
+    case ER_SET_PASSWORD_AUTH_PLUGIN:
+      my_error(res, MYF(0), plugin_name);
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
   if (unlock_plugin)
     plugin_unlock(thd, plugin);
   return res;
@@ -2506,10 +2547,9 @@ bool acl_init(bool dont_read_acl_tables)
   bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0, 0,
-                           (my_hash_get_key) acl_entry_get_key,
-                           (my_hash_free_key) my_free,
-                           &my_charset_utf8mb3_bin);
+  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0,
+                                      0, acl_entry_get_key, my_free,
+                                      &my_charset_utf8mb3_bin);
 
   /*
     cache built-in native authentication plugins,
@@ -2533,7 +2573,6 @@ bool acl_init(bool dont_read_acl_tables)
   */
   if (!(thd=new THD(0)))
     DBUG_RETURN(1); /* purecov: inspected */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:acl_init"),
                        default_charset_info);
@@ -2576,10 +2615,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 {
   READ_RECORD read_record_info;
   char tmp_name[SAFE_NAME_LEN+1];
-  Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
 
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  SCOPE_CLEAR(thd->variables.sql_mode, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   grant_version++; /* Privileges updated */
 
@@ -2880,7 +2918,7 @@ void acl_free(bool end)
   acl_public= NULL;
   free_root(&acl_memroot,MYF(0));
   delete_dynamic(&acl_hosts);
-  delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
+  delete_dynamic_with_callback(&acl_users, free_acl_user);
   acl_dbs.free_memory();
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
@@ -2963,12 +3001,11 @@ bool acl_reload(THD *thd)
   my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
   my_init_dynamic_array(key_memory_acl_mem, &acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
-  my_hash_init2(key_memory_acl_mem, &acl_roles,50, &my_charset_utf8mb3_bin,
-                0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
-                (void (*)(void *))free_acl_role, 0);
+  my_hash_init2(key_memory_acl_mem, &acl_roles, 50, &my_charset_utf8mb3_bin, 0,
+                0, 0, acl_role_get_key, 0, free_acl_role, 0);
   my_hash_init2(key_memory_acl_mem, &acl_roles_mappings, 50,
-                &my_charset_utf8mb3_bin, 0, 0, 0, (my_hash_get_key)
-                acl_role_map_get_key, 0, 0, 0);
+                &my_charset_utf8mb3_bin, 0, 0, 0, acl_role_map_get_key, 0, 0,
+                0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
@@ -2994,7 +3031,7 @@ bool acl_reload(THD *thd)
     my_hash_free(&old_acl_roles);
     free_root(&old_mem,MYF(0));
     delete_dynamic(&old_acl_hosts);
-    delete_dynamic_with_callback(&old_acl_users, (FREE_FUNC) free_acl_user);
+    delete_dynamic_with_callback(&old_acl_users, free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     my_hash_free(&old_acl_roles_mappings);
   }
@@ -3044,8 +3081,10 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field)
 }
 
 
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
+static int acl_compare(const void *a_, const void *b_)
 {
+  const ACL_ACCESS *a= static_cast<const ACL_ACCESS *>(a_);
+  const ACL_ACCESS *b= static_cast<const ACL_ACCESS *>(b_);
   if (a->sort > b->sort)
     return -1;
   if (a->sort < b->sort)
@@ -3053,8 +3092,11 @@ static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
   return 0;
 }
 
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
+static int acl_user_compare(const void *a_, const void *b_)
 {
+  const ACL_USER *a= static_cast<const ACL_USER *>(a_);
+  const ACL_USER *b= static_cast<const ACL_USER *>(b_);
+
   int res= strcmp(a->user.str, b->user.str);
   if (res)
     return res;
@@ -3073,8 +3115,10 @@ static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
   return -strcmp(a->host.hostname, b->host.hostname);
 }
 
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b)
+static int acl_db_compare(const void *a_, const void *b_)
 {
+  const ACL_DB *a= static_cast<const ACL_DB *>(a_);
+  const ACL_DB *b= static_cast<const ACL_DB *>(b_);
   int res= strcmp(a->user, b->user);
   if (res)
     return res;
@@ -3385,7 +3429,7 @@ end:
   switch (result)
   {
     case ER_INVALID_CURRENT_USER:
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
       break;
     case ER_INVALID_ROLE:
       /* Role doesn't exist at all */
@@ -3470,11 +3514,11 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   return 0;
 }
 
-static uchar* check_get_key(ACL_USER *buff, size_t *length,
-                            my_bool not_used __attribute__((unused)))
+static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
 {
+  auto buff= static_cast<const ACL_USER *>(buff_);
   *length=buff->hostname_length;
-  return (uchar*) buff->host.hostname;
+  return reinterpret_cast<const uchar *>(buff->host.hostname);
 }
 
 
@@ -3602,6 +3646,9 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
     acl_user->password_lifetime= options.num_expiration_days;
     break;
   }
+
+  // Any alter user resets password_errors;
+  acl_user->update_password_errors(ACL_USER::PASSWD_ERROR_CLEAR);
 
   return 0;
 }
@@ -3816,9 +3863,9 @@ static void init_check_host(void)
   (void) my_init_dynamic_array(key_memory_acl_mem, &acl_wild_hosts,
                                sizeof(struct acl_host_and_ip),
                                acl_users.elements, 1, MYF(0));
-  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,system_charset_info,
-                      acl_users.elements, 0, 0,
-                      (my_hash_get_key) check_get_key, 0, 0);
+  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,
+                      system_charset_info, acl_users.elements, 0, 0,
+                      check_get_key, 0, 0);
   if (!allow_all_hosts)
   {
     for (size_t i=0 ; i < acl_users.elements ; i++)
@@ -4016,7 +4063,8 @@ bool acl_check_host(const char *host, const char *ip)
     return 0;
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
+  if (allow_all_hosts ||
+      (host && my_hash_search(&acl_check_hosts,(uchar*) host,strlen(host))) ||
       (ip && my_hash_search(&acl_check_hosts,(uchar*) ip, strlen(ip))))
   {
     mysql_mutex_unlock(&acl_cache->lock);
@@ -5417,11 +5465,12 @@ public:
 };
 
 
-static uchar* get_key_column(GRANT_COLUMN *buff, size_t *length,
-			    my_bool not_used __attribute__((unused)))
+static const uchar *get_key_column(const void *buff_, size_t *length, my_bool)
 {
+  auto buff=
+      static_cast<const GRANT_COLUMN *>(buff_);
   *length=buff->key_length;
-  return (uchar*) buff->column;
+  return reinterpret_cast<const uchar *>(buff->column);
 }
 
 class GRANT_NAME :public Sql_alloc
@@ -5460,12 +5509,12 @@ public:
   GRANT_TABLE(const char *h, const char *d,const char *u,
               const char *t, privilege_t p, privilege_t c);
   GRANT_TABLE (TABLE *form, TABLE *col_privs);
-  ~GRANT_TABLE();
-  bool ok() { return privs != NO_ACL || cols != NO_ACL; }
+  ~GRANT_TABLE() override;
+  bool ok() override { return privs != NO_ACL || cols != NO_ACL; }
   void init_hash()
   {
     my_hash_init2(key_memory_acl_memex, &hash_columns, 4, system_charset_info,
-                  0, 0, 0, (my_hash_get_key) get_key_column, 0, 0, 0);
+                  0, 0, 0, get_key_column, 0, 0, 0);
   }
 };
 
@@ -5650,16 +5699,17 @@ GRANT_TABLE::~GRANT_TABLE()
 }
 
 
-static uchar* get_grant_table(GRANT_NAME *buff, size_t *length,
-			     my_bool not_used __attribute__((unused)))
+static const uchar *get_grant_table(const void *buff_, size_t *length, my_bool)
 {
+  auto buff= static_cast<const GRANT_NAME *>(buff_);
   *length=buff->key_length;
-  return (uchar*) buff->hash_key;
+  return reinterpret_cast<const uchar *>(buff->hash_key);
 }
 
 
-static void free_grant_table(GRANT_TABLE *grant_table)
+static void free_grant_table(void *grant_table_)
 {
+  GRANT_TABLE *grant_table= static_cast<GRANT_TABLE *>(grant_table_);
   grant_table->~GRANT_TABLE();
 }
 
@@ -6296,19 +6346,20 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
 }
 
 
-static int init_role_for_merging(ACL_ROLE *role, void *context)
+static int init_role_for_merging(ACL_USER_BASE *role_, void *context)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(role_);
   role->counter= 0;
   return 0;
 }
 
-static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+static int count_subgraph_nodes(ACL_USER_BASE *, ACL_ROLE *grantee, void *context)
 {
   grantee->counter++;
   return 0;
 }
 
-static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+static int merge_role_privileges(ACL_USER_BASE *, ACL_ROLE *, void *);
 static bool merge_one_role_privileges(ACL_ROLE *grantee, PRIVS_TO_MERGE what);
 
 /**
@@ -6548,13 +6599,11 @@ end:
 */
 
 static int traverse_role_graph_up(ACL_ROLE *role, void *context,
-       int (*on_node) (ACL_ROLE *role, void *context),
-       int (*on_edge) (ACL_ROLE *current, ACL_ROLE *neighbour, void *context))
+       int (*on_node) (ACL_USER_BASE *role, void *context),
+       int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
-  return traverse_role_graph_impl(role, context,
-                    my_offsetof(ACL_ROLE, parent_grantee),
-                    (int (*)(ACL_USER_BASE *, void *))on_node,
-                    (int (*)(ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
+  return traverse_role_graph_impl(
+      role, context, my_offsetof(ACL_ROLE, parent_grantee), on_node, on_edge);
 }
 
 /**
@@ -6585,10 +6634,11 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   entries using the role hash. We put all these "interesting"
   entries in a (suposedly small) dynamic array and them use it for merging.
 */
-static uchar* role_key(const ACL_ROLE *role, size_t *klen, my_bool)
+static const uchar *role_key(const void *role_, size_t *klen, my_bool)
 {
+  auto role= static_cast<const ACL_ROLE *>(role_);
   *klen= role->user.length;
-  return (uchar*) role->user.str;
+  return reinterpret_cast<const uchar *>(role->user.str);
 }
 typedef Hash_set<ACL_ROLE> role_hash_t;
 
@@ -6607,8 +6657,10 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
   return old != grantee->access;
 }
 
-static int db_name_sort(const int *db1, const int *db2)
+static int db_name_sort(const void *db1_, const void *db2_)
 {
+  auto db1= static_cast<const int *>(db1_);
+  auto db2= static_cast<const int *>(db2_);
   return strcmp(acl_dbs.at(*db1).db, acl_dbs.at(*db2).db);
 }
 
@@ -6761,8 +6813,10 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   return update_flags;
 }
 
-static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
+static int table_name_sort(const void *tbl1_, const void *tbl2_)
 {
+  auto tbl1= static_cast<const GRANT_TABLE *const *>(tbl1_);
+  auto tbl2= static_cast<const GRANT_TABLE *const *>(tbl2_);
   int res = strcmp((*tbl1)->db, (*tbl2)->db);
   if (res) return res;
   return strcmp((*tbl1)->tname, (*tbl2)->tname);
@@ -6963,8 +7017,10 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   return update_flags;
 }
 
-static int routine_name_sort(GRANT_NAME * const *r1, GRANT_NAME * const *r2)
+static int routine_name_sort(const void *r1_,  const void *r2_)
 {
+  auto r1= static_cast<const GRANT_NAME *const *>(r1_);
+  auto r2= static_cast<const GRANT_NAME *const *>(r2_);
   int res= strcmp((*r1)->db, (*r2)->db);
   if (res) return res;
   return strcmp((*r1)->tname, (*r2)->tname);
@@ -7087,7 +7143,7 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 /**
   update privileges of the 'grantee' from all roles, granted to it
 */
-static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
+static int merge_role_privileges(ACL_USER_BASE *,
                                  ACL_ROLE *grantee, void *context)
 {
   PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
@@ -8035,7 +8091,6 @@ bool grant_init()
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);				/* purecov: deadcode */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_query_inner((char*) STRING_WITH_LEN("intern:grant_init"),
                        default_charset_info);
@@ -8074,20 +8129,16 @@ static bool grant_load(THD *thd,
   Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   (void) my_hash_init(key_memory_acl_memex, &column_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, (my_hash_free_key) free_grant_table, 0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table,
+                      free_grant_table, 0);
   (void) my_hash_init(key_memory_acl_memex, &proc_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &func_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &package_spec_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &package_body_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   init_sql_alloc(key_memory_acl_mem, &grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables_priv.table();
@@ -8386,19 +8437,13 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     /*
       If sequence is used as part of NEXT VALUE, PREVIOUS VALUE or SELECT,
-      we need to modify the requested access rights depending on how the
-      sequence is used.
+      the privilege will be checked in ::fix_fields().
+      Direct SELECT of a sequence table doesn't set t_ref->sequence, so
+      privileges will be checked normally, as for any table.
     */
     if (t_ref->sequence &&
         !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
-    {
-      /*
-        We want to have either SELECT or INSERT rights to sequences depending
-        on how they are accessed
-      */
-      orig_want_access= ((t_ref->lock_type >= TL_FIRST_WRITE) ?
-                         INSERT_ACL : SELECT_ACL);
-    }
+      continue;
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
@@ -8407,7 +8452,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     if (access)
     {
-      switch(access->check(orig_want_access, &t_ref->grant.privilege))
+      switch(access->check(orig_want_access, &t_ref->grant.privilege,
+                           any_combination_will_do))
       {
       case ACL_INTERNAL_ACCESS_GRANTED:
         t_ref->grant.privilege|= orig_want_access;
@@ -10334,6 +10380,10 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   int result= 0;
   int error;
   TABLE *table= grant_table.table();
+  DBUG_ENTER("handle_grant_table");
+  if (!table)
+    DBUG_RETURN(0);
+
   Field *host_field= table->field[0];
   Field *user_field= table->field[which_table == USER_TABLE ||
                                   which_table == PROXIES_PRIV_TABLE ? 1 : 2];
@@ -10343,7 +10393,6 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   const char *user;
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
-  DBUG_ENTER("handle_grant_table");
 
   if (which_table == ROLES_MAPPING_TABLE)
   {
@@ -11777,14 +11826,14 @@ public:
     : is_grave(FALSE)
   {}
 
-  virtual ~Silence_routine_definer_errors() = default;
+  ~Silence_routine_definer_errors() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
   bool has_errors() { return is_grave; }
 
@@ -12254,9 +12303,9 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
   while ((user= it++))
   {
     if (opt_skip_name_resolve && hostname_requires_resolving(user->host.str))
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_HOSTNAME_WONT_WORK,
-                          ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_WARN_HOSTNAME_WONT_WORK,
+                   ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
   }
 }
 
@@ -13065,6 +13114,9 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return dup;
     }
 
+    if (!initialized)
+      return dup;
+
     if (lock)
       mysql_mutex_lock(&acl_cache->lock);
     if (find_acl_role(dup->user.str, false))
@@ -13425,7 +13477,7 @@ static bool secure_auth(THD *thd)
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT,
+    general_log_print(thd, COM_CONNECT, "%s",
                       ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
@@ -13498,7 +13550,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -13588,7 +13640,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       !ignore_max_password_errors(mpvio->acl_user))
   {
     my_error(ER_USER_IS_BLOCKED, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
       ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
     DBUG_RETURN(1);
   }
@@ -13603,7 +13655,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(my_strcasecmp(system_charset_info,
       mpvio->acl_user->auth->plugin.str, old_password_plugin_name.str));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -14489,34 +14541,17 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   return res;
 }
 
-enum PASSWD_ERROR_ACTION
-{
-  PASSWD_ERROR_CLEAR,
-  PASSWD_ERROR_INCREMENT
-};
 
 /* Increment, or clear password errors for a user. */
-static void handle_password_errors(const char *user, const char *hostname, PASSWD_ERROR_ACTION action)
+static void handle_password_errors(const char *user, const char *hostname,
+                                   ACL_USER::PASSWD_ERROR_ACTION action)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_assert_not_owner(&acl_cache->lock);
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *u = find_user_exact(hostname, user);
   if (u)
-  {
-    switch(action)
-    {
-      case PASSWD_ERROR_INCREMENT:
-        u->password_errors++;
-        break;
-      case PASSWD_ERROR_CLEAR:
-        u->password_errors= 0;
-        break;
-      default:
-        DBUG_ASSERT(0);
-        break;
-    }
-  }
+    u->update_password_errors(action);
   mysql_mutex_unlock(&acl_cache->lock);
 #endif
 }
@@ -14665,7 +14700,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
       if (thd->password && !mpvio.make_it_fail)
-        handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
+        handle_password_errors(acl_user->user.str, acl_user->host.hostname,
+                               ACL_USER::PASSWD_ERROR_INCREMENT);
       break;
     case CR_ERROR:
     default:
@@ -14683,7 +14719,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (thd->password && acl_user->password_errors)
   {
     /* Login succeeded, clear password errors.*/
-    handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
+    handle_password_errors(acl_user->user.str, acl_user->host.hostname,
+                           ACL_USER::PASSWD_ERROR_CLEAR);
   }
 
   if (initialized) // if not --skip-grant-tables
@@ -14702,7 +14739,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       DBUG_RETURN(1);
     }
 
-    if (acl_user->account_locked) {
+    if (acl_user->account_locked)
+    {
       status_var_increment(denied_connections);
       my_error(ER_ACCOUNT_HAS_BEEN_LOCKED, MYF(0));
       DBUG_RETURN(1);

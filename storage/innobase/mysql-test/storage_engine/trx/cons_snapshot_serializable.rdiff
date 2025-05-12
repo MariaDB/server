@@ -1,5 +1,5 @@
---- suite/storage_engine/trx/cons_snapshot_serializable.result	2013-11-27 18:46:36.000000000 +0400
-+++ suite/storage_engine/trx/cons_snapshot_serializable.reject	2013-11-28 19:17:02.000000000 +0400
+--- suite/storage_engine/trx/cons_snapshot_serializable.result
++++ suite/storage_engine/trx/cons_snapshot_serializable.reject
 @@ -5,12 +5,15 @@
  CREATE TABLE t1 (a <INT_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;

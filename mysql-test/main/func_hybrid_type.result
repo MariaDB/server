@@ -4342,5 +4342,27 @@ SELECT * FROM t0 WHERE LEAST(c0, NULL);
 c0
 DROP TABLE t0;
 #
+#   MDEV-28001 greatest/least with bigint unsigned maxium has unexpected results compared to 0
+#
+CREATE TABLE t1 (a BIGINT UNSIGNED, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (18446744073709551615,0);
+SELECT a,b, LEAST(a,b), GREATEST(a,b) FROM t1;
+a	b	LEAST(a,b)	GREATEST(a,b)
+18446744073709551615	0	0	18446744073709551615
+DROP TABLE t1;
+#
 # End of 10.5 tests
+#
+#
+# Start of 10.6 tests
+#
+#
+#     MDEV-20944 Wrong result of LEAST() and ASAN heap-use-after-free in my_strnncollsp_simple / Item::temporal_precision on TIME()
+#
+SET NAMES latin1;
+SELECT LEAST( CAST( 0 AS CHAR ), OLD_PASSWORD( 1 ) );
+LEAST( CAST( 0 AS CHAR ), OLD_PASSWORD( 1 ) )
+0
+#
+# End of 10.6 tests
 #

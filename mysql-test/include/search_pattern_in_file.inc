@@ -15,8 +15,21 @@
 #    file. By default the search happens from the last CURRENT_TEST:
 #    marker till the end of file (appropriate for searching error logs).
 #
-#    Optionally, SEARCH_ABORT can be set to "FOUND" or "NOT FOUND" and this
-#    will abort if the search result doesn't match the requested one.
+#    Optionally, SEARCH_ABORT can be specified to abort the search (in error)
+#    if a specific search result is found. Its value is a regular expression
+#    (with an implicit start-of-string anchor '^' prepended), and the search
+#    result that it will match against is either 1) "FOUND <N>", where <N> is
+#    the specific number of matches found, or 2) "NOT FOUND".
+#
+#    Optionally, SEARCH_WAIT can be specified to wait for a specific search
+#    result. Its usage mimics that of SEARCH_ABORT, in that its value is also
+#    a '^'-prepended regular expression, which will be matched against the same
+#    search result. The timeout can be set in SEARCH_TIMEOUT, default is 60
+#    seconds.
+#
+#    Optionally, SEARCH_WAIT can be set to "FOUND" or "NOT FOUND", and this
+#    will wait for the condition to occur. The timeout can be set in
+#    SEARCH_TIMEOUT, default is 60 seconds.
 #
 #    Optionally, SEARCH_OUTPUT can be set to control the format of output.
 #    Supported formats:
@@ -55,31 +68,49 @@ perl;
     my @search_files= glob($ENV{SEARCH_FILE});
     my $search_pattern= $ENV{SEARCH_PATTERN} or die "SEARCH_PATTERN not set";
     my $search_range=   $ENV{SEARCH_RANGE};
-    my $content;
-    foreach my $search_file (@search_files) {
-        open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
-        my $file_content;
-        if ($search_range > 0) {
-           read(FILE, $file_content, $search_range, 0);
-        } elsif ($search_range < 0) {
-           my $size= -s $search_file;
-           $search_range = -$size if $size > -$search_range;
-           seek(FILE, $search_range, 2);
-           read(FILE, $file_content, -$search_range, 0);
-        } else {
-          while(<FILE>) { # error log
-            if (/^CURRENT_TEST:/) {
-              $content='';
+    my $timeout=        $ENV{SEARCH_TIMEOUT} || 60;
+    my @matches;
+    my $res;
+
+    my $start_time= time();
+    for (;;) {
+        my $content;
+        foreach my $search_file (@search_files) {
+            open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
+            my $file_content;
+            if ($search_range > 0) {
+               read(FILE, $file_content, $search_range, 0);
+            } elsif ($search_range < 0) {
+               my $size= -s $search_file;
+               $search_range = -$size if $size > -$search_range;
+               seek(FILE, $search_range, 2);
+               read(FILE, $file_content, -$search_range, 0);
             } else {
-              $content.=$_;
+              while(<FILE>) { # error log
+                if (/^CURRENT_TEST:/) {
+                  $content='';
+                } else {
+                  $content.=$_;
+                }
+              }
             }
-          }
+            close(FILE);
+            $content.= $file_content;
         }
-        close(FILE);
-        $content.= $file_content;
+        @matches= ($content =~ /$search_pattern/gs);
+        $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
+
+        if ($ENV{SEARCH_WAIT} and not $res =~ /^$ENV{SEARCH_WAIT}/) {
+            if (time() - $start_time < $timeout) {
+                # Millisceond sleep emulated with select
+                select(undef, undef, undef, 0.1);
+                next;
+            }
+            die "Timeout waiting for $ENV{SEARCH_WAIT} ".
+                "for /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+        }
+        last;
     }
-    my @matches= ($content =~ /$search_pattern/gs);
-    my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
 
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 

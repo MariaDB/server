@@ -76,6 +76,8 @@ static my_bool do_leaf;
 static my_bool per_page_details;
 static ulint n_merge;
 static ulint physical_page_size;  /* Page size in bytes on disk. */
+static ulint extent_size;
+static ulint xdes_size;
 ulong srv_page_size;
 uint32_t srv_page_size_shift;
 /* Current page number (0 based). */
@@ -100,7 +102,7 @@ char*				log_filename = NULL;
 FILE*				log_file = NULL;
 /* Enabled for log write option. */
 static bool			is_log_enabled = false;
-
+static bool			skip_freed_pages;
 static byte field_ref_zero_buf[UNIV_PAGE_SIZE_MAX];
 const byte *field_ref_zero = field_ref_zero_buf;
 
@@ -268,6 +270,8 @@ static void init_page_size(const byte* buf)
 		srv_page_size_shift = UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize;
 		srv_page_size = 512U << ssize;
 		physical_page_size = srv_page_size;
+		extent_size = FSP_EXTENT_SIZE;
+		xdes_size = XDES_SIZE;
 		return;
 	}
 
@@ -279,6 +283,8 @@ static void init_page_size(const byte* buf)
 
 	srv_page_size = fil_space_t::logical_size(flags);
 	physical_page_size = fil_space_t::physical_size(flags);
+	extent_size = FSP_EXTENT_SIZE;
+	xdes_size = XDES_SIZE;
 }
 
 #ifdef _WIN32
@@ -519,7 +525,7 @@ static bool is_page_corrupted(byte *buf, bool is_encrypted, uint32_t flags)
 	normal method. */
 	if (is_encrypted && key_version != 0) {
 		is_corrupted = use_full_crc32
-			? buf_page_is_corrupted(true, buf, flags)
+			? !!buf_page_is_corrupted(false, buf, flags)
 			: !fil_space_verify_crypt_checksum(buf, zip_size);
 
 		if (is_corrupted && log_file) {
@@ -551,8 +557,8 @@ bool
 is_page_doublewritebuffer(
 	const byte*	page)
 {
-	if ((cur_page_num >= FSP_EXTENT_SIZE)
-		&& (cur_page_num < FSP_EXTENT_SIZE * 3)) {
+	if ((cur_page_num >= extent_size)
+		&& (cur_page_num < extent_size * 3)) {
 		/* page is doublewrite buffer. */
 		return (true);
 	}
@@ -753,8 +759,8 @@ static inline bool is_page_free(const byte *xdes, ulint physical_page_size,
 {
   const byte *des=
       xdes + XDES_ARR_OFFSET +
-      XDES_SIZE * ((page_no & (physical_page_size - 1)) / FSP_EXTENT_SIZE);
-  return xdes_is_free(des, page_no % FSP_EXTENT_SIZE);
+      xdes_size * ((page_no & (physical_page_size - 1)) / extent_size);
+  return xdes_is_free(des, page_no % extent_size);
 }
 
 /*
@@ -782,6 +788,16 @@ parse_page(
 
 	/* Check whether page is doublewrite buffer. */
 	str = skip_page ? "Double_write_buffer" : "-";
+	page_no = mach_read_from_4(page + FIL_PAGE_OFFSET);
+	if (skip_freed_pages) {
+		const byte *des= xdes + XDES_ARR_OFFSET +
+			xdes_size * ((page_no & (physical_page_size - 1))
+				     / extent_size);
+		if (mach_read_from_4(des) != XDES_FSEG &&
+		    xdes_is_free(des, page_no % extent_size)) {
+			return;
+		}
+	}
 
 	switch (fil_page_get_type(page)) {
 
@@ -1207,6 +1223,9 @@ static struct my_option innochecksum_options[] = {
     &do_leaf, &do_leaf, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"merge", 'm', "leaf page count if merge given number of consecutive pages",
    &n_merge, &n_merge, 0, GET_ULONG, REQUIRED_ARG, 0, 0, (longlong)10L, 0, 1, 0},
+  {"skip-freed-pages", 'r', "skip freed pages for the tablespace",
+   &skip_freed_pages, &skip_freed_pages, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
 
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -1216,7 +1235,7 @@ static void usage(void)
 	print_version();
 	puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
 	printf("InnoDB offline file checksum utility.\n");
-	printf("Usage: %s [-c] [-s <start page>] [-e <end page>] "
+	printf("Usage: %s [-c] [-r] [-s <start page>] [-e <end page>] "
 		"[-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] "
 		"[-S] [-D <page type dump>] "
 		"[-l <log>] [-l] [-m <merge pages>] <filename or [-]>\n", my_progname);
@@ -1229,8 +1248,8 @@ static void usage(void)
 extern "C" my_bool
 innochecksum_get_one_option(
 	const struct my_option	*opt,
-	const char		*argument MY_ATTRIBUTE((unused)),
-        const char *)
+	const char		*IF_DBUG(argument,),
+	const char *)
 {
 	switch (opt->id) {
 #ifndef DBUG_OFF
@@ -1254,15 +1273,6 @@ innochecksum_get_one_option(
 		print_version();
 		my_end(0);
 		exit(EXIT_SUCCESS);
-		break;
-	case 'n':
-		no_check = true;
-		break;
-	case 'a':
-	case 'S':
-		break;
-	case 'w':
-		do_write = true;
 		break;
 	case 'D':
 		page_type_dump = true;
@@ -1310,8 +1320,8 @@ get_options(
 */
 static bool check_encryption(const char* filename, const byte* page)
 {
-	ulint offset = FSP_HEADER_OFFSET + XDES_ARR_OFFSET + XDES_SIZE *
-		physical_page_size / FSP_EXTENT_SIZE;
+	ulint offset = FSP_HEADER_OFFSET + XDES_ARR_OFFSET + xdes_size *
+		physical_page_size / extent_size;
 
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
 		return false;
@@ -1843,7 +1853,7 @@ first_non_zero:
 				printf("page " UINT32PF " ", cur_page_num);
 			}
 
-			if (page_get_page_no(buf) % physical_page_size == 0) {
+			if (cur_page_num % physical_page_size == 0) {
 				memcpy(xdes, buf, physical_page_size);
 			}
 

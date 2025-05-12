@@ -577,7 +577,7 @@ DROP TABLE t1, t2;
 #
 CREATE TEMPORARY TABLE t1 (col1 BIGINT) ENGINE = InnoDB;
 INSERT INTO t1 (no_such_col) SELECT * FROM t1;
-ERROR 42S22: Unknown column 'no_such_col' in 'field list'
+ERROR 42S22: Unknown column 'no_such_col' in 'INSERT INTO'
 TRUNCATE TABLE t1;
 ALTER TABLE t1 CHANGE no_such_col1 col1 BIGINT NULL;
 ERROR 42S22: Unknown column 'no_such_col1' in 't1'

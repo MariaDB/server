@@ -799,58 +799,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using index condition; Using where
 DROP TABLE t1,t2,h1;
 DROP VIEW v1;
-CREATE TABLE t1 (a int, index(a)) engine=heap min_rows=10 max_rows=100;
-insert into t1 values(1);
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-1600	2400
-drop table t1;
-CREATE TABLE t1 (a int, index(a)) engine=heap min_rows=10 max_rows=10000;
-insert into t1 values(1);
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-16000	24000
-drop table t1;
-CREATE TABLE t1 (a int, index(a)) engine=heap min_rows=3000 max_rows=3000;
-insert into t1 values(1);
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-48000	72000
-drop table t1;
-CREATE TABLE t1 (a int, index(a)) engine=heap max_rows=15000;
-insert into t1 values(1);
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-24000	36000
-drop table t1;
-create table t1 (c1 int, index(c1)) engine=heap max_rows=10000;
-insert into t1 select rand(100000000);
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1;
-insert into t1 select rand(100000000) from t1 limit 488;
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-16000	24000
-insert into t1 select rand(100000000) from t1 limit 1;
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-33024	49024
-insert into t1 select rand(100000000) from t1 limit 1000;
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-49024	73024
-insert into t1 select rand(100000000) from t1;
-select data_length,index_length from information_schema.tables where table_schema="test" and table_name="t1";
-data_length	index_length
-81024	121024
-drop table t1;
 CREATE TABLE t1 (id INT);
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
@@ -878,3 +826,22 @@ DELETE FROM t1 WHERE ts = 1 AND color = 'GREEN';
 SELECT * from t1 WHERE ts = 1 AND color = 'GREEN';
 id	color	ts
 DROP TABLE t1;
+#
+# MDEV-22695 Server crashes in heap_rnext upon DELETE from a HEAP table
+#
+CREATE TABLE t1 (a VARCHAR(128), b VARCHAR(32), KEY(a) USING BTREE, KEY(b) USING BTREE) ENGINE=HEAP;
+INSERT INTO t1 VALUES ('foo',NULL),('m','b'),(6,'j'),('bar','qux'),(NULL,NULL);
+DELETE FROM t1 WHERE a <=> 'm' OR b <=> NULL;
+DROP TABLE t1;
+#
+# MDEV-28130 MariaDB SEGV issue at tree_search_next
+#
+CREATE TABLE v(t1 INT, pk INT, KEY(t1), KEY pk using btree (pk), KEY v using btree(t1, pk)) engine=memory;
+HANDLER v OPEN;
+HANDLER v READ t1=(2) limit 3;
+t1	pk
+HANDLER v READ pk PREV;
+t1	pk
+HANDLER v READ pk PREV;
+t1	pk
+drop table v;

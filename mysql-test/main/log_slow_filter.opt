@@ -1,0 +1,4 @@
+--log-slow-filter= --log_queries_not_using_indexes=0
+
+
+

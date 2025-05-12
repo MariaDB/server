@@ -286,7 +286,7 @@ my_bool allocate_dynamic(DYNAMIC_ARRAY *array, size_t max_elements)
        if (!(new_ptr= (uchar *) my_malloc(array->m_psi_key, size *
                                           array->size_of_element,
                                           MYF(array->malloc_flags | MY_WME))))
-         DBUG_RETURN(0);
+         DBUG_RETURN(TRUE);
        memcpy(new_ptr, array->buffer,
               array->elements * array->size_of_element);
        array->malloc_flags&= ~MY_INIT_BUFFER_USED;
@@ -318,7 +318,7 @@ void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t idx)
 {
   if (unlikely(idx >= array->elements))
   {
-    DBUG_PRINT("warning",("To big array idx: %d, array size is %d",
+    DBUG_PRINT("warning",("To big array idx: %zu, array size is %zu",
                           idx,array->elements));
     bzero(element,array->size_of_element);
     return;

@@ -1746,3 +1746,29 @@ RELEASE_ALL_LOCKS()
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
 FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA
+#
+# MDEV-32583 UUID() should be treated as stochastic for the purposes of
+#   forcing query materialization
+#
+create table t1 as WITH cte AS (SELECT UUID() as r  FROM seq_1_to_10)
+SELECT r as r1, r FROM cte;
+select count(*) from t1 where r1!=r;
+count(*)
+0
+drop table t1;
+#
+# MDEV-29462 ASAN: heap-use-after-free in Binary_string::copy on DO CONVERT
+#
+DO CONVERT (INET_ATON (CAST(LEFT (-1,1) as BINARY (30))) USING utf8);
+DO FROM_BASE64(CAST((MID(UUID(),20,64)) AS BINARY (55)));
+Warnings:
+Warning	1958	Bad base64 data as position 4
+DO FROM_BASE64(CAST((MID(17653,ROW('-688:20:162697', (NULL))>=ROW(('*.)$'),(0xc254b6)),1)) AS BINARY (34)));
+Warnings:
+Warning	1958	Bad base64 data as position 1
+DO FROM_BASE64(CAST(LEFT (-1,1) as BINARY (30)));
+Warnings:
+Warning	1958	Bad base64 data as position 0
+#
+# End of 10.5 tests
+#

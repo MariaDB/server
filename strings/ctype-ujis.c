@@ -67219,6 +67219,7 @@ size_t
 my_casedn_ujis(CHARSET_INFO * cs, const char *src, size_t srclen,
                char *dst, size_t dstlen)
 {
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(dstlen >= srclen * cs->cset->casedn_multiply(cs));
   DBUG_ASSERT(src != dst || cs->cset->casedn_multiply(cs) == 1);
   return my_casefold_ujis(cs, src, srclen, dst, dstlen, cs->to_lower, 0);
@@ -67232,6 +67233,7 @@ size_t
 my_caseup_ujis(CHARSET_INFO * cs, const char *src, size_t srclen,
                char *dst, size_t dstlen)
 {
+  DBUG_ASSERT(src != NULL); /* Avoid UBSAN nullptr-with-offset */
   DBUG_ASSERT(dstlen >= srclen * cs->cset->caseup_multiply(cs));
   DBUG_ASSERT(src != dst || cs->cset->caseup_multiply(cs) == 1);
   return my_casefold_ujis(cs, src, srclen, dst, dstlen, cs->to_upper, 1);
@@ -67259,7 +67261,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_ci_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -67280,7 +67283,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_bin_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -67301,7 +67305,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_nopad_ci_handler =
     my_min_str_mb_simple_nopad,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -67322,7 +67327,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_nopad_bin_handler =
     my_min_str_mb_simple_nopad,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 

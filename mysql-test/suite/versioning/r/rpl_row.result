@@ -50,6 +50,30 @@ x	y
 connection master;
 drop table t1;
 #
+# MDEV-31297 Create table as select on system versioned tables do not work consistently on replication
+#
+connection master;
+create table t engine=innodb with system versioning as select 1 as i;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `i` int(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from t;
+i
+1
+connection slave;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `i` int(1) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from t;
+i
+1
+connection master;
+drop table t;
+#
 # MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
 #
 flush binary logs;

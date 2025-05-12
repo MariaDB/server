@@ -74,7 +74,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     }
     if (info->s->file_map) /* Don't use cache if mmap */
       break;
-#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)
+#if defined(HAVE_MMAP) && defined(HAVE_MADVISE) && !defined(HAVE_valgrind)
     if ((share->options & HA_OPTION_COMPRESS_RECORD))
     {
       mysql_mutex_lock(&share->intern_lock);
@@ -162,7 +162,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       error= end_io_cache(&info->rec_cache);
       /* Sergei will insert full text index caching here */
     }
-#if defined(HAVE_MMAP) && defined(HAVE_MADVISE)
+#if defined(HAVE_MMAP) && defined(HAVE_MADVISE) && !defined(HAVE_valgrind)
     if (info->opt_flag & MEMMAP_USED)
       madvise((char*) share->file_map, share->state.state.data_file_length,
               MADV_RANDOM);
@@ -456,7 +456,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     maria_extra_keyflag(info, function);
     break;
   case HA_EXTRA_MMAP:
-#ifdef HAVE_MMAP
+#if defined(HAVE_MMAP) && !defined(HAVE_valgrind)
     if (block_records)
       break;                                    /* Not supported */
     mysql_mutex_lock(&share->intern_lock);

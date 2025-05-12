@@ -1,17 +1,15 @@
 SET SESSION character_set_connection=latin2;
 SET SESSION character_set_client=cp1250;
 
---disable_service_connection
-
 --echo #
 --echo # Test litteral
 --echo #
 
-#enable view protocol after fix MDEV-27871 and
-# it is necessary that the view protocol uses the same connection,
-# not util connection
+# For "--view-protocol" NULLIF('','') converts to nullif(NULL,NULL)
+# in view definition and CHARSET(nullif(NULL,NULL)) returns 'binary'.
+# Also view does not allow columns with the same name,
+# so it uses generated names
 --disable_view_protocol
-
 SET sql_mode=@mode;
 select @@sql_mode;
 SELECT '',CHARSET(''), null, CHARSET(null), CAST(null as char(10)), CHARSET(CAST(null as char(10))), 'x', CHARSET('x');
@@ -19,7 +17,6 @@ SELECT CHARSET(NULLIF('','')),NULLIF('','');
 SET sql_mode=default;
 SELECT '',CHARSET(''), null, CHARSET(null), CAST(null as char(10)), CHARSET(CAST(null as char(10))), 'x', CHARSET('x');
 SELECT CHARSET(NULLIF('','')),NULLIF('','');
-
 
 
 --echo #
@@ -31,7 +28,6 @@ SELECT CHARSET(NULLIF(N'',N'')),NULLIF(N'',N'');
 SET sql_mode=default;
 SELECT N'',CHARSET(N''), N'x', CHARSET(N'x');
 SELECT CHARSET(NULLIF(N'',N'')),NULLIF(N'',N'');
-
 
 
 --echo #
@@ -63,12 +59,12 @@ SELECT '' '' '';
 SELECT '' '' '',CHARSET('' '' '');
 SELECT _latin1'' '' '',CHARSET(_latin1'' '' '');
 SELECT N'' '' '',CHARSET(N'' '' '');
-
 --enable_view_protocol
 
 --echo #
 --echo # UNION - implicit group by
 --echo #
+--disable_service_connection
 SELECT 1, null
 UNION
 SELECT 1 , ''
@@ -84,15 +80,9 @@ UNION
 SELECT 1 , _cp1250 ''
 ORDER BY 1;
 
-# it is necessary that the view protocol uses the same connection,
-# not util connection
---disable_view_protocol
-
 SELECT NULLIF(_cp1250 '',_cp1250 '')
 UNION
 SELECT NULLIF(N'',N'');
-
---enable_view_protocol
 
 --error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT 1 , _latin2 ''
@@ -131,5 +121,4 @@ EXPLAIN EXTENDED SELECT '';
 EXPLAIN EXTENDED SELECT _latin1'';
 EXPLAIN EXTENDED SELECT N'';
 EXPLAIN EXTENDED SELECT '' '';
-
 --enable_service_connection

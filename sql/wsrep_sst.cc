@@ -125,12 +125,14 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role donor) ongoing...");
     }
   }
 
   WSREP_INFO("Donor monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role donor) completed.\n");
 
   return NULL;
 }
@@ -162,12 +164,14 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role joiner) ongoing...");
     }
   }
 
   WSREP_INFO("Joiner monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role joiner) completed.\n");
 
   return NULL;
 }
@@ -465,7 +469,7 @@ bool wsrep_sst_received (THD*                thd,
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);
-      error= wsrep_sst_complete(thd,rcode, sst_gtid);
+      error= wsrep_sst_complete(thd, rcode, sst_gtid);
     }
 
     return error;
@@ -649,8 +653,8 @@ static void* sst_joiner_thread (void* a)
       if (!tmp || strlen(tmp) < (magic_len + 2) ||
           strncasecmp (tmp, magic, magic_len))
       {
-        WSREP_ERROR("Failed to read '%s <addr>' from: %s\n\tRead: '%s'",
-                    magic, arg->cmd, tmp);
+        WSREP_ERROR("Failed to read '%s <addr>' (got '%s') from: %s",
+                    magic, tmp, arg->cmd);
         proc.wait();
         if (proc.error()) err= proc.error();
       }
@@ -662,8 +666,8 @@ static void* sst_joiner_thread (void* a)
     else
     {
       err= proc.error();
-      WSREP_ERROR("Failed to execute: %s : %d (%s)",
-                  arg->cmd, err, strerror(err));
+      WSREP_ERROR("Failed to execute (%M): %s",
+                  err, arg->cmd);
     }
 
     /*
@@ -821,7 +825,6 @@ err:
       unireg_abort(1);
     }
 
-    thd->thread_stack= (char*) &thd;
     thd->security_ctx->skip_grants();
     thd->system_thread= SYSTEM_THREAD_GENERIC;
     thd->real_id= pthread_self();
@@ -1603,11 +1606,13 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_PORT " '%u' "
                      WSREP_SST_OPT_LPORT " '%u' "
                      WSREP_SST_OPT_SOCKET " '%s' "
+                     WSREP_SST_OPT_DATA " '%s' "
                      "%s"
                      WSREP_SST_OPT_GTID " '%s:%lld,%d-%d-%llu' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
                      addr, port, mysqld_port, mysqld_unix_port,
+                     mysql_real_data_home,
                      wsrep_defaults_file,
                      uuid_oss.str().c_str(), gtid.seqno().get(),
                      wsrep_gtid_server.domain_id, wsrep_gtid_server.server_id,
@@ -1944,7 +1949,8 @@ wait_signal:
       else
       {
         WSREP_WARN("Received unknown signal: '%s'", out);
-        err = -EINVAL;
+        /* since it is the end of the loop, we must set error code */
+        err=-EINVAL;
         proc.wait();
       }
     }
@@ -1975,6 +1981,15 @@ wait_signal:
   wsrep::gtid gtid(wsrep::id(ret_uuid.data, sizeof(ret_uuid.data)),
                    wsrep::seqno(err ? wsrep::seqno::undefined() :
                                 wsrep::seqno(ret_seqno)));
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_sst_donor_after_donation", {
+    const char act[]= "now "
+                      "SIGNAL sync.wsrep_sst_donor_after_donation_reached "
+                      "WAIT_FOR signal.wsrep_sst_donor_after_donation_continue";
+    DBUG_ASSERT(!debug_sync_set_action(thd.ptr, STRING_WITH_LEN(act)));
+  });
+#endif /* ENABLED_DEBUG_SYNC */
 
   Wsrep_server_state::instance().sst_sent(gtid, err);
 

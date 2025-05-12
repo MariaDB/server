@@ -126,7 +126,7 @@ row_end timestamp(6) as row end,
 period for system_time (row_start, row_end))
 with system versioning;
 insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+ERROR 42S22: Unknown column 'row_start' in 'INSERT INTO'
 insert into t2(y, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
 set @@system_versioning_insert_history= 1;
@@ -154,11 +154,11 @@ insert into t1(x) values (1);
 insert into t2(y) values (1);
 update t1 set x= x + 1;
 update t1 set row_start= '1971-01-01 00:00:00';
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+ERROR 42S22: Unknown column 'row_start' in 'SET'
 update t2 set row_start= '1971-01-01 00:00:00';
 ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
 insert t1 (x) values (2) on duplicate key update x= 3, row_end= '1970-01-01 00:00:00';
-ERROR 42S22: Unknown column 'row_end' in 'field list'
+ERROR 42S22: Unknown column 'row_end' in 'UPDATE'
 insert t2 (y) values (1) on duplicate key update y= 3, row_end= '1970-01-01 00:00:00';
 ERROR HY000: The value specified for generated column 'row_end' in table 't2' has been ignored
 insert t2 (y,row_end) values (1, '1970-01-01 00:00:00') on duplicate key update y= 3;
@@ -227,13 +227,13 @@ replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
 ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
 create or replace table t2 (a int primary key) with system versioning;
 replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+ERROR 42S22: Unknown column 'row_start' in 'INSERT INTO'
 replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+ERROR 42S22: Unknown column 'row_start' in 'INSERT INTO'
 set @@system_versioning_insert_history= 1;
 # REPLACE ignores system_versioning_insert_history
 replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
-ERROR 42S22: Unknown column 'row_end' in 'field list'
+ERROR 42S22: Unknown column 'row_end' in 'INSERT INTO'
 replace into t3 (z, row_start) values (0, '1980-01-01 00:00:00');
 ERROR HY000: The value specified for generated column 'row_start' in table 't3' has been ignored
 replace into t3 values (0,  '1980-01-01 00:00:00', '1981-01-01 00:00:00');

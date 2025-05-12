@@ -224,3 +224,8 @@ SELECT INTERVAL(1,ROW(1,2));
 ERROR 21000: Operand should contain 1 column(s)
 SELECT INTERVAL(ROW(1,2),1);
 ERROR 21000: Operand should contain 1 column(s)
+#
+# MDEV-29184 Assertion `0' in Item_row::illegal_method_call, Type_handler_row::Item_update_null_value, Item::update_null_value
+#
+SELECT INTERVAL(0, ROW(1,1), 1, 1, 1, 1, 1, 1, 1) AS f;
+ERROR 21000: Operand should contain 1 column(s)

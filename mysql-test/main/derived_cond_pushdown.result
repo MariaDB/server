@@ -3634,42 +3634,42 @@ set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	2	3	207	207
-6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
-6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
-6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
-6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
-6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
-6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	2	3	207	207
+6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	8	33	404	213.6667	1	21	909	12
+6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
 8	33	404	213.6667	8	33	404	213.6667	7	13	312	406
+6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	6	20	315	279
+6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
 8	33	404	213.6667	8	33	404	213.6667	1	19	203	107
+6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
 8	33	404	213.6667	8	33	404	213.6667	3	12	231	190
+6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
 select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	2	3	207	207
-6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
-6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
-6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
-6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
-6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
-6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	2	3	207	207
+6	20	315	279.3333	6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	8	33	404	213.6667	1	21	909	12
+6	20	315	279.3333	6	20	315	279.3333	7	13	312	406
 8	33	404	213.6667	8	33	404	213.6667	7	13	312	406
+6	20	315	279.3333	6	20	315	279.3333	6	20	315	279
 8	33	404	213.6667	8	33	404	213.6667	6	20	315	279
+6	20	315	279.3333	6	20	315	279.3333	1	19	203	107
 8	33	404	213.6667	8	33	404	213.6667	1	19	203	107
+6	20	315	279.3333	6	20	315	279.3333	3	12	231	190
 8	33	404	213.6667	8	33	404	213.6667	3	12	231	190
+6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
 explain select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
@@ -3682,28 +3682,12 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t2.b < 50"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
           "attached_condition": "v1.b is not null",
           "materialized": {
             "query_block": {
@@ -3740,11 +3724,10 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "v2.a = v1.a or v1.a = t2.a",
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -3770,6 +3753,23 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 40,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.b < 50"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL",
+          "attached_condition": "v2.a = v1.a or t2.a = v1.a"
         }
       }
     ]
@@ -4158,9 +4158,9 @@ select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
@@ -4172,29 +4172,13 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.a = 1 and v1.b > 10"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
-          "attached_condition": "v1.b is not null",
+          "filtered": 100,
+          "attached_condition": "v1.a = 1 and v1.b > 10 and v1.b is not null",
           "materialized": {
             "query_block": {
               "select_id": 2,
@@ -4231,7 +4215,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4260,6 +4244,21 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 40,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL"
         }
       }
     ]
@@ -4737,10 +4736,10 @@ where t1.a<8 group by a,b) v3,
 t2 where (v1.a=v2.a) and (v1.b=v3.b) and ((v3.avg_c>170) or (v3.a<5))
 and ((v1.avg_c<400) or (v1.a>1)) and (v2.min_c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	2	Using where
 1	PRIMARY	<derived4>	ref	key0	key0	5	v1.b	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -4761,28 +4760,12 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v1.avg_c < 400 or v1.a > 1"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
+          "filtered": 100,
           "attached_condition": "(v1.avg_c < 400 or v1.a > 1) and v1.a is not null and v1.b is not null",
           "materialized": {
             "query_block": {
@@ -4820,7 +4803,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v1.a"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4861,7 +4844,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["v1.b"],
-          "loops": 360,
+          "loops": 40,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4891,6 +4874,21 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 80,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "4Kb",
+          "join_type": "BNL"
         }
       }
     ]
@@ -7796,104 +7794,104 @@ set statement optimizer_switch='condition_pushdown_for_derived=off' for select *
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	1	21	500	234.6000	2	3	207	207
-1	19	107	1	21	500	234.6000	1	21	909	12
-1	19	107	1	21	500	234.6000	7	13	312	406
-1	19	107	1	21	500	234.6000	8	64	248	107
-1	19	107	1	21	500	234.6000	6	20	315	279
-1	19	107	1	21	500	234.6000	1	19	203	107
-1	19	107	1	21	500	234.6000	8	80	800	314
-1	19	107	1	21	500	234.6000	3	12	231	190
-1	19	107	1	21	500	234.6000	6	23	303	909
 5	16	207	5	16	207	207.0000	2	3	207	207
-5	16	207	5	16	207	207.0000	1	21	909	12
-5	16	207	5	16	207	207.0000	7	13	312	406
-5	16	207	5	16	207	207.0000	8	64	248	107
-5	16	207	5	16	207	207.0000	6	20	315	279
-5	16	207	5	16	207	207.0000	1	19	203	107
-5	16	207	5	16	207	207.0000	8	80	800	314
-5	16	207	5	16	207	207.0000	3	12	231	190
-5	16	207	5	16	207	207.0000	6	23	303	909
 5	27	132	5	16	207	207.0000	2	3	207	207
-5	27	132	5	16	207	207.0000	1	21	909	12
-5	27	132	5	16	207	207.0000	7	13	312	406
-5	27	132	5	16	207	207.0000	8	64	248	107
-5	27	132	5	16	207	207.0000	6	20	315	279
-5	27	132	5	16	207	207.0000	1	19	203	107
-5	27	132	5	16	207	207.0000	8	80	800	314
-5	27	132	5	16	207	207.0000	3	12	231	190
-5	27	132	5	16	207	207.0000	6	23	303	909
 6	20	315	6	20	315	279.3333	2	3	207	207
-6	20	315	6	20	315	279.3333	1	21	909	12
-6	20	315	6	20	315	279.3333	7	13	312	406
-6	20	315	6	20	315	279.3333	8	64	248	107
-6	20	315	6	20	315	279.3333	6	20	315	279
-6	20	315	6	20	315	279.3333	1	19	203	107
-6	20	315	6	20	315	279.3333	8	80	800	314
-6	20	315	6	20	315	279.3333	3	12	231	190
-6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	2	3	207	207
+1	19	107	1	21	500	234.6000	1	21	909	12
+5	16	207	5	16	207	207.0000	1	21	909	12
+5	27	132	5	16	207	207.0000	1	21	909	12
+6	20	315	6	20	315	279.3333	1	21	909	12
 8	33	404	8	33	404	213.6667	1	21	909	12
+1	19	107	1	21	500	234.6000	7	13	312	406
+5	16	207	5	16	207	207.0000	7	13	312	406
+5	27	132	5	16	207	207.0000	7	13	312	406
+6	20	315	6	20	315	279.3333	7	13	312	406
 8	33	404	8	33	404	213.6667	7	13	312	406
+1	19	107	1	21	500	234.6000	8	64	248	107
+5	16	207	5	16	207	207.0000	8	64	248	107
+5	27	132	5	16	207	207.0000	8	64	248	107
+6	20	315	6	20	315	279.3333	8	64	248	107
 8	33	404	8	33	404	213.6667	8	64	248	107
+1	19	107	1	21	500	234.6000	6	20	315	279
+5	16	207	5	16	207	207.0000	6	20	315	279
+5	27	132	5	16	207	207.0000	6	20	315	279
+6	20	315	6	20	315	279.3333	6	20	315	279
 8	33	404	8	33	404	213.6667	6	20	315	279
+1	19	107	1	21	500	234.6000	1	19	203	107
+5	16	207	5	16	207	207.0000	1	19	203	107
+5	27	132	5	16	207	207.0000	1	19	203	107
+6	20	315	6	20	315	279.3333	1	19	203	107
 8	33	404	8	33	404	213.6667	1	19	203	107
+1	19	107	1	21	500	234.6000	8	80	800	314
+5	16	207	5	16	207	207.0000	8	80	800	314
+5	27	132	5	16	207	207.0000	8	80	800	314
+6	20	315	6	20	315	279.3333	8	80	800	314
 8	33	404	8	33	404	213.6667	8	80	800	314
+1	19	107	1	21	500	234.6000	3	12	231	190
+5	16	207	5	16	207	207.0000	3	12	231	190
+5	27	132	5	16	207	207.0000	3	12	231	190
+6	20	315	6	20	315	279.3333	3	12	231	190
 8	33	404	8	33	404	213.6667	3	12	231	190
+1	19	107	1	21	500	234.6000	6	23	303	909
+5	16	207	5	16	207	207.0000	6	23	303	909
+5	27	132	5	16	207	207.0000	6	23	303	909
+6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	6	23	303	909
 select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	1	21	500	234.6000	2	3	207	207
-1	19	107	1	21	500	234.6000	1	21	909	12
-1	19	107	1	21	500	234.6000	7	13	312	406
-1	19	107	1	21	500	234.6000	8	64	248	107
-1	19	107	1	21	500	234.6000	6	20	315	279
-1	19	107	1	21	500	234.6000	1	19	203	107
-1	19	107	1	21	500	234.6000	8	80	800	314
-1	19	107	1	21	500	234.6000	3	12	231	190
-1	19	107	1	21	500	234.6000	6	23	303	909
 5	16	207	5	16	207	207.0000	2	3	207	207
-5	16	207	5	16	207	207.0000	1	21	909	12
-5	16	207	5	16	207	207.0000	7	13	312	406
-5	16	207	5	16	207	207.0000	8	64	248	107
-5	16	207	5	16	207	207.0000	6	20	315	279
-5	16	207	5	16	207	207.0000	1	19	203	107
-5	16	207	5	16	207	207.0000	8	80	800	314
-5	16	207	5	16	207	207.0000	3	12	231	190
-5	16	207	5	16	207	207.0000	6	23	303	909
 5	27	132	5	16	207	207.0000	2	3	207	207
-5	27	132	5	16	207	207.0000	1	21	909	12
-5	27	132	5	16	207	207.0000	7	13	312	406
-5	27	132	5	16	207	207.0000	8	64	248	107
-5	27	132	5	16	207	207.0000	6	20	315	279
-5	27	132	5	16	207	207.0000	1	19	203	107
-5	27	132	5	16	207	207.0000	8	80	800	314
-5	27	132	5	16	207	207.0000	3	12	231	190
-5	27	132	5	16	207	207.0000	6	23	303	909
 6	20	315	6	20	315	279.3333	2	3	207	207
-6	20	315	6	20	315	279.3333	1	21	909	12
-6	20	315	6	20	315	279.3333	7	13	312	406
-6	20	315	6	20	315	279.3333	8	64	248	107
-6	20	315	6	20	315	279.3333	6	20	315	279
-6	20	315	6	20	315	279.3333	1	19	203	107
-6	20	315	6	20	315	279.3333	8	80	800	314
-6	20	315	6	20	315	279.3333	3	12	231	190
-6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	2	3	207	207
+1	19	107	1	21	500	234.6000	1	21	909	12
+5	16	207	5	16	207	207.0000	1	21	909	12
+5	27	132	5	16	207	207.0000	1	21	909	12
+6	20	315	6	20	315	279.3333	1	21	909	12
 8	33	404	8	33	404	213.6667	1	21	909	12
+1	19	107	1	21	500	234.6000	7	13	312	406
+5	16	207	5	16	207	207.0000	7	13	312	406
+5	27	132	5	16	207	207.0000	7	13	312	406
+6	20	315	6	20	315	279.3333	7	13	312	406
 8	33	404	8	33	404	213.6667	7	13	312	406
+1	19	107	1	21	500	234.6000	8	64	248	107
+5	16	207	5	16	207	207.0000	8	64	248	107
+5	27	132	5	16	207	207.0000	8	64	248	107
+6	20	315	6	20	315	279.3333	8	64	248	107
 8	33	404	8	33	404	213.6667	8	64	248	107
+1	19	107	1	21	500	234.6000	6	20	315	279
+5	16	207	5	16	207	207.0000	6	20	315	279
+5	27	132	5	16	207	207.0000	6	20	315	279
+6	20	315	6	20	315	279.3333	6	20	315	279
 8	33	404	8	33	404	213.6667	6	20	315	279
+1	19	107	1	21	500	234.6000	1	19	203	107
+5	16	207	5	16	207	207.0000	1	19	203	107
+5	27	132	5	16	207	207.0000	1	19	203	107
+6	20	315	6	20	315	279.3333	1	19	203	107
 8	33	404	8	33	404	213.6667	1	19	203	107
+1	19	107	1	21	500	234.6000	8	80	800	314
+5	16	207	5	16	207	207.0000	8	80	800	314
+5	27	132	5	16	207	207.0000	8	80	800	314
+6	20	315	6	20	315	279.3333	8	80	800	314
 8	33	404	8	33	404	213.6667	8	80	800	314
+1	19	107	1	21	500	234.6000	3	12	231	190
+5	16	207	5	16	207	207.0000	3	12	231	190
+5	27	132	5	16	207	207.0000	3	12	231	190
+6	20	315	6	20	315	279.3333	3	12	231	190
 8	33	404	8	33	404	213.6667	3	12	231	190
+1	19	107	1	21	500	234.6000	6	23	303	909
+5	16	207	5	16	207	207.0000	6	23	303	909
+5	27	132	5	16	207	207.0000	6	23	303	909
+6	20	315	6	20	315	279.3333	6	23	303	909
 8	33	404	8	33	404	213.6667	6	23	303	909
 explain select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
 1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -7907,28 +7905,12 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2",
+          "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 9,
+          "rows": 20,
           "cost": "COST_REPLACED",
-          "filtered": 100
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "<derived2>",
-            "access_type": "ALL",
-            "loops": 9,
-            "rows": 20,
-            "cost": "COST_REPLACED",
-            "filtered": 100,
-            "attached_condition": "v4.b > 10 and v4.a > 1 or v4.b < 20"
-          },
-          "buffer_type": "flat",
-          "buffer_size": "238",
-          "join_type": "BNL",
+          "filtered": 100,
           "attached_condition": "(v4.b > 10 and v4.a > 1 or v4.b < 20) and v4.a is not null",
           "materialized": {
             "query_block": {
@@ -7990,7 +7972,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["v4.a"],
-          "loops": 180,
+          "loops": 20,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -8019,6 +8001,21 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 40,
+            "rows": 9,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL"
         }
       }
     ]
@@ -9691,10 +9688,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -9767,10 +9766,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -9878,10 +9879,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -9951,10 +9954,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10019,10 +10024,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10087,10 +10094,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10157,10 +10166,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10225,10 +10236,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10293,10 +10306,12 @@ EXPLAIN
           "filtered": 0,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "table": {
-                "message": "Select tables optimized away"
+            "materialization": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "message": "Select tables optimized away"
+                }
               }
             }
           }
@@ -10409,10 +10424,12 @@ EXPLAIN
     },
     "subqueries": [
       {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "message": "Impossible WHERE"
+        "materialization": {
+          "query_block": {
+            "select_id": 2,
+            "table": {
+              "message": "Impossible WHERE"
+            }
           }
         }
       }
@@ -11737,47 +11754,49 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "<derived3>",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 5,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "d_tab.e > 1",
-                      "materialized": {
-                        "query_block": {
-                          "select_id": 3,
-                          "cost": "COST_REPLACED",
-                          "filesort": {
-                            "sort_key": "t2.e",
-                            "temporary_table": {
-                              "nested_loop": [
-                                {
-                                  "table": {
-                                    "table_name": "t2",
-                                    "access_type": "ALL",
-                                    "loops": 1,
-                                    "rows": 5,
-                                    "cost": "COST_REPLACED",
-                                    "filtered": 100,
-                                    "attached_condition": "t2.e > 1"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 5,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "d_tab.e > 1",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "cost": "COST_REPLACED",
+                            "filesort": {
+                              "sort_key": "t2.e",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t2",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 5,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100,
+                                      "attached_condition": "t2.e > 1"
+                                    }
                                   }
-                                }
-                              ]
+                                ]
+                              }
                             }
                           }
                         }
                       }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -11864,47 +11883,49 @@ EXPLAIN
           "filtered": 100,
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "<derived3>",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 5,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "d_tab.max_f > 20",
-                      "materialized": {
-                        "query_block": {
-                          "select_id": 3,
-                          "cost": "COST_REPLACED",
-                          "having_condition": "max_f > 20",
-                          "filesort": {
-                            "sort_key": "t2.e",
-                            "temporary_table": {
-                              "nested_loop": [
-                                {
-                                  "table": {
-                                    "table_name": "t2",
-                                    "access_type": "ALL",
-                                    "loops": 1,
-                                    "rows": 5,
-                                    "cost": "COST_REPLACED",
-                                    "filtered": 100
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 5,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "d_tab.max_f > 20",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "cost": "COST_REPLACED",
+                            "having_condition": "max_f > 20",
+                            "filesort": {
+                              "sort_key": "t2.e",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t2",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 5,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100
+                                    }
                                   }
-                                }
-                              ]
+                                ]
+                              }
                             }
                           }
                         }
                       }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -12905,9 +12926,8 @@ SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 EXPLAIN INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	144	Using where
-2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	12	Using temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	
 EXPLAIN FORMAT=JSON INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
@@ -12916,71 +12936,54 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 144,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "attached_condition": "t.f is not null",
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "<derived4>",
-                    "access_type": "ALL",
-                    "loops": 1,
-                    "rows": 12,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "materialized": {
-                      "query_block": {
-                        "select_id": 4,
-                        "cost": "COST_REPLACED",
-                        "nested_loop": [
-                          {
-                            "table": {
-                              "table_name": "t1",
-                              "access_type": "ALL",
-                              "loops": 1,
-                              "rows": 12,
-                              "cost": "COST_REPLACED",
-                              "filtered": 100
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
-                },
-                {
-                  "block-nl-join": {
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 12,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "cost": "COST_REPLACED",
+                "nested_loop": [
+                  {
                     "table": {
                       "table_name": "t1",
                       "access_type": "ALL",
-                      "loops": 12,
+                      "loops": 1,
                       "rows": 12,
                       "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "t1.f is not null"
-                    },
-                    "buffer_type": "flat",
-                    "buffer_size": "64",
-                    "join_type": "BNL"
+                      "filtered": 100
+                    }
                   }
-                }
-              ]
+                ]
+              }
             }
           }
+        },
+        {
+          "block-nl-join": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 12,
+              "rows": 12,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t1.f is not null"
+            },
+            "buffer_type": "flat",
+            "buffer_size": "64",
+            "join_type": "BNL"
+          }
         }
-      }
-    ]
+      ]
+    }
   }
 }
 SELECT * FROM t1;
@@ -13010,72 +13013,55 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 8,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "attached_condition": "t.f is not null",
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "loops": 1,
-                    "rows": 8,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "attached_condition": "t1.f is not null"
-                  }
-                },
-                {
-                  "table": {
-                    "table_name": "<derived4>",
-                    "access_type": "ref",
-                    "possible_keys": ["key0"],
-                    "key": "key0",
-                    "key_length": "4",
-                    "used_key_parts": ["f"],
-                    "ref": ["test.t1.f"],
-                    "loops": 8,
-                    "rows": 1,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "materialized": {
-                      "query_block": {
-                        "select_id": 4,
-                        "cost": "COST_REPLACED",
-                        "nested_loop": [
-                          {
-                            "table": {
-                              "table_name": "t1",
-                              "access_type": "ALL",
-                              "loops": 1,
-                              "rows": 8,
-                              "cost": "COST_REPLACED",
-                              "filtered": 100,
-                              "attached_condition": "t1.f is not null"
-                            }
-                          }
-                        ]
-                      }
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 8,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t1.f is not null"
+          }
+        },
+        {
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ref",
+            "possible_keys": ["key0"],
+            "key": "key0",
+            "key_length": "4",
+            "used_key_parts": ["f"],
+            "ref": ["test.t1.f"],
+            "loops": 8,
+            "rows": 1,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "cost": "COST_REPLACED",
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "rows": 8,
+                      "cost": "COST_REPLACED",
+                      "filtered": 100,
+                      "attached_condition": "t1.f is not null"
                     }
                   }
-                }
-              ]
+                ]
+              }
             }
           }
         }
-      }
-    ]
+      ]
+    }
   }
 }
 SELECT * FROM t1;
@@ -13651,24 +13637,26 @@ EXPLAIN
           "attached_condition": "t4.c = `<subquery2>`.`sum(b)`",
           "materialized": {
             "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
-              "temporary_table": {
-                "nested_loop": [
-                  {
-                    "table": {
-                      "table_name": "t1",
-                      "access_type": "ALL",
-                      "loops": 1,
-                      "rows": 3,
-                      "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "t1.a + 1 > 10"
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 3,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.a + 1 > 10"
+                      }
                     }
-                  }
-                ]
+                  ]
+                }
               }
             }
           }
@@ -20160,7 +20148,7 @@ where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
 1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	5	100.00	
 2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` < 40
@@ -20210,7 +20198,7 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t3.c"],
           "loops": 80.99999987,
-          "rows": 10,
+          "rows": 5,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -22641,7 +22629,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.012461052,
+    "cost": 0.010134054,
     "nested_loop": [
       {
         "table": {
@@ -22649,7 +22637,7 @@ EXPLAIN
           "access_type": "ALL",
           "loops": 1,
           "rows": 3,
-          "cost": 0.012461052,
+          "cost": 0.010134054,
           "filtered": 100,
           "attached_condition": "v1.r < 'x'",
           "materialized": {
@@ -22773,7 +22761,7 @@ from t1 limit 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	
 2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	100	
+2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	1	
 3	DERIVED	t2	ALL	a	NULL	NULL	NULL	1000	Using temporary; Using filesort
 select
 a,
@@ -22907,6 +22895,737 @@ valdouble	valint1
 5	3289988
 DROP TABLE t1,t2;
 # End of 10.4 tests
+# MDEV-34506 2nd execution name resolution problem with pushdown into
+#   unions
+#
+#  Statements affected by this bug need all the following to be true
+#  1) a derived table table or view whose specification contains a set
+#       operation at the top level.
+#  2) a grouping operator (group by/having) operating on a column alias
+#       other than in the first select of the union/intersect
+#  3) an outer condition that will be pushed into all selects in this
+#      union/intersect, either into the where or having clause
+#
+#  When pushing a condition into all selects of a unit with more than one
+#  select, pushdown_cond_for_derived() renames items so we can re-use the
+#  condition being pushed.
+#  These names need to be saved and reset for correct name resolution on
+#  second execution of prepared statements.
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(1,2,2),(4,5,6);
+insert into t1 values (17,8,9),(11,11,12);
+create table t2 (c4 int, c5 int, c6 int);
+insert into t2 values (7,8,9),(10,11,12);
+prepare stmt from 'select * from
+(
+select c1,  sum(c3) as s from t1 group by c1
+union
+select c4 as c, sum(c6) as u from t2 group by c
+) dt
+where c1 > 6';
+execute stmt;
+c1	s
+11	12
+17	9
+7	9
+10	12
+execute stmt;
+c1	s
+11	12
+17	9
+7	9
+10	12
+prepare stmt from 'explain format=json select * from
+(
+select c1,  sum(c3) as s from t1 group by c1
+union
+select c4 as c, sum(c6) as u from t2 group by c
+) dt
+where c1 > 6';
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 7,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.c1 > 6",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "REPLACED",
+                      "filesort": {
+                        "sort_key": "t1.c1",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 5,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t1.c1 > 6"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "filesort": {
+                        "sort_key": "t2.c4",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t2.c4 > 6"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 7,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.c1 > 6",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "REPLACED",
+                      "filesort": {
+                        "sort_key": "t1.c1",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 5,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t1.c1 > 6"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "filesort": {
+                        "sort_key": "t2.c4",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t2.c4 > 6"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare stmt from 'select * from
+(
+select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+union
+select c4, c5, sum(c6) as u from t2 group by c4, c5 having u > 3
+) dt
+where c2 > 5';
+execute stmt;
+c1	c2	s
+11	11	12
+17	8	9
+7	8	9
+10	11	12
+execute stmt;
+c1	c2	s
+11	11	12
+17	8	9
+7	8	9
+10	11	12
+prepare stmt from 'explain format=json select * from
+(
+select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+union
+select c4, c5, sum(c6) as u from t2 group by c4, c5 having u > 3
+) dt
+where c2 > 5';
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 7,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.c2 > 5",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "REPLACED",
+                      "having_condition": "s > 2",
+                      "filesort": {
+                        "sort_key": "t1.c1, t1.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 5,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t1.c2 > 5"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "having_condition": "s > 3",
+                      "filesort": {
+                        "sort_key": "t2.c4, t2.c5",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t2.c5 > 5"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 7,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.c2 > 5",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "REPLACED",
+                      "having_condition": "s > 2",
+                      "filesort": {
+                        "sort_key": "t1.c1, t1.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 5,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t1.c2 > 5"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "having_condition": "s > 3",
+                      "filesort": {
+                        "sort_key": "t2.c4, t2.c5",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t2.c5 > 5"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare stmt from 'select *
+from
+(
+select c1, c2, max(c3) as max_c, avg(c3) as avg_c
+from t1
+group by c1,c2
+having max_c < 7
+union
+select c4, c5, max(c6) as u, avg(c6) as w
+from t2
+group by c4, c5
+having u < 10
+) dt,
+t2
+where dt.max_c > 6 and t2.c6 > dt.c1';
+execute stmt;
+c1	c2	max_c	avg_c	c4	c5	c6
+7	8	9	9.0000	7	8	9
+7	8	9	9.0000	10	11	12
+execute stmt;
+c1	c2	max_c	avg_c	c4	c5	c6
+7	8	9	9.0000	7	8	9
+7	8	9	9.0000	10	11	12
+prepare stmt from 'explain format=json select *
+from
+(
+select c1, c2, max(c3) as max_c, avg(c3) as avg_c
+from t1
+group by c1,c2
+having max_c < 7
+union
+select c4, c5, max(c6) as u, avg(c6) as w
+from t2
+group by c4, c5
+having u < 10
+) dt,
+t2
+where dt.max_c > 6 and t2.c6 > dt.c1';
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "REPLACED",
+          "filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived2>",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 7,
+            "cost": "REPLACED",
+            "filtered": 100,
+            "attached_condition": "dt.max_c > 6"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL",
+          "attached_condition": "t2.c6 > dt.c1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "REPLACED",
+                      "having_condition": "max_c < 7 and max_c > 6",
+                      "filesort": {
+                        "sort_key": "t1.c1, t1.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 5,
+                                "cost": "REPLACED",
+                                "filtered": 100
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "having_condition": "max_c < 10 and max_c > 6",
+                      "filesort": {
+                        "sort_key": "t2.c4, t2.c5",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "REPLACED",
+                                "filtered": 100
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+execute stmt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "REPLACED",
+          "filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived2>",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 7,
+            "cost": "REPLACED",
+            "filtered": 100,
+            "attached_condition": "dt.max_c > 6"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL",
+          "attached_condition": "t2.c6 > dt.c1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "REPLACED",
+                      "having_condition": "max_c < 7 and max_c > 6",
+                      "filesort": {
+                        "sort_key": "t1.c1, t1.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 5,
+                                "cost": "REPLACED",
+                                "filtered": 100
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "having_condition": "max_c < 10 and max_c > 6",
+                      "filesort": {
+                        "sort_key": "t2.c4, t2.c5",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "REPLACED",
+                                "filtered": 100
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1, t2;
+#
+# MDEV-35276: Assertion failure in find_producing_item upon a query
+# from a view
+#
+# Note: for all followng queries with DEFAULT(f) hishdown is
+# prohibited
+CREATE VIEW v AS select 0 AS f;
+SELECT * FROM v WHERE f = DEFAULT(f);
+f
+0
+CREATE TABLE t1 (c int DEFAULT 0);
+insert into t1 values (0), (1);
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	c
+0	0
+0	1
+ALTER TABLE t1 ALTER c SET DEFAULT 1;
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	c
+drop table t1;
+create table t1 (a int, c int DEFAULT a);
+insert into t1 values (0, -1), (1, -2);
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	a	c
+0	0	-1
+DROP VIEW v;
+DROP TABLE t1;
+#
+# MDEV-32395: update_depend_map_for_order: SEGV at
+#             /mariadb-11.3.0/sql/sql_select.cc:16583
+#
+create table t1 (c1 int);
+insert into t1 values (1), (2);
+create table t2 (c2 int);
+insert into t2 values (1), (2);
+create table t3 (c3 int);
+insert into t3 values (1), (2);
+set statement optimizer_switch='condition_pushdown_for_derived=off,condition_pushdown_for_subquery=off,condition_pushdown_from_having=off' for
+select t1.c1 as a from t2, t1 where t1.c1=t2.c2
+order by (select c3 from t3 group by a having a=2);
+a
+1
+2
+drop table t1, t2, t3;
+# Test case 2
+CREATE TABLE t1 ( x BOOLEAN NOT NULL );
+INSERT INTO t1 ( x ) VALUES ( 1 ) ;
+UPDATE t1 SET x = 1 WHERE x = 1 ;
+INSERT INTO t1 ( x ) VALUES ( 1 ) , ( x IN ( SELECT x FROM ( SELECT ( SELECT EXISTS ( SELECT * FROM ( SELECT DISTINCT ( - CASE WHEN x = 1 THEN 1 ELSE x + 1 END >= x IS NOT NULL = 1 AND x = 1 ) OR x = x OR x = 'x' FROM t1 AS x GROUP BY x ) AS x WHERE 1 / x GROUP BY x HAVING ( 1 = 1 AND x = 1 ) ) FROM t1 GROUP BY EXISTS ( SELECT 1 ) ) FROM t1 UNION SELECT x FROM t1 ) AS x ) ) ;
+DROP TABLE t1;
+# Test case 3
+CREATE TABLE t0 ( c6 INT , c21 INT ) ;
+INSERT INTO t0 VALUES ( 55 , -95 ) , ( 9 , 90 ) ;
+ALTER TABLE t0 ADD COLUMN c37 INT AFTER c6 ;
+INSERT INTO t0 VALUES ( ) , ( ) ;
+SELECT t0 . c6 AS c42 FROM ( SELECT t0 . c6 = TRIM( TRAILING FROM 96 ) SOUNDS LIKE CONVERT ( t0 . c6 , UNSIGNED ) >> PI ( ) AS c49 FROM t0 ) AS t1 JOIN t0 ON RTRIM ( - RAND ( -66 ) BETWEEN FIND_IN_SET ( 20 , UNHEX ( -80 ) IS NULL OR IF ( 85 , -83 , -113 ) ) AND -125 ) / EXP ( c21 ) = t1 . c49 ORDER BY c42 , ( c42 + ( SELECT c21 AS c61 FROM t0 WHERE t0 . c37 >= -19.601384 = RAND ( ) / TRIM( t0 . c21 FROM 'C@rG3D(#9*17(a.,rV' ) = -106 GROUP BY c21 , c42 HAVING c42 = -73 LIMIT 1 ) ) ;
+c42
+9
+9
+55
+55
+drop table t0;
+#
+# MDEV-32329 pushdown from having into where: Server crashes at sub_select
+#
+WITH RECURSIVE cte AS ( SELECT 1 as x UNION SELECT x FROM cte)
+SELECT ( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+FROM cte
+GROUP BY 1 ;
+( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+1
+# Test case 2
+WITH
+cte1 AS ( SELECT 1 as x UNION SELECT 1),
+cte2 AS ( SELECT 1 as x UNION SELECT 1)
+SELECT
+( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+FROM cte2
+GROUP BY 1 ;
+( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+1
+create table t1 (f int);
+create view v1 as select f, count(*) c from t1 group by f;
+#
+# MDEV-25012 Server crash in find_field_in_tables, Assertion `name' failed in find_field_in_table_ref
+#
+select * from v1 where export_set(1, default(f), 'x', aes_decrypt('secret', f));
+f	c
+show warnings;
+Level	Code	Message
+drop view v1;
+drop table t1;
+create table t(c3 longtext) ;
+with cte1 as
+(
+select default(c3) as a
+from t group by 1
+)
+select * from cte1
+where cte1.a >= 1;
+a
+drop table t;
+# End of 10.5 tests
 #
 # MDEV-28958: condition pushable into view after simplification
 #             contains constant TRUE/FALSE as subformula

@@ -210,8 +210,20 @@ eval $check_no_innodb;
 eval $check_yes_innodb;
 --source include/shutdown_mysqld.inc
 
---let $restart_parameters=
+--let $restart_parameters=--innodb-log-write-ahead-size=513
 --source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+--let $restart_parameters=--innodb-log-write-ahead-size=4095
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+# this will be silently truncated to the maximum
+--let $restart_parameters=--innodb-log-write-ahead-size=10000
+--source include/start_mysqld.inc
+SELECT @@innodb_log_write_ahead_size;
 
 --echo # Cleanup
 --list_files $bugdir

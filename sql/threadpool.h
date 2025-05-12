@@ -140,13 +140,13 @@ struct TP_pool
 struct TP_pool_win:TP_pool
 {
   TP_pool_win();
-  virtual int init();
-  virtual ~TP_pool_win();
-  virtual TP_connection *new_connection(CONNECT *c);
-  virtual void add(TP_connection *);
-  virtual int set_max_threads(uint);
-  virtual int set_min_threads(uint);
-  void resume(TP_connection *c);
+  int init() override;
+  ~TP_pool_win() override;
+  TP_connection *new_connection(CONNECT *c) override;
+  void add(TP_connection *) override;
+  int set_max_threads(uint) override;
+  int set_min_threads(uint) override;
+  void resume(TP_connection *c) override;
 };
 #endif
 
@@ -154,13 +154,13 @@ struct TP_pool_generic :TP_pool
 {
   TP_pool_generic();
   ~TP_pool_generic();
-  virtual int init();
-  virtual TP_connection *new_connection(CONNECT *c);
-  virtual void add(TP_connection *);
-  virtual int set_pool_size(uint);
-  virtual int set_stall_limit(uint);
-  virtual int get_idle_thread_count();
-  void resume(TP_connection* c);
+  int init() override;
+  TP_connection *new_connection(CONNECT *c) override;
+  void add(TP_connection *) override;
+  int set_pool_size(uint) override;
+  int set_stall_limit(uint) override;
+  int get_idle_thread_count() override;
+  void resume(TP_connection* c) override;
 };
 
 #endif /* HAVE_POOL_OF_THREADS */

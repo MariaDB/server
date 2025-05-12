@@ -62,6 +62,8 @@ SET @@GLOBAL.query_cache_size = 65536;
 
 --echo ** TESTING SESSION SCOPE **
 
+--disable_cursor_protocol
+
 --echo '#--------------------FN_DYNVARS_135_01-------------------------#'
 #
 # Testing default value it should be ON by default
@@ -283,6 +285,8 @@ connection con3;
 
 SELECT @@query_cache_type;
 --echo ON Expected
+
+--enable_cursor_protocol
 
 --echo
 --echo ** Cleanup **

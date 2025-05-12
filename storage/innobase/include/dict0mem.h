@@ -420,7 +420,7 @@ void
 dict_mem_foreign_table_name_lookup_set(
 /*===================================*/
 	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
+	bool		do_alloc);	/*!< in: is an alloc needed */
 
 /**********************************************************************//**
 Sets the referenced_table_name_lookup pointer based on the value of
@@ -1102,15 +1102,12 @@ struct dict_index_t {
 				is indexed from 0 to n_uniq-1); This
 				is used when innodb_stats_method is
 				"nulls_ignored". */
-	ulint		stat_index_size;
+	uint32_t	stat_index_size;
 				/*!< approximate index size in
 				database pages */
-	ulint		stat_n_leaf_pages;
+	uint32_t	stat_n_leaf_pages;
 				/*!< approximate number of leaf pages in the
 				index tree */
-	bool		stats_error_printed;
-				/*!< has persistent statistics error printed
-				for this index ? */
 	/* @} */
 private:
   /** R-tree split sequence number */
@@ -1186,6 +1183,14 @@ public:
 	bool is_btree() const {
 		return UNIV_LIKELY(!(type & (DICT_SPATIAL
 					     | DICT_FTS | DICT_CORRUPT)));
+	}
+
+	/** @return whether this is a normal, non-virtual B-tree index
+	(not SPATIAL or FULLTEXT) */
+	bool is_normal_btree() const noexcept {
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
+					     | DICT_FTS | DICT_CORRUPT
+					     | DICT_VIRTUAL)));
 	}
 
 	/** @return whether the index includes virtual columns */
@@ -1481,45 +1486,149 @@ typedef std::set<dict_v_col_t*, std::less<dict_v_col_t*>,
 /** Data structure for a foreign key constraint; an example:
 FOREIGN KEY (A, B) REFERENCES TABLE2 (C, D).  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_foreign_create(). */
-struct dict_foreign_t{
-	mem_heap_t*	heap;		/*!< this object is allocated from
-					this memory heap */
-	char*		id;		/*!< id of the constraint as a
-					null-terminated string */
-	unsigned	n_fields:10;	/*!< number of indexes' first fields
-					for which the foreign key
-					constraint is defined: we allow the
-					indexes to contain more fields than
-					mentioned in the constraint, as long
-					as the first fields are as mentioned */
-	unsigned	type:6;		/*!< 0 or DICT_FOREIGN_ON_DELETE_CASCADE
-					or DICT_FOREIGN_ON_DELETE_SET_NULL */
-	char*		foreign_table_name;/*!< foreign table name */
-	char*		foreign_table_name_lookup;
-				/*!< foreign table name used for dict lookup */
-	dict_table_t*	foreign_table;	/*!< table where the foreign key is */
-	const char**	foreign_col_names;/*!< names of the columns in the
-					foreign key */
-	char*		referenced_table_name;/*!< referenced table name */
-	char*		referenced_table_name_lookup;
-				/*!< referenced table name for dict lookup*/
-	dict_table_t*	referenced_table;/*!< table where the referenced key
-					is */
-	const char**	referenced_col_names;/*!< names of the referenced
-					columns in the referenced table */
-	dict_index_t*	foreign_index;	/*!< foreign index; we require that
-					both tables contain explicitly defined
-					indexes for the constraint: InnoDB
-					does not generate new indexes
-					implicitly */
-	dict_index_t*	referenced_index;/*!< referenced index */
+struct dict_foreign_t
+{
+  /* Object is allocated from this memory heap */
+  mem_heap_t *heap;
+  /* id of the constraint as a null terminated string */
+  char       *id;
+  /* number of indexes first fields for which the foreign key
+  constraint is defined: We allow the indexes to contain more
+  fields than mentioned in the constraint, as long as the first
+  fields are as mentioned */
+  unsigned	n_fields:10;
+  /* 0 or DELETE_CASCADE OR DELETE_SET_NULL */
+  unsigned	type:6;
+  /* foreign table name */
+  char *foreign_table_name;
+  /* Foreign table name used for dict lookup */
+  char *foreign_table_name_lookup;
+  /* table where the foreign key is */
+  dict_table_t *foreign_table;
+  /* names of the columns in the foreign key */
+  const char  **foreign_col_names;
+  /* referenced table name */
+  char *referenced_table_name;
+  /* referenced table name for dict lookup */
+  char *referenced_table_name_lookup;
+  /* Table where the referenced key is */
+  dict_table_t *referenced_table;
+  /* Names of the referenced columns in the referenced table */
+  const char **referenced_col_names;
+  /* foreign index; we require that both tables contain explicitly
+  defined indexes for the constraint: InnoDB does not generate
+  new indexes implicitly */
+  dict_index_t *foreign_index;
+  /* referenced index */
+  dict_index_t *referenced_index;
+  /* set of virtual columns affected by foreign key constraint */
+  dict_vcol_set *v_cols;
+  /** Check whether the fulltext index gets affected by
+  foreign key constraint */
+  bool affects_fulltext() const;
+  /** The flags for ON_UPDATE and ON_DELETE can be ORed;
+  the default is that a foreign key constraint is enforced,
+  therefore RESTRICT just means no flag */
+  static constexpr unsigned DELETE_CASCADE= 1U;
+  static constexpr unsigned DELETE_SET_NULL= 2U;
+  static constexpr unsigned UPDATE_CASCADE= 4U;
+  static constexpr unsigned UPDATE_SET_NULL= 8U;
+  static constexpr unsigned DELETE_NO_ACTION= 16U;
+  static constexpr unsigned UPDATE_NO_ACTION= 32U;
+private:
+  /** Check whether the name exists in given column names
+  @retval offset or UINT_MAX if name not found */
+  unsigned col_exists(const char *name, const char **names) const noexcept
+  {
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      if (!strcmp(names[i], name))
+        return i;
+    }
+    return UINT_MAX;
+  }
 
-	dict_vcol_set*	v_cols;		/*!< set of virtual columns affected
-					by foreign key constraint. */
+public:
+  /** Check whether the name exists in the foreign key column names
+  @retval offset in case of success
+  @retval UINT_MAX in case of failure */
+  unsigned col_fk_exists(const char *name) const noexcept
+  {
+    return col_exists(name, foreign_col_names);
+  }
 
-	/** Check whether the fulltext index gets affected by
-	foreign key constraint */
-	bool affects_fulltext() const;
+  /** Check whether the name exists in the referenced
+  key column names
+  @retval offset in case of success
+  @retval UINT_MAX in case of failure */
+  unsigned col_ref_exists(const char *name) const noexcept
+  {
+    return col_exists(name, referenced_col_names);
+  }
+
+  /** Check whether the foreign key constraint depends on
+  the nullability of the referenced column to be modified
+  @param name column to be modified
+  @return true in case of no conflict or false */
+  bool on_update_cascade_not_null(const char *name) const noexcept
+  {
+    if (!foreign_index || type != UPDATE_CASCADE)
+      return false;
+    unsigned offset= col_ref_exists(name);
+    if (offset == UINT_MAX)
+      return false;
+
+    ut_ad(offset < n_fields);
+    return foreign_index->fields[offset].col->prtype & DATA_NOT_NULL;
+  }
+
+  /** Check whether the foreign key constraint depends on
+  the nullability of the foreign column to be modified
+  @param name column to be modified
+  @return true in case of no conflict or false */
+  bool on_update_cascade_null(const char *name) const noexcept
+  {
+    if (!referenced_index || type != UPDATE_CASCADE)
+      return false;
+    unsigned offset= col_fk_exists(name);
+    if (offset == UINT_MAX)
+      return false;
+
+    ut_ad(offset < n_fields);
+    return !(referenced_index->fields[offset].col->prtype & DATA_NOT_NULL);
+  }
+
+  /** This is called during CREATE TABLE statement
+  to check the foreign key nullability constraint
+  @return true if foreign key constraint is valid
+  or else false */
+  bool check_fk_constraint_valid()
+  {
+    if (!type || type & (DELETE_CASCADE | DELETE_NO_ACTION |
+                         UPDATE_NO_ACTION))
+      return true;
+
+    if (!referenced_index)
+      return true;
+
+    for (unsigned i= 0; i < n_fields; i++)
+    {
+      dict_col_t *col = foreign_index->fields[i].col;
+      if (col->prtype & DATA_NOT_NULL)
+      {
+        /* Foreign type is ON DELETE SET NULL
+        or ON UPDATE SET NULL */
+        if (type & (DELETE_SET_NULL | UPDATE_SET_NULL))
+          return false;
+
+        dict_col_t *ref_col= referenced_index->fields[i].col;
+        /* Referenced index respective fields shouldn't be NULL */
+        if (!(ref_col->prtype & DATA_NOT_NULL))
+          return false;
+      }
+    }
+    return true;
+  }
 };
 
 std::ostream&
@@ -1678,17 +1787,6 @@ struct dict_foreign_set_free {
 
 	const dict_foreign_set&	m_foreign_set;
 };
-
-/** The flags for ON_UPDATE and ON_DELETE can be ORed; the default is that
-a foreign key constraint is enforced, therefore RESTRICT just means no flag */
-/* @{ */
-#define DICT_FOREIGN_ON_DELETE_CASCADE	1U	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_DELETE_SET_NULL	2U	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_UPDATE_CASCADE	4U	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_UPDATE_SET_NULL	8U	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_DELETE_NO_ACTION 16U	/*!< ON DELETE NO ACTION */
-#define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32U	/*!< ON UPDATE NO ACTION */
-/* @} */
 
 /** Display an identifier.
 @param[in,out]	s	output stream
@@ -1996,38 +2094,36 @@ struct dict_table_t {
 
 #ifdef UNIV_DEBUG
   /** @return whether the current thread holds the lock_mutex */
-  bool lock_mutex_is_owner() const
-  { return lock_mutex_owner == pthread_self(); }
+  bool lock_mutex_is_owner() const { return lock_latch.have_wr(); }
   /** @return whether the current thread holds the stats_mutex (lock_mutex) */
-  bool stats_mutex_is_owner() const
-  { return lock_mutex_owner == pthread_self(); }
+  bool stats_mutex_is_owner() const { return lock_latch.have_wr(); }
 #endif /* UNIV_DEBUG */
-  void lock_mutex_init() { lock_mutex.init(); }
-  void lock_mutex_destroy() { lock_mutex.destroy(); }
-  /** Acquire lock_mutex */
-  void lock_mutex_lock()
+  void lock_mutex_init()
   {
-    ut_ad(!lock_mutex_is_owner());
-    lock_mutex.wr_lock();
-    ut_ad(!lock_mutex_owner.exchange(pthread_self()));
+#ifdef UNIV_DEBUG
+    lock_latch.SRW_LOCK_INIT(0);
+#else
+    lock_latch.init();
+#endif
   }
-  /** Try to acquire lock_mutex */
-  bool lock_mutex_trylock()
-  {
-    ut_ad(!lock_mutex_is_owner());
-    bool acquired= lock_mutex.wr_lock_try();
-    ut_ad(!acquired || !lock_mutex_owner.exchange(pthread_self()));
-    return acquired;
-  }
-  /** Release lock_mutex */
-  void lock_mutex_unlock()
-  {
-    ut_ad(lock_mutex_owner.exchange(0) == pthread_self());
-    lock_mutex.wr_unlock();
-  }
+  void lock_mutex_destroy() { lock_latch.destroy(); }
+  /** Acquire exclusive lock_latch */
+  void lock_mutex_lock() { lock_latch.wr_lock(ut_d(SRW_LOCK_CALL)); }
+  /** Try to acquire exclusive lock_latch */
+  bool lock_mutex_trylock() { return lock_latch.wr_lock_try(); }
+  /** Release exclusive lock_latch */
+  void lock_mutex_unlock() { lock_latch.wr_unlock(); }
+  /** Acquire shared lock_latch */
+  void lock_shared_lock() { lock_latch.rd_lock(ut_d(SRW_LOCK_CALL)); }
+  /** Release shared lock_latch */
+  void lock_shared_unlock() { lock_latch.rd_unlock(); }
+
 #ifndef SUX_LOCK_GENERIC
-  /** @return whether the lock mutex is held by some thread */
-  bool lock_mutex_is_locked() const noexcept { return lock_mutex.is_locked(); }
+  /** @return whether an exclusive lock_latch is held by some thread */
+  bool lock_mutex_is_locked() const noexcept
+  { return lock_latch.is_write_locked(); }
+  bool stats_mutex_is_locked() const noexcept
+  { return lock_latch.is_write_locked(); }
 #endif
 
   /* stats mutex lock currently defaults to lock_mutex but in the future,
@@ -2038,6 +2134,8 @@ struct dict_table_t {
   void stats_mutex_destroy() { lock_mutex_destroy(); }
   void stats_mutex_lock() { lock_mutex_lock(); }
   void stats_mutex_unlock() { lock_mutex_unlock(); }
+  void stats_shared_lock() { lock_shared_lock(); }
+  void stats_shared_unlock() { lock_shared_unlock(); }
 
   /** Rename the data file.
   @param new_name     name of the table
@@ -2230,62 +2328,31 @@ public:
 	/** Statistics for query optimization. Mostly protected by
 	dict_sys.latch and stats_mutex_lock(). @{ */
 
-	/** TRUE if statistics have been calculated the first time after
-	database startup or table creation. */
-	unsigned				stat_initialized:1;
-
 	/** Timestamp of last recalc of the stats. */
 	time_t					stats_last_recalc;
 
-	/** The two bits below are set in the 'stat_persistent' member. They
-	have the following meaning:
-	1. _ON=0, _OFF=0, no explicit persistent stats setting for this table,
-	the value of the global srv_stats_persistent is used to determine
-	whether the table has persistent stats enabled or not
-	2. _ON=0, _OFF=1, persistent stats are explicitly disabled for this
-	table, regardless of the value of the global srv_stats_persistent
-	3. _ON=1, _OFF=0, persistent stats are explicitly enabled for this
-	table, regardless of the value of the global srv_stats_persistent
-	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
-	#define DICT_STATS_PERSISTENT_ON	(1 << 1)
-	#define DICT_STATS_PERSISTENT_OFF	(1 << 2)
+  static constexpr uint32_t STATS_INITIALIZED= 1U;
+  static constexpr uint32_t STATS_PERSISTENT_ON= 1U << 1;
+  static constexpr uint32_t STATS_PERSISTENT_OFF= 1U << 2;
+  static constexpr uint32_t STATS_AUTO_RECALC_ON= 1U << 3;
+  static constexpr uint32_t STATS_AUTO_RECALC_OFF= 1U << 4;
 
-	/** Indicates whether the table uses persistent stats or not. See
-	DICT_STATS_PERSISTENT_ON and DICT_STATS_PERSISTENT_OFF. */
-	ib_uint32_t				stat_persistent;
+  /** flags for index cardinality statistics */
+  Atomic_relaxed<uint32_t> stat;
+  /** Approximate clustered index size in database pages. */
+  uint32_t stat_clustered_index_size;
+  /** Approximate size of other indexes in database pages. */
+  uint32_t stat_sum_of_other_index_sizes;
 
-	/** The two bits below are set in the 'stats_auto_recalc' member. They
-	have the following meaning:
-	1. _ON=0, _OFF=0, no explicit auto recalc setting for this table, the
-	value of the global srv_stats_persistent_auto_recalc is used to
-	determine whether the table has auto recalc enabled or not
-	2. _ON=0, _OFF=1, auto recalc is explicitly disabled for this table,
-	regardless of the value of the global srv_stats_persistent_auto_recalc
-	3. _ON=1, _OFF=0, auto recalc is explicitly enabled for this table,
-	regardless of the value of the global srv_stats_persistent_auto_recalc
-	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
-	#define DICT_STATS_AUTO_RECALC_ON	(1 << 1)
-	#define DICT_STATS_AUTO_RECALC_OFF	(1 << 2)
 
-	/** Indicates whether the table uses automatic recalc for persistent
-	stats or not. See DICT_STATS_AUTO_RECALC_ON and
-	DICT_STATS_AUTO_RECALC_OFF. */
-	ib_uint32_t				stats_auto_recalc;
-
-	/** The number of pages to sample for this table during persistent
-	stats estimation. If this is 0, then the value of the global
-	srv_stats_persistent_sample_pages will be used instead. */
-	ulint					stats_sample_pages;
+  /** The number of pages to sample for this table during persistent
+  stats estimation. If this is 0, then the value of the global
+  srv_stats_persistent_sample_pages will be used instead. */
+  uint32_t stats_sample_pages;
 
 	/** Approximate number of rows in the table. We periodically calculate
 	new estimates. */
 	ib_uint64_t				stat_n_rows;
-
-	/** Approximate clustered index size in database pages. */
-	ulint					stat_clustered_index_size;
-
-	/** Approximate size of other indexes in database pages. */
-	ulint					stat_sum_of_other_index_sizes;
 
 	/** How many rows are modified since last stats recalc. When a row is
 	inserted, updated, or deleted, we add 1 to this number; we calculate
@@ -2296,7 +2363,7 @@ public:
 	ib_uint64_t				stat_modified_counter;
 
 	bool		stats_error_printed;
-				/*!< Has persistent stats error beein
+				/*!< Has persistent stats error been
 				already printed for this table ? */
 	/* @} */
 
@@ -2321,12 +2388,13 @@ public:
   /** Mutex protecting autoinc and freed_indexes. */
   srw_spin_mutex autoinc_mutex;
 private:
-  /** Mutex protecting locks on this table. */
-  srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
-  /** The owner of lock_mutex (0 if none) */
-  Atomic_relaxed<pthread_t> lock_mutex_owner{0};
+  typedef srw_lock_debug lock_latch_type;
+#else
+  typedef srw_spin_lock_low lock_latch_type;
 #endif
+  /** RW-lock protecting locks and statistics on this table */
+  lock_latch_type lock_latch;
 public:
   /** The next DB_ROW_ID value */
   Atomic_counter<uint64_t> row_id{0};
@@ -2334,7 +2402,7 @@ public:
   uint64_t autoinc;
 
   /** The transaction that currently holds the the AUTOINC lock on this table.
-  Protected by lock_mutex.
+  Protected by lock_latch.
   The thread that is executing autoinc_trx may read this field without
   holding a latch, in row_lock_table_autoinc_for_mysql().
   Only the autoinc_trx thread may clear this field; it cannot be
@@ -2393,9 +2461,9 @@ public:
 	/** Magic number. */
 	ulint					magic_n;
 #endif /* UNIV_DEBUG */
-	/** mysql_row_templ_t for base columns used for compute the virtual
-	columns */
-	dict_vcol_templ_t*			vc_templ;
+  /** mysql_row_templ_t for base columns used for compute the virtual
+  columns; protected by lock_latch */
+  dict_vcol_templ_t *vc_templ;
 
   /* @return whether the table has any other transcation lock
   other than the given transaction */
@@ -2409,7 +2477,7 @@ public:
   }
 
   /** @return whether a DDL operation is in progress on this table */
-  bool is_active_ddl() const
+  bool is_native_online_ddl() const
   {
     return UT_LIST_GET_FIRST(indexes)->online_log;
   }
@@ -2423,6 +2491,35 @@ public:
 
   /** @return the index for that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;
+
+  /** @return whether the statistics are initialized */
+  static bool stat_initialized(uint32_t stat) noexcept
+  { return stat & STATS_INITIALIZED; }
+
+  /** @return whether STATS_PERSISTENT is enabled */
+  static bool stats_is_persistent(uint32_t stat) noexcept
+  {
+    ut_ad(~(stat & (STATS_PERSISTENT_ON | STATS_PERSISTENT_OFF)));
+    if (stat & STATS_PERSISTENT_ON) return true;
+    return !(stat & STATS_PERSISTENT_OFF) && srv_stats_persistent;
+  }
+  /** @return whether STATS_AUTO_RECALC is enabled */
+  static bool stats_is_auto_recalc(uint32_t stat) noexcept
+  {
+    ut_ad(stat_initialized(stat));
+    ut_ad(~(stat & (STATS_AUTO_RECALC_ON | STATS_AUTO_RECALC_OFF)));
+    if (stat & STATS_AUTO_RECALC_ON) return true;
+    return !(stat & STATS_AUTO_RECALC_OFF) && srv_stats_auto_recalc;
+  }
+
+  /** @return whether the statistics are initialized */
+  bool stat_initialized() const noexcept { return stat_initialized(stat); }
+  /** @return whether STATS_PERSISTENT is enabled */
+  bool stats_is_persistent() const noexcept
+  { return stats_is_persistent(stat); }
+  /** @return whether STATS_AUTO_RECALC is enabled */
+  bool stats_is_auto_recalc() const noexcept
+  { return stats_is_auto_recalc(stat); }
 
   /** Create metadata.
   @param name     table name

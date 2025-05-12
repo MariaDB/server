@@ -1859,10 +1859,15 @@ select wss_type from t1 where wss_type ='102935229216544104';
 select wss_type from t1 where wss_type ='102935229216544093';
 select wss_type from t1 where wss_type =102935229216544093;
 drop table t1;
+--disable_cursor_protocol
 select 1+2,"aaaa",3.13*2.0 into @a,@b,@c;
+--enable_cursor_protocol
 select @a;
 select @b;
+#Enable after fix MDEV-31495
+--disable_cursor_protocol
 select @c;
+--enable_cursor_protocol
 
 #
 # Test of removing redundant braces in the FROM part
@@ -2212,7 +2217,10 @@ INSERT INTO t1
       (SELECT * FROM t1 WHERE a = 50 AND b = 3);
 select found_rows();
 SELECT * FROM t1;
+# Check after fix MDEV-31522
+--disable_cursor_protocol
 select count(*) from t1;
+--enable_cursor_protocol
 select found_rows();
 select count(*) from t1 limit 2,3;
 select found_rows();
@@ -3751,6 +3759,7 @@ DROP TABLE t1;
 #
 # Bug #32942 now() - interval '7200' second is NOT pre-calculated, causing "full table scan"
 #
+--disable_cursor_protocol
 --disable_ps2_protocol
 --disable_view_protocol
 CREATE TABLE t1 (a INT, b INT);
@@ -3768,6 +3777,7 @@ SHOW STATUS LIKE 'Handler_read%';
 DROP TABLE t1, t2;
 --enable_view_protocol
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 #
 # Bug#40953 SELECT query throws "ERROR 1062 (23000): Duplicate entry..." error
@@ -3844,10 +3854,12 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (2),(3);
 
 --echo # Should not crash
+--disable_cursor_protocol
 --error ER_SUBQUERY_NO_1_ROW
 SELECT 1 FROM t1 WHERE a <> 1 AND NOT
 ROW(1,a) <=> ROW(1,(SELECT 1 FROM t1))
 INTO @var0;
+--enable_cursor_protocol
 
 DROP TABLE t1;
  

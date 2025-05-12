@@ -359,7 +359,7 @@ a	b
 1	2
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -375,7 +375,7 @@ a	b
 1	2
 ALTER TABLE t1 DROP COLUMN b;
 CALL p1();
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TEMPORARY TABLE t1;
@@ -389,7 +389,7 @@ a	b
 1	2
 ALTER VIEW v1 AS SELECT 1 AS a;
 CALL p1();
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP VIEW v1;
@@ -831,7 +831,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -860,7 +860,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -893,7 +893,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -926,7 +926,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -956,7 +956,7 @@ SET @@debug_dbug='+d,check_sp_cache_not_invalidated';
 CALL p2();
 a	b
 1	2
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
@@ -1192,7 +1192,7 @@ ALTER TABLE t1 DROP COLUMN a;
 CALL p1(3);
 x
 3
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SET'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1239,7 +1239,7 @@ ALTER TABLE t1 DROP COLUMN a;
 CALL p1(3);
 x
 3
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SET'
 SET @@debug_dbug=@orig_dbug;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -1992,5 +1992,97 @@ f1()
 0
 # Clean up
 DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-36390: Minor refactoring of the method get_expr_query at the classes sp_instr_cpush/sp_instr_cursor_copy_struct
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE va INT;
+# Check that the TAB character after the clause FOR is skipped and
+# the body of cursor is remembered correctly for subsequent re-parsing
+DECLARE cur CURSOR FOR	SELECT a FROM t1;
+OPEN cur;
+FETCH cur INTO va;
+SELECT va;
+CLOSE cur;
+END;
+$
+CREATE OR REPLACE PROCEDURE p2()
+BEGIN
+DECLARE va INT;
+# Check that the newline character after the clause FOR is skipped and
+# the body of cursor is remembered correctly for subsequent re-parsing
+DECLARE cur CURSOR FOR
+SELECT a FROM t1;
+OPEN cur;
+FETCH cur INTO va;
+SELECT va;
+CLOSE cur;
+END;
+$
+CREATE OR REPLACE PROCEDURE p3()
+BEGIN
+DECLARE va INT;
+# Check that C-style comment and the newline character after
+# the clause FOR is skipped and the body of cursor is remembered
+# correctly for subsequent re-parsing
+DECLARE cur CURSOR FOR /* Explicit comment */
+SELECT a FROM t1;
+OPEN cur;
+FETCH cur INTO va;
+SELECT va;
+CLOSE cur;
+END;
+$
+CREATE OR REPLACE PROCEDURE p4()
+BEGIN
+DECLARE va INT;
+# Check that SQL-style comment and the newline character after
+# the clause FOR is skipped and the body of cursor is remembered
+# correctly for subsequent re-parsing
+DECLARE cur CURSOR FOR -- Explicit comment
+SELECT a FROM t1;
+OPEN cur;
+FETCH cur INTO va;
+SELECT va;
+CLOSE cur;
+END;
+$
+CALL p1();
+va
+1
+CALL p2();
+va
+1
+CALL p3();
+va
+1
+CALL p4();
+va
+1
+ALTER TABLE t1 COMMENT 'The Comment 1';
+# The following statements will run re-parsing of
+# cursor declaration statements inside the stored
+# procedures p1, p2, p3, p4.
+CALL p1();
+va
+1
+CALL p2();
+va
+1
+CALL p3();
+va
+1
+CALL p4();
+va
+1
+# Clean up
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;
 DROP TABLE t1;
 SET sql_mode = default;

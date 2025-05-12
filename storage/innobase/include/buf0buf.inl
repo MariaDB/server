@@ -37,7 +37,7 @@ inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool.freed_page_clock & ((1UL << 31) - 1))
 	       < (bpage->freed_page_clock
-		  + (buf_pool.curr_size
+		  + (buf_pool.curr_size()
 		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
 }
@@ -73,26 +73,6 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 	} else {
 		return !buf_page_peek_if_young(bpage);
 	}
-}
-
-/** Allocate a buffer block.
-@return own: the allocated block, in state BUF_BLOCK_MEMORY */
-inline buf_block_t *buf_block_alloc()
-{
-  return buf_LRU_get_free_block(have_no_mutex);
-}
-
-/********************************************************************//**
-Frees a buffer block which does not contain a file page. */
-UNIV_INLINE
-void
-buf_block_free(
-/*===========*/
-	buf_block_t*	block)	/*!< in, own: block to be freed */
-{
-	mysql_mutex_lock(&buf_pool.mutex);
-	buf_LRU_block_free_non_file_page(block);
-	mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /********************************************************************//**

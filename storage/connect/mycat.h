@@ -101,13 +101,13 @@ class MYCAT : public CATALOG {
   void    SetHandler(PHC hc) {Hc= hc;}
 
   // Methods
-  void    Reset(void);
+  void    Reset(void) override;
   bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
 	PTABDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
 		                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
-                              MODE mode = MODE_READ, LPCSTR type = NULL);
-  void    ClearDB(PGLOBAL g);
+                   MODE mode = MODE_READ, LPCSTR type = NULL) override;
+  void    ClearDB(PGLOBAL g) override;
 
  protected:
 	PTABDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);

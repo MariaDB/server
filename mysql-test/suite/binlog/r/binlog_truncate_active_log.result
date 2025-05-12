@@ -40,7 +40,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 disconnect master4;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+# restart: --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-7/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -104,7 +104,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 disconnect master4;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+# restart: --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-11/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -173,7 +173,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 disconnect master4;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+# restart: --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-15/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -248,7 +248,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 disconnect master4;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+# restart: --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-21/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc

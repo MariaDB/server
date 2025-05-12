@@ -304,7 +304,7 @@ class Native_functions_hash: public HASH
 public:
   Native_functions_hash()
   {
-    bzero(this, sizeof(*this));
+    bzero((void*) this, sizeof(*this));
   }
   ~Native_functions_hash()
   {

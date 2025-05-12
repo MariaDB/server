@@ -1,9 +1,8 @@
 connection node_2;
 connection node_1;
-connection node_1;
-call mtr.add_suppression("WSREP: write_handler().*");
-connection node_2;
-call mtr.add_suppression("WSREP: write_handler():.*");
+SELECT COUNT(*) `expect 0` FROM performance_schema.socket_instances WHERE EVENT_NAME LIKE '%wsrep%';
+expect 0
+0
 connection node_1;
 connection node_2;
 connection node_1;
@@ -28,6 +27,6 @@ VARIABLE_VALUE = 2
 1
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: write_handler().*");
+call mtr.add_suppression("WSREP: write_handler\\(\\)");
 connection node_2;
-call mtr.add_suppression("WSREP: write_handler():.*");
+call mtr.add_suppression("WSREP: write_handler\\(\\)");

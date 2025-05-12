@@ -476,6 +476,7 @@ INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
@@ -488,6 +489,7 @@ SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
 SHOW STATUS LIKE 'Handler_read_%';
 DROP TABLE t1,t2;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 # Bug#37329 Range scan on partitioned tables shows higher Handler_read_next
 # (marked as duplicate of Bug#35931)
@@ -509,6 +511,7 @@ INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),
 
 EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH STATUS;
 SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
@@ -533,6 +536,7 @@ SELECT c1 FROM t2 WHERE (c1 > 12 AND c1 < 15);
 SHOW STATUS LIKE 'Handler_read_%';
 DROP TABLE t1,t2;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --error ER_PARTITION_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int) partition by list ((a/3)*10 div 1)
@@ -3066,6 +3070,22 @@ set optimizer_switch=@tmp_os;
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-31030 Assertion `!error' failed in ha_partition::update_row on UPDATE
+--echo #
+
+create table t (c int)
+partition by list (1 div c) (
+  partition p0 values in (null),
+  partition p values in (1));
+insert ignore into t values (0), (1), (0);
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+update t set c= 2;
+--disable_warnings
+update ignore t set c= 3;
+--enable_warnings
+select * from t;
+drop table t;
 
 --echo #
 --echo # MDEV-32388 MSAN / Valgrind errors in

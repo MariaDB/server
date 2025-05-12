@@ -54,7 +54,7 @@ my_crc32_t crc32c_aarch64_available(void)
 static unsigned long getauxval(unsigned int key)
 {
   unsigned long val;
-  if (elf_aux_info(key, (void *)&val, (int)sizeof(val) != 0)
+  if (elf_aux_info(key, (void *)&val, (int)sizeof(val) != 0))
     return 0ul;
   return val;
 }

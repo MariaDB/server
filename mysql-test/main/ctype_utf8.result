@@ -63,17 +63,17 @@ select 'A' like 'a';
 select 'A' like 'a' collate utf8_bin;
 'A' like 'a' collate utf8_bin
 0
-select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%');
-_utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%')
+select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%') as exp;
+exp
 1
-select convert(_latin1'G¸nter AndrÈ' using utf8) like CONVERT(_latin1'G‹NTER%' USING utf8);
-convert(_latin1'G\xFCnter Andr\xE9' using utf8) like CONVERT(_latin1'G\xDCNTER%' USING utf8)
+select convert(_latin1'G¸nter AndrÈ' using utf8) like CONVERT(_latin1'G‹NTER%' USING utf8) as exp;
+exp
 1
-select CONVERT(_koi8r'◊¡”—' USING utf8) LIKE CONVERT(_koi8r'˜·ÛÒ' USING utf8);
-CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8) LIKE CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8)
+select CONVERT(_koi8r'◊¡”—' USING utf8) LIKE CONVERT(_koi8r'˜·ÛÒ' USING utf8) as exp;
+exp
 1
-select CONVERT(_koi8r'˜·ÛÒ' USING utf8) LIKE CONVERT(_koi8r'◊¡”—' USING utf8);
-CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8) LIKE CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8)
+select CONVERT(_koi8r'˜·ÛÒ' USING utf8) LIKE CONVERT(_koi8r'◊¡”—' USING utf8) as exp;
+exp
 1
 SELECT 'a' = 'a ';
 'a' = 'a '
@@ -924,17 +924,17 @@ select * from t1 where soundex(a) = soundex('test');
 id	a
 1	Test
 drop table t1;
-select soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB);
-soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB)
+select soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB) as exp;
+exp
 ÈòÖ000
-select hex(soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB));
-hex(soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB))
+select hex(soundex(_utf8 0xE99885E8A788E99A8FE697B6E69BB4E696B0E79A84E696B0E997BB)) as exp;
+exp
 E99885303030
-select soundex(_utf8 0xD091D092D093);
-soundex(_utf8 0xD091D092D093)
+select soundex(_utf8 0xD091D092D093) as exp;
+exp
 –ë000
-select hex(soundex(_utf8 0xD091D092D093));
-hex(soundex(_utf8 0xD091D092D093))
+select hex(soundex(_utf8 0xD091D092D093)) as exp;
+exp
 D091303030
 SET collation_connection='utf8_general_ci';
 create table t1 select repeat('a',4000) a;
@@ -1160,8 +1160,8 @@ DROP TABLE t1;
 SELECT @@character_set_connection, HEX(CAST(_utf8'√∑' AS CHAR));
 @@character_set_connection	HEX(CAST(_utf8'√∑' AS CHAR))
 utf8mb3	C3B7
-SELECT STR_TO_DATE(CAST(_utf8'2001√∑01√∑01' AS CHAR),CAST(_utf8'%Y√∑%m√∑%d' AS CHAR));
-STR_TO_DATE(CAST(_utf8'2001√∑01√∑01' AS CHAR),CAST(_utf8'%Y√∑%m√∑%d' AS CHAR))
+SELECT STR_TO_DATE(CAST(_utf8'2001√∑01√∑01' AS CHAR),CAST(_utf8'%Y√∑%m√∑%d' AS CHAR)) as exp;
+exp
 2001-01-01
 CREATE TABLE t1 AS SELECT REPEAT(' ', 64) AS subject, REPEAT(' ',64) AS pattern LIMIT 0;
 SHOW COLUMNS FROM t1;
@@ -1294,8 +1294,8 @@ concat(concat(_latin1'->',f1),_latin1'<-')
 -><-
 -><-
 drop table t1;
-select convert(_koi8r'…' using utf8) < convert(_koi8r' ' using utf8);
-convert(_koi8r'\xC9' using utf8) < convert(_koi8r'\xCA' using utf8)
+select convert(_koi8r'…' using utf8) < convert(_koi8r' ' using utf8) as exp;
+exp
 1
 set names latin1;
 create table t1 (a varchar(10)) character set utf8;
@@ -3604,8 +3604,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))));
-hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))))
+select hex(concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)')))) as exp;
+exp
 32
 create table t1 as select concat(NumGeometries(MultiPointFromText('MULTIPOINT(0 0,10 10)'))) as c1;
 show create table t1;
@@ -3614,8 +3614,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))));
-hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))))
+select hex(concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)')))) as exp;
+exp
 32
 create table t1 as select concat(NumPoints(MultiPointFromText('LINESTRING(0 0,10 10)'))) as c1;
 show create table t1;
@@ -3624,8 +3624,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))));
-hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))))
+select hex(concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)')))) as exp;
+exp
 30
 create table t1 as select concat(SRID(MultiPointFromText('MULTIPOINT(0 0,10 10)'))) as c1;
 show create table t1;
@@ -3634,8 +3634,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))));
-hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))))
+select hex(concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))')))) as exp;
+exp
 31
 create table t1 as select concat(NumInteriorRings(PolygonFromText('POLYGON((0 0,50 0,50 50,0 50,0 0), (10 10,20 10,20 20,10 20,10 10))'))) as c1;
 show create table t1;
@@ -3644,8 +3644,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(IsEmpty(GeomFromText('POINT(1 1)'))));
-hex(concat(IsEmpty(GeomFromText('POINT(1 1)'))))
+select hex(concat(IsEmpty(GeomFromText('POINT(1 1)')))) as exp;
+exp
 30
 create table t1 as select concat(IsEmpty(GeomFromText('Point(1 1)'))) as c1;
 show create table t1;
@@ -3654,8 +3654,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(21) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(IsSimple(GeomFromText('POINT(1 1)'))));
-hex(concat(IsSimple(GeomFromText('POINT(1 1)'))))
+select hex(concat(IsSimple(GeomFromText('POINT(1 1)')))) as exp;
+exp
 31
 create table t1 as select concat(IsSimple(GeomFromText('Point(1 1)'))) as c1;
 show create table t1;
@@ -3664,8 +3664,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))));
-hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))))
+select hex(concat(IsClosed(GeomFromText('LineString(1 1,2 2)')))) as exp;
+exp
 30
 create table t1 as select concat(IsClosed(GeomFromText('LineString(1 1,2 2)'))) as c1;
 show create table t1;
@@ -3674,13 +3674,13 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))));
-hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))))
+select hex(concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)')))) as exp;
+exp
 31
 create table t1 as select concat(Equals(GeomFromText('Point(1 1)'),GeomFromText('Point(1 1)'))) as c1;
 drop table t1;
-select hex(concat(x(GeomFromText('Point(1 2)'))));
-hex(concat(x(GeomFromText('Point(1 2)'))))
+select hex(concat(x(GeomFromText('Point(1 2)')))) as exp;
+exp
 31
 create table t1 as select concat(x(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -3689,8 +3689,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(y(GeomFromText('Point(1 2)'))));
-hex(concat(y(GeomFromText('Point(1 2)'))))
+select hex(concat(y(GeomFromText('Point(1 2)')))) as exp;
+exp
 32
 create table t1 as select concat(x(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -3699,8 +3699,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(GLength(GeomFromText('LineString(1 2,2 2)'))));
-hex(concat(GLength(GeomFromText('LineString(1 2,2 2)'))))
+select hex(concat(GLength(GeomFromText('LineString(1 2,2 2)')))) as exp;
+exp
 31
 create table t1 as select concat(GLength(GeomFromText('LineString(1 2, 2 2)'))) as c1;
 show create table t1;
@@ -3709,8 +3709,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))));
-hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))))
+select hex(concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))')))) as exp;
+exp
 31
 create table t1 as select concat(Area(GeomFromText('Polygon((0 0,1 0,1 1,0 1,0 0))'))) as c1;
 show create table t1;
@@ -3719,8 +3719,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(23) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(GeometryType(GeomFromText('Point(1 2)'))));
-hex(concat(GeometryType(GeomFromText('Point(1 2)'))))
+select hex(concat(GeometryType(GeomFromText('Point(1 2)')))) as exp;
+exp
 504F494E54
 create table t1 as select concat(GeometryType(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -3729,8 +3729,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(AsText(GeomFromText('Point(1 2)'))));
-hex(concat(AsText(GeomFromText('Point(1 2)'))))
+select hex(concat(AsText(GeomFromText('Point(1 2)')))) as exp;
+exp
 504F494E542831203229
 create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
@@ -3999,8 +3999,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')));
-hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')))
+select hex(concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00'))) as exp;
+exp
 32343A30303A3030
 create table t1 as select concat(timediff('2001-01-02 00:00:00', '2001-01-01 00:00:00')) as c1;
 show create table t1;
@@ -4039,8 +4039,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(19) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')));
-hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')))
+select hex(concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00'))) as exp;
+exp
 323030332D31322D33312032303A30303A3030
 create table t1 as select concat(convert_tz('2004-01-01 12:00:00','+10:00','-6:00')) as c1;
 show create table t1;
@@ -4049,8 +4049,8 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(19) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-select hex(concat(date_add('2004-01-01 12:00:00', interval 1 day)));
-hex(concat(date_add('2004-01-01 12:00:00', interval 1 day)))
+select hex(concat(date_add('2004-01-01 12:00:00', interval 1 day))) as exp;
+exp
 323030342D30312D30322031323A30303A3030
 create table t1 as select concat(date_add('2004-01-01 12:00:00', interval 1 day)) as c1;
 show create table t1;
@@ -10786,20 +10786,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10924,20 +10924,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11063,20 +11063,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11201,20 +11201,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11651,6 +11651,15 @@ CAST(_utf8 '—è—è—è' AS INT)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '—è—è—è'
 #
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_utf8mb3'' collate utf8mb3_general_nopad_ci, _utf8mb3 0x0001050001) as c1;
+c1
+-1
+select strcmp(_utf8mb3'' collate utf8mb3_nopad_bin, _utf8mb3 0x0001050001) as c1;
+c1
+-1
+#
 # End of 10.5 tests
 #
 #
@@ -11660,8 +11669,8 @@ Warning	1292	Truncated incorrect INTEGER value: '—è—è—è'
 # MDEV-28118 Wrong collation of `CAST(.. AS CHAR COLLATE DEFAULT)`
 #
 SET NAMES utf8mb3 COLLATE utf8mb3_bin;
-SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT));
-COLLATION(CAST('a' AS CHAR COLLATE DEFAULT))
+SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT)) AS c1;
+c1
 utf8mb3_general_ci
 CREATE TABLE t1 AS SELECT CAST('a' AS CHAR COLLATE DEFAULT) AS c1;
 SHOW CREATE TABLE t1;

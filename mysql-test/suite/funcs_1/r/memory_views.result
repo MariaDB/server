@@ -4210,14 +4210,14 @@ Create view v1_1
 as Select test.tb2.f59 as NewNameF1, test.tb2.f60 as NewNameF2
 from tb2 limit 0,100 ;
 SELECT NewNameF1,f60             FROM test.v1_1 ;
-ERROR 42S22: Unknown column 'f60' in 'field list'
+ERROR 42S22: Unknown column 'f60' in 'SELECT'
 SELECT NewNameF1, v1_1.f60 FROM test.v1_1 ;
-ERROR 42S22: Unknown column 'v1_1.f60' in 'field list'
+ERROR 42S22: Unknown column 'v1_1.f60' in 'SELECT'
 SELECT f59, f60 FROM test.v1 ;
-ERROR 42S22: Unknown column 'f59' in 'field list'
+ERROR 42S22: Unknown column 'f59' in 'SELECT'
 Use test ;
 SELECT F59 FROM v1 ;
-ERROR 42S22: Unknown column 'F59' in 'field list'
+ERROR 42S22: Unknown column 'F59' in 'SELECT'
 
 Testcase 3.3.1.19 
 --------------------------------------------------------------------------------
@@ -22455,7 +22455,7 @@ INSERT INTO t1 SET f1 = 0, f4x = 'ABC', report = 't1 1';
 INSERT INTO v1 SET f1 = 0, f4  = 'ABC', report = 'v1 1';
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 INSERT INTO v1 SET f1 = 0, f4x = 'ABC', report = 'v1 1a';
-ERROR 42S22: Unknown column 'f4x' in 'field list'
+ERROR 42S22: Unknown column 'f4x' in 'INSERT INTO'
 INSERT INTO v1 SET f1 = 0, report = 'v1 1b';
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 DESCRIBE t1;
@@ -22758,7 +22758,7 @@ INSERT INTO t1 SET f1 = 'ABC', f2 = -3.3E-4,
 f3 = -2.2, f4 = '<------ 20 -------->', report = 't1 9';
 INSERT INTO v1 SET f1 = 'ABC', f2 = -3.3E-4,
 f3 = -2.2, f4 = '<------ 20 -------->', report = 'v1 9';
-ERROR 42S22: Unknown column 'f3' in 'field list'
+ERROR 42S22: Unknown column 'f3' in 'INSERT INTO'
 INSERT INTO v1 SET f1 = 'ABC', f2 = -3.3E-4,
 f4 = '<------ 20 -------->', report = 'v1 9a';
 DESCRIBE t1;

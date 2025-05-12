@@ -36,7 +36,7 @@ SET @a = unknown_column_just_to_raise_an_error;
 INSERT INTO t2 VALUES (NULL) ; 
 END||
 INSERT INTO t1 VALUES (1);
-ERROR 42S22: Unknown column 'unknown_column_just_to_raise_an_error' in 'field list'
+ERROR 42S22: Unknown column 'unknown_column_just_to_raise_an_error' in 'SET'
 connection slave;
 connection master;
 drop trigger tr;

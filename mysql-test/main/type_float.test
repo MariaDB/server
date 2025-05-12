@@ -320,8 +320,10 @@ let $nine_65=
 select format(-1.7976931348623157E+307,256) as foo;
 select least(-1.1111111111111111111111111,
              - group_concat(1.7976931348623157E+308)) as foo;
+--disable_cursor_protocol
 eval select concat((truncate((-1.7976931348623157E+307),(0x1e))),
                    ($nine_65)) into @a;
+--enable_cursor_protocol
 --enable_result_log
 
 --echo End of 5.0 tests
@@ -337,6 +339,8 @@ select format(truncate('1.7976931348623157E+308',-12),1,'fr_BE') as foo;
 --echo # MDEV-17249 MAKETIME(-1e50,0,0) returns a wrong result
 --echo #
 
+#enable after fix MDEV-34213
+--disable_cursor_protocol
 #enable after fix MDEV-29552
 --disable_view_protocol
 SELECT LEFT('a',EXP(50));
@@ -347,6 +351,7 @@ CREATE TABLE t1 (a FLOAT);
 INSERT INTO t1 VALUES (1e30);
 SELECT LEFT('a',a), LEFT('a',1e30) FROM t1;
 DROP TABLE t1;
+--enable_cursor_protocol
 
 PREPARE stmt FROM 'SELECT LEFT(111,?)';
 SET @a=1e30;
@@ -747,6 +752,69 @@ DROP VIEW v1;
 --echo #
 
 --echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20548 Unexpected error on CREATE..SELECT HEX(num)
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+
+CREATE TABLE t1 AS SELECT HEX(-2e0) AS h;
+SELECT * FROM t1;
+SHOW COLUMNS IN t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT HEX(-1e0) AS h;
+SELECT * FROM t1;
+SHOW COLUMNS IN t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT HEX(1e0) AS h;
+SELECT * FROM t1;
+SHOW COLUMNS IN t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT HEX(2e0) AS h;
+SELECT * FROM t1;
+SHOW COLUMNS IN t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a FLOAT);
+INSERT INTO t1 VALUES (-1e38),(-255),(-2),(-1),(+1),(+2),(255),(1e38);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+SHOW COLUMNS IN t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-1e308),(-255),(-2),(-1),(+1),(+2),(255),(1e308);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+SHOW COLUMNS IN t2;
+DROP TABLE t1, t2;
+
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-25174 DOUBLE columns do not accept large hex hybrids
+--echo #
+
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (0x8000000000000000);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF);
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+
+--echo #
 --echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
 --echo #
 
@@ -777,6 +845,19 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c DOUBLE);
+INSERT INTO t0 VALUES (0.0),(0.4),(0.6);
+--source include/search_condition.inc
+DROP TABLE t0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
 
 --echo #
 --echo # Start of 10.9 tests

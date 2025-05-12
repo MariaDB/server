@@ -74,14 +74,14 @@ public:
                  &my_charset_utf8mb4_bin)
   {}
 
-  String *val_str(String *val_buffer, String *val_str);
-  const Type_handler *type_handler() const { return &type_handler_mysql_json; }
+  String *val_str(String *val_buffer, String *val_str) override;
+  const Type_handler *type_handler() const override { return &type_handler_mysql_json; }
   bool parse_mysql(String *dest, const char *data, size_t length) const;
-  bool send(Protocol *protocol) { return Field::send(protocol); }
-  void sql_type(String &s) const
+  bool send(Protocol *protocol) override { return Field::send(protocol); }
+  void sql_type(String &s) const override
   { s.set_ascii(STRING_WITH_LEN("mysql_json /* JSON from MySQL 5.7 */")); }
   /* this will make ALTER TABLE to consider it different from built-in field */
-  Compression_method *compression_method() const { return (Compression_method*)1; }
+  Compression_method *compression_method() const override { return (Compression_method*)1; }
 };
 
 Field *Type_handler_mysql_json::make_conversion_table_field(MEM_ROOT *root,

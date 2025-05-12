@@ -40,8 +40,10 @@
 #include "uniques.h"	                        // Unique
 #include "sql_sort.h"
 
-int unique_write_to_file(uchar* key, element_count count, Unique *unique)
+int unique_write_to_file(void* key_, element_count, void *unique_)
 {
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   /*
     Use unique->size (size of element stored in the tree) and not
     unique->tree.size_of_element. The latter is different from unique->size
@@ -51,21 +53,30 @@ int unique_write_to_file(uchar* key, element_count count, Unique *unique)
   return my_b_write(&unique->file, key, unique->size) ? 1 : 0;
 }
 
-int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
+int unique_write_to_file_with_count(void* key_, element_count count, void *unique_)
 {
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   return my_b_write(&unique->file, key, unique->size) ||
-         my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
+                 my_b_write(&unique->file, reinterpret_cast<uchar *>(&count),
+                            sizeof(element_count))
+             ? 1
+             : 0;
 }
 
-int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique)
+int unique_write_to_ptrs(void* key_, element_count, void *unique_)
 {
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   memcpy(unique->sort.record_pointers, key, unique->size);
   unique->sort.record_pointers+=unique->size;
   return 0;
 }
 
-int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique *unique)
+int unique_intersect_write_to_ptrs(void* key_, element_count count, void *unique_)
 {
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   if (count >= unique->min_dupl_count)
   {
     memcpy(unique->sort.record_pointers, key, unique->size);
@@ -90,8 +101,10 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   if (min_dupl_count_arg)
     full_size+= sizeof(element_count);
   with_counters= MY_TEST(min_dupl_count_arg);
-  init_tree(&tree, (max_in_memory_size / 16), 0, size, comp_func,
-            NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
+
+  init_tree(&tree, MY_MIN(max_in_memory_size / 16, UINT_MAX32),
+            0, size, comp_func, NULL, comp_func_fixed_arg,
+            MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
                         16, MYF(MY_THREAD_SPECIFIC));
@@ -386,8 +399,8 @@ bool Unique::flush()
   file_ptr.set_file_position(my_b_tell(&file));
 
   tree_walk_action action= min_dupl_count ?
-		           (tree_walk_action) unique_write_to_file_with_count :
-		           (tree_walk_action) unique_write_to_file;
+		            unique_write_to_file_with_count :
+		            unique_write_to_file;
   if (tree_walk(&tree, action,
 		(void*) this, left_root_right) ||
       insert_dynamic(&file_ptrs, (uchar*) &file_ptr))
@@ -432,11 +445,13 @@ Unique::reset()
 
 C_MODE_START
 
-static int buffpek_compare(void *arg, uchar *key_ptr1, uchar *key_ptr2)
+static int buffpek_compare(void *arg, const void *key_ptr1,
+                           const void *key_ptr2)
 {
-  BUFFPEK_COMPARE_CONTEXT *ctx= (BUFFPEK_COMPARE_CONTEXT *) arg;
+  auto ctx= static_cast<const BUFFPEK_COMPARE_CONTEXT *>(arg);
   return ctx->key_compare(ctx->key_compare_arg,
-                          *((uchar **) key_ptr1), *((uchar **)key_ptr2));
+                          *(static_cast<const uchar *const *>(key_ptr1)),
+                          *(static_cast<const uchar *const *>(key_ptr2)));
 }
 
 C_MODE_END
@@ -737,7 +752,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
 				       sort_param.sort_length);
 
-  sort_param.compare= (qsort2_cmp) buffpek_compare;
+  sort_param.compare= buffpek_compare;
   sort_param.cmp_context.key_compare= tree.compare;
   sort_param.cmp_context.key_compare_arg= tree.custom_arg;
 
@@ -801,8 +816,8 @@ bool Unique::get(TABLE *table)
     {
       uchar *save_record_pointers= sort.record_pointers;
       tree_walk_action action= min_dupl_count ?
-		         (tree_walk_action) unique_intersect_write_to_ptrs :
-		         (tree_walk_action) unique_write_to_ptrs;
+		          unique_intersect_write_to_ptrs :
+		          unique_write_to_ptrs;
       filtered_out_elems= 0;
       (void) tree_walk(&tree, action,
 		       this, left_root_right);

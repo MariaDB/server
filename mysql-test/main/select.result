@@ -2140,7 +2140,7 @@ DO benchmark(100,1+1),1,1;
 do default;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 do foobar;
-ERROR 42S22: Unknown column 'foobar' in 'field list'
+ERROR 42S22: Unknown column 'foobar' in 'DO'
 CREATE TABLE t1 (
 id mediumint(8) unsigned NOT NULL auto_increment,
 pseudo varchar(35) NOT NULL default '',
@@ -3132,13 +3132,13 @@ INSERT INTO t1 VALUES (1),(2),(3);
 INSERT INTO t2 VALUES (2);
 INSERT INTO t3 VALUES (3);
 SELECT t1.id,t3.id FROM t1 JOIN t2 ON (t2.id=t1.id) LEFT JOIN t3 USING (id);
-ERROR 23000: Column 'id' in from clause is ambiguous
+ERROR 23000: Column 'id' in FROM is ambiguous
 SELECT t1.id,t3.id FROM t1 JOIN t2 ON (t2.notacolumn=t1.id) LEFT JOIN t3 USING (id);
-ERROR 23000: Column 'id' in from clause is ambiguous
+ERROR 23000: Column 'id' in FROM is ambiguous
 SELECT id,t3.id FROM t1 JOIN t2 ON (t2.id=t1.id) LEFT JOIN t3 USING (id);
-ERROR 23000: Column 'id' in from clause is ambiguous
+ERROR 23000: Column 'id' in FROM is ambiguous
 SELECT id,t3.id FROM (t1 JOIN t2 ON (t2.id=t1.id)) LEFT JOIN t3 USING (id);
-ERROR 23000: Column 'id' in from clause is ambiguous
+ERROR 23000: Column 'id' in FROM is ambiguous
 drop table t1, t2, t3;
 create table t1 (a int(10),b int(10));
 create table t2 (a int(10),b int(10));
@@ -3163,7 +3163,7 @@ select * from t1 join t2 join t3 on (t2.b = t3.b and t1.a = t3.a);
 a	c	b	b	a
 1	1	1	1	1
 select * from t1, t2 join t3 on (t2.b = t3.b and t1.a = t3.a);
-ERROR 42S22: Unknown column 't1.a' in 'on clause'
+ERROR 42S22: Unknown column 't1.a' in 'ON'
 select * from t1 join t2 join t3 join t4 on (t1.a = t4.c and t2.b = t4.c);
 a	c	b	b	a	c
 1	1	1	1	1	1
@@ -5647,7 +5647,7 @@ drop table t1;
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (1,10),(2,20);
 SELECT b, GROUP_CONCAT(b ORDER BY 2), MIN(a) AS f FROM t1 GROUP BY b ORDER BY f;
-ERROR 42S22: Unknown column '2' in 'order clause'
+ERROR 42S22: Unknown column '2' in 'ORDER BY'
 DROP TABLE t1;
 #
 # Bug MDEV-24560 SIGSEGV in st_join_table::cleanup + server and client

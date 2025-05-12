@@ -193,18 +193,14 @@ INSERT INTO t2 VALUES (1000,6,2);
 
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,in_to_exists=off';
 
-#enable after fix MDEV-27871
---disable_view_protocol
 EXPLAIN
 SELECT (f1, f2, f3) NOT IN
-       (SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
+       (SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3) as exp
 FROM t2;
 
 SELECT (f1, f2, f3) NOT IN
-       (SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3)
+       (SELECT COUNT(DISTINCT f2), f1, f3 FROM t1 GROUP BY f1, f3) as exp
 FROM t2;
-
---enable_view_protocol
 
 drop table t1, t2;
 
@@ -301,3 +297,76 @@ UNION ALL
 ;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-34665: Simplify IN predicate processing for NULL-aware
+--echo #             materialization involving only one column
+
+set @save_optimizer_switch=@@optimizer_switch;
+set @@optimizer_switch = "materialization=on,in_to_exists=off,semijoin=off";
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (null), (1), (2), (3);
+
+--echo # Query against empty t2
+--sorted_result
+select a, a in (select b from t2) from t1;
+
+--echo # Insert some not-NULL values
+insert into t2 values (3), (4);
+--sorted_result
+select a, a in (select b from t2) from t1;
+--echo # Ensure the correct strategy is tested
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
+
+--echo # Insert NULL value (so there are both NULLs and and not-NULL values)
+insert into t2 values (null);
+--sorted_result
+select a, a in (select b from t2) from t1;
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
+
+delete from t2;
+--echo # Insert NULL values only
+insert into t2 values (null), (null);
+--sorted_result
+select a, a in (select b from t2) from t1;
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
+
+--echo # Test UPDATE
+insert into t2 values (3), (4);
+update t1 set a=a+1 where a not in (select b from t2);
+--echo # Nothing updated due to NULLs on both sides of IN
+select * from t1;
+--echo # Remove NULLs from the right side
+delete from t2 where b is null;
+update t1 set a=a+1 where a not in (select b from t2);
+--echo # Now some rows are updated:
+select * from t1;
+--source include/analyze-format.inc
+analyze format=json update t1 set a=a+1 where a not in (select b from t2);
+
+--echo # Test DELETE
+--echo # Restore initial data-set:
+delete from t1;
+insert into t1 values (null), (1), (2), (3);
+--echo # Add some NULL values to the right side of IN
+insert into t2 values (null), (null);
+delete from t1 where a not in (select b from t2);
+--echo # Nothing deleted due to NULLs on both sides of IN
+select * from t1;
+--echo # Remove NULLs from the right side
+delete from t2 where b is null;
+delete from t1 where a not in (select b from t2);
+--echo # Now some rows are deleted:
+select * from t1;
+--source include/analyze-format.inc
+analyze format=json delete from t1 where a not in (select b from t2);
+
+drop table t1, t2;
+
+set @@optimizer_switch=@save_optimizer_switch;
+

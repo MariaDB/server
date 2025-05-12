@@ -459,60 +459,6 @@ INSERT INTO t1 SELECT a*2 FROM t1 ORDER BY a;
 
 DROP TABLE t1;
 
-#
-# MDEV-26427 MariaDB Server SEGV on INSERT .. SELECT
-#
-CREATE TABLE t1 (a INT, b INT);
-INSERT INTO t1 (a) SELECT SUM(1);
-INSERT INTO t1 (a, b) SELECT AVG(2), MIN(3);
-
---error ER_TRUNCATED_WRONG_VALUE
-INSERT INTO t1 (b) SELECT AVG('x') OVER ();
-INSERT INTO t1 SELECT MIN(7) OVER (), MAX(8) OVER();
-SELECT * FROM t1;
-
-PREPARE stmt FROM 'INSERT INTO t1 (a) SELECT AVG(?)';
-EXECUTE stmt USING 9;
-EXECUTE stmt USING 10;
-
-PREPARE stmt FROM 'INSERT INTO t1 SELECT MIN(?), MAX(?)';
-EXECUTE stmt USING 11, 12;
-EXECUTE stmt USING 13, 14;
-DEALLOCATE PREPARE stmt;
-SELECT * FROM t1;
-
-DELIMITER //;
-CREATE PROCEDURE p1(param_a INT, param_b INT)
-BEGIN
-INSERT INTO t1 SELECT MIN(param_a) OVER (), MAX(param_b);
-END//
-DELIMITER ;//
-CALL p1(21, 22);
-CALL p1(23, 24);
-SELECT * FROM t1;
-
-CREATE TABLE t2 (
-  a DECIMAL UNIQUE CHECK (CASE 0 * 27302337.000000 WHEN 34 THEN
-    + 'x' LIKE 'x' OR a NOT IN (-1 / TRUE ^ 2) ELSE 7105743.000000 END));
-INSERT INTO t2 VALUES (90),( -1),(31152443.000000),(-32768),(NULL),(NULL);
---error ER_TRUNCATED_WRONG_VALUE
-INSERT INTO t2 SELECT AVG('x') OVER (
-  PARTITION BY ((NOT AVG(76698761.000000))) IS NOT NULL);
-INSERT IGNORE INTO t2 () VALUES (0),('x'),(3751286.000000),
-                                ('x'),((a = 'x' AND 0 AND 0));
-INSERT INTO t2 VALUES (127);
---error ER_DUP_ENTRY
-INSERT INTO t2 SELECT -2147483648 END FROM t2 AS TEXT JOIN t2 JOIN t2 TABLES;
---error ER_TRUNCATED_WRONG_VALUE
-ALTER TABLE t2 ADD (
-  b INT UNIQUE CHECK ((a = 'x' AND ((-(+(BINARY 49730460.000000)))) = 'x' 
-    BETWEEN 'x' AND 'x')));
---error ER_DUP_ENTRY
-UPDATE t2 SET a = -128 WHERE a IS NULL ORDER BY 78 IN ('x','x'),a;
-
-DROP TABLE t1, t2;
-DROP PROCEDURE p1;
-
 --echo # End of 10.2 test
 
 --echo #
@@ -613,3 +559,93 @@ drop table t1, t2;
 --echo #
 --echo # End of 10.3 test
 --echo #
+
+--echo #
+--echo # MDEV-26427 MariaDB Server SEGV on INSERT .. SELECT
+--echo #
+
+CREATE TABLE t1 (a int);
+
+INSERT INTO t1 SELECT AVG(1);
+--sorted_result
+SELECT * FROM t1;
+
+INSERT INTO t1 SELECT MIN(2) OVER ();
+--sorted_result
+SELECT * FROM t1;
+
+CREATE VIEW v1 AS SELECT * FROM t1 ORDER BY a;
+
+INSERT INTO v1 SELECT SUM(3);
+--sorted_result
+SELECT * FROM v1;
+
+INSERT INTO v1 SELECT * FROM v1;
+--sorted_result
+SELECT * FROM t1;
+
+INSERT INTO t1 SELECT * FROM v1;
+--sorted_result
+SELECT * FROM t1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+#
+# MDEV-32086: condition pushdown into two mergeable derived tables,
+#             one containing the other, when they are forced to be
+#             materialized in INSERT
+#
+create table t1 (pk int, id int);
+insert into t1 values (2,2), (3,3), (4,4);
+
+let $q=
+insert into t1
+  select 1,10
+  from
+  (
+    select dt2.id from (select id from t1) dt2, t1 t where t.id=dt2.id
+  ) dt
+  where dt.id=3;
+
+eval $q;
+select * from t1;
+
+eval explain $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+select * from t1;
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+eval create procedure p() $q;
+call p();
+select * from t1;
+call p();
+select * from t1;
+drop procedure p;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-33139: Crash of INSERT SELECT when preparing structures for
+--echo # split optimization
+--echo #
+
+CREATE TABLE v0 ( v1 INT UNIQUE ) ;
+INSERT INTO v0 ( v1 ) VALUES
+  ( ( SELECT 1
+      FROM
+        ( SELECT v1
+          FROM v0 GROUP BY v1 ) AS v6 NATURAL JOIN
+               v0 AS v2 NATURAL JOIN
+               v0 AS v4 NATURAL JOIN
+               v0 AS v3 NATURAL JOIN
+               ( SELECT v1 FROM v0 ) AS v7 ) ) ;
+DROP TABLE v0;
+
+--echo # End of 10.5 tests

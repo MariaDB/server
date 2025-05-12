@@ -644,9 +644,9 @@ ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*
 SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
 ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
 EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM z;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SELECT MATCH(b) AGAINST ('*') FROM z;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 EXPLAIN SELECT MATCH(a) AGAINST ('*') FROM z;
 ERROR HY000: Can't find FULLTEXT index matching the column list
 SELECT MATCH(a) AGAINST ('*') FROM z;
@@ -791,3 +791,29 @@ f1	MATCH(f1) AGAINST ("test" IN BOOLEAN MODE)
 test	0.000000001885928302414186
 DROP TABLE t1;
 # End of 10.3 tests
+#
+#  MDEV-35183 ADD FULLTEXT INDEX unnecessarily DROPS FTS
+#		COMMON TABLES
+#
+CREATE TABLE t1 (
+ID INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+title VARCHAR(200), book VARCHAR(200),
+FULLTEXT fidx(title)) ENGINE = InnoDB;
+INSERT INTO t1(title) VALUES('database');
+ALTER TABLE t1 DROP INDEX fidx;
+create table t2 as select space from information_schema.innodb_sys_tables where name like "test/FTS_%_CONFIG";
+ALTER TABLE t1 ADD FULLTEXT fidx_1(book);
+select i_s.space=t2.space from information_schema.innodb_sys_tables i_s join t2 where name like "test/FTS_%_CONFIG";
+i_s.space=t2.space
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ID` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) DEFAULT NULL,
+  `book` varchar(200) DEFAULT NULL,
+  PRIMARY KEY (`ID`),
+  FULLTEXT KEY `fidx_1` (`book`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1, t2;
+# End of 10.5 tests

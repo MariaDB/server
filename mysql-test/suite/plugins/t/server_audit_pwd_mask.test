@@ -1,0 +1,75 @@
+
+--source include/have_plugin_auth.inc
+--source include/not_embedded.inc
+
+if (!$SERVER_AUDIT_SO) {
+  skip No SERVER_AUDIT plugin;
+}
+if (!$AUTH_ED25519_SO) {
+  skip No auth_ed25519 plugin;
+}
+--disable_ps2_protocol
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let SEARCH_FILE= $MYSQLD_DATADIR/server_audit.log;
+
+--echo #
+--echo # MDEV-35507 and MDEV-35522
+--echo #
+
+install plugin ed25519 soname 'auth_ed25519';
+install plugin server_audit soname 'server_audit';
+
+
+set global server_audit_file_path='server_audit.log';
+set global server_audit_output_type=file;
+set global server_audit_logging=on;
+
+--echo # unsafe to log passwords (pwd-123)
+
+CREATE USER u1 IDENTIFIED BY 'pwd_123';
+create user u2 IDENTIFIED VIA ed25519 USING PASSWORD('pwd_123');
+CREATE OR REPLACE USER u1 IDENTIFIED BY 'pwd_123';
+SET PASSWORD FOR u1 = PASSWORD('pwd_123');
+ALTER USER u1 IDENTIFIED BY 'pwd_123';
+ALTER USER if exists u1 IDENTIFIED BY 'pwd_123';
+SET STATEMENT max_statement_time=10 FOR ALTER USER u1 IDENTIFIED BY 'pwd_123';
+alter user u2 identified VIA ed25519 USING password('pwd_123');
+GRANT ALL ON test TO u1 IDENTIFIED BY "pwd_123";
+GRANT ALL ON test TO u1 identified VIA ed25519 as password('pwd_123') or ed25519 using password('pwd_123');
+CREATE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd_123");
+CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd_123");
+CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mariadb OPTIONS ( PASSWORD "pwd_123");
+--let SEARCH_PATTERN=pwd_123
+--echo # pattern should not be found
+--source include/search_pattern_in_file.inc
+--echo # pattern should not be found
+
+--echo # cleaunup
+DROP SERVER s1;
+DROP USER u1;
+DROP USER u2;
+set global server_audit_logging=off;
+--remove_file $SEARCH_FILE
+--disable_warnings
+UNINSTALL PLUGIN ed25519;
+UNINSTALL PLUGIN server_audit;
+--enable_warnings
+
+--echo #
+--echo # MDEV-35604: SIGSEGV in filter_query_type | log_statement_ex / auditing
+--echo #
+
+INSTALL PLUGIN server_audit SONAME 'server_audit';
+SET GLOBAL server_audit_logging=ON;
+
+--ERROR ER_PARSE_ERROR
+SET STATEMENT max_error_count=1 SELECT 1;
+
+# Cleanup
+SET GLOBAL server_audit_logging=OFF;
+--disable_warnings
+UNINSTALL SONAME 'server_audit';
+--enable_warnings
+
+--echo # end of 10.5 tests

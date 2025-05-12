@@ -673,8 +673,10 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
 
 
 static int
-sort_ext_keyuse(KEYUSE_EXT *a, KEYUSE_EXT *b)
+sort_ext_keyuse(const void *a_, const void *b_)
 {
+  const KEYUSE_EXT *a= static_cast<const KEYUSE_EXT *>(a_);
+  const KEYUSE_EXT *b= static_cast<const KEYUSE_EXT *>(b_);
   if (a->table->tablenr != b->table->tablenr)
     return (int) (a->table->tablenr - b->table->tablenr);
   if (a->key != b->key)

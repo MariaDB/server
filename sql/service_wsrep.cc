@@ -1,4 +1,4 @@
-/* Copyright 2018-2024 Codership Oy <info@codership.com>
+/* Copyright 2018-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -82,11 +82,12 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
     case SQLCOM_REVOKE:
       return "REVOKE";
     case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-        return "SET PASSWORD";
+      return "SET OPTION";
       /* fallthrough */
     default:
+    {
       return (thd->query() ? thd->query() : "NULL");
+    }
   }
   return "NULL";
 }
@@ -183,42 +184,33 @@ extern "C" my_bool wsrep_thd_is_BF(const THD *thd, my_bool sync)
 
 extern "C" my_bool wsrep_thd_is_SR(const THD *thd)
 {
-  return thd && thd->wsrep_cs().transaction().is_streaming();
+  return thd && thd->wsrep_cs().transaction().is_streaming() &&
+    thd->wsrep_cs().transaction().state() == wsrep::transaction::s_executing;
 }
 
-extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
+extern "C" void wsrep_handle_SR_rollback(THD *bf_thd __attribute__((unused)),
                                          THD *victim_thd)
 {
+  /*
+    We should always be in victim_thd context, either client session is
+    rolling back or rollbacker thread should be in control.
+  */
   DBUG_ASSERT(victim_thd);
+  DBUG_ASSERT(current_thd == victim_thd);
   DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
-  if (!victim_thd || !wsrep_on(bf_thd)) return;
 
-  WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
+  /* Defensive measure to avoid crash in production. */
+  if (!victim_thd) return;
+
+  WSREP_DEBUG("Handle SR rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),
               wsrep_thd_transaction_state_str(victim_thd));
 
-  /* Note: do not store/reset globals before wsrep_bf_abort() call
-     to avoid losing BF thd context. */
-  if (!(bf_thd && bf_thd != victim_thd))
-  {
-    DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
-  }
-  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
-  if (bf_thd)
-  {
-    wsrep_bf_abort(bf_thd, victim_thd);
-  }
-  else
-  {
-    wsrep_thd_self_abort(victim_thd);
-  }
-  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-  if (bf_thd)
-  {
-    wsrep_store_threadvars(bf_thd);
-  }
+  DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
+
+  wsrep_thd_self_abort(victim_thd);
 }
 
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
@@ -249,18 +241,23 @@ extern "C" my_bool wsrep_thd_skip_locking(const THD *thd)
 
 extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 {
-  if (wsrep_thd_is_BF(left, false) &&
-      wsrep_thd_is_BF(right, false) &&
-      wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
-    WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(left),
-                (long long)wsrep_thd_trx_seqno(right));
-    return TRUE;
-  }
-  WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-              (long long)wsrep_thd_trx_seqno(left),
-              (long long)wsrep_thd_trx_seqno(right));
-  return FALSE;
+  my_bool before= (wsrep_thd_is_BF(left, false) &&
+                   wsrep_thd_is_BF(right, false) &&
+                   wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right));
+
+  WSREP_DEBUG("wsrep_thd_order_before: %s thread=%llu seqno=%llu query=%s "
+              "%s %s thread=%llu, seqno=%llu query=%s",
+              (wsrep_thd_is_BF(left, false) ? "BF" : "def"),
+              thd_get_thread_id(left),
+              wsrep_thd_trx_seqno(left),
+              wsrep_thd_query(left),
+              (before ? " TRUE " : " FALSE "),
+              (wsrep_thd_is_BF(right, false) ? "BF" : "def"),
+              thd_get_thread_id(right),
+              wsrep_thd_trx_seqno(right),
+              wsrep_thd_query(right));
+
+  return before;
 }
 
 /** Check if wsrep transaction is aborting state.

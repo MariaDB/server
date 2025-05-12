@@ -172,11 +172,11 @@ SELECT @@range_alloc_block_size;
 @@range_alloc_block_size
 4096
 SELECT local.range_alloc_block_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.range_alloc_block_size;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT range_alloc_block_size = @@session.range_alloc_block_size;
-ERROR 42S22: Unknown column 'range_alloc_block_size' in 'field list'
+ERROR 42S22: Unknown column 'range_alloc_block_size' in 'SELECT'
 SET @@global.range_alloc_block_size = @start_global_value;
 SELECT @@global.range_alloc_block_size;
 @@global.range_alloc_block_size

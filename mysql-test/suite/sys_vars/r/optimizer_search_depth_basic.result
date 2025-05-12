@@ -162,11 +162,11 @@ SELECT @@optimizer_search_depth;
 @@optimizer_search_depth
 1
 SELECT local.optimizer_search_depth;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.optimizer_search_depth;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT optimizer_search_depth = @@session.optimizer_search_depth;
-ERROR 42S22: Unknown column 'optimizer_search_depth' in 'field list'
+ERROR 42S22: Unknown column 'optimizer_search_depth' in 'SELECT'
 SET @@global.optimizer_search_depth = @start_global_value;
 SELECT @@global.optimizer_search_depth;
 @@global.optimizer_search_depth

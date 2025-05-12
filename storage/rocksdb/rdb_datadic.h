@@ -1584,7 +1584,7 @@ class Rdb_system_merge_op : public rocksdb::AssociativeMergeOperator {
     return true;
   }
 
-  virtual const char *Name() const override { return "Rdb_system_merge_op"; }
+  const char *Name() const override { return "Rdb_system_merge_op"; }
 
  private:
   /*

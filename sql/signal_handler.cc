@@ -25,6 +25,10 @@
 #include "my_stacktrace.h"
 #include <source_revision.h>
 
+#ifdef WITH_WSREP
+#include "wsrep_server_state.h"
+#endif /* WITH_WSREP */
+
 #ifdef _WIN32
 #include <crtdbg.h>
 #include <direct.h>
@@ -72,12 +76,32 @@ static inline void output_core_info()
   if ((fd= open("/proc/self/limits", O_RDONLY)) >= 0)
 #endif
   {
-    my_safe_printf_stderr("Resource Limits:\n");
-    while ((len= read(fd, (uchar*)buff, sizeof(buff))) > 0)
-    {
-      my_write_stderr(buff, len);
-    }
+    char *endline= buff;
+    ssize_t remain_len= len= read(fd, buff, sizeof(buff));
     close(fd);
+    my_safe_printf_stderr("Resource Limits (excludes unlimited resources):\n");
+    /* first line, header */
+    endline= (char *) memchr(buff, '\n', remain_len);
+    if (endline)
+    {
+      endline++;
+      remain_len= buff + len - endline;
+      my_safe_printf_stderr("%.*s", (int) (endline - buff), buff);
+
+      while (remain_len > 27)
+      {
+        char *newendline= (char *) memchr(endline, '\n', remain_len);
+	if (!newendline)
+          break;
+        *newendline= '\0';
+        newendline++;
+        if (endline[26] != 'u') /* skip unlimited limits */
+          my_safe_printf_stderr("%s\n", endline);
+
+        remain_len-= newendline - endline;
+        endline= newendline;
+      }
+    }
   }
 #ifdef __linux__
   if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY)) >= 0)
@@ -140,7 +164,6 @@ extern "C" sig_handler handle_fatal_signal(int sig)
      We will try and print the query at the end of the signal handler, in case
      we're wrong.
   */
-  bool print_invalid_query_pointer= false;
 #endif
 
   if (segfaulted)
@@ -149,6 +172,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     goto end;
   }
   segfaulted = 1;
+  abort_loop= 1;                                // Disable now connections
   DBUG_PRINT("error", ("handling fatal signal"));
 
   curr_time= my_time(0);
@@ -169,69 +193,37 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     goto end;
   }
 
-  my_safe_printf_stderr("[ERROR] mysqld got " SIGNAL_FMT " ;\n",sig);
+  my_safe_printf_stderr("[ERROR] %s got " SIGNAL_FMT " ;\n", my_progname, sig);
 
   my_safe_printf_stderr("%s",
                         "Sorry, we probably made a mistake, and this is a bug.\n\n"
                         "Your assistance in bug reporting will enable us to fix this for the next release.\n"
-                        "To report this bug, see https://mariadb.com/kb/en/reporting-bugs\n\n");
-
-  my_safe_printf_stderr("%s",
-    "We will try our best to scrape up some info that will hopefully help\n"
-    "diagnose the problem, but since we have already crashed, \n"
-    "something is definitely wrong and this may fail.\n\n");
+                        "To report this bug, see https://mariadb.com/kb/en/reporting-bugs about how to report\n"
+                        "a bug on https://jira.mariadb.org/.\n\n"
+                        "Please include the information from the server start above, to the end of the\n"
+                        "information below.\n\n");
 
   set_server_version(server_version, sizeof(server_version));
-  my_safe_printf_stderr("Server version: %s source revision: %s\n",
-		        server_version, SOURCE_REVISION);
+  my_safe_printf_stderr("Server version: %s source revision: %s\n\n",
+                        server_version, SOURCE_REVISION);
 
-  if (dflt_key_cache)
-    my_safe_printf_stderr("key_buffer_size=%zu\n",
-                          dflt_key_cache->key_cache_mem_size);
-
-  my_safe_printf_stderr("read_buffer_size=%lu\n",
-                        global_system_variables.read_buff_size);
-
-  my_safe_printf_stderr("max_used_connections=%lu\n",
-                        max_used_connections);
-
-  if (thread_scheduler)
-    my_safe_printf_stderr("max_threads=%lu\n",
-                          thread_scheduler->max_threads +
-                          extra_max_connections);
-
-  my_safe_printf_stderr("thread_count=%u\n", THD_count::value());
-
-  if (dflt_key_cache && thread_scheduler)
-  {
-    size_t used_mem=
-        (dflt_key_cache->key_cache_mem_size +
-         (global_system_variables.read_buff_size +
-          (size_t) global_system_variables.sortbuff_size) *
-             (thread_scheduler->max_threads + extra_max_connections) +
-         (max_connections + extra_max_connections) * sizeof(THD)) / 1024;
-
-    my_safe_printf_stderr("It is possible that mysqld could use up to \n"
-                          "key_buffer_size + "
-                          "(read_buffer_size + sort_buffer_size)*max_threads = "
-                          "%zu K  bytes of memory\n", used_mem);
-
-    my_safe_printf_stderr("%s",
-                          "Hope that's ok; if not, decrease some variables in "
-                          "the equation.\n\n");
-  }
+#ifdef WITH_WSREP
+  Wsrep_server_state::handle_fatal_signal();
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_STACKTRACE
   thd= current_thd;
 
   if (opt_stack_trace)
   {
-    my_safe_printf_stderr("Thread pointer: %p\n", thd);
     my_safe_printf_stderr("%s",
-      "Attempting backtrace. You can use the following "
-      "information to find out\n"
-      "where mysqld died. If you see no messages after this, something went\n"
-      "terribly wrong...\n");
+      "The information page at "
+      "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mariadbd/\n"
+      "contains instructions to obtain a better version of the backtrace below.\n"
+      "Following these instructions will help MariaDB developers provide a fix quicker.\n\n"
+      "Attempting backtrace. Include this in the bug report.\n"
+      "(note: Retrieving this information may fail)\n\n");
+    my_safe_printf_stderr("Thread pointer: %p\n", thd);
     my_print_stacktrace(thd ? (uchar*) thd->thread_stack : NULL,
                         (ulong)my_thread_stack_size, 0);
   }
@@ -279,21 +271,13 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       kreason= "KILL_WAIT_TIMEOUT";
       break;
     }
-    my_safe_printf_stderr("%s", "\n"
-      "Trying to get some variables.\n"
-      "Some pointers may be invalid and cause the dump to abort.\n");
-
-    my_safe_printf_stderr("Query (%p): ", thd->query());
-    if (my_safe_print_str(thd->query(), MY_MIN(65536U, thd->query_length())))
-    {
-      // Query was found invalid. We will try to print it at the end.
-      print_invalid_query_pointer= true;
-    }
 
     my_safe_printf_stderr("\nConnection ID (thread ID): %lu\n",
                           (ulong) thd->thread_id);
-    my_safe_printf_stderr("Status: %s\n\n", kreason);
-    my_safe_printf_stderr("%s", "Optimizer switch: ");
+    my_safe_printf_stderr("Status: %s\n", kreason);
+    my_safe_printf_stderr("Query (%p): ", thd->query());
+    my_safe_print_str(thd->query(), MY_MIN(65536U, thd->query_length()));
+    my_safe_printf_stderr("%s", "\nOptimizer switch: ");
     ulonglong optsw= thd->variables.optimizer_switch;
     for (uint i= 0; optimizer_switch_names[i+1]; i++, optsw >>= 1)
     {
@@ -304,51 +288,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     }
     my_safe_printf_stderr("%s", "\n\n");
   }
-  my_safe_printf_stderr("%s",
-    "The manual page at "
-    "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mariadbd/ contains\n"
-    "information that should help you find out what is causing the crash.\n");
 
 #endif /* HAVE_STACKTRACE */
-
-#ifdef HAVE_INITGROUPS
-  if (calling_initgroups)
-  {
-    my_safe_printf_stderr("%s", "\n"
-      "This crash occurred while the server was calling initgroups(). This is\n"
-      "often due to the use of a mysqld that is statically linked against \n"
-      "glibc and configured to use LDAP in /etc/nsswitch.conf.\n"
-      "You will need to either upgrade to a version of glibc that does not\n"
-      "have this problem (2.3.4 or later when used with nscd),\n"
-      "disable LDAP in your nsswitch.conf, or use a "
-      "mysqld that is not statically linked.\n");
-  }
-#endif
-
-  if (locked_in_memory)
-  {
-    my_safe_printf_stderr("%s", "\n"
-      "The \"--memlock\" argument, which was enabled, "
-      "uses system calls that are\n"
-      "unreliable and unstable on some operating systems and "
-      "operating-system versions (notably, some versions of Linux).\n"
-      "This crash could be due to use of those buggy OS calls.\n"
-      "You should consider whether you really need the "
-      "\"--memlock\" parameter and/or consult the OS distributer about "
-      "\"mlockall\" bugs.\n");
-  }
-
-#ifdef HAVE_STACKTRACE
-  if (print_invalid_query_pointer)
-  {
-    my_safe_printf_stderr(
-        "\nWe think the query pointer is invalid, but we will try "
-        "to print it anyway. \n"
-        "Query: ");
-    my_write_stderr(thd->query(), MY_MIN(65536U, thd->query_length()));
-    my_safe_printf_stderr("\n\n");
-  }
-#endif
 
   output_core_info();
 #ifdef HAVE_WRITE_CORE

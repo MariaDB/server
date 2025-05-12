@@ -637,3 +637,82 @@ FLUSH LOGS;
 --exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
 
 --exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+
+--echo #
+--echo # MDEV-31761: mariadb-binlog prints fractional timestamp part incorrectly
+--echo #
+
+SET SESSION binlog_format= MIXED;
+
+RESET MASTER;
+SET time_zone= '+02:00';
+CREATE TABLE t (a INT,
+                b TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6));
+set SESSION timestamp= 1689978980.012345;
+INSERT INTO t (a) VALUES (1);
+SELECT * from t;
+FLUSH BINARY LOGS;
+SET SESSION timestamp= 1689978980.567890;
+SET SESSION binlog_format= ROW;
+UPDATE t SET a = 2;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+
+# Replay to see that timestamps are applied correctly.
+# The bug was that leading zeros on the fractional part were not included in
+# the mysqlbinlog output, so 1689978980.012345 was applied as 1689978980.12345.
+
+DROP TABLE t;
+--let $datadir= `select @@datadir`
+--exec $MYSQL_BINLOG $datadir/master-bin.000001 | $MYSQL test
+SELECT * FROM t;
+--exec $MYSQL_BINLOG $datadir/master-bin.000002 | $MYSQL test
+SELECT * FROM t;
+DROP TABLE t;
+SET time_zone= default;
+
+
+--echo #
+--echo # MDEV-24959: ER_BINLOG_ROW_LOGGING_FAILED (1534: Writing one row to the row-based binary log failed)
+--echo #
+
+SET SESSION binlog_format= ROW;
+SET SESSION binlog_row_image= MINIMAL;
+
+RESET MASTER;
+CREATE TABLE t1 (a INT NOT NULL DEFAULT 0 PRIMARY KEY);
+REPLACE INTO t1 () VALUES (),();
+DROP TABLE t1;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+SET SESSION binlog_row_image= default;
+
+--exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--exec $MYSQL_BINLOG --base64-output=decode-rows --verbose $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--let SEARCH_ABORT= NOT FOUND
+--let SEARCH_PATTERN= Number of rows: 2
+--source include/search_pattern_in_file.inc
+
+# There was a bug that mysqlbinlog would get an error while decoding the
+# update rows event with no after image and abort the dump; test that now
+# the dump is complete and includes the final DROP TABLE.
+--let SEARCH_PATTERN= DROP TABLE
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt
+--let SEARCH_PATTERN= Number of rows: 2
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= DROP TABLE
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= INSERT INTO .* VALUES
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= SET /[*] no columns [*]/
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_1.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev24959_2.txt

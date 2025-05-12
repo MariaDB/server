@@ -18,7 +18,10 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('::1');
 --enable_metadata
 SELECT * FROM t1;
+#check after fix MDEV-31540
+--disable_cursor_protocol
 SELECT CAST('::' AS INET6) AS a;
+--enable_cursor_protocol
 --disable_metadata
 DROP TABLE t1;
 
@@ -1430,6 +1433,8 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a INET6);
+#check after fix MDEV-31540
+--disable_cursor_protocol
 --enable_metadata
 SELECT
   CAST(a AS BINARY(0)),
@@ -1448,6 +1453,7 @@ SELECT
   CAST(a AS BINARY(16777216))
 FROM t1;
 --disable_metadata
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #
@@ -1735,3 +1741,15 @@ DROP TABLE t1;
 SET max_sort_length=DEFAULT;
 
 --echo # End of 10.8 tests
+
+--echo #
+--echo # MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+--echo #
+CREATE OR REPLACE TABLE t1 (c1 BINARY(16), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000001);
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000002);
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+DROP TABLE t1;

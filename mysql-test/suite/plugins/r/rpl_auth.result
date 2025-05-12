@@ -1,3 +1,5 @@
+install soname 'client_ed25519';
+Got one of the listed errors
 include/master-slave.inc
 [connection master]
 connection slave;

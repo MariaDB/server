@@ -1,5 +1,6 @@
 --source include/have_sequence.inc
 --source include/not_embedded.inc
+--source include/have_innodb.inc
 
 #
 # Show the costs for rowid filter
@@ -51,3 +52,43 @@ select json_detailed(json_extract(@trace, '$**.considered_access_paths'));
 --enable_ps_protocol
 
 drop table t1, name, flag2;
+select @@optimizer_adjust_secondary_key_costs;
+set @@optimizer_adjust_secondary_key_costs=7;
+select @@optimizer_adjust_secondary_key_costs;
+set @@optimizer_adjust_secondary_key_costs=default;
+
+--echo #
+--echo # MDEV-34664: fix_innodb_cardinality
+--echo #
+
+set @save_userstat=@@global.userstat;
+set @save_ispsp=@@global.innodb_stats_persistent_sample_pages;
+set @@global.innodb_stats_persistent_sample_pages=20;
+set @@global.userstat=on;
+set use_stat_tables=PREFERABLY_FOR_QUERIES;
+
+create or replace table t1 (a int primary key, b int, c int, d int, key(b,c,d)) engine=innodb;
+insert into t1 select seq,seq/100,seq/60,seq/10 from seq_1_to_1000;
+create or replace table t2 (a int);
+insert into t2 values (1),(2),(3);
+analyze table t1;
+select count(distinct b),count(distinct b,c), count(distinct b,c,d) from t1;
+show index from t1;
+explain select * from t1,t2 where t1.b=t2.a;
+set @@optimizer_adjust_secondary_key_costs=8;
+explain select * from t1,t2 where t1.b=t2.a;
+show index from t1;
+# Flush tables or show index is needed to refresh the data in table share
+flush tables;
+explain select * from t1,t2 where t1.b=t2.a;
+show index from t1;
+# Check that the option does not affect other usage
+connect (user2, localhost, root,,);
+show index from t1;
+connection default;
+disconnect user2;
+drop table t1,t2;
+set global userstat=@save_userstat;
+set global innodb_stats_persistent_sample_pages=@save_ispsp;
+
+set @@optimizer_adjust_secondary_key_costs=default;

@@ -386,3 +386,54 @@ KILL  (('x' IN ( SELECT 1)) MOD 44);
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo #  MDEV-24935: Server crashes in Field_iterator_natural_join::next or Field_iterator_table_ref::set_field_iterator upon 2nd execution of SP
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT, c INT);
+CREATE TABLE t3 (d INT);
+CREATE PROCEDURE sp() SELECT * FROM t1 JOIN t2 JOIN t3 USING (x);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--echo # Clean up
+DROP PROCEDURE sp;
+DROP TABLE t1, t2, t3;
+
+CREATE TABLE t1 (c1 INT,c2 INT);
+CREATE TABLE t2 (c INT,c2 INT);
+CREATE PROCEDURE p2 (OUT i INT,OUT o INT) READS SQL DATA DELETE a2,a3 FROM t1 AS a1 JOIN t2 AS a2 NATURAL JOIN t2 AS a3;
+
+--error ER_NON_UNIQ_ERROR
+CALL p2 (@c,@a);
+--error ER_NON_UNIQ_ERROR
+CALL p2 (@a,@c);
+--echo # Clean up
+DROP PROCEDURE p2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-34501: SIGSEGV in pfs_start_mutex_wait_v1, __strlen_avx2, or __strlen_evex from safe_mutex_lock on CREATE DEFINER when using skip-grant-tables
+--echo #
+--echo # This test is a duplicate of the one located in the file skip_grants.test
+--echo # and placed here to check the same test case against embedded-server
+
+# Disable warnings before running the following CREATE PROCEDURE/FUNCTION
+# statement since the warning message
+#   "The user specified as a definer ('a'@'%') does not exist"
+# is output in case the test be run against a regular server
+# and isn't output if embedded server is used (@sa sp_process_definer()
+# in sql_parse.cc).
+--disable_warnings
+CREATE DEFINER=a PROCEDURE p() SELECT 1;
+CREATE DEFINER=a FUNCTION f() RETURNS INT RETURN 100;
+--enable_warnings
+
+DROP PROCEDURE p;
+DROP FUNCTION f;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

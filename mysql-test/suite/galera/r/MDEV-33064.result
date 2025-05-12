@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1;
+CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1_fk(c1 INT PRIMARY KEY, c2 INT, INDEX (c2), FOREIGN KEY (c2) REFERENCES t1(c1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection con1;
+SET SESSION wsrep_retry_autocommit = 0;
+SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL may_alter WAIT_FOR bf_abort';
+INSERT INTO t1_fk VALUES (1, 1);
+connection node_1;
+SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
+SET DEBUG_SYNC = 'lock_wait_end WAIT_FOR alter_continue';
+ALTER TABLE t1 ADD COLUMN c2 INT, ALGORITHM=INPLACE;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET DEBUG_SYNC = 'now SIGNAL alter_continue';
+connection node_1;
+connection node_2;
+INSERT INTO t1 (c1, c2) VALUES (2, 2);
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1_fk, t1;
+disconnect con1;
+disconnect node_2;
+disconnect node_1;

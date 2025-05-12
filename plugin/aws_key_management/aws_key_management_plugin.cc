@@ -155,7 +155,7 @@ public:
     Base(logLevel) 
   {
   }
-  virtual LogLevel GetLogLevel(void) const override
+  LogLevel GetLogLevel(void) const override
   {
     return (LogLevel)log_level;
   }
@@ -163,12 +163,12 @@ public:
   {
   }
 
-  virtual void Flush(void) override
+  void Flush(void) override
   {
   }
 
 protected:
-  virtual void ProcessFormattedStatement(Aws::String&& statement) override
+  void ProcessFormattedStatement(Aws::String&& statement) override
   {
 #ifdef _WIN32
     /*

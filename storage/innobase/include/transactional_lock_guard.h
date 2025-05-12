@@ -41,7 +41,7 @@ static inline bool xtest() { return false; }
 #else
 # if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
 extern bool have_transactional_memory;
-bool transactional_lock_enabled();
+bool transactional_lock_enabled() noexcept;
 
 #  include <immintrin.h>
 #  if defined __GNUC__ && !defined __INTEL_COMPILER
@@ -52,7 +52,7 @@ bool transactional_lock_enabled();
 #   define TRANSACTIONAL_INLINE /* nothing */
 #  endif
 
-TRANSACTIONAL_INLINE static inline bool xbegin()
+TRANSACTIONAL_INLINE static inline bool xbegin() noexcept
 {
   return have_transactional_memory && _xbegin() == _XBEGIN_STARTED;
 }
@@ -60,18 +60,18 @@ TRANSACTIONAL_INLINE static inline bool xbegin()
 #  ifdef UNIV_DEBUG
 #   ifdef __GNUC__
 /** @return whether a memory transaction is active */
-bool xtest();
+bool xtest() noexcept;
 #   else
-static inline bool xtest() { return have_transactional_memory && _xtest(); }
+static inline bool xtest() noexcept { return have_transactional_memory && _xtest(); }
 #   endif
 #  endif
 
-TRANSACTIONAL_INLINE static inline void xabort() { _xabort(0); }
+TRANSACTIONAL_INLINE static inline void xabort() noexcept { _xabort(0); }
 
-TRANSACTIONAL_INLINE static inline void xend() { _xend(); }
+TRANSACTIONAL_INLINE static inline void xend() noexcept { _xend(); }
 # elif defined __powerpc64__ || defined __s390__
 extern bool have_transactional_memory;
-bool transactional_lock_enabled();
+bool transactional_lock_enabled() noexcept;
 #   define TRANSACTIONAL_TARGET __attribute__((hot))
 #   define TRANSACTIONAL_INLINE __attribute__((hot,always_inline))
 
@@ -89,11 +89,11 @@ bool transactional_lock_enabled();
   could be implemented here, we keep the implementation the
   same as ppc64.
  */
-TRANSACTIONAL_TARGET bool xbegin();
-TRANSACTIONAL_TARGET void xabort();
-TRANSACTIONAL_TARGET void xend();
+TRANSACTIONAL_TARGET bool xbegin() noexcept;
+TRANSACTIONAL_TARGET void xabort() noexcept;
+TRANSACTIONAL_TARGET void xend() noexcept;
 #  ifdef UNIV_DEBUG
-bool xtest();
+bool xtest() noexcept;
 #  endif
 
 # endif
@@ -105,7 +105,7 @@ class transactional_lock_guard
   mutex &m;
 
 public:
-  TRANSACTIONAL_INLINE transactional_lock_guard(mutex &m) : m(m)
+  TRANSACTIONAL_INLINE transactional_lock_guard(mutex &m) noexcept : m(m)
   {
 #ifndef NO_ELISION
     if (xbegin())
@@ -117,8 +117,8 @@ public:
 #endif
     m.lock();
   }
-  transactional_lock_guard(const transactional_lock_guard &)= delete;
-  TRANSACTIONAL_INLINE ~transactional_lock_guard()
+  transactional_lock_guard(const transactional_lock_guard &) noexcept= delete;
+  TRANSACTIONAL_INLINE ~transactional_lock_guard() noexcept
   {
 #ifndef NO_ELISION
     if (was_elided()) xend(); else
@@ -144,7 +144,7 @@ class transactional_shared_lock_guard
 #endif
 
 public:
-  TRANSACTIONAL_INLINE transactional_shared_lock_guard(mutex &m) : m(m)
+  TRANSACTIONAL_INLINE transactional_shared_lock_guard(mutex &m) noexcept : m(m)
   {
 #ifndef NO_ELISION
     if (xbegin())
@@ -160,9 +160,9 @@ public:
 #endif
     m.lock_shared();
   }
-  transactional_shared_lock_guard(const transactional_shared_lock_guard &)=
+  transactional_shared_lock_guard(const transactional_shared_lock_guard &) noexcept=
     delete;
-  TRANSACTIONAL_INLINE ~transactional_shared_lock_guard()
+  TRANSACTIONAL_INLINE ~transactional_shared_lock_guard() noexcept
   {
 #ifndef NO_ELISION
     if (was_elided()) xend(); else

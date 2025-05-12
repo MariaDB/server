@@ -28,21 +28,20 @@ Created 11/5/1995 Heikki Tuuri
 
 #include "buf0buf.h"
 
-/** High-level function which reads a page asynchronously from a file to the
-buffer buf_pool if it is not already there. Sets the io_fix flag and sets
-an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param page_id    page id
-@param zip_size   ROW_FORMAT=COMPRESSED page size, or 0
-@param chain      buf_pool.page_hash cell for page_id
-@retval DB_SUCCESS if the page was read and is not corrupted,
+/** Read a page synchronously from a file. buf_page_t::read_complete()
+will be invoked on read completion.
+@param page_id   page identifier
+@param chain     buf_pool.page_hash cell for page_id
+@param unzip     whether to decompress ROW_FORMAT=COMPRESSED pages
+@retval DB_SUCCESS if the page was read and is not corrupted
 @retval DB_SUCCESS_LOCKED_REC if the page was not read
 @retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
-                      buf_pool_t::hash_chain &chain);
+dberr_t buf_read_page(const page_id_t page_id,
+                      buf_pool_t::hash_chain &chain, bool unzip= true)
+  noexcept;
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
@@ -52,7 +51,7 @@ released by the i/o-handler thread.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size)
+                              ulint zip_size) noexcept
   MY_ATTRIBUTE((nonnull));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -63,9 +62,8 @@ pages: to avoid deadlocks this function must be written such that it cannot
 end up waiting for these latches!
 @param[in]	page_id		page id of a page which the current thread
 wants to access
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return number of page read requests issued */
-ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size);
+ulint buf_read_ahead_random(const page_id_t page_id) noexcept;
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
@@ -87,9 +85,8 @@ NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
 function must be written such that it cannot end up waiting for these
 latches!
 @param[in]	page_id		page id; see NOTE 3 above
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return number of page read requests issued */
-ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size);
+ulint buf_read_ahead_linear(const page_id_t page_id) noexcept;
 
 /** Schedule a page for recovery.
 @param space    tablespace
@@ -97,4 +94,4 @@ ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size);
 @param recs     log records
 @param init_lsn page initialization, or 0 if the page needs to be read */
 void buf_read_recover(fil_space_t *space, const page_id_t page_id,
-                      page_recv_t &recs, lsn_t init_lsn);
+                      page_recv_t &recs, lsn_t init_lsn) noexcept;

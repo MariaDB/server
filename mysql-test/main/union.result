@@ -80,7 +80,7 @@ a	b
 2	b
 1	a
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by t1.b;
-ERROR 42000: Table 't1' from one of the SELECTs cannot be used in ORDER clause
+ERROR 42000: Table 't1' from one of the SELECTs cannot be used in ORDER BY
 explain extended (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by b desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
@@ -115,7 +115,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
 2	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	
 explain select xx from t1 union select 1;
-ERROR 42S22: Unknown column 'xx' in 'field list'
+ERROR 42S22: Unknown column 'xx' in 'SELECT'
 explain select a,b from t1 union select 1;
 ERROR 21000: The used SELECT statements have a different number of columns
 explain select 1 union select a,b from t1 union select 1;
@@ -148,13 +148,13 @@ select 1 as a,(select a union select a);
 a	(select a union select a)
 1	1
 (select 1) union (select 2) order by 0;
-ERROR 42S22: Unknown column '0' in 'order clause'
+ERROR 42S22: Unknown column '0' in 'ORDER BY'
 SELECT @a:=1 UNION SELECT @a:=@a+1;
 @a:=1
 1
 2
 (SELECT 1) UNION (SELECT 2) ORDER BY (SELECT a);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 (SELECT 1,3) UNION (SELECT 2,1) ORDER BY (SELECT 2);
 1	3
 1	3
@@ -493,7 +493,7 @@ drop temporary table t1;
 create table t1 select a from t1 union select a from t2;
 ERROR 42S01: Table 't1' already exists
 select a from t1 union select a from t2 order by t2.a;
-ERROR 42000: Table 't2' from one of the SELECTs cannot be used in ORDER clause
+ERROR 42000: Table 't2' from one of the SELECTs cannot be used in ORDER BY
 drop table t1,t2;
 select length(version()) > 1 as `*` UNION select 2;
 *
@@ -874,7 +874,7 @@ insert into t1 select * from t2;
 insert into t2 select * from t1;
 insert into t1 select * from t2;
 insert into t2 select * from t1;
-set local tmp_table_size=1024;
+set local tmp_table_size=16384;
 select count(*) from (select * from t1 union all select * from t2 order by 1) b;
 count(*)
 21
@@ -1029,7 +1029,7 @@ set sql_select_limit=default;
 CREATE TABLE t1 (i int(11) default NULL,c char(1) default NULL,KEY i (i));
 CREATE TABLE t2 (i int(11) default NULL,c char(1) default NULL,KEY i (i));
 explain (select * from t1) union (select * from t2) order by not_existing_column;
-ERROR 42S22: Unknown column 'not_existing_column' in 'order clause'
+ERROR 42S22: Unknown column 'not_existing_column' in 'ORDER BY'
 drop table t1, t2;
 CREATE TABLE t1 (uid int(1));
 INSERT INTO t1 SELECT 150;
@@ -1529,7 +1529,7 @@ a
 3
 4
 SELECT a FROM (SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY c) AS test;
-ERROR 42S22: Unknown column 'c' in 'order clause'
+ERROR 42S22: Unknown column 'c' in 'ORDER BY'
 DROP TABLE t1;
 (select 1 into @var) union (select 1);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @var) union (select 1)' at line 1

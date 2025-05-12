@@ -35,4 +35,4 @@ ROLLBACK /* added by mysqlbinlog */;
 Killing server ...
 SET GLOBAL wsrep_ignore_apply_errors = 7;
 DROP TABLE t1;
-CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");

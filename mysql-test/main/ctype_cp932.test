@@ -4,9 +4,6 @@
 --echo #               USED.
 --echo #
 
-#remove this include in 10.6 version
---source include/no_view_protocol.inc
-
 SET @old_character_set_client= @@character_set_client;
 SET @old_character_set_connection= @@character_set_connection;
 SET @old_character_set_results= @@character_set_results;
@@ -72,6 +69,13 @@ SET NAMES cp932 COLLATE cp932_bin;
 SET NAMES cp932;
 SET @seq=_cp932 0x81AD;
 --source include/ctype_ident_sys.inc
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_cp932'' collate cp932_japanese_nopad_ci, _cp932 0x0001050001) as c1;
+select strcmp(_cp932'' collate cp932_nopad_bin, _cp932 0x0001050001) as c1;
 
 --echo #
 --echo # End of 10.5 tests

@@ -129,7 +129,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
@@ -156,6 +156,8 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   };
 
   int m_state;
+  /* Padding to avoid false sharing */
+  char m_pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   bool is_executing_task()
   {
@@ -179,16 +181,6 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
     m_state(NONE),
     m_task_start_time()
   {}
-
-  /*Define custom new/delete because of overaligned structure. */
-  static void *operator new(size_t size)
-  {
-    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  }
-  static void operator delete(void* p)
-  {
-    aligned_free(p);
-  }
 };
 
 
@@ -226,7 +218,6 @@ class thread_pool_generic : public thread_pool
 
   /** Overall number of enqueues*/
   unsigned long long m_tasks_enqueued;
-  unsigned long long m_group_enqueued;
   /** Overall number of dequeued tasks. */
   unsigned long long m_tasks_dequeued;
 
@@ -304,11 +295,11 @@ class thread_pool_generic : public thread_pool
   }
 public:
   thread_pool_generic(int min_threads, int max_threads);
-  ~thread_pool_generic();
+  ~thread_pool_generic() override;
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
-  virtual aio *create_native_aio(int max_io) override
+  aio *create_native_aio(int max_io) override
   {
 #ifdef _WIN32
     return create_win_aio(this, max_io);
@@ -436,13 +427,13 @@ public:
       m_task.wait();
     }
 
-    virtual ~timer_generic()
+    ~timer_generic() override
     {
       disarm();
     }
   };
   timer_generic m_maintenance_timer;
-  virtual timer* create_timer(callback_func func, void *data) override
+  timer* create_timer(callback_func func, void *data) override
   {
     return new timer_generic(func, data, this);
   }
@@ -572,8 +563,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
 {
   task* task;
   set_tls_pool(this);
-  if(m_worker_init_callback)
-   m_worker_init_callback();
+  m_worker_init_callback();
 
   tls_worker_data = thread_var;
   m_thread_creation_pending.clear();
@@ -583,8 +573,7 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
     task->execute();
   }
 
-  if (m_worker_destroy_callback)
-    m_worker_destroy_callback();
+  m_worker_destroy_callback();
 
   worker_end(thread_var);
 }

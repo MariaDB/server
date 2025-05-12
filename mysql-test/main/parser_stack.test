@@ -1,6 +1,6 @@
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Test temporarily disabled for ps-protocol
+   --skip Test temporarily disabled for ps-protocol and cursor-protocol
 }
 #
 # These tests are designed to cause an internal parser stack overflow,

@@ -28,7 +28,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &update_fields,
                          List<Item> &update_values, enum_duplicates duplic,
                          bool ignore,
-                         COND **where, bool select_insert);
+                         COND **where, bool select_insert, bool * const cache_results);
 bool mysql_insert(THD *thd,TABLE_LIST *table,List<Item> &fields,
                   List<List_item> &values, List<Item> &update_fields,
                   List<Item> &update_values, enum_duplicates flag,
@@ -46,6 +46,13 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info,
 void kill_delayed_threads(void);
 bool binlog_create_table(THD *thd, TABLE *table, bool replace);
 bool binlog_drop_table(THD *thd, TABLE *table);
+
+static inline void restore_default_record_for_insert(TABLE *t)
+{
+  restore_record(t,s->default_values);
+  if (t->triggers)
+    t->triggers->default_extra_null_bitmap();
+}
 
 #ifdef EMBEDDED_LIBRARY
 inline void kill_delayed_threads(void) {}

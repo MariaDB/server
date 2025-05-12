@@ -41,7 +41,7 @@ f1	f2
 connection node_2;
 Starting server ...
 Starting server ...
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 SELECT * FROM t1;
 f1	f2
 1	a

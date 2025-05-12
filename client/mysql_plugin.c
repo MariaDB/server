@@ -735,8 +735,8 @@ static int check_options(int argc, char **argv, char *operation)
 {
   int i= 0;                    /* loop counter */
   int num_found= 0;            /* number of options found (shortcut loop) */
-  char config_file[FN_REFLEN]; /* configuration file name */
-  char plugin_name[FN_REFLEN]; /* plugin name */
+  char config_file[FN_REFLEN+1]; /* configuration file name */
+  char plugin_name[FN_REFLEN+1]; /* plugin name */
 
   /* Form prefix strings for the options. */
   const char *basedir_prefix = "--basedir=";
@@ -784,8 +784,8 @@ static int check_options(int argc, char **argv, char *operation)
     /* read the plugin config file and check for match against argument */
     else
     {
-      if (safe_strcpy_truncated(plugin_name, sizeof plugin_name, argv[i]) ||
-          safe_strcpy_truncated(config_file, sizeof config_file, argv[i]) ||
+      if (safe_strcpy_truncated(plugin_name, sizeof(plugin_name)-1, argv[i]) ||
+          safe_strcpy_truncated(config_file, sizeof(config_file)-1, argv[i]) ||
           safe_strcat(config_file, sizeof(config_file), ".ini"))
       {
         fprintf(stderr, "ERROR: argument is too long.\n");

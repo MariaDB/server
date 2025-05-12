@@ -400,7 +400,7 @@ create table t1(a int, index using btree (a));
 insert into t1 values (1), (2), (3);
 handler t1 open;
 handler t1 read a=(W);
-ERROR 42S22: Unknown column 'W' in 'field list'
+ERROR 42S22: Unknown column 'W' in 'HANDLER ... READ'
 handler t1 read a=(a);
 ERROR HY000: Incorrect arguments to HANDLER ... READ
 drop table t1;
@@ -597,11 +597,11 @@ handler t1 open as t1_alias;
 handler t1_alias read a next;
 ERROR 42000: Key 'a' doesn't exist in table 't1_alias'
 handler t1_alias READ a next where inexistent > 0;
-ERROR 42S22: Unknown column 'inexistent' in 'field list'
+ERROR 42S22: Unknown column 'inexistent' in 'WHERE'
 handler t1_alias read a next;
 ERROR 42000: Key 'a' doesn't exist in table 't1_alias'
 handler t1_alias READ a next where inexistent > 0;
-ERROR 42S22: Unknown column 'inexistent' in 'field list'
+ERROR 42S22: Unknown column 'inexistent' in 'WHERE'
 handler t1_alias close;
 drop table t1;
 create temporary table t1 (a int, b char(1), key a using btree (a), key b using btree (a,b));

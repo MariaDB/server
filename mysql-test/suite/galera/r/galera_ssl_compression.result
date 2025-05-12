@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+SELECT COUNT(*) `expect 0` FROM performance_schema.socket_instances WHERE EVENT_NAME LIKE '%wsrep%';
+expect 0
+0
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 VARIABLE_VALUE = 'Synced'
 1
@@ -24,5 +27,5 @@ COUNT(*) = 1
 1
 connection node_1;
 DROP TABLE t1;
-CALL mtr.add_suppression("Unknown parameter 'socket\.ssl_compression'");
+CALL mtr.add_suppression("Unknown parameter 'socket\\.ssl_compression'");
 CALL mtr.add_suppression("Set options returned 7");

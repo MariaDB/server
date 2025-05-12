@@ -314,9 +314,11 @@ create or replace table subchild (
 ) engine=innodb;
 
 insert into parent (value) values (23);
+--disable_cursor_protocol
 --enable_prepare_warnings
 select id, value from parent into @id, @value;
 --disable_prepare_warnings
+--enable_cursor_protocol
 insert into child values (default, @id, @value);
 insert into subchild values (default, @id, @value);
 
@@ -398,21 +400,27 @@ INSERT INTO t2 VALUES (1,'against'),(2,'q');
 
 SET SQL_MODE= '';
 SET timestamp = 2;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 't1.data' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 SET timestamp = 3;
 UPDATE t1 SET f13 = 'q';
 SET timestamp = 4;
 LOAD DATA INFILE 't1.data' REPLACE INTO TABLE t1;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 't1.data.2' FROM t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 SET timestamp = 5;
 LOAD DATA INFILE 't1.data.2' REPLACE INTO TABLE t1;
+--disable_cursor_protocol
 --disable_ps2_protocol
 SELECT * INTO OUTFILE 't2.data' FROM t2;
 --enable_ps2_protocol
+--enable_cursor_protocol
 SET timestamp = 6;
 LOAD DATA INFILE 't2.data' REPLACE INTO TABLE t2;
 SET FOREIGN_KEY_CHECKS = OFF;
@@ -555,9 +563,11 @@ delete from t0;
 --error ER_ROW_IS_REFERENCED_2
 replace t0 values (1);
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'load_t0' from t0 ;
 --enable_ps2_protocol
+--enable_cursor_protocol
 --error ER_ROW_IS_REFERENCED_2
 load data infile 'load_t0' replace into table t0;
 

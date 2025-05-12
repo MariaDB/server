@@ -588,12 +588,11 @@ static void tdc_hash_initializer(LF_HASH *,
 }
 
 
-static uchar *tdc_hash_key(const unsigned char *_element, size_t *length,
-                           my_bool)
+static const uchar *tdc_hash_key(const void *element_, size_t *length, my_bool)
 {
-  const TDC_element *element= (const TDC_element *) _element;
+  auto element= static_cast<const TDC_element *>(element_);
   *length= element->m_key_length;
-  return (uchar*) element->m_key;
+  return reinterpret_cast<const uchar *>(element->m_key);
 }
 
 
@@ -616,14 +615,13 @@ bool tdc_init(void)
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
-  lf_hash_init(&tdc_hash, sizeof(TDC_element) +
-                          sizeof(Share_free_tables) * (tc_instances - 1),
-               LF_HASH_UNIQUE, 0, 0,
-               (my_hash_get_key) tdc_hash_key,
-               &my_charset_bin);
+  lf_hash_init(&tdc_hash,
+               sizeof(TDC_element) +
+                   sizeof(Share_free_tables) * (tc_instances - 1),
+               LF_HASH_UNIQUE, 0, 0, tdc_hash_key, &my_charset_bin);
   tdc_hash.alloc.constructor= lf_alloc_constructor;
   tdc_hash.alloc.destructor= lf_alloc_destructor;
-  tdc_hash.initializer= (lf_hash_initializer) tdc_hash_initializer;
+  tdc_hash.initializer= tdc_hash_initializer;
   DBUG_RETURN(false);
 }
 
@@ -1143,12 +1141,12 @@ struct eliminate_duplicates_arg
 };
 
 
-static uchar *eliminate_duplicates_get_key(const uchar *element, size_t *length,
-                                           my_bool)
+static const uchar *eliminate_duplicates_get_key(const void *element,
+                                                 size_t *length, my_bool)
 {
-  LEX_STRING *key= (LEX_STRING *) element;
+  auto key= static_cast<const LEX_STRING *>(element);
   *length= key->length;
-  return (uchar *) key->str;
+  return reinterpret_cast<const uchar *>(key->str);
 }
 
 

@@ -29,6 +29,8 @@ xa start 's';
 insert into t2 values (0);
 xa end 's';
 xa prepare 's';
+Warnings:
+Warning	4205	Pseudo thread id should not be modified by the client as it will be overwritten
 include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc

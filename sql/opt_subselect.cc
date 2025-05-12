@@ -684,8 +684,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       SELECT_LEX *current= thd->lex->current_select;
       thd->lex->current_select= current->return_after_parsing();
-      char const *save_where= thd->where;
-      thd->where= "IN/ALL/ANY subquery";
+      THD_WHERE save_where= thd->where;
+      thd->where= THD_WHERE::IN_ALL_ANY_SUBQUERY;
 
       Item **left= in_subs->left_exp_ptr();
       bool failure= (*left)->fix_fields_if_needed(thd, left);
@@ -2861,7 +2861,8 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
+        if (bound_parts == PREV_BITS(key_part_map,
+                                     keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -6039,7 +6040,7 @@ public:
   select_value_catcher(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg)
   {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   int setup(List<Item> *items);
   bool assigned;  /* TRUE <=> we've caught a value */
   uint n_elements; /* How many elements we get */
@@ -6174,7 +6175,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     List_iterator_fast<Item_equal> ei(*cond_equalities);
     while ((mult_eq= ei++))
     {
-      if (mult_eq->const_item() && !mult_eq->val_int())
+      if (mult_eq->const_item() && !mult_eq->val_bool())
         is_simplified_cond= true;
       else
       {
@@ -6264,7 +6265,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     List_iterator_fast<Item_equal> ei(new_cond_equal.current_level);
     while ((mult_eq=ei++))
     {
-      if (mult_eq->const_item() && !mult_eq->val_int())
+      if (mult_eq->const_item() && !mult_eq->val_bool())
         is_simplified_cond= true;
       else
       {

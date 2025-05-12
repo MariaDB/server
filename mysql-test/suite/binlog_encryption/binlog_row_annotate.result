@@ -112,10 +112,10 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
-/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
-/*!100001 SET @@session.server_id=1*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
+/*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*M!100001 SET @@session.server_id=1*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -131,7 +131,7 @@ CREATE DATABASE test1
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
-/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -139,7 +139,7 @@ CREATE DATABASE test2
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
-/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -147,7 +147,7 @@ CREATE DATABASE test3
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-4
-/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -174,7 +174,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-5
-/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -201,7 +201,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6
-/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -228,7 +228,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-7
-/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -270,7 +270,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-8
-/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -297,7 +297,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-9
-/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -353,10 +353,10 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
-/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
-/*!100001 SET @@session.server_id=1*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
+/*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*M!100001 SET @@session.server_id=1*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -372,15 +372,15 @@ CREATE DATABASE test1
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
-/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
-/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-4
-/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -407,7 +407,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-5
-/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -420,7 +420,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6
-/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -433,7 +433,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-7
-/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -463,7 +463,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-8
-/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -476,7 +476,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-9
-/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -515,10 +515,10 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
-/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
-/*!100001 SET @@session.server_id=1*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
+/*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*M!100001 SET @@session.server_id=1*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -534,7 +534,7 @@ CREATE DATABASE test1
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
-/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -542,7 +542,7 @@ CREATE DATABASE test2
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
-/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
@@ -550,7 +550,7 @@ CREATE DATABASE test3
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-4
-/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -574,7 +574,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-5
-/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -598,7 +598,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6
-/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -622,7 +622,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-7
-/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -659,7 +659,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-8
-/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -683,7 +683,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-9
-/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #

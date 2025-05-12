@@ -1,0 +1,7 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+BEGIN;
+BEGIN;
+COMMIT;
+SET SESSION wsrep_on=ON;

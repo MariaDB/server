@@ -41,7 +41,7 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 #
 # mysqldump of system tables with --system=all
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -638,7 +638,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --replace
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -655,21 +655,21 @@ INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
 /*M!100401 UNINSTALL PLUGIN IF EXIST cleartext_plugin_server */;
 INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
 DELIMITER |
-/*M!100101 IF current_user()="'mariadb.sys'@'localhost'" THEN
+/*M!100101 IF current_user()='''mariadb.sys''@''localhost''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'mariadb.sys'@'localhost''";
 END IF */|
 DELIMITER ;
 /*!50701 DROP USER IF EXISTS 'mariadb.sys'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 DELIMITER |
-/*M!100101 IF current_user()="'root'@'localhost'" THEN
+/*M!100101 IF current_user()='''root''@''localhost''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'root'@'localhost''";
 END IF */|
 DELIMITER ;
 /*!50701 DROP USER IF EXISTS 'root'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `root`@`localhost`;
 DELIMITER |
-/*M!100101 IF current_user()="'foobar'@'%'" THEN
+/*M!100101 IF current_user()='''foobar''@''%''' THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'foobar'@'%''";
 END IF */|
 DELIMITER ;
@@ -1258,7 +1258,7 @@ UNLOCK TABLES;
 #
 # mysqldump of system tables with --system=all --insert-ignore
 #
-/*!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -1865,7 +1865,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	2079085450
+mysql.servers	2180549486
 mysql.func	3241572444
 mysql.innodb_table_stats	1285726777
 mysql.table_stats	2836905944
@@ -1900,7 +1900,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	2079085450
+mysql.servers	2180549486
 mysql.func	3241572444
 mysql.innodb_table_stats	1285726777
 mysql.table_stats	2836905944

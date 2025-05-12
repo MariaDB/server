@@ -1,0 +1,18 @@
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-35392 Assertion `!__asan_region_is_poisoned((vo id*) dest,templ->mysql_col_len)' failed in void row_sel_field_store_in_mysql_format_func(byte *, const mysql_row_templ_t *, const byte *, ulint)
+#
+SET sql_mode='';
+CREATE TABLE t (a CHAR(205)) ENGINE=INNODB CHARACTER SET filename;
+Warnings:
+Note	1246	Converting column 'a' from CHAR to VARCHAR
+INSERT INTO t VALUES (1);
+SELECT * FROM t;
+a
+1
+DROP TABLE t;
+#
+# End of 10.6 tests
+#

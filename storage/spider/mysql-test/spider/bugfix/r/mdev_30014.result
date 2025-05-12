@@ -20,6 +20,8 @@ FLUSH NO_WRITE_TO_BINLOG TABLES t4 WITH READ LOCK;
 Warnings:
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
+Error	1429	Unable to connect to foreign data source: localhost
 UNLOCK TABLES;
 drop table t1, t2, t3, t4;
 create table t1 (c int);

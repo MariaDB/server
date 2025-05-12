@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -64,7 +63,7 @@ spider_db_conn::spider_db_conn(
   DBUG_VOID_RETURN;
 }
 
-int spider_db_conn::fin_loop_check()
+int spider_db_conn::fin_loop_check() /* reset flags of all relevant SPIDER_CONN_LOOP_CHECKs */
 {
   st_spider_conn_loop_check *lcptr;
   DBUG_ENTER("spider_db_conn::fin_loop_check");
@@ -80,20 +79,6 @@ int spider_db_conn::fin_loop_check()
     }
     my_hash_reset(&conn->loop_check_queue);
   }
-  lcptr = conn->loop_check_ignored_first;
-  while (lcptr)
-  {
-    lcptr->flag = 0;
-    lcptr = lcptr->next;
-  }
-  conn->loop_check_ignored_first = NULL;
-  lcptr = conn->loop_check_meraged_first;
-  while (lcptr)
-  {
-    lcptr->flag = 0;
-    lcptr = lcptr->next;
-  }
-  conn->loop_check_meraged_first = NULL;
   DBUG_RETURN(0);
 }
 

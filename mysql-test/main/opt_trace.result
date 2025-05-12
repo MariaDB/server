@@ -515,6 +515,23 @@ select * from v2	{
                   ]
                 },
                 {
+                  "materialized_output_cardinality": {
+                    "join_output_cardinality": 1,
+                    "estimation": [
+                      {
+                        "table": "t1",
+                        "steps": [
+                          {
+                            "column": "b",
+                            "cardinality": 2
+                          }
+                        ],
+                        "cardinality": 2
+                      }
+                    ]
+                  }
+                },
+                {
                   "check_split_materialized": {
                     "not_applicable": "no candidate field can be accessed through ref"
                   }
@@ -566,8 +583,8 @@ select * from v2	{
                 "table": "<derived2>",
                 "table_scan": {
                   "rows": 2,
-                  "read_cost": 0.012350033,
-                  "read_and_compare_cost": 0.012418701
+                  "read_cost": 0.010020701,
+                  "read_and_compare_cost": 0.010089369
                 }
               }
             ]
@@ -589,7 +606,7 @@ select * from v2	{
                           "rows": 2,
                           "rows_after_filter": 2,
                           "rows_out": 2,
-                          "cost": 0.012418701,
+                          "cost": 0.010089369,
                           "index_only": false,
                           "chosen": true
                         }
@@ -598,7 +615,7 @@ select * from v2	{
                         "type": "scan",
                         "rows_read": 2,
                         "rows_out": 2,
-                        "cost": 0.012418701,
+                        "cost": 0.010089369,
                         "uses_join_buffering": false
                       }
                     }
@@ -609,14 +626,14 @@ select * from v2	{
                 "plan_prefix": "",
                 "table": "<derived2>",
                 "rows_for_plan": 2,
-                "cost_for_plan": 0.012418701
+                "cost_for_plan": 0.010089369
               }
             ]
           },
           {
             "best_join_order": ["<derived2>"],
             "rows": 2,
-            "cost": 0.012418701
+            "cost": 0.010089369
           },
           {
             "attaching_conditions_to_tables": {
@@ -803,7 +820,7 @@ explain select * from v2	{
 # Non-Mergeable view
 explain select * from v1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v1	{
@@ -909,6 +926,24 @@ explain select * from v1	{
                   ]
                 },
                 {
+                  "materialized_output_cardinality": {
+                    "join_output_cardinality": 10,
+                    "estimation": [
+                      {
+                        "table": "t1",
+                        "steps": [
+                          {
+                            "column": "b",
+                            "cardinality": 4
+                          }
+                        ],
+                        "cardinality": 4
+                      }
+                    ],
+                    "post_group_cardinality": 4
+                  }
+                },
+                {
                   "check_split_materialized": {
                     "not_applicable": "group list has no candidates"
                   }
@@ -953,9 +988,9 @@ explain select * from v1	{
               {
                 "table": "<derived2>",
                 "table_scan": {
-                  "rows": 10,
-                  "read_cost": 0.012414166,
-                  "read_and_compare_cost": 0.012757506
+                  "rows": 4,
+                  "read_cost": 0.010041402,
+                  "read_and_compare_cost": 0.010178738
                 }
               }
             ]
@@ -974,19 +1009,19 @@ explain select * from v1	{
                       "considered_access_paths": [
                         {
                           "access_type": "scan",
-                          "rows": 10,
-                          "rows_after_filter": 10,
-                          "rows_out": 10,
-                          "cost": 0.012757506,
+                          "rows": 4,
+                          "rows_after_filter": 4,
+                          "rows_out": 4,
+                          "cost": 0.010178738,
                           "index_only": false,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
                         "type": "scan",
-                        "rows_read": 10,
-                        "rows_out": 10,
-                        "cost": 0.012757506,
+                        "rows_read": 4,
+                        "rows_out": 4,
+                        "cost": 0.010178738,
                         "uses_join_buffering": false
                       }
                     }
@@ -996,15 +1031,15 @@ explain select * from v1	{
               {
                 "plan_prefix": "",
                 "table": "<derived2>",
-                "rows_for_plan": 10,
-                "cost_for_plan": 0.012757506
+                "rows_for_plan": 4,
+                "cost_for_plan": 0.010178738
               }
             ]
           },
           {
             "best_join_order": ["<derived2>"],
-            "rows": 10,
-            "cost": 0.012757506
+            "rows": 4,
+            "cost": 0.010178738
           },
           {
             "attaching_conditions_to_tables": {
@@ -1250,6 +1285,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.1821659,
@@ -1305,6 +1341,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.1821659,
@@ -2498,6 +2535,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "a_b",
                         "rows_read": 41,
                         "rows_out": 41,
                         "cost": 0.051379171,
@@ -2977,6 +3015,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                           ],
                           "chosen_access_method": {
                             "type": "eq_ref",
+                            "index": "PRIMARY",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.007120904,
@@ -3945,6 +3984,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "pk_a_b",
                         "rows_read": 1,
                         "rows_out": 1,
                         "cost": 0.000928812,
@@ -4641,6 +4681,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "range",
+                        "index": "a",
                         "rows_read": 3,
                         "rows_out": 3,
                         "cost": 0.001755494,
@@ -4667,6 +4708,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "range",
+                        "index": "a",
                         "rows_read": 3,
                         "rows_out": 3,
                         "cost": 0.001755494,
@@ -4709,6 +4751,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.002376836,
@@ -4760,6 +4803,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1.166666667,
                             "rows_out": 1.166666667,
                             "cost": 0.002392836,
@@ -4974,8 +5018,8 @@ explain select * from (select rand() from t1)q	{
                 "table": "<derived2>",
                 "table_scan": {
                   "rows": 3,
-                  "read_cost": 0.01235805,
-                  "read_and_compare_cost": 0.012461052
+                  "read_cost": 0.010031052,
+                  "read_and_compare_cost": 0.010134054
                 }
               }
             ]
@@ -4997,7 +5041,7 @@ explain select * from (select rand() from t1)q	{
                           "rows": 3,
                           "rows_after_filter": 3,
                           "rows_out": 3,
-                          "cost": 0.012461052,
+                          "cost": 0.010134054,
                           "index_only": false,
                           "chosen": true
                         }
@@ -5006,7 +5050,7 @@ explain select * from (select rand() from t1)q	{
                         "type": "scan",
                         "rows_read": 3,
                         "rows_out": 3,
-                        "cost": 0.012461052,
+                        "cost": 0.010134054,
                         "uses_join_buffering": false
                       }
                     }
@@ -5017,14 +5061,14 @@ explain select * from (select rand() from t1)q	{
                 "plan_prefix": "",
                 "table": "<derived2>",
                 "rows_for_plan": 3,
-                "cost_for_plan": 0.012461052
+                "cost_for_plan": 0.010134054
               }
             ]
           },
           {
             "best_join_order": ["<derived2>"],
             "rows": 3,
-            "cost": 0.012461052
+            "cost": 0.010134054
           },
           {
             "attaching_conditions_to_tables": {
@@ -11240,6 +11284,7 @@ JS
                                 "chosen_access_method": 
                                 {
                                     "type": "ref",
+                                    "index": "b",
                                     "rows_read": 1,
                                     "rows_out": 1,
                                     "cost": 0.01901531,
@@ -11486,6 +11531,7 @@ JS
                                 "chosen_access_method": 
                                 {
                                     "type": "ref",
+                                    "index": "a",
                                     "rows_read": 1,
                                     "rows_out": 1,
                                     "cost": 0.01840091,
@@ -11900,8 +11946,8 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                 "table": "<derived2>",
                 "table_scan": {
                   "rows": 2,
-                  "read_cost": 0.012350033,
-                  "read_and_compare_cost": 0.012418701
+                  "read_cost": 0.010020701,
+                  "read_and_compare_cost": 0.010089369
                 }
               }
             ]
@@ -11949,7 +11995,7 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                           "rows": 2,
                           "rows_after_filter": 2,
                           "rows_out": 2,
-                          "cost": 0.012418701,
+                          "cost": 0.010089369,
                           "index_only": false,
                           "chosen": true
                         }
@@ -11958,7 +12004,7 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                         "type": "scan",
                         "rows_read": 2,
                         "rows_out": 2,
-                        "cost": 0.012418701,
+                        "cost": 0.010089369,
                         "uses_join_buffering": false
                       }
                     }
@@ -11986,8 +12032,8 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                               "rows": 2,
                               "rows_after_filter": 2,
                               "rows_out": 2,
-                              "cost": 0.012911897,
-                              "cost_without_join_buffer": 0.024837402,
+                              "cost": 0.010582565,
+                              "cost_without_join_buffer": 0.020178738,
                               "index_only": false,
                               "chosen": true
                             }
@@ -11996,7 +12042,7 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                             "type": "scan",
                             "rows_read": 2,
                             "rows_out": 2,
-                            "cost": 0.012911897,
+                            "cost": 0.010582565,
                             "uses_join_buffering": true
                           }
                         }
@@ -12007,7 +12053,7 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                     "plan_prefix": "t",
                     "table": "<derived2>",
                     "rows_for_plan": 4,
-                    "cost_for_plan": 0.023260307
+                    "cost_for_plan": 0.020930975
                   }
                 ]
               },
@@ -12015,15 +12061,57 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
                 "plan_prefix": "",
                 "table": "<derived2>",
                 "rows_for_plan": 2,
-                "cost_for_plan": 0.012418701,
-                "pruned_by_heuristic": true
+                "cost_for_plan": 0.010089369,
+                "rest_of_plan": [
+                  {
+                    "plan_prefix": "<derived2>",
+                    "get_costs_for_tables": [
+                      {
+                        "best_access_path": {
+                          "table": "t",
+                          "plan_details": {
+                            "record_count": 2
+                          },
+                          "considered_access_paths": [
+                            {
+                              "access_type": "scan_with_join_cache",
+                              "rows": 2,
+                              "rows_after_filter": 2,
+                              "rows_out": 2,
+                              "cost": 0.010841606,
+                              "cost_without_join_buffer": 0.02069682,
+                              "index_only": false,
+                              "chosen": true
+                            }
+                          ],
+                          "chosen_access_method": {
+                            "type": "scan",
+                            "rows_read": 2,
+                            "rows_out": 2,
+                            "cost": 0.010841606,
+                            "uses_join_buffering": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "plan_prefix": "<derived2>",
+                    "table": "t",
+                    "rows_for_plan": 4,
+                    "cost_for_plan": 0.020930975,
+                    "pruned_by_cost": true,
+                    "current_cost": 0.020930975,
+                    "best_cost": 0.020930975
+                  }
+                ]
               }
             ]
           },
           {
             "best_join_order": ["t", "<derived2>"],
             "rows": 4,
-            "cost": 0.023260307
+            "cost": 0.020930975
           },
           {
             "substitute_best_equal": {
@@ -12442,9 +12530,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
 1	SIMPLE	t2	const	PRIMARY	NULL	NULL	NULL	0	Impossible ON condition
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const')) as jd
 from information_schema.optimizer_trace;
-JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
+jd
 [
     {
         "members": 
@@ -12467,9 +12555,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
 1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	4	test.t0.a	1	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+jd
 [
     {
         "item": "t0.a in (1,2,3,4,5,6)",
@@ -12510,9 +12598,9 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 explain select * from t0 where a in (1,2,3,4,5,a+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+jd
 [
     {
         "item": "t0.a in (1,2,3,4,5,t0.a + 1)",
@@ -12523,9 +12611,9 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 explain select * from t0 where a in ('1','2','3','4','5','6');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+jd
 [
     {
         "item": "t0.a in ('1','2','3','4','5','6')",
@@ -12547,6 +12635,34 @@ select QUERY, LENGTH(trace)>1 from information_schema.optimizer_trace;
 QUERY	LENGTH(trace)>1
 insert into t2 select * from t1 where a<= b and a>4	1
 drop table t1, t2;
+#
+# MDEV-34305 Redundant truncation errors/warnings with optimizer_trace enabled
+#
+SET @@optimizer_trace='enabled=on';
+CREATE TABLE t1 (
+a CHAR(2) NOT NULL PRIMARY KEY,
+b VARCHAR(20) NOT NULL,
+KEY (b)
+) CHARSET=utf8mb4;
+CREATE TABLE t2 (
+a CHAR(2) NOT NULL PRIMARY KEY,
+b VARCHAR(20) NOT NULL,
+KEY (b)
+) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES
+('AB','MySQLAB'),
+('JA','Sun Microsystems'),
+('MS','Microsoft'),
+('IB','IBM- Inc.'),
+('GO','Google Inc.');
+INSERT IGNORE INTO t2 VALUES
+('AB','Sweden'),
+('JA','USA'),
+('MS','United States'),
+('IB','North America'),
+('GO','South America');
+UPDATE t1,t2 SET t1.b=UPPER(t1.b) WHERE t1.b LIKE 'Unknown%';
+DROP TABLE t1, t2;
 #
 # End of 10.5 tests
 #
@@ -12801,6 +12917,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                                     "chosen_access_method": 
                                     {
                                         "type": "ref",
+                                        "index": "idx_a",
                                         "rows_read": 1.8367,
                                         "rows_out": 1.8367,
                                         "cost": 0.002051185,
@@ -13096,6 +13213,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                       ],
                       "chosen_access_method": {
                         "type": "range",
+                        "index": "a",
                         "rows_read": 0.189,
                         "rows_out": 0.017766,
                         "cost": 0.006364199,

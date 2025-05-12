@@ -1,5 +1,5 @@
---- suite/storage_engine/check_table.result	2012-07-15 04:19:07.782936394 +0400
-+++ suite/storage_engine/check_table.reject	2012-07-15 16:21:16.734412773 +0400
+--- suite/storage_engine/check_table.result
++++ suite/storage_engine/check_table.reject
 @@ -18,7 +18,7 @@
  INSERT INTO t1 (a,b) VALUES (6,'f');
  CHECK TABLE t1 FAST;

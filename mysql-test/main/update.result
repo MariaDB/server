@@ -5,11 +5,11 @@ update t1 set a=a+10 where a > 34;
 update t1 set a=a+100 where a > 0;
 update t1 set a=a+100 where a=1 and a=2;
 update t1 set a=b+100 where a=1 and a=2;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 update t1 set a=b+100 where c=1 and a=2;
-ERROR 42S22: Unknown column 'c' in 'where clause'
+ERROR 42S22: Unknown column 'c' in 'WHERE'
 update t1 set d=a+100 where a=1;
-ERROR 42S22: Unknown column 'd' in 'field list'
+ERROR 42S22: Unknown column 'd' in 'SET'
 select * from t1;
 a
 101
@@ -399,7 +399,7 @@ update t1 set `*f2`=1;
 drop table t1;
 create table t1(f1 int);
 update t1 set f2=1 order by f2;
-ERROR 42S22: Unknown column 'f2' in 'field list'
+ERROR 42S22: Unknown column 'f2' in 'SET'
 drop table t1;
 CREATE TABLE t1 (
 request_id int unsigned NOT NULL auto_increment,
@@ -491,7 +491,9 @@ a	quux
 DROP TABLE t1;
 connect  con1,localhost,root,,test;
 connection con1;
-set tmp_table_size=1024;
+set tmp_table_size=2048;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '2048'
 create table t1 (id int, a int, key idx(a));
 create table t2 (id int unsigned not null auto_increment primary key, a int);
 insert into t2(a) values(1),(2),(3),(4),(5),(6),(7),(8);
@@ -764,6 +766,86 @@ u	xxb
 drop table t1;
 # End of MariaDB 10.4 tests
 #
+# MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+#
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	4	5	5
+1	4	6	6
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+id	v
+2	3
+1	-1
+select * from t2;
+id	v
+5	-1
+6	-1
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	b	6	quxqux
+1	b	7	foofoof
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+id	v
+1	DELETED
+2	fo
+3	bar
+4	barr
+5	bazzz
+select * from t2;
+id	v
+6	DELETED
+7	DELETED
+8	barbarba
+9	quxquxqux
+10	bazbazbazb
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+id	v	id	v	id	v
+1	1000	10	100	11	111
+1	1000	10	100	22	222
+1	1000	10	100	33	333
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+id	v
+1	-1
+2	2000
+3	3000
+4	4000
+5	5000
+select * from t2;
+id	v
+10	-2
+20	200
+30	300
+40	400
+50	500
+select * from t3;
+id	v
+11	-3
+22	-3
+33	-3
+44	444
+55	555
+drop table t1, t2, t3;
+# End of MariaDB 10.11 tests
+#
 # MDEV-29189: Second execution of SF using UPDATE?DELETE
 #             after reported error by the first execution
 #
@@ -800,4 +882,4 @@ c
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP TABLE t1;
-# End of MariaDB 10.10 tests
+# End of MariaDB 11.1 tests

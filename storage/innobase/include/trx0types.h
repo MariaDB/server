@@ -52,6 +52,8 @@ constexpr uint innodb_purge_batch_size_MAX= 5000;
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
 	TRX_STATE_NOT_STARTED,
+	/** The transaction was aborted (rolled back) due to an error */
+	TRX_STATE_ABORTED,
 
 	TRX_STATE_ACTIVE,
 	/** XA PREPARE has been executed; only XA COMMIT or XA ROLLBACK
@@ -59,7 +61,17 @@ enum trx_state_t {
 	TRX_STATE_PREPARED,
 	/** XA PREPARE transaction that was returned to ha_recover() */
 	TRX_STATE_PREPARED_RECOVERED,
+        /** The transaction has been committed (or completely rolled back) */
 	TRX_STATE_COMMITTED_IN_MEMORY
+};
+
+/** Transaction bulk insert operation @see trx_t::bulk_insert */
+enum trx_bulk_insert {
+    TRX_NO_BULK,
+    /** bulk insert is being executed during DML */
+    TRX_DML_BULK,
+    /** bulk insert is being executed in copy_data_between_tables() */
+    TRX_DDL_BULK
 };
 
 /** Memory objects */
@@ -76,8 +88,6 @@ struct trx_undo_t;
 struct roll_node_t;
 /** Commit command node in a query graph */
 struct commit_node_t;
-/** SAVEPOINT command node in a query graph */
-struct trx_named_savept_t;
 /* @} */
 
 /** Row identifier (DB_ROW_ID, DATA_ROW_ID) */
@@ -88,11 +98,6 @@ typedef ib_id_t	trx_id_t;
 typedef ib_id_t	roll_ptr_t;
 /** Undo number */
 typedef ib_id_t	undo_no_t;
-
-/** Transaction savepoint */
-struct trx_savept_t{
-	undo_no_t	least_undo_no;	/*!< least undo number to undo */
-};
 
 /** File objects */
 /* @{ */

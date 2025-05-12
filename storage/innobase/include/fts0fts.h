@@ -201,9 +201,9 @@ struct fts_trx_t {
 
 /** Information required for transaction savepoint handling. */
 struct fts_savepoint_t {
-	char*		name;		/*!< First entry is always NULL, the
-					default instance. Otherwise the name
-					of the savepoint */
+	const void*	name;		/*!< First entry is always NULL, the
+					default instance. Otherwise the
+					savepoint */
 
 	ib_rbt_t*	tables;		/*!< Modified FTS tables */
 };
@@ -666,7 +666,7 @@ void
 fts_savepoint_take(
 /*===============*/
 	fts_trx_t*	fts_trx,		/*!< in: fts transaction */
-	const char*	name);			/*!< in: savepoint name */
+	const void*	name);			/*!< in: savepoint */
 
 /**********************************************************************//**
 Refresh last statement savepoint. */
@@ -681,7 +681,7 @@ void
 fts_savepoint_release(
 /*==================*/
 	trx_t*		trx,			/*!< in: transaction */
-	const char*	name);			/*!< in: savepoint name */
+	const void*	name);			/*!< in: savepoint */
 
 /** Clear cache.
 @param[in,out]	cache	fts cache */
@@ -702,7 +702,7 @@ void
 fts_savepoint_rollback(
 /*===================*/
 	trx_t*		trx,			/*!< in: transaction */
-	const char*	name);			/*!< in: savepoint name */
+	const void*	name);			/*!< in: savepoint */
 
 /*********************************************************************//**
 Rollback to and including savepoint indentified by name. */

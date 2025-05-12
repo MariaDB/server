@@ -3716,3 +3716,103 @@ DROP PROCEDURE p;
 #
 # End of 10.9 tests
 #
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+#
+SET NAMES utf8mb4;
+#
+# A context collation and an explicit NULL
+#
+SELECT NULL COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT NULL COLLATE uca1400_ai_ci AS c1';
+ERROR HY000: 'NULL' is not allowed in this context
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE uca1400_ai_ci AS c1';
+ERROR HY000: 'NULL' is not allowed in this context
+#
+# A context collation and a parameter bound to NULL
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING NULL;
+ERROR HY000: 'NULL' is not allowed in this context
+EXECUTE stmt USING CONCAT(NULL);
+ERROR HY000: 'NULL' is not allowed in this context
+EXECUTE stmt USING NULL COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+EXECUTE stmt USING CONCAT(NULL) COLLATE uca1400_ai_ci;
+ERROR HY000: 'NULL' is not allowed in this context
+#
+# A context collation and CONVERT(NULL USING ...)
+#
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+EXECUTE stmt USING CONVERT(NULL USING utf8mb4) COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` char(0) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+EXECUTE stmt USING CONVERT(NULL USING binary);
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'binary'
+EXECUTE stmt USING CONVERT(NULL USING latin1);
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+#
+# A context collation and an expression with a parameter
+# whose character does not get resolved when bound to a not-NULL value
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT LEFT(NULL,?) COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING NULL;
+ERROR HY000: 'NULL' is not allowed in this context
+#
+# A context collation and an expression with a parameter
+# whose character set gets resolved when bound to a not-NULL value
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING _binary'test';
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'binary'
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING 'test' COLLATE utf8mb4_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE uca1400_ai_ci AS c1';
+EXECUTE stmt USING _latin1'test' COLLATE latin1_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#

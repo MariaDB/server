@@ -35,6 +35,7 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 #include "ctype-uca.h"
+#include "ctype-uca0520.h"
 #include "ctype-unidata.h"
 #include "my_bit.h"
 
@@ -30213,78 +30214,6 @@ MY_UCA_INFO my_uca_v520=
 };
 
 
-#include "ctype-uca1400data.h"
-
-static MY_UCA_INFO my_uca_v1400=
-{
-  {
-    {
-      0x10FFFF,      /* maxchar           */
-      (uchar *) uca1400_length,
-      (uint16 **) uca1400_weight,
-      {              /* Contractions:     */
-        array_elements(uca1400_contractions), /* nitems */
-        uca1400_contractions,                 /* item   */
-        NULL         /*   flags           */
-      },
-      0,             /* levelno */
-      {0},           /* contraction_hash   */
-      NULL           /* booster            */
-    },
-
-    {
-      0x10FFFF,      /* maxchar */
-      (uchar *) uca1400_length_secondary,
-      (uint16 **) uca1400_weight_secondary,
-      {              /* Contractions: */
-        array_elements(uca1400_contractions_secondary), /* nitems */
-        uca1400_contractions_secondary,                 /* item   */
-        NULL         /*   flags */
-      },
-      1,             /* levelno */
-      {0},           /* contraction_hash   */
-      NULL           /* booster            */
-    },
-
-    {
-      0x10FFFF,      /* maxchar */
-      (uchar *) uca1400_length_tertiary,
-      (uint16 **) uca1400_weight_tertiary,
-      {              /* Contractions: */
-        array_elements(uca1400_contractions_tertiary), /* nitems */
-        uca1400_contractions_tertiary,                 /* item   */
-        NULL         /*   flags */
-      },
-      2,             /* levelno */
-      {0},           /* contraction_hash   */
-      NULL           /* booster            */
-    }
-
-  },
-
-  uca1400_non_ignorable_first,
-  uca1400_non_ignorable_last,
-
-  uca1400_primary_ignorable_first,
-  uca1400_primary_ignorable_last,
-
-  uca1400_secondary_ignorable_first,
-  uca1400_secondary_ignorable_last,
-
-  uca1400_tertiary_ignorable_first,
-  uca1400_tertiary_ignorable_last,
-
-  0x0000,    /* first_trailing */
-  0x0000,    /* last_trailing  */
-
-  uca1400_variable_first,
-  uca1400_variable_last,
-
-  /* Misc */
-  uca1400_version
-};
-
-
 /******************************************************/
 
 /*
@@ -31246,25 +31175,12 @@ static const char myanmar[]= "[shift-after-method expand]"
 ;
 
 
-typedef struct my_uca1400_collation_definition_st
-{
-  const char * tailoring;
-  const char * name;
-  uint16 id_utf8mb3;
-  uint16 id_utf8mb4;
-  uint16 id_ucs2;
-  uint16 id_utf16;
-  uint16 id_utf32;
-} MY_UCA1400_COLLATION_DEFINITION;
-
-
-
 /*
   UCA1400 collation definitions in the order of their UCA400 counterparts,
   with IDs of their closest UCA1400 counterparts, for character sets
   utf8mb3, utf8mb4, ucs2, utf16, utf32.
 */
-static MY_UCA1400_COLLATION_DEFINITION
+MY_UCA1400_COLLATION_DEFINITION
 my_uca1400_collation_definitions[MY_UCA1400_COLLATION_DEFINITION_COUNT]=
 {
 #define COLDEF(tl,name,id_utf8mb3,id_utf8mb4,id_ucs2,id_utf16,id_utf32) \
@@ -31308,9 +31224,17 @@ my_uca1400_collation_definitions[MY_UCA1400_COLLATION_DEFINITION_COUNT]=
 };
 
 
-static MY_UCA_INFO
-my_uca1400_info_tailored[MY_CS_ENCODING_LAST+1]
-                        [MY_UCA1400_COLLATION_DEFINITION_COUNT];
+static my_bool
+my_ci_eq_collation_uca(CHARSET_INFO *a, CHARSET_INFO *b)
+{
+  return a->cset == b->cset &&
+         a->coll == b->coll &&
+         a->uca == b->uca &&
+         a->casefold == b->casefold &&
+         (a->state & MY_CS_NOPAD) == (b->state & MY_CS_NOPAD) &&
+         a->levels_for_order == b->levels_for_order &&
+         a->tailoring == b->tailoring;
+}
 
 
 typedef struct my_uca_scanner_param_st
@@ -33867,9 +33791,10 @@ check_rules(MY_CHARSET_LOADER *loader,
             const MY_COLL_RULES *rules,
             const MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
-  const MY_COLL_RULE *r, *rlast;
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  size_t i;
+  for (i= 0; i < rules->nrules; i++)
   {
+    const MY_COLL_RULE *r= &rules->rule[i];
     if (r->curr[0] > dst->maxchar)
     {
       my_snprintf(loader->error, sizeof(loader->error),
@@ -34492,7 +34417,6 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
                   MY_COLL_RULES *rules,
                   MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
-  MY_COLL_RULE *r, *rlast;
   int ncontractions= 0;
   size_t i, npages= (src->maxchar + 1) / 256;
 
@@ -34517,8 +34441,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
     Mark pages that will be otherwriten as NULL.
     We'll allocate their own memory.
   */
-  for (r= rules->rule, rlast= rules->rule + rules->nrules; r < rlast; r++)
+  for (i= 0; i < rules->nrules; i++)
   {
+    const MY_COLL_RULE *r= &rules->rule[i];
     if (!r->curr[1]) /* If not a contraction */
     {
       uint pagec= (r->curr[0] >> 8);
@@ -34564,9 +34489,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
     Now iterate through the rules, overwrite weights for the characters
     that appear in the rules, and put all contractions into contraction list.
   */
-  for (r= rules->rule; r < rlast;  r++)
+  for (i= 0; i < rules->nrules; i++)
   {
-    if (apply_one_rule(loader, rules, r, dst))
+    if (apply_one_rule(loader, rules, &rules->rule[i], dst))
       return TRUE;
   }
 
@@ -34721,6 +34646,30 @@ my_uca_info_init(MY_CHARSET_LOADER *loader,
 
 
 /*
+  Initialize (if needed) an element of the array my_uca1400_info_tailored[].
+  UCA1400 collations with equal character set and tailoring
+  (but with different level flags) share the same MY_UCA_INFO.
+*/
+static MY_UCA_INFO *
+my_uca1400_collation_get_initialized_shared_uca(MY_CHARSET_LOADER *loader,
+                                                struct charset_info_st *cs,
+                                                MY_COLL_RULES *rules,
+                                                const MY_UCA_INFO *src_uca,
+                                                uint id)
+{
+  my_cs_encoding_t enc= my_uca1400_collation_id_to_charset_id(id);
+  uint tailoring= my_uca1400_collation_id_to_tailoring_id(id);
+  MY_UCA_INFO *dst_uca= &my_uca1400_info_tailored[enc][tailoring];
+  DBUG_ASSERT(my_collation_id_is_uca1400(id));
+  if (!dst_uca->level[0].weights/*Check if already initialized*/ &&
+     (my_uca_info_init(loader, dst_uca, rules, cs, src_uca,
+                       (1<<MY_UCA_WEIGHT_LEVELS)-1)))
+    return NULL; /* EOM or an error in rules */
+  return dst_uca;
+}
+
+
+/*
   This function copies an UCS2 collation from
   the default Unicode Collation Algorithm (UCA)
   weights applying tailorings, i.e. a set of
@@ -34787,20 +34736,23 @@ create_tailoring(struct charset_info_st *cs,
     my_ci_set_strength(cs, 1);
 
 
-  if (my_collation_id_is_uca1400(cs->number))
+  if (my_collation_id_is_mysql_uca0900(cs->number))
   {
-    /*
-      UCA1400 collations with equal character set and tailoring
-      (but with different level flags) share the same MY_UCA_INFO.
-    */
-    my_cs_encoding_t enc= my_uca1400_collation_id_to_charset_id(cs->number);
-    uint tailoring= my_uca1400_collation_id_to_tailoring_id(cs->number);
-    MY_UCA_INFO *dst_uca= &my_uca1400_info_tailored[enc][tailoring];
-    if (!dst_uca->level[0].weights &&
-       (rc= my_uca_info_init(loader, dst_uca, &rules, cs, src_uca,
-                             (1<<MY_UCA_WEIGHT_LEVELS)-1)))
-        goto ex;
-    cs->uca= dst_uca;
+    uint id1400= mysql_0900_mapping[cs->number - mysql_0900_collation_start].
+                                                                collation_id;
+    if (!(cs->uca= my_uca1400_collation_get_initialized_shared_uca(loader, cs,
+                                                                   &rules,
+                                                                   src_uca,
+                                                                   id1400)))
+      goto ex;
+  }
+  else if (my_collation_id_is_uca1400(cs->number))
+  {
+    if (!(cs->uca= my_uca1400_collation_get_initialized_shared_uca(loader, cs,
+                                                                   &rules,
+                                                                   src_uca,
+                                                                   cs->number)))
+      goto ex;
   }
   else
   {
@@ -39395,122 +39347,6 @@ struct charset_info_st my_charset_utf16_unicode_520_nopad_ci=
 #endif /* HAVE_CHARSET_utf16 */
 
 
-uint
-my_uca1400_make_builtin_collation_id(my_cs_encoding_t charset_id,
-                                     uint tailoring_id,
-                                     my_bool nopad,
-                                     my_bool secondary_level,
-                                     my_bool tertiary_level)
-{
-  if (!my_uca1400_collation_definitions[tailoring_id].tailoring)
-    return 0;
-  return MY_UCA1400_COLLATION_ID_POSSIBLE_MIN +
-         (charset_id << 8) +
-         (tailoring_id << 3) +
-         (nopad << 2) +
-         (secondary_level << 1) +
-         (tertiary_level << 0);
-}
-
-
-my_bool
-my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
-                                     struct charset_info_st *dst,
-                                     uint id)
-{
-  my_cs_encoding_t cs_id= my_uca1400_collation_id_to_charset_id(id);
-  uint tailoring_id=       my_uca1400_collation_id_to_tailoring_id(id);
-  my_bool nopad=           my_uca1400_collation_id_to_nopad_flag(id);
-  my_bool secondary_level= my_uca1400_collation_id_to_secondary_level_flag(id);
-  my_bool tertiary_level=  my_uca1400_collation_id_to_tertiary_level_flag(id);
-  const MY_UCA1400_COLLATION_DEFINITION *def=
-    &my_uca1400_collation_definitions[tailoring_id];
-  char tmp[128], *coll_name;
-  size_t length;
-
-  switch (cs_id) {
-  case MY_CS_ENCODING_UTF8MB3:
-    *dst= nopad ? my_charset_utf8mb3_unicode_520_nopad_ci :
-                  my_charset_utf8mb3_unicode_520_ci;
-    break;
-  case MY_CS_ENCODING_UTF8MB4:
-    *dst= nopad ? my_charset_utf8mb4_unicode_520_nopad_ci :
-                  my_charset_utf8mb4_unicode_520_ci;
-    break;
-#ifdef HAVE_CHARSET_ucs2
-  case MY_CS_ENCODING_UCS2:
-    *dst= nopad ? my_charset_ucs2_unicode_520_nopad_ci :
-                  my_charset_ucs2_unicode_520_ci;
-    break;
-#endif
-#ifdef HAVE_CHARSET_utf16
-  case MY_CS_ENCODING_UTF16:
-    *dst= nopad ? my_charset_utf16_unicode_520_nopad_ci :
-                  my_charset_utf16_unicode_520_ci;
-    break;
-#endif
-#ifdef HAVE_CHARSET_utf32
-  case MY_CS_ENCODING_UTF32:
-    *dst= nopad ? my_charset_utf32_unicode_520_nopad_ci :
-                  my_charset_utf32_unicode_520_ci;
-    break;
-#endif
-  }
-
-  dst->number= id;
-  dst->uca= &my_uca_v1400;
-  dst->tailoring= def->tailoring;
-  if (def->tailoring == turkish)
-    dst->casefold= &my_casefold_unicode1400tr;
-  else
-    dst->casefold= &my_casefold_unicode1400;
-  if (nopad)
-    dst->state|= MY_CS_NOPAD;
-  my_ci_set_level_flags(dst, (1 << MY_CS_LEVEL_BIT_PRIMARY) |
-                             (secondary_level ?
-                              1 << MY_CS_LEVEL_BIT_SECONDARY : 0) |
-                             (tertiary_level  ?
-                              1 << MY_CS_LEVEL_BIT_TERTIARY  : 0));
-
-  length= my_snprintf(tmp, sizeof(tmp), "%.*s_uca1400%s%s%s%s%s",
-                      (int) dst->cs_name.length, dst->cs_name.str,
-                      def->name[0] ? "_" : "",
-                      def->name,
-                      nopad ? "_nopad" : "",
-                      secondary_level ? "_as" : "_ai",
-                      tertiary_level ? "_cs" : "_ci");
-  if (!(coll_name= loader->once_alloc(length + 1)))
-    return TRUE;
-  strcpy(coll_name, tmp);
-  dst->coll_name.str= coll_name;
-  dst->coll_name.length= length;
-  return FALSE;
-}
-
-
-/*
-  Return UCA-4.0.0 compatible ID, e.g. for use in the protocol
-  with the old clients.
-*/
-static uint my_uca1400_collation_id_uca400_compat(uint id)
-{
-  uint tlid= my_uca1400_collation_id_to_tailoring_id(id);
-  my_cs_encoding_t csid= my_uca1400_collation_id_to_charset_id(id);
-  MY_UCA1400_COLLATION_DEFINITION *def;
-  DBUG_ASSERT(my_collation_id_is_uca1400(id));
-  if (!(def= &my_uca1400_collation_definitions[tlid])->name)
-    return id;
-  switch (csid) {
-  case MY_CS_ENCODING_UTF8MB3: return def->id_utf8mb3;
-  case MY_CS_ENCODING_UTF8MB4: return def->id_utf8mb4;
-  case MY_CS_ENCODING_UCS2:    return def->id_ucs2;
-  case MY_CS_ENCODING_UTF16:   return def->id_utf16;
-  case MY_CS_ENCODING_UTF32:   return def->id_utf32;
-  }
-  return id;
-}
-
-
 uint my_ci_get_id_uca(CHARSET_INFO *cs, my_collation_id_type_t type)
 {
   switch (type)
@@ -39530,23 +39366,6 @@ uint my_ci_get_id_uca(CHARSET_INFO *cs, my_collation_id_type_t type)
 }
 
 
-LEX_CSTRING my_ci_get_collation_name_uca1400_context(CHARSET_INFO *cs)
-{
-  LEX_CSTRING res;
-  DBUG_ASSERT(my_collation_id_is_uca1400(cs->number));
-
-  if (cs->coll_name.length <= cs->cs_name.length ||
-      cs->coll_name.str[cs->cs_name.length] != '_')
-  {
-    DBUG_ASSERT(0);
-    return cs->coll_name;
-  }
-  res.str= cs->coll_name.str + cs->cs_name.length + 1;
-  res.length= cs->coll_name.length - cs->cs_name.length - 1;
-  return res;
-}
-
-
 LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
                                          my_collation_name_mode_t mode)
 {
@@ -39562,6 +39381,5 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
 
   return cs->coll_name;
 }
-
 
 #endif /* HAVE_UCA_COLLATIONS */

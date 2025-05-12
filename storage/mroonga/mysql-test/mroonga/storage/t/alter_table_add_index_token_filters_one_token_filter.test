@@ -34,7 +34,10 @@ CREATE TABLE memos (
 
 ALTER TABLE memos ADD FULLTEXT INDEX (content) COMMENT 'token_filters "TokenFilterStopWord"';
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command("dump --dump_plugins no");
+--enable_cursor_protocol
 
 DROP TABLE memos;
 

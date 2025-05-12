@@ -1,0 +1,60 @@
+create table t1 (
+a varchar(255),
+b varchar(255),
+c varchar(255),
+d varchar(255),
+primary key(a,b,c,d)
+) engine=innodb;
+SET unique_checks=0, foreign_key_checks= 0;
+begin;
+insert into t1 select
+repeat(uuid(), 7), 
+repeat(uuid(), 7), 
+repeat(uuid(), 7), 
+repeat(uuid(), 7)
+from seq_1_to_16384;
+insert into t1 values ('z','z','z','z');
+commit;
+# Restart the server to make sure we have an empty InnoDB Buffer Pool 
+# (in the test's .opt file we've disabled buffer pool saving/loading 
+#  and also tried to disable any background activity)
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+set @innodb_pages_read0= 
+(select variable_value 
+from information_schema.session_status 
+where variable_name like 'innodb_pages_read');
+set @js='$analyze_output';
+set @js=json_extract(@js, '$.query_block.nested_loop[0].table.r_engine_stats');
+set @pages_accessed= cast(json_value(@js,'$.pages_accessed') as INT);
+set @pages_read_count= cast(json_value(@js,'$.pages_read_count') as INT);
+set @pages_prefetch_read_count= cast(json_value(@js,'$.pages_prefetch_read_count') as INT);
+select @pages_accessed > 1000 and @pages_accessed < 1500;
+@pages_accessed > 1000 and @pages_accessed < 1500
+1
+set @total_read = (@pages_read_count + @pages_prefetch_read_count);
+select @pages_accessed*0.75 < @total_read, @total_read < @pages_accessed*1.25;
+@pages_accessed*0.75 < @total_read	@total_read < @pages_accessed*1.25
+1	1
+set @innodb_pages_read1= 
+(select variable_value 
+from information_schema.session_status 
+where variable_name like 'innodb_pages_read');
+set @innodb_pages_read_incr= (@innodb_pages_read1 - @innodb_pages_read0);
+select @innodb_pages_read_incr > 1000, @innodb_pages_read_incr < 1500;
+@innodb_pages_read_incr > 1000	@innodb_pages_read_incr < 1500
+1	1
+set @js='$analyze_output';
+set @js=json_extract(@js, '$.query_block.nested_loop[0].table.r_engine_stats');
+# This must just print pages_accessed. No page reads or prefetch reads,
+# because the previous query has read all the needed pages into the
+# buffer pool, which is set to be large enough to accomodate the whole
+# table.
+select @js;
+@js
+{"pages_accessed": NUMBER}
+set @pages_accessed2= cast(json_value(@js,'$.pages_accessed') as INT);
+select @pages_accessed2 = @pages_accessed;
+@pages_accessed2 = @pages_accessed
+1
+drop table t1;

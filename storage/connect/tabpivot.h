@@ -27,7 +27,7 @@ class PIVAID : public CSORT {
   bool    SkipColumn(PCOLRES crp, char *skc);
 
   // The sorting function
-  virtual int  Qcompare(int *, int *);
+  int  Qcompare(int *, int *) override;
 
  protected:
   // Members
@@ -64,11 +64,11 @@ class PIVOTDEF : public PRXDEF {          /* Logical table description */
   PIVOTDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "PIVOT";}
+  const char *GetType(void) override {return "PIVOT";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -96,22 +96,22 @@ class TDBPIVOT : public TDBPRX {
   TDBPIVOT(PPIVOTDEF tdp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_PIVOT;}
+  AMT  GetAmType(void) override {return TYPE_AM_PIVOT;}
 
   // Methods
-  virtual int  GetRecpos(void) {return N;}
-  virtual void ResetDB(void) {N = 0;}
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+  int  GetRecpos(void) override {return N;}
+  void ResetDB(void) override {N = 0;}
+  int  RowNumber(PGLOBAL g, bool b = FALSE) override;
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  Cardinality(PGLOBAL g) {return (g) ? 10 : 0;}
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  Cardinality(PGLOBAL g) override {return (g) ? 10 : 0;}
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
 
  protected:
   // Internal routines
@@ -154,10 +154,10 @@ class FNCCOL : public COLBLK {
   FNCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_FNC;}
+  int  GetAmType(void) override {return TYPE_AM_FNC;}
 
   // Methods
-  virtual void Reset(void) {}
+  void Reset(void) override {}
           bool InitColumn(PGLOBAL g);
           bool CompareColumn(void);
 
@@ -177,13 +177,13 @@ class SRCCOL : public PRXCOL {
   SRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int n);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_SRC;}
+  int  GetAmType(void) override {return TYPE_AM_SRC;}
 
   // Methods
   using PRXCOL::Init;
-  virtual void Reset(void) {}
+  void Reset(void) override {}
           void SetColumn(void);
-  virtual bool Init(PGLOBAL g, PTDB tp);
+  bool Init(PGLOBAL g, PTDB tp) override;
           bool CompareLast(void);
 
  protected:

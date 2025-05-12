@@ -58,60 +58,60 @@ class ha_oqgraph: public handler
 public:
 #if MYSQL_VERSION_ID >= 50100
   ha_oqgraph(handlerton *hton, TABLE_SHARE *table);
-  ulonglong table_flags() const;
+  ulonglong table_flags() const override;
 #else
   ha_oqgraph(TABLE *table);
   Table_flags table_flags() const;
 #endif
   virtual ~ha_oqgraph();
-  const char *index_type(uint inx)
+  const char *index_type(uint inx) override
   {
     return "HASH";
   }
   /* Rows also use a fixed-size format */
-  enum row_type get_row_type() const { return ROW_TYPE_FIXED; }
-  ulong index_flags(uint inx, uint part, bool all_parts) const;
+  enum row_type get_row_type() const override { return ROW_TYPE_FIXED; }
+  ulong index_flags(uint inx, uint part, bool all_parts) const override;
   const char **bas_ext() const;
-  uint max_supported_keys()          const { return MAX_KEY; }
-  uint max_supported_key_part_length() const { return MAX_KEY_LENGTH; }
-  IO_AND_CPU_COST scan_time()
+  uint max_supported_keys()          const override { return MAX_KEY; }
+  uint max_supported_key_part_length() const override { return MAX_KEY_LENGTH; }
+  IO_AND_CPU_COST scan_time()  override
   { return { (double) 1000000000, (double) 1000000000 }; }
-  IO_AND_CPU_COST rnd_pos_time(ha_rows rows)
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows)  override
   { return { (double) rows, (double) rows }; }
 
   // Doesn't make sense to change the engine on a virtual table.
-  virtual bool can_switch_engines() { return false; }
+  virtual bool can_switch_engines() override { return false; }
 
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
-  int write_row(const byte * buf);
-  int update_row(const uchar * old_data, const uchar * new_data);
-  int delete_row(const byte * buf);
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int write_row(const byte * buf) override;
+  int update_row(const uchar * old_data, const uchar * new_data) override;
+  int delete_row(const byte * buf) override;
   int index_read(byte * buf, const byte * key,
-		 uint key_len, enum ha_rkey_function find_flag);
+		 uint key_len, enum ha_rkey_function find_flag) override;
   int index_read_idx(byte * buf, uint idx, const byte * key,
 		     uint key_len, enum ha_rkey_function find_flag);
-  int index_next_same(byte * buf, const byte * key, uint key_len);
-  int rnd_init(bool scan);
-  int rnd_next(byte *buf);
-  int rnd_pos(byte * buf, byte *pos);
-  void position(const byte *record);
-  int info(uint);
-  int extra(enum ha_extra_function operation);
-  int external_lock(THD *thd, int lock_type);
-  int delete_all_rows(void);
+  int index_next_same(byte * buf, const byte * key, uint key_len) override;
+  int rnd_init(bool scan) override;
+  int rnd_next(byte *buf) override;
+  int rnd_pos(byte * buf, byte *pos) override;
+  void position(const byte *record) override;
+  int info(uint) override;
+  int extra(enum ha_extra_function operation) override;
+  int external_lock(THD *thd, int lock_type) override;
+  int delete_all_rows(void) override;
   ha_rows records_in_range(uint inx, const key_range *min_key,
-                           const key_range *max_key, page_range *pages);
-  int delete_table(const char *from);
-  int rename_table(const char * from, const char * to);
-  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
-  void update_create_info(HA_CREATE_INFO *create_info);
+                           const key_range *max_key, page_range *pages) override;
+  int delete_table(const char *from) override;
+  int rename_table(const char * from, const char * to) override;
+  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info) override;
+  void update_create_info(HA_CREATE_INFO *create_info) override;
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-			     enum thr_lock_type lock_type);
-  int cmp_ref(const byte *ref1, const byte *ref2);
+			     enum thr_lock_type lock_type) override;
+  int cmp_ref(const byte *ref1, const byte *ref2) override;
 
-  bool get_error_message(int error, String* buf);
+  bool get_error_message(int error, String* buf) override;
 
   void fprint_error(const char* fmt, ...);
 
@@ -124,7 +124,7 @@ public:
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
-                                     ulonglong *engine_data)
+                                     ulonglong *engine_data)  override
   {
     /* 
       Do not put data from OQGRAPH tables into query cache (because there 

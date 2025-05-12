@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -979,13 +978,16 @@ int spider_fields::ping_table_mon_from_table(
 spider_group_by_handler::spider_group_by_handler(
   THD *thd_arg,
   Query *query_arg,
-  spider_fields *fields_arg
+  spider_fields *fields_arg,
+  const MY_BITMAP &skips1
 ) : group_by_handler(thd_arg, spider_hton_ptr),
   query(*query_arg), fields(fields_arg)
 {
   DBUG_ENTER("spider_group_by_handler::spider_group_by_handler");
   spider = fields->get_first_table_holder()->spider;
   trx = spider->wide_handler->trx;
+  my_bitmap_init(&skips, NULL, skips1.n_bits);
+  bitmap_copy(&skips, &skips1);
   DBUG_VOID_RETURN;
 }
 
@@ -994,11 +996,18 @@ spider_group_by_handler::~spider_group_by_handler()
   DBUG_ENTER("spider_group_by_handler::~spider_group_by_handler");
   spider_free(spider_current_trx, fields->get_first_table_holder(), MYF(0));
   delete fields;
+  my_bitmap_free(&skips);
+  /*
+    The `skips' bitmap may have been copied to the result_list field
+    of the same name
+  */
+  spider->result_list.skips= NULL;
+  spider->result_list.n_aux= 0;
   DBUG_VOID_RETURN;
 }
 
 static int spider_prepare_init_scan(
-  const Query& query, spider_fields *fields, ha_spider *spider,
+  const Query& query, MY_BITMAP *skips, spider_fields *fields, ha_spider *spider,
   SPIDER_TRX *trx, longlong& offset_limit, THD *thd)
 {
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
@@ -1064,6 +1073,8 @@ static int spider_prepare_init_scan(
   result_list->limit_num =
     result_list->internal_limit >= result_list->split_read ?
     result_list->split_read : result_list->internal_limit;
+  result_list->skips= skips;
+  result_list->n_aux= query.n_aux;
 
   if (select_lex->limit_params.explicit_limit)
   {
@@ -1093,7 +1104,8 @@ static int spider_make_query(const Query& query, spider_fields* fields, ha_spide
       DBUG_RETURN(error_num);
     fields->set_field_ptr(table->field);
     if ((error_num = dbton_hdl->append_list_item_select_part(
-           query.select, NULL, 0, TRUE, fields, SPIDER_SQL_TYPE_SELECT_SQL)))
+           query.select, NULL, 0, TRUE, fields, SPIDER_SQL_TYPE_SELECT_SQL,
+           query.n_aux)))
       DBUG_RETURN(error_num);
     if ((error_num = dbton_hdl->append_from_and_tables_part(
            fields, SPIDER_SQL_TYPE_SELECT_SQL)))
@@ -1181,27 +1193,15 @@ static int spider_send_query(
       }
     } else
     {
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       if ((error_num = dbton_hdl->set_sql_for_exec(
              SPIDER_SQL_TYPE_SELECT_SQL, link_idx, link_idx_chain)))
         DBUG_RETURN(error_num);
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      conn->need_mon = &spider->need_mons[link_idx];
-      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = TRUE;
-      conn->mta_conn_mutex_unlock_later = TRUE;
+      spider_lock_before_query(conn, &spider->need_mons[link_idx]);
       if ((error_num = spider_db_set_names(spider, conn,
         link_idx)))
       if ((error_num = spider_db_set_names(spider, conn, link_idx)))
       {
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
+        spider_unlock_after_query(conn, 0);
         if (spider->need_mons[link_idx])
           error_num = fields->ping_table_mon_from_table(link_idx_chain);
         if ((error_num = spider->check_error_mode_eof(error_num)) ==
@@ -1219,11 +1219,7 @@ static int spider_send_query(
         spider->result_list.quick_mode,
         &spider->need_mons[link_idx]))
       {
-        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-        conn->mta_conn_mutex_lock_already = FALSE;
-        conn->mta_conn_mutex_unlock_later = FALSE;
-        error_num = spider_db_errorno(conn);
+        error_num= spider_unlock_after_query_1(conn);
         if (spider->need_mons[link_idx])
           error_num = fields->ping_table_mon_from_table(link_idx_chain);
         if ((error_num = spider->check_error_mode_eof(error_num)) ==
@@ -1235,13 +1231,9 @@ static int spider_send_query(
         DBUG_RETURN(error_num);
       }
       spider->connection_ids[link_idx] = conn->connection_id;
-      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = FALSE;
-      conn->mta_conn_mutex_unlock_later = FALSE;
       if (fields->is_first_link_ok_chain(link_idx_chain))
       {
-        if ((error_num = spider_db_store_result(spider, link_idx, table)))
+        if ((error_num = spider_unlock_after_query_2(conn, spider, link_idx, table)))
         {
           if (error_num != HA_ERR_END_OF_FILE && spider->need_mons[link_idx])
             error_num = fields->ping_table_mon_from_table(link_idx_chain);
@@ -1258,8 +1250,7 @@ static int spider_send_query(
       } else
       {
         spider_db_discard_result(spider, link_idx, conn);
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
+        spider_unlock_after_query(conn, 0);
       }
     }
   }
@@ -1286,7 +1277,7 @@ int spider_group_by_handler::init_scan()
   }
 
   if ((error_num = spider_prepare_init_scan(
-         query, fields, spider, trx, offset_limit, thd)))
+         query, &skips, fields, spider, trx, offset_limit, thd)))
     DBUG_RETURN(error_num);
 
   if ((error_num = spider_make_query(query, fields, spider, table)))
@@ -1405,6 +1396,7 @@ group_by_handler *spider_create_group_by_handler(
   SPIDER_TABLE_HOLDER *table_holder;
   uint table_idx, dbton_id, table_count= 0;
   long tgt_link_status;
+  MY_BITMAP skips;
   DBUG_ENTER("spider_create_group_by_handler");
 
   if (spider_param_disable_group_by_handler(thd))
@@ -1443,6 +1435,7 @@ group_by_handler *spider_create_group_by_handler(
   if (!(table_holder= spider_create_table_holder(table_count)))
     DBUG_RETURN(NULL);
 
+  my_bitmap_init(&skips, NULL, query->select->elements);
   table_idx = 0;
   from = query->from;
   if (from->table->part_info)
@@ -1546,13 +1539,39 @@ group_by_handler *spider_create_group_by_handler(
       fields_arg->set_table_holder(table_holder, table_count);
       keep_going = TRUE;
       it.init(*query->select);
+      int i= -1, n_aux= query->n_aux;
       while ((item = it++))
       {
+        i++;
+        n_aux--;
         DBUG_PRINT("info",("spider select item=%p", item));
         if (item->const_item())
         {
-          DBUG_PRINT("info",("spider const item"));
-          continue;
+          /*
+            Do not create the GBH when a derived table or view is
+            involved
+          */
+          if (thd->derived_tables != NULL)
+          {
+            keep_going= FALSE;
+            break;
+          }
+
+          /*
+            Do not handle the complex case where there's a const item
+            in the auxiliary fields. It is too unlikely (if at all) to
+            happen to be covered by the GBH.
+
+            TODO: find an example covering this case or determine it
+            never happens and remove this consideration.
+          */
+          if (n_aux >= 0)
+          {
+            spider_clear_bit(dbton_bitmap, roop_count);
+            keep_going= FALSE;
+            break;
+          }
+          bitmap_set_bit(&skips, i);
         }
         if (spider_db_print_item_type(item, NULL, spider, NULL, NULL, 0,
           roop_count, TRUE, fields_arg))
@@ -1594,8 +1613,10 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->group_by; order; order = order->next)
           {
-            if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
-              roop_count, TRUE, fields_arg))
+            if (order->item_ptr == NULL ||
+                spider_db_print_item_type(order->item_ptr, NULL, spider,
+                                          NULL, NULL, 0, roop_count, TRUE,
+                                          fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create group by", roop_count));
               spider_clear_bit(dbton_bitmap, roop_count);
@@ -1612,10 +1633,10 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->order_by; order; order = order->next)
           {
-            if ((*order->item)->type() == Item::SUM_FUNC_ITEM)
-              continue;
-            if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
-              roop_count, TRUE, fields_arg))
+            if (order->item_ptr == NULL ||
+                spider_db_print_item_type(order->item_ptr, NULL, spider,
+                                          NULL, NULL, 0, roop_count, TRUE,
+                                          fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create order by", roop_count));
               spider_clear_bit(dbton_bitmap, roop_count);
@@ -1808,11 +1829,12 @@ group_by_handler *spider_create_group_by_handler(
 
   fields->set_first_link_idx();
 
-  if (!(group_by_handler = new spider_group_by_handler(thd, query, fields)))
+  if (!(group_by_handler = new spider_group_by_handler(thd, query, fields, skips)))
   {
     DBUG_PRINT("info",("spider can't create group_by_handler"));
     goto skip_free_fields;
   }
+  my_bitmap_free(&skips);
   query->distinct = FALSE;
   query->where = NULL;
   query->group_by = NULL;
@@ -1824,5 +1846,6 @@ skip_free_fields:
   delete fields;
 skip_free_table_holder:
   spider_free(spider_current_trx, table_holder, MYF(0));
+  my_bitmap_free(&skips);
   DBUG_RETURN(NULL);
 }

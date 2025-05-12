@@ -20,10 +20,12 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a UUID);
 INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000001');
+--disable_cursor_protocol
 --enable_metadata
 SELECT * FROM t1;
 SELECT CAST('00000000-0000-0000-0000-000000000001' AS UUID) AS a;
 --disable_metadata
+--enable_cursor_protocol
 DROP TABLE t1;
 
 
@@ -1587,6 +1589,7 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a UUID);
+--disable_cursor_protocol
 --enable_metadata
 SELECT
   CAST(a AS BINARY(0)),
@@ -1605,6 +1608,7 @@ SELECT
   CAST(a AS BINARY(16777216))
 FROM t1;
 --disable_metadata
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #

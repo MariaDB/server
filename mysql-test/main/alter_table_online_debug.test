@@ -66,11 +66,13 @@ set debug_sync= 'now SIGNAL end';
 --connection con2
 commit;
 --connection default
+--disable_cursor_protocol
 --disable_view_protocol
 select variable_value into @otd from information_schema.session_status where variable_name='Opened_table_definitions';
 select * from t1;
 select variable_value-@otd from information_schema.session_status where variable_name='Opened_table_definitions';
 --enable_view_protocol
+--enable_cursor_protocol
 
 --echo # long transaction and add column
 create or replace table t1 (a int);

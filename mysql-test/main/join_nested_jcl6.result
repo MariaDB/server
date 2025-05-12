@@ -1410,19 +1410,19 @@ SELECT e FROM t5 NATURAL JOIN t6;
 SELECT t1.a FROM t1 JOIN t2 ON a=b JOIN t3 ON a=c JOIN t4 USING(d);
 a
 SELECT t1.x FROM t1 JOIN t2 ON a=b JOIN t3 ON a=c JOIN t4 USING(d);
-ERROR 42S22: Unknown column 't1.x' in 'field list'
+ERROR 42S22: Unknown column 't1.x' in 'SELECT'
 SELECT t1.a FROM t1 JOIN t2 ON a=b JOIN t3 ON a=c NATURAL JOIN t4;
 a
 SELECT t1.x FROM t1 JOIN t2 ON a=b JOIN t3 ON a=c NATURAL JOIN t4;
-ERROR 42S22: Unknown column 't1.x' in 'field list'
+ERROR 42S22: Unknown column 't1.x' in 'SELECT'
 SELECT v1.e FROM v1 JOIN t2 ON e=b JOIN t3 ON e=c JOIN t4 USING(d);
 e
 SELECT v1.x FROM v1 JOIN t2 ON e=b JOIN t3 ON e=c JOIN t4 USING(d);
-ERROR 42S22: Unknown column 'v1.x' in 'field list'
+ERROR 42S22: Unknown column 'v1.x' in 'SELECT'
 SELECT v2.e FROM v2 JOIN t2 ON e=b JOIN t3 ON e=c JOIN t4 USING(d);
 e
 SELECT v2.x FROM v2 JOIN t2 ON e=b JOIN t3 ON e=c JOIN t4 USING(d);
-ERROR 42S22: Unknown column 'v2.x' in 'field list'
+ERROR 42S22: Unknown column 'v2.x' in 'SELECT'
 DROP VIEW v1, v2;
 DROP TABLE t1, t2, t3, t4, t5, t6;
 create table t1 (id1 int(11) not null);
@@ -1637,13 +1637,13 @@ LEFT JOIN t5 USING (a)) USING (a);
 b
 SELECT c FROM t1 JOIN (t2 LEFT JOIN t3 USING (a) LEFT JOIN t4 USING (a)
 LEFT JOIN t5 USING (a)) USING (a);
-ERROR 23000: Column 'c' in field list is ambiguous
+ERROR 23000: Column 'c' in SELECT is ambiguous
 SELECT b FROM t1 JOIN (t2 JOIN t3 USING (a) JOIN t4 USING (a)
 JOIN t5 USING (a)) USING (a);
 b
 SELECT c FROM t1 JOIN (t2 JOIN t3 USING (a) JOIN t4 USING (a)
 JOIN t5 USING (a)) USING (a);
-ERROR 23000: Column 'c' in field list is ambiguous
+ERROR 23000: Column 'c' in SELECT is ambiguous
 DROP TABLE t1,t2,t3,t4,t5;
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, b INT);
@@ -1652,7 +1652,7 @@ INSERT INTO t1 VALUES (1,1);
 INSERT INTO t2 VALUES (1,1);
 INSERT INTO t3 VALUES (1,1);
 SELECT * FROM t1 JOIN (t2 JOIN t3 USING (b)) USING (a);
-ERROR 23000: Column 'a' in from clause is ambiguous
+ERROR 23000: Column 'a' in FROM is ambiguous
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (
 carrier char(2) default NULL,
@@ -2060,6 +2060,18 @@ a	b	c	a	a	b
 DROP TABLE t1, t2, t3;
 set join_cache_level= @save_join_cache_level;
 # end of 10.3 tests
+#
+# MDEV-32084: Assertion in best_extension_by_limited_search(), or crash elsewhere in release
+#
+CREATE TABLE t1 (i int);
+INSERT INTO t1 values (1),(2);
+SELECT 1 FROM  t1 WHERE i IN
+(SELECT 1 FROM t1 c
+LEFT JOIN  (t1 a LEFT JOIN t1 b ON t1.i = b.i)  ON c.i = t1.i);
+1
+1
+DROP TABLE t1;
+# end of 10.11 tests
 CREATE TABLE t5 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
 CREATE TABLE t6 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));
 CREATE TABLE t7 (a int, b int, c int, PRIMARY KEY(a), KEY b_i (b));

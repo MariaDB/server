@@ -6,8 +6,6 @@ IF(WIN32 OR WITHOUT_SERVER)
   RETURN()
 ENDIF()
 
-MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-deprecated-declarations")
-
 INCLUDE_DIRECTORIES(libhsclient)
 
 # Handlersocket client library. We do not distribute it, 

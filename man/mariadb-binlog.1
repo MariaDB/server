@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-BINLOG\fR" "1" "14 April 2021" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-BINLOG\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,31 +11,31 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqlbinlog
+.\" mariadb-binlog
 .SH "NAME"
-mariadb-binlog \- utility for processing binary log files (mysqlbinlog is now a symlink to mariadb-binlog)
+mariadb-binlog \- utility for processing binary log files (mariadb-binlog is now a symlink to mariadb-binlog)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqlbinlog\ [\fR\fBoptions\fR\fB]\ \fR\fB\fIlog_file\fR\fR\fB\ \&.\&.\&.\fR\ 'u
-\fBmysqlbinlog [\fR\fBoptions\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
+.HP \w'\fBmariadb-binlog\ [\fR\fBoptions\fR\fB]\ \fR\fB\fIlog_file\fR\fR\fB\ \&.\&.\&.\fR\ 'u
+\fBmariadb-binlog [\fR\fBoptions\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
 .SH "DESCRIPTION"
 .PP
 The server's binary log consists of files containing
 \(lqevents\(rq
 that describe modifications to database contents\&. The server writes these files in binary format\&. To display their contents in text format, use the
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 utility\&. You can also use
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to display the contents of relay log files written by a slave server in a replication setup because relay logs have the same format as binary logs\&.
 .PP
 Invoke
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
+shell> \fBmariadb-binlog [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
 .fi
 .if n \{\
 .RE
@@ -48,7 +48,7 @@ binlog\&.000003, use this command:
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.0000003\fR
+shell> \fBmariadb-binlog binlog\&.0000003\fR
 .fi
 .if n \{\
 .RE
@@ -90,12 +90,12 @@ error_code
 indicates the result from executing the event\&. Zero means that no error occurred\&.
 .PP
 The output from
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 can be re\-executed (for example, by using it as input to
-\fBmysql\fR) to redo the statements in the log\&. This is useful for recovery operations after a server crash\&. For other usage examples, see the discussion later in this section\&.
+\fBmariadb\fR) to redo the statements in the log\&. This is useful for recovery operations after a server crash\&. For other usage examples, see the discussion later in this section\&.
 .PP
 Normally, you use
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to read binary log files directly and apply them to the local MariaDB server\&. It is also possible to read binary logs from a remote server by using the
 \fB\-\-read\-from\-remote\-server\fR
 option\&. To read remote binary logs, the connection parameter options can be given to indicate how to connect to the server\&. These options are
@@ -108,9 +108,9 @@ option\&. To read remote binary logs, the connection parameter options can be gi
 \fB\-\-read\-from\-remote\-server\fR
 option\&.
 .PP
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 supports the following options, which can be specified on the command line or in the
-[mysqlbinlog]
+[mariadb-binlog]
 and
 [client]
 option file groups\&.
@@ -123,8 +123,8 @@ option file groups\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: help option
-.\" help option: mysqlbinlog
+.\" mariadb-binlog: help option
+.\" help option: mariadb-binlog
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -139,8 +139,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: base64-output option
-.\" base64-output option: mysqlbinlog
+.\" mariadb-binlog: base64-output option
+.\" base64-output option: mariadb-binlog
 \fB\-\-base64\-output=\fR\fB\fIvalue\fR\fR\fB\fR
 .sp
 This option determines when events should be displayed encoded as base\-64 strings using
@@ -178,7 +178,7 @@ option is given\&.
 Automatic
 BINLOG
 display is the only safe behavior if you intend to use the output of
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to re\-execute binary log file contents\&. The other option values are intended only for debugging or testing purposes because they may produce output that does not include all events in executable form\&.
 .sp .5v
 .RE
@@ -196,7 +196,7 @@ NEVER
 causes
 BINLOG
 statements not to be displayed\&.
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 exits with an error if a row event is found that must be displayed using
 BINLOG\&.
 .RE
@@ -211,7 +211,7 @@ BINLOG\&.
 .\}
 DECODE\-ROWS
 specifies to
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 that you intend for row events to be decoded and displayed as commented SQL statements by also specifying the
 \fB\-\-verbose\fR
 option\&. Like
@@ -239,7 +239,7 @@ For examples that show the effect of
 and
 \fB\-\-verbose\fR
 on row event output, see
-the section called \(lqMYSQLBINLOG ROW EVENT DISPLAY\(rq\&.
+the section called \(lqMARIADB-BINLOG ROW EVENT DISPLAY\(rq\&.
 .RE
 .RE
 .sp
@@ -251,8 +251,8 @@ the section called \(lqMYSQLBINLOG ROW EVENT DISPLAY\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: binlog-row-event-max-size option
-.\" binlog-row-event-max-size option: mysqlbinlog
+.\" mariadb-binlog: binlog-row-event-max-size option
+.\" binlog-row-event-max-size option: mariadb-binlog
 \fB\-\-binlog\-row\-event\-max\-size\=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -266,8 +266,8 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: character-sets-dir option
-.\" character-sets-dir option: mysqlbinlog
+.\" mariadb-binlog: character-sets-dir option
+.\" character-sets-dir option: mariadb-binlog
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -281,13 +281,13 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: database option
-.\" database option: mysqlbinlog
+.\" mariadb-binlog: database option
+.\" database option: mariadb-binlog
 \fB\-\-database=\fR\fB\fIdb_name\fR\fR,
 \fB\-d \fR\fB\fIdb_name\fR\fR
 .sp
 This option causes
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to output entries from the binary log (local log only) that occur while
 \fIdb_name\fR
 has been selected as the default database by
@@ -296,11 +296,11 @@ USE\&.
 The
 \fB\-\-database\fR
 option for
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 is similar to the
 \fB\-\-binlog\-do\-db\fR
 option for
-\fBmysqld\fR, but can be used to specify only one database\&. If
+\fBmariadbd\fR, but can be used to specify only one database\&. If
 \fB\-\-database\fR
 is given multiple times, only the last instance is used\&.
 .sp
@@ -378,7 +378,7 @@ INSERT INTO t2 (j)      VALUES(203);
 .RE
 .\}
 .sp
-\fBmysqlbinlog \-\-database=test\fR
+\fBmariadb-binlog \-\-database=test\fR
 does not output the first two
 INSERT
 statements because there is no default database\&. It outputs the three
@@ -389,7 +389,7 @@ INSERT
 statements following
 USE db2\&.
 .sp
-\fBmysqlbinlog \-\-database=db2\fR
+\fBmariadb-binlog \-\-database=db2\fR
 does not output the first two
 INSERT
 statements because there is no default database\&. It does not output the three
@@ -401,10 +401,10 @@ statements following
 USE db2\&.
 .PP
 \fBRow-based logging\fR.
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 outputs only entries that change tables belonging to
 \fIdb_name\fR\&. The default database has no effect on this\&. Suppose that the binary log just described was created using row\-based logging rather than statement\-based logging\&.
-\fBmysqlbinlog \-\-database=test\fR
+\fBmariadb-binlog \-\-database=test\fR
 outputs only those entries that modify
 t1
 in the test database, regardless of whether
@@ -415,7 +415,7 @@ binlog_format
 set to
 MIXED
 and you want it to be possible to use
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 with the
 \fB\-\-database\fR
 option, you must ensure that tables that are modified are in the database selected by
@@ -433,7 +433,7 @@ USE\&. (In particular, no cross\-database updates should be used\&.)
 .ps -1
 .br
 This option did not work correctly for
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 with row\-based logging prior to MySQL 5\&.1\&.37\&.
 .sp .5v
 .RE
@@ -448,14 +448,14 @@ with row\-based logging prior to MySQL 5\&.1\&.37\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: debug option
-.\" debug option: mysqlbinlog
+.\" mariadb-binlog: debug option
+.\" debug option: mariadb-binlog
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqlbinlog.trace'.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mariadb-binlog.trace'.
 .RE
 .sp
 .RS 4
@@ -466,8 +466,8 @@ string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqlbinlog.trace'
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: debug-check option
-.\" debug-check option: mysqlbinlog
+.\" mariadb-binlog: debug-check option
+.\" debug-check option: mariadb-binlog
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -481,8 +481,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: debug-info option
-.\" debug-info option: mysqlbinlog
+.\" mariadb-binlog: debug-info option
+.\" debug-info option: mariadb-binlog
 \fB\-\-debug\-info\fR
 .sp
 Print debugging information and memory and CPU usage statistics when the program exits\&.
@@ -496,8 +496,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: defaults-extra-file option
-.\" defaults-extra-file option: mysqlbinlog
+.\" mariadb-binlog: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-binlog
 \fB\-\-defaults\-extra\-file=\fR\fB\fIname\fR
 .sp
 Read this file after the global files are read\&.
@@ -511,8 +511,8 @@ Read this file after the global files are read\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: defaults-file option
-.\" defaults-file option: mysqlbinlog
+.\" mariadb-binlog: defaults-file option
+.\" defaults-file option: mariadb-binlog
 \fB\-\-defaults\-file=\fR\fB\fIname\fR
 .sp
 Only read default options from the given file\&.
@@ -526,8 +526,8 @@ Only read default options from the given file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: default-auth option
-.\" default-auth option: mysqlbinlog
+.\" mariadb-binlog: default-auth option
+.\" default-auth option: mariadb-binlog
 \fB\-\-default\-auth=\fR\fB\fIname\fR
 .sp
 Default authentication client-side plugin to use\&.
@@ -541,8 +541,8 @@ Default authentication client-side plugin to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: disable-log-bin option
-.\" disable-log-bin option: mysqlbinlog
+.\" mariadb-binlog: disable-log-bin option
+.\" disable-log-bin option: mariadb-binlog
 \fB\-\-disable\-log\-bin\fR,
 \fB\-D\fR
 .sp
@@ -553,7 +553,7 @@ option and are sending the output to the same MariaDB server\&. This option also
 This option requires that you have the
 SUPER
 privilege\&. It causes
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to include a
 SET sql_log_bin = 0
 statement in its output to disable binary logging of the remaining output\&. The
@@ -571,8 +571,24 @@ privilege\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: force-if-open option
-.\" force-if-open option: mysqlbinlog
+.\" mariadb-binlog: flashback option
+.\" flashback option: mariadb-binlog
+\fB\-\-flashback\fR,
+\fB\-B\fR
+.sp
+Support flashback mode\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-binlog: force-if-open option
+.\" force-if-open option: mariadb-binlog
 \fB\-\-force\-if\-open\fR
 .sp
 Force if binlog was not closed properly. Defaults to on; use \fB--skip-force-if-open\fR to disable\&.
@@ -586,15 +602,15 @@ Force if binlog was not closed properly. Defaults to on; use \fB--skip-force-if-
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: force-read option
-.\" force-read option: mysqlbinlog
+.\" mariadb-binlog: force-read option
+.\" force-read option: mariadb-binlog
 \fB\-\-force\-read\fR,
 \fB\-f\fR
 .sp
 With this option, if
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 reads a binary log event that it does not recognize, it prints a warning, ignores the event, and continues\&. Without this option,
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 stops if it reads such an event\&.
 .RE
 .sp
@@ -606,13 +622,13 @@ stops if it reads such an event\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: hexdump option
-.\" hexdump option: mysqlbinlog
+.\" mariadb-binlog: hexdump option
+.\" hexdump option: mariadb-binlog
 \fB\-\-hexdump\fR,
 \fB\-H\fR
 .sp
 Display a hex dump of the log in comments, as described in
-the section called \(lqMYSQLBINLOG HEX DUMP FORMAT\(rq\&. The hex output can be helpful for replication debugging\&.
+the section called \(lqMARIADB-BINLOG HEX DUMP FORMAT\(rq\&. The hex output can be helpful for replication debugging\&.
 .RE
 .sp
 .RS 4
@@ -623,8 +639,8 @@ the section called \(lqMYSQLBINLOG HEX DUMP FORMAT\(rq\&. The hex output can be 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: host option
-.\" host option: mysqlbinlog
+.\" mariadb-binlog: host option
+.\" host option: mariadb-binlog
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -639,8 +655,8 @@ Get the binary log from the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: local-load option
-.\" local-load option: mysqlbinlog
+.\" mariadb-binlog: local-load option
+.\" local-load option: mariadb-binlog
 \fB\-\-local\-load=\fR\fB\fIpath\fR\fR,
 \fB\-l \fR\fB\fIpath\fR\fR
 .sp
@@ -657,8 +673,8 @@ in the specified directory\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: no-defaults option
-.\" no-defaults option: mysqlbinlog
+.\" mariadb-binlog: no-defaults option
+.\" no-defaults option: mariadb-binlog
 \fB\-\-no\-defaults\fR
 .sp
 Don't read default options from any option file\&.
@@ -672,8 +688,8 @@ Don't read default options from any option file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: offset option
-.\" offset option: mysqlbinlog
+.\" mariadb-binlog: offset option
+.\" offset option: mariadb-binlog
 \fB\-\-offset=\fR\fB\fIN\fR\fR,
 \fB\-o \fR\fB\fIN\fR\fR
 .sp
@@ -690,12 +706,12 @@ entries in the log\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: open-files-limit option
-.\" open-files-limit option: mysqlbinlog
+.\" mariadb-binlog: open-files-limit option
+.\" open-files-limit option: mariadb-binlog
 \fB\-\-open\-files\-limit=\fR\fB\fINUM\fR\fR
 .sp
 Sets the open_files_limit variable, which is used to reserve file descriptors for
-\fBmysqlbinlog\fR\&.
+\fBmariadb-binlog\fR\&.
 .RE
 .sp
 .RS 4
@@ -706,8 +722,8 @@ Sets the open_files_limit variable, which is used to reserve file descriptors fo
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: password option
-.\" password option: mysqlbinlog
+.\" mariadb-binlog: password option
+.\" password option: mariadb-binlog
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -720,7 +736,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. You
@@ -735,8 +751,8 @@ can use an option file to avoid giving the password on the command line\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: plugin-dir option
-.\" plugin-dir option: mysqlbinlog
+.\" mariadb-binlog: plugin-dir option
+.\" plugin-dir option: mariadb-binlog
 \fB\-\-plugin\-dir=\fIdir_name\fR
 .sp
 Directory for client-side plugins\&.
@@ -750,8 +766,8 @@ Directory for client-side plugins\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: print-defaults option
-.\" print-defaults option: mysqlbinlog
+.\" mariadb-binlog: print-defaults option
+.\" print-defaults option: mariadb-binlog
 \fB\-\-print\-defaults\fR
 .sp
 Print the program argument list from all option files and exit\&.
@@ -765,8 +781,8 @@ Print the program argument list from all option files and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: port option
-.\" port option: mysqlbinlog
+.\" mariadb-binlog: port option
+.\" port option: mariadb-binlog
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -784,8 +800,8 @@ Forces --protocol=tcp when specified on the command line without other connectio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: protocol option
-.\" protocol option: mysqlbinlog
+.\" mariadb-binlog: protocol option
+.\" protocol option: mariadb-binlog
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -799,8 +815,8 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: raw option
-.\" raw option: mysqlbinlog
+.\" mariadb-binlog: raw option
+.\" raw option: mariadb-binlog
 \fB\-\-raw\fR
 .sp
 Requires \fB-R\fR\&. Output raw binlog data instead of SQL statements\&. Output files named after server logs\&.
@@ -814,8 +830,8 @@ Requires \fB-R\fR\&. Output raw binlog data instead of SQL statements\&. Output 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: read-from-remote-server option
-.\" read-from-remote-server option: mysqlbinlog
+.\" mariadb-binlog: read-from-remote-server option
+.\" read-from-remote-server option: mariadb-binlog
 \fB\-\-read\-from\-remote\-server\fR,
 \fB\-R\fR
 .sp
@@ -838,8 +854,8 @@ This option requires that the remote server be running\&. It works only for bina
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: result-file option
-.\" result-file option: mysqlbinlog
+.\" mariadb-binlog: result-file option
+.\" result-file option: mariadb-binlog
 \fB\-\-result\-file=\fR\fB\fIname\fR\fR,
 \fB\-r \fR\fB\fIname\fR\fR
 .sp
@@ -854,8 +870,8 @@ Direct output to the given file\&. With --raw this is a prefix for the file name
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: rewrite-db option
-.\" rewrite-db option: mysqlbinlog
+.\" mariadb-binlog: rewrite-db option
+.\" rewrite-db option: mariadb-binlog
 \fB\-\-rewrite\-db=\fR\fB\fIname\fR\fR,
 \fB\-r \fR\fB\fIname\fR\fR
 .sp
@@ -880,8 +896,8 @@ quote the value (e.g. \fB--rewrite-db="oldname->newname"\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: server-id option
-.\" server-id option: mysqlbinlog
+.\" mariadb-binlog: server-id option
+.\" server-id option: mariadb-binlog
 \fB\-\-server\-id=\fR\fB\fIid\fR\fR
 .sp
 Display only those events created by the server having the given server ID\&.
@@ -895,8 +911,8 @@ Display only those events created by the server having the given server ID\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: set-charset option
-.\" set-charset option: mysqlbinlog
+.\" mariadb-binlog: set-charset option
+.\" set-charset option: mariadb-binlog
 \fB\-\-set\-charset=\fR\fB\fIcharset_name\fR\fR
 .sp
 Add a
@@ -912,8 +928,8 @@ statement to the output to specify the character set to be used for processing l
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: short-form option
-.\" short-form option: mysqlbinlog
+.\" mariadb-binlog: short-form option
+.\" short-form option: mariadb-binlog
 \fB\-\-short\-form\fR,
 \fB\-s\fR
 .sp
@@ -931,8 +947,8 @@ base64-output, consider using \fB--base64-output=never\fR instead\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: socket option
-.\" socket option: mysqlbinlog
+.\" mariadb-binlog: socket option
+.\" socket option: mariadb-binlog
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -949,8 +965,8 @@ Forces --protocol=socket when specified on the command line without other connec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: start-datetime option
-.\" start-datetime option: mysqlbinlog
+.\" mariadb-binlog: start-datetime option
+.\" start-datetime option: mariadb-binlog
 \fB\-\-start\-datetime=\fR\fB\fIdatetime\fR\fR
 .sp
 Start reading the binary log at the first event having a timestamp equal to or later than the
@@ -958,7 +974,7 @@ Start reading the binary log at the first event having a timestamp equal to or l
 argument\&. The
 \fIdatetime\fR
 value is relative to the local time zone on the machine where you run
-\fBmysqlbinlog\fR\&. The value should be in a format accepted for the
+\fBmariadb-binlog\fR\&. The value should be in a format accepted for the
 DATETIME
 or
 TIMESTAMP
@@ -968,7 +984,7 @@ data types\&. For example:
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog \-\-start\-datetime="2014\-12\-25 11:25:56" binlog\&.000003\fR
+shell> \fBmariadb-binlog \-\-start\-datetime="2014\-12\-25 11:25:56" binlog\&.000003\fR
 .fi
 .if n \{\
 .RE
@@ -985,8 +1001,8 @@ This option is useful for point\-in\-time recovery\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: start-position option
-.\" start-position option: mysqlbinlog
+.\" mariadb-binlog: start-position option
+.\" start-position option: mariadb-binlog
 \fB\-\-start\-position=\fR\fB\fIN\fR\fR,
 \fB\-j \fR\fB\fIN\fR\fR
 .sp
@@ -1011,8 +1027,8 @@ This option is useful for point\-in\-time recovery\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: gtid-strict-mode
-.\" gtid-strict-mode option: mysqlbinlog
+.\" mariadb-binlog: gtid-strict-mode
+.\" gtid-strict-mode option: mariadb-binlog
 \fB\-\-gtid\-strict\-mode
 .sp
 Process binlog according to gtid-strict-mode specification\&. The start, stop
@@ -1028,8 +1044,8 @@ numbers of any gtid domain must comprise monotically growing sequence\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: stop-datetime option
-.\" stop-datetime option: mysqlbinlog
+.\" mariadb-binlog: stop-datetime option
+.\" stop-datetime option: mariadb-binlog
 \fB\-\-stop\-datetime=\fR\fB\fIdatetime\fR\fR
 .sp
 Stop reading the binary log at the first event having a timestamp equal to or later than the
@@ -1051,8 +1067,8 @@ This option is useful for point\-in\-time recovery\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: stop-never option
-.\" stop-never option: mysqlbinlog
+.\" mariadb-binlog: stop-never option
+.\" stop-never option: mariadb-binlog
 \fB\-\-stop\-never\fR
 .sp
 Wait for more data from the server instead of stopping at the end of the last log\&. Implies \fB--to-last-log\fR\&.
@@ -1066,8 +1082,8 @@ Wait for more data from the server instead of stopping at the end of the last lo
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: stop-never-slave-server-id option
-.\" stop-never-slave-server-id option: mysqlbinlog
+.\" mariadb-binlog: stop-never-slave-server-id option
+.\" stop-never-slave-server-id option: mariadb-binlog
 \fB\-\-stop\-never-slave-server-id\fR
 .sp
 The slave server_id used for \fB--read-from-remote-server --stop-never\fR\&.
@@ -1081,8 +1097,8 @@ The slave server_id used for \fB--read-from-remote-server --stop-never\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: stop-position option
-.\" stop-position option: mysqlbinlog
+.\" mariadb-binlog: stop-position option
+.\" stop-position option: mariadb-binlog
 \fB\-\-stop\-position=\fR\fB\fIN\fR\fR
 .sp
 Stop reading the binary log at the first event having a position equal to or
@@ -1104,8 +1120,8 @@ This option is useful for point\-in\-time recovery\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: table option
-.\" table option: mysqlbinlog
+.\" mariadb-binlog: table option
+.\" table option: mariadb-binlog
 \fB\-\-table\fR,
 \fB\-T\fR
 .sp
@@ -1121,8 +1137,8 @@ List entries for just this table (local log only)\&.
 .IP \(bu 2.3
 .\}
 
-.\" mysqlbinlog: to-last-log option
-.\" to-last-log option: mysqlbinlog
+.\" mariadb-binlog: to-last-log option
+.\" to-last-log option: mariadb-binlog
 \fB\-\-to\-last\-log\fR,
 \fB\-t\fR
 .sp
@@ -1138,8 +1154,8 @@ Do not stop at the end of the requested binary log from a MariaDB server, but ra
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: user option
-.\" user option: mysqlbinlog
+.\" mariadb-binlog: user option
+.\" user option: mariadb-binlog
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -1154,8 +1170,8 @@ The MariaDB username to use when connecting to a remote server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: verbose option
-.\" verbose option: mysqlbinlog
+.\" mariadb-binlog: verbose option
+.\" verbose option: mariadb-binlog
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -1167,7 +1183,7 @@ For examples that show the effect of
 and
 \fB\-\-verbose\fR
 on row event output, see
-the section called \(lqMYSQLBINLOG ROW EVENT DISPLAY\(rq\&.
+the section called \(lqMARIADB-BINLOG ROW EVENT DISPLAY\(rq\&.
 .RE
 .sp
 .RS 4
@@ -1178,8 +1194,8 @@ the section called \(lqMYSQLBINLOG ROW EVENT DISPLAY\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqlbinlog: version option
-.\" version option: mysqlbinlog
+.\" mariadb-binlog: version option
+.\" version option: mariadb-binlog
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -1205,9 +1221,9 @@ Specify the number of open file descriptors to reserve\&.
 .RE
 .PP
 You can pipe the output of
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 into the
-\fBmysql\fR
+\fBmariadb\fR
 client to execute the events contained in the binary log\&. This technique is used to recover from a crash when you have an old
 backup\&. For example:
 .sp
@@ -1215,7 +1231,7 @@ backup\&. For example:
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.000001 | mysql \-u root \-p\fR
+shell> \fBmariadb-binlog binlog\&.000001 | mariadb \-u root \-p\fR
 .fi
 .if n \{\
 .RE
@@ -1227,32 +1243,32 @@ Or:
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.[0\-9]* | mysql \-u root \-p\fR
+shell> \fBmariadb-binlog binlog\&.[0\-9]* | mariadb \-u root \-p\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 You can also redirect the output of
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to a text file instead, if you need to modify the statement log first (for example, to remove statements that you do not want to execute for some reason)\&. After editing the file, execute the statements that it contains by using it as input to the
-\fBmysql\fR
+\fBmariadb\fR
 program:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.000001 > tmpfile\fR
+shell> \fBmariadb-binlog binlog\&.000001 > tmpfile\fR
 shell> \&.\&.\&. \fIedit tmpfile\fR \&.\&.\&.
-shell> \fBmysql \-u root \-p < tmpfile\fR
+shell> \fBmariadb \-u root \-p < tmpfile\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 When
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 is invoked with the
 \fB\-\-start\-position\fR
 option, it displays only those events with an offset in the binary log greater than or equal to a given position (the given position must match the start of one event)\&. It also has options to stop and start when it sees an event with a given date and time\&. This enables you to perform point\-in\-time recovery using the
@@ -1267,8 +1283,8 @@ If you have more than one binary log to execute on the MariaDB server, the safe 
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.000001 | mysql \-u root \-p # DANGER!!\fR
-shell> \fBmysqlbinlog binlog\&.000002 | mysql \-u root \-p # DANGER!!\fR
+shell> \fBmariadb-binlog binlog\&.000001 | mariadb \-u root \-p # DANGER!!\fR
+shell> \fBmariadb-binlog binlog\&.000002 | mariadb \-u root \-p # DANGER!!\fR
 .fi
 .if n \{\
 .RE
@@ -1277,22 +1293,22 @@ shell> \fBmysqlbinlog binlog\&.000002 | mysql \-u root \-p # DANGER!!\fR
 Processing binary logs this way using different connections to the server causes problems if the first log file contains a
 CREATE TEMPORARY TABLE
 statement and the second log contains a statement that uses the temporary table\&. When the first
-\fBmysql\fR
+\fBmariadb\fR
 process terminates, the server drops the temporary table\&. When the second
-\fBmysql\fR
+\fBmariadb\fR
 process attempts to use the table, the server reports
 \(lqunknown table\&.\(rq
 .PP
 To avoid problems like this, use a
 \fIsingle\fR
-\fBmysql\fR
+\fBmariadb\fR
 process to execute the contents of all binary logs that you want to process\&. Here is one way to do so:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.000001 binlog\&.000002 | mysql \-u root \-p\fR
+shell> \fBmariadb-binlog binlog\&.000001 binlog\&.000002 | mariadb \-u root \-p\fR
 .fi
 .if n \{\
 .RE
@@ -1304,19 +1320,19 @@ Another approach is to write all the logs to a single file and then process the 
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog binlog\&.000001 >  /tmp/statements\&.sql\fR
-shell> \fBmysqlbinlog binlog\&.000002 >> /tmp/statements\&.sql\fR
-shell> \fBmysql \-u root \-p \-e "source /tmp/statements\&.sql"\fR
+shell> \fBmariadb-binlog binlog\&.000001 >  /tmp/statements\&.sql\fR
+shell> \fBmariadb-binlog binlog\&.000002 >> /tmp/statements\&.sql\fR
+shell> \fBmariadb \-u root \-p \-e "source /tmp/statements\&.sql"\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 can produce output that reproduces a
 LOAD DATA INFILE
 operation without the original data file\&.
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 copies the data to a temporary file and writes a
 LOAD DATA LOCAL INFILE
 statement that refers to the file\&. The default location of the directory where these files are written is system\-specific\&. To specify a directory explicitly, use the
@@ -1324,7 +1340,7 @@ statement that refers to the file\&. The default location of the directory where
 option\&.
 .PP
 Because
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 converts
 LOAD DATA INFILE
 statements to
@@ -1354,19 +1370,19 @@ automatically deleted because they are needed until you actually execute those s
 \fIoriginal_file_name\-#\-#\fR\&.
 .sp .5v
 .RE
-.SH "MYSQLBINLOG HEX DUMP FORMAT"
+.SH "MARIADB-BINLOG HEX DUMP FORMAT"
 .PP
 The
 \fB\-\-hexdump\fR
 option causes
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to produce a hex dump of the binary log contents:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog \-\-hexdump master\-bin\&.000001\fR
+shell> \fBmariadb-binlog \-\-hexdump master\-bin\&.000001\fR
 .fi
 .if n \{\
 .RE
@@ -1756,11 +1772,11 @@ T}
 .TE
 .sp 1
 .RE
-.SH "MYSQLBINLOG ROW EVENT DISPLAY"
-.\" BINLOG statement: mysqlbinlog output
+.SH "MARIADB-BINLOG ROW EVENT DISPLAY"
+.\" BINLOG statement: mariadb-binlog output
 .PP
 The following examples illustrate how
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 displays row events that specify data modifications\&. These correspond to events with the
 WRITE_ROWS_EVENT,
 UPDATE_ROWS_EVENT, and
@@ -1794,7 +1810,7 @@ COMMIT;
 .\}
 .PP
 By default,
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 displays row events encoded as base\-64 strings using
 BINLOG
 statements\&. Omitting extraneous lines, the output for the row events produced by the preceding statement sequence looks like this:
@@ -1803,7 +1819,7 @@ statements\&. Omitting extraneous lines, the output for the row events produced 
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog \fR\fB\fIlog_file\fR\fR
+shell> \fBmariadb-binlog \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
@@ -1827,7 +1843,7 @@ fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP'/*!*/;
 To see the row events as comments in the form of
 \(lqpseudo\-SQL\(rq
 statements, run
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 with the
 \fB\-\-verbose\fR
 or
@@ -1839,7 +1855,7 @@ option\&. The output will contain lines beginning with
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog \-v \fR\fB\fIlog_file\fR\fR
+shell> \fBmariadb-binlog \-v \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
@@ -1889,7 +1905,7 @@ twice to also display data types and some metadata for each column\&. The output
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog \-vv \fR\fB\fIlog_file\fR\fR
+shell> \fBmariadb-binlog \-vv \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
@@ -1930,7 +1946,7 @@ fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP'/*!*/;
 .\}
 .PP
 You can tell
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 to suppress the
 BINLOG
 statements for row events by using the
@@ -1947,7 +1963,7 @@ provides a convenient way to see row events only as SQL statements:
 .RS 4
 .\}
 .nf
-shell> \fBmysqlbinlog \-v \-\-base64\-output=DECODE\-ROWS \fR\fB\fIlog_file\fR\fR
+shell> \fBmariadb-binlog \-v \-\-base64\-output=DECODE\-ROWS \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
@@ -1997,7 +2013,7 @@ shell> \fBmysqlbinlog \-v \-\-base64\-output=DECODE\-ROWS \fR\fB\fIlog_file\fR\f
 You should not suppress
 BINLOG
 statements if you intend to re\-execute
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 output\&.
 .sp .5v
 .RE
@@ -2099,7 +2115,7 @@ clause\&.
 .RE
 .PP
 Proper interpretation of row events requires the information from the format description event at the beginning of the binary log\&. Because
-\fBmysqlbinlog\fR
+\fBmariadb-binlog\fR
 does not know in advance whether the rest of the log contains row events, by default it displays the format description event using a
 BINLOG
 statement in the initial part of the output\&.
@@ -2112,7 +2128,7 @@ option can be used to prevent this header from being written\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2021 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

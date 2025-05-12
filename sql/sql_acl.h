@@ -206,7 +206,7 @@ public:
       in save_priv.
   */
   virtual ACL_internal_access_result check(privilege_t want_access,
-                                           privilege_t *save_priv) const= 0;
+            privilege_t *save_priv, bool any_combination_will_do) const= 0;
 };
 
 /**
@@ -312,7 +312,7 @@ public:
    :m_command(command)
   { }
   bool is_revoke() const { return m_command == SQLCOM_REVOKE; }
-  enum_sql_command sql_command_code() const { return m_command; }
+  enum_sql_command sql_command_code() const override { return m_command; }
 };
 
 
@@ -326,7 +326,7 @@ public:
   Sql_cmd_grant_proxy(enum_sql_command command, privilege_t grant_option)
    :Sql_cmd_grant(command), m_grant_option(grant_option)
   { }
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 
@@ -353,7 +353,7 @@ public:
   Sql_cmd_grant_table(enum_sql_command command, const Grant_privilege &grant)
    :Sql_cmd_grant_object(command, grant)
   { }
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 
@@ -367,7 +367,7 @@ public:
    :Sql_cmd_grant_object(command, grant),
     m_sph(sph)
   { }
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 #endif /* SQL_ACL_INCLUDED */

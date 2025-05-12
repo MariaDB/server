@@ -115,7 +115,7 @@ SELECT @@slave_net_timeout = @@global.slave_net_timeout;
 SET slave_net_timeout = 2048;
 ERROR HY000: Variable 'slave_net_timeout' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT slave_net_timeout;
-ERROR 42S22: Unknown column 'slave_net_timeout' in 'field list'
+ERROR 42S22: Unknown column 'slave_net_timeout' in 'SELECT'
 SELECT @@slave_net_timeout;
 @@slave_net_timeout
 3600

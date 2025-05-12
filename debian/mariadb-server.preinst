@@ -29,6 +29,15 @@ export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 mysql_datadir=/var/lib/mysql
 mysql_upgradedir=/var/lib/mysql-upgrade
 
+MARIADBD_USERS="root"
+
+# Check if user 'mysql' exists before referring to it in pgrep
+# to avoid pgrep erroring on 'invalid user name'
+if id mysql >/dev/null 2>&1
+then
+  MARIADBD_USERS="$MARIADBD_USERS,mysql"
+fi
+
 # Try to stop the server in a sane way. If it does not success let the admin
 # do it himself. No database directories should be removed while the server
 # is running! Another mariadbd in e.g. a different chroot is fine for us.
@@ -36,7 +45,7 @@ stop_server() {
   # Return immediately if there are no mysqld processes running on a host
   # (leave containerized processes with the same name in other namespaces)
   # as there is no point in trying to shutdown in that case.
-  if ! pgrep -x --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null
+  if ! pgrep -x -u "$MARIADBD_USERS" --nslist pid --ns $$ "mysqld|mariadbd" > /dev/null
   then
     return
   fi
@@ -79,6 +88,9 @@ do
     break
   fi
 
+  # The whole flag_version thing should be rewritten, so ignore minor Shellcheck
+  # nag for now
+  # shellcheck disable=SC2001
   flag_version=$(echo "$flag" | sed 's/.*debian-\([0-9\.]\+\).flag/\1/')
 
   # Initialize value if empty
@@ -166,14 +178,14 @@ stop_server
 # If we use NIS then errors should be tolerated. It's up to the
 # user to ensure that the mysql user is correctly setup.
 # Beware that there are two ypwhich one of them needs the 2>/dev/null!
-if test -n "$(which ypwhich 2>/dev/null)"  &&  ypwhich >/dev/null 2>&1
+if test -n "$(command -v ypwhich 2>/dev/null)"  &&  ypwhich > /dev/null 2>&1
 then
   set +e
 fi
 
 #
 # Now we have to ensure the following state:
-# /etc/passwd: mysql:x:100:101:MySQL Server:/nonexistent:/bin/false
+# /etc/passwd: mysql:x:100:101:MariaDB Server:/nonexistent:/bin/false
 # /etc/group:  mysql:x:101:
 #
 # Sadly there could any state be present on the system so we have to
@@ -198,9 +210,9 @@ then
     --ingroup mysql \
     --no-create-home \
     --home /nonexistent \
-    --gecos "MySQL Server" \
+    --gecos "MariaDB Server" \
     --shell /bin/false \
-    mysql  >/dev/null
+    mysql >/dev/null 2>&1
 fi
 
 # end of NIS tolerance zone
@@ -211,7 +223,8 @@ set -e
 for dir in DATADIR LOGDIR
 do
   checkdir=$(eval echo "$"$dir)
-  if [ -L "$checkdir" ]; then
+  if [ -L "$checkdir" ]
+  then
     # Use mkdir option 'Z' to create with correct SELinux context.
     mkdir -pZ "$mysql_upgradedir"
     cp -dT "$checkdir" "$mysql_upgradedir/$dir.link"
@@ -225,23 +238,14 @@ then
   mkdir -Z $mysql_datadir
 fi
 
-# Check if MariaDB datadir is available if not fails.
-# There should be symlink or directory available or something will fail.
-if [ -d "$mysql_datadir" ] || [ -L "$mysql_datadir" ]
+# As preset blocksize of GNU df is 1024 then available bytes is $df_available_blocks * 1024
+# 4096 blocks is then lower than 4 MB
+df_available_blocks="$(LC_ALL=C BLOCKSIZE='' df --output=avail "$mysql_datadir" | tail -n 1)"
+if [ "$df_available_blocks" -lt "4096" ]
 then
-    # As preset blocksize of GNU df is 1024 then available bytes is $df_available_blocks * 1024
-    # 4096 blocks is then lower than 4 MB
-    df_available_blocks="$(LC_ALL=C BLOCKSIZE='' df --output=avail "$mysql_datadir" | tail -n 1)"
-    if [ "$df_available_blocks" -lt "4096" ]
-    then
-      echo "ERROR: There's not enough space in $mysql_datadir/" 1>&2
-      db_stop
-      exit 1
-    fi
-else
-    echo "ERROR: There's no directory or symlink available: $mysql_datadir/" 1>&2
-    db_stop
-    exit 1    
+  echo "ERROR: There's not enough space in $mysql_datadir/" 1>&2
+  db_stop
+  exit 1
 fi
 
 # Since the home directory was created before putting the user into

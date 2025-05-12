@@ -639,6 +639,13 @@ extern pthread_mutexattr_t my_errorcheck_mutexattr;
 #endif
 
 typedef uint64 my_thread_id;
+/**
+  Long-standing formats (such as the client-server protocol and the binary log)
+  hard-coded `my_thread_id` to 32 bits in practice. (Though not all
+  `thread_id`s are typed as such, @ref my_thread_id itself among those.)
+  @see MDEV-35706
+*/
+#define MY_THREAD_ID_MAX UINT32_MAX
 
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);

@@ -1,5 +1,5 @@
---- index_enable_disable.result	2013-01-22 22:05:05.246633000 +0400
-+++ index_enable_disable.reject	2013-01-23 02:50:30.723866202 +0400
+--- index_enable_disable.result
++++ index_enable_disable.reject
 @@ -11,15 +11,19 @@
  Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
  t1	1	a	1	a	#	#	NULL	NULL	YES	BTREE		

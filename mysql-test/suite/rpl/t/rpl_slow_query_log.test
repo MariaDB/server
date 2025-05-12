@@ -25,6 +25,11 @@
 #   Note that due to the sleep() command the insert is written to the binary
 #   log in row format.
 
+if (`SELECT $CURSOR_PROTOCOL != 0`)
+{
+   --skip Test requires: cursor-protocol disabled
+}
+
 source include/have_binlog_format_statement.inc;
 source include/master-slave.inc;
 

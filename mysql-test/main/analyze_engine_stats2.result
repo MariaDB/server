@@ -8,56 +8,20 @@ c varchar(255),
 d varchar(255),
 primary key(a,b,c,d)
 ) engine=innodb;
-SET STATEMENT unique_checks=0,foreign_key_checks=0 FOR
+SET unique_checks=0, foreign_key_checks= 0;
+begin;
 insert into t1 select
 repeat(uuid(), 7), 
 repeat(uuid(), 7), 
 repeat(uuid(), 7), 
 repeat(uuid(), 7)
 from seq_1_to_16384;
+commit;
 SET GLOBAL innodb_fast_shutdown=0;
 # restart
 set log_slow_verbosity='engine';
 set long_query_time=0.0;
 set @js='$analyze_output';
-select @js;
-@js
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "select_id": 1,
-    "cost": 0.011647987,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "index",
-          "key": "PRIMARY",
-          "key_length": "1028",
-          "used_key_parts": ["a", "b", "c", "d"],
-          "loops": 1,
-          "r_loops": 1,
-          "rows": 1,
-          "r_rows": 16384,
-          "cost": 0.0110178,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": {
-            "pages_accessed": "REPLACED",
-            "pages_read_count": "REPLACED",
-            "pages_read_time_ms": "REPLACED"
-          },
-          "filtered": 100,
-          "r_filtered": 100
-        }
-      }
-    ]
-  }
-}
 set @pages_read_time_ms=
 (select json_value(@js,'$.query_block.nested_loop[0].table.r_engine_stats.pages_read_time_ms'));
 

@@ -28,141 +28,108 @@ Created 5/20/1997 Heikki Tuuri
 #include "ut0rnd.h"
 #include "ut0new.h"
 
-struct hash_table_t;
 struct hash_cell_t
 {
   /** singly-linked, nullptr terminated list of hash buckets */
   void *node;
 
+private:
+  /** @return pointer to the first element
+  @tparam T      type of the element */
+  template<typename T> T **begin() noexcept
+  { return reinterpret_cast<T**>(&node); }
+  /** @return pointer to the last element
+  @tparam T      type of the element
+  @param next    the next-element pointer in T */
+  template<typename T> T **end(T *T::*next) noexcept
+  {
+    T **prev;
+    for (prev= begin<T>(); *prev; prev= &((*prev)->*next));
+    return prev;
+  }
+
+public:
   /** Append an element.
   @tparam T      type of the element
   @param insert  the being-inserted element
   @param next    the next-element pointer in T */
   template<typename T>
-  void append(T &insert, T *T::*next)
+  void append(T &insert, T *T::*next) noexcept
   {
-    void **after;
-    for (after= &node; *after;
-         after= reinterpret_cast<void**>(&(static_cast<T*>(*after)->*next)));
     insert.*next= nullptr;
-    *after= &insert;
+    *end<T>(next)= &insert;
+  }
+
+  /** Find for an element.
+  @tparam T          type of the element
+  @tparam UnaryPred  unary predicate
+  @param next        the next-element pointer in T
+  @param u           unary predicate for searching the element
+  @return the first matching element
+  @retval nullptr if not found */
+  template<typename T,typename UnaryPred>
+  T *find(T *T::*next, UnaryPred u) const noexcept
+  {
+    T *n;
+    for (n= static_cast<T*>(node); n && !u(n); n= n->*next);
+    return n;
+  }
+
+  /** Search for a pointer to an element.
+  @tparam T          type of the element
+  @tparam UnaryPred  unary predicate
+  @param next        the next-element pointer in T
+  @param u           unary predicate for searching the element
+  @return pointer to the first matching element,
+  or to the last element in the chain */
+  template<typename T,typename UnaryPred>
+  T **search(T *T::*next, UnaryPred u) noexcept
+  {
+    T **prev;
+    for (prev= begin<T>(); !u(*prev); prev= &((*prev)->*next));
+    return prev;
+  }
+
+  /** Remove an element.
+  @tparam T          type of the element
+  @param prev        pointer to the element to be removed
+  @param next        the next-element pointer in T */
+  template<typename T>
+  void remove(T **prev, T *T::*next) noexcept
+  {
+    T &element= **prev;
+    *prev= element.*next;
+    element.*next= nullptr;
+  }
+
+  /** Remove an element.
+  @tparam T      type of the element
+  @param element the being-removed element
+  @param next    the next-element pointer in T */
+  template<typename T>
+  void remove(const T &element, T *T::*next) noexcept
+  {
+    remove(search(next, [&element](const T *p){return p==&element;}), next);
+  }
+
+  /** Insert an element after another.
+  @tparam T  type of the element
+  @param after   the element after which to insert
+  @param insert  the being-inserted element
+  @param next    the next-element pointer in T */
+  template <typename T> void insert_after(T &after, T &insert, T *T::*next)
+  {
+#ifdef UNIV_DEBUG
+    for (const T *c= static_cast<const T *>(node); c; c= c->*next)
+      if (c == &after)
+        goto found;
+    ut_error;
+  found:
+#endif
+    insert.*next= after.*next;
+    after.*next= &insert;
   }
 };
-
-/*******************************************************************//**
-Inserts a struct to a hash table. */
-
-#define HASH_INSERT(TYPE, NAME, TABLE, FOLD, DATA)\
-do {\
-	hash_cell_t*	cell3333;\
-	TYPE*		struct3333;\
-\
-	(DATA)->NAME = NULL;\
-\
-	cell3333 = &(TABLE)->array[(TABLE)->calc_hash(FOLD)];	\
-\
-	if (cell3333->node == NULL) {\
-		cell3333->node = DATA;\
-	} else {\
-		struct3333 = (TYPE*) cell3333->node;\
-\
-		while (struct3333->NAME != NULL) {\
-\
-			struct3333 = (TYPE*) struct3333->NAME;\
-		}\
-\
-		struct3333->NAME = DATA;\
-	}\
-} while (0)
-
-#ifdef UNIV_HASH_DEBUG
-# define HASH_ASSERT_VALID(DATA) ut_a((void*) (DATA) != (void*) -1)
-# define HASH_INVALIDATE(DATA, NAME) *(void**) (&DATA->NAME) = (void*) -1
-#else
-# define HASH_ASSERT_VALID(DATA) do {} while (0)
-# define HASH_INVALIDATE(DATA, NAME) do {} while (0)
-#endif
-
-/*******************************************************************//**
-Deletes a struct from a hash table. */
-
-#define HASH_DELETE(TYPE, NAME, TABLE, FOLD, DATA)\
-do {\
-	hash_cell_t*	cell3333;\
-	TYPE*		struct3333;\
-\
-	cell3333 = &(TABLE)->array[(TABLE)->calc_hash(FOLD)]; \
-\
-	if (cell3333->node == DATA) {\
-		HASH_ASSERT_VALID(DATA->NAME);\
-		cell3333->node = DATA->NAME;\
-	} else {\
-		struct3333 = (TYPE*) cell3333->node;\
-\
-		while (struct3333->NAME != DATA) {\
-\
-			struct3333 = (TYPE*) struct3333->NAME;\
-			ut_a(struct3333);\
-		}\
-\
-		struct3333->NAME = DATA->NAME;\
-	}\
-	HASH_INVALIDATE(DATA, NAME);\
-} while (0)
-
-/*******************************************************************//**
-Gets the first struct in a hash chain, NULL if none. */
-
-#define HASH_GET_FIRST(TABLE, HASH_VAL) (TABLE)->array[HASH_VAL].node
-
-/*******************************************************************//**
-Gets the next struct in a hash chain, NULL if none. */
-
-#define HASH_GET_NEXT(NAME, DATA)	((DATA)->NAME)
-
-/********************************************************************//**
-Looks for a struct in a hash table. */
-#define HASH_SEARCH(NAME, TABLE, FOLD, TYPE, DATA, ASSERTION, TEST)\
-{\
-	(DATA) = (TYPE) HASH_GET_FIRST(TABLE, (TABLE)->calc_hash(FOLD)); \
-	HASH_ASSERT_VALID(DATA);\
-\
-	while ((DATA) != NULL) {\
-		ASSERTION;\
-		if (TEST) {\
-			break;\
-		} else {\
-			HASH_ASSERT_VALID(HASH_GET_NEXT(NAME, DATA));\
-			(DATA) = (TYPE) HASH_GET_NEXT(NAME, DATA);\
-		}\
-	}\
-}
-
-/********************************************************************//**
-Looks for an item in all hash buckets. */
-#define HASH_SEARCH_ALL(NAME, TABLE, TYPE, DATA, ASSERTION, TEST)	\
-do {									\
-	ulint	i3333;							\
-									\
-	for (i3333 = (TABLE)->n_cells; i3333--; ) {			\
-		(DATA) = (TYPE) HASH_GET_FIRST(TABLE, i3333);		\
-									\
-		while ((DATA) != NULL) {				\
-			HASH_ASSERT_VALID(DATA);			\
-			ASSERTION;					\
-									\
-			if (TEST) {					\
-				break;					\
-			}						\
-									\
-			(DATA) = (TYPE) HASH_GET_NEXT(NAME, DATA);	\
-		}							\
-									\
-		if ((DATA) != NULL) {					\
-			break;						\
-		}							\
-	}								\
-} while (0)
 
 /** Hash table with singly-linked overflow lists */
 struct hash_table_t
@@ -174,17 +141,20 @@ struct hash_table_t
 
   /** Create the hash table.
   @param n  the lower bound of n_cells */
-  void create(ulint n)
+  void create(ulint n) noexcept
   {
     n_cells= ut_find_prime(n);
     array= static_cast<hash_cell_t*>(ut_zalloc_nokey(n_cells * sizeof *array));
   }
 
   /** Clear the hash table. */
-  void clear() { memset(array, 0, n_cells * sizeof *array); }
+  void clear() noexcept { memset(array, 0, n_cells * sizeof *array); }
 
   /** Free the hash table. */
-  void free() { ut_free(array); array= nullptr; }
+  void free() noexcept { ut_free(array); array= nullptr; }
 
-  ulint calc_hash(ulint fold) const { return ut_hash_ulint(fold, n_cells); }
+  ulint calc_hash(ulint fold) const noexcept { return fold % n_cells; }
+
+  hash_cell_t *cell_get(ulint fold) const noexcept
+  { return &array[calc_hash(fold)]; }
 };

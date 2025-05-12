@@ -54,32 +54,47 @@ row_vers_impl_x_locked(
 	dict_index_t*	index,
 	const rec_offs*	offsets);
 
-/** Finds out if a version of the record, where the version >= the current
-purge_sys.view, should have ientry as its secondary index entry. We check
-if there is any not delete marked version of the record where the trx
-id >= purge view, and the secondary index entry == ientry; exactly in
-this case we return TRUE.
-@param[in]	also_curr	TRUE if also rec is included in the versions
-				to search; otherwise only versions prior
-				to it are searched
-@param[in]	rec		record in the clustered index; the caller
-				must have a latch on the page
-@param[in]	mtr		mtr holding the latch on rec; it will
-				also hold the latch on purge_view
-@param[in]	index		secondary index
-@param[in]	ientry		secondary index entry
-@param[in]	roll_ptr	roll_ptr for the purge record
-@param[in]	trx_id		transaction ID on the purging record
-@return TRUE if earlier version should have */
+/** Find out whether data tuple has missing data type
+for indexed virtual column.
+@param tuple   data tuple
+@param index   virtual index
+@return true if tuple has missing column type */
+bool dtuple_vcol_data_missing(const dtuple_t &tuple,
+                              const dict_index_t &index);
+/** build virtual column value from current cluster index record data
+@param[in,out]	row		the cluster index row in dtuple form
+@param[in]	clust_index	clustered index
+@param[in]	index		the secondary index
+@param[in]	heap		heap used to build virtual dtuple. */
 bool
-row_vers_old_has_index_entry(
-	bool			also_curr,
-	const rec_t*		rec,
-	mtr_t*			mtr,
+row_vers_build_clust_v_col(
+	dtuple_t*		row,
+	dict_index_t*		clust_index,
 	dict_index_t*		index,
-	const dtuple_t*		ientry,
+	mem_heap_t*		heap);
+/** Build a dtuple contains virtual column data for current cluster index
+@param[in]	rec		cluster index rec
+@param[in]	clust_index	cluster index
+@param[in]	clust_offsets	cluster rec offset
+@param[in]	index		secondary index
+@param[in]	trx_id		transaction ID on the purging record,
+				or 0 if called outside purge
+@param[in]	roll_ptr	roll_ptr for the purge record
+@param[in,out]	heap		heap memory
+@param[in,out]	v_heap		heap memory to keep virtual column tuple
+@param[in,out]	mtr		mini-transaction
+@return dtuple contains virtual column data */
+dtuple_t*
+row_vers_build_cur_vrow(
+	const rec_t*		rec,
+	dict_index_t*		clust_index,
+	rec_offs**		clust_offsets,
+	dict_index_t*		index,
+	trx_id_t		trx_id,
 	roll_ptr_t		roll_ptr,
-	trx_id_t		trx_id);
+	mem_heap_t*		heap,
+	mem_heap_t*		v_heap,
+	mtr_t*			mtr);
 
 /*****************************************************************//**
 Constructs the version of a clustered index record which a consistent

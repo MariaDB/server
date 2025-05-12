@@ -5,6 +5,11 @@ SET @global_log_output = @@global.log_output;
 # Begin the functionality testing for slow_query_log                          #
 ###############################################################################
 
+if (`SELECT $CURSOR_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for cursor-protocol
+}
+
 SET @@session.long_query_time=1;
 
 SET @@global.log_output = 'TABLE';

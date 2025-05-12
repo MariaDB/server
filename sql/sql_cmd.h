@@ -20,6 +20,8 @@
 #ifndef SQL_CMD_INCLUDED
 #define SQL_CMD_INCLUDED
 
+#include <my_base.h>
+
 /*
   When a command is added here, be sure it's also added in mysqld.cc
   in "struct show_var_st status_vars[]= {" ...
@@ -137,6 +139,7 @@ public:
                                          handlerton **ha,
                                          bool tmp_table);
   bool is_set() { return m_storage_engine_name.str != NULL; }
+  const LEX_CSTRING *name() const { return &m_storage_engine_name; }
 };
 
 
@@ -223,6 +226,11 @@ public:
     @return true if SQL command is a DML statement, false otherwise
   */
   virtual bool is_dml() const { return false; }
+
+  virtual void get_dml_stat (ha_rows &found, ha_rows &changed)
+  {
+    found= changed= 0;
+  }
 
   /**
     @brief Unprepare prepared statement for the command
@@ -311,16 +319,16 @@ public:
     @param thd  global context the processed statement
     @returns false on success, true on error
   */
-  virtual bool prepare(THD *thd);
+  bool prepare(THD *thd) override;
 
   /**
     Execute the processed statement once
     @param thd  global context the processed statement
     @returns false on success, true on error
   */
-  virtual bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual bool is_dml() const { return true; }
+  bool is_dml() const override { return true; }
 
   select_result *get_result() { return result; }
 
@@ -410,9 +418,9 @@ public:
     :show_all_slaves_status(status_all)
   {}
 
-  enum_sql_command sql_command_code() const { return SQLCOM_SHOW_SLAVE_STAT; }
+  enum_sql_command sql_command_code() const override { return SQLCOM_SHOW_SLAVE_STAT; }
 
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
   bool is_show_all_slaves_stat() { return show_all_slaves_status; }
 };
 
@@ -421,20 +429,20 @@ class Sql_cmd_create_table_like: public Sql_cmd,
                                  public Storage_engine_name
 {
 public:
-  Storage_engine_name *option_storage_engine_name() { return this; }
-  bool execute(THD *thd);
+  Storage_engine_name *option_storage_engine_name() override { return this; }
+  bool execute(THD *thd) override;
 };
 
 class Sql_cmd_create_table: public Sql_cmd_create_table_like
 {
 public:
-  enum_sql_command sql_command_code() const { return SQLCOM_CREATE_TABLE; }
+  enum_sql_command sql_command_code() const override { return SQLCOM_CREATE_TABLE; }
 };
 
 class Sql_cmd_create_sequence: public Sql_cmd_create_table_like
 {
 public:
-  enum_sql_command sql_command_code() const { return SQLCOM_CREATE_SEQUENCE; }
+  enum_sql_command sql_command_code() const override { return SQLCOM_CREATE_SEQUENCE; }
 };
 
 
@@ -458,9 +466,9 @@ public:
     @param thd the current thread.
     @return false on success.
   */
-  bool execute(THD *thd);
+  bool execute(THD *thd) override;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_CALL;
   }

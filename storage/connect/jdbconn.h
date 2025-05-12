@@ -23,7 +23,7 @@ public:
 	// Constructor
 	JDBConn(PGLOBAL g, PCSZ wrapper);
 
-	virtual void AddJars(PSTRG jpop, char sep);
+	void AddJars(PSTRG jpop, char sep) override;
 	PQRYRES AllocateResult(PGLOBAL g, PTDB tdbp);
 
 	// Attributes
@@ -34,9 +34,9 @@ public:
 
 public:
 	// Operations
-	virtual bool Connect(PJPARM sop);
-	virtual bool MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
-		PCSZ filter, bool pipe) {return true;}
+	bool Connect(PJPARM sop) override;
+	bool MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
+                        PCSZ filter, bool pipe) override {return true;}
 	virtual int  GetResultSize(PCSZ sql, PCOL colp);
 	virtual int  ExecuteCommand(PCSZ sql);
 	virtual int  ExecuteQuery(PCSZ sql);

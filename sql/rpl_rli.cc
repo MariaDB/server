@@ -539,12 +539,13 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     if (my_b_tell(cur_log) >= start_pos)
       break;
 
-    if (!(ev= Log_event::read_log_event(cur_log, fdev,
+    int read_error;
+    if (!(ev= Log_event::read_log_event(cur_log, &read_error, fdev,
                                         opt_slave_sql_verify_checksum)))
     {
-      DBUG_PRINT("info",("could not read event, cur_log->error=%d",
-                         cur_log->error));
-      if (cur_log->error) /* not EOF */
+      DBUG_PRINT("info",("could not read event, read_error=%d",
+                         read_error));
+      if (read_error) /* not EOF */
       {
         *errmsg= "I/O error reading event at position 4";
         delete fdev;
@@ -2517,6 +2518,23 @@ rpl_group_info::unmark_start_commit()
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
+  /*
+    Assert that we have not already wrongly completed this GCO and signalled
+    the next one to start, only to now unmark and make the signal invalid.
+    This is to catch problems like MDEV-34696.
+
+    The error inject rpl_parallel_simulate_temp_err_xid is used to test this
+    precise situation, that we handle it gracefully if it somehow occurs in a
+    release build. So disable the assert in this case.
+  */
+#ifndef DBUG_OFF
+  bool allow_unmark_after_complete= false;
+  DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
+                  allow_unmark_after_complete= true;);
+  DBUG_ASSERT(!gco->next_gco ||
+              gco->next_gco->wait_count > e->count_committing_event_groups ||
+              allow_unmark_after_complete);
+#endif
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
 }

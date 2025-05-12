@@ -5,12 +5,19 @@
 
 --source include/galera_cluster.inc
 --source include/big_test.inc
+--source include/force_restart.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 --let $node_1=node_1
 --let $node_2=node_2
 --let $node_3=node_3
 --let $node_4=node_4
 --source include/auto_increment_offset_save.inc
+
+--connection node_1
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
 
 # Isolate node #3
 --connection node_3
@@ -30,6 +37,7 @@ INSERT INTO t1 VALUES (1, 'A');
 SET SESSION wsrep_on=OFF;
 INSERT INTO t1 VALUES (2, 'B');
 SET SESSION wsrep_on=ON;
+--source include/galera_wait_ready.inc
 DELETE FROM t1 WHERE f1 = 2;
 
 # Wait for node #4 to be voted out
@@ -75,14 +83,15 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
 CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
-CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno ");
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
 
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
 SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
 CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
-CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno ");
 
 --connection node_3
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';

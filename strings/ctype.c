@@ -846,6 +846,8 @@ my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
   const char *strend;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
     return MY_REPERTOIRE_UNICODE30;
+  if (!str) // Avoid UBSAN nullptr-with-offset
+    return MY_REPERTOIRE_ASCII;
   for (strend= str + length; str < strend; str++)
   {
     if (((uchar) *str) > 0x7F)
@@ -1410,4 +1412,42 @@ uint my_casefold_multiply_1(CHARSET_INFO *cs)
 uint my_casefold_multiply_2(CHARSET_INFO *cs)
 {
   return 2;
+}
+
+
+my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other)
+{
+  return FALSE;
+}
+
+
+/*
+  Allocate a memory block for a new charset_info_st together with
+  its name and its comment in a single once_alloc() call.
+  Copy the name and the comment into the new block.
+*/
+struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
+                                    const LEX_CSTRING name,
+                                    LEX_CSTRING *out_name,
+                                    const LEX_CSTRING comment,
+                                    LEX_CSTRING *out_comment)
+{
+  size_t nbytes= sizeof(struct charset_info_st) +
+                 name.length + comment.length + 2;
+  struct charset_info_st *csinfo;
+  char *dst;
+  if (!(csinfo= (struct charset_info_st*) (loader->once_alloc)(nbytes)))
+    return NULL;
+  dst= ((char*) csinfo) + sizeof(struct charset_info_st);
+
+  memcpy(dst, name.str, name.length + 1);
+  out_name->str= dst;
+  out_name->length= name.length;
+  dst+= name.length + 1;
+
+  memcpy(dst, comment.str, comment.length + 1);
+  out_comment->str= dst;
+  out_comment->length= comment.length;
+
+  return csinfo;
 }

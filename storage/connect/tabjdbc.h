@@ -29,11 +29,11 @@ public:
 	JDBCDEF(void);
 
 	// Implementation
-	virtual const char *GetType(void) { return "JDBC"; }
+	const char *GetType(void) override { return "JDBC"; }
 
 	// Methods
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-	virtual PTDB GetTable(PGLOBAL g, MODE m);
+	bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+	PTDB GetTable(PGLOBAL g, MODE m) override;
 	int  ParseURL(PGLOBAL g, char *url, bool b = true);
 	bool SetParms(PJPARM sjp);
 
@@ -60,25 +60,25 @@ public:
   TDBJDBC(PTDBJDBC tdbp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_JDBC;}
-  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJDBC(this);}
+	AMT  GetAmType(void) override {return TYPE_AM_JDBC;}
+  PTDB Duplicate(PGLOBAL g) override {return (PTDB)new(g) TDBJDBC(this);}
 
 	// Methods
-  virtual PTDB Clone(PTABS t);
-	virtual bool SetRecpos(PGLOBAL g, int recpos);
-	virtual void ResetSize(void);
-	virtual PCSZ GetServer(void) { return "JDBC"; }
+  PTDB Clone(PTABS t) override;
+	bool SetRecpos(PGLOBAL g, int recpos) override;
+	void ResetSize(void) override;
+	PCSZ GetServer(void) override { return "JDBC"; }
 	virtual int  Indexable(void) { return 2; }
 
 	// Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-	virtual int  Cardinality(PGLOBAL g);
-	virtual bool OpenDB(PGLOBAL g);
-	virtual int  ReadDB(PGLOBAL g);
-	virtual int  WriteDB(PGLOBAL g);
-	virtual int  DeleteDB(PGLOBAL g, int irc);
-	virtual void CloseDB(PGLOBAL g);
-	virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
+	PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+	int  Cardinality(PGLOBAL g) override;
+	bool OpenDB(PGLOBAL g) override;
+	int  ReadDB(PGLOBAL g) override;
+	int  WriteDB(PGLOBAL g) override;
+	int  DeleteDB(PGLOBAL g, int irc) override;
+	void CloseDB(PGLOBAL g) override;
+	bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr) override;
 
 protected:
 	// Internal functions
@@ -108,12 +108,12 @@ public:
   JDBCCOL(JDBCCOL *colp, PTDB tdbp); // Constructor used in copy process
 
 	// Implementation
-	virtual int  GetAmType(void) { return TYPE_AM_JDBC; }
+	int  GetAmType(void) override { return TYPE_AM_JDBC; }
 
 	// Methods
 //virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-	virtual void ReadColumn(PGLOBAL g);
-	virtual void WriteColumn(PGLOBAL g);
+	void ReadColumn(PGLOBAL g) override;
+	void WriteColumn(PGLOBAL g) override;
 
 protected:
 	// Constructor for count(*) column
@@ -135,19 +135,19 @@ public:
 	TDBXJDC(PJDBCDEF tdp = NULL);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_XDBC;}
+	AMT  GetAmType(void) override {return TYPE_AM_XDBC;}
 
 	// Methods
 
 	// Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+	PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
 	//virtual int  GetProgMax(PGLOBAL g);
-	virtual int  GetMaxSize(PGLOBAL g);
-	virtual bool OpenDB(PGLOBAL g);
-	virtual int  ReadDB(PGLOBAL g);
-	virtual int  WriteDB(PGLOBAL g);
-	virtual int  DeleteDB(PGLOBAL g, int irc);
-	//virtual void CloseDB(PGLOBAL g);
+	int  GetMaxSize(PGLOBAL g) override;
+	bool OpenDB(PGLOBAL g) override;
+	int  ReadDB(PGLOBAL g) override;
+	int  WriteDB(PGLOBAL g) override;
+	int  DeleteDB(PGLOBAL g, int irc) override;
+	//void CloseDB(PGLOBAL g) override;
 
 protected:
 	// Internal functions
@@ -170,11 +170,11 @@ public:
 	JSRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "JDBC");
 
 	// Implementation
-	virtual int  GetAmType(void) {return TYPE_AM_JDBC;}
+	int  GetAmType(void) override {return TYPE_AM_JDBC;}
 
 	// Methods
-	virtual void ReadColumn(PGLOBAL g);
-	virtual void WriteColumn(PGLOBAL g);
+	void ReadColumn(PGLOBAL g) override;
+	void WriteColumn(PGLOBAL g) override;
 
 protected:
 	// Members
@@ -192,7 +192,7 @@ public:
 
 protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g) override;
 
 	// Members
 	int      Maxres;            // Returned lines limit
@@ -208,7 +208,7 @@ public:
 
 protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g) override;
 
 	// Members
 	PCSZ     Schema;            // Points to schema name or NULL
@@ -227,7 +227,7 @@ public:
 
 protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g) override;
 
 	// Members
 	PCSZ Colpat;            // Points to catalog column pattern

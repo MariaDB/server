@@ -222,6 +222,17 @@ DROP VIEW v1;
 DROP TABLE t1;
 # End of 10.4 tests
 #
+# MDEV-33470 Unique hash index is broken on DML for system-versioned table
+#
+create or replace table t (
+c int, unique (c) using hash)
+with system versioning;
+insert into t values (0);
+delete from t;
+delete history from t;
+drop table t;
+# End of 10.5 tests
+#
 # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
 #
 # Don't auto-create new partition on DELETE HISTORY:

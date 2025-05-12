@@ -255,7 +255,7 @@ public:
   load_from_db(THD *thd, const Database_qualified_name *name, TABLE *proc_tbl);
 
 public:
-  virtual Stored_program_creation_ctx *clone(MEM_ROOT *mem_root)
+  Stored_program_creation_ctx *clone(MEM_ROOT *mem_root) override
   {
     return new (mem_root) Stored_routine_creation_ctx(m_client_cs,
                                                       m_connection_cl,
@@ -263,7 +263,7 @@ public:
   }
 
 protected:
-  virtual Object_creation_ctx *create_backup_ctx(THD *thd) const
+  Object_creation_ctx *create_backup_ctx(THD *thd) const override
   {
     DBUG_ENTER("Stored_routine_creation_ctx::create_backup_ctx");
     DBUG_RETURN(new Stored_routine_creation_ctx(thd));
@@ -431,7 +431,7 @@ public:
   Proc_table_intact() : m_print_once(TRUE) { has_keys= TRUE; }
 
 protected:
-  void report_error(uint code, const char *fmt, ...);
+  void report_error(uint code, const char *fmt, ...) override;
 };
 
 
@@ -922,12 +922,12 @@ public:
     :m_error_caught(false)
   {}
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* message,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
   bool error_caught() const { return m_error_caught; }
 
@@ -1736,7 +1736,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_NO_SUCH_TABLE ||
         sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
@@ -2300,12 +2300,11 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
 }
 
 
-extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
-                                  my_bool first)
+extern "C" const uchar *sp_sroutine_key(const void *ptr, size_t *plen, my_bool)
 {
-  Sroutine_hash_entry *rn= (Sroutine_hash_entry *)ptr;
+  auto rn= static_cast<const Sroutine_hash_entry *>(ptr);
   *plen= rn->mdl_request.key.length();
-  return (uchar *)rn->mdl_request.key.ptr();
+  return rn->mdl_request.key.ptr();
 }
 
 

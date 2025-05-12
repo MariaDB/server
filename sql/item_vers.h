@@ -34,7 +34,6 @@ public:
   }
 
   bool val_bool() override;
-  longlong val_int() override { return val_bool(); }
   bool fix_length_and_dec(THD *thd) override
   {
     set_maybe_null();
@@ -49,7 +48,7 @@ public:
     return name;
   }
   void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_history>(thd, this); }
 };
 
@@ -65,7 +64,7 @@ public:
     return (trt_field == TR_table::FLD_BEGIN_TS) ? begin_name : commit_name;
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
   bool fix_length_and_dec(THD *thd) override
   { fix_attributes_datetime(decimals); return FALSE; }
@@ -110,7 +109,7 @@ public:
   }
 
   longlong val_int() override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_id>(thd, this); }
 };
 
@@ -126,8 +125,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("trt_trx_sees") };
     return name;
   }
-  longlong val_int() override;
-  Item *get_copy(THD *thd) override
+  bool val_bool() override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };
 

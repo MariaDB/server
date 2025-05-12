@@ -34,27 +34,27 @@ class DllExport VCTFAM : public FIXFAM {
   VCTFAM(PVCTFAM txfp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_VCT;}
-  virtual PTXF Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_VCT;}
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) VCTFAM(this);}
-  virtual int  GetFileLength(PGLOBAL g);
+  int  GetFileLength(PGLOBAL g) override;
 
   // Methods
-  virtual void Reset(void);
-  virtual int  MaxBlkSize(PGLOBAL g, int s);
-  virtual bool AllocateBuffer(PGLOBAL g);
+  void Reset(void) override;
+  int  MaxBlkSize(PGLOBAL g, int s) override;
+  bool AllocateBuffer(PGLOBAL g) override;
   virtual bool InitInsert(PGLOBAL g);
-  virtual void ResetBuffer(PGLOBAL g) {}
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetRowID(void);
+  void ResetBuffer(PGLOBAL g) override {}
+  int  Cardinality(PGLOBAL g) override;
+  int  GetRowID(void) override;
 
   // Database routines
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+  bool OpenTableFile(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
+  void Rewind(void) override;
 
   // Specific functions
   virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
@@ -62,9 +62,9 @@ class DllExport VCTFAM : public FIXFAM {
 
  protected:
   virtual bool MakeEmptyFile(PGLOBAL g, PCSZ fn);
-  virtual bool OpenTempFile(PGLOBAL g);
+  bool OpenTempFile(PGLOBAL g) override;
   virtual bool MoveLines(PGLOBAL g) {return false;}
-  virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
+  bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL) override;
   virtual bool CleanUnusedSpace(PGLOBAL g);
   virtual int  GetBlockInfo(PGLOBAL g);
   virtual bool SetBlockInfo(PGLOBAL g);
@@ -98,25 +98,25 @@ class DllExport VCMFAM : public VCTFAM {
   VCMFAM(PVCMFAM txfp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_VMP;}
-  virtual PTXF Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_VMP;}
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) VCMFAM(this);}
 
   // Methods
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual bool InitInsert(PGLOBAL g);
+  bool AllocateBuffer(PGLOBAL g) override;
+  bool InitInsert(PGLOBAL g) override;
 
   // Database routines
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
+  bool OpenTableFile(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
 
  protected:
   // Specific functions
-  virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
-  virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
-  virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
+  bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL) override;
+  bool ReadBlock(PGLOBAL g, PVCTCOL colp) override;
+  bool WriteBlock(PGLOBAL g, PVCTCOL colp) override;
 
   // Members
   char*   Memory;               // Pointer on file mapping view.
@@ -137,29 +137,29 @@ class DllExport VECFAM : public VCTFAM {
   VECFAM(PVECFAM txfp);
 
   // Implementation
-  virtual PTXF Duplicate(PGLOBAL g)
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) VECFAM(this);}
 
   // Methods
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual bool InitInsert(PGLOBAL g);
-  virtual void ResetBuffer(PGLOBAL g);
+  bool AllocateBuffer(PGLOBAL g) override;
+  bool InitInsert(PGLOBAL g) override;
+  void ResetBuffer(PGLOBAL g) override;
 
   // Database routines
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
+  bool OpenTableFile(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
 
   // Specific functions
-  virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
-  virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
+  bool ReadBlock(PGLOBAL g, PVCTCOL colp) override;
+  bool WriteBlock(PGLOBAL g, PVCTCOL colp) override;
 
  protected:
-  virtual bool OpenTempFile(PGLOBAL g);
-  virtual bool MoveLines(PGLOBAL g);
-  virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
-  virtual int  RenameTempFile(PGLOBAL g);
+  bool OpenTempFile(PGLOBAL g) override;
+  bool MoveLines(PGLOBAL g) override;
+  bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL) override;
+  int  RenameTempFile(PGLOBAL g) override;
           bool OpenColumnFile(PGLOBAL g, PCSZ opmode, int i);
 
   // Members
@@ -184,16 +184,16 @@ class DllExport VMPFAM : public VCMFAM {
   VMPFAM(PVMPFAM txfp);
 
   // Implementation
-  virtual PTXF Duplicate(PGLOBAL g)
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) VMPFAM(this);}
 
   // Methods
-  virtual bool AllocateBuffer(PGLOBAL g);
+  bool AllocateBuffer(PGLOBAL g) override;
 
   // Database routines
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
+  bool OpenTableFile(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
 
  protected:
           bool MapColumnFile(PGLOBAL g, MODE mode, int i);
@@ -214,33 +214,33 @@ class BGVFAM : public VCTFAM {
   BGVFAM(PBGVFAM txfp);
 
   // Implementation
-  virtual PTXF Duplicate(PGLOBAL g)
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) BGVFAM(this);}
 
   // Methods
-  virtual bool AllocateBuffer(PGLOBAL g);
+  bool AllocateBuffer(PGLOBAL g) override;
 
   // Database routines
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+  bool OpenTableFile(PGLOBAL g) override;
+  int  WriteBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
+  void Rewind(void) override;
 
   // Specific functions
-  virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
-  virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
+  bool ReadBlock(PGLOBAL g, PVCTCOL colp) override;
+  bool WriteBlock(PGLOBAL g, PVCTCOL colp) override;
 
  protected:
           bool BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b = false);
           bool BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req);
           bool BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req);
-  virtual bool MakeEmptyFile(PGLOBAL g, PCSZ fn);
-  virtual bool OpenTempFile(PGLOBAL g);
-  virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
-  virtual bool CleanUnusedSpace(PGLOBAL g);
-  virtual bool SetBlockInfo(PGLOBAL g);
-  virtual int  GetBlockInfo(PGLOBAL g);
+  bool MakeEmptyFile(PGLOBAL g, PCSZ fn) override;
+  bool OpenTempFile(PGLOBAL g) override;
+  bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL) override;
+  bool CleanUnusedSpace(PGLOBAL g) override;
+  bool SetBlockInfo(PGLOBAL g) override;
+  int  GetBlockInfo(PGLOBAL g) override;
 
   // Members
   HANDLE  Hfile;                // Handle to big file

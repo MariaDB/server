@@ -2,7 +2,9 @@ include/master-slave.inc
 [connection master]
 connection master;
 connection slave;
+# MDEV-32892: Repeatedly starting/stopping io_thread..
 include/stop_slave.inc
 NOT FOUND /Error reading packet from server: Lost connection/ in slave_log.err
+NOT FOUND /error code: 2013/ in slave_log.err
 include/start_slave.inc
 include/rpl_end.inc

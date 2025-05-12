@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-DUMP\fR" "1" "24 October 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-DUMP\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,42 +11,42 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqldump
+.\" mariadb-dump
 .\" dumping: databases and tables
 .\" backups: databases and tables
 .\" databases: dumping
 .\" tables: dumping
 .SH "NAME"
-mariadb-dump \- a database backup program (mysqldump is now a symlink to mariadb-dump)
+mariadb-dump \- a database backup program (mariadb-dump is now a symlink to mariadb-dump)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqldump\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB\ [\fR\fB\fItbl_name\fR\fR\fB\ \&.\&.\&.]]\fR\ 'u
-\fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]]\fR
+.HP \w'\fBmariadb-dump\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB\ [\fR\fB\fItbl_name\fR\fR\fB\ \&.\&.\&.]]\fR\ 'u
+\fBmariadb-dump [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]]\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 client is a backup program originally written by Igor Romanenko\&. It can be used to dump a database or a collection of databases for backup or transfer to another SQL server (not necessarily a MariaDB server)\&. The dump typically contains SQL statements to create the table, populate it, or both\&. However,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 can also be used to generate files in CSV, other delimited text, or XML format\&.
 .PP
 If you are doing a backup on the server and your tables all are
 MyISAM
 tables, consider using the
-\fBmysqlhotcopy\fR
+\fBmariadb-hotcopy\fR
 instead because it can accomplish faster backups and faster restores\&. See
-\fBmysqlhotcopy\fR(1)\&.
+\fBmariadb-hotcopy\fR(1)\&.
 .PP
 There are four general ways to invoke
-\fBmysqldump\fR:
+\fBmariadb-dump\fR:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]\fR
-shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \-\-databases \fR\fB\fIdb_name\fR\fR\fB \&.\&.\&.\fR
-shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \-\-all\-databases\fR
-shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \-\-system={options}\fR
+shell> \fBmariadb-dump [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]\fR
+shell> \fBmariadb-dump [\fR\fB\fIoptions\fR\fR\fB] \-\-databases \fR\fB\fIdb_name\fR\fR\fB \&.\&.\&.\fR
+shell> \fBmariadb-dump [\fR\fB\fIoptions\fR\fR\fB] \-\-all\-databases\fR
+shell> \fBmariadb-dump [\fR\fB\fIoptions\fR\fR\fB] \-\-system={options}\fR
 .fi
 .if n \{\
 .RE
@@ -60,7 +60,7 @@ or
 \fB\-\-all\-databases\fR
 option, entire databases are dumped\&.
 .PP
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 does not dump the
 INFORMATION_SCHEMA or performance_schema
 databases by default\&. To dump these,
@@ -69,12 +69,12 @@ name them explicitly on the command line, although you must also use the
 option\&.
 .PP
 To see a list of the options your version of
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 supports, execute
-\fBmysqldump \-\-help\fR\&.
+\fBmariadb-dump \-\-help\fR\&.
 .PP
 Some
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 options are shorthand for groups of other options:
 .sp
 .RS 4
@@ -174,7 +174,7 @@ would not have the intended effect; it is the same as
 \fB\-\-skip\-opt\fR
 by itself\&.
 .PP
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 can retrieve and dump table contents row by row, or it can retrieve the entire content from a table and buffer it in memory before dumping it\&. Buffering in memory can be a problem if you are dumping large tables\&. To dump tables row by row, use the
 \fB\-\-quick\fR
 option (or
@@ -186,7 +186,7 @@ option (and hence
 \fB\-\-skip\-quick\fR\&.
 .PP
 If you are using a recent version of
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 to generate a dump to be reloaded into a very old MySQL server, you should not use the
 \fB\-\-opt\fR
 or
@@ -196,13 +196,13 @@ option\&. Use
 instead\&.
 .RE
 .PP
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 supports the following options, which can be specified on the command line or in the
-[mysqldump]
+[mariadb-dump]
 and
 [client]
 option file groups\&.
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 also supports the options for processing option file\&.
 .sp
 .RS 4
@@ -213,8 +213,8 @@ also supports the options for processing option file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: help option
-.\" help option: mysqldump
+.\" mariadb-dump: help option
+.\" help option: mariadb-dump
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -229,8 +229,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: add-drop-database option
-.\" add-drop-database option: mysqldump
+.\" mariadb-dump: add-drop-database option
+.\" add-drop-database option: mariadb-dump
 \fB\-\-add\-drop\-database\fR
 .sp
 Add a
@@ -254,8 +254,8 @@ statements are written unless one of those options is specified\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: add-drop-table option
-.\" add-drop-table option: mysqldump
+.\" mariadb-dump: add-drop-table option
+.\" add-drop-table option: mariadb-dump
 \fB\-\-add\-drop\-table\fR
 .sp
 Add a
@@ -273,8 +273,8 @@ statement\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: add-drop-trigger option
-.\" add-drop-trigger option: mysqldump
+.\" mariadb-dump: add-drop-trigger option
+.\" add-drop-trigger option: mariadb-dump
 \fB\-\-add\-drop\-trigger\fR
 .sp
 Add a
@@ -292,8 +292,8 @@ statement\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: add-locks option
-.\" add-locks option: mysqldump
+.\" mariadb-dump: add-locks option
+.\" add-locks option: mariadb-dump
 \fB\-\-add\-locks\fR
 .sp
 Surround each table dump with
@@ -311,8 +311,8 @@ statements\&. This results in faster inserts when the dump file is reloaded\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: all-databases option
-.\" all-databases option: mysqldump
+.\" mariadb-dump: all-databases option
+.\" all-databases option: mariadb-dump
 \fB\-\-all\-databases\fR,
 \fB\-A\fR
 .sp
@@ -329,15 +329,15 @@ option and naming all the databases on the command line\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: all-tablespaces option
-.\" all-tablespaces option: mysqldump
+.\" mariadb-dump: all-tablespaces option
+.\" all-tablespaces option: mariadb-dump
 \fB\-\-all\-tablespaces\fR,
 \fB\-Y\fR
 .sp
 Adds to a table dump all SQL statements needed to create any tablespaces used by an
 NDBCLUSTER
 table\&. This information is not otherwise included in the output from
-\fBmysqldump\fR\&. This option is currently relevant only to MySQL Cluster tables\&.
+\fBmariadb-dump\fR\&. This option is currently relevant only to MySQL Cluster tables\&.
 .sp
 .RE
 .sp
@@ -349,8 +349,8 @@ table\&. This information is not otherwise included in the output from
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: allow-keywords option
-.\" allow-keywords option: mysqldump
+.\" mariadb-dump: allow-keywords option
+.\" allow-keywords option: mariadb-dump
 \fB\-\-allow\-keywords\fR
 .sp
 Allow creation of column names that are keywords\&. This works by prefixing each column name with the table name\&.
@@ -364,8 +364,8 @@ Allow creation of column names that are keywords\&. This works by prefixing each
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: apply-slave-statements option
-.\" apply-slave-statements option: mysqldump
+.\" mariadb-dump: apply-slave-statements option
+.\" apply-slave-statements option: mariadb-dump
 \fB\-\-apply\-slave\-statements\fR
 .sp
 Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump\&.
@@ -379,8 +379,23 @@ Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump\&
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: character-sets-dir option
-.\" character-sets-dir option: mysqldump
+.\" mariadb-dump: as-of option
+.\" as-of option: mariadb-dump
+\fB\-\-as\-of=\fR\fB\fIname\fR\fR
+.sp
+Dump system versioned table as of specified timestamp\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: character-sets-dir option
+.\" character-sets-dir option: mariadb-dump
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -394,8 +409,8 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: comments option
-.\" comments option: mysqldump
+.\" mariadb-dump: comments option
+.\" comments option: mariadb-dump
 \fB\-\-comments\fR,
 \fB\-i\fR
 .sp
@@ -411,8 +426,8 @@ Write additional information in the dump file such as program version, server ve
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: compact option
-.\" compact option: mysqldump
+.\" mariadb-dump: compact option
+.\" compact option: mariadb-dump
 \fB\-\-compact\fR
 .sp
 Produce more compact output\&. This option enables the
@@ -433,8 +448,8 @@ options\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: compatible option
-.\" compatible option: mysqldump
+.\" mariadb-dump: compatible option
+.\" compatible option: mariadb-dump
 \fB\-\-compatible=\fR\fB\fIname\fR\fR
 .sp
 Produce output that is more compatible with other database systems or with older MySQL servers\&. The value of
@@ -466,8 +481,8 @@ does not map data types to Oracle types or use Oracle comment syntax\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: complete-insert option
-.\" complete-insert option: mysqldump
+.\" mariadb-dump: complete-insert option
+.\" complete-insert option: mariadb-dump
 \fB\-\-complete\-insert\fR,
 \fB\-c\fR
 .sp
@@ -484,8 +499,8 @@ statements that include column names\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: compress option
-.\" compress option: mysqldump
+.\" mariadb-dump: compress option
+.\" compress option: mariadb-dump
 \fB\-\-compress\fR,
 \fB\-C\fR
 .sp
@@ -500,8 +515,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: copy-s3-tables option
-.\" copy-s3-tables option: mysqldump
+.\" mariadb-dump: copy-s3-tables option
+.\" copy-s3-tables option: mariadb-dump
 \fB\-\-copy\-s3\-tables\fR
 .sp
 By default S3 tables are ignored\&. With this option set, the result file will contain a CREATE statement
@@ -516,8 +531,8 @@ for a similar Aria table, followed by the table data and ending with an ALTER TA
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: create-options option
-.\" create-options option: mysqldump
+.\" mariadb-dump: create-options option
+.\" create-options option: mariadb-dump
 \fB\-\-create\-options\fR,
 \fB\-a\fR
 .sp
@@ -534,13 +549,13 @@ statements\&. Use \fB\-\-skip-create-options\fR to disable.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: databases option
-.\" databases option: mysqldump
+.\" mariadb-dump: databases option
+.\" databases option: mariadb-dump
 \fB\-\-databases\fR,
 \fB\-B\fR
 .sp
 Dump several databases\&. Normally,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 treats the first name argument on the command line as a database name and following names as table names\&. With this option, it treats all name arguments as database names\&.
 CREATE DATABASE
 and
@@ -556,14 +571,14 @@ statements are included in the output before each new database\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: debug option
-.\" debug option: mysqldump
+.\" mariadb-dump: debug option
+.\" debug option: mariadb-dump
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is 'd:t:o,\fIfile_name\fR'. The default value is 'd:t:o,/tmp/mysqldump.trace'.
+string is 'd:t:o,\fIfile_name\fR'. The default value is 'd:t:o,/tmp/mariadb-dump.trace'.
 .RE
 .sp
 .RS 4
@@ -574,8 +589,8 @@ string is 'd:t:o,\fIfile_name\fR'. The default value is 'd:t:o,/tmp/mysqldump.tr
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: debug-check option
-.\" debug-check option: mysqldump
+.\" mariadb-dump: debug-check option
+.\" debug-check option: mariadb-dump
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -589,8 +604,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: debug-info option
-.\" debug-info option: mysqldump
+.\" mariadb-dump: debug-info option
+.\" debug-info option: mariadb-dump
 \fB\-\-debug\-info\fR
 .sp
 Print debugging information and memory and CPU usage statistics when the program exits\&.
@@ -604,8 +619,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: default-auth option
-.\" default-auth option: mysqldump
+.\" mariadb-dump: default-auth option
+.\" default-auth option: mariadb-dump
 \fB\-\-default\-auth\fR
 .sp
 Default authentication client-side plugin to use\&.
@@ -619,14 +634,14 @@ Default authentication client-side plugin to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: default-character-set option
-.\" default-character-set option: mysqldump
+.\" mariadb-dump: default-character-set option
+.\" default-character-set option: mariadb-dump
 \fB\-\-default\-character\-set=\fR\fB\fIcharset_name\fR\fR
 .sp
 Use
 \fIcharset_name\fR
 as the default character set\&. If no character set is specified,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 uses
 utf8\&.
 .sp
@@ -640,8 +655,8 @@ utf8\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: defaults-extra-file option
-.\" defaults-extra-file option: mysqldump
+.\" mariadb-dump: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-dump
 \fB\-\-defaults\-extra\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
@@ -656,8 +671,8 @@ Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: defaults-file option
-.\" defaults-file option: mysqldump
+.\" mariadb-dump: defaults-file option
+.\" defaults-file option: mariadb-dump
 \fB\-\-defaults\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&.
@@ -676,7 +691,7 @@ Must be given as first option\&.
 .\" defaults-group-suffix option: my_print_defaults
 \fB\-\-defaults\-group\-suffix=\fR\fB\fIstr\fR\fR,
 .sp
-Also read groups with a suffix of \fIstr\fR\&. For example, since mysqldump normally reads the [client] and [mysqldump] groups, \-\-defaults\-group\-suffix=x would cause it to also read the groups [mysqldump_x] and [client_x]\&.
+Also read groups with a suffix of \fIstr\fR\&. For example, since mariadb-dump normally reads the [client] and [mariadb-dump] groups, \-\-defaults\-group\-suffix=x would cause it to also read the groups [mariadb-dump_x] and [client_x]\&.
 .RE
 .sp
 .RS 4
@@ -687,8 +702,8 @@ Also read groups with a suffix of \fIstr\fR\&. For example, since mysqldump norm
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: delayed-insert option
-.\" delayed-insert option: mysqldump
+.\" mariadb-dump: delayed-insert option
+.\" delayed-insert option: mariadb-dump
 \fB\-\-delayed\-insert\fR
 .sp
 Write
@@ -706,8 +721,8 @@ statements\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: delete-master-logs option
-.\" delete-master-logs option: mysqldump
+.\" mariadb-dump: delete-master-logs option
+.\" delete-master-logs option: mariadb-dump
 \fB\-\-delete\-master\-logs\fR
 .sp
 On a master replication server, delete the binary logs by sending a
@@ -724,8 +739,8 @@ statement to the server after performing the dump operation\&. This option autom
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: disable-keys option
-.\" disable-keys option: mysqldump
+.\" mariadb-dump: disable-keys option
+.\" disable-keys option: mariadb-dump
 \fB\-\-disable\-keys\fR,
 \fB\-K\fR
 .sp
@@ -748,14 +763,14 @@ tables\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: dump-date option
-.\" dump-date option: mysqldump
+.\" mariadb-dump: dump-date option
+.\" dump-date option: mariadb-dump
 \fB\-\-dump\-date\fR
 .sp
 If the
 \fB\-\-comments\fR
 option is given,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 produces a comment at the end of the dump of the following form:
 .sp
 .if n \{\
@@ -787,8 +802,24 @@ suppresses date printing\&
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: dump-slave option
-.\" dump-slave option: mysqldump
+.\" mariadb-dump: dump-history option
+.\" dump-history option: mariadb-dump
+\fB\-\-dump\-history\fR
+.sp
+Dump tables with history. Until this option, mariadb-dump could not read historical rows from versioned tables, 
+and so historical data would not be backed up\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: dump-slave option
+.\" dump-slave option: mariadb-dump
 \fB\-\-dump\-slave[=\fR\fB\fIvalue\fR\fR\fB]\fR
 .sp
 Used for producing a dump file from a replication slave server that can be used to set up another slave server
@@ -798,7 +829,7 @@ output; if set to 2, that command will be prefixed with a comment symbol\&. This
 \-\-lock\-all\-tables on, unless \-\-single-transaction is specified too (in which case a global read lock is only
 taken a short time at the beginning of the dump \- don't forget to read about \-\-single-transaction below)\&. In
 all cases any action on logs will happen at the exact moment of the dump\&. Option automatically turns
-\-\-lock\-tables off\&. Using this option causes mysqldump to stop the slave SQL thread before beginning the dump,
+\-\-lock\-tables off\&. Using this option causes mariadb-dump to stop the slave SQL thread before beginning the dump,
 and restart it again after completion\&.
 .RE
 .sp
@@ -810,8 +841,8 @@ and restart it again after completion\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: events option
-.\" events option: mysqldump
+.\" mariadb-dump: events option
+.\" events option: mariadb-dump
 \fB\-\-events\fR,
 \fB\-E\fR
 .sp
@@ -826,8 +857,8 @@ Include Event Scheduler events for the dumped databases in the output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: extended-insert option
-.\" extended-insert option: mysqldump
+.\" mariadb-dump: extended-insert option
+.\" extended-insert option: mariadb-dump
 \fB\-\-extended\-insert\fR,
 \fB\-e\fR
 .sp
@@ -846,17 +877,17 @@ lists\&. This results in a smaller dump file and speeds up inserts when the file
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: fields-terminated-by option
-.\" fields-terminated-by option: mysqldump
+.\" mariadb-dump: fields-terminated-by option
+.\" fields-terminated-by option: mariadb-dump
 \fB\-\-fields\-terminated\-by=\&.\&.\&.\fR,
-.\" mysqldump: fields-enclosed-by option
-.\" fields-enclosed-by option: mysqldump
+.\" mariadb-dump: fields-enclosed-by option
+.\" fields-enclosed-by option: mariadb-dump
 \fB\-\-fields\-enclosed\-by=\&.\&.\&.\fR,
-.\" mysqldump: fields-optionally-enclosed-by option
-.\" fields-optionally-enclosed-by option: mysqldump
+.\" mariadb-dump: fields-optionally-enclosed-by option
+.\" fields-optionally-enclosed-by option: mariadb-dump
 \fB\-\-fields\-optionally\-enclosed\-by=\&.\&.\&.\fR,
-.\" mysqldump: fields-escaped-by option
-.\" fields-escaped-by option: mysqldump
+.\" mariadb-dump: fields-escaped-by option
+.\" fields-escaped-by option: mariadb-dump
 \fB\-\-fields\-escaped\-by=\&.\&.\&.\fR
 .sp
 These options are used with the
@@ -875,8 +906,8 @@ LOAD DATA INFILE\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: first-slave option
-.\" first-slave option: mysqldump
+.\" mariadb-dump: first-slave option
+.\" first-slave option: mariadb-dump
 \fB\-\-first\-slave\fR
 .sp
 Removed in MariaDB 5.5\&. Use
@@ -892,24 +923,8 @@ instead\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: flashback option
-.\" flashback option: mysqldump
-\fB\-\-flashback\fR,
-\fB\-B\fR
-.sp
-Support flashback mode\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqldump: flush-logs option
-.\" flush-logs option: mysqldump
+.\" mariadb-dump: flush-logs option
+.\" flush-logs option: mariadb-dump
 \fB\-\-flush\-logs\fR,
 \fB\-F\fR
 .sp
@@ -937,8 +952,8 @@ or
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: flush-privileges option
-.\" flush-privileges option: mysqldump
+.\" mariadb-dump: flush-privileges option
+.\" flush-privileges option: mariadb-dump
 \fB\-\-flush\-privileges\fR
 .sp
 Send a
@@ -960,21 +975,21 @@ database for proper restoration\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: force option
-.\" force option: mysqldump
+.\" mariadb-dump: force option
+.\" force option: mariadb-dump
 \fB\-\-force\fR,
 \fB\-f\fR
 .sp
 Continue even if an SQL error occurs during a table dump\&.
 .sp
 One use for this option is to cause
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 to continue executing even when it encounters a view that has become invalid because the definition refers to a table that has been dropped\&. Without
 \fB\-\-force\fR,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 exits with an error message\&. With
 \fB\-\-force\fR,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 prints the error message, but it also writes an SQL comment containing the view definition to the dump output and continues executing\&.
 .RE
 .sp
@@ -986,8 +1001,8 @@ prints the error message, but it also writes an SQL comment containing the view 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: gtid option
-.\" gtid option: mysqldump
+.\" mariadb-dump: gtid option
+.\" gtid option: mariadb-dump
 \fB\-\-gtid\fR
 .sp
 Available from MariaDB 10.0.13, and is used together with \fB\-\-master\-data\fR and \fB\-\-dump\-slave\fR to more conveniently set up a new GTID slave\&. It causes those options to output SQL statements that configure the slave to use the global transaction ID to connect to the master instead of old-style filename/offset positions\&. The old-style positions are still included in comments when \fB\-\-gtid\fR is used; likewise the GTID position is included in comments even if \fB\-\-gtid\fR is not used\&.
@@ -1001,8 +1016,8 @@ Available from MariaDB 10.0.13, and is used together with \fB\-\-master\-data\fR
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: header option
-.\" header option: mysqldump
+.\" mariadb-dump: header option
+.\" header option: mariadb-dump
 \fB\-\-header\fR
 .sp
 Used together with --tab. When enabled, adds header with column names to the top of output txt files.
@@ -1016,8 +1031,8 @@ Used together with --tab. When enabled, adds header with column names to the top
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: hex-blob option
-.\" hex-blob option: mysqldump
+.\" mariadb-dump: hex-blob option
+.\" hex-blob option: mariadb-dump
 \fB\-\-hex\-blob\fR
 .sp
 Dump binary columns using hexadecimal notation (for example, 'abc' becomes
@@ -1037,8 +1052,8 @@ BIT\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: host option
-.\" host option: mysqldump
+.\" mariadb-dump: host option
+.\" host option: mariadb-dump
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -1054,8 +1069,8 @@ localhost\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: ignore-table option
-.\" ignore-table option: mysqldump
+.\" mariadb-dump: ignore-table option
+.\" ignore-table option: mariadb-dump
 \fB\-\-ignore\-table=\fR\fB\fIdb_name\&.tbl_name\fR\fR
 .sp
 Do not dump the given table, which must be specified using both the database and table names\&. To ignore multiple tables, use this option multiple times\&. This option also can be used to ignore views\&.
@@ -1069,8 +1084,8 @@ Do not dump the given table, which must be specified using both the database and
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: include-master-host-port option
-.\" include-master-host-port option: mysqldump
+.\" mariadb-dump: include-master-host-port option
+.\" include-master-host-port option: mariadb-dump
 \fB\-\-include\-master\-host\-port\fR
 .sp
 Add the MASTER_HOST and MASTER_PORT options for the CHANGE MASTER TO statement when using
@@ -1085,8 +1100,8 @@ the \fB--dump-slave\fR option for a slave dump\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: insert-ignore option
-.\" insert-ignore option: mysqldump
+.\" mariadb-dump: insert-ignore option
+.\" insert-ignore option: mariadb-dump
 \fB\-\-insert\-ignore\fR
 .sp
 Write
@@ -1104,8 +1119,8 @@ statements\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: lines-terminated-by option
-.\" lines-terminated-by option: mysqldump
+.\" mariadb-dump: lines-terminated-by option
+.\" lines-terminated-by option: mariadb-dump
 \fB\-\-lines\-terminated\-by=\&.\&.\&.\fR
 .sp
 This option is used with the
@@ -1124,8 +1139,8 @@ LOAD DATA INFILE\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: lock-all-tables option
-.\" lock-all-tables option: mysqldump
+.\" mariadb-dump: lock-all-tables option
+.\" lock-all-tables option: mariadb-dump
 \fB\-\-lock\-all\-tables\fR,
 \fB\-x\fR
 .sp
@@ -1143,8 +1158,8 @@ and
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: lock-tables option
-.\" lock-tables option: mysqldump
+.\" mariadb-dump: lock-tables option
+.\" lock-tables option: mariadb-dump
 \fB\-\-lock\-tables\fR,
 \fB\-l\fR
 .sp
@@ -1174,8 +1189,8 @@ Use \fB--skip-lock-tables\fR to disable\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: log-error option
-.\" log-error option: mysqldump
+.\" mariadb-dump: log-error option
+.\" log-error option: mariadb-dump
 \fB\-\-log\-error=\fR\fB\fIfile_name\fR\fR
 .sp
 Log warnings and errors by appending them to the named file\&. The default is to do no logging\&.
@@ -1189,8 +1204,8 @@ Log warnings and errors by appending them to the named file\&. The default is to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: log-queries option
-.\" log-queries option: mysqldump
+.\" mariadb-dump: log-queries option
+.\" log-queries option: mariadb-dump
 \fB\-\-log\-queries\fR\fR
 .sp
 When restoring the dump, the server will, if logging is turned on, log the queries to the general and slow query log\&.
@@ -1205,8 +1220,8 @@ Defaults to on; use \fB--skip-log-queries\fR to disable\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: master-data option
-.\" master-data option: mysqldump
+.\" mariadb-dump: master-data option
+.\" master-data option: mariadb-dump
 \fB\-\-master\-data[=\fR\fB\fIvalue\fR\fR\fB]\fR
 .sp
 Use this option to dump a master replication server to produce a dump file that can be used to set up another server as a slave of the master\&. It causes the dump output to include a
@@ -1245,8 +1260,8 @@ Stop the slave's SQL thread and get its current status:
 .RS 4
 .\}
 .nf
-mysql> \fBSTOP SLAVE SQL_THREAD;\fR
-mysql> \fBSHOW SLAVE STATUS;\fR
+mariadb> \fBSTOP SLAVE SQL_THREAD;\fR
+mariadb> \fBSHOW SLAVE STATUS;\fR
 .fi
 .if n \{\
 .RE
@@ -1287,7 +1302,7 @@ Dump the slave server:
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-master\-data=2 \-\-all\-databases > dumpfile\fR
+shell> \fBmariadb-dump \-\-master\-data=2 \-\-all\-databases > dumpfile\fR
 .fi
 .if n \{\
 .RE
@@ -1308,7 +1323,7 @@ Restart the slave:
 .RS 4
 .\}
 .nf
-mysql> \fBSTART SLAVE;\fR
+mariadb> \fBSTART SLAVE;\fR
 .fi
 .if n \{\
 .RE
@@ -1329,7 +1344,7 @@ On the new slave, load the dump file:
 .RS 4
 .\}
 .nf
-shell> \fBmysql < dumpfile\fR
+shell> \fBmariadb < dumpfile\fR
 .fi
 .if n \{\
 .RE
@@ -1350,7 +1365,7 @@ On the new slave, set the replication coordinates to those of the master server 
 .RS 4
 .\}
 .nf
-mysql> \fBCHANGE MASTER TO\fR
+mariadb> \fBCHANGE MASTER TO\fR
     \-> \fBMASTER_LOG_FILE = '\fR\fB\fIfile_name\fR\fR\fB', MASTER_LOG_POS = \fR\fB\fIfile_pos\fR\fR\fB;\fR
 .fi
 .if n \{\
@@ -1373,8 +1388,8 @@ to point the slave to the correct master server host\&. Add any such parameters 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: max-allowed-packet option
-.\" max-allowed-packet option: mysqldump
+.\" mariadb-dump: max-allowed-packet option
+.\" max-allowed-packet option: mariadb-dump
 \fB\-\-max\-allowed\-packet=\fR\fB\fIlength\fR\fR
 .sp
 Sets the maximum packet length to send to or receive from server\&.
@@ -1388,8 +1403,8 @@ Sets the maximum packet length to send to or receive from server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: max-statement-time option
-.\" max-statement-time option: mysqldump
+.\" mariadb-dump: max-statement-time option
+.\" max-statement-time option: mariadb-dump
 \fB\-\-max\-statement\-time=\fR\fB\fIseconds\fR\fR
 .sp
 Sets the maximum time any statement can run before being timed out by the server. (Default value is 0 (no limit))\&
@@ -1403,8 +1418,8 @@ Sets the maximum time any statement can run before being timed out by the server
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: net-buffer-length option
-.\" net-buffer-length option: mysqldump
+.\" mariadb-dump: net-buffer-length option
+.\" net-buffer-length option: mariadb-dump
 \fB\-\-net\-buffer\-length=\fR\fB\fIlength\fR\fR
 .sp
 Sets the buffer size for TCP/IP and socket communication\&.
@@ -1418,8 +1433,8 @@ Sets the buffer size for TCP/IP and socket communication\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: no-autocommit option
-.\" no-autocommit option: mysqldump
+.\" mariadb-dump: no-autocommit option
+.\" no-autocommit option: mariadb-dump
 \fB\-\-no\-autocommit\fR
 .sp
 Enclose the
@@ -1439,8 +1454,8 @@ statements\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: no-create-db option
-.\" no-create-db option: mysqldump
+.\" mariadb-dump: no-create-db option
+.\" no-create-db option: mariadb-dump
 \fB\-\-no\-create\-db\fR,
 \fB\-n\fR
 .sp
@@ -1461,8 +1476,8 @@ option is given\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: no-create-info option
-.\" no-create-info option: mysqldump
+.\" mariadb-dump: no-create-info option
+.\" no-create-info option: mariadb-dump
 \fB\-\-no\-create\-info\fR,
 \fB\-t\fR
 .sp
@@ -1479,8 +1494,8 @@ statements that re\-create each dumped table\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: no-data option
-.\" no-data option: mysqldump
+.\" mariadb-dump: no-data option
+.\" no-data option: mariadb-dump
 \fB\-\-no\-data\fR,
 \fB\-d\fR
 .sp
@@ -1497,8 +1512,8 @@ statement for the table (for example, to create an empty copy of the table by lo
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: no-defaults option
-.\" no-defaults option: mysqldump
+.\" mariadb-dump: no-defaults option
+.\" no-defaults option: mariadb-dump
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option file\&. This must be given as the first argument\&.
@@ -1512,8 +1527,8 @@ Do not read default options from any option file\&. This must be given as the fi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: no-set-names option
-.\" no-set-names option: mysqldump
+.\" mariadb-dump: no-set-names option
+.\" no-set-names option: mariadb-dump
 \fB\-\-no\-set\-names\fR,
 \fB\-N\fR
 .sp
@@ -1529,8 +1544,8 @@ This has the same effect as
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: opt option
-.\" opt option: mysqldump
+.\" mariadb-dump: opt option
+.\" opt option: mariadb-dump
 \fB\-\-opt\fR
 .sp
 This option is shorthand\&. It is the same as specifying
@@ -1543,7 +1558,7 @@ This option is shorthand\&. It is the same as specifying
 \fB\-\-quick\fR
 \fB\-\-set\-charset\fR\&. It should give you a fast dump operation and produce a dump file that can be reloaded into a MariaDB server quickly\&.
 .sp
-\fIThe \fR\fI\fB\-\-opt\fR\fR\fI option is enabled by default\&. Use \fR\fI\fB\-\-skip\-opt\fR\fR\fI to disable it\&.\fR
+The \fB\-\-opt\fR option is enabled by default\&. Use \fB\-\-skip\-opt\fR to disable it\&.
 See the discussion at the beginning of this section for information about selectively enabling or disabling a subset of the options affected by
 \fB\-\-opt\fR\&.
 .RE
@@ -1556,8 +1571,8 @@ See the discussion at the beginning of this section for information about select
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: order-by-primary option
-.\" order-by-primary option: mysqldump
+.\" mariadb-dump: order-by-primary option
+.\" order-by-primary option: mariadb-dump
 \fB\-\-order\-by\-primary\fR
 .sp
 Dump each table's rows sorted by its primary key, or by its first unique index, if such an index exists\&. This is useful when dumping a
@@ -1575,8 +1590,46 @@ table, but will make the dump operation take considerably longer\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: password option
-.\" password option: mysqldump
+.\" mariadb-dump: order-by-size option
+.\" order-by-size option: mariadb-dump
+\fB\-\-order\-by\-size\fR
+.sp
+Dump each table according to their size, smallest first. Useful when using \-\-single-transaction on tables 
+which get truncated/altered often\&. The assumption here is that smaller tables get truncated more often, 
+and by dumping those first, this reduces the chance that a \-\-single-transaction dump will fail with with 
+'Table definition has changed, please retry transaction'\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: parallel option
+.\" parallel option: mariadb-dump
+\fB\-\-parallel=#\fR,
+\fB\-j\fR
+.sp
+Number of dump table jobs executed in parallel (only for use with the \-\-tab option). Initial testing 
+indicates that performance can be increased (dump time decreased) up to 4 times on smaller size dumps, 
+when the database fits into memory. There is a point at which disk becomes the bottleneck, after which 
+adding more parallel jobs does not bring better performance.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+.\" mariadb-dump: password option
+.\" password option: mariadb-dump
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -1589,7 +1642,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
@@ -1603,8 +1656,8 @@ Specifying a password on the command line should be considered insecure\&. You c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: pipe option
-.\" pipe option: mysqldump
+.\" mariadb-dump: pipe option
+.\" pipe option: mariadb-dump
 \fB\-\-pipe\fR,
 \fB\-W\fR
 .sp
@@ -1619,8 +1672,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: plugin-dir option
-.\" plugin-dir option: mysqldump
+.\" mariadb-dump: plugin-dir option
+.\" plugin-dir option: mariadb-dump
 \fB\-\-plugin\-dir\fR
 .sp
 Directory for client-side plugins\&.
@@ -1634,8 +1687,8 @@ Directory for client-side plugins\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: port option
-.\" port option: mysqldump
+.\" mariadb-dump: port option
+.\" port option: mariadb-dump
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -1651,8 +1704,8 @@ Forces --protocol=tcp when specified on the command line without other connectio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: protocol option
-.\" protocol option: mysqldump
+.\" mariadb-dump: protocol option
+.\" protocol option: mariadb-dump
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -1666,13 +1719,13 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: quick option
-.\" quick option: mysqldump
+.\" mariadb-dump: quick option
+.\" quick option: mariadb-dump
 \fB\-\-quick\fR,
 \fB\-q\fR
 .sp
 This option is useful for dumping large tables\&. It forces
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 to retrieve rows for a table from the server a row at a time rather than retrieving the entire row set and buffering it in memory before writing it out\&.
 .RE
 .sp
@@ -1684,8 +1737,8 @@ to retrieve rows for a table from the server a row at a time rather than retriev
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: print-defaults option
-.\" print-defaults option: mysqldump
+.\" mariadb-dump: print-defaults option
+.\" print-defaults option: mariadb-dump
 \fB\-\-print\-defaults\fR
 .sp
 Print the program argument list and exit\&. This must be given as the first argument\&.
@@ -1699,8 +1752,8 @@ Print the program argument list and exit\&. This must be given as the first argu
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: quote-names option
-.\" quote-names option: mysqldump
+.\" mariadb-dump: quote-names option
+.\" quote-names option: mariadb-dump
 \fB\-\-quote\-names\fR,
 \fB\-Q\fR
 .sp
@@ -1725,8 +1778,8 @@ that may enable
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: replace option
-.\" replace option: mysqldump
+.\" mariadb-dump: replace option
+.\" replace option: mariadb-dump
 \fB\-\-replace\fR
 .sp
 Write
@@ -1744,8 +1797,8 @@ statements\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: result-file option
-.\" result-file option: mysqldump
+.\" mariadb-dump: result-file option
+.\" result-file option: mariadb-dump
 \fB\-\-result\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-r \fR\fB\fIfile_name\fR\fR
 .sp
@@ -1764,8 +1817,8 @@ carriage return/newline sequences\&. The result file is created and its previous
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: routines option
-.\" routines option: mysqldump
+.\" mariadb-dump: routines option
+.\" routines option: mariadb-dump
 \fB\-\-routines\fR,
 \fB\-R\fR
 .sp
@@ -1798,8 +1851,8 @@ database\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: set-charset option
-.\" set-charset option: mysqldump
+.\" mariadb-dump: set-charset option
+.\" set-charset option: mariadb-dump
 \fB\-\-set\-charset\fR
 .sp
 Add
@@ -1818,8 +1871,8 @@ statement, use
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: single-transaction option
-.\" single-transaction option: mysqldump
+.\" mariadb-dump: single-transaction option
+.\" single-transaction option: mariadb-dump
 \fB\-\-single\-transaction\fR
 .sp
 This option sends a
@@ -1847,7 +1900,7 @@ RENAME TABLE,
 TRUNCATE TABLE\&. A consistent read is not isolated from those statements, so use of them on a table to be dumped can cause the
 SELECT
 that is performed by
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 to retrieve the table contents to obtain incorrect contents or fail\&.
 .sp
 The
@@ -1872,8 +1925,8 @@ option with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-add-drop-table option
-.\" skip-add-drop-table option: mysqldump
+.\" mariadb-dump: skip-add-drop-table option
+.\" skip-add-drop-table option: mariadb-dump
 \fB\-\-skip\-add\-drop\-table\fR
 .sp
 Disable the
@@ -1889,8 +1942,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-add-locks option
-.\" skip-add-locks option: mysqldump
+.\" mariadb-dump: skip-add-locks option
+.\" skip-add-locks option: mariadb-dump
 \fB\-\-skip\-add\-locks\fR
 .sp
 Disable the
@@ -1906,8 +1959,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-comments option
-.\" skip-comments option: mysqldump
+.\" mariadb-dump: skip-comments option
+.\" skip-comments option: mariadb-dump
 \fB\-\-skip\-comments\fR
 .sp
 Disable the
@@ -1923,8 +1976,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-compact option
-.\" skip-compact option: mysqldump
+.\" mariadb-dump: skip-compact option
+.\" skip-compact option: mariadb-dump
 \fB\-\-skip\-compact\fR
 .sp
 Disable the
@@ -1940,8 +1993,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-disable-keys option
-.\" skip-disable-keys option: mysqldump
+.\" mariadb-dump: skip-disable-keys option
+.\" skip-disable-keys option: mariadb-dump
 \fB\-\-skip\-disable\-keys\fR
 .sp
 Disable the
@@ -1957,8 +2010,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-extended-insert option
-.\" skip-extended-insert option: mysqldump
+.\" mariadb-dump: skip-extended-insert option
+.\" skip-extended-insert option: mariadb-dump
 \fB\-\-skip\-extended\-insert\fR
 .sp
 Disable the
@@ -1974,8 +2027,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-opt option
-.\" skip-opt option: mysqldump
+.\" mariadb-dump: skip-opt option
+.\" skip-opt option: mariadb-dump
 \fB\-\-skip\-opt\fR
 .sp
 Disable the
@@ -1991,8 +2044,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-quick option
-.\" skip-quick option: mysqldump
+.\" mariadb-dump: skip-quick option
+.\" skip-quick option: mariadb-dump
 \fB\-\-skip\-quick\fR
 .sp
 Disable the
@@ -2008,8 +2061,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-quote-names option
-.\" skip-quote-names option: mysqldump
+.\" mariadb-dump: skip-quote-names option
+.\" skip-quote-names option: mariadb-dump
 \fB\-\-skip\-quote\-names\fR
 .sp
 Disable the
@@ -2025,8 +2078,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-set-charset option
-.\" skip-set-charset option: mysqldump
+.\" mariadb-dump: skip-set-charset option
+.\" skip-set-charset option: mariadb-dump
 \fB\-\-skip\-set\-charset\fR
 .sp
 Disable the
@@ -2042,8 +2095,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-triggers option
-.\" skip-triggers option: mysqldump
+.\" mariadb-dump: skip-triggers option
+.\" skip-triggers option: mariadb-dump
 \fB\-\-skip\-triggers\fR
 .sp
 Disable the
@@ -2059,8 +2112,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: skip-tz-utc option
-.\" skip-tz-utc option: mysqldump
+.\" mariadb-dump: skip-tz-utc option
+.\" skip-tz-utc option: mariadb-dump
 \fB\-\-skip\-tz\-utc\fR
 .sp
 Disable the
@@ -2076,8 +2129,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: socket option
-.\" socket option: mysqldump
+.\" mariadb-dump: socket option
+.\" socket option: mariadb-dump
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -2094,8 +2147,8 @@ Forces --protocol=socket when specified on the command line without other connec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL options
-.\" SSL options: mysqladmin
+.\" mariadb-admin: SSL options
+.\" SSL options: mariadb-admin
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with
@@ -2110,8 +2163,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL CA option
-.\" SSL CA option: mysqladmin
+.\" mariadb-admin: SSL CA option
+.\" SSL CA option: mariadb-admin
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -2126,8 +2179,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL CA Path option
-.\" SSL CA Path option: mysqladmin
+.\" mariadb-admin: SSL CA Path option
+.\" SSL CA Path option: mariadb-admin
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -2142,8 +2195,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Cert option
-.\" SSL Cert option: mysqladmin
+.\" mariadb-admin: SSL Cert option
+.\" SSL Cert option: mariadb-admin
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -2158,8 +2211,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Cipher option
-.\" SSL Cipher option: mysqladmin
+.\" mariadb-admin: SSL Cipher option
+.\" SSL Cipher option: mariadb-admin
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -2174,8 +2227,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Key option
-.\" SSL Key option: mysqladmin
+.\" mariadb-admin: SSL Key option
+.\" SSL Key option: mariadb-admin
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -2190,8 +2243,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Crl option
-.\" SSL CRL option: mysqladmin
+.\" mariadb-admin: SSL Crl option
+.\" SSL CRL option: mariadb-admin
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -2206,8 +2259,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Crlpath option
-.\" SSL Crlpath option: mysqladmin
+.\" mariadb-admin: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-admin
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -2222,8 +2275,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysqladmin
+.\" mariadb-admin: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-admin
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -2237,8 +2290,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: Dump system tables option
-.\" Dump system tables option: mysqladmin
+.\" mariadb-admin: Dump system tables option
+.\" Dump system tables option: mariadb-admin
 \fB\-\-system=\fR\fB\fI{all, users, plugins, udfs, servers, stats, timezones}\fR\fR
 .sp
 Dump the system tables in the mysql database in a logical form\&. This option is an empty set by default\&.
@@ -2340,13 +2393,13 @@ To help in migrating from MySQL to MariaDB, this option is designed to be able t
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: tab option
-.\" tab option: mysqldump
+.\" mariadb-dump: tab option
+.\" tab option: mariadb-dump
 \fB\-\-tab=\fR\fB\fIpath\fR\fR,
 \fB\-T \fR\fB\fIpath\fR\fR
 .sp
 Produce tab\-separated text\-format data files\&. For each dumped table,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 creates a
 \fItbl_name\fR\&.sql
 file that contains the
@@ -2367,9 +2420,9 @@ file that contains its data\&. The option value is the directory in which to wri
 .ps -1
 .br
 This option should be used only when
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 is run on the same machine as the
-\fBmysqld\fR
+\fBmariadbd\fR
 server\&. You must have the
 FILE
 privilege, and the server must have permission to write files in the directory that you specify\&.
@@ -2396,8 +2449,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: tables option
-.\" tables option: mysqldump
+.\" mariadb-dump: tables option
+.\" tables option: mariadb-dump
 \fB\-\-tables\fR
 .sp
 Override the
@@ -2405,7 +2458,7 @@ Override the
 or
 \fB\-B\fR
 option\&.
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 regards all name arguments following the option as table names\&.
 .RE
 .sp
@@ -2417,8 +2470,8 @@ regards all name arguments following the option as table names\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: triggers option
-.\" triggers option: mysqldump
+.\" mariadb-dump: triggers option
+.\" triggers option: mariadb-dump
 \fB\-\-triggers\fR
 .sp
 Include triggers for each dumped table in the output\&. This option is enabled by default; disable it with
@@ -2433,14 +2486,14 @@ Include triggers for each dumped table in the output\&. This option is enabled b
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: tz-utc option
-.\" tz-utc option: mysqldump
+.\" mariadb-dump: tz-utc option
+.\" tz-utc option: mariadb-dump
 \fB\-\-tz\-utc\fR
 .sp
 This option enables
 TIMESTAMP
 columns to be dumped and reloaded between servers in different time zones\&.
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 sets its connection time zone to UTC and adds
 SET TIME_ZONE='+00:00'
 to the dump file\&. Without this option,
@@ -2461,8 +2514,8 @@ is enabled by default\&. To disable it, use
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: user option
-.\" user option: mysqldump
+.\" mariadb-dump: user option
+.\" user option: mariadb-dump
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -2477,8 +2530,8 @@ The MariaDB user name to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: verbose option
-.\" verbose option: mysqldump
+.\" mariadb-dump: verbose option
+.\" verbose option: mariadb-dump
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -2493,8 +2546,8 @@ Verbose mode\&. Print more information about what the program does\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: version option
-.\" version option: mysqldump
+.\" mariadb-dump: version option
+.\" version option: mariadb-dump
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -2509,8 +2562,8 @@ Display version information and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: where option
-.\" where option: mysqldump
+.\" mariadb-dump: where option
+.\" where option: mariadb-dump
 \fB\-\-where='\fR\fB\fIwhere_condition\fR\fR\fB'\fR,
 \fB\-w '\fR\fB\fIwhere_condition\fR\fR\fB'\fR
 .sp
@@ -2541,8 +2594,8 @@ Examples:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: xml option
-.\" xml option: mysqldump
+.\" mariadb-dump: xml option
+.\" xml option: mariadb-dump
 \fB\-\-xml\fR,
 \fB\-X\fR
 .sp
@@ -2577,23 +2630,23 @@ T}
 .TE
 .sp 1
 The output from the
-\fBmysql\fR
+\fBmariadb\fR
 client when run using the
 \fB\-\-xml\fR
 option also follows the preceding rules\&. (See
-the section called \(lqMYSQL OPTIONS\(rq\&.)
+the section called \(lqMARIADB OPTIONS\(rq\&.)
 .sp
 XML output from
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 includes the XML namespace, as shown here:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-xml \-u root world City\fR
+shell> \fBmariadb-dump \-\-xml \-u root world City\fR
 <?xml version="1\&.0"?>
-<mysqldump xmlns:xsi="http://www\&.w3\&.org/2001/XMLSchema\-instance">
+<mariadb-dump xmlns:xsi="http://www\&.w3\&.org/2001/XMLSchema\-instance">
 <database name="world">
 <table_structure name="City">
 <field Field="ID" Type="int(11)" Null="NO" Key="PRI" Extra="auto_increment" />
@@ -2627,7 +2680,7 @@ Collation="latin1_swedish_ci" Create_options="" Comment="" />
 </row>
 </table_data>
 </database>
-</mysqldump>
+</mariadb-dump>
 .fi
 .if n \{\
 .RE
@@ -2684,7 +2737,7 @@ statements (as with the
 or
 \fB\-\-opt\fR
 option),
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 creates rows up to
 net_buffer_length
 length\&. If you increase this variable, you should also ensure that the
@@ -2693,14 +2746,14 @@ variable in the MariaDB server is at least this large\&.
 .RE
 .PP
 A common use of
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 is for making a backup of an entire database:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \fR\fB\fIdb_name\fR\fR\fB > \fR\fB\fIbackup\-file\&.sql\fR\fR
+shell> \fBmariadb-dump \fR\fB\fIdb_name\fR\fR\fB > \fR\fB\fIbackup\-file\&.sql\fR\fR
 .fi
 .if n \{\
 .RE
@@ -2712,7 +2765,7 @@ You can load the dump file back into the server like this:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIbackup\-file\&.sql\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIbackup\-file\&.sql\fR\fR
 .fi
 .if n \{\
 .RE
@@ -2724,20 +2777,20 @@ Or like this:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-e "source \fR\fB\fI/path\-to\-backup/backup\-file\&.sql\fR\fR\fB" \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb \-e "source \fR\fB\fI/path\-to\-backup/backup\-file\&.sql\fR\fR\fB" \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 is also very useful for populating databases by copying data from one MariaDB server to another:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-opt \fR\fB\fIdb_name\fR\fR\fB | mysql \-\-host=\fR\fB\fIremote_host\fR\fR\fB \-C \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb-dump \-\-opt \fR\fB\fIdb_name\fR\fR\fB | mariadb \-\-host=\fR\fB\fIremote_host\fR\fR\fB \-C \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
@@ -2749,7 +2802,7 @@ It is possible to dump several databases with one command:
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-databases \fR\fB\fIdb_name1\fR\fR\fB [\fR\fB\fIdb_name2\fR\fR\fB \&.\&.\&.] > my_databases\&.sql\fR
+shell> \fBmariadb-dump \-\-databases \fR\fB\fIdb_name1\fR\fR\fB [\fR\fB\fIdb_name2\fR\fR\fB \&.\&.\&.] > my_databases\&.sql\fR
 .fi
 .if n \{\
 .RE
@@ -2763,7 +2816,7 @@ option:
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-all\-databases > all_databases\&.sql\fR
+shell> \fBmariadb-dump \-\-all\-databases > all_databases\&.sql\fR
 .fi
 .if n \{\
 .RE
@@ -2772,14 +2825,14 @@ shell> \fBmysqldump \-\-all\-databases > all_databases\&.sql\fR
 For
 InnoDB
 tables,
-\fBmysqldump\fR
+\fBmariadb-dump\fR
 provides a way of making an online backup:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-all\-databases \-\-single\-transaction > all_databases\&.sql\fR
+shell> \fBmariadb-dump \-\-all\-databases \-\-single\-transaction > all_databases\&.sql\fR
 .fi
 .if n \{\
 .RE
@@ -2798,7 +2851,7 @@ when you need to restore an old backup and replay the changes that happened sinc
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-all\-databases \-\-master\-data=2 > all_databases\&.sql\fR
+shell> \fBmariadb-dump \-\-all\-databases \-\-master\-data=2 > all_databases\&.sql\fR
 .fi
 .if n \{\
 .RE
@@ -2810,7 +2863,7 @@ Or:
 .RS 4
 .\}
 .nf
-shell> \fBmysqldump \-\-all\-databases \-\-flush\-logs \-\-master\-data=2\fR
+shell> \fBmariadb-dump \-\-all\-databases \-\-flush\-logs \-\-master\-data=2\fR
               \fB> all_databases\&.sql\fR
 .fi
 .if n \{\
@@ -2825,15 +2878,15 @@ options can be used simultaneously, which provides a convenient way to make an o
 InnoDB
 storage engine\&.
 .PP
-.\" mysqldump: views
-.\" mysqldump: problems
-.\" mysqldump: workarounds
+.\" mariadb-dump: views
+.\" mariadb-dump: problems
+.\" mariadb-dump: workarounds
 .PP
 If you encounter problems backing up views, please read the section that covers restrictions on views which describes a workaround for backing up views when this fails due to insufficient privileges\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

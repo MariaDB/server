@@ -35,7 +35,7 @@ SHOW STATUS LIKE 'wsrep_cluster_size';
 Variable_name	Value
 wsrep_cluster_size	3
 connection node_1;
-change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_4, master_use_gtid=current_pos, ignore_server_ids=(12,13);;
+--- ignore_server_ids=(12,13)
 start slave;
 include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;
@@ -45,7 +45,7 @@ select @@gtid_slave_pos;
 @@gtid_slave_pos
 
 connection node_4;
-change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos, ignore_server_ids=(22,23);;
+--- ignore_server_ids=(22,23)
 start slave;
 include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;
@@ -223,10 +223,14 @@ select @@gtid_binlog_state;
 drop table t1;
 stop slave;
 reset slave;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 cluster 2 node 1
 connection node_4;
 stop slave;
 reset slave;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 cluster 1 node 1
 connection node_1;
 change master to master_use_gtid=no, ignore_server_ids=();
@@ -258,7 +262,7 @@ set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;
 connection node_1;
-change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_6, master_use_gtid=current_pos, ignore_server_ids=(12,13);;
+--- ignore_server_ids=(12,13)
 start slave;
 include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;
@@ -268,7 +272,7 @@ select @@gtid_slave_pos;
 @@gtid_slave_pos
 
 connection node_4;
-change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_3, master_use_gtid=current_pos, ignore_server_ids=(22,23);;
+--- ignore_server_ids=(22,23)
 start slave;
 include/wait_for_slave_to_start.inc
 select @@gtid_binlog_state;

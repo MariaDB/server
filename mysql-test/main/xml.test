@@ -166,14 +166,11 @@ select extractValue('<a b="b1" b="b2" b="b3"/>','/a/@b[2=position()]');
 select extractValue('<a b="b1" b="b2" b="b3"/>','/a/@b[3=position()]');
 select extractValue('<a b="b1" b="b2" b="b3"/>','/a/@b[2>=position()]');
 select extractValue('<a b="b1" b="b2" b="b3"/>','/a/@b[2<=position()]');
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractValue('<a b="b1" b="b2" b="b3"/>','/a/@b[position()=3 or position()=2]');
+select extractValue('<a b="b1" b="b2" b="b3"/>','/a/@b[position()=3 or position()=2]') as xml;
 
-SELECT extractValue('<a>a<b>a1<c>c1</c></b><b>a2</b></a>','/a/b[count(c)=0]');
-SELECT extractValue('<a>a<b>a1<c>c1</c></b><b>a2</b></a>','/a/b[count(c)=1]');
-select extractValue('<a>a1<b ba="1" ba="2">b1</b><b>b2</b>4</a>','/a/b[sum(@ba)=3]');
---enable_view_protocol
+SELECT extractValue('<a>a<b>a1<c>c1</c></b><b>a2</b></a>','/a/b[count(c)=0]') as xml;
+SELECT extractValue('<a>a<b>a1<c>c1</c></b><b>a2</b></a>','/a/b[count(c)=1]') as xml;
+select extractValue('<a>a1<b ba="1" ba="2">b1</b><b>b2</b>4</a>','/a/b[sum(@ba)=3]') as xml;
 
 select extractValue('<a><b>b1</b><b>b2</b></a>','/a/b[1]');
 select extractValue('<a><b>b1</b><b>b2</b></a>','/a/b[boolean(1)]');
@@ -216,12 +213,9 @@ select extractValue(@xml,'/a/@b[contains(.,"1")][contains(.,"2")]');
 select extractValue(@xml,'/a/@b[contains(.,"1")][contains(.,"2")][2]');
 
 SET @xml='<a>a1<b>b1<c>c1</c>b2</b>a2</a>';
-#enable after fix MDEV-27871
---disable_view_protocol
-select UpdateXML('<a>a1<b>b1<c>c1</c>b2</b>a2</a>','/a/b/c','+++++++++');
-select UpdateXML('<a>a1<b>b1<c>c1</c>b2</b>a2</a>','/a/b/c','<c1>+++++++++</c1>');
---enable_view_protocol
-select UpdateXML('<a>a1<b>b1<c>c1</c>b2</b>a2</a>','/a/b/c','<c1/>');
+select UpdateXML('<a>a1<b>b1<c>c1</c>b2</b>a2</a>','/a/b/c','+++++++++') as xml;
+select UpdateXML('<a>a1<b>b1<c>c1</c>b2</b>a2</a>','/a/b/c','<c1>+++++++++</c1>') as xml;
+select UpdateXML('<a>a1<b>b1<c>c1</c>b2</b>a2</a>','/a/b/c','<c1/>') as xml;
 
 SET @xml='<a><b>bb</b></a>';
 select UpdateXML(@xml, '/a/b', '<b>ccc</b>');
@@ -277,10 +271,7 @@ select extractvalue('<a><b>b</b><b!>b!</b!></a>','//b!');
 #
 select extractvalue('<a>A<b>B<c>C</c></b></a>','/a/descendant::*');
 select extractvalue('<a>A<b>B<c>C</c></b></a>','/a/self::*');
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractvalue('<a>A<b>B<c>C</c></b></a>','/a/descendant-or-self::*');
---enable_view_protocol
+select extractvalue('<a>A<b>B<c>C</c></b></a>','/a/descendant-or-self::*') as xml;
 # Bug #16320 XML: extractvalue() won't accept names containing underscores
 #
 select extractvalue('<A_B>A</A_B>','/A_B');
@@ -288,37 +279,26 @@ select extractvalue('<A_B>A</A_B>','/A_B');
 #
 # Bug#16318: XML: extractvalue() incorrectly returns last() = 1
 #
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[position()]');
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=last()]');
---enable_view_protocol
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()]');
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()-1]');
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()=1]');
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()=2]');
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()=position()]');
---enable_view_protocol
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)]');
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)-1]');
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=1]');
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=2]');
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=position()]');
---enable_view_protocol
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[position()]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=last()]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()-1]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()=1]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()=2]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[last()=position()]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)-1]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=1]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=2]') as xml;
+select extractvalue('<a>A<b>B1</b><b>B2</b></a>','/a/b[count(.)=position()]') as xml;
+
 #
 # Bug#16316: XML: extractvalue() is case-sensitive with contains()
 #
-select extractvalue('<a>Jack</a>','/a[contains(../a,"J")]');
-select extractvalue('<a>Jack</a>','/a[contains(../a,"j")]');
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractvalue('<a>Jack</a>','/a[contains(../a,"j")]' collate latin1_bin);
-select extractvalue('<a>Jack</a>' collate latin1_bin,'/a[contains(../a,"j")]');
---enable_view_protocol
+select extractvalue('<a>Jack</a>','/a[contains(../a,"J")]') as xml;
+select extractvalue('<a>Jack</a>','/a[contains(../a,"j")]') as xml;
+select extractvalue('<a>Jack</a>','/a[contains(../a,"j")]' collate latin1_bin) as xml;
+select extractvalue('<a>Jack</a>' collate latin1_bin,'/a[contains(../a,"j")]') as xml;
 
 #
 # Bug#18285: ExtractValue not returning character
@@ -383,33 +363,25 @@ DROP PROCEDURE p2;
 # Bug#18170: XML: ExtractValue():
 # XPath expression can't use QNames (colon in names)
 #
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractValue('<ns:element xmlns:ns="myns"/>','count(ns:element)');
-select extractValue('<ns:element xmlns:ns="myns">a</ns:element>','/ns:element');
-select extractValue('<ns:element xmlns:ns="myns">a</ns:element>','/ns:element/@xmlns:ns');
---enable_view_protocol
+select extractValue('<ns:element xmlns:ns="myns"/>','count(ns:element)') as xml;
+select extractValue('<ns:element xmlns:ns="myns">a</ns:element>','/ns:element') as xml;
+select extractValue('<ns:element xmlns:ns="myns">a</ns:element>','/ns:element/@xmlns:ns') as xml;
+
 #
 # Bug#20795 extractvalue() won't accept names containing a dot (.)
 #
-#enable after fix MDEV-27871
---disable_view_protocol
-select extractValue('<foo><foo.bar>Data</foo.bar><something>Otherdata</something></foo>','/foo/foo.bar');
-select extractValue('<foo><foo.bar>Data</foo.bar><something>Otherdata</something></foo>','/foo/something');
---enable_view_protocol
+select extractValue('<foo><foo.bar>Data</foo.bar><something>Otherdata</something></foo>','/foo/foo.bar')  as xml;
+select extractValue('<foo><foo.bar>Data</foo.bar><something>Otherdata</something></foo>','/foo/something') as xml;
 
 #
 # Bug#20854 XML functions: wrong result in ExtractValue
 #
-#enable after fix MDEV-27871
---disable_view_protocol
---error 1105
-select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','/zot/tim0/02');
-select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','//*');
---enable_view_protocol
-
 #view protocol generates additional warning
 --disable_view_protocol
+--error 1105
+select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','/zot/tim0/02') as xml;
+select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','//*') as xml;
+
 # dot and dash are bad identtifier start character
 select extractValue('<.>test</.>','//*');
 select extractValue('<->test</->','//*');
@@ -457,13 +429,10 @@ select ExtractValue(@xml, "/entry[(50<=pt)]/id");
 #
 # Test nodetypes in node name context
 #
-select ExtractValue('<a><b><Text>test</Text></b></a>','/a/b/Text');
-#enable after fix MDEV-27871
---disable_view_protocol
-select ExtractValue('<a><b><comment>test</comment></b></a>','/a/b/comment');
-select ExtractValue('<a><b><node>test</node></b></a>','/a/b/node');
-select ExtractValue('<a><b><processing-instruction>test</processing-instruction></b></a>','/a/b/processing-instruction');
---enable_view_protocol
+select ExtractValue('<a><b><Text>test</Text></b></a>','/a/b/Text') as xml;
+select ExtractValue('<a><b><comment>test</comment></b></a>','/a/b/comment') as xml;
+select ExtractValue('<a><b><node>test</node></b></a>','/a/b/node') as xml;
+select ExtractValue('<a><b><processing-instruction>test</processing-instruction></b></a>','/a/b/processing-instruction') as xml;
 
 #
 # Test keywords in node name contexts
@@ -479,22 +448,19 @@ select ExtractValue('<a><div:div>test</div:div></a>', '/a/div:div');
 #
 # Test axis names in node name context
 #
-select ExtractValue('<a><ancestor>test</ancestor></a>', '/a/ancestor');
-#enable after fix MDEV-27871
---disable_view_protocol
-select ExtractValue('<a><ancestor-or-self>test</ancestor-or-self></a>', '/a/ancestor-or-self');
-select ExtractValue('<a><attribute>test</attribute></a>', '/a/attribute');
-select ExtractValue('<a><child>test</child></a>', '/a/child');
-select ExtractValue('<a><descendant>test</descendant></a>', '/a/descendant');
-select ExtractValue('<a><descendant-or-self>test</descendant-or-self></a>', '/a/descendant-or-self');
-select ExtractValue('<a><following>test</following></a>', '/a/following');
-select ExtractValue('<a><following-sibling>test</following-sibling></a>', '/a/following-sibling');
-select ExtractValue('<a><namespace>test</namespace></a>', '/a/namespace');
-select ExtractValue('<a><parent>test</parent></a>', '/a/parent');
-select ExtractValue('<a><preceding>test</preceding></a>', '/a/preceding');
-select ExtractValue('<a><preceding-sibling>test</preceding-sibling></a>', '/a/preceding-sibling');
---enable_view_protocol
-select ExtractValue('<a><self>test</self></a>', '/a/self');
+select ExtractValue('<a><ancestor>test</ancestor></a>', '/a/ancestor') as xml;
+select ExtractValue('<a><ancestor-or-self>test</ancestor-or-self></a>', '/a/ancestor-or-self') as xml;
+select ExtractValue('<a><attribute>test</attribute></a>', '/a/attribute') as xml;
+select ExtractValue('<a><child>test</child></a>', '/a/child') as xml;
+select ExtractValue('<a><descendant>test</descendant></a>', '/a/descendant') as xml;
+select ExtractValue('<a><descendant-or-self>test</descendant-or-self></a>', '/a/descendant-or-self') as xml;
+select ExtractValue('<a><following>test</following></a>', '/a/following') as xml;
+select ExtractValue('<a><following-sibling>test</following-sibling></a>', '/a/following-sibling') as xml;
+select ExtractValue('<a><namespace>test</namespace></a>', '/a/namespace') as xml;
+select ExtractValue('<a><parent>test</parent></a>', '/a/parent') as xml;
+select ExtractValue('<a><preceding>test</preceding></a>', '/a/preceding') as xml;
+select ExtractValue('<a><preceding-sibling>test</preceding-sibling></a>', '/a/preceding-sibling') as xml;
+select ExtractValue('<a><self>test</self></a>', '/a/self') as xml;
 
 #
 # Bug#26518 XPath and variables problem
@@ -751,10 +717,7 @@ SELECT ExtractValue('<a><a>aa</a><b>bb</b></a>','(a)/a|(a)/b');
 # MDEV-5689 ExtractValue(xml, 'substring(/x,/y)') crashes
 # MySQL bug#12428404 MYSQLD.EXE CRASHES WHEN EXTRACTVALUE() IS CALLED WITH MALFORMED XPATH EXP
 #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,..)');
---enable_view_protocol
+SELECT ExtractValue('<a><b>abc</b><c>2</c><d>1</d></a>','substring(/a/b,..)') as xml;
 
 --echo #
 --echo # Bug#62429 XML: ExtractValue, UpdateXML max arg length 127 chars
@@ -859,5 +822,17 @@ DROP TABLE t1;
 SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS f;
 
 --echo #
---echo # Start of 10.5 tests
+--echo # End of 10.5 tests
 --echo #
+
+--echo # Start of 11.4 tests
+
+--echo #
+--echo # MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit
+--echo #
+
+SET NAMES latin1;
+SELECT  lcase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+SELECT  ucase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+
+--echo # End of 11.4 tests

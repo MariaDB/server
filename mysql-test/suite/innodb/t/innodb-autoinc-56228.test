@@ -2,33 +2,45 @@
 ##
 # Bug #56228: dropping tables from within an active statement crashes server
 #
-DROP TABLE IF EXISTS t1_56228;
-DROP TABLE IF EXISTS t2_56228;
-DROP FUNCTION IF EXISTS bug56228;
 
-CREATE TEMPORARY TABLE t1_56228(
+# This test used to use TEMPORARY TABLE, which before MySQL 5.7 or
+# MariaDB Server 10.2 were covered by InnoDB locks.
+# In MariaDB Server 10.6, the locking and logging was corrected for Atomic DDL.
+# Hence, even if we tweaked create_table_info_t::innobase_table_flags()
+# so that TEMPORARY TABLE are created as persistent tables,
+# the DROP TEMPORARY TABLE statement inside the function would
+# fail due to HA_ERR_LOCK_WAIT_TIMEOUT, instead of breaking locks
+# like it used to do before MDEV-26603 and possibly other changes.
+CREATE TABLE t1_56228(
 	c1 iNT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
-CREATE TEMPORARY TABLE t2_56228(
+CREATE TABLE t2_56228(
 	c1 iNT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
 
 DELIMITER //;
 
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE FUNCTION bug56228() RETURNS INT DETERMINISTIC
 BEGIN
  INSERT INTO t1_56228 VALUES(NULL);
  INSERT INTO t2_56228 VALUES(NULL);
  INSERT INTO t1_56228 VALUES(NULL);
  INSERT INTO t2_56228 VALUES(NULL);
- DROP TEMPORARY TABLE t1_56228;
+ DROP TABLE t1_56228;
  RETURN 42;
+END //
+
+CREATE PROCEDURE bug56228()
+BEGIN
+ INSERT INTO t1_56228 VALUES(NULL);
+ INSERT INTO t2_56228 VALUES(NULL);
+ INSERT INTO t1_56228 VALUES(NULL);
+ INSERT INTO t2_56228 VALUES(NULL);
+ DROP TABLE t1_56228;
 END //
 
 DELIMITER ;//
 
---disable_ps_protocol
-SELECT bug56228();
---enable_ps2_protocol
+CALL bug56228();
 
-DROP FUNCTION bug56228;
-DROP TEMPORARY TABLE t2_56228;
-DROP TEMPORARY TABLE IF EXISTS t1_56228;
+DROP PROCEDURE bug56228;
+DROP TABLE t2_56228;

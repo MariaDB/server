@@ -138,13 +138,10 @@ DROP TABLE t1;
 #
 # Bug 19491 (CAST DATE AS DECIMAL returns incorrect result
 #
-SELECT CAST(CAST('2006-08-10' AS DATE) AS DECIMAL(20,6));
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) AS DECIMAL(20,6));
-SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) + INTERVAL 14 MICROSECOND AS DECIMAL(20,6));
-SELECT CAST(CAST('10:11:12.098700' AS TIME(6)) AS DECIMAL(20,6));
---disable_view_protocol
+SELECT CAST(CAST('2006-08-10' AS DATE) AS DECIMAL(20,6)) as exp;
+SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) AS DECIMAL(20,6)) as exp;
+SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) + INTERVAL 14 MICROSECOND AS DECIMAL(20,6)) as exp;
+SELECT CAST(CAST('10:11:12.098700' AS TIME(6)) AS DECIMAL(20,6)) as exp;
 
 #
 # Test of storing datetime into date fields
@@ -246,16 +243,13 @@ drop table t1,t2,t3;
 #
 # Bug#27759: Wrong DATE/DATETIME comparison in LEAST()/GREATEST() functions.
 #
-select least(cast('01-01-01' as date), '01-01-02');
-select greatest(cast('01-01-01' as date), '01-01-02');
-select least(cast('01-01-01' as date), '01-01-02') + 0;
-select greatest(cast('01-01-01' as date), '01-01-02') + 0;
-select least(cast('01-01-01' as datetime), '01-01-02') + 0;
-select cast(least(cast('01-01-01' as datetime), '01-01-02') as signed);
-#enable after fix MDEV-27871
---disable_view_protocol
-select cast(least(cast('01-01-01' as datetime), '01-01-02') as decimal(16,2));
---enable_view_protocol
+select least(cast('01-01-01' as date), '01-01-02') as exp;
+select greatest(cast('01-01-01' as date), '01-01-02') as exp;
+select least(cast('01-01-01' as date), '01-01-02') + 0 as exp;
+select greatest(cast('01-01-01' as date), '01-01-02') + 0 as exp;
+select least(cast('01-01-01' as datetime), '01-01-02') + 0 as exp;
+select cast(least(cast('01-01-01' as datetime), '01-01-02') as signed) as exp;
+select cast(least(cast('01-01-01' as datetime), '01-01-02') as decimal(16,2)) as exp;
 --disable_warnings
 DROP PROCEDURE IF EXISTS test27759 ;
 --enable_warnings
@@ -447,27 +441,23 @@ create table t1 (da date default '1962-03-32 23:33:34', dt datetime default '196
 create table t1 (t time default '916:00:00 a');
 set @@sql_mode= @org_mode;
 
-#enable after fix MDEV-27871
---disable_view_protocol
-
 #
 # Bug #42146 - DATETIME fractional seconds parse error
 #
 # show we trucate microseconds from the right -- special case: leftmost is 0
-SELECT CAST(CAST('2006-08-10 10:11:12.0123450' AS DATETIME(6)) AS DECIMAL(30,7));
+SELECT CAST(CAST('2006-08-10 10:11:12.0123450' AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
 
 # show that we ignore leading zeroes for all other fields
-SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.0123450' AS DATETIME(6)) AS DECIMAL(30,7));
+SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.0123450' AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
 # once more with feeling (but no warnings)
-SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.012345'  AS DATETIME(6)) AS DECIMAL(30,7));
+SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.012345'  AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
 
 
 #
 # Bug #38435 - LONG Microseconds cause MySQL to fail a CAST to DATETIME or DATE
 #
 # show we truncate microseconds from the right
-SELECT CAST(CAST('2008-07-29T10:42:51.1234567' AS DateTime(6)) AS DECIMAL(30,7));
---enable_view_protocol
+SELECT CAST(CAST('2008-07-29T10:42:51.1234567' AS DateTime(6)) AS DECIMAL(30,7)) as exp;
 
 --echo # 
 --echo # Bug#59173: Failure to handle DATE(TIME) values where Year, Month or
@@ -510,10 +500,7 @@ drop table t1,t2;
 --echo #
 --echo # MDEV-4634 Crash in CONVERT_TZ
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CONVERT_TZ(GREATEST(TIMESTAMP('2021-00-00'),TIMESTAMP('2022-00-00')),'+00:00','+7:5');
---enable_view_protocol
+SELECT CONVERT_TZ(GREATEST(TIMESTAMP('2021-00-00'),TIMESTAMP('2022-00-00')),'+00:00','+7:5') as exp;
 
 --echo #
 --echo # MDEV-5041 Inserting a TIME with hour>24 into a DATETIME column produces a wrong value
@@ -674,10 +661,7 @@ SELECT CAST(TIME'00:00:00.000001' AS DATETIME(6));
 SELECT CAST(CAST('10:20:30' AS TIME) AS DATETIME);
 SELECT CAST(CAST('00:00:00.000001' AS TIME(6)) AS DATETIME(6));
 SELECT CAST(CAST(TIMESTAMP'0000-00-00 10:20:30' AS TIME) AS DATETIME);
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CAST(CAST(TIMESTAMP'0000-00-00 00:00:00.000001' AS TIME(6)) AS DATETIME(6));
---enable_view_protocol
+SELECT CAST(CAST(TIMESTAMP'0000-00-00 00:00:00.000001' AS TIME(6)) AS DATETIME(6)) as exp;
 SET old_mode=DEFAULT;
 SET sql_mode=DEFAULT;
 
@@ -1078,3 +1062,18 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c DATETIME(1));
+INSERT INTO t0 VALUES ('0000-00-00 00:00:00.0'),('0000-00-00 00:00:00.1'),('2014-01-01 10:00:00.1');
+--source include/search_condition.inc
+DROP TABLE t0;
+
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

@@ -81,7 +81,7 @@ drop table t1;
 #
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -90,7 +90,7 @@ drop table t1;
 #
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -203,7 +203,7 @@ set global sql_mode=default;
 
 --replace_regex /TLS\/SSL error:.*/TLS\/SSL error/
 --error 1
---exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
+--exec $MYSQL_BINLOG --read-from-remote-server --ssl-verify-server-cert --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

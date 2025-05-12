@@ -16,16 +16,16 @@ select a , invisible from t1;
 a	invisible
 1	9
 insert into t1(a, invisible) values(99,99);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'INSERT INTO'
 select default(invisible) from t1;
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SELECT'
 insert into t1(invisible) values(99);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'INSERT INTO'
 insert into t_tmp select a, invisible from t1;
 insert into t1 select * from t_tmp;
 ERROR 21S01: Column count doesn't match value count at row 1
 insert into t1(a,invisible) select * from t_tmp;
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'INSERT INTO'
 select a , invisible from t1;
 a	invisible
 1	9
@@ -45,22 +45,22 @@ select a , invisible from t1;
 a	invisible
 109	9
 update t1 set invisible = 23 where a=(select a from t1 limit 1);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SET'
 update t1 set invisible = 101 where a=(select a from t1 limit 1);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SET'
 update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select invisible from t1 limit 1);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SET'
 select a , invisible from t1;
 a	invisible
 109	9
 set @a=12;
 update t1 set invisible = (select @a from dual) where a=(select a from t1 limit 1);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SET'
 select a , invisible from t1;
 a	invisible
 109	9
 update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SET'
 select a , invisible from t1;
 a	invisible
 109	9
@@ -100,7 +100,7 @@ select * from t1;
 a
 1
 select invisible ,a from t1;
-ERROR 42S22: Unknown column 'invisible' in 'field list'
+ERROR 42S22: Unknown column 'invisible' in 'SELECT'
 set debug_dbug= "+d,test_completely_invisible";
 select invisible ,a from t1;
 invisible	a
@@ -108,9 +108,9 @@ invisible	a
 set debug_dbug=@old_debug;
 create table t2 (invisible int);
 select * from t1 join t2 using (invisible);
-ERROR 42S22: Unknown column 'invisible' in 'from clause'
+ERROR 42S22: Unknown column 'invisible' in 'FROM'
 select * from t2 join t1 using (invisible);
-ERROR 42S22: Unknown column 'invisible' in 'from clause'
+ERROR 42S22: Unknown column 'invisible' in 'FROM'
 insert t2 values (8),(9);
 select * from t1 natural join t2;
 a	invisible

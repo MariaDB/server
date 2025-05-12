@@ -366,11 +366,27 @@ TRUNCATE TABLE articles;
 
 INSERT INTO articles(id, title) VALUES(1, 'mysql');
 
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
+INSERT INTO t SET a=1;
+SAVEPOINT t;
+INSERT INTO articles(id, title) VALUES(2, 'mysql');
+SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
+ROLLBACK TO SAVEPOINT t;
+SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
+SELECT * FROM t;
+COMMIT;
 
+SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
+
+BEGIN;
+INSERT INTO t SET a=2;
 INSERT INTO articles(id, title) VALUES(2, 'mysql');
 
 ROLLBACK;
+
+SELECT * FROM t;
+DROP TABLE t;
 
 INSERT INTO articles(id, title) VALUES(3, 'mysql');
 

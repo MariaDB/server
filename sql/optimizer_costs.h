@@ -153,7 +153,7 @@ struct TABLE;
 extern "C"
 {
   typedef int (*process_optimizer_costs_t) (const LEX_CSTRING *,
-                                            const OPTIMIZER_COSTS *,
+                                            OPTIMIZER_COSTS *,
                                             TABLE *);
   bool process_optimizer_costs(process_optimizer_costs_t func, TABLE *param);
 }

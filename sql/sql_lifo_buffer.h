@@ -117,7 +117,7 @@ public:
   bool is_empty() { return used_size() == 0; }
   virtual bool read() = 0;
   
-  void sort(qsort2_cmp cmp_func, void *cmp_func_arg)
+  void sort(qsort_cmp2 cmp_func, void *cmp_func_arg)
   {
     size_t elem_size= size1 + size2;
     size_t n_elements= used_size() / elem_size;
@@ -162,22 +162,22 @@ class Forward_lifo_buffer: public Lifo_buffer
 {
   uchar *pos;
 public:
-  enum_direction type() { return FORWARD; }
-  size_t used_size()
+  enum_direction type() override { return FORWARD; }
+  size_t used_size() override
   {
     return (size_t)(pos - start);
   }
-  void reset()
+  void reset() override
   {
     pos= start;
   }
-  uchar *end_of_space() { return pos; }
-  bool have_space_for(size_t bytes)
+  uchar *end_of_space() override { return pos; }
+  bool have_space_for(size_t bytes) override
   {
     return (pos + bytes < end);
   }
 
-  void write()
+  void write() override
   {
     write_bytes(write_ptr1, size1);
     if (size2)
@@ -199,8 +199,8 @@ public:
     *position= (*position) - bytes;
     return *position;
   }
-  bool read() { return read(&pos, &read_ptr1, &read_ptr2); }
-  bool read(uchar **position, uchar **ptr1, uchar **ptr2)
+  bool read() override { return read(&pos, &read_ptr1, &read_ptr2); }
+  bool read(uchar **position, uchar **ptr1, uchar **ptr2) override
   {
     if (!have_data(*position, size1 + size2))
       return TRUE;
@@ -209,7 +209,7 @@ public:
     *ptr1= read_bytes(position, size1);
     return FALSE;
   }
-  void remove_unused_space(uchar **unused_start, uchar **unused_end)
+  void remove_unused_space(uchar **unused_start, uchar **unused_end) override
   {
     DBUG_ASSERT(0); /* Don't need this yet */
   }
@@ -228,9 +228,9 @@ public:
     end= unused_end;
   }
   /* Return pointer to start of the memory area that is occupied by the data */
-  uchar *used_area() { return start; }
+  uchar *used_area() override { return start; }
   friend class Lifo_buffer_iterator;
-  uchar *get_pos() { return pos; }
+  uchar *get_pos() override { return pos; }
 };
 
 
@@ -254,22 +254,22 @@ class Backward_lifo_buffer: public Lifo_buffer
 {
   uchar *pos;
 public:
-  enum_direction type() { return BACKWARD; }
+  enum_direction type() override { return BACKWARD; }
  
-  size_t used_size()
+  size_t used_size() override
   {
     return (size_t)(end - pos);
   }
-  void reset()
+  void reset() override
   {
     pos= end;
   }
-  uchar *end_of_space() { return end; }
-  bool have_space_for(size_t bytes)
+  uchar *end_of_space() override { return end; }
+  bool have_space_for(size_t bytes) override
   {
     return (pos - bytes >= start);
   }
-  void write()
+  void write() override
   {
     if (write_ptr2)
       write_bytes(write_ptr2, size2);
@@ -281,11 +281,11 @@ public:
     pos -= bytes;
     memcpy(pos, data, bytes);
   }
-  bool read()
+  bool read() override
   {
     return read(&pos, &read_ptr1, &read_ptr2);
   }
-  bool read(uchar **position, uchar **ptr1, uchar **ptr2)
+  bool read(uchar **position, uchar **ptr1, uchar **ptr2) override
   {
     if (!have_data(*position, size1 + size2))
       return TRUE;
@@ -310,7 +310,7 @@ public:
     @param unused_start  OUT Start of the unused space
     @param unused_end    OUT End of the unused space
   */
-  void remove_unused_space(uchar **unused_start, uchar **unused_end)
+  void remove_unused_space(uchar **unused_start, uchar **unused_end) override
   {
     *unused_start= start;
     *unused_end= pos;
@@ -321,9 +321,9 @@ public:
     DBUG_ASSERT(0); /* Not used for backward buffers */
   }
   /* Return pointer to start of the memory area that is occupied by the data */
-  uchar *used_area() { return pos; }
+  uchar *used_area() override { return pos; }
   friend class Lifo_buffer_iterator;
-  uchar *get_pos() { return pos; }
+  uchar *get_pos() override { return pos; }
 };
 
 

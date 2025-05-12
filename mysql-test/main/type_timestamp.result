@@ -1276,9 +1276,8 @@ CREATE TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 VALUES ('2001-01-01','2002-01-01'),('2003-01-01','2004-01-01');
 SELECT * FROM t1 WHERE DEFAULT(b) - a;
 a	b
-Warnings:
-Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
-Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+2001-01-01 00:00:00.0000	2002-01-01 00:00:00
+2003-01-01 00:00:00.0000	2004-01-01 00:00:00
 SELECT LEFT('', DEFAULT(b)-a) FROM t1;
 LEFT('', DEFAULT(b)-a)
 
@@ -1291,9 +1290,8 @@ CREATE  TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 (a) VALUES ('2001-01-01'),('2003-01-01');
 SELECT * FROM t1 WHERE (SELECT MIN(b) FROM t1) - a;
 a	b
-Warnings:
-Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
-Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+2001-01-01 00:00:00.0000	0000-00-00 00:00:00
+2003-01-01 00:00:00.0000	0000-00-00 00:00:00
 SELECT (SELECT MIN(b) FROM t1) - a FROM t1;
 (SELECT MIN(b) FROM t1) - a
 -20010101000000.0000
@@ -2337,3 +2335,14 @@ DROP TABLE t1;
 #
 # End of 11.3 tests
 #
+# Start of 11.4 tests
+#
+# MDEV-35677 Assertion `thd->is_error()' failed in virtual bool Field::sp_prepare_and_store_item(THD*, Item**)
+#
+CREATE FUNCTION f() RETURNS INT DETERMINISTIC RETURN (SELECT a FROM t);
+CREATE TABLE t (c TIMESTAMP);
+SELECT * FROM t WHERE c=f();
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+DROP TABLE t;
+DROP FUNCTION f;
+# End of 11.4 tests

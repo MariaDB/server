@@ -458,9 +458,9 @@ typedef struct my_charset_loader_st
 {
   char error[128];
   void *(*once_alloc)(size_t);
-  void *(*malloc)(size_t);
-  void *(*realloc)(void *, size_t);
-  void (*free)(void *);
+  void *(*malloc)(size_t);                      /* Not used */
+  void *(*realloc)(void *, size_t);             /* Not used */
+  void (*free)(void *);                         /* Not used */
   void (*reporter)(enum loglevel, const char *format, ...);
   int  (*add_collation)(struct charset_info_st *cs);
 } MY_CHARSET_LOADER;
@@ -568,6 +568,22 @@ struct my_collation_handler_st
   uint (*get_id)(CHARSET_INFO *cs, my_collation_id_type_t type);
   LEX_CSTRING (*get_collation_name)(CHARSET_INFO *cs,
                                     my_collation_name_mode_t mode);
+  /*
+    Check if two collations are equally defined, so DTCollation aggregation
+    code considers them as equal. This is useful for collation aliases,
+    e.g. for MySQL 0900 collation aliases for 1400 MariaDB collations.
+    For example, these queries work without raising "Illegal mix of collations":
+
+      SELECT _utf8mb4'a' COLLATE utf8mb4_uca1400_nopad_ai_ci =
+             _utf8mb4'a' COLLATE utf8mb4_0900_ai_ci;
+
+      SELECT ... WHERE column_with_collation_utf8mb4_uca1400_nopad_ai_ci =
+                       column_with_collation_tf8mb4_0900_ai_ci;
+
+    @return 0  Different
+    @return 1  Identical
+  */
+  my_bool (*eq_collation)(CHARSET_INFO *self, CHARSET_INFO *other);
 };
 
 
@@ -1110,6 +1126,19 @@ struct charset_info_st
   {
     return (coll->get_collation_name)(this, mode);
   }
+
+  /*
+    Check if two collations are equally defined. For details
+    see the definition of eq_collation() in my_collation_handler_st.
+
+    @return 0  Different
+    @return 1  Identical
+  */
+  my_bool eq_collation(CHARSET_INFO *rhs) const
+  {
+    return this == rhs || (coll->eq_collation)(this, rhs);
+  }
+
 #endif /* __cplusplus */
 };
 

@@ -157,50 +157,44 @@ trx_undo_report_row_operation(
 /** TRX_UNDO_PREV_IN_PURGE tells trx_undo_prev_version_build() that it
 is being called purge view and we would like to get the purge record
 even it is in the purge view (in normal case, it will return without
-fetching the purge record */
+fetching the purge record) */
 static constexpr ulint TRX_UNDO_PREV_IN_PURGE = 1;
 
 /** This tells trx_undo_prev_version_build() to fetch the old value in
 the undo log (which is the after image for an update) */
 static constexpr ulint TRX_UNDO_GET_OLD_V_VALUE = 2;
 
-/** indicate a call from row_vers_old_has_index_entry() */
+/** indicate a call from row_undo_mod_sec_is_unsafe() */
 static constexpr ulint TRX_UNDO_CHECK_PURGEABILITY = 4;
+
+/** indicate a call from row_purge_is_unsafe() */
+static constexpr ulint TRX_UNDO_CHECK_PURGE_PAGES = 8;
 
 /** Build a previous version of a clustered index record. The caller
 must hold a latch on the index page of the clustered index record.
-@param	rec		version of a clustered index record
-@param	index		clustered index
-@param	offsets		rec_get_offsets(rec, index)
-@param	heap		memory heap from which the memory needed is
-			allocated
-@param	old_vers	previous version or NULL if rec is the
-			first inserted version, or if history data
-			has been deleted (an error), or if the purge
-			could have removed the version
-			though it has not yet done so
-@param	v_heap		memory heap used to create vrow
-			dtuple if it is not yet created. This heap
-                        diffs from "heap" above in that it could be
-                        prebuilt->old_vers_heap for selection
-@param	vrow		virtual column info, if any
-@param	v_status	status determine if it is going into this
-			function by purge thread or not.
-			And if we read "after image" of undo log
+@param rec       version of a clustered index record
+@param index     clustered index
+@param offsets   rec_get_offsets(rec, index)
+@param heap      memory heap from which the memory needed is allocated
+@param old_vers  previous version, or NULL if rec is the first inserted
+                 version, or if history data has been deleted (an error),
+                 or if the purge could have removed the version though
+                 it has not yet done so
+@param mtr       mini-transaction
+@param v_status  TRX_UNDO_PREV_IN_PURGE, ...
+@param v_heap    memory heap used to create vrow dtuple if it is not yet
+                 created. This heap diffs from "heap" above in that it could be
+                 prebuilt->old_vers_heap for selection
+@param vrow      virtual column info, if any
 @return error code
 @retval DB_SUCCESS if previous version was successfully built,
 or if it was an insert or the undo record refers to the table before rebuild
 @retval DB_MISSING_HISTORY if the history is missing */
-dberr_t
-trx_undo_prev_version_build(
-	const rec_t 	*rec,
-	dict_index_t	*index,
-	rec_offs	*offsets,
-	mem_heap_t	*heap,
-	rec_t		**old_vers,
-	mem_heap_t	*v_heap,
-	dtuple_t	**vrow,
-	ulint		v_status);
+dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
+                                    rec_offs *offsets, mem_heap_t *heap,
+                                    rec_t **old_vers, mtr_t *mtr,
+                                    ulint v_status,
+                                    mem_heap_t *v_heap, dtuple_t **vrow);
 
 /** Read from an undo log record a non-virtual column value.
 @param ptr	pointer to remaining part of the undo record

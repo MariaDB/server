@@ -55,7 +55,7 @@ public:
   {
     return !system_charset_info->strnncoll(name, name_length, name_cmp, length);
   }
-  ~NAMED_ILINK()
+  ~NAMED_ILINK() override
   {
     my_free((void *) name);
   }

@@ -58,7 +58,7 @@ static void heap_update_optimizer_costs(OPTIMIZER_COSTS *costs)
   costs->key_copy_cost= 0;          // Set in keyread_time()
   costs->row_copy_cost= 2.334e-06;  // This is small as its just a memcpy
   costs->row_lookup_cost= 0;        // Direct pointer
-  costs->row_next_find_cost= 0;
+  costs->row_next_find_cost= HEAP_ROW_NEXT_FIND_COST;
   costs->key_lookup_cost= 0;
   costs->key_next_find_cost= 0;
   costs->index_block_copy_cost= 0;
@@ -144,8 +144,6 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
   }
 
   ref_length= sizeof(HEAP_PTR);
-  /* Initialize variables for the opened table */
-  set_keys_for_scanning();
   /*
     We cannot run update_key_stats() here because we do not have a
     lock on the table. The 'records' count might just be changed
@@ -186,22 +184,24 @@ handler *ha_heap::clone(const char *name, MEM_ROOT *mem_root)
 
 
 /*
-  Compute which keys to use for scanning
+  Return set of keys usable for scanning
 
   SYNOPSIS
-    set_keys_for_scanning()
-    no parameter
+    keys_to_use_for_scanning()
+    (no parameters)
 
   DESCRIPTION
-    Set the bitmap btree_keys, which is used when the upper layers ask
-    which keys to use for scanning. For each btree index the
-    corresponding bit is set.
+    This function populates the bitmap `btree_keys`, where each bit represents
+    a key that can be used for scanning the table. The bitmap is dynamically
+    updated on every call, ensuring it reflects the current state of the
+    table's keys. Caching is avoided because the set of usable keys for
+    MEMORY tables may change during optimization or execution.
 
   RETURN
-    void
+    Pointer to the updated bitmap of keys (`btree_keys`)
 */
 
-void ha_heap::set_keys_for_scanning(void)
+const key_map *ha_heap::keys_to_use_for_scanning()
 {
   btree_keys.clear_all();
   for (uint i= 0 ; i < table->s->keys ; i++)
@@ -209,8 +209,8 @@ void ha_heap::set_keys_for_scanning(void)
     if (table->key_info[i].algorithm == HA_KEY_ALG_BTREE)
       btree_keys.set_bit(i);
   }
+  return &btree_keys;
 }
-
 
 int ha_heap::can_continue_handler_scan()
 {
@@ -272,7 +272,9 @@ IO_AND_CPU_COST ha_heap::keyread_time(uint index, ulong ranges, ha_rows rows,
 
 IO_AND_CPU_COST ha_heap::scan_time()
 {
-  return {0, (double) (stats.records+stats.deleted) * HEAP_ROW_NEXT_FIND_COST };
+  /* The caller ha_scan_time() handles stats.records */
+
+  return {0, (double) stats.deleted * HEAP_ROW_NEXT_FIND_COST };
 }
 
 
@@ -515,8 +517,7 @@ int ha_heap::disable_indexes(key_map map, bool persist)
   if (!persist)
   {
     DBUG_ASSERT(map.is_clear_all());
-    if (!(error= heap_disable_indexes(file)))
-      set_keys_for_scanning();
+    error= heap_disable_indexes(file);
   }
   else
   {
@@ -534,8 +535,7 @@ int ha_heap::disable_indexes(key_map map, bool persist)
     enable_indexes()
 
   DESCRIPTION
-    Enable indexes and set keys to use for scanning.
-    The indexes might have been disabled by disable_index() before.
+    Enable indexes taht might have been disabled by disable_index() before.
     The function works only if both data and indexes are empty,
     since the heap storage engine cannot repair the indexes.
     To be sure, call handler::delete_all_rows() before.
@@ -555,8 +555,7 @@ int ha_heap::enable_indexes(key_map map, bool persist)
   if (!persist)
   {
     DBUG_ASSERT(map.is_prefix(table->s->keys));
-    if (!(error= heap_enable_indexes(file)))
-      set_keys_for_scanning();
+    error= heap_enable_indexes(file);
   }
   else
   {
@@ -678,7 +677,7 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
     case HA_KEY_ALG_UNDEF:
     case HA_KEY_ALG_HASH:
       keydef[key].algorithm= HA_KEY_ALG_HASH;
-      mem_per_row+= sizeof(char*) * 2; // = sizeof(HASH_INFO)
+      mem_per_row+= sizeof(HASH_INFO);
       break;
     case HA_KEY_ALG_BTREE:
       keydef[key].algorithm= HA_KEY_ALG_BTREE;
@@ -747,7 +746,6 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       }
     }
   }
-  mem_per_row+= MY_ALIGN(MY_MAX(share->reclength, sizeof(char*)) + 1, sizeof(char*));
   if (table_arg->found_next_number_field)
   {
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -755,11 +753,18 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   }
   hp_create_info->auto_key= auto_key;
   hp_create_info->auto_key_type= auto_key_type;
-  hp_create_info->max_table_size=current_thd->variables.max_heap_table_size;
+  hp_create_info->max_table_size= MY_MAX(current_thd->variables.max_heap_table_size, sizeof(HP_PTRS));
   hp_create_info->with_auto_increment= found_real_auto_increment;
   hp_create_info->internal_table= internal_table;
 
-  max_rows= (ha_rows) (hp_create_info->max_table_size / mem_per_row);
+  max_rows= hp_rows_in_memory(share->reclength, mem_per_row,
+                              hp_create_info->max_table_size);
+#ifdef GIVE_ERROR_IF_NOT_MEMORY_TO_INSERT_ONE_ROW
+  /* We do not give the error now but instead give an error on first insert */
+  if (!max_rows)
+    return HA_WRONG_CREATE_OPTION;
+#endif
+
   if (share->max_rows && share->max_rows < max_rows)
     max_rows= share->max_rows;
 

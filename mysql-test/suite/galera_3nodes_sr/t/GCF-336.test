@@ -54,5 +54,4 @@ CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
 --connection node_3
 --source include/galera_wait_ready.inc
 
-
 --enable_ps2_protocol

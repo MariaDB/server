@@ -48,10 +48,8 @@ User=mysql
 Group=mysql
 
 # CAP_IPC_LOCK To allow memlock to be used as non-root user
-# CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
-#   does nothing for non-root, not needed if /etc/shadow is u+r
-# CAP_AUDIT_WRITE auth_pam_tool needs it on Debian for whatever reason
-AmbientCapabilities=CAP_IPC_LOCK CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+# These are enabled by default
+AmbientCapabilities=CAP_IPC_LOCK
 
 # PrivateDevices=true implies NoNewPrivileges=true and
 # SUID auth_pam_tool suddenly doesn't do setuid anymore
@@ -80,7 +78,7 @@ PermissionsStartOnly=true
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`cd @bindir@/..; @bindir@/galera_recovery`; [ $? -eq 0 ] \
+ VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
 
 # Needed to create system tables etc.
@@ -105,7 +103,7 @@ SendSIGKILL=no
 
 # Restart crashed server only, on-failure would also restart, for example, when
 # my.cnf contains unknown option
-Restart=on-abort
+Restart=on-abnormal
 RestartSec=5s
 
 UMask=007

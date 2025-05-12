@@ -405,7 +405,7 @@ typedef struct st_maria_sort_param
   my_bool calc_checksum;                /* calculate table checksum */
   size_t rec_buff_size;
 
-  int (*key_cmp)(struct st_maria_sort_param *, const void *, const void *);
+  int (*key_cmp)(void *, const void *, const void *);
   int (*key_read)(struct st_maria_sort_param *, uchar *);
   int (*key_write)(struct st_maria_sort_param *, const uchar *);
   void (*lock_in_memory)(HA_CHECK *);

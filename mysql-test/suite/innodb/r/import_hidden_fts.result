@@ -1,3 +1,5 @@
+SET @save_adaptive=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=ON;
 call mtr.add_suppression("InnoDB: Added system generated FTS_DOC_ID and FTS_DOC_ID_INDEX while importing the tablespace");
 CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
 f2 CHAR(2) not null, fulltext f_idx(f2),
@@ -9,7 +11,7 @@ INSERT INTO t1(f1, f2) SELECT seq, "si" FROM seq_2_to_256;
 ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL;
 ALTER TABLE t1 DROP COLUMN f6;
 ALTER TABLE t1 DROP INDEX f_idx;
-connect con1,localhost,root,,;
+connect block_purge,localhost,root,,;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 DELETE FROM t1 WHERE f1 > 1;
@@ -22,6 +24,7 @@ UNLOCK TABLES;
 Warnings:
 Warning	1235	This version of MariaDB doesn't yet support 'FLUSH TABLES on a table that had an FTS index, created on a hidden column, the auxiliary tables haven't been dropped as yet. FTS auxiliary tables will not be flushed.'
 DROP TABLE t1;
+disconnect block_purge;
 CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
 f2 CHAR(2) not null,
 f3 INT as (f1) VIRTUAL, INDEX(f3),
@@ -43,3 +46,4 @@ t1	CREATE TABLE `t1` (
   KEY `f4` (`f4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
+SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;

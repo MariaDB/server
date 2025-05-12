@@ -1,7 +1,10 @@
-call mtr.add_suppression("Table `test`\\.`t[13]` (has an unreadable root page|is corrupted)");
+call mtr.add_suppression("Table `test`\\.`t[123]` (has an unreadable root page|is corrupted)");
+call mtr.add_suppression("InnoDB: File '.*test/t[123]\\.ibd' is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t[13]\\.ibd'");
+call mtr.add_suppression("InnoDB: Failed to read page 6 from file '.*test/t2\\.ibd'");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=\\d+, page number=[36]\\] in file .*test.t[123]\\.ibd looks corrupted; key_version=");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption in an InnoDB type table");
-call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd).*: Index for table 't2' is corrupt; try to repair it");
+call mtr.add_suppression("\\[ERROR\\] mariadbd.*: Index for table 't2' is corrupt; try to repair it");
 set global innodb_compression_algorithm = 1;
 # Create and populate tables to be corrupted
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT,c char(200)) ENGINE=InnoDB encrypted=yes;

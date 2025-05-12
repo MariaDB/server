@@ -16,7 +16,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -2161,9 +2160,7 @@ int spider_get_sys_tables_connect_info(
 ) {
   char *ptr;
   int error_num = 0;
-  const int link_idx= 0;
   DBUG_ENTER("spider_get_sys_tables_connect_info");
-  DBUG_PRINT("info",("spider link_idx:%d", link_idx));
   if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_PRIORITY_POS])))
   {
     share->priority = my_strtoll10(ptr, (char**) NULL, &error_num);
@@ -2174,245 +2171,245 @@ int spider_get_sys_tables_connect_info(
     !table->field[SPIDER_TABLES_SERVER_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SERVER_POS]))
   ) {
-    share->server_names_lengths[link_idx] = strlen(ptr);
-    share->server_names[link_idx] =
-      spider_create_string(ptr, share->server_names_lengths[link_idx]);
+    share->server_names_lengths[0] = strlen(ptr);
+    share->server_names[0] =
+      spider_create_string(ptr, share->server_names_lengths[0]);
     DBUG_PRINT("info",("spider server_name:%s",
-      share->server_names[link_idx]));
+      share->server_names[0]));
   } else {
-    share->server_names_lengths[link_idx] = 0;
-    share->server_names[link_idx] = NULL;
+    share->server_names_lengths[0] = 0;
+    share->server_names[0] = NULL;
     DBUG_PRINT("info",("spider server_name is NULL"));
   }
   if (
     !table->field[SPIDER_TABLES_SCHEME_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SCHEME_POS]))
   ) {
-    share->tgt_wrappers_lengths[link_idx] = strlen(ptr);
-    share->tgt_wrappers[link_idx] =
-      spider_create_string(ptr, share->tgt_wrappers_lengths[link_idx]);
+    share->tgt_wrappers_lengths[0] = strlen(ptr);
+    share->tgt_wrappers[0] =
+      spider_create_string(ptr, share->tgt_wrappers_lengths[0]);
     DBUG_PRINT("info",("spider tgt_wrapper:%s",
-      share->tgt_wrappers[link_idx]));
+      share->tgt_wrappers[0]));
   } else {
-    share->tgt_wrappers_lengths[link_idx] = 0;
-    share->tgt_wrappers[link_idx] = NULL;
+    share->tgt_wrappers_lengths[0] = 0;
+    share->tgt_wrappers[0] = NULL;
     DBUG_PRINT("info",("spider tgt_wrapper is NULL"));
   }
   if (
     !table->field[SPIDER_TABLES_HOST_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_HOST_POS]))
   ) {
-    share->tgt_hosts_lengths[link_idx] = strlen(ptr);
-    share->tgt_hosts[link_idx] =
-      spider_create_string(ptr, share->tgt_hosts_lengths[link_idx]);
+    share->tgt_hosts_lengths[0] = strlen(ptr);
+    share->tgt_hosts[0] =
+      spider_create_string(ptr, share->tgt_hosts_lengths[0]);
     DBUG_PRINT("info",("spider tgt_host:%s",
-      share->tgt_hosts[link_idx]));
+      share->tgt_hosts[0]));
   } else {
-    share->tgt_hosts_lengths[link_idx] = 0;
-    share->tgt_hosts[link_idx] = NULL;
+    share->tgt_hosts_lengths[0] = 0;
+    share->tgt_hosts[0] = NULL;
     DBUG_PRINT("info",("spider tgt_host is NULL"));
   }
   if (
     !table->field[SPIDER_TABLES_PORT_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_PORT_POS]))
   ) {
-    share->tgt_ports[link_idx] = atol(ptr);
+    share->tgt_ports[0] = atol(ptr);
   } else {
-    share->tgt_ports[link_idx] = -1;
+    share->tgt_ports[0] = -1;
   }
-  DBUG_PRINT("info",("spider port:%ld", share->tgt_ports[link_idx]));
+  DBUG_PRINT("info",("spider port:%ld", share->tgt_ports[0]));
   if (
     !table->field[SPIDER_TABLES_SOCKET_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SOCKET_POS]))
   ) {
-    share->tgt_sockets_lengths[link_idx] = strlen(ptr);
-    share->tgt_sockets[link_idx] =
-      spider_create_string(ptr, share->tgt_sockets_lengths[link_idx]);
+    share->tgt_sockets_lengths[0] = strlen(ptr);
+    share->tgt_sockets[0] =
+      spider_create_string(ptr, share->tgt_sockets_lengths[0]);
   } else {
-    share->tgt_sockets_lengths[link_idx] = 0;
-    share->tgt_sockets[link_idx] = NULL;
+    share->tgt_sockets_lengths[0] = 0;
+    share->tgt_sockets[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_USERNAME_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_USERNAME_POS]))
   ) {
-    share->tgt_usernames_lengths[link_idx] = strlen(ptr);
-    share->tgt_usernames[link_idx] =
-      spider_create_string(ptr, share->tgt_usernames_lengths[link_idx]);
+    share->tgt_usernames_lengths[0] = strlen(ptr);
+    share->tgt_usernames[0] =
+      spider_create_string(ptr, share->tgt_usernames_lengths[0]);
   } else {
-    share->tgt_usernames_lengths[link_idx] = 0;
-    share->tgt_usernames[link_idx] = NULL;
+    share->tgt_usernames_lengths[0] = 0;
+    share->tgt_usernames[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_PASSWORD_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_PASSWORD_POS]))
   ) {
-    share->tgt_passwords_lengths[link_idx] = strlen(ptr);
-    share->tgt_passwords[link_idx] =
-      spider_create_string(ptr, share->tgt_passwords_lengths[link_idx]);
+    share->tgt_passwords_lengths[0] = strlen(ptr);
+    share->tgt_passwords[0] =
+      spider_create_string(ptr, share->tgt_passwords_lengths[0]);
   } else {
-    share->tgt_passwords_lengths[link_idx] = 0;
-    share->tgt_passwords[link_idx] = NULL;
+    share->tgt_passwords_lengths[0] = 0;
+    share->tgt_passwords[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_SSL_CA_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CA_POS]))
   ) {
-    share->tgt_ssl_cas_lengths[link_idx] = strlen(ptr);
-    share->tgt_ssl_cas[link_idx] =
-      spider_create_string(ptr, share->tgt_ssl_cas_lengths[link_idx]);
+    share->tgt_ssl_cas_lengths[0] = strlen(ptr);
+    share->tgt_ssl_cas[0] =
+      spider_create_string(ptr, share->tgt_ssl_cas_lengths[0]);
   } else {
-    share->tgt_ssl_cas_lengths[link_idx] = 0;
-    share->tgt_ssl_cas[link_idx] = NULL;
+    share->tgt_ssl_cas_lengths[0] = 0;
+    share->tgt_ssl_cas[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_SSL_CAPATH_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CAPATH_POS]))
   ) {
-    share->tgt_ssl_capaths_lengths[link_idx] = strlen(ptr);
-    share->tgt_ssl_capaths[link_idx] =
-      spider_create_string(ptr, share->tgt_ssl_capaths_lengths[link_idx]);
+    share->tgt_ssl_capaths_lengths[0] = strlen(ptr);
+    share->tgt_ssl_capaths[0] =
+      spider_create_string(ptr, share->tgt_ssl_capaths_lengths[0]);
   } else {
-    share->tgt_ssl_capaths_lengths[link_idx] = 0;
-    share->tgt_ssl_capaths[link_idx] = NULL;
+    share->tgt_ssl_capaths_lengths[0] = 0;
+    share->tgt_ssl_capaths[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_SSL_CERT_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CERT_POS]))
   ) {
-    share->tgt_ssl_certs_lengths[link_idx] = strlen(ptr);
-    share->tgt_ssl_certs[link_idx] =
-      spider_create_string(ptr, share->tgt_ssl_certs_lengths[link_idx]);
+    share->tgt_ssl_certs_lengths[0] = strlen(ptr);
+    share->tgt_ssl_certs[0] =
+      spider_create_string(ptr, share->tgt_ssl_certs_lengths[0]);
   } else {
-    share->tgt_ssl_certs_lengths[link_idx] = 0;
-    share->tgt_ssl_certs[link_idx] = NULL;
+    share->tgt_ssl_certs_lengths[0] = 0;
+    share->tgt_ssl_certs[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_SSL_CIPHER_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CIPHER_POS]))
   ) {
-    share->tgt_ssl_ciphers_lengths[link_idx] = strlen(ptr);
-    share->tgt_ssl_ciphers[link_idx] =
-      spider_create_string(ptr, share->tgt_ssl_ciphers_lengths[link_idx]);
+    share->tgt_ssl_ciphers_lengths[0] = strlen(ptr);
+    share->tgt_ssl_ciphers[0] =
+      spider_create_string(ptr, share->tgt_ssl_ciphers_lengths[0]);
   } else {
-    share->tgt_ssl_ciphers_lengths[link_idx] = 0;
-    share->tgt_ssl_ciphers[link_idx] = NULL;
+    share->tgt_ssl_ciphers_lengths[0] = 0;
+    share->tgt_ssl_ciphers[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_SSL_KEY_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_KEY_POS]))
   ) {
-    share->tgt_ssl_keys_lengths[link_idx] = strlen(ptr);
-    share->tgt_ssl_keys[link_idx] =
-      spider_create_string(ptr, share->tgt_ssl_keys_lengths[link_idx]);
+    share->tgt_ssl_keys_lengths[0] = strlen(ptr);
+    share->tgt_ssl_keys[0] =
+      spider_create_string(ptr, share->tgt_ssl_keys_lengths[0]);
   } else {
-    share->tgt_ssl_keys_lengths[link_idx] = 0;
-    share->tgt_ssl_keys[link_idx] = NULL;
+    share->tgt_ssl_keys_lengths[0] = 0;
+    share->tgt_ssl_keys[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]->is_null() &&
     (ptr = get_field(mem_root,
       table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]))
   ) {
-    share->tgt_ssl_vscs[link_idx] = atol(ptr);
+    share->tgt_ssl_vscs[0] = atol(ptr);
   } else
-    share->tgt_ssl_vscs[link_idx] = -1;
+    share->tgt_ssl_vscs[0] = -1;
   if (
     !table->field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]->
       is_null() &&
     (ptr = get_field(mem_root, table->
       field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]))
   ) {
-    share->monitoring_binlog_pos_at_failing[link_idx] = atol(ptr);
+    share->monitoring_binlog_pos_at_failing[0] = atol(ptr);
   } else
-    share->monitoring_binlog_pos_at_failing[link_idx] = 0;
+    share->monitoring_binlog_pos_at_failing[0] = 0;
   if (
     !table->field[SPIDER_TABLES_DEFAULT_FILE_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DEFAULT_FILE_POS]))
   ) {
-    share->tgt_default_files_lengths[link_idx] = strlen(ptr);
-    share->tgt_default_files[link_idx] =
-      spider_create_string(ptr, share->tgt_default_files_lengths[link_idx]);
+    share->tgt_default_files_lengths[0] = strlen(ptr);
+    share->tgt_default_files[0] =
+      spider_create_string(ptr, share->tgt_default_files_lengths[0]);
   } else {
-    share->tgt_default_files_lengths[link_idx] = 0;
-    share->tgt_default_files[link_idx] = NULL;
+    share->tgt_default_files_lengths[0] = 0;
+    share->tgt_default_files[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]))
   ) {
-    share->tgt_default_groups_lengths[link_idx] = strlen(ptr);
-    share->tgt_default_groups[link_idx] =
-      spider_create_string(ptr, share->tgt_default_groups_lengths[link_idx]);
+    share->tgt_default_groups_lengths[0] = strlen(ptr);
+    share->tgt_default_groups[0] =
+      spider_create_string(ptr, share->tgt_default_groups_lengths[0]);
   } else {
-    share->tgt_default_groups_lengths[link_idx] = 0;
-    share->tgt_default_groups[link_idx] = NULL;
+    share->tgt_default_groups_lengths[0] = 0;
+    share->tgt_default_groups[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_DSN_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DSN_POS]))
   ) {
-    share->tgt_dsns_lengths[link_idx] = strlen(ptr);
-    share->tgt_dsns[link_idx] =
-      spider_create_string(ptr, share->tgt_dsns_lengths[link_idx]);
+    share->tgt_dsns_lengths[0] = strlen(ptr);
+    share->tgt_dsns[0] =
+      spider_create_string(ptr, share->tgt_dsns_lengths[0]);
   } else {
-    share->tgt_dsns_lengths[link_idx] = 0;
-    share->tgt_dsns[link_idx] = NULL;
+    share->tgt_dsns_lengths[0] = 0;
+    share->tgt_dsns[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_FILEDSN_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_FILEDSN_POS]))
   ) {
-    share->tgt_filedsns_lengths[link_idx] = strlen(ptr);
-    share->tgt_filedsns[link_idx] =
-      spider_create_string(ptr, share->tgt_filedsns_lengths[link_idx]);
+    share->tgt_filedsns_lengths[0] = strlen(ptr);
+    share->tgt_filedsns[0] =
+      spider_create_string(ptr, share->tgt_filedsns_lengths[0]);
   } else {
-    share->tgt_filedsns_lengths[link_idx] = 0;
-    share->tgt_filedsns[link_idx] = NULL;
+    share->tgt_filedsns_lengths[0] = 0;
+    share->tgt_filedsns[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_DRIVER_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DRIVER_POS]))
   ) {
-    share->tgt_drivers_lengths[link_idx] = strlen(ptr);
-    share->tgt_drivers[link_idx] =
-      spider_create_string(ptr, share->tgt_drivers_lengths[link_idx]);
+    share->tgt_drivers_lengths[0] = strlen(ptr);
+    share->tgt_drivers[0] =
+      spider_create_string(ptr, share->tgt_drivers_lengths[0]);
   } else {
-    share->tgt_drivers_lengths[link_idx] = 0;
-    share->tgt_drivers[link_idx] = NULL;
+    share->tgt_drivers_lengths[0] = 0;
+    share->tgt_drivers[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_TGT_DB_NAME_POS]))
   ) {
-    share->tgt_dbs_lengths[link_idx] = strlen(ptr);
-    share->tgt_dbs[link_idx] =
-      spider_create_string(ptr, share->tgt_dbs_lengths[link_idx]);
+    share->tgt_dbs_lengths[0] = strlen(ptr);
+    share->tgt_dbs[0] =
+      spider_create_string(ptr, share->tgt_dbs_lengths[0]);
   } else {
-    share->tgt_dbs_lengths[link_idx] = 0;
-    share->tgt_dbs[link_idx] = NULL;
+    share->tgt_dbs_lengths[0] = 0;
+    share->tgt_dbs[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]))
   ) {
-    share->tgt_table_names_lengths[link_idx] = strlen(ptr);
-    share->tgt_table_names[link_idx] =
-      spider_create_string(ptr, share->tgt_table_names_lengths[link_idx]);
+    share->tgt_table_names_lengths[0] = strlen(ptr);
+    share->tgt_table_names[0] =
+      spider_create_string(ptr, share->tgt_table_names_lengths[0]);
   } else {
-    share->tgt_table_names_lengths[link_idx] = 0;
-    share->tgt_table_names[link_idx] = NULL;
+    share->tgt_table_names_lengths[0] = 0;
+    share->tgt_table_names[0] = NULL;
   }
   if (
     !table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->is_null() &&
     (ptr = get_field(mem_root, table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]))
   ) {
-    share->static_link_ids_lengths[link_idx] = strlen(ptr);
-    share->static_link_ids[link_idx] =
-      spider_create_string(ptr, share->static_link_ids_lengths[link_idx]);
+    share->static_link_ids_lengths[0] = strlen(ptr);
+    share->static_link_ids[0] =
+      spider_create_string(ptr, share->static_link_ids_lengths[0]);
   } else {
-    share->static_link_ids_lengths[link_idx] = 0;
-    share->static_link_ids[link_idx] = NULL;
+    share->static_link_ids_lengths[0] = 0;
+    share->static_link_ids[0] = NULL;
   }
   DBUG_RETURN(error_num);
 }

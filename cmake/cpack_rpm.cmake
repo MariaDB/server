@@ -2,6 +2,8 @@ IF(RPM)
 
 MESSAGE(STATUS "CPackRPM building with RPM configuration: ${RPM}")
 
+INCLUDE(check_linker_flag)
+
 SET(CPACK_GENERATOR "RPM")
 SET(CPACK_RPM_PACKAGE_DEBUG 1)
 SET(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
@@ -50,6 +52,19 @@ SET(CPACK_RPM_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_PACKAGE_RELOCATABLE FALSE)
 SET(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 SET(CPACK_RPM_PACKAGE_URL ${CPACK_PACKAGE_URL})
+
+# The spec file depends on environment variables
+SET(ENV{RPM_PACKAGE_NAME}    ${CPACK_RPM_PACKAGE_NAME})
+EXECUTE_PROCESS(COMMAND rpm --eval ${CPACK_RPM_PACKAGE_RELEASE} OUTPUT_VARIABLE RPM_PACKAGE_RELEASE_EXPANDED)
+STRING(STRIP "${RPM_PACKAGE_RELEASE_EXPANDED}" RPM_PACKAGE_RELEASE_EXPANDED)
+SET(ENV{RPM_PACKAGE_RELEASE} ${RPM_PACKAGE_RELEASE_EXPANDED})
+SET(ENV{RPM_ARCH}            ${CMAKE_SYSTEM_PROCESSOR})
+SET(ENV{RPM_PACKAGE_VERSION} ${SERVER_VERSION})
+MY_CHECK_AND_SET_LINKER_FLAG("-specs=/usr/lib/rpm/redhat/redhat-package-notes")
+IF(HAVE_LINK_FLAG__specs_/usr/lib/rpm/redhat/redhat_package_notes)
+  SET(CMAKE_CXX_LINKER_LAUNCHER "env;RPM_PACKAGE_NAME=$ENV{RPM_PACKAGE_NAME};RPM_ARCH=$ENV{RPM_ARCH};RPM_PACKAGE_VERSION=$ENV{RPM_PACKAGE_VERSION};RPM_PACKAGE_RELEASE=$ENV{RPM_PACKAGE_RELEASE}")
+  SET(CMAKE_C_LINKER_LAUNCHER ${CMAKE_CXX_LINKER_LAUNCHER})
+ENDIF()
 
 SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
 SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
@@ -247,9 +262,10 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-    "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
+    "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "pv")
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat" "pv")
+  SETA(CPACK_RPM_test_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}" "socat")
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
@@ -296,7 +312,7 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
-ELSEIF(RPM MATCHES "(rhel|centos|rocky)[89]")
+ELSEIF(RPM MATCHES "(rhel|centos|rocky)")
   SET(epoch 3:)
   ALTERNATIVE_NAME("backup" "mariadb-backup")
   ALTERNATIVE_NAME("client" "mariadb")
@@ -327,53 +343,6 @@ IF(RPM MATCHES "fedora")
 ENDIF()
 
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
-
-# If we want to build build MariaDB-shared-compat,
-# extract compat libraries from MariaDB-shared-5.3 rpm
-FILE(GLOB compat53 RELATIVE ${CMAKE_SOURCE_DIR}
-    "${CMAKE_SOURCE_DIR}/../MariaDB-shared-5.3.*.rpm")
-FILE(GLOB compat101 RELATIVE ${CMAKE_SOURCE_DIR}
-    "${CMAKE_SOURCE_DIR}/../MariaDB-shared-10.1.*.rpm")
-IF(compat53 AND compat101)
-  FOREACH(compat_rpm "${compat53}" "${compat101}")
-    MESSAGE(STATUS "Using ${compat_rpm} to build MariaDB-compat")
-    INSTALL(CODE "EXECUTE_PROCESS(
-                   COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
-                   COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
-                   WORKING_DIRECTORY \$ENV{DESTDIR})
-                  EXECUTE_PROCESS(
-                   COMMAND chmod -R a+rX .
-                   WORKING_DIRECTORY \$ENV{DESTDIR})"
-                   COMPONENT Compat)
-  ENDFOREACH()
-
-  EXECUTE_PROCESS(
-    COMMAND rpm -q --provides -p "${CMAKE_SOURCE_DIR}/${compat101}"
-    ERROR_QUIET
-    OUTPUT_VARIABLE compat_provides)
-  EXECUTE_PROCESS(
-    COMMAND rpm -q --obsoletes -p "${CMAKE_SOURCE_DIR}/${compat101}"
-    ERROR_QUIET
-    OUTPUT_VARIABLE compat_obsoletes)
-
-  STRING(REPLACE "\n" " " compat_provides "${compat_provides}")
-  STRING(REPLACE "\n" " " compat_obsoletes "${compat_obsoletes}")
-  STRING(REGEX REPLACE "[^ ]+\\([^ ]+ *" "" compat_obsoletes "${compat_obsoletes}")
-  SETA(CPACK_RPM_compat_PACKAGE_PROVIDES "${compat_provides}")
-  SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES "${compat_obsoletes}")
-
-  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} Compat)
-
-  # RHEL6/CentOS6 install Postfix by default, and it requires
-  # libmysqlclient.so.16 that pulls in mysql-libs-5.1.x
-  # And the latter conflicts with our rpms.
-  # Make sure that for these distributions all our rpms require
-  # MariaDB-compat, that will replace mysql-libs-5.1
-  IF(RPM MATCHES "(rhel|centos)[67]")
-    SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
-    SET(CPACK_RPM_compat_PACKAGE_CONFLICTS "mariadb-libs < 1:10.1.0")
-  ENDIF()
-ENDIF()
 
 ################
 IF(CMAKE_VERSION VERSION_GREATER "3.9.99")

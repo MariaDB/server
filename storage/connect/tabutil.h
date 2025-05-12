@@ -40,11 +40,11 @@ class DllExport PRXDEF : public TABDEF {  /* Logical table description */
 	 PRXDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "PRX";}
+  const char *GetType(void) override {return "PRX";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE mode);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE mode) override;
 
  protected:
   // Members
@@ -63,27 +63,27 @@ class DllExport TDBPRX : public TDBASE {
   TDBPRX(PTDBPRX tdbp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_PRX;}
-  virtual PTDB  Duplicate(PGLOBAL g)
+  AMT   GetAmType(void) override {return TYPE_AM_PRX;}
+  PTDB  Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBPRX(this);}
 
   // Methods
-  virtual PTDB  Clone(PTABS t);
-  virtual int   GetRecpos(void) {return Tdbp->GetRecpos();}
-	virtual void  ResetDB(void) {Tdbp->ResetDB();}
-	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
-  virtual PCSZ  GetServer(void) {return (Tdbp) ? Tdbp->GetServer() : (PSZ)"?";}
+  PTDB  Clone(PTABS t) override;
+  int   GetRecpos(void) override {return Tdbp->GetRecpos();}
+	void  ResetDB(void) override {Tdbp->ResetDB();}
+	int   RowNumber(PGLOBAL g, bool b = FALSE) override;
+  PCSZ  GetServer(void) override {return (Tdbp) ? Tdbp->GetServer() : (PSZ)"?";}
 
   // Database routines
-	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+	PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
   virtual bool  InitTable(PGLOBAL g);
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
-  virtual int   WriteDB(PGLOBAL g);
-  virtual int   DeleteDB(PGLOBAL g, int irc);
-  virtual void  CloseDB(PGLOBAL g) {if (Tdbp) Tdbp->CloseDB(g);}
+  int   Cardinality(PGLOBAL g) override;
+  int   GetMaxSize(PGLOBAL g) override;
+  bool  OpenDB(PGLOBAL g) override;
+  int   ReadDB(PGLOBAL g) override;
+  int   WriteDB(PGLOBAL g) override;
+  int   DeleteDB(PGLOBAL g, int irc) override;
+  void  CloseDB(PGLOBAL g) override {if (Tdbp) Tdbp->CloseDB(g);}
           PTDB  GetSubTable(PGLOBAL g, PTABLE tabp, bool b = false);
           void  RemoveNext(PTABLE tp);
 
@@ -106,16 +106,16 @@ class DllExport PRXCOL : public COLBLK {
   PRXCOL(PRXCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_PRX;}
+  int  GetAmType(void) override {return TYPE_AM_PRX;}
 
   // Methods
   using COLBLK::Init;
-  virtual void Reset(void);
-  virtual bool IsSpecial(void) {return Pseudo;}
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
+  void Reset(void) override;
+  bool IsSpecial(void) override {return Pseudo;}
+  bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override
                 {return false;}
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
   virtual bool Init(PGLOBAL g, PTDB tp);
 
  protected:
@@ -141,7 +141,7 @@ class TDBTBC : public TDBCAT {
 
  protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   PSZ     Db;                    // Database of the table  

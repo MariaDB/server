@@ -81,8 +81,10 @@ drop table t6;
 # type to avoid Inno's column-number limits (~1000 columns) etc.
 # Here because it needs Inno-engine.
 
+--disable_cursor_protocol
 SELECT @@global.default_storage_engine INTO @old_engine;
 SET GLOBAL default_storage_engine=InnoDB;
+--enable_cursor_protocol
 
 --disable_query_log
 CREATE TABLE `t1` (

@@ -9,11 +9,14 @@ set global query_cache_size=1355776;
 
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
 
+--disable_cursor_protocol
 select @@time_zone into @time_zone;
 select @@default_week_format into @default_week_format;
 select @@character_set_client into @character_set_client;
@@ -32,6 +35,7 @@ select * from t1;
 --enable_ps2_protocol
 --enable_result_log
 set time_zone= @time_zone, default_week_format= @default_week_format, character_set_client= @character_set_client,character_set_results= @character_set_results, sql_mode= @sql_mode, div_precision_increment= @div_precision_increment, lc_time_names= @lc_time_names, autocommit= @autocommit, group_concat_max_len= @group_concat_max_len, max_sort_length= @max_sort_length;
+--enable_cursor_protocol
 
 --sorted_result
 --replace_column 5 # 20 # 24 #

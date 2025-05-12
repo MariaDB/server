@@ -99,8 +99,10 @@ ANALYZE TABLE bug12429573;
 # innodb_index_stats have been updated to the same value. If the bug is
 # present this check will fail.
 
+--disable_cursor_protocol
 SELECT last_update INTO @last FROM mysql.innodb_table_stats
 WHERE table_name = 'bug12429573';
+--enable_cursor_protocol
 SELECT * FROM mysql.innodb_index_stats
 WHERE table_name = 'bug12429573' AND last_update!=@last;
 

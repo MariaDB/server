@@ -191,12 +191,12 @@ Rowid_filter_container *Range_rowid_filter_cost_info::create_container()
 }
 
 
-static
-int compare_range_rowid_filter_cost_info_by_a(
-                        Range_rowid_filter_cost_info **filter_ptr_1,
-                        Range_rowid_filter_cost_info **filter_ptr_2)
+static int compare_range_rowid_filter_cost_info_by_a(const void *p1_,
+                                                     const void *p2_)
 {
-  double diff= (*filter_ptr_2)->get_gain() - (*filter_ptr_1)->get_gain();
+  auto p1= static_cast<const Range_rowid_filter_cost_info *const *>(p1_);
+  auto p2= static_cast<const Range_rowid_filter_cost_info *const *>(p2_);
+  double diff= (*p2)->get_gain() - (*p1)->get_gain();
   return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
 }
 

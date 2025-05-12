@@ -237,7 +237,7 @@ set session spider_suppress_comment_ignored_warning=0;
 CREATE TABLE tbl_a (a INT) ENGINE=Spider DEFAULT CHARSET=utf8
 REMOTE_TABLE=t CONNECTION="srv s_2_1";
 Warnings:
-Warning	12529	The table or partition COMMENT or CONNECTION string 'srv s_2_1' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'srv s_2_1' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 drop table tbl_a;
 CREATE TABLE tbl_a (
 a INT,
@@ -411,7 +411,7 @@ PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
 Warnings:
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
-Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 ERROR HY000: Remote table 'auto_test_remote2.tbl_a#P#p2' is not found
 DROP TABLE tbl_a;
@@ -427,9 +427,9 @@ PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_1"',
 PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
 );
 Warnings:
-Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_1"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
-Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
-Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_1"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_a"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 ERROR HY000: Unable to connect to foreign data source: localhost
 DROP TABLE tbl_a;
@@ -447,10 +447,10 @@ PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_2"',
 PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
 );
 Warnings:
-Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_2"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_2"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
 Warnings:
-Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_2"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_2"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 connection child2_1;
 SELECT * FROM tbl_a;
 a	b
@@ -477,7 +477,7 @@ PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_2" read_only_mode "0"',
 PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" READ_ONLY=NO
 );
 Warnings:
-Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_2" read_only_mode "0"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'srv "s_2_2" read_only_mode "0"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb");
 ERROR HY000: Table 'auto_test_local.tbl_a' is read only
 INSERT INTO tbl_a VALUES (3, "ccc"), (4, "ddd");
@@ -500,7 +500,7 @@ PRIMARY KEY(a)
 ) ENGINE=Spider DEFAULT CHARSET=utf8
 REMOTE_SERVER="s_2_1" COMMENT='tbl "tbl_b"' REMOTE_TABLE="tbl_a";
 Warnings:
-Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_b"' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified
+Warning	12529	The table or partition COMMENT or CONNECTION string 'tbl "tbl_b"' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified
 select table_name, server, tgt_table_name from mysql.spider_tables;
 table_name	server	tgt_table_name
 tbl_a	s_2_1	tbl_a

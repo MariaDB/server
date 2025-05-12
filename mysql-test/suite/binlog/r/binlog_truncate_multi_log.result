@@ -42,7 +42,7 @@ connection default;
 disconnect master1;
 disconnect master2;
 disconnect master3;
-# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1 --log-warnings=3
+# restart: --init-rpl-role=SLAVE --sync-binlog=1 --log-warnings=3
 FOUND 1 /truncated binlog file:.*master.*000002/ in mysqld.1.err
 "One record should be present in table"
 SELECT * FROM ti;

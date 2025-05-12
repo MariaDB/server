@@ -2668,7 +2668,7 @@ DROP TABLE t1, t2;
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
 SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
-ERROR 42S22: Unknown column 's.id' in 'group statement'
+ERROR 42S22: Unknown column 's.id' in 'GROUP BY'
 DROP TABLE t1;
 #
 # MDEV-24519: Server crashes in Charset::set_charset upon SELECT
@@ -2911,7 +2911,7 @@ ANALYZE
         ],
         "subqueries": [
           {
-            "expression_cache": {
+            "subquery_cache": {
               "state": "disabled",
               "r_loops": 0,
               "query_block": {
