@@ -133,7 +133,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0, opt_update_history= 0,
-                opt_drop_trigger= 0, opt_dump_history= 0;
+                opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0;
 #define OPT_SYSTEM_ALL 1
 #define OPT_SYSTEM_USERS 2
 #define OPT_SYSTEM_PLUGINS 4
@@ -327,8 +327,14 @@ static struct my_option my_long_options[] =
    "Include all MariaDB specific create options.",
    &create_options, &create_options, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"databases", 'B',
-   "Dump several databases. Note the difference in usage; in this case no tables are given. All name arguments are regarded as database names. 'USE db_name;' will be included in the output.",
+   "Dump several databases. Note the difference in usage; in this case no "
+   "tables are given. All name arguments are regarded as database names. "
+   "'USE db_name;' will be included in the output.",
    &opt_databases, &opt_databases, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+   {"wildcards", 'L', "Usage of wildcards in the table/database name. Without "
+    "option \"databases\" wildcards can be used only in tables names, "
+    "with option - in databases names.",
+   &opt_wildcards, &opt_wildcards, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
   {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -7334,6 +7340,96 @@ static void do_print_set_gtid_slave_pos(const char *set_gtid_pos,
   fprintf(md_result_file, "%s", set_gtid_pos);
 }
 
+void dump_tables_for_database_wild(const char *db, const char *pattern)
+{
+  int num= 1;
+  int number_of_tables= 0;
+  MYSQL_ROW row;
+  char buff[2*NAME_LEN+30];
+  MYSQL_RES *dbinfo;
+  char **tables_to_dump;
+  /* dbcopy - unquoted db; */
+  char dbcopy[2 * NAME_LEN + 30];
+
+  DBUG_ENTER("dump_tables_for_database_wild");
+
+  if (*db == '`')
+  {
+      size_t len = strlen(db);
+      memcpy(dbcopy, db + 1, len - 2);
+      dbcopy[len - 2] = 0;
+  }
+  else
+  {
+      strncpy(dbcopy, db, NAME_LEN + 1);
+  }
+  my_snprintf(buff, sizeof(buff), "SHOW TABLES IN `%s` LIKE '%s'",
+              dbcopy, pattern);
+  if(mysql_query_with_error_report(mysql, &dbinfo, buff))
+  {
+    fprintf(stderr,
+            "%s: Error: '%s' when trying to find tables satisfying pattern\n",
+            my_progname_short, mysql_error(mysql));
+    DBUG_VOID_RETURN;
+  }
+  number_of_tables= dbinfo->row_count;
+  if (!(tables_to_dump= (char **) my_malloc(
+            PSI_NOT_INSTRUMENTED,
+            (number_of_tables + (int) 2) * sizeof(char *), MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+  tables_to_dump[0]= dbcopy;
+  while ((row= mysql_fetch_row(dbinfo)))
+  {
+    tables_to_dump[num++]= row[0];
+  }
+  tables_to_dump[num]= NULL;
+  if (number_of_tables > 0)
+  {
+    if (!opt_alltspcs && !opt_notspcs)
+      dump_tablespaces_for_tables(*tables_to_dump, (tables_to_dump + 1),
+                                  number_of_tables);
+    dump_selected_tables(*tables_to_dump, (tables_to_dump + 1),
+                         number_of_tables);
+  }
+  my_free(tables_to_dump);
+  DBUG_VOID_RETURN;
+}
+
+
+/* pattern should be unquoted */
+void dump_databases_wild(const char *db_pattern)
+{
+  MYSQL_RES *dbinfo;
+  char buff[NAME_LEN+30];
+  MYSQL_ROW row;
+  int i= 0;
+  char **databases_to_dump;
+  DBUG_ENTER("dump_databases_wild");
+  my_snprintf(buff, sizeof(buff), "SHOW DATABASES LIKE '%s'", db_pattern);
+  if (mysql_query_with_error_report(mysql, &dbinfo, buff))
+  {
+    fprintf(stderr,
+       "%s: Error: '%s' when trying to find databases satisfying pattern\n",
+       my_progname_short, mysql_error(mysql));
+    DBUG_VOID_RETURN;
+  }
+  if (!(databases_to_dump= (char **) my_malloc(
+            PSI_NOT_INSTRUMENTED,
+            (dbinfo->row_count + (int) 1) * sizeof(char *), MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+  while ((row= mysql_fetch_row(dbinfo)))
+  {
+    databases_to_dump[i++]= row[0];
+  }
+  databases_to_dump[i]= NULL;
+  if (!opt_alltspcs && !opt_notspcs)
+    dump_tablespaces_for_databases(databases_to_dump);
+  dump_databases(databases_to_dump);
+  my_free(databases_to_dump);
+  DBUG_VOID_RETURN;
+}
+
+
 int main(int argc, char **argv)
 {
   char bin_log_name[FN_REFLEN];
@@ -7498,19 +7594,36 @@ int main(int argc, char **argv)
       }
     }
 
-    if (argc > 1 && !opt_databases)
+    if (opt_wildcards)
     {
-      /* Only one database and selected table(s) */
-      if (!opt_alltspcs && !opt_notspcs)
-        dump_tablespaces_for_tables(*argv, (argv + 1), (argc - 1));
-      dump_selected_tables(*argv, (argv + 1), (argc - 1));
+      if (argc > 1 && !opt_databases)
+        /* One database, tables matching the wildcard. */
+        for (int i= 1; i < argc; i++)
+          dump_tables_for_database_wild(argv[0], argv[i]);
+      else if (argc > 0)
+        /* Databases matching the wildcard. */
+        for (int i= 0; i < argc; i++)
+          dump_databases_wild(argv[i]);
+      else
+        die(EX_CONSCHECK,
+            "Incorrect usage of patterns \n");
     }
-    else if (argc > 0)
+    else
     {
-      /* One or more databases, all tables */
-      if (!opt_alltspcs && !opt_notspcs)
-        dump_tablespaces_for_databases(argv);
-      dump_databases(argv);
+      if (argc > 1 && !opt_databases)
+      {
+        /* Only one database and selected table(s) */
+        if (!opt_alltspcs && !opt_notspcs)
+          dump_tablespaces_for_tables(*argv, (argv + 1), (argc - 1));
+        dump_selected_tables(*argv, (argv + 1), (argc - 1));
+      }
+      else if (argc > 0)
+      {
+        /* One or more databases, all tables */
+        if (!opt_alltspcs && !opt_notspcs)
+          dump_tablespaces_for_databases(argv);
+        dump_databases(argv);
+      }
     }
   }
 
