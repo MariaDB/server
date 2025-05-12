@@ -1784,7 +1784,7 @@ ibb_write_header_page(mtr_t *mtr, uint64_t file_no, uint64_t file_size_in_pages,
 
   block= binlog_page_fifo->create_page(file_no, 0);
   ut_a(block /* ToDo: error handling? */);
-  byte *ptr= &block->page_buf[0];
+  byte *ptr= &block->page_buf()[0];
   uint64_t oob_ref_file_no=
     ibb_file_hash.earliest_oob_ref.load(std::memory_order_relaxed);
   uint64_t xa_ref_file_no=
@@ -1914,7 +1914,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       block= binlog_page_fifo->create_page(file_no, block_page_no);
       ut_a(block /* ToDo: error handling? */);
       page_offset= BINLOG_PAGE_DATA;
-      byte *ptr= page_offset + &block->page_buf[0];
+      byte *ptr= page_offset + &block->page_buf()[0];
       uint32_t chunk= (uint32_t)used_bytes;
       byte last_flag= FSP_BINLOG_FLAG_LAST;
       if (chunk > page_room - 3) {
@@ -2842,7 +2842,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     if (block)
     {
       ut_ad(end_offset != ~(uint64_t)0);
-      int res= read_gtid_state_from_page(state, block->page_buf, page_no);
+      int res= read_gtid_state_from_page(state, block->page_buf(), page_no);
       binlog_page_fifo->release_page(block);
       return (Read_Result)res;
     }
@@ -3250,7 +3250,7 @@ innodb_reset_binlogs()
 
   /* Re-initialize empty binlog state and start the pre-alloc thread. */
   innodb_binlog_init_state();
-  binlog_page_fifo->unlock();
+  binlog_page_fifo->unlock_with_delayed_free();
   start_binlog_prealloc_thread();
   binlog_sync_initial();
 

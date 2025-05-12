@@ -327,7 +327,8 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   ut_ad(have_len || len == 0);
   ut_ad(have_len || !alloc);
   ut_ad(have_offset || offset == 0);
-  ut_ad(offset + len <= srv_page_size);
+  ut_ad(offset + len <= srv_page_size ||
+        (type == WRITE && id.space() >= LOG_BINLOG_ID_0));
   static_assert(MIN_4BYTE >= UNIV_PAGE_SIZE_MAX, "consistency");
   ut_ad(type == FREE_PAGE || type == OPTION || (type == EXTENDED && !bpage) ||
         memo_contains_flagged(bpage, MTR_MEMO_MODIFY) ||
