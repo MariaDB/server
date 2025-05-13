@@ -361,6 +361,13 @@ public:
   int insert_tranx_node(THD *thd_to_wait, const char *log_file_name,
                         my_off_t log_file_pos);
 
+  /**
+    Find (if any) the (last) transaction node with at least
+    rpl_semi_sync_master_wait_for_slave_count Tranx_node::acks
+    @see Repl_semi_sync_master::refresh_wait_for_slave_count
+  */
+  Tranx_node *find_acked_tranx_node();
+
   /* Clear the active transaction nodes until(inclusive) the specified
    * position.
    * If log_file_name is NULL, everything will be cleared: the sorted
@@ -398,7 +405,6 @@ public:
    * if the internal linked list has no entries, false otherwise.
    */
   bool is_empty() { return m_trx_front == NULL; }
-
 };
 
 /**
@@ -694,6 +700,13 @@ class Repl_semi_sync_master
 
   /*called before reset master*/
   int before_reset_master();
+
+  /**
+    If `SET rpl_semi_sync_master_wait_for_slave_count` lowered the requirement,
+    the transaction queue `m_active_tranxs` needs to flush any that did not have
+    enough Tranx_node::acks before but now have.
+  */
+  void refresh_wait_for_slave_count(uint32 server_id);
 
   mysql_mutex_t LOCK_rpl_semi_sync_master_enabled;
 };
