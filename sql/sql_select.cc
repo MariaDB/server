@@ -34115,6 +34115,16 @@ void JOIN::init_join_cache_and_keyread()
           tuple.
       */
       table->mark_index_columns(table->file->keyread, table->read_set);
+      if (table->vfield)
+      {
+        for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
+        {
+          Field *vf= *vfield_ptr;
+          if (!vf->vcol_part_of_key.is_set(table->file->keyread) &&
+              vf->part_of_key.is_set(table->file->keyread))
+            bitmap_set_bit(table->read_set, vf->field_index);
+        }
+      }
     }
     bool init_for_explain= false;
 

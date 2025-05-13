@@ -9332,7 +9332,9 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
           vf->part_of_key.is_set(h->keyread))
       {
         update= true;
-        bitmap_set_bit(read_set, vf->field_index);
+        /*
+          bitmap_set_bit(read_set, vf->field_index);
+         */
       }
       else
         update= (!h->keyread_enabled() && !vcol_info->is_stored() &&
