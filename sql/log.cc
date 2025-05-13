@@ -2097,9 +2097,11 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
   {
     /* for not prepared use plain ROLLBACK */
     if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
+    {
       buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
                                  buf, query, q_len);
-    cache_mngr->using_xa= TRUE;
+      cache_mngr->using_xa= TRUE;
+    }
   }
   Query_log_event end_evt(thd, buf, buflen, TRUE, TRUE, TRUE, 0);
 

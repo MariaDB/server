@@ -1,0 +1,24 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+XA START 'a';
+SAVEPOINT s;
+INSERT INTO t VALUES (1);
+CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
+--disable_result_log
+SELECT * FROM mysql.proc;
+--enable_query_log
+ROLLBACK WORK TO s;
+
+XA END 'a';
+XA ROLLBACK 'a';
+
+--echo # Expected binlog events:
+source include/show_binlog_events.inc;
+
+--echo Cleanup
+DROP TEMPORARY TABLE t;
+DROP TABLE t;
+
+--echo End of tests
