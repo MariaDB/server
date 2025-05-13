@@ -3829,6 +3829,9 @@ static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
 static bool fix_rpl_semi_sync_master_wait_for_slave_count
   (sys_var *self, THD *thd, enum_var_type type)
 {
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+    repl_semisync_master.refresh_wait_for_slave_count(thd->variables.server_id);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 
