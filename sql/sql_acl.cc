@@ -15694,8 +15694,8 @@ bool check_routine_access(THD *thd, privilege_t want_access,
     1            error
 */
 
-bool check_some_routine_access(THD *thd, const char *db, const char *name,
-                               const Sp_handler *sph)
+bool check_some_routine_access(THD *thd, const LEX_CSTRING &db,
+                               const LEX_CSTRING &name, const Sp_handler &sph)
 {
   privilege_t save_priv(NO_ACL);
   /*
@@ -15709,12 +15709,12 @@ bool check_some_routine_access(THD *thd, const char *db, const char *name,
   */
   if (thd->security_ctx->master_access & SHOW_PROC_WITHOUT_DEFINITION_ACLS)
     return FALSE;
-  if (!check_access(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS, db, &save_priv,
+  if (!check_access(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS, db.str, &save_priv,
                     NULL, 0, 1) ||
       (save_priv & SHOW_PROC_WITHOUT_DEFINITION_ACLS))
     return FALSE;
-  return check_routine_level_acl(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS, db,
-                                 name, sph);
+  return check_routine_level_acl(thd, SHOW_PROC_WITHOUT_DEFINITION_ACLS, db.str,
+                                 name.str, &sph);
 }
 
 /*
