@@ -1796,6 +1796,9 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     goto next;
   }
 
+  if (UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < usable_size() / 20)
+    return SHRINK_ABORT;
+
   mysql_mutex_lock(&flush_list_mutex);
 
   if (LRU_warned && !UT_LIST_GET_FIRST(free))
