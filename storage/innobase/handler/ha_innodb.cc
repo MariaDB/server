@@ -4075,7 +4075,6 @@ static int innodb_init_params()
 #else
   ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
 #endif
-  srv_lock_table_size = 5 * buf_pool.curr_size();
   DBUG_RETURN(0);
 }
 

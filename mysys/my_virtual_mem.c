@@ -34,13 +34,9 @@
 
   We try to respect use_large_pages setting, on Windows and Linux
 */
-#ifndef _WIN32
-char *my_large_mmap(size_t *size, int prot);
-#endif
-
+#ifdef _WIN32
 char *my_virtual_mem_reserve(size_t *size)
 {
-#ifdef _WIN32
   DWORD flags= my_use_large_pages
     ? MEM_LARGE_PAGES | MEM_RESERVE | MEM_COMMIT
     : MEM_RESERVE;
@@ -53,10 +49,8 @@ char *my_virtual_mem_reserve(size_t *size)
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_ERROR_LOG), *size);
   }
   return ptr;
-#else
-  return my_large_mmap(size, PROT_NONE);
-#endif
 }
+#endif
 
 #if defined _WIN32 && !defined DBUG_OFF
 static my_bool is_memory_committed(char *ptr, size_t size)
@@ -88,7 +82,7 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
   }
 #else
   if (my_use_large_pages)
-    /* my_large_mmap() already created a read/write mapping. */;
+    /* my_large_virtual_alloc() already created a read/write mapping. */;
   else
   {
 # ifdef _AIX

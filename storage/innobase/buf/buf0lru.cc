@@ -276,7 +276,10 @@ static void buf_LRU_check_size_of_non_data_objects() noexcept
 
   auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
 
-  if (s < curr_size / 20)
+  if (s >= curr_size / 20);
+  else if (buf_pool.is_shrinking())
+    buf_pool.LRU_warn();
+  else
   {
     sql_print_error("[FATAL] InnoDB: Over 95 percent of the buffer pool is"
                     " occupied by lock heaps"

@@ -48,6 +48,8 @@ ut_find_prime(
 	ulint	pow2;
 	ulint	i;
 
+	ut_ad(n);
+
 	n += 100;
 
 	pow2 = 1;
