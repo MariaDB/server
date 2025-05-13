@@ -1,4 +1,4 @@
-/* Copyright 2008-2023 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2025 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -131,7 +131,8 @@ enum enum_wsrep_mode {
   WSREP_MODE_REPLICATE_MYISAM= (1ULL << 3),
   WSREP_MODE_REPLICATE_ARIA= (1ULL << 4),
   WSREP_MODE_DISALLOW_LOCAL_GTID= (1ULL << 5),
-  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6)
+  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6),
+  WSREP_MODE_APPLIER_DISABLE_WARNINGS= (1ULL << 7)
 };
 
 // Streaming Replication

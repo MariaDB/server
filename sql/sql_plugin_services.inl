@@ -185,7 +185,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_kill_LOCK,
   wsrep_thd_kill_UNLOCK,
   wsrep_thd_set_PA_unsafe,
-  wsrep_get_domain_id
+  wsrep_get_domain_id,
+  wsrep_applier_log_warnings
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

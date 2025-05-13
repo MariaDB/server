@@ -6111,6 +6111,7 @@ static const char *wsrep_mode_names[]=
   "REPLICATE_ARIA",
   "DISALLOW_LOCAL_GTID",
   "BF_ABORT_MARIABACKUP",
+  "APPLIER_DISABLE_FK_WARNINGS",
   NullS
 };
 static Sys_var_set Sys_wsrep_mode(

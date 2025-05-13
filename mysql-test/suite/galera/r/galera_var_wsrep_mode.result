@@ -20,8 +20,8 @@ SET GLOBAL wsrep_mode='A';
 ERROR 42000: Variable 'wsrep_mode' can't be set to the value of 'A'
 SET GLOBAL wsrep_mode=NULL;
 ERROR 42000: Variable 'wsrep_mode' can't be set to the value of 'NULL'
-SET GLOBAL wsrep_mode=128;
-ERROR 42000: Variable 'wsrep_mode' can't be set to the value of '128'
+SET GLOBAL wsrep_mode=65536;
+ERROR 42000: Variable 'wsrep_mode' can't be set to the value of '65536'
 SET GLOBAL wsrep_mode=REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 SET GLOBAL wsrep_mode=1;
@@ -56,6 +56,10 @@ SET GLOBAL wsrep_mode=REPLICATE_ARIA;
 SELECT @@wsrep_mode;
 @@wsrep_mode
 REPLICATE_ARIA
+SET GLOBAL wsrep_mode=APPLIER_DISABLE_FK_WARNINGS;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+APPLIER_DISABLE_FK_WARNINGS
 SET GLOBAL wsrep_mode=DISALLOW_LOCAL_GTID;
 SELECT @@wsrep_mode;
 @@wsrep_mode

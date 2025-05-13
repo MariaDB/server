@@ -258,6 +258,7 @@ SET SESSION DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
 SET GLOBAL DEBUG_DBUG = "";
 SET DEBUG_SYNC = 'RESET';
 connection node_1;
+call mtr.add_suppression("WSREP: Foreign key check table:.*");
 connection node_2;
 SELECT * FROM pg;
 f1	f2
