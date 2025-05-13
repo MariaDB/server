@@ -373,6 +373,7 @@ POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
 
 static bool find_indexes_matching_order(JOIN *, TABLE *, ORDER *, key_map *);
 static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex);
+static bool list_has_json_table_function(List<TABLE_LIST> list);
 
 #ifndef DBUG_OFF
 
@@ -1396,12 +1397,21 @@ static bool check_list_for_field(ORDER *order)
   return false;
 }
 
+static bool list_has_json_table_function(List<TABLE_LIST> list)
+{
+  List_iterator<TABLE_LIST> li(list);
+  while (TABLE_LIST *tbl= li++)
+  {
+    if (tbl->table_function)
+      return true;
+  }
+  return false;
+}
+
 static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
   List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
   Json_writer_object ddls_wrapper(thd);
   Json_writer_array ddl_list(thd, "list_ddls");
-  //ulonglong save_option_bits= thd->variables.option_bits;
-  //thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
   while (TABLE_LIST *tbl= li++)
   {
     char buf[2048];
@@ -1419,7 +1429,6 @@ static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
     ddl_wrapper.add("name", tbl->table_name);
     ddl_wrapper.add_with_escapes("ddl", buf);
   }
-  //thd->variables.option_bits= save_option_bits;
 }
 
 /**
@@ -1499,7 +1508,8 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
   if (thd->lex->sql_command != SQLCOM_SHOW_CREATE &&
       thd->variables.store_ddls_in_optimizer_trace &&
-      !list_has_optimizer_trace_table(tables_list))
+      !list_has_optimizer_trace_table(tables_list) &&
+      !list_has_json_table_function(select_lex->leaf_tables))
   {
     trace_table_definitions(thd, select_lex);
   }

@@ -1,5 +1,6 @@
 #--source include/not_embedded.inc
 #--source include/have_sequence.inc
+--disable_ps_protocol
 
 set store_ddls_in_optimizer_trace=ON;
 --echo 

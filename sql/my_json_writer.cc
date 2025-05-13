@@ -15,6 +15,7 @@
 
 #include "my_global.h"
 #include "my_json_writer.h"
+#include <string>
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
 
