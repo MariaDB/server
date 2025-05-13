@@ -1334,7 +1334,11 @@ bool buf_pool_t::create() noexcept
  retry:
   {
     NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
+#ifdef _WIN32
     memory_unaligned= my_virtual_mem_reserve(&size);
+#else
+    memory_unaligned= my_large_virtual_alloc(&size);
+#endif
   }
 
   if (!memory_unaligned)
@@ -1368,6 +1372,7 @@ bool buf_pool_t::create() noexcept
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
 #endif
+#ifdef _WIN32
   if (!my_virtual_mem_commit(memory, actual_size))
   {
     my_virtual_mem_release(memory_unaligned, size_unaligned);
@@ -1375,6 +1380,9 @@ bool buf_pool_t::create() noexcept
     memory_unaligned= nullptr;
     goto oom;
   }
+#else
+  update_malloc_size(actual_size, 0);
+#endif
 
 #ifdef HAVE_LIBNUMA
   if (srv_numa_interleave)
@@ -1785,6 +1793,9 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     block= allocate();
     goto next;
   }
+
+  if (UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < usable_size() / 20)
+    return SHRINK_ABORT;
 
   mysql_mutex_lock(&flush_list_mutex);
 

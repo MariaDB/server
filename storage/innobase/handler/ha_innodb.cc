@@ -4040,7 +4040,6 @@ skip_buffering_tweak:
   srv_use_native_aio= FALSE;
 #endif
 
-  srv_lock_table_size= 5 * buf_pool.curr_size();
   DBUG_RETURN(0);
 }
 

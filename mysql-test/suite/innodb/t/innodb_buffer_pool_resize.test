@@ -21,6 +21,7 @@ set global innodb_buffer_pool_size = 9437184;
 set global innodb_buffer_pool_size = 10485760;
 
 select @@innodb_buffer_pool_size;
+let $kbs=`SELECT CAST(@@innodb_page_size / 1024 AS INT)`;
 
 # fill buffer pool
 --disable_query_log
@@ -29,9 +30,13 @@ SET GLOBAL innodb_read_only_compressed=OFF;
 --enable_query_log
 create table t1 (id int primary key, val int not null)
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+evalp create table t2 (id int primary key, val int not null)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=$kbs;
 
 SET STATEMENT foreign_key_checks=0, unique_checks=0 FOR
 INSERT INTO t1 SELECT seq*4,seq*4 FROM seq_1_to_262144;
+SET STATEMENT foreign_key_checks=0, unique_checks=0 FOR
+INSERT INTO t2 SELECT seq*4,seq*4 FROM seq_1_to_16384;
 
 --disable_query_log
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
@@ -42,6 +47,7 @@ SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 set global innodb_buffer_pool_size = 7340032;
 
 select count(val) from t1;
+select count(val) from t2;
 
 set global innodb_adaptive_hash_index=OFF;
 
@@ -52,8 +58,9 @@ set global innodb_buffer_pool_size = 26214400;
 select @@innodb_buffer_pool_size;
 
 select count(val) from t1;
+select count(val) from t2;
 
-drop table t1;
+drop table t1,t2;
 
 SET GLOBAL innodb_max_purge_lag_wait = 0;
 SET @save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
@@ -66,8 +73,6 @@ SELECT variable_value = 0
 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 --source include/wait_condition.inc
-# this may occasionally be aborted on a heavily loaded builder
---error 0,ER_WRONG_USAGE
 SET GLOBAL innodb_buffer_pool_size = @old_innodb_buffer_pool_size;
 SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
 SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;

@@ -178,7 +178,9 @@ extern my_bool my_use_large_pages;
 
 int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
-#if defined _WIN32 || defined HAVE_MMAP
+#ifdef _WIN32
+/* On Windows, use my_virtual_mem_reserve() and my_virtual_mem_commit(). */
+#else
 char *my_large_virtual_alloc(size_t *size);
 #endif
 void my_large_free(void *ptr, size_t size);
