@@ -1796,7 +1796,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   if (!force_switch &&
       !(db_access & DB_ACLS) &&
-      check_grant_db(thd->security_ctx, new_db_file_name.str))
+      check_grant_db(thd->security_ctx, new_db_file_name))
   {
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
              sctx->priv_user,
