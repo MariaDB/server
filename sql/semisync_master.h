@@ -130,6 +130,7 @@ public:
     trx_node->log_pos= 0;
     trx_node->next= 0;
     trx_node->hash_next= 0;
+    trx_node->acks= 0;
     return trx_node;
   }
 

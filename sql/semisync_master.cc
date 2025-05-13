@@ -679,17 +679,14 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
 
   if (need_copy_send_pos)
   {
-    DBUG_ASSERT(m_active_tranxs);
-    Tranx_node *entry=
-      m_active_tranxs->get_tranx_node(log_file_name, log_file_pos);
-    DBUG_ASSERT(entry);
+    Tranx_node *entry;
+    strmake_buf(m_reply_file_name, log_file_name);
+    m_reply_file_pos = log_file_pos;
+    m_reply_file_name_inited = true;
 
-    if (++(entry->acks) >= rpl_semi_sync_master_wait_for_slave_count)
+    entry= m_active_tranxs->get_tranx_node(log_file_name, log_file_pos);
+    if (entry && ++(entry->acks) >= rpl_semi_sync_master_wait_for_slave_count)
     {
-      strmake_buf(m_reply_file_name, log_file_name);
-      m_reply_file_pos = log_file_pos;
-      m_reply_file_name_inited = true;
-
       /* Remove all active transaction nodes before this point. */
       m_active_tranxs->clear_active_tranx_nodes(log_file_name, log_file_pos,
                                                 signal_waiting_transaction);
