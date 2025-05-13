@@ -7005,7 +7005,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                  !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
                                           db.str, name.str, sph, TRUE);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     DBUG_RETURN(0);
 
   proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(thd->mem_root,
@@ -7123,7 +7123,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
                  !check_db_routine_access(thd, SHOW_CREATE_ROUTINE_ACL,
                                           db.str, name.str, sph, TRUE);
   if (!full_access &&
-      check_some_routine_access(thd, db.str, name.str, sph))
+      check_some_routine_access(thd, db, name, *sph))
     return 0;
 
   if (!is_show_command(thd) ||

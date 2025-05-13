@@ -125,8 +125,8 @@ bool check_routine_access(THD *thd, privilege_t want_access,
                           const LEX_CSTRING *db, const LEX_CSTRING *name,
                           const Sp_handler *sph, bool no_errors);
 bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table);
-bool check_some_routine_access(THD *thd, const char *db, const char *name,
-                               const Sp_handler *sph);
+bool check_some_routine_access(THD *thd, const LEX_CSTRING &db,
+                               const LEX_CSTRING &name, const Sp_handler &sph);
 bool check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                         bool any_combination_of_privileges_will_do,
                         uint number, bool no_errors);
@@ -154,8 +154,8 @@ inline bool check_some_access(THD *thd, privilege_t want_access,
   table->grant.privilege= want_access;
   return false;
 }
-inline bool check_some_routine_access(THD *thd, const char *db,
-                                      const char *name, const Sp_handler *sph)
+inline bool check_some_routine_access(THD *, const LEX_CSTRING &,
+                                      const LEX_CSTRING &, const Sp_handler &)
 {
   return false;
 }
