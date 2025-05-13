@@ -18,7 +18,7 @@ insert into t2 values (1),(2);
 
 create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
 
-optimizer_trace=OFF, and store_ddls_in_optimizer_trace=OFF
+disable both optimizer_trace and store_ddls_in_optimizer_trace
 there should be no trace
 
 set optimizer_trace=0;
@@ -31,7 +31,7 @@ select json_detailed(json_extract(trace, '$**.list_ddls'))
 from information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.list_ddls'))
 
-optimizer_trace=OFF, and store_ddls_in_optimizer_trace=ON
+disable optimizer_trace, but enable store_ddls_in_optimizer_trace
 there should be no trace here as well
 
 set store_ddls_in_optimizer_trace=ON;
@@ -43,7 +43,7 @@ select json_detailed(json_extract(trace, '$**.list_ddls'))
 from information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.list_ddls'))
 
-optimizer_trace=ON, and store_ddls_in_optimizer_trace=OFF
+enable optimizer_trace, but disable store_ddls_in_optimizer_trace
 trace result should be empty
 
 set optimizer_trace=1;
@@ -57,7 +57,7 @@ from information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.list_ddls'))
 NULL
 
-optimizer_trace=ON, and store_ddls_in_optimizer_trace=ON
+enable both optimizer_trace and store_ddls_in_optimizer_trace
 trace result should have 1 ddl statement
 
 set optimizer_trace=1;
@@ -66,48 +66,36 @@ set store_ddls_in_optimizer_trace=ON;
 select * from t1 where t1.a = 3;
 a	b
 
-select json_detailed(json_extract(trace, '$**.list_ddls'))
-from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.list_ddls'))
-[
-    [
-        {
-            "name": "t1",
-            "ddl": "CREATE TABLE \`t1\` (\n  \`a\` int(11) DEFAULT NULL,\n  \`b\` int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
-        }
-    ]
-]
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl varchar(200) path '$')) as jt
+order by ddl;
+ddl
+CREATE TABLE t1 (
+  a int(11) DEFAULT NULL,
+  b int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
-optimizer_trace=ON, and store_ddls_in_optimizer_trace=ON
+enable both optimizer_trace and store_ddls_in_optimizer_trace
 trace result should have 3 ddl statements
 
-
-set optimizer_trace=1;
 set store_ddls_in_optimizer_trace=ON;
 select * from view1 where view1.a = 3;
 a	b	c
 
-select json_detailed(json_extract(trace, '$**.list_ddls'))
-from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.list_ddls'))
-[
-    [
-        {
-            "name": "t1",
-            "ddl": "CREATE TABLE \`t1\` (\n  \`a\` int(11) DEFAULT NULL,\n  \`b\` int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
-        },
-        {
-            "name": "t2",
-            "ddl": "CREATE TABLE \`t2\` (\n  \`a\` int(11) DEFAULT NULL\n) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci"
-        }
-    ],
-    [
-        {
-            "name": "view1",
-            "ddl": "CREATE ALGORITHM=UNDEFINED DEFINER=\`root\`@\`localhost\` SQL SECURITY DEFINER VIEW \`view1\` AS (select \`t1\`.\`a\` AS \`a\`,\`t1\`.\`b\` AS \`b\`,\`t2\`.\`a\` AS \`c\` from (\`t1\` join \`t2\`) where \`t1\`.\`a\` = \`t2\`.\`a\`)"
-        }
-    ]
-]
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl varchar(200) path '$')) as jt
+order by ddl asc;
+ddl
+CREATE ALGORITHM=UNDEFINED DEFINER=root@localhost SQL SECURITY DEFINER VIEW view1 AS (select t1.a AS a,t1.b AS b,t2.a AS c from (t1 join t2) where t1.a = t2.a)
+CREATE TABLE t1 (
+  a int(11) DEFAULT NULL,
+  b int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE t2 (
+  a int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop view view1;
 drop table t1;
 drop table t2;

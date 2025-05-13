@@ -323,7 +323,7 @@ void Json_writer::add_str_with_escapes(const char *val)
     else if (*c == '\n')
       buf.append("\\n");
     else if (*c == '`')
-      buf.append("\\`");
+      buf.append("");
     else
     {
       char ch= *c;

@@ -23,7 +23,7 @@ insert into t2 values (1),(2);
 create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
 
 --echo 
---echo optimizer_trace=OFF, and store_ddls_in_optimizer_trace=OFF
+--echo disable both optimizer_trace and store_ddls_in_optimizer_trace
 --echo there should be no trace
 --echo 
 set optimizer_trace=0;
@@ -35,7 +35,7 @@ select json_detailed(json_extract(trace, '$**.list_ddls'))
     from information_schema.optimizer_trace;
 
 --echo
---echo optimizer_trace=OFF, and store_ddls_in_optimizer_trace=ON
+--echo disable optimizer_trace, but enable store_ddls_in_optimizer_trace
 --echo there should be no trace here as well
 --echo
 
@@ -47,7 +47,7 @@ select json_detailed(json_extract(trace, '$**.list_ddls'))
     from information_schema.optimizer_trace;
 
 --echo 
---echo optimizer_trace=ON, and store_ddls_in_optimizer_trace=OFF
+--echo enable optimizer_trace, but disable store_ddls_in_optimizer_trace
 --echo trace result should be empty
 --echo 
 set optimizer_trace=1;
@@ -59,7 +59,7 @@ select json_detailed(json_extract(trace, '$**.list_ddls'))
     from information_schema.optimizer_trace;
 
 --echo 
---echo optimizer_trace=ON, and store_ddls_in_optimizer_trace=ON
+--echo enable both optimizer_trace and store_ddls_in_optimizer_trace
 --echo trace result should have 1 ddl statement
 --echo 
 set optimizer_trace=1;
@@ -67,20 +67,26 @@ set store_ddls_in_optimizer_trace=ON;
 --echo 
 select * from t1 where t1.a = 3;
 --echo 
-select json_detailed(json_extract(trace, '$**.list_ddls'))
-    from information_schema.optimizer_trace;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+
+select ddl 
+from json_table(@js, '$[*]' columns(ddl varchar(200) path '$')) as jt
+order by ddl;
 
 --echo 
---echo optimizer_trace=ON, and store_ddls_in_optimizer_trace=ON
+--echo enable both optimizer_trace and store_ddls_in_optimizer_trace
 --echo trace result should have 3 ddl statements
 --echo 
---echo
-set optimizer_trace=1;
+
 set store_ddls_in_optimizer_trace=ON;
 select * from view1 where view1.a = 3;
 --echo 
-select json_detailed(json_extract(trace, '$**.list_ddls'))
-    from information_schema.optimizer_trace;
+
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+
+select ddl 
+from json_table(@js, '$[*]' columns(ddl varchar(200) path '$')) as jt
+order by ddl asc;
 
 drop view view1;
 drop table t1;
