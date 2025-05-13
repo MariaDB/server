@@ -13683,6 +13683,8 @@ ACL_internal_schema_registry::lookup(const char *name)
   return NULL;
 }
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+
 /**
   Get a cached internal schema access.
   @param grant_internal_info the cache
@@ -13728,6 +13730,7 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
   return grant_internal_info->m_table_access;
 }
 
+#endif
 
 /****************************************************************************
    AUTHENTICATION CODE
