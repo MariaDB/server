@@ -17,6 +17,7 @@
 #if _WIN32
 #include <io.h>
 #define access _access
+#define F_OK 0
 #else
 #include <unistd.h>
 #endif
