@@ -69,6 +69,7 @@
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
 #include "opt_hints.h"
+#include <algorithm>
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -373,7 +374,7 @@ POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
 
 static bool find_indexes_matching_order(JOIN *, TABLE *, ORDER *, key_map *);
 static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex);
-static bool list_has_json_table_function(List<TABLE_LIST> list);
+static bool list_has_json_temp_schema_tables(List<TABLE_LIST> list);
 
 #ifndef DBUG_OFF
 
@@ -1397,12 +1398,16 @@ static bool check_list_for_field(ORDER *order)
   return false;
 }
 
-static bool list_has_json_table_function(List<TABLE_LIST> list)
+static bool list_has_json_temp_schema_tables(List<TABLE_LIST> list)
 {
   List_iterator<TABLE_LIST> li(list);
   while (TABLE_LIST *tbl= li++)
   {
     if (tbl->table_function)
+      return true;
+    else if (tbl->schema_table)
+      return true;
+    else if (!tbl->is_view() && tbl->table && tbl->table->s && tbl->table->s->tmp_table == INTERNAL_TMP_TABLE)
       return true;
   }
   return false;
@@ -1414,20 +1419,31 @@ static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
   Json_writer_array ddl_list(thd, "list_ddls");
   while (TABLE_LIST *tbl= li++)
   {
-    char buf[2048];
-    String ddl(buf, sizeof(buf), system_charset_info);
-    ddl.length(0);
-    if (tbl->view)
+    if (tbl->table && tbl->table->s)
     {
-      show_create_view(thd, tbl, &ddl);
+      //bool flag = false;
+      //char *buf = (char*) alloc_root(thd->mem_root, sizeof(char));
+      char buf[2048];
+      String ddl(buf, 2048, system_charset_info);
+      ddl.length(0);
+      if (tbl->view)
+      {
+        show_create_view(thd, tbl, &ddl);
+        //flag = true;
+      }
+      else if (tbl->table->s->table_category == TABLE_CATEGORY_USER)
+      {
+        show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME);
+        //flag = true;
+      }
+      Json_writer_object ddl_wrapper(thd);
+      ddl_wrapper.add("name", tbl->table_name);
+      ddl_wrapper.add_with_escapes("ddl", buf);
+      //if (flag && thd->ddl_tables_map.find(tbl->table_name.str) == thd->ddl_tables_map.end()) {
+        //thd->ddl_tables_map[tbl->table_name.str] = thd->ddl_stmts.size();
+        //thd->ddl_stmts.push_back(buf);
+      //}
     }
-    else
-    {
-      show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME);
-    }
-    Json_writer_object ddl_wrapper(thd);
-    ddl_wrapper.add("name", tbl->table_name);
-    ddl_wrapper.add_with_escapes("ddl", buf);
   }
 }
 
@@ -1506,10 +1522,11 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                                     false, SELECT_ACL, SELECT_ACL, false))
       DBUG_RETURN(-1);
 
-  if (thd->lex->sql_command != SQLCOM_SHOW_CREATE &&
+  if (thd->variables.optimizer_trace &&
       thd->variables.store_ddls_in_optimizer_trace &&
-      !list_has_optimizer_trace_table(tables_list) &&
-      !list_has_json_table_function(select_lex->leaf_tables))
+      thd->lex->sql_command == SQLCOM_SELECT &&
+      //!list_has_optimizer_trace_table(tables_list) &&
+      !list_has_json_temp_schema_tables(select_lex->leaf_tables))
   {
     trace_table_definitions(thd, select_lex);
   }
@@ -5302,6 +5319,9 @@ find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
   return find_select_handler_inner(thd, select_lex, select_lex_unit);
 }
 
+// static bool comparePairs(const std::pair<const char *, int>& a, const std::pair<const char *, int>& b) {
+//   return a.second < b.second;
+// }
 
 /**
   An entry point to single-unit select (a select without UNION).
@@ -5431,6 +5451,19 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
     goto err;
 
   exec_error= join->exec();
+
+  // if (thd->ddl_stmts.size() > 0 && thd->ddl_stmts.size() == thd->ddl_tables_map.size())
+  // {
+  //   Json_writer_object ddls_wrapper(thd);
+  //   Json_writer_array ddl_list(thd, "list_ddls");
+  //   std::vector<std::pair<const char *, int>> mapVector(thd->ddl_tables_map.begin(), thd->ddl_tables_map.end());
+  //   std::sort(mapVector.begin(), mapVector.end(), comparePairs);
+  //   for (const auto& pair : mapVector) {
+  //     Json_writer_object ddl_wrapper(thd);
+  //     ddl_wrapper.add("name", pair.first);
+  //     ddl_wrapper.add_with_escapes("ddl", thd->ddl_stmts[pair.second]);
+  //   }
+  // }
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
