@@ -12082,15 +12082,10 @@ bool sp_grant_privileges(THD *thd,
     DBUG_RETURN(TRUE);
 
   mysql_mutex_lock(&acl_cache->lock);
-
-  if ((au= find_user_exact(sctx_host, sctx_user)))
-    goto found_acl;
-
+  au= find_user_exact(sctx_host, sctx_user);
   mysql_mutex_unlock(&acl_cache->lock);
-  DBUG_RETURN(TRUE);
-
- found_acl:
-  mysql_mutex_unlock(&acl_cache->lock);
+  if (!au)
+    DBUG_RETURN(TRUE);
 
   bzero((char*)tables, sizeof(TABLE_LIST));
   resolved_user_list.empty();
