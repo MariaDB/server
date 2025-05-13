@@ -106,7 +106,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access,
 bool check_grant_routine(THD *thd, privilege_t want_access,
                          TABLE_LIST *procs, const Sp_handler *sph,
                          bool no_error);
-bool check_grant_db(Security_context *sctx, const char *db);
+bool check_grant_db(Security_context *sctx, const LEX_CSTRING &db);
 
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_access(THD *thd, privilege_t want_access,

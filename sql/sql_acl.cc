@@ -8988,7 +8988,7 @@ static bool check_grant_db_routine(Security_context *sctx, const char *db, HASH 
   Return 1 if access is denied
 */
 
-bool check_grant_db(Security_context *sctx, const char *db)
+bool check_grant_db(Security_context *sctx, const LEX_CSTRING &db)
 {
   constexpr size_t key_data_size= SAFE_NAME_LEN + USERNAME_LENGTH + 1;
   // See earlier comments on MY_CS_MBMAXLEN above
@@ -8996,7 +8996,7 @@ bool check_grant_db(Security_context *sctx, const char *db)
   bool error= TRUE;
 
   key.append(Lex_cstring_strlen(sctx->priv_user)).append_char('\0')
-     .append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),
+     .append_opt_casedn(files_charset_info, db,
                         lower_case_table_names)
      .append_char('\0');
 
@@ -9009,7 +9009,7 @@ bool check_grant_db(Security_context *sctx, const char *db)
   if (sctx->priv_role[0])
   {
     key2.append(Lex_cstring_strlen(sctx->priv_role)).append_char('\0')
-        .append_opt_casedn(files_charset_info, Lex_cstring_strlen(db),
+        .append_opt_casedn(files_charset_info, db,
                            lower_case_table_names)
         .append_char('\0');
   }
@@ -9039,10 +9039,10 @@ bool check_grant_db(Security_context *sctx, const char *db)
   }
 
   if (error)
-    error= check_grant_db_routine(sctx, db, &proc_priv_hash) &&
-           check_grant_db_routine(sctx, db, &func_priv_hash) &&
-           check_grant_db_routine(sctx, db, &package_spec_priv_hash) &&
-           check_grant_db_routine(sctx, db, &package_body_priv_hash);
+    error= check_grant_db_routine(sctx, db.str, &proc_priv_hash) &&
+           check_grant_db_routine(sctx, db.str, &func_priv_hash) &&
+           check_grant_db_routine(sctx, db.str, &package_spec_priv_hash) &&
+           check_grant_db_routine(sctx, db.str, &package_body_priv_hash);
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -15495,12 +15495,12 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
   case SCH_VIEWS:
   case SCH_TRIGGERS:
   case SCH_EVENTS: {
-    const char *dst_db_name= table->schema_select_lex->db.str;
+    const LEX_CSTRING &dst_db_name= table->schema_select_lex->db;
 
-    DBUG_ASSERT(dst_db_name);
+    DBUG_ASSERT(dst_db_name.str);
     privilege_t cur_access;
 
-    if (check_access(thd, SELECT_ACL, dst_db_name, &cur_access, NULL,
+    if (check_access(thd, SELECT_ACL, dst_db_name.str, &cur_access, NULL,
                      FALSE, FALSE))
       return TRUE;
 
@@ -15508,7 +15508,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0), thd->security_ctx->priv_user,
-               thd->security_ctx->priv_host, dst_db_name);
+               thd->security_ctx->priv_host, dst_db_name.str);
       return TRUE;
     }
 
