@@ -1,0 +1,29 @@
+--echo #
+--echo # MDEV-36132 Optimizer support for functional indexes: handle GROUP/ORDER BY
+--echo #
+
+--source include/have_sequence.inc
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc int as (c + 1),
+  add index(vc);
+
+explain select c from t order by c;
+explain select vc from t order by vc;
+explain select vc from t order by vc limit 10;
+
+explain select c + 1 from t order by c + 1;
+explain select c + 1 from t order by vc;
+explain select vc from t order by c + 1;
+
+explain select vc from t order by c;
+explain select c from t order by vc;
+
+explain select c from t order by c + 1;
+
+explain select vc from t order by c + 1 limit 2;
+explain select c + 1 from t order by c + 1 limit 2;
+explain select c + 1 from t order by vc limit 2;
+
+drop table t;

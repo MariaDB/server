@@ -2231,6 +2231,12 @@ public:
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
+  /* TODO: better name? */
+  /*
+    Compute the intersection of index coverings of all fields in the
+    tree
+  */
+  virtual bool intersect_vcol_index_coverings(void *arg) { return 0; }
 
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
@@ -3869,6 +3875,7 @@ public:
   bool register_field_in_read_map(void *arg) override;
   bool register_field_in_write_map(void *arg) override;
   bool register_field_in_bitmap(void *arg) override;
+  bool intersect_vcol_index_coverings(void *arg) override;
   bool check_partition_func_processor(void *) override {return false;}
   bool post_fix_fields_part_expr_processor(void *bool_arg) override;
   bool check_valid_arguments_processor(void *bool_arg) override;
