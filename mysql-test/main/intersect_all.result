@@ -902,3 +902,113 @@ NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 union all /* select#4 */ select `__4`.`a` AS `a` from (/* select#2 */ select `test`.`t2`.`a` AS `a` from `test`.`t2` where `test`.`t2`.`a` < 5 intersect all /* select#3 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where `test`.`t3`.`a` < 5) `__4`
 drop table t1,t2,t3;
+#
+# MDEV-25158 Segfault on INTERSECT ALL with UNION in Oracle mode
+#
+create table t3 (x int);
+create table u3 (x int);
+create table i3 (x int);
+explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+4	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+set sql_mode= 'oracle';
+explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	UNION	u3	system	NULL	NULL	NULL	NULL	0	Const row not found
+3	INTERSECT	i3	system	NULL	NULL	NULL	NULL	0	Const row not found
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+select * from t3 union select * from u3 intersect select * from i3;
+x
+SELECT * from t3 union select * from u3 intersect all select * from i3;
+x
+insert into t3 values (0);
+insert into i3 values (0);
+Select * from t3 union select * from u3 intersect select * from i3;
+x
+0
+SELECT * FROM t3 UNION SELECT * FROM u3 INTERSECT ALL SELECT * FROM i3;
+x
+0
+drop tables t3, u3, i3;
+# First line of these results is column names, not the result
+# (pay attention to "affected rows")
+values (1, 2) union all values (1, 2);
+1	2
+1	2
+1	2
+affected rows: 2
+values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3);
+1	2
+1	2
+4	3
+4	3
+affected rows: 3
+values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2);
+1	2
+1	2
+4	3
+4	3
+1	2
+affected rows: 4
+values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2) union values (1, 2);
+1	2
+1	2
+4	3
+affected rows: 2
+create table t1 (a int, b int);
+create table t2 like t1;
+insert t1 values (1, 2), (1, 2), (1, 2), (2, 3), (2, 3), (3, 4), (3, 4);
+insert t2 values (1, 2), (1, 2), (2, 3), (2, 3), (2, 3), (2, 3), (4, 5);
+select * from t1 intersect select * from t2;
+a	b
+1	2
+2	3
+select * from t1 intersect all select * from t2;
+a	b
+1	2
+2	3
+1	2
+2	3
+# Default: first INTERSECT ALL, then UNION
+# Oracle: first UNION, then INTERSECT ALL
+select * from t1 union values (1, 2) intersect all select * from t2;
+a	b
+1	2
+2	3
+select * from t1 union (values (1, 2) intersect all select * from t2);
+a	b
+1	2
+2	3
+3	4
+(select * from t1 union values (1, 2)) intersect all select * from t2;
+a	b
+1	2
+2	3
+select * from t1 intersect all select * from t2 union values (1, 2);
+a	b
+1	2
+2	3
+1	2
+2	3
+select * from t1 intersect all (select * from t2 union values (1, 2));
+a	b
+1	2
+2	3
+(select * from t1 intersect all select * from t2) union values (1, 2);
+a	b
+1	2
+2	3
+explain select * from t1 intersect all select * from t2 union values (1, 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	
+2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	7	
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+drop tables t1, t2;
+set sql_mode= default;
