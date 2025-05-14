@@ -108,7 +108,8 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
     if (pkt_len == 1 && *pkt == request_public_key)
     {
-      if (vio->write_packet(vio, (unsigned char *)public_key, public_key_len))
+      if (vio->write_packet(vio, (unsigned char *)public_key,
+                            (int)public_key_len))
         return CR_ERROR;
       if ((pkt_len= vio->read_packet(vio, &pkt)) <= 0)
         return CR_ERROR;
@@ -120,7 +121,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
     for (size_t i=0; i < plain_text_len; i++)
       plain_text[i]^= scramble[i % SCRAMBLE_LENGTH];
     pkt= plain_text;
-    pkt_len= plain_text_len;
+    pkt_len= (int)plain_text_len;
   }
   /* now pkt contains plaintext password */
 
@@ -142,7 +143,7 @@ static int password_hash(const char *password, size_t password_length,
     return 1;
 
   if (!password_length)
-    return (*hash_length= 0);
+    return (int)(*hash_length= 0);
 
   make_salt(authstr.salt);
   sha256_crypt_r((unsigned char*)password, password_length,
