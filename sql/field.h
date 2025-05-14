@@ -824,6 +824,14 @@ public:
   ha_field_option_struct *option_struct;   /* structure with parsed options */
   /* Field is part of the following keys */
   key_map	key_start, part_of_key, part_of_key_not_clustered;
+  /*
+    If the field is a vcol, its part_of_key not only contain keys that
+    have vcol as parts ("conventional"), but also keys with vcol
+    expression fields as parts ("extra"), computed from
+    `intersect_field_part_of_key'. The field `vcol_part_of_key' is
+    the "conventional" part_of_key.
+  */
+  key_map vcol_part_of_key;
 
   /*
     Bitmap of indexes that have records ordered by col1, ... this_field, ...
