@@ -3218,7 +3218,7 @@ public:
     return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
-  DDL_Info ddl_info;
+  DDL_Info *ddl_info;
 private:
   unsigned int m_current_stage_key;
 

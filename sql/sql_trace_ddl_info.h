@@ -3,6 +3,13 @@
 
 #include <vector>
 #include <unordered_map>
+#include <cstring>
+
+class SELECT_LEX;
+class THD;
+
+void save_table_definitions(THD *thd, SELECT_LEX *select_lex);
+void dump_used_ddls(THD *thd);
 
 struct table_name_hash_fn
 {
@@ -25,12 +32,13 @@ struct table_name_comparator
   }
 };
 
-typedef struct ddl_info_for_trace
+struct ddl_info_for_trace
 {
   std::unordered_map<const char *, size_t, table_name_hash_fn,
                      table_name_comparator>
       tables_map;
   std::vector<const char *> stmts;
-} DDL_Info;
+};
 
+typedef ddl_info_for_trace DDL_Info;
 #endif
