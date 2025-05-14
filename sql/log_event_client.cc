@@ -3155,6 +3155,9 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
 }
 
 
+/*
+  TODO Mention this is only the head, and where the body is written
+*/
 bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 {
   if (!print_event_info->short_form)
@@ -3180,13 +3183,8 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
       print_columns(&print_event_info->head_cache, fields);
       print_primary_key(&print_event_info->head_cache, fields);
     }
-    bool do_print_encoded=
-      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
-      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
-      !print_event_info->short_form;
 
-    if (print_base64(&print_event_info->body_cache, print_event_info,
-                     do_print_encoded) ||
+    if (print_body(print_event_info) ||
         copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
                                             file))
       goto err;
@@ -3195,6 +3193,22 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   return 0;
 err:
   return 1;
+}
+
+bool Table_map_log_event::print_body(PRINT_EVENT_INFO *print_event_info)
+{
+  if (!print_event_info->short_form || print_event_info->print_row_count)
+  {
+    bool do_print_encoded=
+        print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+        print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+        !print_event_info->short_form;
+
+    if (print_base64(&print_event_info->body_cache, print_event_info,
+                     do_print_encoded))
+      return 1;
+  }
+  return 0;
 }
 
 /**
@@ -3596,10 +3610,9 @@ bool Partial_rows_log_event::print(FILE *file,
   IO_CACHE *const body= &print_event_info->body_cache;
   IO_CACHE *const tail= &print_event_info->tail_cache;
   bool do_print_encoded=
-    print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
-    print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
-    !print_event_info->short_form;
-  //bool const last_stmt_event= get_flags(STMT_END_F);
+      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+      !print_event_info->short_form;
 
   if (!print_event_info->short_form)
   {
@@ -3614,8 +3627,17 @@ bool Partial_rows_log_event::print(FILE *file,
     }
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)
+  {
+    DBUG_ASSERT(print_event_info->table_map_event);
+    /*
+      TODO Write why we must we-write TME for last fragment
+    */
+    if (seq_no == total_fragments)
+      if (print_event_info->table_map_event->print_body(print_event_info))
+        goto err;
     if (print_base64(body, print_event_info, do_print_encoded))
       goto err;
+  }
 
   if (copy_event_cache_to_file_and_reinit(head, file) ||
       copy_cache_to_file_wrapped(body, file, do_print_encoded,

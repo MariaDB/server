@@ -6956,6 +6956,7 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     {
       ev_to_write= pending;
     }
+    //ev_to_write= pending;
 
     if (!ev_to_write)
     {

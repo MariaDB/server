@@ -4865,6 +4865,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   int error= 0;
   LEX *lex= thd->lex;
   uint8 new_trg_event_map= get_trg_event_map();
+  enum_sql_command old_command= thd->lex->sql_command;
   /*
     If m_table_id == UINT32_MAX, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5408,6 +5409,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
+  thd->lex->sql_command= old_command;
   thd->reset_query_timer();
   DBUG_RETURN(error);
 
@@ -5417,6 +5419,7 @@ err:
     restore_empty_query_table_list(thd->lex);
     rgi->slave_close_thread_tables(thd);
   }
+  thd->lex->sql_command= old_command;
   thd->reset_query_timer();
   DBUG_RETURN(error);
 }
@@ -5701,6 +5704,9 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
   }
   assembler= rgi->assembler;
 
+  /*
+    TODO: Needs stage
+  */
   if (assembler->append(this))
   {
     /*
@@ -5712,6 +5718,9 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
   if (assembler->all_fragments_assembled())
   {
     PSI_stage_info org_stage;
+    /*
+      TODO: Needs stage
+    */
     Log_event *ev= assembler->create_rows_event(
         rgi->rli->relay_log.description_event_for_exec, true, true);
     delete rgi->assembler;
@@ -5721,10 +5730,13 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
       fprintf(stderr, "\n\tERROR Could not assemble event\n");
       return 1;
     }
-    //mysql_mutex_assert_owner(&rli->data_lock);
+
+    fprintf(stderr, "\n\tAssembled ev type: %s\n", ev->get_type_str());
+    if (ev->get_type_code() == DELETE_ROWS_EVENT_V1)
+    {
+      fprintf(stderr, "\n\tAssembled delete rows!\n");
+    }
     apply_event_and_update_pos_setup(ev, thd, rgi);
-    //else
-    //  mysql_mutex_unlock(&rli->data_lock);
     rgi->thd->backup_stage(&org_stage);
     ev->apply_event(rgi);
     THD_STAGE_INFO(rgi->thd, org_stage);

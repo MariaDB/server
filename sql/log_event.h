@@ -938,6 +938,11 @@ typedef struct st_print_event_info
   bool print_table_metadata;
 
   /*
+    To-write
+  */
+  Table_map_log_event *table_map_event;
+
+  /*
      These two caches are used by the row-based replication events to
      collect the header information and the main body of the events
      making up a statement.
@@ -4548,6 +4553,7 @@ public:
 
 #ifdef MYSQL_CLIENT
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
+  bool print_body(PRINT_EVENT_INFO *print_event_info);
 #endif
 
   table_def get_table_def();

@@ -280,7 +280,8 @@ void mysql_client_binlog_statement(THD* thd)
          multiple Row_log_events without destroying the RGI->tables_to_close?
          Or does each Row_log_event have its own Table_map with it _always_?
   */
-  my_bool ev_done= true;
+  my_bool do_close_tables= true;
+  my_bool do_delete_rgi= true;
   /*
     Out of memory check
   */
@@ -431,10 +432,24 @@ void mysql_client_binlog_statement(THD* thd)
           original value on return.
         */
         LEX *backup_lex;
-        if (ev->get_type_code() == PARTIAL_ROW_DATA_EVENT &&
-            (((Partial_rows_log_event *) ev)->seq_no <
-             ((Partial_rows_log_event *) ev)->total_fragments))
-          ev_done= false;
+        if (ev->get_type_code() == PARTIAL_ROW_DATA_EVENT)
+        {
+          do_delete_rgi= false;
+          do_close_tables= false;
+          //if (((Partial_rows_log_event *) ev)->seq_no ==
+          //    ((Partial_rows_log_event *) ev)->total_fragments)
+        }
+
+
+
+        //if (ev->get_type_code() == XID_EVENT ||
+        //    (ev->get_type_code() == QUERY_EVENT &&
+        //     (((Query_log_event *) ev)->is_commit() ||
+        //      (((Query_log_event *) ev)->is_rollback()) ||
+        //      (((Query_log_event *) ev)->is_rollback()))))
+        //{
+        //  
+        //}
 
         thd->backup_and_reset_current_lex(&backup_lex);
         err= save_restore_context_apply_event(ev, rgi);
@@ -478,9 +493,14 @@ end:
     my_free(const_cast<char*>(thd->lex->comment.str));
   thd->variables.option_bits= thd_options;
   my_free(buf);
-  if (ev_done)
+
+  if (do_close_tables || true)
   {
     rgi->slave_close_thread_tables(thd);
+  }
+
+  if (do_delete_rgi)
+  {
     delete rgi;
     rgi= thd->rgi_fake= NULL;
   }
