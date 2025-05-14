@@ -6944,14 +6944,13 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
     */
     ulong rows_ev_metadata_len=
         LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + BINLOG_CHECKSUM_LEN;
-    ulong max_rows_ev_len=
-        thd->variables.max_allowed_packet - rows_ev_metadata_len;
+    ulong max_rows_ev_len= slave_max_allowed_packet - rows_ev_metadata_len;
 
     ulong partial_ev_metadata_len= LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 +
                                PARTIAL_ROWS_HEADER_LEN + BINLOG_CHECKSUM_LEN;
                                //+ 32;
     ulong max_partial_ev_len=
-        thd->variables.max_allowed_packet - partial_ev_metadata_len;
+        slave_max_allowed_packet - partial_ev_metadata_len;
 
     /*
       TODO Write why we have separate max_rows_ev_len vs partial_rows_ev_len.
