@@ -2468,34 +2468,70 @@ int ha_rollback_trans(THD *thd, bool all)
 struct xahton_st {
   XID *xid;
   int result;
+  int ordered;
 };
 
-/* Commit an engine branch of XA */
+/*
+  Commit an engine branch of XA. The function serves for XA completion
+  after disconnect.
+  It can be the ordered commit (note OC label below) e.g when requested
+  form binlog group commit provided the particiant is capable of that,
+  or it can be a "general" commit-by-xid of the ordered-commit uncapable
+  particiants (note !OC label) or in the binlog-off server (!B label).
+*/
 static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  if (hton->recover && hton != &binlog_tp)
+  if (hton == &binlog_tp || !hton->commit_by_xid)
+    return FALSE;
+
+  int ordered= ((struct xahton_st *)arg)->ordered;
+  if ((ordered ==  0)                           /* !B  */ ||
+      (ordered ==  1 &&  hton->commit_ordered)  /* OC  */ ||
+      (ordered == -1 && !hton->commit_ordered)) /* !OC */
   {
+    // In case ordered is 1, it's assumed commit_by_xid is has
+    // the ordered commit property.
     hton->commit_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
   }
   return FALSE;
 }
 
-/* Rollback an engine branch of XA */
+/*
+  The rollback XA recovery similar to the commit one.
+*/
 bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  if (hton->recover && hton != &binlog_tp)
+  if (hton == &binlog_tp || !hton->rollback_by_xid)
+    return FALSE;
+
+  int ordered= ((struct xahton_st *)arg)->ordered;
+  if ((ordered ==  0)                          ||
+      (ordered ==  1 &&  hton->commit_ordered) ||
+      (ordered == -1 && !hton->commit_ordered))
   {
+    // In case ordered is 1, it's assumed rollback_by_xid has
+    // the ordered ~commit~ rollback propery.
     hton->rollback_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
   }
   return FALSE;
 }
 
-/* completes xa transaction in engine */
-int commit_or_rollback_xa_engine(XID *xid, bool is_commit)
+/**
+  Completes xa transaction in engines upon xa or server recovery.
+
+  @param xid          pointer to a XID object
+  @param is_commit    which of xa- commit or rollback to execute
+  @param ordered      1 means the commit/rollback
+                      operation must be handled by tp::commit_ordered,
+                      -1 means skip any tp::commit_ordered participant,
+                      0 means execute "complete"_by_xid regardless.
+  @return             zero as success or error code as failure
+*/
+int commit_or_rollback_xa_engine(XID *xid, bool is_commit, int ordered)
 {
-  struct xahton_st xaop= { xid, 1 };
+  struct xahton_st xaop= { xid, 1, ordered };
   tp_foreach(NULL, is_commit ? xacommit_handlerton : xarollback_handlerton,
              &xaop);
 
@@ -2524,13 +2560,15 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool is_commit, THD *thd)
       binlog_commit_by_xid(xid);
     else
       binlog_rollback_by_xid(xid);
+    // order-commit uncapable participants commit (todo: optimize away for normal cases)
+    rc= commit_or_rollback_xa_engine(xid, is_commit, -1);
   }
   else
   {
     int rc= !thd->rgi_slave ? 0 : thd->wait_for_prior_commit();
     if (!rc)
     {
-      rc= commit_or_rollback_xa_engine(xid, is_commit);
+      rc= commit_or_rollback_xa_engine(xid, is_commit, 0);
     }
   }
 

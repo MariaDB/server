@@ -10301,7 +10301,7 @@ inline void run_xa_complete_ordered(THD *thd)
 
     XID *xid= thd->transaction->xid_state.get_xid();
     bool is_commit= thd->lex->sql_command == SQLCOM_XA_COMMIT;
-    commit_or_rollback_xa_engine(xid, is_commit);
+    commit_or_rollback_xa_engine(xid, is_commit, 1);
 
     return;
   }

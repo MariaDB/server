@@ -1,0 +1,9 @@
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+SET pseudo_slave_mode=1;
+XA START 'a';
+INSERT INTO t VALUES (1),(2),(3);
+XA END 'a';
+XA PREPARE 'a';
+XA COMMIT 'a';
+ERROR HY000: This xid does not exist
+DROP TABLE t;

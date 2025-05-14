@@ -1,0 +1,15 @@
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+--source include/have_spider.inc
+
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+
+SET pseudo_slave_mode=1;
+XA START 'a';
+INSERT INTO t VALUES (1),(2),(3);
+XA END 'a';
+XA PREPARE 'a';
+--error 12607
+XA COMMIT 'a';
+
+DROP TABLE t;
