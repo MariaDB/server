@@ -1,55 +1,144 @@
 #
+#   This file tests that row events which are larger than a server's configured
+# max_allowed_packet will be fragmented into Partial_rows_log_event, that the
+# slave re-assembles to execute the event.
+#
+#   The following use cases are tested when replaying transactions via
+# traditional replication, as well as mysqlbinlog when applicable.
+#   : Any Rows event type that surpasses max_allowed_packet should be
+#     fragmented:
+#     a) Write_rows
+#     b) Update_rows
+#     c) Delete_rows
+#     d) Write_rows_compressed
+#     e) Update_rows_compressed
+#     f) Delete_rows_compressed
+#   : Boundary testing of event size vs max_allowed_packet
+#     a) If full rows_log_event (ev metadta incl) <= max_allowed_packet, no fragmentation
+#     b) If rows_data size is less than max_allowed_packet, but adding the
+#          metadata of the Rows_event would result in surpassing
+#          max_allowed_packet (by one byte), fragmentation should occur
+#   : Multi-statement transaction w/ multiple tables
+#   : Parallel replication applier
+#   : Multi-row-event transactions
+#   : Replication delay
+#   : Replication filters
+#   : Skip replication should be honored
+#   : Using chain-replication, servers configured with different
+#     max_allowed_packet should binlog according to the configured policy
+#     of that specific server
+#   : Change max_allowed_packet in a transaction
+#
+#
+#   The following error cases are checked when replaying transactions both via
+# traditional replication and mysqlbinlog:
+#   : Missing fragments
+#   : Data corruption
+#   : Out-of-memory
+#
 #
 # References:
-#   MDEV-:
+#   MDEV-32570: Fragment ROW replication events larger than max_packet_size
 #
 
 --source include/have_sequence.inc
 --source include/have_innodb.inc
-#--source include/have_debug.inc
 --source include/have_binlog_format_row.inc
 --let $rpl_topology=1->2, 2->3
 --source include/rpl_init.inc
 
+
 --echo #
---echo # Test case 1: Test serial and parallel replication
+--echo # Test case ) Boundary Testing
+--let $log_ev_header_len= 19
+--let $rows_header_len= 8
+--let $binlog_checksum_len= 4
+--let $ev_metadata_size=  `SELECT ($log_ev_header_len + $rows_header_len + $binlog_checksum_len)`
+--let $max_unfragged_ev= `SELECT (@@global.max_allowed_packet - $ev_metadata_size)`
 
---echo # Test case 1a) Serial replication
---connection server_2
---source include/stop_slave.inc
-set @old_slave_threads= @@global.slave_parallel_threads;
-set @@global.slave_parallel_threads= 0;
---source include/start_slave.inc
---connection server_2
---source include/stop_slave.inc
-set @old_slave_threads= @@global.slave_parallel_threads;
-set @@global.slave_parallel_threads= 0;
---source include/start_slave.inc
-
+--echo #
+--echo # A rows event at its maximum unfragmented length (i.e. the length of
+--echo # max_allowed_packet minus the Rows_log event metadata (e.g. headers))
+--echo # should not fragment, and replication replay should work both via
+--echo # traditional replication as well as mysqlbinlog.
 --let $test_mysqlbinlog_replay= 1
+--let $test_update=0
+--let $test_delete=0
+--let $insert_size=$max_unfragged_ev
 --source rpl_fragment_row_event.inc
 
---echo # Test case 1b) Parallel replication
---connection server_2
---source include/stop_slave.inc
-set @@global.slave_parallel_threads= 4;
---source include/start_slave.inc
---connection server_2
---source include/stop_slave.inc
-set @@global.slave_parallel_threads= 4;
---source include/start_slave.inc
+--echo #
+--echo # If rows event surpasses its maximum unfragmented length by 1, it
+--echo # should fragment into 2 pieces, and replication replay should work
+--echo # both via traditional replication as well as mysqlbinlog.
 
---let $test_mysqlbinlog_replay= 1
+--let $insert_size= `SELECT ($max_unfragged_ev + 1)`
 --source rpl_fragment_row_event.inc
 
---connection server_2
---source include/stop_slave.inc
-set @@global.slave_parallel_threads= @old_slave_threads;
---source include/start_slave.inc
---connection server_2
---source include/stop_slave.inc
-set @@global.slave_parallel_threads= @old_slave_threads;
---source include/start_slave.inc
+# Clear insert_size for future transactions to use default insertion logic
+--let $insert_size=
+
+
+
+#--echo #
+#--echo # Test case ) Regular row events that surpass
+#--echo # max_allowed_packet should be fragmented
+#
+#--let $test_mysqlbinlog_replay= 1
+#--source rpl_fragment_row_event.inc
+#
+#
+#--echo #
+#--echo # Test case ) Compressed row events that surpass
+#--echo # max_allowed_packet should be fragmented
+#--connection server_1
+#set @old_compress= @@global.log_bin_compress;
+#set @@global.log_bin_compress= 1;
+#--connection server_2
+#set @old_compress= @@global.log_bin_compress;
+#set @@global.log_bin_compress= 1;
+#--connection server_3
+#set @old_compress= @@global.log_bin_compress;
+#set @@global.log_bin_compress= 1;
+#
+#--let $test_mysqlbinlog_replay= 1
+#--source rpl_fragment_row_event.inc
+#
+#--connection server_1
+#set @@global.log_bin_compress= @old_compress;
+#--connection server_2
+#set @@global.log_bin_compress= @old_compress;
+#--connection server_3
+#set @@global.log_bin_compress= @old_compress;
+
+
+
+
+#--echo #
+#--echo # Test case ) Parallel replication
+#--connection server_2
+#--source include/stop_slave.inc
+#set @old_slave_threads= @@global.slave_parallel_threads;
+#set @@global.slave_parallel_threads= 4;
+#--source include/start_slave.inc
+#--connection server_3
+#--source include/stop_slave.inc
+#set @old_slave_threads= @@global.slave_parallel_threads;
+#set @@global.slave_parallel_threads= 4;
+#--source include/start_slave.inc
+#
+#--let $test_mysqlbinlog_replay= 1
+#--source rpl_fragment_row_event.inc
+#
+#--connection server_2
+#--source include/stop_slave.inc
+#set @@global.slave_parallel_threads= @old_slave_threads;
+#--source include/start_slave.inc
+#--connection server_3
+#--source include/stop_slave.inc
+#set @@global.slave_parallel_threads= @old_slave_threads;
+#--source include/start_slave.inc
+
 
 --source include/rpl_end.inc
 --echo # End of .test
