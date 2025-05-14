@@ -58,8 +58,7 @@
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 #include "sql_basic_types.h"                     // enum class active_dml_stmt
 #include "sql_trigger.h"
-#include <unordered_map>
-#include <vector>
+#include "sql_trace_ddl_info.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -1214,7 +1213,6 @@ struct THD_count
 
 #include "select_result.h"
 #include "statement_rcontext.h"
-#include "trace_ddl_info.h"
 
 void free_tmp_table(THD *thd, TABLE *entry);
 
@@ -3220,8 +3218,7 @@ public:
     return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
-  std::unordered_map<const char *, int, table_name_hash_fn, table_name_comparator> ddl_tables_map;
-  std::vector<const char*> ddl_stmts;
+  DDL_Info ddl_info;
 private:
   unsigned int m_current_stage_key;
 

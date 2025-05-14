@@ -70,6 +70,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include <algorithm>
+#include <vector>
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1404,26 +1405,37 @@ static bool is_json_schema_internal_table(TABLE_LIST *tbl)
     return true;
   else if (tbl->schema_table)
     return true;
-  else if (!tbl->is_view() && tbl->table && tbl->table->s && tbl->table->s->tmp_table == INTERNAL_TMP_TABLE)
+  else if (!tbl->is_view() && tbl->table && tbl->table->s &&
+           tbl->table->s->tmp_table == INTERNAL_TMP_TABLE)
     return true;
   return false;
 }
 
-static void save_table_definitions(THD *thd, SELECT_LEX *select_lex) {
+static bool compare_pairs(const std::pair<const char *, size_t> &p1,
+                          const std::pair<const char *, size_t> &p2)
+{
+  return p1.second < p2.second;
+}
+
+static void save_table_definitions(THD *thd, SELECT_LEX *select_lex)
+{
   List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
   while (TABLE_LIST *tbl= li++)
   {
     if (tbl->table && tbl->table->s && !is_json_schema_internal_table(tbl))
     {
-      bool flag = false;
-      size_t buf_len = 2048;
-      char *buf = thd->alloc(buf_len);
-      String ddl(buf, buf_len-1, system_charset_info);
+      bool flag= false;
+      size_t buf_len= 2048;
+      char *buf= thd->alloc(buf_len);
+      String ddl(buf, buf_len - 1, system_charset_info);
+      size_t name_len=
+          sizeof(tbl->table_name.str) + sizeof(tbl->get_db_name().str) + 1;
+      char *full_name= thd->calloc(name_len);
       ddl.length(0);
       if (tbl->view)
       {
         show_create_view(thd, tbl, &ddl);
-        flag = true;
+        flag= true;
       }
       else if (tbl->table->s->table_category == TABLE_CATEGORY_USER ||
                tbl->table->s->tmp_table == TRANSACTIONAL_TMP_TABLE)
@@ -1431,10 +1443,34 @@ static void save_table_definitions(THD *thd, SELECT_LEX *select_lex) {
         show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME);
         flag= true;
       }
-      if (flag && thd->ddl_tables_map.find(tbl->table_name.str) == thd->ddl_tables_map.end()) {
-        thd->ddl_tables_map[tbl->table_name.str] = thd->ddl_stmts.size();
-        thd->ddl_stmts.push_back(buf);
+      strcpy(full_name, tbl->get_db_name().str);
+      strcat(full_name, ".");
+      strcat(full_name, tbl->table_name.str);
+      if (flag && thd->ddl_info.tables_map.find(full_name) ==
+                      thd->ddl_info.tables_map.end())
+      {
+        thd->ddl_info.tables_map[full_name]= thd->ddl_info.stmts.size();
+        thd->ddl_info.stmts.push_back(buf);
       }
+    }
+  }
+}
+
+static void dump_used_ddls(THD *thd)
+{
+  if (thd->ddl_info.stmts.size() > 0 &&
+      thd->ddl_info.stmts.size() == thd->ddl_info.tables_map.size())
+  {
+    Json_writer_object ddls_wrapper(thd);
+    Json_writer_array ddl_list(thd, "list_ddls");
+    std::vector<std::pair<const char *, size_t>> mapVector(
+        thd->ddl_info.tables_map.begin(), thd->ddl_info.tables_map.end());
+    std::sort(mapVector.begin(), mapVector.end(), compare_pairs);
+    for (const auto &pair : mapVector)
+    {
+      Json_writer_object ddl_wrapper(thd);
+      ddl_wrapper.add("name", pair.first);
+      ddl_wrapper.add_with_escapes("ddl", thd->ddl_info.stmts[pair.second]);
     }
   }
 }
@@ -5309,10 +5345,6 @@ find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
   return find_select_handler_inner(thd, select_lex, select_lex_unit);
 }
 
-static bool comparePairs(const std::pair<const char *, int>& a, const std::pair<const char *, int>& b) {
-  return a.second < b.second;
-}
-
 /**
   An entry point to single-unit select (a select without UNION).
 
@@ -5442,18 +5474,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 
   exec_error= join->exec();
 
-  if (thd->ddl_stmts.size() > 0 && thd->ddl_stmts.size() == thd->ddl_tables_map.size())
-  {
-    Json_writer_object ddls_wrapper(thd);
-    Json_writer_array ddl_list(thd, "list_ddls");
-    std::vector<std::pair<const char *, int>> mapVector(thd->ddl_tables_map.begin(), thd->ddl_tables_map.end());
-    std::sort(mapVector.begin(), mapVector.end(), comparePairs);
-    for (const auto& pair : mapVector) {
-      Json_writer_object ddl_wrapper(thd);
-      ddl_wrapper.add("name", pair.first);
-      ddl_wrapper.add_with_escapes("ddl", thd->ddl_stmts[pair.second]);
-    }
-  }
+  dump_used_ddls(thd);
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
