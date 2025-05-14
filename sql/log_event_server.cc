@@ -5897,7 +5897,6 @@ Log_event *Rows_log_event_assembler::create_rows_event(
 {
   const char *error= 0;
   Log_event *res= 0;
-  Log_event_type typ;
 
   /*
     TODO the buffer ptr should just be a uchar* from the get go
@@ -5907,9 +5906,17 @@ Log_event *Rows_log_event_assembler::create_rows_event(
   {
     fprintf(stderr, "\n\tAssembler says ev buf is %zu long\n", ev_len);
     res->register_temp_buf((uchar *) rows_ev_buf_builder_ptr, true);
-    typ= res->get_type_code();
-    DBUG_ASSERT(typ == WRITE_ROWS_EVENT_V1 || typ == UPDATE_ROWS_EVENT_V1 ||
-                typ == DELETE_ROWS_EVENT_V1);
+#ifndef DBUG_OFF
+    {
+      Log_event_type typ= res->get_type_code();
+      DBUG_ASSERT((typ == WRITE_ROWS_EVENT_V1 || typ == UPDATE_ROWS_EVENT_V1 ||
+                   typ == DELETE_ROWS_EVENT_V1) ||
+                  (typ == WRITE_ROWS_COMPRESSED_EVENT_V1 ||
+                   typ == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||
+                   typ == DELETE_ROWS_COMPRESSED_EVENT_V1));
+      fprintf(stderr, "\n\tAssembled event of type %d(%s)\n", typ, res->get_type_str());
+    }
+#endif
   }
   else
   {

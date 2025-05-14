@@ -6942,13 +6942,30 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
       Here we should have some function of Rows_log_event -> List<Partial_rows_log_event>, and potentially
       the following writing/error checking should be abstracted.
     */
-    ulong takeoff_sz= LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + PARTIAL_ROWS_HEADER_LEN + BINLOG_CHECKSUM_LEN + 32;
-    if (pending->is_too_big(thd->variables.max_allowed_packet - takeoff_sz))
+    ulong rows_ev_metadata_len=
+        LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + BINLOG_CHECKSUM_LEN;
+    ulong max_rows_ev_len=
+        thd->variables.max_allowed_packet - rows_ev_metadata_len;
+
+    ulong partial_ev_metadata_len= LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 +
+                               PARTIAL_ROWS_HEADER_LEN + BINLOG_CHECKSUM_LEN;
+                               //+ 32;
+    ulong max_partial_ev_len=
+        thd->variables.max_allowed_packet - partial_ev_metadata_len;
+
+    /*
+      TODO Write why we have separate max_rows_ev_len vs partial_rows_ev_len.
+           I.e., when deciding to fragment, we don't need to take into account
+           the partial rows ev header info (it only adds to fragment
+           unnecessarily). When fragmenting, we must consider it in fragment
+           size
+    */
+    if (pending->is_too_big(max_rows_ev_len))
     {
       //fprintf(stderr, "\n\tPre-write full\n");
       //writer.write(pending);
       Rows_log_event_fragmenter fragmenter= Rows_log_event_fragmenter(
-          thd->variables.max_allowed_packet - takeoff_sz, pending); // 0.5 GB?
+          max_partial_ev_len, pending); // 0.5 GB?
       ev_to_write= fragmenter.fragment();
       fprintf(stderr, "\n\tPre-write fragmented\n");
     }

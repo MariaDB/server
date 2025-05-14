@@ -4715,11 +4715,13 @@ public:
       TODO needs to use max_packet_size
       TODO needs to take into account header, data_header, body header, footer
            size
+      TODO Fix type of too_big_size? casting?
     */
     my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
-    if (data_size > too_big_size)
+    fprintf(stderr, "\n\tChecking if data size of row event is too big %lld (max %u)\n", data_size, too_big_size);
+    if (data_size > (long long) too_big_size)
     {
-      fprintf(stderr, "\n\tData size of row event is too big %lld (max %lld)\n", data_size, (long long) MAX_MAX_ALLOWED_PACKET);
+      fprintf(stderr, "\n\tData size of row event is too big %lld (max %u)\n", data_size, too_big_size);
     }
 
     return data_size > too_big_size;
