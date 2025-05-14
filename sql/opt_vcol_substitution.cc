@@ -201,6 +201,7 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 static
 void subst_vcols_in_order(Vcol_subst_context *ctx,
                           ORDER *order,
+                          JOIN *join,
                           const char *location)
 {
   int i= 0;
@@ -208,7 +209,10 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
   while (Item* item= order->item[i])
   {
     if ((vcol_field= is_vcol_expr(ctx, item)))
+    {
       subst_vcol_if_compatible(ctx, NULL, &order->item[i], vcol_field);
+      join->all_fields.push_back(order->item[i], join->thd->mem_root);
+    }
     i++;
   }
 }
@@ -233,7 +237,9 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
   if (join->join_list)
     subst_vcols_in_join_list(&ctx, join->join_list);
   if (join->order)
-    subst_vcols_in_order(&ctx, join->order, "ORDER BY");
+    subst_vcols_in_order(&ctx, join->order, join, "ORDER BY");
+  if (join->group_list)
+    subst_vcols_in_order(&ctx, join->group_list, join, "GROUP BY");
 
   if (join->thd->is_error())
     return true; // Out of memory
