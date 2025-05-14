@@ -1098,7 +1098,7 @@ SET SESSION join_buffer_size = 512;
 
 EXPLAIN
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
-SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
+SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3 order by t2.d;
 
 SET SESSION join_cache_level = @exit_join_cache_level;
 SET SESSION join_buffer_size = @exit_join_buffer_size;

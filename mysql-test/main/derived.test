@@ -1180,3 +1180,15 @@ drop table t1,t2,t3;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-26944 Server crash on selecting some data from information_schema
+--echo #
+create table t1 (i int);
+prepare stmt from "SELECT x FROM
+ ( SELECT i AS y, (SELECT y FROM t1 LIMIT 1 ) AS x FROM  t1 a) dt;";
+
+execute stmt;
+EXECUTE stmt;
+# Cleanup
+drop table t1;
