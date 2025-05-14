@@ -481,7 +481,8 @@ int select_unit::update_counter(Field* counter, longlong value)
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
 { 
   if (is_index_enabled && 
-      (curr_sl == curr_sl->master_unit()->union_distinct || 
+      ((!(thd->variables.sql_mode & MODE_ORACLE) &&
+        curr_sl == curr_sl->master_unit()->union_distinct) ||
         !curr_sl->next_select()) )
   {
     is_index_enabled= false;
@@ -781,7 +782,8 @@ bool select_unit_ext::send_eof()
       !need_unfold)
   {
     if (!next_sl)
-      DBUG_ASSERT(curr_op_type != INTERSECT_ALL);
+      DBUG_ASSERT((thd->variables.sql_mode & MODE_ORACLE) ||
+                  curr_op_type != INTERSECT_ALL);
     bool need_update_row;
     if (unlikely(table->file->ha_rnd_init_with_error(1)))
       return 1;
@@ -2249,7 +2251,8 @@ bool st_select_lex_unit::exec()
 	  sl->tvc->exec(sl);
 	else
 	  sl->join->exec();
-        if (sl == union_distinct && !have_except_all_or_intersect_all &&
+        if (!(thd->variables.sql_mode & MODE_ORACLE) &&
+            sl == union_distinct && !have_except_all_or_intersect_all &&
             !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
