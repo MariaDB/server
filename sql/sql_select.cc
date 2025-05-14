@@ -373,8 +373,8 @@ bool join_limit_shortcut_is_applicable(const JOIN *join);
 POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
 
 static bool find_indexes_matching_order(JOIN *, TABLE *, ORDER *, key_map *);
-static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex);
-static bool list_has_json_temp_schema_tables(List<TABLE_LIST> list);
+static void save_table_definitions(THD *thd, SELECT_LEX *select_lex);
+static bool is_json_schema_internal_table(TABLE_LIST *tbl);
 
 #ifndef DBUG_OFF
 
@@ -1398,51 +1398,43 @@ static bool check_list_for_field(ORDER *order)
   return false;
 }
 
-static bool list_has_json_temp_schema_tables(List<TABLE_LIST> list)
+static bool is_json_schema_internal_table(TABLE_LIST *tbl)
 {
-  List_iterator<TABLE_LIST> li(list);
-  while (TABLE_LIST *tbl= li++)
-  {
-    if (tbl->table_function)
-      return true;
-    else if (tbl->schema_table)
-      return true;
-    else if (!tbl->is_view() && tbl->table && tbl->table->s && tbl->table->s->tmp_table == INTERNAL_TMP_TABLE)
-      return true;
-  }
+  if (tbl->table_function)
+    return true;
+  else if (tbl->schema_table)
+    return true;
+  else if (!tbl->is_view() && tbl->table && tbl->table->s && tbl->table->s->tmp_table == INTERNAL_TMP_TABLE)
+    return true;
   return false;
 }
 
-static void trace_table_definitions(THD *thd, SELECT_LEX *select_lex) {
+static void save_table_definitions(THD *thd, SELECT_LEX *select_lex) {
   List_iterator<TABLE_LIST> li(select_lex->leaf_tables);
-  Json_writer_object ddls_wrapper(thd);
-  Json_writer_array ddl_list(thd, "list_ddls");
   while (TABLE_LIST *tbl= li++)
   {
-    if (tbl->table && tbl->table->s)
+    if (tbl->table && tbl->table->s && !is_json_schema_internal_table(tbl))
     {
-      //bool flag = false;
-      //char *buf = (char*) alloc_root(thd->mem_root, sizeof(char));
-      char buf[2048];
-      String ddl(buf, 2048, system_charset_info);
+      bool flag = false;
+      size_t buf_len = 2048;
+      char *buf = thd->alloc(buf_len);
+      String ddl(buf, buf_len-1, system_charset_info);
       ddl.length(0);
       if (tbl->view)
       {
         show_create_view(thd, tbl, &ddl);
-        //flag = true;
+        flag = true;
       }
-      else if (tbl->table->s->table_category == TABLE_CATEGORY_USER)
+      else if (tbl->table->s->table_category == TABLE_CATEGORY_USER ||
+               tbl->table->s->tmp_table == TRANSACTIONAL_TMP_TABLE)
       {
         show_create_table(thd, tbl, &ddl, NULL, WITH_DB_NAME);
-        //flag = true;
+        flag= true;
       }
-      Json_writer_object ddl_wrapper(thd);
-      ddl_wrapper.add("name", tbl->table_name);
-      ddl_wrapper.add_with_escapes("ddl", buf);
-      //if (flag && thd->ddl_tables_map.find(tbl->table_name.str) == thd->ddl_tables_map.end()) {
-        //thd->ddl_tables_map[tbl->table_name.str] = thd->ddl_stmts.size();
-        //thd->ddl_stmts.push_back(buf);
-      //}
+      if (flag && thd->ddl_tables_map.find(tbl->table_name.str) == thd->ddl_tables_map.end()) {
+        thd->ddl_tables_map[tbl->table_name.str] = thd->ddl_stmts.size();
+        thd->ddl_stmts.push_back(buf);
+      }
     }
   }
 }
@@ -1524,11 +1516,9 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 
   if (thd->variables.optimizer_trace &&
       thd->variables.store_ddls_in_optimizer_trace &&
-      thd->lex->sql_command == SQLCOM_SELECT &&
-      //!list_has_optimizer_trace_table(tables_list) &&
-      !list_has_json_temp_schema_tables(select_lex->leaf_tables))
+      thd->lex->sql_command == SQLCOM_SELECT)
   {
-    trace_table_definitions(thd, select_lex);
+    save_table_definitions(thd, select_lex);
   }
 
   if (thd->lex->opt_hints_global && select_lex->select_number == 1)
@@ -5319,9 +5309,9 @@ find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
   return find_select_handler_inner(thd, select_lex, select_lex_unit);
 }
 
-// static bool comparePairs(const std::pair<const char *, int>& a, const std::pair<const char *, int>& b) {
-//   return a.second < b.second;
-// }
+static bool comparePairs(const std::pair<const char *, int>& a, const std::pair<const char *, int>& b) {
+  return a.second < b.second;
+}
 
 /**
   An entry point to single-unit select (a select without UNION).
@@ -5452,18 +5442,18 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 
   exec_error= join->exec();
 
-  // if (thd->ddl_stmts.size() > 0 && thd->ddl_stmts.size() == thd->ddl_tables_map.size())
-  // {
-  //   Json_writer_object ddls_wrapper(thd);
-  //   Json_writer_array ddl_list(thd, "list_ddls");
-  //   std::vector<std::pair<const char *, int>> mapVector(thd->ddl_tables_map.begin(), thd->ddl_tables_map.end());
-  //   std::sort(mapVector.begin(), mapVector.end(), comparePairs);
-  //   for (const auto& pair : mapVector) {
-  //     Json_writer_object ddl_wrapper(thd);
-  //     ddl_wrapper.add("name", pair.first);
-  //     ddl_wrapper.add_with_escapes("ddl", thd->ddl_stmts[pair.second]);
-  //   }
-  // }
+  if (thd->ddl_stmts.size() > 0 && thd->ddl_stmts.size() == thd->ddl_tables_map.size())
+  {
+    Json_writer_object ddls_wrapper(thd);
+    Json_writer_array ddl_list(thd, "list_ddls");
+    std::vector<std::pair<const char *, int>> mapVector(thd->ddl_tables_map.begin(), thd->ddl_tables_map.end());
+    std::sort(mapVector.begin(), mapVector.end(), comparePairs);
+    for (const auto& pair : mapVector) {
+      Json_writer_object ddl_wrapper(thd);
+      ddl_wrapper.add("name", pair.first);
+      ddl_wrapper.add_with_escapes("ddl", thd->ddl_stmts[pair.second]);
+    }
+  }
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
