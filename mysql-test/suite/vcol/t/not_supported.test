@@ -64,3 +64,30 @@ create table t1 (a int auto_increment primary key,
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-29155 CREATE OR REPLACE with self-referencing CHECK hangs forever, cannot be killed
+--echo #
+create table t1 (a int);
+create table t2 (b int)
+# create or replace table t (b int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t3 (c int, check(exists(select a from t1) or exists(select b from t2)));
+--error ER_NO_SUCH_TABLE
+create table t3 (c int, check(exists(select c from t3)));
+create table t3 (d int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t3 (c int, check(exists(select a from t1) or exists(select b from t2)));
+create table t3 (d int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t3 (c int, check(exists(select c from t3)));
+create table t3 (c int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+alter table t3 add check(exists(select a from t1) or exists(select b from t2));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+alter table t3 add check(exists(select c from t3));
+drop tables t1, t2, t3;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

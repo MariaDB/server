@@ -3796,6 +3796,7 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
+  TABLE_LIST *sequence;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
   DBUG_ASSERT(vcol->expr == NULL);
@@ -3813,10 +3814,33 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   if (unlikely(error))
     goto end;
 
-  if (lex.current_select->table_list.first[0].next_global)
+  /*
+    Assign opened TABLE objects to lex.query_tables to make fix_and_check_expr()
+    happy. Probably can be useful for implementing SELECT inside vcol expressions.
+  */
+  for (TABLE_LIST *vcol_tab= lex.query_tables; vcol_tab; vcol_tab= vcol_tab->next_global)
+  {
+    if (!vcol_tab->cmp_name(table))
+    {
+      /*
+        This one is important for CREATE OR REPLACE as the original table was
+        already deleted, so cannot get TABLE from old_lex.
+      */
+      vcol_tab->table= table;
+      continue;
+    }
+    for (TABLE_LIST *tab= old_lex->query_tables; tab; tab= tab->next_global)
+    {
+      if (!tab->table || vcol_tab->cmp_name(tab))
+        continue;
+      vcol_tab->table= tab->table;
+    }
+  }
+
+  sequence= lex.current_select->table_list.first[0].next_global;
+  if (sequence && sequence->sequence)
   {
     /* We are using NEXT VALUE FOR sequence. Remember table name for open */
-    TABLE_LIST *sequence= lex.current_select->table_list.first[0].next_global;
     sequence->next_global= table->internal_tables;
     table->internal_tables= sequence;
   }
@@ -3829,6 +3853,14 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   {
     *vcol_ptr= vcol_info= vcol_storage.vcol_info;   // Expression ok
     DBUG_ASSERT(vcol_info->expr);
+    /*
+      Revert back TABLE objects assignment.
+      open_and_process_table() will be unhappy at:
+
+        DBUG_ASSERT(tables->table->pos_in_table_list == tables);
+    */
+    for (TABLE_LIST *vcol_tab= lex.query_tables; vcol_tab; vcol_tab= vcol_tab->next_global)
+      vcol_tab->table= NULL;
     goto end;
   }
   *error_reported= TRUE;
@@ -4169,6 +4201,40 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   if (copy_keys_from_share(outparam, &outparam->mem_root))
     goto err;
 
+  /* Allocate bitmaps */
+
+  bitmap_size= share->column_bitmap_size;
+  bitmap_count= 7;
+  if (share->virtual_fields)
+    bitmap_count++;
+
+  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root,
+                                     bitmap_size * bitmap_count)))
+    goto err;
+
+  my_bitmap_init(&outparam->def_read_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->def_write_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+
+  my_bitmap_init(&outparam->has_value_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->tmp_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->eq_join_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->cond_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->def_rpl_write_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  outparam->default_column_bitmaps();
+
   /*
     Process virtual and default columns, if any.
   */
@@ -4230,6 +4296,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   bool work_part_info_used;
   if (share->partition_info_str_len && outparam->file)
   {
+    MY_BITMAP *write_set;
   /*
     In this execution we must avoid calling thd->change_item_tree since
     we might release memory before statement is completed. We do this
@@ -4266,6 +4333,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       We should perform the fix_partition_func in either local or
       caller's arena depending on work_part_info_used value.
     */
+    write_set= outparam->write_set;
+    outparam->write_set= NULL;
     if (!work_part_info_used)
       tmp= fix_partition_func(thd, outparam, is_create_table);
     thd->stmt_arena= backup_stmt_arena_ptr;
@@ -4275,6 +4344,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       if (work_part_info_used)
         tmp= fix_partition_func(thd, outparam, is_create_table);
     }
+    outparam->write_set= write_set;
     outparam->part_info->item_free_list= part_func_arena.free_list;
 partititon_err:
     if (tmp)
@@ -4303,40 +4373,6 @@ partititon_err:
     error_reported= TRUE;
     goto err;
   }
-
-  /* Allocate bitmaps */
-
-  bitmap_size= share->column_bitmap_size;
-  bitmap_count= 7;
-  if (share->virtual_fields)
-    bitmap_count++;
-
-  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root,
-                                     bitmap_size * bitmap_count)))
-    goto err;
-
-  my_bitmap_init(&outparam->def_read_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmaps+= bitmap_size;
-  my_bitmap_init(&outparam->def_write_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmaps+= bitmap_size;
-
-  my_bitmap_init(&outparam->has_value_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmaps+= bitmap_size;
-  my_bitmap_init(&outparam->tmp_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmaps+= bitmap_size;
-  my_bitmap_init(&outparam->eq_join_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmaps+= bitmap_size;
-  my_bitmap_init(&outparam->cond_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmaps+= bitmap_size;
-  my_bitmap_init(&outparam->def_rpl_write_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  outparam->default_column_bitmaps();
 
   outparam->cond_selectivity= 1.0;
 

@@ -20,6 +20,7 @@
 
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
+extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *table_alias_charset;
 
 
 class Lex_cstring : public LEX_CSTRING
@@ -137,6 +138,23 @@ static inline bool cmp(const LEX_CSTRING a, const LEX_CSTRING b)
 {
   return a.length != b.length || (a.length && memcmp(a.str, b.str, a.length));
 }
+static inline int cmp_table(const LEX_CSTRING a, const LEX_CSTRING b)
+{
+  /*
+    NB: no my_strncasecmp() and therefore the below assertions must pass.
+  */
+  DBUG_ASSERT(strlen(a.str) == a.length);
+  DBUG_ASSERT(strlen(b.str) == b.length);
+  /*
+    This should be replaced by C++20 "spaceship" operator (<=>)
+  */
+  if (a.length < b.length)
+    return -1;
+  else if (a.length > b.length)
+    return 1;
+  return my_strcasecmp(table_alias_charset, a.str, b.str);
+}
+
 
 /*
   Compare if two LEX_CSTRING are equal. Assumption is that
