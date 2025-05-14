@@ -6,12 +6,39 @@
 #   $test_mysqlbinlog_replay : (bool)
 #   $test_update             : (bool)
 #   $test_delete             : (bool)
+#   $server_1_max_packet     : (uint)
+#   $server_2_max_packet     : (uint)
+#   $server_3_max_packet     : (uint)
 #
+
+--connection server_1
+--let $server_1_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_1_old_net_buf= `SELECT @@global.net_buffer_length`
+--eval set @@global.slave_max_allowed_packet= $server_1_max_packet
+--eval set @@global.net_buffer_length= $server_1_max_packet
+--disconnect server_1
+--source include/wait_until_disconnected.inc
+--connect (server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 
 --connection server_2
 --source include/stop_slave.inc
+--let $server_2_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_2_old_net_buf= `SELECT @@global.net_buffer_length`
+--eval set @@global.slave_max_allowed_packet= $server_2_max_packet
+--eval set @@global.net_buffer_length= $server_2_max_packet
+--disconnect server_2
+--source include/wait_until_disconnected.inc
+--connect (server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+
 --connection server_3
 --source include/stop_slave.inc
+--let $server_3_old_slave_max_packet= `SELECT @@global.slave_max_allowed_packet`
+--let $server_3_old_net_buf= `SELECT @@global.net_buffer_length`
+--eval set @@global.slave_max_allowed_packet= $server_3_max_packet
+--eval set @@global.net_buffer_length= $server_3_max_packet
+--disconnect server_3
+--source include/wait_until_disconnected.inc
+--connect (server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,)
 
 --echo #
 --echo # Initialize test data
@@ -49,21 +76,28 @@ if (!$insert_size)
 --source include/diff_tables.inc
 
 --echo # Ensuring Write_rows data was fragmented into Partial_rows_log_events
---connection server_1
---let $mysqld_datadir=`select @@datadir`
---let $binlog_insert_filename= query_get_value(SHOW MASTER STATUS, File, 1)
---let $binlog_file_param= $mysqld_datadir/$binlog_insert_filename
---let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_insert_frags.out
-FLUSH LOGS;
---echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
---exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
+--let $n_servers= 3
+--let $i= 1
+while (`SELECT $i <= $n_servers`)
+{
+  --echo # Server_$i binlogs for Write_rows event
+  --connection server_$i
+  --let $mysqld_datadir=`select @@datadir`
+  --let $binlog_insert_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_file_param= $mysqld_datadir/$binlog_insert_filename
+  --let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_insert_frags.out
+  flush logs;
+  --echo # MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
+  --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
---let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
---let SEARCH_FILE= $binlog_analysis_file
---let SEARCH_OUTPUT= count
---source include/search_pattern_in_file.inc
---let SEARCH_OUTPUT= matches
---source include/search_pattern_in_file.inc
+  --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+  --let SEARCH_FILE= $binlog_analysis_file
+  --let SEARCH_OUTPUT= count
+  --source include/search_pattern_in_file.inc
+  --let SEARCH_OUTPUT= matches
+  --source include/search_pattern_in_file.inc
+  --inc $i
+}
 
 
 if ($test_update)
@@ -91,20 +125,29 @@ if ($test_update)
   --source include/diff_tables.inc
 
   --echo # Ensuring Update_rows data was fragmented into Partial_rows_log_events
-  --connection server_1
-  --let $binlog_update_filename= query_get_value(SHOW MASTER STATUS, File, 1)
-  --let $binlog_file_param= $mysqld_datadir/$binlog_update_filename
-  --let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_update_frags.out
-  FLUSH LOGS;
-  --echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-  --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
+  --let $n_servers= 3
+  --let $i= 1
+  while (`SELECT $i <= $n_servers`)
+  {
+    --echo # Server_$i binlogs for Update_rows event
+    --connection server_$i
+    --let $mysqld_datadir=`select @@datadir`
+    --let $binlog_update_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+    --let $binlog_file_param= $mysqld_datadir/$binlog_update_filename
+    --let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_update_frags.out
+    flush logs;
+    --echo # MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
+    --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
-  --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
-  --let SEARCH_FILE= $binlog_analysis_file
-  --let SEARCH_OUTPUT= count
-  --source include/search_pattern_in_file.inc
-  --let SEARCH_OUTPUT= matches
-  --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+    --let SEARCH_FILE= $binlog_analysis_file
+    --let SEARCH_OUTPUT= count
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_OUTPUT= matches
+    --source include/search_pattern_in_file.inc
+
+    --inc $i
+  }
 }
 
 if ($test_delete)
@@ -132,20 +175,28 @@ if ($test_delete)
   --source include/diff_tables.inc
 
   --echo # Ensuring Delete_rows data was fragmented into Partial_rows_log_events
-  --connection server_1
-  --let $binlog_delete_filename= query_get_value(SHOW MASTER STATUS, File, 1)
-  --let $binlog_file_param= $mysqld_datadir/$binlog_delete_filename
-  --let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_delete_frags.out
-  FLUSH LOGS;
-  --echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-  --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
+  --let $n_servers= 3
+  --let $i= 1
+  while (`SELECT $i <= $n_servers`)
+  {
+    --echo # Server_$i binlogs for Delete_rows event
+    --connection server_$i
+    --let $mysqld_datadir=`select @@datadir`
+    --let $binlog_delete_filename= query_get_value(SHOW MASTER STATUS, File, 1)
+    --let $binlog_file_param= $mysqld_datadir/$binlog_delete_filename
+    --let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_delete_frags.out
+    flush logs;
+    --echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+    --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
-  --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
-  --let SEARCH_FILE= $binlog_analysis_file
-  --let SEARCH_OUTPUT= count
-  --source include/search_pattern_in_file.inc
-  --let SEARCH_OUTPUT= matches
-  --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+    --let SEARCH_FILE= $binlog_analysis_file
+    --let SEARCH_OUTPUT= count
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_OUTPUT= matches
+    --source include/search_pattern_in_file.inc
+    --inc $i
+  }
 }
 
 if ($test_mysqlbinlog_replay)
@@ -154,19 +205,19 @@ if ($test_mysqlbinlog_replay)
   --connection server_2
   set statement sql_log_bin=0 for drop table t1;
 
-  --echo # MYSQL_BINLOG mysqld_datadir/binlog_insert_filename | MYSQL_SLAVE
-  --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_insert_filename | $MYSQL_SLAVE
+  --echo # MYSQL_BINLOG mysqld_datadir/binlog_insert_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+  --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_insert_filename | $MYSQL_SLAVE --init-command="set sql_log_bin=0"
 
   if ($test_update)
   {
-    --echo # MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE
-    --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_update_filename | $MYSQL_SLAVE
+    --echo # MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+    --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_update_filename | $MYSQL_SLAVE --init-command="set sql_log_bin=0"
   }
 
   if ($test_delete)
   {
-    --echo # MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE
-    --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_delete_filename | $MYSQL_SLAVE
+    --echo # MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+    --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_delete_filename | $MYSQL_SLAVE --init-command="set sql_log_bin=0"
   }
 
   --echo # Ensuring mysqlbinlog event replay is consistent..
@@ -177,14 +228,29 @@ if ($test_mysqlbinlog_replay)
 
 --echo #
 --echo # Cleanup test case
+--connection server_1
+--eval set @@global.slave_max_allowed_packet= $server_1_old_slave_max_packet
+--eval set @@global.net_buffer_length= $server_1_old_net_buf
+
 --connection server_2
+--eval set @@global.slave_max_allowed_packet= $server_2_old_slave_max_packet
+--eval set @@global.net_buffer_length= $server_2_old_net_buf
 --source include/start_slave.inc
+
 --connection server_3
+--eval set @@global.slave_max_allowed_packet= $server_3_old_slave_max_packet
+--eval set @@global.net_buffer_length= $server_3_old_net_buf
 --source include/start_slave.inc
+
 --connection server_1
 drop table t1;
-FLUSH LOGS;
+flush logs;
 --source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+flush logs;
 
 --connection server_3
 --source include/sync_with_master_gtid.inc
+flush logs;

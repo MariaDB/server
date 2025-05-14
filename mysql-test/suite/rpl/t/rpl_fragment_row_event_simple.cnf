@@ -1,12 +1,5 @@
 !include ../my.cnf
 
-[mysqld]
-#max_allowed_packet=20KB
-#net_buffer_length=20KB
-#binlog_row_event_max_size=1KB
-max_allowed_packet=1024
-net_buffer_length=1024
-
 [mysqlbinlog]
 debug_binlog_row_event_max_encoded_size=1KB
 
