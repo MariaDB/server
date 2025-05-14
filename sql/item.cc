@@ -1023,6 +1023,16 @@ bool Item_field::update_vcol_processor(void *arg)
   return 0;
 }
 
+/*
+   TODO: Fix Item_field itself being a vcol
+*/
+bool Item_field::intersect_vcol_index_coverings(void *arg)
+{
+  key_map *part_of_key= (key_map *) arg;
+  part_of_key->intersect(field->part_of_key);
+  return 0;
+}
+
 
 bool Item::check_cols(uint c)
 {

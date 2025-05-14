@@ -1133,34 +1133,40 @@ static void update_vcol_key_covering(Field *vcol_field)
 {
   Item *item;
   key_map part_of_key;
-  bool part_of_key_set;
   /*
     TODO: for now just processing Item_fields that are immediate
     arguments. Will need to walk the tree and process all Item_fields
   */
   item= vcol_field->vcol_info->expr;
-  if (item->type() == Item::FUNC_ITEM)
-  {
-    uint argc= ((Item_func *) item)->argument_count();
-    Item **args= ((Item_func *) item)->arguments();
-    part_of_key.clear_all();
-    part_of_key_set= false;
-    for (uint i= 0; i < argc; i++)
+  /* TODO: check whether a vcol can reference 0 other fields */
+  part_of_key.set_all();
+  item->walk(&Item::intersect_vcol_index_coverings, 1, &part_of_key);
+  /*
+    if (item->type() == Item::FUNC_ITEM)
     {
-      if (args[i]->type() == Item::FIELD_ITEM)
+      uint argc= ((Item_func *) item)->argument_count();
+      Item **args= ((Item_func *) item)->arguments();
+      part_of_key.clear_all();
+      part_of_key_set= false;
+      for (uint i= 0; i < argc; i++)
       {
-        if (!part_of_key_set)
+        if (args[i]->type() == Item::FIELD_ITEM)
         {
-          part_of_key_set= true;
-          part_of_key= ((Item_field *) args[i])->field->part_of_key;
+          if (!part_of_key_set)
+          {
+            part_of_key_set= true;
+            part_of_key= ((Item_field *) args[i])->field->part_of_key;
+          }
+          else
+            part_of_key.intersect(((Item_field *) args[i])->field->part_of_key);
         }
-        else
-          part_of_key.intersect(((Item_field *) args[i])->field->part_of_key);
       }
-    }
+   */
     vcol_field->vcol_part_of_key= vcol_field->part_of_key;
     vcol_field->part_of_key.merge(part_of_key);
-  }
+  /*
+    }
+   */
 }
 
 /** Parse TABLE_SHARE::vcol_defs
