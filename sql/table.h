@@ -3008,6 +3008,23 @@ struct TABLE_LIST
     tabledef_version.str= (const uchar *) version->str;
     tabledef_version.length= version->length;
   }
+
+  int cmp_name(TABLE_LIST *tl)
+  {
+    int res= cmp_table(db, tl->db);
+    if (res)
+      return res;
+    return cmp_table(table_name, tl->table_name);
+  }
+
+  int cmp_name(TABLE *tab)
+  {
+    int res= cmp_table(db, tab->s->db);
+    if (res)
+      return res;
+    return cmp_table(table_name, tab->s->table_name);
+  }
+
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);

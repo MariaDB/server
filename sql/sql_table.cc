@@ -5437,6 +5437,21 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
           thd->transaction->stmt.m_unsafe_rollback_flags=
             save_unsafe_rollback_flags;
         }
+        bool closed= false;
+        if (thd->lex->query_tables)
+          for (TABLE_LIST *tl= thd->lex->query_tables->next_global; tl; tl= tl->next_global)
+          {
+            if (!tl->table || tl->cmp_name(&table_list))
+              continue;
+            if (!closed)
+            {
+              tl->table->s->tdc->flushed= true;
+              close_all_tables_for_name(thd, tl->table->s,
+                                        HA_EXTRA_PREPARE_FOR_DROP, NULL);
+              closed= true;
+            }
+            tl->table= NULL;
+          }
         /* Remove normal table without logging. Keep tables locked */
         if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 0, 1, 1))
           goto err;
