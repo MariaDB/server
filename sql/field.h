@@ -4277,6 +4277,7 @@ private:
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
   Binlog_type_info binlog_type_info() const override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
 };
 
 
@@ -4716,6 +4717,7 @@ private:
     override
   { DBUG_ASSERT(0); return 0; }
   Binlog_type_info binlog_type_info() const override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
 };
 
 
