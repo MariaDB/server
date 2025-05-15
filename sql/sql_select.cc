@@ -34120,6 +34120,7 @@ void JOIN::init_join_cache_and_keyread()
         coverings contain the keyread key, so that they are included
         in filesort and satisfy an assertion later.
       */
+      table->keyread_with_vcol= false;
       if (table->vfield)
       {
         for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
@@ -34127,7 +34128,10 @@ void JOIN::init_join_cache_and_keyread()
           Field *vf= *vfield_ptr;
           if (!vf->vcol_part_of_key.is_set(table->file->keyread) &&
               vf->part_of_key.is_set(table->file->keyread))
+          {
             bitmap_set_bit(table->read_set, vf->field_index);
+            table->keyread_with_vcol= true;
+          }
         }
       }
     }

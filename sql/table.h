@@ -1575,6 +1575,7 @@ public:
   bool keep_row_order;
 
   bool no_keyread;
+  bool keyread_with_vcol;
   /**
     If set, indicate that the table is not replicated by the server.
   */

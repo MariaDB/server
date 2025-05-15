@@ -9265,6 +9265,9 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
+  if (h->keyread_enabled() && !keyread_with_vcol)
+    DBUG_RETURN(0);
+
   /*
     TODO: this imposes memory leak until table flush when save_in_field()
           does expr_arena allocation. F.ex. case in
