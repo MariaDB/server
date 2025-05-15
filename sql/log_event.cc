@@ -697,6 +697,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case WRITE_ROWS_COMPRESSED_EVENT_V1: return "Write_rows_compressed_v1";
   case UPDATE_ROWS_COMPRESSED_EVENT_V1: return "Update_rows_compressed_v1";
   case DELETE_ROWS_COMPRESSED_EVENT_V1: return "Delete_rows_compressed_v1";
+  case PARTIAL_ROW_DATA_EVENT: return "Partial_rows";
 
   default: return "Unknown";				/* impossible */
   }
@@ -1253,6 +1254,9 @@ Log_event *Log_event::read_log_event_no_checksum(
       ev= new Table_map_log_event(buf, event_len, fdle);
       break;
 #endif
+  case PARTIAL_ROW_DATA_EVENT:
+    ev= new Partial_rows_log_event(buf, event_len, fdle);
+    break;
     case BEGIN_LOAD_QUERY_EVENT:
       ev= new Begin_load_query_log_event(buf, event_len, fdle);
       break;
@@ -2184,6 +2188,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  PARTIAL_ROWS_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -3979,6 +3984,94 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
   m_message.length= len;
   DBUG_PRINT("info", ("m_incident: %d", m_incident));
   DBUG_VOID_RETURN;
+}
+
+
+#ifdef HAVE_REPLICATION
+Partial_rows_log_event::Partial_rows_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : Log_event(buf, description_event), metadata_written(0), rows_event(NULL)
+{
+  DBUG_ENTER("Partial_rows_log_event::Partial_rows_log_even(const uchar*,uint,...)");
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[PARTIAL_ROW_DATA_EVENT-1];
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+                     event_len, common_header_len, post_header_len));
+  DBUG_ASSERT(post_header_len == PARTIAL_ROWS_HEADER_LEN);
+
+	if (event_len < (uint)(common_header_len + post_header_len))
+		DBUG_VOID_RETURN;
+
+  /* Read the post-header */
+  const uchar *post_start= buf + common_header_len;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  total_fragments= uint4korr(post_start);
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  seq_no= uint4korr((post_start));
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+  DBUG_ASSERT(seq_no <= total_fragments);
+
+  flags2= *(post_start++);
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  ev_buffer_base= buf;
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  end_offset= event_len;
+
+  DBUG_VOID_RETURN;
+}
+#endif
+
+bool Partial_rows_log_event::is_valid() const {
+  /*
+    There should be at least 2 fragments for the group, and the sequence
+    number of this instance should fall between 1 and the total number of
+    fragments. Flags2 is also unused right now, so ensure it is always 0.
+  */
+  bool general_validity= seq_no >= 1 && total_fragments >= 2 &&
+                         seq_no <= total_fragments && !flags2;
+
+  bool is_first= seq_no == 1;
+
+  /*
+    To be valid from a fragmentation context, the following should hold true:
+      1) There should be a _valid_ Rows_log_event that is referenced
+      2) Start_offset and end_offset should be representative of the
+         fragment. If it is the first fragment, then start_offset should be
+         0. The end_offset should be after the start_offset.
+      3) If it is the first event, we should have metadata to write;
+         otherwise we should not.
+      4) ev_buffer_base should not be used
+  */
+  bool is_valid_for_fragmentation=
+      (rows_event && rows_event->is_valid()) &&
+      (((start_offset || is_first) && end_offset) &&
+       (end_offset > start_offset)) &&
+      ((is_first && metadata_written) || !metadata_written) &&
+      !ev_buffer_base;
+
+  /*
+    To be valid from an assembly context, the following should hold true:
+      1) ev_buffer_base should be set (referencing the read-in buffer)
+      2) start_offset should point beyond the Partial_rows_log_event header,
+         as it points to the start of the Rows_log_event content
+      3) end_offset should be non-zero (there should always be some content)
+      4) Neither rows_event nor metadata_written should be set
+  */
+  bool is_valid_for_assembly=
+      ev_buffer_base && start_offset > PARTIAL_ROWS_HEADER_LEN &&
+      end_offset && (!rows_event && !metadata_written);
+
+  bool is_valid= general_validity &&
+                 (is_valid_for_fragmentation ^ is_valid_for_assembly);
+
+  return is_valid;
 }
 
 

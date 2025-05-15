@@ -12364,3 +12364,5 @@ ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW
 	eng "Implicit query block names are ignored for hints specified within VIEWs"
 ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
+ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM
+        eng "Broken Partial_rows_log_event stream. Found %s, expected Partial_rows_log_event %u / %u"
