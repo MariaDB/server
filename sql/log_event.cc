@@ -1093,6 +1093,64 @@ Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
          alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
+    ev= Log_event::read_log_event_no_checksum(buf, event_len, error, fdle);
+  }
+
+  if (ev)
+  {
+#ifdef MYSQL_CLIENT
+    ev->read_checksum_alg= alg;
+    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      ev->read_checksum_value= uint4korr(buf + (event_len));
+#endif
+  }
+
+  DBUG_RETURN(ev);
+}
+
+Log_event *Log_event::read_log_event_no_checksum(
+    const uchar *buf, size_t event_len, const char **error,
+    const Format_description_log_event *fdle)
+{
+  Log_event* ev;
+  DBUG_ENTER("Log_event::read_log_event_no_checksum(char*,...)");
+  DBUG_ASSERT(fdle != 0);
+  DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
+  DBUG_DUMP_EVENT_BUF(buf, event_len);
+
+  *error= 0;
+  /*
+    Check the integrity; This is needed because handle_slave_io() doesn't
+    check if packet is of proper length.
+ */
+  if (event_len < EVENT_LEN_OFFSET)
+  {
+    *error="Sanity check failed";		// Needed to free buffer
+    DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
+  }
+
+  uint event_type= buf[EVENT_TYPE_OFFSET];
+
+  /*
+    In some previuos versions (see comment in
+    Format_description_log_event::Format_description_log_event(char*,...)),
+    event types were assigned different id numbers than in the
+    present version. In order to replicate from such versions to the
+    present version, we must map those event type id's to our event
+    type id's.  The mapping is done with the event_type_permutation
+    array, which was set up when the Format_description_log_event
+    was read.
+  */
+  if (fdle->event_type_permutation)
+  {
+    int new_event_type= fdle->event_type_permutation[event_type];
+    DBUG_PRINT("info", ("converting event type %d to %d (%s)",
+                 event_type, new_event_type,
+                 get_type_str((Log_event_type)new_event_type)));
+    event_type= new_event_type;
+  }
+
+
     /*
       Create an object of Ignorable_log_event for unrecognized sub-class.
       So that SLAVE SQL THREAD will only update the position and continue.
@@ -1238,18 +1296,8 @@ Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
                           (uchar) buf[EVENT_TYPE_OFFSET]));
       ev= NULL;
       break;
-    }
   }
 exit:
-
-  if (ev)
-  {
-#ifdef MYSQL_CLIENT
-    ev->read_checksum_alg= alg;
-    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      ev->read_checksum_value= uint4korr(buf + (event_len));
-#endif
-  }
 
   DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %zu)",
                             ev ? ev->get_type_str() : "<unknown>",

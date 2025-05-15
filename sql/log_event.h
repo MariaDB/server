@@ -1583,11 +1583,26 @@ public:
     is calculated during write()
   */
   virtual int get_data_size() { return 0;}
+
+  /*
+    Creates a Log_event from a memory buffer that is representative of the raw
+    event data, and assumes that there is a checksum at the end of the event
+    data, even if crc_check is false.
+  */
   static Log_event* read_log_event(const uchar *buf, size_t event_len,
 				   const char **error,
                                    const Format_description_log_event
                                    *description_event, my_bool crc_check,
                                    my_bool print_errors= 1);
+  /*
+    Creates a Log_event from a memory buffer that is representative of the raw
+    event data, and assumes that there is no checksum at the end of the raw
+    data (at least within the provided event_len offset of buf).
+  */
+  static Log_event *read_log_event_no_checksum(
+      const uchar *buf, size_t event_len, const char **error,
+      const Format_description_log_event *description_event);
+
   /**
     Returns the human readable name of the given event type.
   */
