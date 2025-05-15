@@ -912,6 +912,15 @@ struct rpl_group_info
   bool direct_commit_alter;
   start_alter_info *sa_info;
 
+  /*
+    Use the scope of an RGI to re-assemble partial row log events into the
+    original rows log event. That is, the re-assembly and execution of a row
+    event happens happens in Partial_rows_log_event::do_apply_event(), so then
+    regardless of if the slave is running on parallel or serial mode, the
+    logic remains the same.
+  */
+  Rows_log_event_assembler *assembler;
+
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);
