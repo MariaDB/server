@@ -697,6 +697,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case WRITE_ROWS_COMPRESSED_EVENT_V1: return "Write_rows_compressed_v1";
   case UPDATE_ROWS_COMPRESSED_EVENT_V1: return "Update_rows_compressed_v1";
   case DELETE_ROWS_COMPRESSED_EVENT_V1: return "Delete_rows_compressed_v1";
+  case PARTIAL_ROW_DATA_EVENT: return "Partial_rows";
 
   default: return "Unknown";				/* impossible */
   }
@@ -1267,6 +1268,10 @@ Log_event *Log_event::read_log_event_no_checksum(
       ev= new Table_map_log_event(buf, static_cast<uint>(event_len), fdle);
       break;
 #endif
+  case PARTIAL_ROW_DATA_EVENT:
+      DBUG_ASSERT(event_len <= UINT32_MAX);
+      ev= new Partial_rows_log_event(buf, static_cast<uint>(event_len), fdle);
+      break;
     case BEGIN_LOAD_QUERY_EVENT:
       DBUG_ASSERT(event_len <= UINT32_MAX);
       ev= new Begin_load_query_log_event(buf, static_cast<uint>(event_len),
@@ -2272,6 +2277,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  PARTIAL_ROWS_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -2479,7 +2485,7 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
             checksum-unaware (effectively no checksum) and the actual
             [1-254] range alg descriptor.
 */
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, size_t len)
 {
   enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
@@ -4067,6 +4073,111 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
   m_message.length= len;
   DBUG_PRINT("info", ("m_incident: %d", m_incident));
   DBUG_VOID_RETURN;
+}
+
+
+Partial_rows_log_event::Partial_rows_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : Log_event(buf, description_event), metadata_written(0), rows_event(NULL)
+{
+  DBUG_ENTER("Partial_rows_log_event::Partial_rows_log_even(const uchar*,uint,...)");
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[PARTIAL_ROW_DATA_EVENT-1];
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+                     event_len, common_header_len, post_header_len));
+  DBUG_ASSERT(post_header_len == PARTIAL_ROWS_HEADER_LEN);
+
+	if (event_len < (uint)(common_header_len + post_header_len))
+		DBUG_VOID_RETURN;
+
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  ev_buffer_base= buf;
+  end_offset= event_len;
+
+  /* Read the post-header */
+  const uchar *post_start= buf + common_header_len;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  total_fragments= uint4korr(post_start);
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  seq_no= uint4korr((post_start));
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+  DBUG_ASSERT(seq_no <= total_fragments);
+
+  flags2= *(post_start++);
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  if (flags2 & FL_ORIG_EVENT_SIZE)
+  {
+    DBUG_ASSERT(seq_no == 1);
+    original_event_size= uint8korr((post_start));
+    post_start+= 8;
+    start_offset+= 8;
+    VALIDATE_BYTES_READ(post_start, buf, event_len);
+    DBUG_ASSERT(original_event_size);
+  }
+
+  /*
+    post_start so far only has read header data, no data from the rows event
+    itself. Ensure there is still data for the rows event.
+  */
+  DBUG_ASSERT(static_cast<uint>(post_start - ev_buffer_base) < event_len);
+
+  DBUG_VOID_RETURN;
+}
+
+bool Partial_rows_log_event::is_valid() const {
+  bool is_first= seq_no == 1;
+  /*
+    There should be at least 2 fragments for the group, and the sequence
+    number of this instance should fall between 1 and the total number of
+    fragments.
+  */
+  bool has_valid_sequencing=
+      seq_no >= 1 && total_fragments >= 2 && seq_no <= total_fragments;
+
+  bool has_valid_orig_event_size=
+      ((flags2 & FL_ORIG_EVENT_SIZE) && is_first && original_event_size) ||
+      !(flags2 & FL_ORIG_EVENT_SIZE);
+
+  /*
+    To be valid from a fragmentation context, the following should hold true:
+      1) There should be a _valid_ Rows_log_event that is referenced
+      2) Start_offset and end_offset should be representative of the
+         fragment. If it is the first fragment, then start_offset should be
+         0. The end_offset should be after the start_offset.
+      3) If it is the first event, we should write metadata and the original
+         event size; otherwise, neither should be written.
+      4) ev_buffer_base should not be used
+  */
+  bool is_valid_for_fragmentation=
+      (rows_event && rows_event->is_valid()) &&
+      (((start_offset || is_first) && end_offset) &&
+       (end_offset > start_offset)) &&
+      ((is_first && metadata_written) || !metadata_written) &&
+      !ev_buffer_base;
+
+  /*
+    To be valid from an assembly context, the following should hold true:
+      1) ev_buffer_base should be set (referencing the read-in buffer)
+      2) start_offset should point beyond the Partial_rows_log_event header,
+         as it points to the start of the Rows_log_event content
+      3) end_offset should be non-zero (there should always be some content)
+      4) Neither rows_event nor metadata_written should be set
+  */
+  bool is_valid_for_assembly=
+      ev_buffer_base && start_offset > PARTIAL_ROWS_HEADER_LEN &&
+      end_offset && (!rows_event && !metadata_written);
+
+  bool is_valid= has_valid_sequencing && has_valid_orig_event_size &&
+                 (is_valid_for_fragmentation ^ is_valid_for_assembly);
+
+  return is_valid;
 }
 
 

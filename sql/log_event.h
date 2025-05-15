@@ -225,6 +225,7 @@ class String;
 #define GTID_LIST_HEADER_LEN   4
 #define START_ENCRYPTION_HEADER_LEN 0
 #define XA_PREPARE_HEADER_LEN 0
+#define PARTIAL_ROWS_HEADER_LEN  (4 + 4 + 1)
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -405,6 +406,12 @@ class String;
 #define ELQ_FN_POS_START_OFFSET ELQ_FILE_ID_OFFSET + 4
 #define ELQ_FN_POS_END_OFFSET ELQ_FILE_ID_OFFSET + 8
 #define ELQ_DUP_HANDLING_OFFSET ELQ_FILE_ID_OFFSET + 12
+
+/* PRW = "Partial RoWs" */
+#define PRW_TOTAL_SEQS_OFFSET 0
+#define PRW_SELF_SEQ_OFFSET 4
+#define PRW_FLAGS_OFFSET 8
+#define PRW_OPTIONAL_DATA_OFFSET 9
 
 /* 4 bytes which all binlogs should begin with */
 #define BINLOG_MAGIC        (const uchar*) "\xfe\x62\x69\x6e"
@@ -747,6 +754,11 @@ enum Log_event_type
   UPDATE_ROWS_COMPRESSED_EVENT = 170,
   DELETE_ROWS_COMPRESSED_EVENT = 171,
 
+  /*
+    Partial Row Data Event
+  */
+  PARTIAL_ROW_DATA_EVENT = 172,
+
   /* Add new MariaDB events here - right above this comment!  */
 
   ENUM_END_EVENT /* end marker */
@@ -1049,13 +1061,19 @@ public:
     checksum_len(( checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
                    checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF) ?
                  BINLOG_CHECKSUM_LEN : 0),
-    file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
+    file(file_arg), cache_data(cache_data_arg), crc(0), crypto(cr) { }
 
 private:
   IO_CACHE *file;
   binlog_cache_data *cache_data;
   /**
     Placeholder for event checksum while writing to binlog.
+
+    The crc is reset after writing a binary log event's footer (which is where
+    the crc is written). It isn't reset when starting a new event (i.e. when
+    writing the header) because Partial_rows_log_events will write the header
+    for both its own Partial_rows_log_event, as well as the header for the
+    Rows_log_event which is being fragmented.
    */
   ha_checksum crc;
   /**
@@ -4728,6 +4746,17 @@ public:
 
   virtual ~Rows_log_event();
 
+  /*
+    Check if the length of the rows data exceeds a given limit. This is used to
+    decide whether or not to fragment the event into multiple partial row log
+    events when binlogging.
+  */
+  my_bool rows_data_size_exceeds(ulong size_limit)
+  {
+    ulong const data_size= static_cast<ulong>(m_rows_cur - m_rows_buf);
+    return data_size > size_limit;
+  }
+
   void set_flags(flag_set flags_arg) { m_flags |= flags_arg; }
   void clear_flags(flag_set flags_arg) { m_flags &= ~flags_arg; }
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
@@ -5098,6 +5127,8 @@ private:
   */
   virtual int do_exec_row(rpl_group_info *rli) = 0;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
+
+  friend class Rows_log_event_fragmenter;
 };
 
 /**
@@ -5545,6 +5576,284 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
                                 bool is_verbose);
 #endif
 
+/**
+  @class Partial_rows_log_event
+
+  When any given instantiation of a Rows_log_event (e.g. Write_rows_log_event,
+  etc) is too large to be sent to a replica (i.e. larger than the value
+  slave_max_allowed_packet, as configured on a replica), then the rows event
+  must be fragmented into sub-events (i.e. Partial_rows_log_events) so the
+  event can be transmitted to the replica. The size of each event is configured
+  via the system variable binlog_row_event_fragment_threshold. The replica will
+  then take the content of each of these Partial_rows_log_events, and join them
+  together into a large Rows_log_event to be executed as normal.
+
+  Partial_rows_log_events are written to the binary log sequentially, and
+  the replica assembles the events in the order they are binlogged. Each
+  Partial_rows_log_event stores its sequence number (seq_no) in the overall
+  series of fragments, the total number of fragments needed to re-assemble the
+  Rows_log_event (total_fragments), a uchar for flags for embedding extra data,
+  and any additional data as specified by the flags. Currently, only the first
+  event in a grouping will have additional data: it will set the first bit in
+  the flags (FL_ORIG_EVENT_SIZE) to indicate it will be storing the total size
+  of the underlying Rows_log_event.
+
+  The cached Rows_log_event data is fragmented into Partial_rows_log_events as
+  follows. The primary will still generate a Rows_log_event to write to the
+  binlog; however, during the actual writing process, the raw data of the
+  rows event is split into fragments, each covering some continuous section of
+  the rows data. A Partial_rows_log_event is created for each continuous
+  section, and the Partial_rows_log_events are written sequentially in-place of
+  the too-large Rows_log_event. The original data to be fragmented will include
+  a header and data header; however, will not include a checksum, as each
+  Partial_rows_log_event will have a checksum for validation, as well as a
+  sequence_number and total number of fragments to ensure all fragments are
+  present.
+
+  @note This class behaves slightly different depending on if it is being used
+  for fragmentation (writing) or assembly (reading). During fragmentation, each
+  Partial_rows_log_event uses its member variables start_offset and end_offset
+  to refer to the boundaries of the original Rows_log_event that this
+  particular class is responsible for writing (specifically, it references only
+  the rows data; it is implied that the first event of the group should also
+  write the header and data header). During assembly, the start_offset and
+  end_offset refer to the start and end of the rows_event data within the
+  context of the full Partial_rows_log_event data.
+
+  @note Where slave_max_allowed_packet has a maximum of 1GB at the time of
+  creating this class (MariaDB 12.3), even if that one day grows larger, the
+  current binlog format only supports row events of maximum size 4GB anyway.
+  If/when this max_allowed_packet restriction is ever lifted, the size of any
+  given Partial_rows_log_event should then be 4GB.
+
+  @section Partial_rows_log_event_binary_format Binary format
+
+  See @ref Log_event_binary_format "Binary format for log events" for
+  a general discussion and introduction to the binary format of binlog
+  events.
+
+  The Post-Header has five components:
+
+  <table>
+  <caption>Post-Header for Partial_rows_log_event</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>Sequence Number</td>
+    <td>4 byte unsigned integer</td>
+    <td>
+      Where the content of a group of Partial_rows_log_events is put
+      together in-order to recreate an original Rows_log_event, the sequence
+      number specifies the position of a single Partial_rows_log_event in
+      relation to the other events in the group.
+    </td>
+  </tr>
+
+  <tr>
+    <td>Total Fragments</td>
+    <td>4 byte unsigned integer</td>
+    <td>
+      The total number of Partial_rows_log_events that exist to recreate the
+      original Rows_log_event
+    </td>
+  </tr>
+
+  <tr>
+    <td>Flags</td>
+    <td>1 byte for flags</td>
+    <td>
+      Flags to specify optional pieces of data for the event. Current flags
+      are:
+        (1) FL_ORIG_EVENT_SIZE - Used to provide the total size of the
+            underlying Rows_log_event (i.e. the full size, when re-assembled
+            on the slave).
+    </td>
+  </tr>
+
+  <tr>
+    <td>Reserved space (see flags bit 1)</td>
+    <td>0 bytes / 8 bytes</td>
+    <td>
+      Reserved bytes for storing optional data when indicated by flags
+    </td>
+  </tr>
+  </table>
+
+  The Body has the following components:
+
+  <table>
+  <caption>Body for Partial_rows_log_event</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>content</td>
+    <td>String</td>
+    <td>
+      A fragment of the original Rows_log_event content.
+    </td>
+  </tr>
+  </table>
+*/
+class Partial_rows_log_event : public Log_event
+{
+public:
+  /*
+    Flags for future extensibility, currently unused
+  */
+  uchar flags2;
+
+  /*
+    Within the context of a fragmented Rows_log_event, the sequence number for
+    _this_ particular fragment. Starts at 1.
+  */
+  uint32_t seq_no;
+
+  /*
+    The total number of fragments to store the content of a Rows_log_event that
+    is written in fragments.
+  */
+  uint32_t total_fragments;
+
+  /*
+    The size of the original Rows_log_event.
+  */
+  uint64_t original_event_size;
+
+  /*
+    The size of the header and data_header that is written for the first
+    Partial_rows_log_event in a group. This is needed to calculate the
+    start_offset and end_offset to still fit within the desired size of a
+    fragment. That is, because events are written as (pseudo-code)
+
+      if (is_first_in_group(partial_ev))
+      {
+        Log_event_writer::write_header()
+        Log_event_writer::write_data_header()
+        Log_event_writer::write_data_body_metadata()
+      }
+      Log_event_writer::write_data_body_rows(start_offset, end_offset)
+
+    for the first Partial_rows_log_event written, we need to track the size
+    of data written by the header, data_header, and data_body_metadata to
+    make sure that the start_offset and end_offset account for this to not
+    write too large of an event.
+  */
+  uint32_t metadata_written;
+
+  /*
+    Functions differently depending if fragmenting (writing to binlog) or
+    assembling (reading from binlog).
+
+    During fragmentation, this refers to the offset in the rows_data of the
+    Rows_log_event where this object is responsible for writing.
+
+    During assembly, this refers to the offset in the memory buffer of the
+    Partial_rows_log_event where the Rows_log_event content starts.
+  */
+  uint64_t start_offset;
+
+  /*
+    Functions differently depending if fragmenting (writing to binlog) or
+    assembling (reading from binlog).
+
+    During fragmentation, this refers to the end offset in the rows_data of the
+    Rows_log_event where this object is responsible for writing.
+
+    During assembly, this is the _length_ of the Rows_log_event data in the
+    scope of the overall Partial_rows_log_event data buffer.
+  */
+  uint64_t end_offset;
+
+  /*
+    During assembly, this refers to the start of the memory buffer of the
+    overall Partial_rows_log_event.
+
+    Unused for fragmentation.
+  */
+  const uchar *ev_buffer_base;
+
+  /* FL_ORIG_EVENT_SIZE is set when the original event size is written */
+  static const uchar FL_ORIG_EVENT_SIZE= 1;
+
+private:
+  /*
+    During fragmentation, references the original Rows_log_event that is to
+    be fragmented.
+
+    Unused for assembly.
+  */
+  Rows_log_event *rows_event;
+
+
+  static const uint max_data_length=
+      PARTIAL_ROW_DATA_EVENT +
+      sizeof(decltype(Partial_rows_log_event::original_event_size));
+
+public:
+#ifdef MYSQL_SERVER
+  Partial_rows_log_event(THD *thd, bool is_transactional, uint32 seq_no,
+                         uint32 total_fragments, uint64_t original_event_size,
+                         uint32 metadata_written, uint64_t start_offset,
+                         uint64_t end_offset, uchar flags2,
+                         Rows_log_event *rows_event)
+      : Log_event(thd, 0, is_transactional), flags2(flags2), seq_no(seq_no),
+        total_fragments(total_fragments),
+        original_event_size(original_event_size),
+        metadata_written(metadata_written), start_offset(start_offset),
+        end_offset(end_offset), ev_buffer_base(NULL), rows_event(rows_event){};
+#endif /* MYSQL_SERVER */
+
+  Partial_rows_log_event(
+      const uchar *buf, uint event_len,
+      const Format_description_log_event *description_event);
+
+  ~Partial_rows_log_event() {}
+
+  /*
+    For the event to be valid, it must hold true to some general principles for
+    both fragmentation and assembly; though be set up specifically for the
+    fragmentation or assembly use case (and not both).
+  */
+  bool is_valid() const override;
+
+  Log_event_type get_type_code() override {
+    return PARTIAL_ROW_DATA_EVENT;
+  }
+
+  int get_data_size() override
+  {
+    return (int) get_rows_size() + metadata_written + PARTIAL_ROWS_HEADER_LEN +
+           (flags2 & FL_ORIG_EVENT_SIZE ? 8 : 0);
+  }
+
+  size_t get_rows_size()
+  {
+    return end_offset - start_offset;
+  }
+
+#ifdef MYSQL_SERVER
+  bool write_data_header(Log_event_writer *writer) override;
+  bool write_data_body(Log_event_writer *writer) override;
+#ifdef HAVE_REPLICATION
+  int do_apply_event(rpl_group_info *rgi) override;
+  void pack_info(Protocol* protocol) override;
+#endif /* HAVE_REPLICATION */
+#else
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
+#endif
+};
+
+
 #ifdef MYSQL_SERVER
 /*****************************************************************************
 
@@ -5588,6 +5897,226 @@ inline int Log_event_writer::write(Log_event *ev)
   return res;
 }
 
+#ifdef MYSQL_SERVER
+/*
+  Helper class which fragments the content of a large Rows_log_event into
+  multiple Partial_rows_log_events, which can be written to the binary log.
+  Writing these Partial_rows_log_events is abstracted by a special Log_event
+  implementation, a Fragmented_rows_log_event, which contains and writes a
+  complete group of multiple Partial_rows_log_events (i.e. all these partial
+  events can be assembled to recreate the original Rows_log_event). That way,
+  it is easy to pass a single Fragmented_rows_log_event to
+  Log_event_writer::write(), and it will write all Partial_rows_log_events to
+  the binary log.
+*/
+class Rows_log_event_fragmenter
+{
+public:
+  /*
+    Helper class for writing a complete group of Partial_row_log_events that
+    store the full content of a large Rows_log_event. It really only
+    implements Log_event::write(), such that it will write all
+    Partial_rows_log_events into the binary log. It also implements
+    Log_event::is_valid() to ensure the fragmentation was done correctly.
+  */
+  class Fragmented_rows_log_event : public Log_event
+  {
+  private:
+    Partial_rows_log_event *fragments;
+    uint32_t n_fragments;
+  public:
+    Fragmented_rows_log_event(Partial_rows_log_event *fragments,
+                              uint32_t n_fragments)
+        : fragments(fragments), n_fragments(n_fragments){};
+
+    ~Fragmented_rows_log_event()
+    {
+      DBUG_ASSERT(n_fragments);
+      my_free(fragments);
+    }
+
+    /*
+      Write all Partial_rows_log_event fragments
+    */
+    bool write(Log_event_writer *writer) override;
+
+    /*
+      Valid if all fragments are correctly ordered, and each fragment itself
+      is valid
+    */
+    bool is_valid() const override;
+
+    /* Not applicable */
+    Log_event_type get_type_code() override {
+      DBUG_ASSERT(0);
+      return UNKNOWN_EVENT;
+    }
+
+    /* Not applicable */
+    int get_data_size() override
+    {
+      DBUG_ASSERT(0);
+      return 0;
+    }
+
+#ifdef MYSQL_SERVER
+    /* Not applicable */
+    bool write_data_header(Log_event_writer *writer) override
+    {
+      DBUG_ASSERT(0);
+      return 1;
+    }
+
+    /* Not applicable */
+    bool write_data_body(Log_event_writer *writer) override
+    {
+      DBUG_ASSERT(0);
+      return 1;
+    }
+#endif
+  };
+
+public:
+
+  THD *thd;
+  bool is_transactional;
+
+  /*
+    Maximum size of a Partial_rows_log_event
+  */
+  uint32_t fragment_size;
+
+  /*
+    The Rows_log_event to fragment
+  */
+  Rows_log_event *rows_event;
+
+  /*
+    {{num_chunks}} Partial_rows_log_events that altogether hold the entire
+    content of a Rows_log_event.
+  */
+  Partial_rows_log_event *fragments;
+
+public:
+  Rows_log_event_fragmenter(THD *thd, bool is_transactional,
+                            uint32_t fragment_size, Rows_log_event *rows_event)
+      : thd(thd), is_transactional(is_transactional),
+        fragment_size(fragment_size), rows_event(rows_event)
+  {
+  }
+
+  /*
+    Note that our variable fragments which we allocate is freed by
+    Fragmented_rows_log_event::~Fragmented_rows_log_event()
+  */
+  ~Rows_log_event_fragmenter() {}
+
+  /*
+    Fragments our Rows_log_event (provided in the constructor) into num_chunks
+    Partial_rows_log_events, housed by a Fragmented_rows_log_event.
+  */
+  Fragmented_rows_log_event* fragment();
+
+  /*
+    The amount of Rows_log_event content to be held by each
+    Partial_rows_log_event. Note that this doesn't consider the metadata
+    of the first event group, i.e. the metadata for the rows log event and
+    additional data indicated by flags2. That is manually accounted for when
+    organizing/computing the fragments.
+  */
+  uint32_t get_payload_size_per_chunk()
+  {
+    DBUG_ASSERT(fragment_size > LOG_EVENT_HEADER_LEN +
+                                    PARTIAL_ROWS_HEADER_LEN +
+                                    BINLOG_CHECKSUM_LEN);
+    return fragment_size - LOG_EVENT_HEADER_LEN - PARTIAL_ROWS_HEADER_LEN -
+           BINLOG_CHECKSUM_LEN;
+  }
+
+  Partial_rows_log_event *get_fragment(size_t i)
+  {
+    return &fragments[i];
+  }
+};
+#endif /* MYSQL_SERVER */
+
+/*
+  Class which assembles a Rows_log_event from a group of
+  Partial_rows_log_events
+*/
+class Rows_log_event_assembler
+{
+public:
+  /*
+    State tracker to ensure that Partial_rows_log_events are being ingested
+    in-order
+  */
+  uint32_t last_fragment_seen;
+
+
+  /*
+    Memory buffer, initialized to the maximum size of the Rows_log_event
+    (i.e. total_fragments * event_size), where each Partial_rows_log_event
+    will append its Rows_log_event content to.
+  */
+  char *rows_ev_buf_builder_ptr;
+
+  rpl_group_info *rgi;
+
+  /*
+    Total length of the Rows_log_event to construct
+  */
+  uint64_t ev_len;
+
+  /*
+    Total number of Partial_rows_log_events in the group.
+  */
+  uint32_t total_fragments;
+
+  /*
+    Used to track whether or not we need to free rows_ev_buf_builder_ptr
+    during destruction. If the Rows_log_event is successfully created,
+    the allocated rows_ev_buf_builder_ptr is transferred to the created
+    Rows_log_event for its memory management. Otherwise, e.g if there is an
+    error that prevents creation of the event, we will need to delete that
+    memory ourselves.
+  */
+  my_bool row_ev_created;
+
+  Rows_log_event_assembler(rpl_group_info *rgi, uint32_t total_fragments)
+      : last_fragment_seen(0), rows_ev_buf_builder_ptr(NULL), rgi(rgi),
+        total_fragments(total_fragments), row_ev_created(false){};
+
+  ~Rows_log_event_assembler()
+  {
+    /*
+      The rows_ev_buf_builder_ptr is supposed to be freed by the Rows_log_event
+      which we create; but if this object is destroyed before the
+      Rows_log_event is created (e.g. if the slave errors), we need to free the
+      buffer ourselves
+    */
+    if (!row_ev_created && rows_ev_buf_builder_ptr)
+      my_free(rows_ev_buf_builder_ptr);
+  };
+
+  bool all_fragments_assembled()
+  {
+    return last_fragment_seen == total_fragments;
+  }
+
+  /*
+    Append the Rows_log_event content from a Partial_rows_log_event into our
+    builder to re-create the original Rows_log_event.
+  */
+  int append(Partial_rows_log_event *partial_ev);
+
+  /*
+    Build the original Rows_log_event once all Partial_rows_log_event
+    fragments have been appended.
+  */
+  Log_event *create_rows_event(const Format_description_log_event *fdle);
+};
+
 /**
    The function is called by slave applier in case there are
    active table filtering rules to force gathering events associated
@@ -5600,7 +6129,7 @@ bool slave_execute_deferred_events(THD *thd);
 bool event_that_should_be_ignored(const uchar *buf);
 bool event_checksum_test(uchar *buf, size_t event_len,
                          enum_binlog_checksum_alg alg);
-enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len);
+enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, size_t len);
 extern TYPELIB binlog_checksum_typelib;
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);

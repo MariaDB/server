@@ -260,6 +260,8 @@ void set_slave_thread_default_charset(THD *thd, rpl_group_info *rgi);
 int rotate_relay_log(Master_info* mi);
 int has_temporary_error(THD *thd);
 int sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi);
+int apply_event_and_update_pos_setup(Log_event *ev, THD *thd,
+                                     struct rpl_group_info *rgi);
 int apply_event_and_update_pos(Log_event* ev, THD* thd,
                                struct rpl_group_info *rgi);
 int apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,

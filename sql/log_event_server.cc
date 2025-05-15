@@ -804,7 +804,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   {
     uchar save=pos[FLAGS_OFFSET];
     pos[FLAGS_OFFSET]&= ~LOG_EVENT_BINLOG_IN_USE_F;
-    crc= my_checksum(0, pos, len);
+    crc= my_checksum(crc, pos, len);
     pos[FLAGS_OFFSET]= save;
   }
 
@@ -848,17 +848,28 @@ int Log_event_writer::write_footer()
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
     if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
   if (ctx)
   {
     uint dstlen;
     uchar dst[MY_AES_BLOCK_SIZE*2];
     if (encryption_ctx_finish(ctx, dst, &dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(1);
+    }
     if (maybe_write_event_len(dst, dstlen) || write_internal(dst, dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
   }
+
+  crc= 0;
   DBUG_RETURN(0);
 }
 
@@ -4853,17 +4864,6 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     DBUG_EXECUTE_IF("simulate_too_big_row_case4",
                      cur_size= UINT_MAX32 - (block_size * 10);
                      length= (block_size * 10) - block_size + 1;);
-    size_t remaining_space= UINT_MAX32 - cur_size;
-    /* Check that the new data fits within remaining space and we can add
-       block_size without wrapping.
-     */
-    if (cur_size > UINT_MAX32 || length > remaining_space ||
-        ((length + block_size) > remaining_space))
-    {
-      sql_print_error("The row data is greater than 4GB, which is too big to "
-                      "write to the binary log.");
-      DBUG_RETURN(ER_BINLOG_ROW_LOGGING_FAILED);
-    }
     size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
 
@@ -5710,6 +5710,448 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 {
   bool res= write_data_body_metadata(writer);
   res= res || write_data_body_rows(writer);
+  return res;
+}
+
+
+/**************************************************************************
+	Partial_rows_log_event member functions
+**************************************************************************/
+
+#ifdef HAVE_REPLICATION
+int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  int res= 0;
+  DBUG_ASSERT(rgi);
+  DBUG_ASSERT(rgi->thd);
+  Rows_log_event_assembler *assembler;
+  PSI_stage_info org_stage;
+  rgi->thd->backup_stage(&org_stage);
+
+  if (!rgi->assembler)
+  {
+    rgi->assembler= (Rows_log_event_assembler *) my_malloc(
+        PSI_INSTRUMENT_ME, sizeof(Rows_log_event_assembler), MYF(MY_WME));
+    if (!rgi->assembler)
+    {
+      rgi->rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
+                       "Could not allocate Rows_log_event_assembler");
+      res= ER_OUTOFMEMORY;
+      goto end;
+    }
+    new (rgi->assembler) Rows_log_event_assembler(rgi, total_fragments);
+  }
+  assembler= rgi->assembler;
+
+  THD_STAGE_INFO(rgi->thd, stage_buffer_partial_rows);
+  if ((res= assembler->append(this)))
+  {
+    rgi->assembler->~Rows_log_event_assembler();
+    my_free(rgi->assembler);
+    rgi->assembler= NULL;
+    goto end;
+  }
+
+  if (assembler->all_fragments_assembled())
+  {
+    THD_STAGE_INFO(rgi->thd, stage_constructing_rows_ev);
+    Log_event *ev= assembler->create_rows_event(
+        rgi->rli->relay_log.description_event_for_exec);
+    rgi->assembler->~Rows_log_event_assembler();
+    my_free(rgi->assembler);
+    rgi->assembler= NULL;
+
+    if (!ev)
+    {
+      rgi->rli->report(
+          ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE, NULL,
+          ER_THD(thd, ER_SLAVE_RELAY_LOG_READ_FAILURE),
+          "Could not parse Rows_log_event re-assembled from "
+          "Partial_rows_log_events. The possible reasons are: the master's "
+          "binary log is corrupted (you can check this by running "
+          "'mysqlbinlog' on the binary log), the slave's relay log is "
+          "corrupted (you can check this by running 'mysqlbinlog' on the "
+          "relay log), a network problem, or a bug in the master's or slave's "
+          "MariaDB code. If you want to check the master's binary log or "
+          "slave's relay log, you will be able to know their names by issuing "
+          "'SHOW SLAVE STATUS' on this slave.");
+      res= 1;
+      goto end;
+    }
+
+    /*
+      We can safely ignore the return value of
+      apply_event_and_update_pos_setup(), which indicates if this event should
+      be skipped or not. Consider the two cases in which this is called:
+
+       1) This event is being applied by the SQL thread directly. In which
+          case, in apply_event_and_update_pos(), the ev->shall_skip() check is
+          performed on the encompassing Partial_rows_log_event(), which will
+          duplicate the value/behavior of this assembled Rows_log_event but at
+          an earlier time. In other words, if the Partial_rows_log_event is
+          skipped, execution could not be here.
+
+       2) This event is applied by a SQL BINLOG base-64 event, in which case,
+          the skip-logic is not performed and we don't care about the result.
+    */
+    apply_event_and_update_pos_setup(ev, thd, rgi);
+
+    res= ev->apply_event(rgi);
+    delete ev;
+  }
+
+end:
+  THD_STAGE_INFO(rgi->thd, org_stage);
+  return res;
+}
+#endif
+
+bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  uint64_t cur_offset= start_offset;
+  uint64_t row_data_len_to_write= end_offset - start_offset;
+  /*
+    Write the width and cols bitmap for the first event. This shouldn't ever
+    extend beyond one fragment, so don't add checks to split these.
+  */
+  my_bool first_fragment= !cur_offset;
+  if (first_fragment)
+  {
+    rows_event->write_header(writer, rows_event->get_data_size());
+    rows_event->write_data_header(writer);
+    rows_event->write_data_body_metadata(writer);
+  }
+
+  return rows_event->write_data_body_rows(writer, start_offset,
+                                          row_data_len_to_write);
+}
+
+bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
+{
+  uchar buf[max_data_length];        // No need to init the buffer
+
+  /*
+    The length of the amount of data that will be written. This is also used
+    to track where to write optional fields.
+  */
+  size_t header_size= PARTIAL_ROWS_HEADER_LEN;
+
+  /*
+    Mandatory fields occuring in all Partial_rows_log_events
+  */
+  int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
+  int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
+  buf[PRW_FLAGS_OFFSET]= this->flags2;
+
+  /*
+    Optional fields that may be written depending on flags2
+  */
+  if(flags2 & FL_ORIG_EVENT_SIZE)
+  {
+    DBUG_ASSERT(original_event_size && seq_no == 1);
+    int8store(buf + header_size, original_event_size);
+    header_size+= 8;
+  }
+
+  return write_data(writer, buf, header_size);
+}
+
+#if defined(HAVE_REPLICATION)
+void Partial_rows_log_event::pack_info(Protocol *protocol)
+{
+  char buf[256];
+  size_t bytes= my_snprintf(buf, sizeof(buf),
+                               "Fragment %u of %u", seq_no, total_fragments);
+  protocol->store(buf, bytes, &my_charset_bin);
+}
+#endif
+
+bool Rows_log_event_fragmenter::Fragmented_rows_log_event::write(
+    Log_event_writer *writer)
+{
+  for (uint32_t i= 0; i < n_fragments; i++)
+  {
+#ifndef DBUG_OFF
+    bool skip_writing_pev=
+        (DBUG_IF("partial_rows_skip_binlogging_first_fragment") && i == 0) ||
+        (DBUG_IF("partial_rows_skip_binlogging_middle_fragment") && i == 1) ||
+        (DBUG_IF("partial_rows_skip_binlogging_last_fragment") &&
+         i == n_fragments - 1);
+#endif
+
+    bool res=
+#ifndef DBUG_OFF
+        !skip_writing_pev &&
+#endif
+        writer->write(&fragments[i]);
+
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+bool Rows_log_event_fragmenter::Fragmented_rows_log_event::is_valid() const
+{
+  uint32_t last_fragment_seen= 0;
+  for (uint32_t i= 0; i < n_fragments; i++)
+  {
+    Partial_rows_log_event *frag= &fragments[i];
+    bool is_valid= (frag->total_fragments == n_fragments) &&
+                   (frag->seq_no == last_fragment_seen + 1) &&
+                   frag->is_valid();
+    if (!is_valid)
+      return false;
+    last_fragment_seen= frag->seq_no;
+  }
+  return true;
+}
+
+/*
+  Fragments a Rows_log_event into multiple Partial_rows_log_event fragments.
+  It is assumed that the Rows_log_event_fragmenter already has the source
+  Rows_log_event at this point. To fragment into a group of
+  Partial_rows_log_event, this function first allocates a chunk of memory to
+  hold all fragmented events. To calculate the size of memory required, the
+  total size of the Rows_log_event is divided by the amount of data that each
+  Partial_rows_log_event can hold. The first fragment also holds the original
+  size of the Rows event, and for the calculation, this size is aggregated into
+  the Rows_log_event total size, as it is only applicable to one event in the
+  group.
+
+  The group of Partial_rows_log_events therefore looks like:
+
+  Fragment 1:
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+      * Original size of the Rows_log_event
+    3. Rows log event data
+      * Common header for the Rows_log_event
+      * Post-header for the Rows_log_event
+      * Metadata for the Rows_log_event (i.e. the width and columns bitmap)
+      * Rows data up to the end of the fragment (excluding the checksum)
+    4. Checksum for the Partial_rows_log_event
+
+  Fragment 2 through (n-1):
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+    3. Rows log event data
+      * Rows data up to the end of the fragment (excluding the checksum)
+    4. Checksum for the Partial_rows_log_event
+
+  Fragment n (last fragment):
+    1. Common header for the Partial_rows_log_event
+    2. Post-header for the Partial_rows_log_event
+      * Total number of fragments
+      * Sequence number of this event
+    3. Rows log event data
+      * Remaining rows data
+    4. Checksum for the Partial_rows_log_event
+*/
+Rows_log_event_fragmenter::Fragmented_rows_log_event *
+Rows_log_event_fragmenter::fragment()
+{
+  Fragmented_rows_log_event *ev;
+  uchar width_tmp_buf[MAX_INT_WIDTH];
+  uchar *const width_tmp_buf_end=
+      net_store_length(width_tmp_buf, (size_t) rows_event->m_width);
+  uint32_t width_size=
+      static_cast<uint32_t>(width_tmp_buf_end - width_tmp_buf);
+
+  /*
+    Update row events write an extra bitmap
+  */
+  uint32_t cols_size=
+      no_bytes_in_export_map(&rows_event->m_cols) *
+      ((rows_event->get_general_type_code() == UPDATE_ROWS_EVENT) ? 2 : 1);
+
+
+  /**********************************************************************
+    Attributes about the length of the underlying Rows_log_event
+  **********************************************************************/
+  /*
+    The size of the Rows_log_event header and metadata (table width, column
+    bitmap)
+  */
+  uint32_t rows_ev_metadata_size=
+      LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + width_size + cols_size;
+
+  /* The size of the actual row data payload */
+  uint64_t rows_ev_data_size=
+      static_cast<uint64_t>(rows_event->m_rows_cur - rows_event->m_rows_buf);
+
+  /*
+    The total size of the original event that will be re-created on the slave
+  */
+  uint64_t rows_ev_total_size=
+      static_cast<uint64_t>(rows_ev_metadata_size) + rows_ev_data_size;
+  /*********************************************************************/
+
+
+  /**********************************************************************
+    Attributes to describe the encompassing Partial_rows_log_event group
+  **********************************************************************/
+  /*
+    Extra payload in the first fragment: the original Rows_log_event metadata
+    plus the 8-byte original event size field.
+  */
+  uint32_t first_ev_extra_size= rows_ev_metadata_size + 8 /* orig_event_size */;
+
+  /*
+    The total data stream to be fragmented, including the extra data for the
+    first fragment. The extra data is included into this variable because it
+    simplifies the calculation, as it is only added once.
+  */
+  uint64_t group_total_size=
+      static_cast<uint64_t>(first_ev_extra_size) + rows_ev_data_size;
+  /*********************************************************************/
+
+  /* The maximum amount of payload data each fragment can hold. */
+  uint32_t data_size_per_chunk= get_payload_size_per_chunk();
+
+  uint32_t last_chunk_size= (group_total_size % data_size_per_chunk);
+  uint8_t last_chunk= last_chunk_size ? 1 : 0;
+  uint32_t num_chunks=
+      static_cast<uint32_t>((group_total_size / data_size_per_chunk)) +
+      last_chunk;
+
+  fragments=
+      DBUG_IF("oom_fragmenting_large_rows_ev")
+          ? NULL
+          : (Partial_rows_log_event *) my_malloc(
+                PSI_INSTRUMENT_ME, sizeof(Partial_rows_log_event) * num_chunks,
+                MYF(MY_WME));
+  DBUG_EXECUTE("oom_fragmenting_large_rows_ev", my_errno= ENOMEM;);
+
+  if (!fragments)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(Partial_rows_log_event)*num_chunks);
+    return NULL;
+  }
+
+
+  /*
+    Offset into the Rows_log_event data to start writing at, inclusive
+  */
+  uint64_t chunk_start;
+
+  /*
+    Offset into the Rows_log_event data to stop writing at, inclusive (?)
+  */
+  uint64_t chunk_end;
+
+  /*
+    First chunk
+  */
+  {
+    chunk_start= 0;
+    chunk_end= data_size_per_chunk - first_ev_extra_size;
+    new (&fragments[0]) Partial_rows_log_event(
+        thd, is_transactional, 1, num_chunks, rows_ev_total_size,
+        rows_ev_metadata_size, chunk_start, chunk_end,
+        Partial_rows_log_event::FL_ORIG_EVENT_SIZE, rows_event);
+  }
+
+  /*
+    The rest of the chunks
+  */
+  for (uint32 chunk_idx= 1; chunk_idx < num_chunks; chunk_idx++)
+  {
+    my_bool is_last_chunk= (chunk_idx == (num_chunks - 1));
+    chunk_start= ((chunk_idx * data_size_per_chunk) - first_ev_extra_size);
+    chunk_end= chunk_start +
+               (is_last_chunk ? (last_chunk_size) : (data_size_per_chunk));
+    new (&fragments[chunk_idx]) Partial_rows_log_event(
+        thd, is_transactional, chunk_idx + 1, num_chunks, 0, 0, chunk_start,
+        chunk_end, 0, rows_event);
+  }
+
+  ev= new Fragmented_rows_log_event(fragments, num_chunks);
+  return ev;
+}
+
+#ifdef HAVE_REPLICATION
+// Len of "%u / %u"
+#define PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN (10 + 3 + 10 + 1)
+int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
+{
+  if ((partial_ev->total_fragments != this->total_fragments) ||
+      (partial_ev->seq_no != this->last_fragment_seen + 1))
+  {
+    char buf[PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN];
+    buf[PARTIAL_ROWS_EVENT_BAD_STREAM_ERRSTR_LEN - 1]= '\0';
+    my_snprintf(buf, sizeof(buf), "%u / %u", partial_ev->seq_no,
+                partial_ev->total_fragments);
+    rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+                     rgi->gtid_info(),
+                     ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
+                     buf, this->last_fragment_seen + 1, this->total_fragments);
+    return ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM;
+  }
+
+  if (this->last_fragment_seen == 0)
+  {
+    DBUG_ASSERT(partial_ev->seq_no == 1 &&
+                partial_ev->flags2 &
+                    Partial_rows_log_event::FL_ORIG_EVENT_SIZE &&
+                partial_ev->original_event_size);
+    rows_ev_buf_builder_ptr=
+        DBUG_IF("oom_reassembling_large_rows_ev_buf")
+            ? NULL
+            : (char *) my_malloc(PSI_INSTRUMENT_ME,
+                                 partial_ev->original_event_size, MYF(MY_WME));
+    DBUG_EXECUTE("oom_reassembling_large_rows_ev_buf", my_errno= ENOMEM;);
+    ev_len= 0;
+  }
+  if (!rows_ev_buf_builder_ptr)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), total_fragments*partial_ev->get_rows_size());
+    rgi->rli->report(
+        ERROR_LEVEL, rgi->thd->get_stmt_da()->get_sql_errno(),
+        rgi->gtid_info(),
+        "Could not append Partial_rows_log_event %u / %u to internal "
+        "Rows_log_event buffer: %s",
+        partial_ev->seq_no, partial_ev->total_fragments,
+        rgi->thd->get_stmt_da()->message());
+    return ER_OUTOFMEMORY;
+  }
+
+  memcpy(rows_ev_buf_builder_ptr + ev_len,
+         partial_ev->ev_buffer_base + partial_ev->start_offset,
+         partial_ev->get_rows_size());
+  ev_len+= partial_ev->get_rows_size();
+
+  last_fragment_seen= partial_ev->seq_no;
+
+  return 0;
+}
+#endif
+
+Log_event *Rows_log_event_assembler::create_rows_event(
+    const Format_description_log_event *fdle)
+{
+  const char *error= NULL;
+  Log_event *res= NULL;
+
+  if ((res=
+           DBUG_IF("fail_parsing_rows_ev_from_reassembly")
+               ? NULL
+               : Log_event::read_log_event_no_checksum(
+                     (uchar *) rows_ev_buf_builder_ptr, ev_len, &error, fdle)))
+  {
+    row_ev_created= true;
+    res->register_temp_buf((uchar *) rows_ev_buf_builder_ptr, true);
+  }
+  else
+  {
+    DBUG_EXECUTE("fail_parsing_rows_ev_from_reassembly", error= "test error";);
+    sql_print_error("Error in Log_event::read_log_event(): '%s'", error);
+  }
+
   return res;
 }
 
