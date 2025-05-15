@@ -3555,7 +3555,7 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
   Split out so that it can run with rli->data_lock held in non-parallel
   replication, but without the mutex held in the parallel case.
 */
-static int
+int
 apply_event_and_update_pos_setup(Log_event* ev, THD* thd, rpl_group_info *rgi)
 {
   DBUG_ENTER("apply_event_and_update_pos_setup");
