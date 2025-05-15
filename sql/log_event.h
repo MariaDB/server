@@ -1585,7 +1585,7 @@ public:
     is calculated during write()
   */
   virtual int get_data_size() { return 0;}
-  static Log_event* read_log_event(const uchar *buf, uint event_len,
+  static Log_event* read_log_event(const uchar *buf, size_t event_len,
 				   const char **error,
                                    const Format_description_log_event
                                    *description_event, my_bool crc_check,
@@ -4857,7 +4857,7 @@ protected:
 		 MY_BITMAP const *cols, bool is_transactional,
 		 Log_event_type event_type);
 #endif
-  Rows_log_event(const uchar *row_data, uint event_len,
+  Rows_log_event(const uchar *row_data, size_t event_len,
 		 const Format_description_log_event *description_event);
   void uncompress_buf();
 
@@ -5085,7 +5085,7 @@ public:
                        bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Write_rows_log_event(const uchar *buf, uint event_len,
+  Write_rows_log_event(const uchar *buf, size_t event_len,
                        const Format_description_log_event *description_event);
 #endif
 #if defined(MYSQL_SERVER) 
@@ -5139,7 +5139,7 @@ public:
   bool write(Log_event_writer *writer) override;
 #endif
 #ifdef HAVE_REPLICATION
-  Write_rows_compressed_log_event(const uchar *buf, uint event_len,
+  Write_rows_compressed_log_event(const uchar *buf, size_t event_len,
                        const Format_description_log_event *description_event);
 #endif
 private:
@@ -5176,7 +5176,7 @@ public:
   ~Update_rows_log_event() override;
 
 #ifdef HAVE_REPLICATION
-  Update_rows_log_event(const uchar *buf, uint event_len,
+  Update_rows_log_event(const uchar *buf, size_t event_len,
 			const Format_description_log_event *description_event);
 #endif
 
@@ -5229,7 +5229,7 @@ public:
   bool write(Log_event_writer *writer) override;
 #endif
 #ifdef HAVE_REPLICATION
-  Update_rows_compressed_log_event(const uchar *buf, uint event_len,
+  Update_rows_compressed_log_event(const uchar *buf, size_t event_len,
                        const Format_description_log_event *description_event);
 #endif
 private:
@@ -5268,7 +5268,7 @@ public:
   Delete_rows_log_event(THD*, TABLE*, ulonglong, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Delete_rows_log_event(const uchar *buf, uint event_len,
+  Delete_rows_log_event(const uchar *buf, size_t event_len,
 			const Format_description_log_event *description_event);
 #endif
 #ifdef MYSQL_SERVER
@@ -5321,7 +5321,7 @@ public:
   bool write(Log_event_writer *writer) override;
 #endif
 #ifdef HAVE_REPLICATION
-  Delete_rows_compressed_log_event(const uchar *buf, uint event_len,
+  Delete_rows_compressed_log_event(const uchar *buf, size_t event_len,
                        const Format_description_log_event *description_event);
 #endif
 private:
