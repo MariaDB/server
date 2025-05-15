@@ -5527,14 +5527,13 @@ bool Rows_log_event::write_data_header(Log_event_writer *writer)
   return write_data(writer, buf, ROWS_HEADER_LEN_V1);
 }
 
-bool Rows_log_event::write_data_body(Log_event_writer *writer)
+bool Rows_log_event::write_data_body_metadata(Log_event_writer *writer)
 {
   /*
      Note that this should be the number of *bits*, not the number of
      bytes.
   */
   uchar sbuf[MAX_INT_WIDTH];
-  my_ptrdiff_t const data_size= m_rows_cur - m_rows_buf;
   bool res= false;
   uchar *const sbuf_end= net_store_length(sbuf, (size_t) m_width);
   uint bitmap_size= no_bytes_in_export_map(&m_cols);
@@ -5560,10 +5559,25 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
     DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
     res= res || write_data(writer, bitmap, bitmap_size);
   }
-  DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || write_data(writer, m_rows_buf, (size_t) data_size);
   my_afree(bitmap);
 
+  return res;
+}
+
+bool Rows_log_event::write_data_body_rows(Log_event_writer *writer,
+                                          uint64_t from_offset,
+                                          uint64_t len_to_write)
+{
+  uchar *from_ptr= m_rows_buf + from_offset;
+  my_ptrdiff_t const data_size= len_to_write ? len_to_write : m_rows_cur - m_rows_buf;
+  DBUG_DUMP("rows", from_ptr, data_size);
+  return write_data(writer, from_ptr, (size_t) data_size);
+}
+
+bool Rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  bool res= write_data_body_metadata(writer);
+  res= res || write_data_body_rows(writer);
   return res;
 }
 

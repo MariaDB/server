@@ -4787,8 +4787,28 @@ public:
 #endif
 
 #ifdef MYSQL_SERVER
+  /*
+    Writes the table_id and flags
+  */
   bool write_data_header(Log_event_writer *writer) override;
+
+  /*
+    Writes both the metadata (width, cols, and cols_ai) and the entirety of the
+    rows data
+  */
   bool write_data_body(Log_event_writer *writer) override;
+
+  /*
+    Writes the context of the rows data, i.e. the width, cols, and cols_ai
+  */
+  bool write_data_body_metadata(Log_event_writer *writer);
+
+  /*
+    Writes the rows data itself
+  */
+  bool write_data_body_rows(Log_event_writer *writer, uint64_t from_offset= 0,
+                            uint64_t len_to_write= 0);
+
   virtual bool write_compressed(Log_event_writer *writer);
   const char *get_db() override { return m_table->s->db.str; }
 #ifdef HAVE_REPLICATION
