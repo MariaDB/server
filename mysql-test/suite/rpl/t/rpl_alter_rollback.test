@@ -22,12 +22,12 @@ constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
 create table t2 (f1 int primary key,
    constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 --source include/show_binlog_events.inc
 
-set foreign_key_checks = 0;
 --error ER_DUP_CONSTRAINT_NAME
+set statement foreign_key_checks = 0 for
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
 --source include/show_binlog_events.inc
 --sync_slave_with_master
