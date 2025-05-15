@@ -111,8 +111,10 @@ int Local::clone_exec() {
   /* Begin clone copy from source. */
   auto error = hton_clone_begin(thd, server_vector, server_tasks,
                                 HA_CLONE_HYBRID, begin_mode);
-
-  if (error != 0) {
+  if (error != 0)
+  {
+    if (!server_tasks.empty())
+      hton_clone_end(thd, server_vector, server_tasks, error);
     /* Release DDL lock */
     if (acquire_backup_lock) {
       // mysql_service_mysql_backup_lock->release(thd);
@@ -128,15 +130,18 @@ int Local::clone_exec() {
     /* Begin clone apply to destination. */
     error = hton_clone_apply_begin(thd, dir_name, client_vector, client_tasks,
                                    begin_mode);
-
-    if (error != 0) {
+    if (error != 0)
+    {
+      if (!client_tasks.empty())
+        hton_clone_apply_end(thd, client_vector, client_tasks, error);
       hton_clone_end(thd, server_vector, server_tasks, error);
 
       /* Release DDL lock */
-      if (acquire_backup_lock) {
+      if (acquire_backup_lock)
+      {
         // mysql_service_mysql_backup_lock->release(thd);
       }
-      return (error);
+      return error;
     }
 
     /* Spawn concurrent client tasks if auto tuning is OFF. */
@@ -153,7 +158,10 @@ int Local::clone_exec() {
     use server storage locator with current copy state. */
     error = hton_clone_apply_begin(thd, dir_name, server_vector, client_tasks,
                                    begin_mode);
-    if (error != 0) {
+    if (error != 0)
+    {
+      if (!client_tasks.empty())
+        hton_clone_apply_end(thd, client_vector, client_tasks, error);
       hton_clone_end(thd, server_vector, server_tasks, error);
       return (error);
     }
@@ -161,7 +169,7 @@ int Local::clone_exec() {
 
   auto exec_callback= [&](Sub_Command sub_state)
   {
-    Ha_clone_stage exec_stage= HA_CLONE_STAGE_END;
+    Ha_clone_stage exec_stage= HA_CLONE_STAGE_MAX;
     int error= m_clone_server->get_stage_and_lock(sub_state, exec_stage,
                                                   is_master);
     if (is_master)

@@ -903,7 +903,7 @@ int Client::execute(std::function<int(Sub_Command)> cbk)
   for (;;)
   {
     auto sub_state= static_cast<Sub_Command>(cur_st);
-    err= exec_begin_state(get_thd(), sub_state);
+    auto local_err= exec_begin_state(get_thd(), sub_state);
 
     /* We might have attached to a different state. */
     cur_st= static_cast<uchar>(sub_state);
@@ -912,12 +912,16 @@ int Client::execute(std::function<int(Sub_Command)> cbk)
       break;
     assert(cur_st <= end_st);
 
-    if (!err && !skip_state(sub_state))
-      err= cbk(sub_state);
+    if (!local_err && !skip_state(sub_state))
+      local_err= cbk(sub_state);
 
     exec_end_state(sub_state);
     /* In case of any error, jump to the final state. */
-    if (err) cur_st= end_st;
+    if (local_err)
+    {
+      cur_st= end_st;
+      err= local_err;
+    }
     ++cur_st;
   }
   return err;
@@ -1937,7 +1941,10 @@ int Client::set_locators(const uchar *buffer, size_t length)
   err= hton_clone_apply_begin(m_server_thd, m_share->m_data_dir,
                               local_locators, m_tasks, begin_mode);
   if (err != 0)
+  {
+    m_storage_initialized= !m_tasks.empty();
     return err;
+  }
 
   /* Master should set locators */
   if (is_master())
