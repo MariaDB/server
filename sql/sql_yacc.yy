@@ -6350,9 +6350,12 @@ opt_on_null:
 identity_props:
     /* empty */
     {
-      /* The user wrote "IDENTITY" but no immediate sub‐clauses yet. */
-      $$ = new Autoinc_spec();
-      /* That’s the single aggregator object we’ll keep reusing. */
+      /* This single aggregator object is re-used while parsing properties. */
+      $$ = new (thd->mem_root) Autoinc_spec{}; // zero-initialize
+      // Non-zero defaults:
+      $$->start= 1;
+      $$->step= 1;
+      $$->maxvalue= LONGLONG_MAX;
     }
   | identity_props START_SYM WITH expr
     {

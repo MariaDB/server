@@ -3501,10 +3501,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (share->found_next_number_field)
   {
     reg_field= *share->found_next_number_field;
-    if ((int) (share->next_number_index= (uint)
+    if (!reg_field->default_value &&
+        (int) (share->next_number_index= (uint)
 	       find_ref_key(share->key_info, keys,
                             share->default_values, reg_field,
-			    &share->next_number_key_offset,
+			                      &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
       goto err; // Wrong field definition
     reg_field->flags |= AUTO_INCREMENT_FLAG;
@@ -4873,9 +4874,9 @@ bool TABLE_SHARE::fix_identity_field()
        IDENTITY at ALTER TABLE.
        In particular, limiting only one such field present.
     */
-    (*found_next_number_field)->unireg_check= Field::NONE;
-    found_next_number_field= NULL;
-    next_number_index= next_number_key_offset= next_number_keypart= 0;
+    // (*found_next_number_field)->unireg_check= Field::NONE;
+    // found_next_number_field= NULL;
+    // next_number_index= next_number_key_offset= next_number_keypart= 0;
   }
   return true;
 }

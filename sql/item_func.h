@@ -4505,8 +4505,8 @@ class Item_identity_next: public Item_longlong_func
   static constexpr LEX_CSTRING name {STRING_WITH_LEN("IDENTITY") };
 protected:
   TABLE_LIST *table_list;
-public:
   Autoinc_spec *spec;
+public:
   Item_identity_next(THD *thd, TABLE_LIST *table_list, Autoinc_spec *spec):
   Item_longlong_func(thd), table_list(table_list), spec(spec) {}
 
@@ -4537,6 +4537,10 @@ public:
   bool const_item() const override { return false; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_identity_next>(thd, this); }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NEXTVAL);
+  }
 };
 
 class Interruptible_wait;

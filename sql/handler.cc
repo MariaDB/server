@@ -4194,6 +4194,12 @@ Autoinc_spec make_session_autoinc_spec(const system_variables *variables)
   return s;
 }
 
+Autoinc_spec make_table_autoinc_spec(const system_variables *variables, TABLE *table)
+{
+  Autoinc_spec spec= make_session_autoinc_spec(variables);
+  spec.maxvalue= table->found_next_number_field->get_max_int_value();
+  return spec;
+}
 bool autoinc_overflows(const Autoinc_spec *spec, ulonglong nr)
 {
   return (spec->step > 0)
@@ -4203,7 +4209,7 @@ bool autoinc_overflows(const Autoinc_spec *spec, ulonglong nr)
 
 void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
 {
-  Autoinc_spec spec= make_session_autoinc_spec(&table->in_use->variables);
+  Autoinc_spec spec= make_table_autoinc_spec(&table->in_use->variables, table);
   return adjust_next_insert_id_after_explicit_value(nr, &spec);
 }
 
@@ -4405,14 +4411,15 @@ int handler::get_next_auto_increment(const Autoinc_spec *spec, int *error,
           nb_desired_values= MAX(AUTO_INC_DEFAULT_NB_MAX, spec->cache);
         }
       }
-      // TODO think on this
       get_auto_increment(spec,
                          nb_desired_values, &nr,
                          &nb_reserved_values);
       if (nr == ULONGLONG_MAX)
+      {
         *error= HA_ERR_AUTOINC_READ_FAILED; // Mark failure
+        DBUG_RETURN(nr);
+      }
 
-        DBUG_RETURN(0);
     }
 
     /*
@@ -4453,8 +4460,7 @@ int handler::get_next_auto_increment(const Autoinc_spec *spec, int *error,
   DBUG_PRINT("info",("auto_increment: %llu  nb_reserved_values: %llu",
                      nr, nb_reserved_values));
 
-  if (unlikely(nr == ULONGLONG_MAX))
-    *error= HA_ERR_AUTOINC_ERANGE;
+  *error= unlikely(nr == ULONGLONG_MAX) ? HA_ERR_AUTOINC_ERANGE : 0;
   *out_nb_reserved_values= nb_reserved_values;
   *out_append= append;
   DBUG_RETURN(nr);
@@ -4667,7 +4673,7 @@ void handler::get_auto_increment(const Autoinc_spec *spec,
 
 int handler::update_auto_increment()
 {
-  Autoinc_spec spec= make_session_autoinc_spec(&table->in_use->variables);
+  Autoinc_spec spec= make_table_autoinc_spec(&table->in_use->variables, table);
   int res= auto_increment_prepare(&spec, table->next_number_field);
   if (res)
   {
@@ -6448,6 +6454,26 @@ int handler::calculate_checksum()
   return error == HA_ERR_END_OF_FILE ? 0 : error;
 }
 
+class Override_table_share_autoinc_for_create
+{
+  TABLE_SHARE *m_table_share = NULL;
+public:
+  Override_table_share_autoinc_for_create(const HA_CREATE_INFO *info,
+                                          TABLE *t)
+  {
+    if (!info->has_identity_field)
+      return;
+    for (int i = 0; i < t->s->fields; i++)
+      if (dynamic_cast<Item_identity_next*>(t->field[i]->default_value->expr))
+      {
+        t->found_next_number_field= t->field[i];
+      }
+  }
+  ~Override_table_share_autoinc_for_create()
+  {
+  }
+};
+
 
 /****************************************************************************
 ** Some general functions that isn't in the handler class
@@ -6463,7 +6489,7 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
                             &table, true))
     return 1;
 
-  update_create_info_from_table(create_info, &table);
+  Override_table_share_autoinc_for_create autoinc_override(create_info, &table);
 
   Table_path_buffer name_buff;
   Lex_cstring name= table.file->get_canonical_filename(share->path, &name_buff);

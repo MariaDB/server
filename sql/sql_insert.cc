@@ -919,6 +919,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   thd->count_cuted_fields= (values_list.elements == 1 && !ignore)
                            ? CHECK_FIELD_ERROR_FOR_NULL : CHECK_FIELD_WARN;
   thd->cuted_fields = 0L;
+  if (table->found_next_number_field &&
+      !table->found_next_number_field->default_value)
   table->next_number_field=table->found_next_number_field;
 
 #ifdef HAVE_REPLICATION

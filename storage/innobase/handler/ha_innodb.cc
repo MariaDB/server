@@ -12886,7 +12886,6 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 
 	create_fk&= !m_creating_stub;
 	dberr_t err = create_fk ? create_foreign_keys() : DB_SUCCESS;
-
 	if (err == DB_SUCCESS) {
 		const dict_err_ignore_t ignore_err = m_trx->check_foreigns
 			? DICT_ERR_IGNORE_NONE : DICT_ERR_IGNORE_FK_NOKEY;
@@ -16779,6 +16778,12 @@ ha_innobase::get_auto_increment(
 	/* Prepare m_prebuilt->trx in the table handle */
 	update_thd(ha_thd());
 
+	/* The increment to be used to increase the AUTOINC value, we use
+	this in write_row() and update_row() to increase the autoinc counter
+	for columns that are filled by the user. We need the offset and
+	the increment. */
+	m_prebuilt->autoinc_spec= spec;
+
 	error = innobase_get_autoinc(&autoinc);
 
 	if (error != DB_SUCCESS) {
@@ -16810,8 +16815,8 @@ ha_innobase::get_auto_increment(
 
 	/* We need the upper limit of the col type to check for
 	whether we update the table autoinc counter or not. */
-	ulonglong col_max_value =
-			table->next_number_field->get_max_int_value();
+	ulonglong col_max_value = spec->maxvalue;
+
 
 	/** The following logic is needed to avoid duplicate key error
 	for autoincrement column.
@@ -16873,8 +16878,7 @@ ha_innobase::get_auto_increment(
 
 	*nb_reserved_values = trx->n_autoinc_rows;
 
-	auto *autoinc_spec= m_prebuilt->autoinc_spec;
-	int autoinc_lock_mode= innobase_get_autoinc_lock_mode(autoinc_spec);
+	int autoinc_lock_mode= innobase_get_autoinc_lock_mode(spec);
 
 	/* With old style AUTOINC locking we only update the table's
 	AUTOINC counter after attempting to insert the row. */
@@ -16904,12 +16908,6 @@ ha_innobase::get_auto_increment(
 		of the table's AUTOINC counter. */
 		m_prebuilt->autoinc_last_value = 0;
 	}
-
-	/* The increment to be used to increase the AUTOINC value, we use
-	this in write_row() and update_row() to increase the autoinc counter
-	for columns that are filled by the user. We need the offset and
-	the increment. */
-	m_prebuilt->autoinc_spec= spec;
 
 	m_prebuilt->table->autoinc_mutex.wr_unlock();
 }
