@@ -1,3 +1,4 @@
+set @@session.binlog_format=row;
 CREATE TABLE t (c INT) ENGINE=InnoDB;
 XA START 'a';
 SAVEPOINT s;
@@ -20,4 +21,17 @@ master-bin.000001	#	Query	#	#	ROLLBACK
 Cleanup
 DROP TEMPORARY TABLE t;
 DROP TABLE t;
+set @@session.binlog_format=statement;
+CREATE TABLE t1 (c CHAR(1),c2 CHAR(1)) ENGINE=MyISAM;
+CREATE TEMPORARY TABLE t (a INT) ENGINE=InnoDB SELECT+1 a;
+XA START 'a';
+INSERT t SELECT+1 seq_1_to_1;
+SET pseudo_slave_mode=1;
+INSERT INTO t1 (c) VALUES (1);
+XA END 'a';
+XA PREPARE 'a';
+# cleanup
+XA ROLLBACK 'a';
+DROP TABLE t;
+DROP TABLE t1;
 End of tests

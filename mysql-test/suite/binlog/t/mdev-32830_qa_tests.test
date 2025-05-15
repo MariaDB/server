@@ -1,5 +1,8 @@
---source include/have_binlog_format_row.inc
+--source include/have_log_bin.inc
 --source include/have_innodb.inc
+
+# MDEV-36804
+set @@session.binlog_format=row;
 
 CREATE TABLE t (c INT) ENGINE=InnoDB;
 XA START 'a';
@@ -20,5 +23,25 @@ source include/show_binlog_events.inc;
 --echo Cleanup
 DROP TEMPORARY TABLE t;
 DROP TABLE t;
+
+# MDEV-36800
+set @@session.binlog_format=statement;
+
+CREATE TABLE t1 (c CHAR(1),c2 CHAR(1)) ENGINE=MyISAM;
+CREATE TEMPORARY TABLE t (a INT) ENGINE=InnoDB SELECT+1 a;
+XA START 'a';
+INSERT t SELECT+1 seq_1_to_1;
+SET pseudo_slave_mode=1;
+INSERT INTO t1 (c) VALUES (1);
+XA END 'a';
+XA PREPARE 'a';
+
+--echo # cleanup
+--error ER_XAER_NOTA
+XA ROLLBACK 'a';
+--error ER_BAD_TABLE_ERROR
+DROP TABLE t;
+DROP TABLE t1;
+
 
 --echo End of tests
