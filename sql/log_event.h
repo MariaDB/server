@@ -906,6 +906,11 @@ typedef struct st_print_event_info
   enum_base64_output_mode base64_output_mode;
   my_off_t hexdump_from;
 
+  /*
+    The Table_map_log_event(s) for the current event group.  We always need it
+    around in case we are printing a group of Partial_rows_log_events, where we
+    will write a Table_map_log_event for the last fragment.
+  */
   table_mapping m_table_map;
   table_mapping m_table_map_ignored;
   bool flags2_inited;
@@ -962,6 +967,17 @@ typedef struct st_print_event_info
   */
   my_bool m_is_event_group_filtering_enabled;
 
+  /*
+    If there is an active Partial_rows_log_event group being processed, this
+    tracks whether or not the group should be filtered.
+  */
+  bool m_is_partial_rows_ev_group_active;
+
+  /*
+    m_flags of the Rows_log_event of the encompassing Partial_rows_log_event
+  */
+  uint32 partial_rows_rows_ev_flags;
+
   st_print_event_info();
 
   ~st_print_event_info() {
@@ -1017,6 +1033,23 @@ typedef struct st_print_event_info
   void enable_event_group_filtering()
   {
     m_is_event_group_filtering_enabled= TRUE;
+  }
+
+  /*
+    Functions to set/get the filtering status for a group of
+    Partial_rows_log_events.
+  */
+  void activate_current_partial_rows_ev_group()
+  {
+    m_is_partial_rows_ev_group_active= TRUE;
+  }
+  void deactivate_current_partial_rows_ev_group()
+  {
+    m_is_partial_rows_ev_group_active= FALSE;
+  }
+  bool is_partial_rows_ev_group_active()
+  {
+    return m_is_partial_rows_ev_group_active;
   }
 
   my_bool is_xa_trans();
@@ -4594,6 +4627,12 @@ public:
 
 #ifdef MYSQL_CLIENT
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
+
+  /*
+    Only print the content of the Table_map_log_event which is actually used to
+    re-construct the event
+  */
+  bool print_body(PRINT_EVENT_INFO *print_event_info);
 #endif
 
 private:
@@ -5625,6 +5664,15 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   current binlog format only supports row events of maximum size 4GB anyway.
   If/when this max_allowed_packet restriction is ever lifted, the size of any
   given Partial_rows_log_event should then be 4GB.
+
+  @note When maraidb-binlog replays Partial_rows_log_events, it will re-write
+  the Table_map_log_event at the start of the BINLOG base64 statement for the
+  last fragment in the group. This is necessary because the server logic
+  treats BINLOG statements as standalone, and automatically cleans up and
+  closes tables after each one. The last Partial_rows_log_event is what
+  re-creates and executes the original Rows_log_event, so the
+  Table_map_log_event is needed to run beforehand to set up the context to
+  execute the Rows_log_event.
 
   @section Partial_rows_log_event_binary_format Binary format
 

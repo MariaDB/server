@@ -1770,17 +1770,14 @@ bool Log_event::print_base64(IO_CACHE* file,
     {
     case TABLE_MAP_EVENT:
     {
-      Table_map_log_event *map; 
-      map= new Table_map_log_event(ptr, size, 
-                                   glob_description_event);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
+      Table_map_log_event *map= static_cast<Table_map_log_event*>(this);
       if (need_flashback_review)
       {
         map->set_review_dbname(m_review_dbname.ptr());
         map->set_review_tablename(m_review_tablename.ptr());
       }
 #endif
-      print_event_info->m_table_map.set_table(map->get_table_id(), map);
       break;
     }
     case WRITE_ROWS_EVENT:
@@ -3181,13 +3178,8 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
       print_columns(&print_event_info->head_cache, fields);
       print_primary_key(&print_event_info->head_cache, fields);
     }
-    bool do_print_encoded=
-      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
-      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
-      !print_event_info->short_form;
 
-    if (print_base64(&print_event_info->body_cache, print_event_info,
-                     do_print_encoded) ||
+    if (print_body(print_event_info) ||
         copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
                                             file))
       goto err;
@@ -3196,6 +3188,22 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   return 0;
 err:
   return 1;
+}
+
+bool Table_map_log_event::print_body(PRINT_EVENT_INFO *print_event_info)
+{
+  if (!print_event_info->short_form || print_event_info->print_row_count)
+  {
+    bool do_print_encoded=
+        print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+        print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+        !print_event_info->short_form;
+
+    if (print_base64(&print_event_info->body_cache, print_event_info,
+                     do_print_encoded))
+      return 1;
+  }
+  return 0;
 }
 
 /**
@@ -3590,6 +3598,73 @@ void Table_map_log_event::print_primary_key
   }
 }
 
+bool Partial_rows_log_event::print(FILE *file,
+                                   PRINT_EVENT_INFO *print_event_info)
+{
+  IO_CACHE *const head= &print_event_info->head_cache;
+  IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
+  bool do_print_encoded=
+      print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+      print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+      !print_event_info->short_form;
+
+  if (!print_event_info->short_form)
+    if (print_header(head, print_event_info, 0) ||
+        my_b_printf(head, "\tPartial_rows (%u / %u):\n", seq_no,
+                    total_fragments))
+      goto err;
+
+  if (!print_event_info->short_form || print_event_info->print_row_count)
+  {
+    DBUG_ASSERT(print_event_info->m_table_map.count() ||
+                print_event_info->m_table_map_ignored.count());
+    /*
+      For the last fragment, re-write the Table_map_log_event(s) into the start
+      of the BINLOG base64 statement. See the comment in the header file for
+      Partial_rows_log_event for more details why.
+    */
+    if (seq_no == total_fragments)
+    {
+      ulong n_tables= print_event_info->m_table_map.count();
+      ulonglong *table_ids= static_cast<ulonglong *>(my_malloc(
+          PSI_NOT_INSTRUMENTED, n_tables * sizeof(ulonglong), MYF(0)));
+      print_event_info->m_table_map.get_table_ids(&table_ids[0], n_tables);
+      for (ulong i= 0; i < n_tables; i++)
+      {
+        DBUG_PRINT("info", ("Table ID: %llu", table_ids[i]));
+        Table_map_log_event *tbl_map_to_print;
+
+        if (print_event_info->m_table_map_ignored.get_table(table_ids[i]))
+          continue;
+
+        tbl_map_to_print=
+            print_event_info->m_table_map.get_table(table_ids[i]);
+        if (tbl_map_to_print && tbl_map_to_print->print_body(print_event_info))
+        {
+          my_free(table_ids);
+          goto err;
+        }
+      }
+      my_free(table_ids);
+    }
+
+    if (print_base64(body, print_event_info, do_print_encoded))
+      goto err;
+  }
+
+  if (copy_event_cache_to_file_and_reinit(head, file) ||
+      copy_cache_to_file_wrapped(body, file, do_print_encoded,
+                                 print_event_info->delimiter,
+                                 print_event_info->verbose) ||
+      copy_event_cache_to_file_and_reinit(tail, file))
+    goto err;
+
+  return 0;
+err:
+  return 1;
+}
+
 
 bool Write_rows_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
 {
@@ -3781,6 +3856,8 @@ st_print_event_info::st_print_event_info()
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   m_is_event_group_active= TRUE;
   m_is_event_group_filtering_enabled= FALSE;
+  m_is_partial_rows_ev_group_active= TRUE;
+  partial_rows_rows_ev_flags= 0;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
   open_cached_file(&tail_cache, NULL, NULL, 0, flags);

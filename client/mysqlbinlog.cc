@@ -230,8 +230,17 @@ static void free_annotate_event()
   }
 }
 
-Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
-                                      const char **error_msg)
+/**
+  The typical logic for an event read from a remote server is to register the
+  temp_buf of the net object to the event, such that each event will re-use
+  this same buffer. However, some events are re-referenced later, and their
+  memory/data is still needed. For example, Table_map_log_events are needed
+  for Partial_rows_log_events, as they are re-output for the last event in
+  the group.
+*/
+Log_event *read_self_managing_buffer_event_from_net(uchar *net_buf,
+                                                    ulong event_len,
+                                                    const char **error_msg)
 {
   uchar *event_buf;
   Log_event* event;
@@ -724,6 +733,66 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
   return ev->print(result_file, print_event_info);
 }
 
+static bool print_partial_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
+{
+  bool result= 0;
+  Partial_rows_log_event *prle= static_cast<Partial_rows_log_event *>(ev);
+  if (prle->seq_no == 1)
+  {
+    /*
+      First Partial_row_event in the group, we can get our Rows_log_event
+      header info here for filtering.
+    */
+    const uchar *rows_data_begin= prle->ev_buffer_base + prle->start_offset;
+    Log_event_type event_type= (Log_event_type)(uchar)rows_data_begin[EVENT_TYPE_OFFSET];
+    uint8 const post_header_len= glob_description_event->post_header_len[event_type-1];
+    const uchar *table_id_ptr= rows_data_begin +
+                               print_event_info->common_header_len +
+                               RW_MAPID_OFFSET;
+
+    ulonglong table_id;
+    if (post_header_len == 6)
+      table_id= uint4korr(table_id_ptr);
+    else
+      table_id= (ulonglong) uint6korr(table_id_ptr);
+
+    /*
+      Cache the flags of the Rows_log_event to use it for the last
+      Partial_rows_log_event in the group
+    */
+    uint32 rows_ev_flags=
+        uint2korr(rows_data_begin + print_event_info->common_header_len +
+                  post_header_len + RW_MAPID_OFFSET + RW_FLAGS_OFFSET);
+    print_event_info->partial_rows_rows_ev_flags= rows_ev_flags;
+
+    if (print_event_info->m_table_map_ignored.get_table(table_id))
+      print_event_info->deactivate_current_partial_rows_ev_group();
+  }
+
+  if (print_event_info->is_partial_rows_ev_group_active())
+    result= prle->print(result_file, print_event_info);
+
+  /* Last fragment */
+  if (prle->seq_no == prle->total_fragments)
+  {
+    /*
+      If this is the last Partial_rows_log_event in the group and the
+      underlying Rows_log_event is the last in the transaction, then it is safe
+      to clear the table_maps because they won't be used again.
+    */
+    if (print_event_info->partial_rows_rows_ev_flags &
+        Rows_log_event::STMT_END_F)
+      print_event_info->m_table_map_ignored.clear_tables();
+
+    /*
+      Active the next Partial_rows_log_event group as default
+    */
+    print_event_info->activate_current_partial_rows_ev_group();
+  }
+
+  return result;
+}
+
 
 static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                             ulonglong table_id, bool is_stmt_end)
@@ -767,6 +836,10 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     /*
       Now is safe to clear ignored map (clear_tables will also
       delete original table map events stored in the map).
+
+      Note print_event_info->m_table_map is not cleared here because it is used
+      when printing the number of events in the Rows_log_event. Instead, this
+      map is cleared when a new transaction is started.
     */
     if (print_event_info->m_table_map_ignored.count() > 0)
       print_event_info->m_table_map_ignored.clear_tables();
@@ -980,6 +1053,13 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       else
         print_event_info->deactivate_current_event_group();
     }
+
+    /*
+      Start a new GTID event with a fresh table map state. This is because
+      table maps are cached for each transaction, e.g. for
+      Partial_rows_log_event printing.
+    */
+    print_event_info->m_table_map.clear_tables();
 
     /*
       Where we always ensure the initial binlog state is valid, we only
@@ -1199,13 +1279,22 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case TABLE_MAP_EVENT:
     {
       Table_map_log_event *map= ((Table_map_log_event *)ev);
+      destroy_evt= FALSE;
+
       if (shall_skip_database(map->get_db_name()) ||
           shall_skip_table(map->get_table_name()))
       {
         print_event_info->m_table_map_ignored.set_table(map->get_table_id(), map);
-        destroy_evt= FALSE;
         goto end;
       }
+
+      /*
+        Always keep the Table_map_log_event around in case a group of
+        Partial_rows_log_events is seen, where we will write the content of
+        the Table_map_log_event for the last fragment so it can be re-applied.
+      */
+      print_event_info->m_table_map.set_table(map->get_table_id(), map);
+
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       /* Create review table for Flashback */
       if (opt_flashback_review)
@@ -1370,6 +1459,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         print_event_info->found_row_event= 0;
       else if (opt_flashback)
         destroy_evt= FALSE;
+      break;
+    }
+    case PARTIAL_ROW_DATA_EVENT:
+    {
+      if (print_partial_row_event(print_event_info, ev))
+        goto err;
       break;
     }
     case START_ENCRYPTION_EVENT:
@@ -2471,6 +2566,8 @@ static Exit_status dump_log_entries(const char* logname)
   rc= (remote_opt ? dump_remote_log_entries(&print_event_info, logname) :
        dump_local_log_entries(&print_event_info, logname));
 
+  print_event_info.m_table_map.clear_tables();
+
   if (rc == ERROR_STOP)
     return rc;
 
@@ -2619,12 +2716,15 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   NET *net= &mysql->net;
   DBUG_ENTER("handle_event_text_mode");
 
-  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT)
+  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT ||
+      net->read_pos[5] == TABLE_MAP_EVENT)
   {
-    if (!(ev= read_remote_annotate_event(net->read_pos + 1, *len - 1,
-                                         &error_msg)))
+    if (!(ev= read_self_managing_buffer_event_from_net(net->read_pos + 1,
+                                                       *len - 1, &error_msg)))
     {
-      error("Could not construct annotate event object: %s", error_msg);
+      error("Could not construct %s event object: %s",
+            net->read_pos[5] == ANNOTATE_ROWS_EVENT ? "annotate" : "table_map",
+            error_msg);
       DBUG_RETURN(ERROR_STOP);
     }   
   }
