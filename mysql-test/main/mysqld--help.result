@@ -139,6 +139,17 @@ The following specify which files/extra groups are read (specified before remain
  removed in a future release. Deprecated, will be removed
  in a future release.
  (Defaults to on; use --skip-binlog-optimize-thread-scheduling to disable.)
+ --binlog-row-event-fragment-threshold=# 
+ When a Rows_log_event exceeds this threshold, it will be
+ fragmented into multiple Partial_rows_log_event events in
+ the binary log, each of this configured maximum size.
+ That is, all Partial_rows_log_events up to the last in
+ the group will be this configured maximum size, and the
+ last event will take the remaining size. This is relevant
+ for events that would surpass slave_max_allowed_packet
+ when sending to the slave, and thereby a sensible value
+ would reflect the slave's configured
+ slave_max_allowed_packet
  --binlog-row-event-max-size=# 
  The maximum size of a row-based binary log event in
  bytes. Rows will be grouped into events smaller than this
@@ -1711,6 +1722,7 @@ binlog-gtid-index-span-min 65536
 binlog-large-commit-threshold 134217728
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
+binlog-row-event-fragment-threshold 1073741824
 binlog-row-event-max-size 8192
 binlog-row-image FULL
 binlog-row-metadata NO_LOG
