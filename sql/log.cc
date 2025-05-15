@@ -6295,6 +6295,7 @@ err:
 
 bool MYSQL_BIN_LOG::flush_and_sync(bool *synced)
 {
+  DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
   int err=0, fd=log_file.file;
   if (synced)
     *synced= 0;
@@ -9604,7 +9605,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     set_current_thd(leader->thd);
 
     bool synced= 0;
-    if (unlikely(flush_and_sync(&synced)))
+    if (!opt_binlog_engine_hton && unlikely(flush_and_sync(&synced)))
     {
       for (current= queue; current != NULL; current= current->next)
       {
