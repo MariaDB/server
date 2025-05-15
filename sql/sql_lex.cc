@@ -3352,6 +3352,22 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      /*
+        We are excluding a SELECT_LEX from the hierarchy of
+        SELECT_LEX_UNITs and SELECT_LEXes. Since this level is
+        removed, we must also exclude the Name_resolution_context
+        belonging to this level. Do this by looping through inner
+        subqueries and changing their contexts' outer context pointers
+        to point to the outer select's context.
+      */
+      for (SELECT_LEX *s= u->first_select(); s; s= s->next_select())
+      {
+        if (s->context.outer_context == &sl->context)
+          s->context.outer_context = &sl->outer_select()->context;
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
