@@ -3348,6 +3348,15 @@ void st_select_lex_unit::exclude_level()
     SELECT_LEX_UNIT **last= 0;
     for (SELECT_LEX_UNIT *u= sl->first_inner_unit(); u; u= u->next_unit())
     {
+      for (SELECT_LEX *inner_sel= u->first_select();
+           inner_sel; inner_sel= inner_sel->next_select())
+      {
+        if (&sl->context == inner_sel->context.outer_context)
+          inner_sel->context.outer_context = &sl->outer_select()->context;
+      }
+      if (u->fake_select_lex &&
+          u->fake_select_lex->context.outer_context == &sl->context)
+        u->fake_select_lex->context.outer_context= &sl->outer_select()->context;
       u->master= master;
       last= (SELECT_LEX_UNIT**)&(u->next);
     }
