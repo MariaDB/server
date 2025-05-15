@@ -1,0 +1,1887 @@
+include/rpl_init.inc [topology=1->2, 2->3]
+#
+#
+# Test setup
+connection server_1;
+set @@global.slave_max_allowed_packet= 1024;
+set @@global.net_buffer_length= 1024;
+disconnect server_1;
+connect  server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connection server_2;
+include/stop_slave.inc
+set @@global.slave_max_allowed_packet= 1024;
+set @@global.net_buffer_length= 1024;
+disconnect server_2;
+connect  server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+set @@global.slave_max_allowed_packet= 1024;
+set @@global.net_buffer_length= 1024;
+disconnect server_3;
+connect  server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,;
+include/start_slave.inc
+#
+#
+# Test case 1) Boundary Testing
+#
+# A rows event at its maximum unfragmented length (i.e. the length of
+# slave_max_allowed_packet minus the Rows_log event metadata (e.g.
+# headers)) should not fragment, and replication replay should work both
+# via traditional replication as well as mysqlbinlog.
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_insert_frags.out
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_insert_frags.out
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_insert_frags.out
+# Reset data state on server_2 for mysqlbinlog replay
+connection server_2;
+set statement sql_log_bin=0 for drop table t1;
+# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+FOUND 1 matches in binlog_base64_output.sql
+# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+#  Note: 1 always comes from the Format_description_log_event
+FOUND 1 matches in binlog_base64_output.sql
+# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+# Ensuring mysqlbinlog event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+#
+# If rows event surpasses its maximum unfragmented length by 1, it
+# should fragment into 2 pieces, and replication replay should work
+# both via traditional replication as well as mysqlbinlog.
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 2 matches in binlog_insert_frags.out
+Partial_rows (1 / 2)
+Partial_rows (2 / 2)
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 2 matches in binlog_insert_frags.out
+Partial_rows (1 / 2)
+Partial_rows (2 / 2)
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 2 matches in binlog_insert_frags.out
+Partial_rows (1 / 2)
+Partial_rows (2 / 2)
+# Reset data state on server_2 for mysqlbinlog replay
+connection server_2;
+set statement sql_log_bin=0 for drop table t1;
+# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+FOUND 1 matches in binlog_base64_output.sql
+# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+#  Note: 1 always comes from the Format_description_log_event
+FOUND 2 matches in binlog_base64_output.sql
+# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+# Ensuring mysqlbinlog event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+#
+#
+# Test cases 2a-2c) Regular row events that surpass
+# slave_max_allowed_packet should be fragmented
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+#
+# Test Update_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Update_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Update_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Update_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_2 binlogs for Update_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_3 binlogs for Update_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+#
+# Test Delete_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Delete_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Delete_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Delete_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Delete_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_3 binlogs for Delete_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Reset data state on server_2 for mysqlbinlog replay
+connection server_2;
+set statement sql_log_bin=0 for drop table t1;
+# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+FOUND 12 matches in binlog_base64_output.sql
+# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+#  Note: 1 always comes from the Format_description_log_event
+FOUND 2 matches in binlog_base64_output.sql
+# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+# MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+# MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+# Ensuring mysqlbinlog event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+#
+#
+# Test cases 2d-2f) Compressed row events that surpass
+# slave_max_allowed_packet should be fragmented
+connection server_1;
+set @@global.log_bin_compress= 1;
+connection server_2;
+set @@global.log_bin_compress= 1;
+connection server_3;
+set @@global.log_bin_compress= 1;
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+#
+# Test Update_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Update_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Update_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Update_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_2 binlogs for Update_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_3 binlogs for Update_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+#
+# Test Delete_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Delete_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Delete_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Delete_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Delete_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_3 binlogs for Delete_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Reset data state on server_2 for mysqlbinlog replay
+connection server_2;
+set statement sql_log_bin=0 for drop table t1;
+# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+FOUND 12 matches in binlog_base64_output.sql
+# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+#  Note: 1 always comes from the Format_description_log_event
+FOUND 2 matches in binlog_base64_output.sql
+# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+# MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+# MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+# Ensuring mysqlbinlog event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_1;
+set @@global.log_bin_compress= 0;
+connection server_2;
+set @@global.log_bin_compress= 0;
+connection server_3;
+set @@global.log_bin_compress= 0;
+#
+#
+# Test case 3) SHOW BINLOG EVENTS should show Partial_rows_log_event
+# fragment sequencing
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000013	#	Binlog_checkpoint	#	#	master-bin.000013
+master-bin.000013	#	Gtid	#	#	GTID #-#-#
+master-bin.000013	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000013	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
+master-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000013	#	Xid	#	#	COMMIT /* XID */
+master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000013	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
+master-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000013	#	Xid	#	#	COMMIT /* XID */
+master-bin.000013	#	Rotate	#	#	master-bin.000014;pos=POS
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000013	#	Binlog_checkpoint	#	#	slave-bin.000013
+slave-bin.000013	#	Gtid	#	#	GTID #-#-#
+slave-bin.000013	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+slave-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000013	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
+slave-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000013	#	Partial_rows	#	#	Fragment 1 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 2 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 3 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 4 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 5 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 6 of 7
+slave-bin.000013	#	Partial_rows	#	#	Fragment 7 of 7
+slave-bin.000013	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000013	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
+slave-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000013	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000013	#	Partial_rows	#	#	Fragment 6 of 6
+slave-bin.000013	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000013	#	Rotate	#	#	slave-bin.000014;pos=POS
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000013	#	Binlog_checkpoint	#	#	master-bin.000013
+master-bin.000013	#	Gtid	#	#	GTID #-#-#
+master-bin.000013	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000013	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
+master-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 7
+master-bin.000013	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000013	#	Xid	#	#	COMMIT /* XID */
+master-bin.000013	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000013	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
+master-bin.000013	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000013	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000013	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000013	#	Xid	#	#	COMMIT /* XID */
+master-bin.000013	#	Rotate	#	#	master-bin.000014;pos=POS
+#
+# Test Update_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Update_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Update_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Update_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000014	#	Binlog_checkpoint	#	#	master-bin.000014
+master-bin.000014	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000014	#	Annotate_rows	#	#	update t1 set a=a+1 where a=11
+master-bin.000014	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000014	#	Partial_rows	#	#	Fragment 1 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 2 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 3 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 4 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 5 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 6 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 7 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 8 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 9 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 10 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 11 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 12 of 12
+master-bin.000014	#	Xid	#	#	COMMIT /* XID */
+master-bin.000014	#	Rotate	#	#	master-bin.000015;pos=POS
+# Server_2 binlogs for Update_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000014	#	Binlog_checkpoint	#	#	slave-bin.000014
+slave-bin.000014	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000014	#	Annotate_rows	#	#	update t1 set a=a+1 where a=11
+slave-bin.000014	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000014	#	Partial_rows	#	#	Fragment 1 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 2 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 3 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 4 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 5 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 6 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 7 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 8 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 9 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 10 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 11 of 12
+slave-bin.000014	#	Partial_rows	#	#	Fragment 12 of 12
+slave-bin.000014	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000014	#	Rotate	#	#	slave-bin.000015;pos=POS
+# Server_3 binlogs for Update_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000014	#	Binlog_checkpoint	#	#	master-bin.000014
+master-bin.000014	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000014	#	Annotate_rows	#	#	update t1 set a=a+1 where a=11
+master-bin.000014	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000014	#	Partial_rows	#	#	Fragment 1 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 2 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 3 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 4 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 5 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 6 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 7 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 8 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 9 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 10 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 11 of 12
+master-bin.000014	#	Partial_rows	#	#	Fragment 12 of 12
+master-bin.000014	#	Xid	#	#	COMMIT /* XID */
+master-bin.000014	#	Rotate	#	#	master-bin.000015;pos=POS
+#
+# Test Delete_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Delete_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Delete_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Delete_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000015	#	Binlog_checkpoint	#	#	master-bin.000015
+master-bin.000015	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000015	#	Annotate_rows	#	#	delete from t1
+master-bin.000015	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000015	#	Xid	#	#	COMMIT /* XID */
+master-bin.000015	#	Rotate	#	#	master-bin.000016;pos=POS
+# Server_2 binlogs for Delete_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000015	#	Binlog_checkpoint	#	#	slave-bin.000015
+slave-bin.000015	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000015	#	Annotate_rows	#	#	delete from t1
+slave-bin.000015	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000015	#	Partial_rows	#	#	Fragment 1 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 2 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 3 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 4 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 5 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 6 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 7 of 7
+slave-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
+slave-bin.000015	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000015	#	Rotate	#	#	slave-bin.000016;pos=POS
+# Server_3 binlogs for Delete_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000015	#	Binlog_checkpoint	#	#	master-bin.000015
+master-bin.000015	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000015	#	Annotate_rows	#	#	delete from t1
+master-bin.000015	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000015	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000015	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000015	#	Xid	#	#	COMMIT /* XID */
+master-bin.000015	#	Rotate	#	#	master-bin.000016;pos=POS
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+#
+#
+# Test case 4) The parallel replication applier can re-assemble
+# Rows_log_events and apply them
+connection server_2;
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 4;
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 4;
+include/start_slave.inc
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+#
+# Test Update_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Update_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Update_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Update_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_2 binlogs for Update_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_3 binlogs for Update_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+#
+# Test Delete_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Delete_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Delete_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Delete_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Delete_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_3 binlogs for Delete_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Reset data state on server_2 for mysqlbinlog replay
+connection server_2;
+set statement sql_log_bin=0 for drop table t1;
+# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+FOUND 12 matches in binlog_base64_output.sql
+# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+#  Note: 1 always comes from the Format_description_log_event
+FOUND 2 matches in binlog_base64_output.sql
+# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+# MYSQL_BINLOG mysqld_datadir/binlog_update_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+# MYSQL_BINLOG mysqld_datadir/binlog_delete_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
+# Ensuring mysqlbinlog event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_2;
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 0;;
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+set @@global.slave_parallel_threads= 0;;
+include/start_slave.inc
+#
+#
+# Test Case 5) A transaction with multiple Rows_log_events can be
+# replicated
+connection server_2;
+include/stop_slave.inc
+connection server_3;
+include/stop_slave.inc
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+create table t2 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+include/diff_tables.inc [server_1:test.t2, server_2:test.t2, server_3:test.t2]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 19 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000021	#	Binlog_checkpoint	#	#	master-bin.000021
+master-bin.000021	#	Gtid	#	#	GTID #-#-#
+master-bin.000021	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+master-bin.000021	#	Gtid	#	#	GTID #-#-#
+master-bin.000021	#	Query	#	#	use `test`; create table t2 (a int, b longblob) engine=innodb
+master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000021	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
+master-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000021	#	Xid	#	#	COMMIT /* XID */
+master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000021	#	Annotate_rows	#	#	insert into t2 select 1 as a, group_concat(b) as b from t1
+master-bin.000021	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000021	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
+master-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000021	#	Xid	#	#	COMMIT /* XID */
+master-bin.000021	#	Rotate	#	#	master-bin.000022;pos=POS
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 19 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000021	#	Binlog_checkpoint	#	#	slave-bin.000021
+slave-bin.000021	#	Gtid	#	#	GTID #-#-#
+slave-bin.000021	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+slave-bin.000021	#	Gtid	#	#	GTID #-#-#
+slave-bin.000021	#	Query	#	#	use `test`; create table t2 (a int, b longblob) engine=innodb
+slave-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000021	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
+slave-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000021	#	Partial_rows	#	#	Fragment 1 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 2 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 3 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 4 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 5 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 6 of 7
+slave-bin.000021	#	Partial_rows	#	#	Fragment 7 of 7
+slave-bin.000021	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000021	#	Annotate_rows	#	#	insert into t2 select 1 as a, group_concat(b) as b from t1
+slave-bin.000021	#	Table_map	#	#	table_id: # (test.t2)
+slave-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
+slave-bin.000021	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
+slave-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+slave-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
+slave-bin.000021	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000021	#	Rotate	#	#	slave-bin.000022;pos=POS
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 19 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000021	#	Binlog_checkpoint	#	#	master-bin.000021
+master-bin.000021	#	Gtid	#	#	GTID #-#-#
+master-bin.000021	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+master-bin.000021	#	Gtid	#	#	GTID #-#-#
+master-bin.000021	#	Query	#	#	use `test`; create table t2 (a int, b longblob) engine=innodb
+master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000021	#	Annotate_rows	#	#	insert into t1 select seq,repeat(seq,512) from seq_1_to_10
+master-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 7
+master-bin.000021	#	Partial_rows	#	#	Fragment 7 of 7
+master-bin.000021	#	Xid	#	#	COMMIT /* XID */
+master-bin.000021	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000021	#	Annotate_rows	#	#	insert into t2 select 1 as a, group_concat(b) as b from t1
+master-bin.000021	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000021	#	Annotate_rows	#	#	insert into t1 select 11 as a, group_concat(b) as b from t1
+master-bin.000021	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000021	#	Partial_rows	#	#	Fragment 1 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 2 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 3 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 4 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 5 of 6
+master-bin.000021	#	Partial_rows	#	#	Fragment 6 of 6
+master-bin.000021	#	Xid	#	#	COMMIT /* XID */
+master-bin.000021	#	Rotate	#	#	master-bin.000022;pos=POS
+# Reset data state on server_2 for mysqlbinlog replay
+connection server_2;
+set statement sql_log_bin=0 for drop table t1;
+set statement sql_log_bin=0 for drop table t2;
+# MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+# Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+FOUND 18 matches in binlog_base64_output.sql
+# Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+#  Note: 1 always comes from the Format_description_log_event
+FOUND 2 matches in binlog_base64_output.sql
+# MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+# Ensuring mysqlbinlog event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1]
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+drop table t2;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+#
+#
+# Test case 6) Chain replication with different slave_max_allowed_packet
+# configurations
+connection server_2;
+include/stop_slave.inc
+set @@global.slave_max_allowed_packet= 16384;
+set @@global.net_buffer_length= 16384;
+disconnect server_2;
+connect  server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connection server_3;
+include/stop_slave.inc
+set @@global.slave_max_allowed_packet= 16384;
+set @@global.net_buffer_length= 16384;
+disconnect server_3;
+connect  server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,;
+#
+# Initialize test data
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+#
+# Test Write_rows_log_event fragmentation
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Write_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Write_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Write_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_insert_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Write_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_insert_frags.out
+# Server_3 binlogs for Write_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_insert_frags.out
+#
+# Test Update_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Update_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Update_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Update_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 12 matches in binlog_update_frags.out
+Partial_rows (1 / 12)
+Partial_rows (2 / 12)
+Partial_rows (3 / 12)
+Partial_rows (4 / 12)
+Partial_rows (5 / 12)
+Partial_rows (6 / 12)
+Partial_rows (7 / 12)
+Partial_rows (8 / 12)
+Partial_rows (9 / 12)
+Partial_rows (10 / 12)
+Partial_rows (11 / 12)
+Partial_rows (12 / 12)
+# Server_2 binlogs for Update_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_update_frags.out
+# Server_3 binlogs for Update_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_update_frags.out
+#
+# Test Delete_rows_log_event fragmentation
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_3;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Ensuring Delete_rows replication event replay is consistent..
+include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
+# Ensuring Delete_rows data was fragmented into Partial_rows_log_events
+# Server_1 binlogs for Delete_rows event
+connection server_1;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+FOUND 13 matches in binlog_delete_frags.out
+Partial_rows (1 / 7)
+Partial_rows (2 / 7)
+Partial_rows (3 / 7)
+Partial_rows (4 / 7)
+Partial_rows (5 / 7)
+Partial_rows (6 / 7)
+Partial_rows (7 / 7)
+Partial_rows (1 / 6)
+Partial_rows (2 / 6)
+Partial_rows (3 / 6)
+Partial_rows (4 / 6)
+Partial_rows (5 / 6)
+Partial_rows (6 / 6)
+# Server_2 binlogs for Delete_rows event
+connection server_2;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_delete_frags.out
+# Server_3 binlogs for Delete_rows event
+connection server_3;
+flush logs;
+# MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
+NOT FOUND matches in binlog_delete_frags.out
+#
+# Cleanup test case
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+flush logs;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+flush logs;
+connection server_3;
+include/sync_with_master_gtid.inc
+flush logs;
+#
+#
+# Test Case 7) Replication filters should be honored when executing a re-assembled Rows_log_event
+connection server_2;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection server_3;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection server_1;
+create table t1 (a int, b longblob) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/stop_slave.inc
+set @@global.replicate_ignore_db="test";
+include/start_slave.inc
+connection server_1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000027	#	Binlog_checkpoint	#	#	master-bin.000027
+master-bin.000027	#	Gtid	#	#	GTID #-#-#
+master-bin.000027	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+master-bin.000027	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000027	#	Annotate_rows	#	#	insert into t1 values (1, repeat("a", 1024))
+master-bin.000027	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000027	#	Partial_rows	#	#	Fragment 1 of 2
+master-bin.000027	#	Partial_rows	#	#	Fragment 2 of 2
+master-bin.000027	#	Xid	#	#	COMMIT /* XID */
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Ensuring insert was ignored by replicate_ignore_db rule..
+# ..done
+connection server_2;
+include/stop_slave.inc
+set @@global.replicate_ignore_db="";
+set @@global.replicate_ignore_table="test.t1";
+include/start_slave.inc
+connection server_1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000027	#	Binlog_checkpoint	#	#	master-bin.000027
+master-bin.000027	#	Gtid	#	#	GTID #-#-#
+master-bin.000027	#	Query	#	#	use `test`; create table t1 (a int, b longblob) engine=innodb
+master-bin.000027	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000027	#	Annotate_rows	#	#	insert into t1 values (1, repeat("a", 1024))
+master-bin.000027	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000027	#	Partial_rows	#	#	Fragment 1 of 2
+master-bin.000027	#	Partial_rows	#	#	Fragment 2 of 2
+master-bin.000027	#	Xid	#	#	COMMIT /* XID */
+master-bin.000027	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000027	#	Annotate_rows	#	#	insert into t1 values (1, repeat("b", 1024))
+master-bin.000027	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000027	#	Partial_rows	#	#	Fragment 1 of 2
+master-bin.000027	#	Partial_rows	#	#	Fragment 2 of 2
+master-bin.000027	#	Xid	#	#	COMMIT /* XID */
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Ensuring insert was ignored by replicate_ignore_table rule..
+# ..done
+connection server_2;
+include/stop_slave.inc
+set @@global.replicate_ignore_table="";
+include/start_slave.inc
+connection server_1;
+drop table t1;
+FLUSH LOGS;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+#
+# Cleanup
+connection server_1;
+set @@global.slave_max_allowed_packet= 1073741824;
+set @@global.net_buffer_length= 16384;
+disconnect server_1;
+connect  server_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connection server_2;
+include/stop_slave.inc
+set @@global.slave_max_allowed_packet= 1073741824;
+set @@global.net_buffer_length= 16384;
+include/start_slave.inc
+disconnect server_2;
+connect  server_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+connection server_3;
+include/stop_slave.inc
+set @@global.slave_max_allowed_packet= 1073741824;
+set @@global.net_buffer_length= 16384;
+include/start_slave.inc
+disconnect server_3;
+connect  server_3,127.0.0.1,root,,test,$SERVER_MYPORT_3,;
+include/rpl_end.inc
+# End of rpl_fragment_row_event.test
