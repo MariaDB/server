@@ -765,9 +765,7 @@ FROM JSON_TABLE('{"a":"1993-01-01"}',
 '$' COLUMNS (jp DATE PATH '$.b' DEFAULT '1000' ON EMPTY))
 AS jt;
 jp
-0000-00-00
-Warnings:
-Warning	1265	Data truncated for column 'jp' at row 1
+1000-00-00
 #
 # Bug#25532429: INVALID JSON ERROR NOT THROWN WITH EMPTY TABLES JOIN
 #
