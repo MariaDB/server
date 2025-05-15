@@ -205,21 +205,26 @@ int hton_clone_copy(THD *thd, Storage_Vector &clone_loc_vec,
 
 int hton_clone_end(THD *thd, Storage_Vector &clone_loc_vec,
                    Task_Vector &task_vec, int in_err) {
-  uint index = 0;
+  uint index= 0;
+  int err= 0;
 
-  for (auto &loc_iter : clone_loc_vec) {
-    assert(index < task_vec.size());
-    auto err = loc_iter.m_hton->clone_interface.clone_end(
+  for (auto &loc_iter : clone_loc_vec)
+  {
+    if (index >= task_vec.size())
+    {
+      /* It is possible that only some of the SEs are initialized
+      in case of an error. */
+      break;
+    }
+    auto local_err= loc_iter.m_hton->clone_interface.clone_end(
         thd, loc_iter.m_loc, loc_iter.m_loc_len,
         task_vec[index], in_err);
 
-    if (err != 0) {
-      return (err);
-    }
+    if (local_err != 0)
+      err= local_err;
     ++index;
   }
-
-  return (0);
+  return err;
 }
 
 /** Begin clone apply for current storage engine plugin
@@ -343,12 +348,19 @@ int hton_clone_apply_error(THD *thd, Storage_Vector &clone_loc_vec,
 int hton_clone_apply_end(THD *thd, Storage_Vector &clone_loc_vec,
                          Task_Vector &task_vec, int in_err) {
   uint index = 0;
-  for (auto &loc_iter : clone_loc_vec) {
+  for (auto &loc_iter : clone_loc_vec)
+  {
     /* Task vector could be empty if we are exiting immediately
     after initialization */
     uint32_t task_id = 0;
-    if (!task_vec.empty()) {
-      assert(index < task_vec.size());
+    if (!task_vec.empty())
+    {
+      if(index >= task_vec.size())
+      {
+        /* It is possible that only some of the SEs are initialized
+        in case of an error. */
+        break;
+      }
       task_id = task_vec[index];
     }
     auto err = loc_iter.m_hton->clone_interface.clone_apply_end(

@@ -31,6 +31,10 @@ Clone handler interface to access clone plugin
 
 #include <atomic>
 #include <string>
+#include <set>
+#include <tuple>
+#include <filesystem>
+#include <functional>
 #include <my_global.h>
 #include "sql_plugin.h"
 
@@ -207,5 +211,33 @@ Clone_handler *clone_plugin_lock(THD *thd, plugin_ref *plugin);
 @param[in]	thd	server thread handle
 @param[out]	plugin	plugin reference */
 void clone_plugin_unlock(THD *thd, plugin_ref plugin);
+
+namespace clone_common
+{
+/** Check if string ends with given suffix.
+@return true if string ends with given suffix. */
+bool ends_with(const char *str, const char *suffix);
+
+std::tuple<std::string, std::string, std::string>
+convert_filepath_to_tablename(const char *filepath);
+
+bool is_log_table(const char *dbname, const char *tablename);
+
+bool is_stats_table(const char *dbname, const char *tablename);
+
+void foreach_file_in_db_dirs(const char *dir_path,
+                             std::function<bool(const char *)> func);
+
+namespace fsys= std::filesystem;
+
+int foreach_file_in_dir(
+    const fsys::path& dir_path,
+    const std::function<void(const fsys::path&)>& callback,
+    const std::set<std::string>& file_extns= {},
+    const std::set<fsys::file_type>& file_types= {fsys::file_type::regular},
+    int max_depth= 1);
+
+std::string read_table_version_id(File file);
+} // namespace clone_common
 
 #endif /* CLONE_HANDLER_INCLUDED */

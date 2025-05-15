@@ -171,6 +171,7 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
                          HA_CLONE_HYBRID, mode);
   if (err != 0) {
     clone_ddl_timeout = saved_donor_timeout;
+    m_storage_initialized= !m_tasks.empty();
     return (err);
   }
   m_storage_initialized = true;
@@ -239,7 +240,7 @@ int Server::get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
 
 int Server::execute_phase(Sub_Command sub_cmd)
 {
-  Ha_clone_stage exec_stage= HA_CLONE_STAGE_END;
+  Ha_clone_stage exec_stage= HA_CLONE_STAGE_MAX;
   int err= get_stage_and_lock(sub_cmd, exec_stage, m_is_master);
 
   if (!err && m_is_master)

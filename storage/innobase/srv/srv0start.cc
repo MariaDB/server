@@ -1302,7 +1302,8 @@ dberr_t srv_start(bool create_new_db)
 	/* Must replace clone files before opening any files. When clone
         replaces current database, cloned files are moved to data files
 	at this stage. */
-	err = clone_init();
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  err = clone_init();
 
 	if (err != DB_SUCCESS) {
 		return (srv_init_abort(err));
@@ -1463,7 +1464,9 @@ dberr_t srv_start(bool create_new_db)
 		Datafile::validate_first_page() */
 		return srv_init_abort(err);
 	}
-	Arch_Sys::init();
+
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  Arch_Sys::init();
 
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
@@ -2029,7 +2032,8 @@ skip_monitors:
 
 	/* Finish clone files recovery. This call is idempotent and is no op
 	if it is already done before creating new log files. */
-	clone_files_recovery(true);
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  clone_files_recovery(true);
 
 	return(DB_SUCCESS);
 }
@@ -2100,7 +2104,8 @@ void innodb_shutdown()
 		logs_empty_and_mark_files_at_shutdown();
 	}
 	/* Copy all log data to archive and stop archiver threads. */
-	Arch_Sys::stop();
+        if (srv_operation == SRV_OPERATION_NORMAL)
+	  Arch_Sys::stop();
 
 	os_aio_free();
 	fil_space_t::close_all();
@@ -2187,8 +2192,12 @@ void innodb_shutdown()
 			   << srv_shutdown_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
-	clone_free();
-	Arch_Sys::free();
+
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+	  clone_free();
+	  Arch_Sys::free();
+	}
+
 	srv_thread_pool_end();
 	srv_started_redo = false;
 	srv_was_started = false;

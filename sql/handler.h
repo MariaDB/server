@@ -1273,7 +1273,7 @@ enum Ha_clone_mode {
 
 enum Ha_clone_stage {
   /* Concurrent clone with DDL and DML. */
-  HA_CLONE_STAGE_CONCURRENT,
+  HA_CLONE_STAGE_CONCURRENT =0,
 
   /* New Non-Transactional DMLs blocked. */
   HA_CLONE_STAGE_NT_DML_BLOCKED,
@@ -1289,7 +1289,10 @@ enum Ha_clone_stage {
   HA_CLONE_STAGE_SNAPSHOT,
 
   /* Clone any archived data at the end. Doesn't need to block anything. */
-  HA_CLONE_STAGE_END
+  HA_CLONE_STAGE_END,
+
+  /* Maximum value used fot array bound only. */
+  HA_CLONE_STAGE_MAX
 };
 
 /** Clone operation types. */
