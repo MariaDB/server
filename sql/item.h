@@ -2231,10 +2231,9 @@ public:
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
-  /* TODO: better name? */
   /*
     Compute the intersection of index coverings of all fields in the
-    tree
+    tree. Used for updating the index coverings of vcols.
   */
   virtual bool intersect_vcol_index_coverings(void *arg) { return 0; }
 

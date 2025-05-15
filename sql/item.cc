@@ -1024,8 +1024,9 @@ bool Item_field::update_vcol_processor(void *arg)
 }
 
 /*
-   TODO: What if Item_field itself is a vcol? Does walk take care of
-   that?
+   If Item_field itself is a vcol, the underlying field would have
+   already had its part_of_key fixed, so there is no need to recurse
+   further
 */
 bool Item_field::intersect_vcol_index_coverings(void *arg)
 {

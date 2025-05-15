@@ -27,3 +27,26 @@ explain select c + 1 from t order by c + 1 limit 2;
 explain select c + 1 from t order by vc limit 2;
 
 drop table t;
+
+# vcol on vcol
+
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1),
+  add index(vc1);
+alter table t
+  add column vc2 int as (vc1 * 2),
+  add index(vc2);
+explain select c from t order by vc2;
+explain select vc2 from t order by vc1 * 2;
+explain select vc2 from t order by vc1 * 2 limit 2;
+drop table t;
+
+# vcol not depending on other col
+
+create table t (c int, vc int generated always as (1 + 1) virtual, key (c));
+insert into t values (42, default), (83, default);
+explain select vc from t order by vc;
+select vc from t order by vc;
+drop table t;
