@@ -2434,6 +2434,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   TABLE_LIST *tables;
   enum enum_sql_command sql_command= lex->sql_command;
   int res= 0;
+  bool returning= false;
   DBUG_ENTER("check_prepared_statement");
   DBUG_PRINT("enter",("command: %d  param_count: %u",
                       sql_command, stmt->param_count));
@@ -2495,6 +2496,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
                            lex->many_values,
                            lex->update_list, lex->value_list,
                            lex->duplicates);
+    returning= lex->has_returning();
     break;
 
   case SQLCOM_LOAD:
@@ -2516,6 +2518,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
 
   case SQLCOM_DELETE:
     res= mysql_test_delete(stmt, tables);
+    returning= lex->has_returning();
     break;
   /* The following allow WHERE clause, so they must be tested like SELECT */
   case SQLCOM_SHOW_DATABASES:
@@ -2660,6 +2663,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_INSERT_SELECT:
   case SQLCOM_REPLACE_SELECT:
     res= mysql_test_insert_select(stmt, tables);
+    returning= lex->has_returning();
     break;
 
   case SQLCOM_HA_READ:
@@ -2725,7 +2729,17 @@ static bool check_prepared_statement(Prepared_statement *stmt)
                                                     Protocol::SEND_EOF);
        }
        else
-         res= send_prep_stmt(stmt, 0);
+       {
+         if (returning)
+         {
+           select_send result(thd);
+           List<Item> &field_list= lex->returning()->item_list;
+           res= send_prep_stmt(stmt, field_list.elements) ||
+                result.send_result_set_metadata(field_list, Protocol::SEND_EOF);
+         }
+         else
+           res= send_prep_stmt(stmt, 0);
+       }
        if (!res)
          thd->protocol->flush();
     }
