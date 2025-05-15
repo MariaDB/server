@@ -7749,7 +7749,6 @@ ha_innobase::write_row(
 	bool		wsrep_auto_inc_inserted= false;
 #endif
 	int		error_result = 0;
-	bool		auto_inc_used = false;
 	mariadb_set_stats set_stats_temporary(handler_stats);
 
 	DBUG_ENTER("ha_innobase::write_row");
@@ -7780,7 +7779,6 @@ ha_innobase::write_row(
 			goto func_exit;
 		}
 
-		auto_inc_used = true;
 	}
 
 	/* Prepare INSERT graph that will be executed for actual INSERT
@@ -7803,7 +7801,7 @@ ha_innobase::write_row(
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
 	/* Handling of errors related to auto-increment. */
-	if (auto_inc_used) {
+	if (m_prebuilt->table->persistent_autoinc) {
 		ulonglong	auto_inc;
 
 		/* Note the number of rows processed for this statement, used
@@ -7815,8 +7813,13 @@ ha_innobase::write_row(
 		}
 
 		/* Get the value that MySQL attempted to store in the table.*/
-		auto_inc = table->next_number_field->val_uint();
+		dfield_t *ai_field= dtuple_get_nth_field(
+			m_prebuilt->ins_node->row,
+			m_prebuilt->table->persistent_autoinc-1);
 
+		auto_inc = dfield_is_null(ai_field)
+				? 0
+				: dfield_read_int(ai_field);
 		switch (error) {
 		case DB_DUPLICATE_KEY:
 
@@ -8276,7 +8279,8 @@ calc_row_difference(
 				if (field != table->found_next_number_field
 				    || dfield_is_null(&ufield->new_val)) {
 				} else {
-					auto_inc = field->val_uint();
+					auto_inc= dfield_read_int(
+							&ufield->new_val);
 				}
 			}
 			n_changed++;

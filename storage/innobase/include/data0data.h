@@ -628,6 +628,8 @@ inline dfield_t* dtuple_get_nth_v_field(dtuple_t* tuple, ulint n)
 	return &tuple->v_fields[n];
 }
 
+/** Convert an integer data into machine-native integer. */
+ulonglong dfield_read_int(dfield_t *dfield);
 /** A slot for a field in a big rec vector */
 struct big_rec_field_t {
 

@@ -246,6 +246,77 @@ dfield_print(
 	}
 }
 
+
+static
+ulonglong
+dfield_read_int(const byte *data, ulint len, ulint prtype)
+{
+  ut_ad(len <= 8);
+  union
+  {
+    // These fields are used for sign extension.
+    longlong int8:8;
+    longlong int16:16;
+    longlong int24:24;
+    longlong int32:32;
+    longlong int40:40; // 5-byte, unused
+    longlong int48:48;
+    longlong int56:56;
+    longlong ival;
+    ulonglong uval;
+  };
+  byte buf[8];
+  memcpy(buf, data, len);
+  bool sgn= !(prtype & DATA_UNSIGNED);
+
+  if (sgn)
+    buf[0]^= 0x80;
+
+  switch (len) {
+  case 1:
+    int8 = mach_read_from_1(buf);
+    if (sgn) ival= int8;
+    break;
+  case 2:
+    int16 = mach_read_from_2(buf);
+    if (sgn) ival= int16;
+    break;
+
+  case 3:
+    int24 = mach_read_from_3(buf);
+    if (sgn) ival= int24;
+    break;
+
+  case 4:
+    int32 = mach_read_from_4(buf);
+    if (sgn) ival= int32;
+    break;
+
+  case 6:
+    int48 = mach_read_from_6(buf);
+    if (sgn) ival= int48;
+    break;
+
+  case 7:
+    int56 = mach_read_from_7(buf);
+    if (sgn) ival= int56;
+    break;
+
+  case 8:
+    uval = mach_read_from_8(buf);
+    break;
+  }
+
+  return uval;
+}
+
+ulonglong dfield_read_int(dfield_t *dfield)
+{
+  return dfield_read_int(static_cast<const byte*>(dfield_get_data(dfield)),
+                         dfield_get_len(dfield),
+                         dtype_get_prtype(dfield_get_type(dfield)));
+}
+
 /*************************************************************//**
 Pretty prints a dfield value according to its data type. Also the hex string
 is printed if a string contains non-printable characters. */
@@ -274,68 +345,10 @@ dfield_print_also_hex(
 	switch (dtype_get_mtype(dfield_get_type(dfield))) {
 		ib_id_t	id;
 	case DATA_INT:
-		switch (len) {
-			ulint	val;
-		case 1:
-			val = mach_read_from_1(data);
-
-			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x80U;
-				fprintf(stderr, "%ld", (long) val);
-			} else {
-				fprintf(stderr, "%lu", (ulong) val);
-			}
-			break;
-
-		case 2:
-			val = mach_read_from_2(data);
-
-			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x8000U;
-				fprintf(stderr, "%ld", (long) val);
-			} else {
-				fprintf(stderr, "%lu", (ulong) val);
-			}
-			break;
-
-		case 3:
-			val = mach_read_from_3(data);
-
-			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x800000U;
-				fprintf(stderr, "%ld", (long) val);
-			} else {
-				fprintf(stderr, "%lu", (ulong) val);
-			}
-			break;
-
-		case 4:
-			val = mach_read_from_4(data);
-
-			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x80000000;
-				fprintf(stderr, "%ld", (long) val);
-			} else {
-				fprintf(stderr, "%lu", (ulong) val);
-			}
-			break;
-
-		case 6:
-			id = mach_read_from_6(data);
-			fprintf(stderr, IB_ID_FMT, id);
-			break;
-
-		case 7:
-			id = mach_read_from_7(data);
-			fprintf(stderr, IB_ID_FMT, id);
-			break;
-		case 8:
-			id = mach_read_from_8(data);
-			fprintf(stderr, IB_ID_FMT, id);
-			break;
-		default:
+		if (len > 8)
 			goto print_hex;
-		}
+		id= dfield_read_int(data, len, prtype);
+		fprintf(stderr, IB_ID_FMT, id);
 		break;
 
 	case DATA_SYS:
