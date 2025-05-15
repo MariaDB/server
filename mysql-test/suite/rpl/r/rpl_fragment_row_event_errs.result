@@ -1,0 +1,123 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+set sql_log_bin= 0;
+call mtr.add_suppression("Slave: Out of memory");
+call mtr.add_suppression("test error");
+set sql_log_bin= 1;
+#
+# Initialize test data
+connection master;
+create table t1 (a int, b blob) engine=innodb;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+#
+# Error Case 1) Cannot allocate memory for Partial_rows_log_event during
+# binlogging
+connection master;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,oom_fragmenting_large_rows_ev";
+insert into t1 values (1, repeat("a",1536));
+ERROR HY001: Out of memory; restart server and try again (needed 0 bytes)
+set debug_dbug= @old_dbug;
+#
+#
+# Error Case 2) Missing fragments in binary log
+#
+#   2a) Test missing first fragment
+connection master;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,partial_rows_skip_binlogging_first_fragment";
+insert into t1 values (2, repeat("a",3104));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=4243]
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found 2 / 4, expected Partial_rows_log_event 1 / 4'
+connection master;
+set debug_dbug= @old_dbug;
+connection slave;
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.gtid_slave_pos= "0-1-2";
+include/start_slave.inc
+#
+#   2b) Test missing middle fragment
+connection master;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,partial_rows_skip_binlogging_middle_fragment";
+insert into t1 values (3, repeat("a",3104));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=4243]
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found 3 / 4, expected Partial_rows_log_event 2 / 4'
+connection master;
+set debug_dbug= @old_dbug;
+connection slave;
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.gtid_slave_pos= "0-1-3";
+include/start_slave.inc
+#
+#   2c) Test missing last fragment
+connection master;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,partial_rows_skip_binlogging_last_fragment";
+insert into t1 values (4, repeat("a",3104));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=4243]
+Last_SQL_Error = 'Broken Partial_rows_log_event stream. Found Xid, expected Partial_rows_log_event 4 / 4'
+connection master;
+set debug_dbug= @old_dbug;
+connection slave;
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.gtid_slave_pos= "0-1-4";
+include/start_slave.inc
+#
+#
+# Error Case 3) Cannot allocate memory buffer to re-assemble large
+# Rows_log_event
+connection slave;
+include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,oom_reassembling_large_rows_ev_buf";
+include/start_slave.inc
+connection master;
+insert into t1 values (5, repeat("a",1536));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1037]
+Last_SQL_Error = 'Could not append Partial_rows_log_event 1 / 2 to internal Rows_log_event buffer: Out of memory; restart server and try again (needed 0 bytes)'
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.debug_dbug= @old_dbug;
+include/start_slave.inc
+#
+#
+# Error Case 4) Fail to parse re-assembled Rows_log_event content
+connection slave;
+include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,fail_parsing_rows_ev_from_reassembly";
+include/start_slave.inc
+connection master;
+insert into t1 values (6, repeat("a",1536));
+include/save_master_gtid.inc
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1594]
+Last_SQL_Error = 'Relay log read failure: Could not parse Rows_log_event re-assembled from Partial_rows_log_events. The possible reasons are: the master's binary log is corrupted (you can check this by running 'mysqlbinlog' on the binary log), the slave's relay log is corrupted (you can check this by running 'mysqlbinlog' on the relay log), a network problem, or a bug in the master's or slave's MariaDB code. If you want to check the master's binary log or slave's relay log, you will be able to know their names by issuing 'SHOW SLAVE STATUS' on this slave.'
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+set @@global.debug_dbug= @old_dbug;
+include/start_slave.inc
+#
+# Cleanup
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_fragment_rows_event_errs.test

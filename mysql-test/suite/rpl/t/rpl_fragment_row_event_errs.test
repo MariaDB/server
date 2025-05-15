@@ -1,0 +1,190 @@
+#
+#   This file tests various error cases for fragmenting large rows log events
+# into partial rows log events, and re-assembling and executing them.
+#
+# References:
+#   MDEV-32570: Fragment ROW replication events larger than max_packet_size
+#
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection slave
+set sql_log_bin= 0;
+call mtr.add_suppression("Slave: Out of memory");
+call mtr.add_suppression("test error");
+set sql_log_bin= 1;
+
+--echo #
+--echo # Initialize test data
+--connection master
+create table t1 (a int, b blob) engine=innodb;
+--let $ins_num= 1
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Error Case 1) Cannot allocate memory for Partial_rows_log_event during
+--echo # binlogging
+--connection master
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,oom_fragmenting_large_rows_ev";
+--error ER_OUTOFMEMORY
+--eval insert into t1 values ($ins_num, repeat("a",1536))
+--inc $ins_num
+set debug_dbug= @old_dbug;
+
+
+--echo #
+--echo #
+--echo # Error Case 2) Missing fragments in binary log
+
+--echo #
+--echo #   2a) Test missing first fragment
+--connection master
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,partial_rows_skip_binlogging_first_fragment";
+--eval insert into t1 values ($ins_num, repeat("a",3104))
+--inc $ins_num
+--source include/save_master_gtid.inc
+--let $broken_gtid= `SELECT @@global.gtid_binlog_pos`
+
+--connection slave
+--let $slave_sql_errno=4243
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+--connection master
+set debug_dbug= @old_dbug;
+
+--connection slave
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+--eval set @@global.gtid_slave_pos= "$broken_gtid"
+--source include/start_slave.inc
+
+
+--echo #
+--echo #   2b) Test missing middle fragment
+--connection master
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,partial_rows_skip_binlogging_middle_fragment";
+--eval insert into t1 values ($ins_num, repeat("a",3104))
+--inc $ins_num
+--source include/save_master_gtid.inc
+--let $broken_gtid= `SELECT @@global.gtid_binlog_pos`
+
+--connection slave
+--let $slave_sql_errno=4243
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+--connection master
+set debug_dbug= @old_dbug;
+
+--connection slave
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+--eval set @@global.gtid_slave_pos= "$broken_gtid"
+--source include/start_slave.inc
+
+
+--echo #
+--echo #   2c) Test missing last fragment
+--connection master
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,partial_rows_skip_binlogging_last_fragment";
+--eval insert into t1 values ($ins_num, repeat("a",3104))
+--inc $ins_num
+--source include/save_master_gtid.inc
+--let $broken_gtid= `SELECT @@global.gtid_binlog_pos`
+
+--connection slave
+--let $slave_sql_errno=4243
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+--connection master
+set debug_dbug= @old_dbug;
+
+--connection slave
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+--eval set @@global.gtid_slave_pos= "$broken_gtid"
+--source include/start_slave.inc
+
+
+--echo #
+--echo #
+--echo # Error Case 3) Cannot allocate memory buffer to re-assemble large
+--echo # Rows_log_event
+--connection slave
+--source include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,oom_reassembling_large_rows_ev_buf";
+--source include/start_slave.inc
+
+--connection master
+--eval insert into t1 values ($ins_num, repeat("a",1536))
+--inc $ins_num
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $slave_sql_errno=1037
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+set @@global.debug_dbug= @old_dbug;
+--source include/start_slave.inc
+
+--echo #
+--echo #
+--echo # Error Case 4) Fail to parse re-assembled Rows_log_event content
+--connection slave
+--source include/stop_slave.inc
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,fail_parsing_rows_ev_from_reassembly";
+--source include/start_slave.inc
+
+--connection master
+--eval insert into t1 values ($ins_num, repeat("a",1536))
+--inc $ins_num
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $slave_sql_errno=1594
+--let $show_slave_sql_error= 1
+--let $slave_timeout=5
+--source include/wait_for_slave_sql_error.inc
+
+STOP SLAVE;
+--let $rpl_allow_error= 1
+--source include/wait_for_slave_to_stop.inc
+set @@global.debug_dbug= @old_dbug;
+--source include/start_slave.inc
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_fragment_rows_event_errs.test
