@@ -974,7 +974,7 @@ err:
   constructors.
 */
 
-Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
+Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check,
@@ -1251,7 +1251,7 @@ exit:
 #endif
   }
 
-  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
+  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %zu)",
                             ev ? ev->get_type_str() : "<unknown>",
                             (uchar)buf[EVENT_TYPE_OFFSET],
                             event_len));
@@ -3074,7 +3074,7 @@ const uchar *sql_ex_info::init(const uchar *buf, const uchar *buf_end,
 **************************************************************************/
 
 
-Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
+Rows_log_event::Rows_log_event(const uchar *buf, size_t event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
@@ -3101,7 +3101,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   if (event_len < (uint)(common_header_len + post_header_len))
     DBUG_VOID_RETURN;
 
-  DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
+  DBUG_PRINT("enter",("event_len: %zu  common_header_len: %d  "
 		      "post_header_len: %d",
 		      event_len, common_header_len,
 		      post_header_len));
@@ -3812,7 +3812,7 @@ Optional_metadata_fields(unsigned char* optional_metadata,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
+Write_rows_log_event::Write_rows_log_event(const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Rows_log_event(buf, event_len, description_event)
@@ -3820,7 +3820,7 @@ Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
 }
 
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
+                                           const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Write_rows_log_event(buf, event_len, description_event)
@@ -3838,7 +3838,7 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
+Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, size_t event_len,
                                              const Format_description_log_event
                                              *description_event)
   : Rows_log_event(buf, event_len, description_event)
@@ -3846,7 +3846,7 @@ Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
 }
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
+                                           const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
   : Delete_rows_log_event(buf, event_len, description_event)
@@ -3869,19 +3869,17 @@ Update_rows_log_event::~Update_rows_log_event()
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Update_rows_log_event::Update_rows_log_event(const uchar *buf, uint event_len,
-                                             const
-                                             Format_description_log_event
-                                             *description_event)
-  : Rows_log_event(buf, event_len, description_event)
+Update_rows_log_event::Update_rows_log_event(
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Rows_log_event(buf, event_len, description_event)
 {
 }
 
 Update_rows_compressed_log_event::Update_rows_compressed_log_event(
-                                             const uchar *buf, uint event_len,
-                                             const Format_description_log_event
-                                             *description_event)
-  : Update_rows_log_event(buf, event_len, description_event)
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Update_rows_log_event(buf, event_len, description_event)
 {
   uncompress_buf();
 }
