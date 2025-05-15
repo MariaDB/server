@@ -772,7 +772,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   {
     uchar save=pos[FLAGS_OFFSET];
     pos[FLAGS_OFFSET]&= ~LOG_EVENT_BINLOG_IN_USE_F;
-    crc= my_checksum(0, pos, len);
+    crc= my_checksum(crc, pos, len);
     pos[FLAGS_OFFSET]= save;
   }
 
@@ -816,17 +816,31 @@ int Log_event_writer::write_footer()
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
     if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
+  }
   }
   if (ctx)
   {
     uint dstlen;
     uchar dst[MY_AES_BLOCK_SIZE*2];
     if (encryption_ctx_finish(ctx, dst, &dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(1);
+    }
     if (maybe_write_event_len(dst, dstlen) || write_internal(dst, dstlen))
+    {
+      crc= 0;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
+  }
+
+  /*
+    TODO write a comment about the lifecycle of crc
+  */
+  crc= 0;
   DBUG_RETURN(0);
 }
 
@@ -4758,17 +4772,6 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     DBUG_EXECUTE_IF("simulate_too_big_row_case4",
                      cur_size= UINT_MAX32 - (block_size * 10);
                      length= (block_size * 10) - block_size + 1;);
-    size_t remaining_space= UINT_MAX32 - cur_size;
-    /* Check that the new data fits within remaining space and we can add
-       block_size without wrapping.
-     */
-    if (cur_size > UINT_MAX32 || length > remaining_space ||
-        ((length + block_size) > remaining_space))
-    {
-      sql_print_error("The row data is greater than 4GB, which is too big to "
-                      "write to the binary log.");
-      DBUG_RETURN(ER_BINLOG_ROW_LOGGING_FAILED);
-    }
     size_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
 
@@ -5578,6 +5581,186 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 {
   bool res= write_data_body_metadata(writer);
   res= res || write_data_body_rows(writer);
+  return res;
+}
+
+
+/**************************************************************************
+	Partial_rows_log_event member functions
+**************************************************************************/
+
+/*
+  TODO Relocate this to make more sense
+*/
+int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
+{
+  Rows_log_event_assembler *assembler;
+  fprintf(stderr, "\n\t SQL thread found partial row data event %u / %u\n",
+          seq_no, total_fragments);
+
+  DBUG_ASSERT(rgi);
+  DBUG_ASSERT(rgi->thd);
+  if (!rgi->assembler)
+  {
+    rgi->assembler= new Rows_log_event_assembler(total_fragments);
+  }
+  assembler= rgi->assembler;
+
+  /*
+    TODO: Needs stage
+  */
+  if (assembler->append(this))
+  {
+    /*
+      TODO error handling
+    */
+    return 1;
+  }
+
+  if (assembler->all_fragments_assembled())
+  {
+    PSI_stage_info org_stage;
+    rgi->thd->backup_stage(&org_stage);
+    /*
+      TODO: Needs stage
+    */
+    Log_event *ev= assembler->create_rows_event(
+        rgi->rli->relay_log.description_event_for_exec, true, true);
+    delete rgi->assembler;
+    rgi->assembler= NULL;
+
+    if (!ev)
+    {
+      /*
+        TODO Error handling
+      */
+      return 1;
+    }
+
+    apply_event_and_update_pos_setup(ev, thd, rgi);
+    ev->apply_event(rgi);
+    THD_STAGE_INFO(rgi->thd, org_stage);
+    delete ev;
+  }
+
+  return 0;
+}
+
+bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
+{
+  uint64_t cur_offset= start_offset;
+  uint64_t row_data_len_to_write= end_offset - start_offset;
+  /*
+    Write the width and cols bitmap for the first event. This shouldn't ever
+    extend beyond one fragment, so don't add checks to split these.
+  */
+  my_bool first_fragment= !cur_offset;
+  if (first_fragment)
+  {
+    rows_event->write_header(writer, rows_event->get_data_size());
+    rows_event->write_data_header(writer);
+    rows_event->write_data_body_metadata(writer);
+  }
+
+  return rows_event->write_data_body_rows(writer, start_offset,
+                                          row_data_len_to_write);
+}
+
+bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
+{
+  /*
+    TODO: Need to write rows_event->write_data_header() in after metadata
+  */
+  uchar buf[PARTIAL_ROWS_HEADER_LEN];        // No need to init the buffer
+  int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
+  int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
+  buf[PRW_FLAGS_OFFSET]= this->flags2;
+  return write_data(writer, buf, PARTIAL_ROWS_HEADER_LEN);
+}
+
+bool Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
+{
+  if (partial_ev->total_fragments != this->total_fragments)
+  {
+    /*
+      TODO Error handling
+    */
+    return 1;
+  }
+  if (partial_ev->seq_no != this->last_fragment_seen + 1)
+  {
+    /*
+      TODO Error handling
+    */
+    return 1;
+  }
+
+  if (this->last_fragment_seen == 0)
+  {
+    /*
+      Alloc the size of the string (overestimating the size, as the last
+      fragment likely won't use the full length)
+    */
+    rows_ev_buf_builder_ptr= (char *) my_malloc(
+        PSI_INSTRUMENT_ME,
+        ((size_t) total_fragments * (size_t) partial_ev->get_rows_size()),
+        MYF(MY_WME));
+    ev_len= 0;
+  }
+  if (!rows_ev_buf_builder_ptr)
+  {
+    /*
+      TODO Error handling
+    */
+    return 1;
+  }
+
+  memcpy(rows_ev_buf_builder_ptr + ev_len,
+         partial_ev->ev_buffer_base + partial_ev->start_offset,
+         partial_ev->get_rows_size());
+  ev_len+= partial_ev->get_rows_size();
+
+  last_fragment_seen= partial_ev->seq_no;
+
+  return 0;
+}
+
+Log_event *Rows_log_event_assembler::create_rows_event(
+    const Format_description_log_event *fdle, my_bool crc_check,
+    my_bool print_errors
+
+)
+{
+  const char *error= 0;
+  Log_event *res= 0;
+
+  /*
+    TODO the buffer ptr should just be a uchar* from the get go
+  */
+  if ((res= Log_event::read_log_event_no_checksum(
+           (uchar *) rows_ev_buf_builder_ptr, ev_len, &error, fdle)))
+  {
+    fprintf(stderr, "\n\tAssembler says ev buf is %zu long\n", ev_len);
+    res->register_temp_buf((uchar *) rows_ev_buf_builder_ptr, true);
+#ifndef DBUG_OFF
+    {
+      Log_event_type typ= res->get_type_code();
+      DBUG_ASSERT((typ == WRITE_ROWS_EVENT_V1 || typ == UPDATE_ROWS_EVENT_V1 ||
+                   typ == DELETE_ROWS_EVENT_V1) ||
+                  (typ == WRITE_ROWS_COMPRESSED_EVENT_V1 ||
+                   typ == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||
+                   typ == DELETE_ROWS_COMPRESSED_EVENT_V1));
+      fprintf(stderr, "\n\tAssembled event of type %d(%s)\n", typ, res->get_type_str());
+    }
+#endif
+  }
+  /*
+  else
+  {
+      //TODO Error handling
+  }
+  */
+
   return res;
 }
 
