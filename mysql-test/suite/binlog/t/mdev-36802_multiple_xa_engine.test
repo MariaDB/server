@@ -13,3 +13,23 @@ XA PREPARE 'a';
 XA COMMIT 'a';
 
 DROP TABLE t;
+
+# MDEV-36825
+# The mtr test passes anyway never noticing the assert.
+# Its core fails as in the description with an explict
+#   INSTALL PLUGIN Spider SONAME 'ha_spider.so';
+# instead of source include/have_spider.inc.
+SET max_session_mem_used=32768;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+
+XA START 'b';
+--error ER_OPTION_PREVENTS_STATEMENT
+INSERT INTO t VALUES ();
+INSERT INTO t VALUES ();
+SET pseudo_slave_mode=1;
+XA END 'b';
+XA PREPARE 'b';
+XA ROLLBACK 'b';
+
+--echo # cleanup
+DROP TABLE t;

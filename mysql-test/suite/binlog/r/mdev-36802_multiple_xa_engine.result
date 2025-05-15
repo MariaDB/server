@@ -7,3 +7,14 @@ XA PREPARE 'a';
 XA COMMIT 'a';
 ERROR HY000: This xid does not exist
 DROP TABLE t;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+SET pseudo_slave_mode=1;
+XA START 'b';
+INSERT INTO t VALUES (1);
+XA END 'b';
+XA PREPARE 'b';
+Warnings:
+Warning	4205	Pseudo thread id should not be modified by the client as it will be overwritten
+XA ROLLBACK 'b';
+# cleanup
+DROP TABLE t;

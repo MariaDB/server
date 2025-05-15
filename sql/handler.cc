@@ -2367,8 +2367,10 @@ int ha_rollback_trans(THD *thd, bool all)
     int err;
     bool has_binlog= has_binlog_hton(ha_info);
 
+    // !m_ht->commit_ordered condition can occur e.g with Spider
     DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK ||
-                thd->transaction->xid_state.is_explicit_XA());
+                (thd->transaction->xid_state.is_explicit_XA() ||
+                 !thd->transaction->stmt.ha_list->ht()->commit_ordered));
 
     if (has_binlog && (err= binlog_tp.rollback(thd, all)))
     {
