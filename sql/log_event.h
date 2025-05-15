@@ -937,6 +937,13 @@ typedef struct st_print_event_info
   bool print_table_metadata;
 
   /*
+    The Table_map_log_event for the current event group.  We always need it
+    around in case we are printing a group of Partial_rows_log_events, where we
+    will write a Table_map_log_event for the last fragment.
+  */
+  Table_map_log_event *table_map_event;
+
+  /*
      These two caches are used by the row-based replication events to
      collect the header information and the main body of the events
      making up a statement.
@@ -4548,6 +4555,12 @@ public:
 
 #ifdef MYSQL_CLIENT
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
+
+  /*
+    Only print the content of the Table_map_log_event which is actually used to
+    re-construct the event
+  */
+  bool print_body(PRINT_EVENT_INFO *print_event_info);
 #endif
 
   table_def get_table_def();
