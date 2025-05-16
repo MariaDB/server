@@ -1234,6 +1234,7 @@ include/stop_slave.inc
 SET @@GLOBAL.replicate_ignore_db= "";
 SET @@GLOBAL.replicate_do_db= "db2";
 change master to master_use_gtid=slave_pos;
+SET @@GLOBAL.slave_parallel_workers=2;
 include/start_slave.inc
 connection server_1;
 use db1;

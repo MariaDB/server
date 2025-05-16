@@ -2332,7 +2332,11 @@ int ha_rollback_trans(THD *thd, bool all)
 
     if (thd->rgi_slave &&
         !thd->rgi_slave->worker_error &&
-        thd->rgi_slave->did_mark_start_commit)
+        thd->rgi_slave->did_mark_start_commit &&
+        /* rollback-only XA executes rollback on success, should not unmark */
+        !(thd->transaction->xid_state.is_explicit_XA() &&
+          thd->transaction->xid_state.get_state_code() ==
+          XA_ROLLBACK_ONLY))
       thd->rgi_slave->unmark_start_commit();
   }
 #endif
