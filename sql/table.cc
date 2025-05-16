@@ -4761,6 +4761,10 @@ partititon_err:
     int ha_err= outparam->file->ha_open(outparam, share->normalized_path.str,
                                  (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
                                  ha_open_flags, 0, partitions_to_open);
+
+    for (Field **f= outparam->default_field; likely(!ha_err) && f && *f; f++)
+      ha_err= (*f)->default_value->expr->ha_open(outparam->file, *f);
+
     if (ha_err)
     {
       share->open_errno= ha_err;
@@ -4847,7 +4851,7 @@ partititon_err:
 }
 
 
-bool TABLE_SHARE::fix_identity_field()
+bool TABLE_SHARE::fix_identity_field(Autoinc_spec *autoinc_spec)
 {
   if (found_next_number_field &&
       (*found_next_number_field)->default_value)
@@ -4856,14 +4860,13 @@ bool TABLE_SHARE::fix_identity_field()
                                (*found_next_number_field)->default_value->expr);
     if (!autoinc_expr || (*found_next_number_field)->vcol_info)
       return false; // frm corruption
-    Autoinc_spec *spec= autoinc_expr->spec;
 
-    if (!spec->has_maxvalue)
-      spec->maxvalue= LONGLONG_MAX;
-    if (!spec->has_maxvalue)
-      spec->minvalue= 0;
+    if (!autoinc_spec->has_maxvalue)
+      autoinc_spec->maxvalue= LONGLONG_MAX;
+    if (!autoinc_spec->has_maxvalue)
+      autoinc_spec->minvalue= 0;
 
-    if (spec->generated_always)
+    if (autoinc_spec->generated_always)
       (*found_next_number_field)->generated_always= true;
 
     /*

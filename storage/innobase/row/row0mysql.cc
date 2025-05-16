@@ -900,7 +900,7 @@ row_create_prebuilt(
 	prebuilt->clust_ref = ref;
 
 	prebuilt->autoinc_error = DB_SUCCESS;
-	prebuilt->autoinc_spec= nullptr;
+	prebuilt->autoinc_spec= nullptr; // overriden in ha_innobase::open()
 
 	prebuilt->autoinc_last_value = 0;
 

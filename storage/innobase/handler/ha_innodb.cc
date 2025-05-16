@@ -5717,7 +5717,8 @@ ha_innobase::open().
 @param[in,out]	table	persistent table
 @param[in]	field	the AUTO_INCREMENT column */
 static void initialize_auto_increment(dict_table_t *table, const Field& field,
-                                      const TABLE_SHARE &s)
+                                      const TABLE_SHARE &s,
+                                      const Autoinc_spec *spec)
 {
   ut_ad(!table->is_temporary());
   const unsigned col_no= innodb_col_no(&field);
@@ -5743,16 +5744,13 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
        the table would fail and subsequent SELECTs would succeed. */;
   else if (table->persistent_autoinc)
   {
-    Autoinc_spec spec {};
-    spec.start= 1;
-    spec.step= 1;
     uint64_t max_value= innobase_get_int_col_max_value(&field);
     table->autoinc=
       innobase_next_autoinc(btr_read_autoinc_with_fallback(table, col_no,
                                                            s.mysql_version,
                                                            max_value),
                             1 /* need */,
-                            &spec,
+                            spec,
                             max_value);
   }
 
@@ -6066,12 +6064,18 @@ ha_innobase::open(const char* name, int, uint)
 
 	const my_bool for_vc_purge = THDVAR(thd, background_thread);
 
-	if (for_vc_purge || !m_prebuilt->table
-	    || m_prebuilt->table->is_temporary()
-	    || m_prebuilt->table->persistent_autoinc
-	    || !m_prebuilt->table->is_readable()) {
-	} else if (const Field* ai = table->found_next_number_field) {
-		initialize_auto_increment(m_prebuilt->table, *ai, *table->s);
+	if (const Field* ai = table->found_next_number_field) {
+		m_prebuilt->autoinc_spec=
+			new (mem_heap_alloc(m_prebuilt->heap,
+						sizeof(Autoinc_spec)))
+			Autoinc_spec(table->make_autoinc_spec(thd));
+		if (!for_vc_purge && m_prebuilt->table
+		    && !m_prebuilt->table->is_temporary()
+		    && !m_prebuilt->table->persistent_autoinc
+		    && m_prebuilt->table->is_readable())
+			initialize_auto_increment(m_prebuilt->table, *ai,
+						  *table->s,
+						  m_prebuilt->autoinc_spec);
 	}
 
 	/* Set plugin parser for fulltext index */
@@ -7811,15 +7815,18 @@ ha_innobase::write_row(
 		if (trx->n_autoinc_rows > 0) {
 			--trx->n_autoinc_rows;
 		}
-
+		unsigned ai_pos= dict_table_get_field_col_idx(
+			m_prebuilt->table,
+			m_prebuilt->table->persistent_autoinc-1);
 		/* Get the value that MySQL attempted to store in the table.*/
 		dfield_t *ai_field= dtuple_get_nth_field(
 			m_prebuilt->ins_node->row,
-			m_prebuilt->table->persistent_autoinc-1);
+			ai_pos);
 
 		auto_inc = dfield_is_null(ai_field)
 				? 0
 				: dfield_read_int(ai_field);
+	  longlong positive_autoinc= auto_inc;
 		switch (error) {
 		case DB_DUPLICATE_KEY:
 
@@ -7884,7 +7891,7 @@ set_max_autoinc:
 				/* We need the upper limit of the col type to check for
 				whether we update the table autoinc counter or not. */
 				ulonglong	col_max_value =
-					table->next_number_field->get_max_int_value();
+					m_prebuilt->autoinc_spec->maxvalue;
 
 				/* This should filter out the negative
 				values set explicitly by the user. */
@@ -13212,31 +13219,34 @@ void create_table_info_t::create_table_update_dict(dict_table_t *table,
     fts_optimize_add_table(table);
 
   if (const Field *ai = t.found_next_number_field)
-  {
-    ut_ad(ai->stored_in_db());
-    ib_uint64_t autoinc= info.auto_increment_value;
-    if (autoinc == 0)
-      autoinc= 1;
-
-    table->autoinc_mutex.wr_lock();
-    dict_table_autoinc_initialize(table, autoinc);
-
-    if (!table->is_temporary())
-    {
-      const unsigned col_no= innodb_col_no(ai);
-      table->persistent_autoinc= static_cast<uint16_t>
-        (dict_table_get_nth_col_pos(table, col_no, nullptr) + 1) &
-        dict_index_t::MAX_N_FIELDS;
-      /* Persist the "last used" value, which typically is AUTO_INCREMENT - 1.
-      In btr_create(), the value 0 was already written. */
-      if (--autoinc)
-        btr_write_autoinc(dict_table_get_first_index(table), autoinc);
-    }
-
-    table->autoinc_mutex.wr_unlock();
-  }
+    create_table_init_auto_increment(table, info.auto_increment_value, ai);
 
   innobase_parse_hint_from_comment(thd, table, t.s);
+}
+
+void create_table_info_t::create_table_init_auto_increment(dict_table_t *table,
+                ib_uint64_t autoinc, const Field *ai)
+{
+  ut_ad(ai->stored_in_db());
+  if (autoinc == 0)
+    autoinc= 1;
+
+  table->autoinc_mutex.wr_lock();
+  dict_table_autoinc_initialize(table, autoinc);
+
+  if (!table->is_temporary())
+  {
+    const unsigned col_no= innodb_col_no(ai);
+    table->persistent_autoinc= static_cast<uint16_t>
+      (dict_table_get_nth_col_pos(table, col_no, nullptr) + 1) &
+      dict_index_t::MAX_N_FIELDS;
+    /* Persist the "last used" value, which typically is AUTO_INCREMENT - 1.
+    In btr_create(), the value 0 was already written. */
+    if (--autoinc)
+    	btr_write_autoinc(dict_table_get_first_index(table), autoinc);
+  }
+
+  table->autoinc_mutex.wr_unlock();
 }
 
 /** Allocate a new trx. */
@@ -13346,6 +13356,39 @@ int ha_innobase::create(const char *name, TABLE *form,
                         HA_CREATE_INFO *create_info)
 {
   return create(name, form, create_info, srv_file_per_table);
+}
+
+int ha_innobase::ha_create_auto_increment(const Autoinc_spec *autoinc_spec,
+                                          const Field *autoinc_field)
+{
+  const char *name=table_share->normalized_path.str;
+  char norm_name[FN_REFLEN];
+  normalize_table_name(norm_name, sizeof(norm_name), name);
+
+  char *is_part=is_partition(norm_name);
+  dict_table_t *ib_table=open_dict_table(name, norm_name, is_part,
+                                         DICT_ERR_IGNORE_FK_NOKEY);
+  create_table_info_t::create_table_init_auto_increment(ib_table,
+                                                        autoinc_spec->start,
+                                                        autoinc_field);
+  ib_table->release();
+  return 0;
+}
+
+int ha_innobase::ha_init_auto_increment(const Autoinc_spec *autoinc_spec,
+	const Field *ai_field)
+{
+	// Lazy-initialize autoinc. Note that persistent_autoinc is re-checked
+	// Inside the call under the mutex.
+	if (!m_prebuilt->table->persistent_autoinc)
+		initialize_auto_increment(m_prebuilt->table, *ai_field,
+					  *table_share,
+					  autoinc_spec);
+        m_prebuilt->autoinc_spec=
+              new (mem_heap_alloc(m_prebuilt->heap,
+                                      sizeof(Autoinc_spec)))
+              Autoinc_spec(*autoinc_spec);
+	return 0;
 }
 
 /*****************************************************************//**
@@ -16786,7 +16829,8 @@ ha_innobase::get_auto_increment(
 	this in write_row() and update_row() to increase the autoinc counter
 	for columns that are filled by the user. We need the offset and
 	the increment. */
-	m_prebuilt->autoinc_spec= spec;
+	m_prebuilt->autoinc_spec->start= spec->start;
+	m_prebuilt->autoinc_spec->step= spec->step;
 
 	error = innobase_get_autoinc(&autoinc);
 

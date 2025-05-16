@@ -1145,6 +1145,8 @@ public:
     return false;
   }
   virtual bool fix_table_share(TABLE_SHARE *s) const { return true; }
+  virtual int ha_create_table(handler *h, const Field *f) const { return 0; }
+  virtual int ha_open(handler *h, const Field *f) const { return 0; }
   virtual void unfix_fields()
   {
     DBUG_ASSERT(0);

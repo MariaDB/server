@@ -1237,6 +1237,7 @@ error:
 
 update_end:
   table->file->try_semi_consistent_read(0);
+  table->file->ha_release_auto_increment();
 
   if (!transactional_table && updated > 0)
     thd->transaction->stmt.modified_non_trans_table= TRUE;

@@ -4532,8 +4532,10 @@ public:
   }
   bool fix_table_share(TABLE_SHARE *s) const override
   {
-    return s->fix_identity_field();
+    return s->fix_identity_field(spec);
   }
+  int ha_create_table(handler *h, const Field *f) const override;
+  int ha_open(handler *h, const Field *f) const override;
   bool const_item() const override { return false; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_identity_next>(thd, this); }
