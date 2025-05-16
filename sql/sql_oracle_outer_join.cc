@@ -947,8 +947,12 @@ bool setup_oracle_join(THD *thd, Item **conds,
         }
         else
         {
-          curr->table->on_expr=
-            new(thd->mem_root) Item_cond_and(thd, curr->on_conds);
+          Item *item= new(thd->mem_root) Item_cond_and(thd, curr->on_conds);
+          if (!item)
+            DBUG_RETURN(TRUE);
+          item->top_level_item();
+          curr->table->on_expr= item;
+          /* setup_on_expr() will call fix_fields() for on_expr */
         }
       }
       else
@@ -1073,8 +1077,10 @@ static bool add_conditions_to_where(THD *thd, Item **conds,
     else
       return_to_where.append(((Item_cond_and *)(*conds))->argument_list());
 
-    (*conds)= new(thd->mem_root) Item_cond_and(thd, return_to_where);
-    if (!(*conds) || (*conds)->fix_fields(thd, conds))
+    if (!((*conds)= new(thd->mem_root) Item_cond_and(thd, return_to_where)))
+      return true;
+    (*conds)->top_level_item();
+    if ((*conds)->fix_fields(thd, conds))
       return true;
   }
   return false;
