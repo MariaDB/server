@@ -7346,6 +7346,7 @@ int handler::ha_reset()
   {
     lookup_handler->ha_external_unlock(table->in_use);
     lookup_handler->close();
+    PSI_CALL_close_table(table_share, lookup_handler->m_psi);
     delete lookup_handler;
     lookup_handler= this;
   }
