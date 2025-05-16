@@ -199,6 +199,12 @@ public:
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info) override;
 
+	int ha_report_autonc_usage(Autoinc_spec *spec);
+	int ha_create_auto_increment(const Autoinc_spec *autoinc_spec,
+		                     const Field *autoinc_field) override;
+	int ha_init_auto_increment(const Autoinc_spec *autoinc_spec,
+				   const Field *autoinc_field) override;
+
 	int truncate() override;
 
 	int delete_table(const char *name) override;
@@ -656,6 +662,9 @@ public:
   static void create_table_update_dict(dict_table_t* table, THD* thd,
                                        const HA_CREATE_INFO& info,
                                        const TABLE& t);
+  static void create_table_init_auto_increment(dict_table_t *table,
+				               ib_uint64_t auto_increment_start,
+				               const Field *ai);
 
 	/** Validates the create options. Checks that the options
 	KEY_BLOCK_SIZE, ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE

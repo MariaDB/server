@@ -1233,7 +1233,7 @@ struct TABLE_SHARE
   void update_optimizer_costs(handlerton *hton);
   void update_engine_independent_stats(TABLE_STATISTICS_CB *stat);
   bool histograms_exists();
-  bool fix_identity_field();
+  bool fix_identity_field(Autoinc_spec *spec);
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1989,6 +1989,7 @@ public:
   void vers_fix_old_timestamp(rpl_group_info *rgi);
 #endif
   void find_constraint_correlated_indexes();
+  Autoinc_spec make_autoinc_spec(const THD *thd) const;
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2

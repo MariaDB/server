@@ -4847,7 +4847,7 @@ partititon_err:
 }
 
 
-bool TABLE_SHARE::fix_identity_field()
+bool TABLE_SHARE::fix_identity_field(Autoinc_spec *autoinc_spec)
 {
   if (found_next_number_field &&
       (*found_next_number_field)->default_value)
@@ -4856,14 +4856,13 @@ bool TABLE_SHARE::fix_identity_field()
                                (*found_next_number_field)->default_value->expr);
     if (!autoinc_expr || (*found_next_number_field)->vcol_info)
       return false; // frm corruption
-    Autoinc_spec *spec= autoinc_expr->spec;
 
-    if (!spec->has_maxvalue)
-      spec->maxvalue= LONGLONG_MAX;
-    if (!spec->has_maxvalue)
-      spec->minvalue= 0;
+    if (!autoinc_spec->has_maxvalue)
+      autoinc_spec->maxvalue= LONGLONG_MAX;
+    if (!autoinc_spec->has_maxvalue)
+      autoinc_spec->minvalue= 0;
 
-    if (spec->generated_always)
+    if (autoinc_spec->generated_always)
       (*found_next_number_field)->generated_always= true;
 
     /*

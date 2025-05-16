@@ -882,6 +882,16 @@ dict_table_get_nth_col_pos(
   return static_cast<unsigned>(pos);
 }
 
+
+unsigned dict_table_get_field_col_idx(
+        const dict_table_t*     table,  /*!< in: table */
+        ulint                   n       /*!< in: column number */)
+{
+
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  return dict_index_get_nth_field(clust_index, n)->col->ind;
+}
+
 /********************************************************************//**
 Checks if a column is in the ordering columns of the clustered index of a
 table. Column prefixes are treated like whole columns.

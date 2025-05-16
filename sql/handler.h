@@ -3685,6 +3685,12 @@ public:
   int ha_rename_table(const char *from, const char *to);
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
+  virtual int ha_create_auto_increment(const Autoinc_spec *autoinc_spec,
+                                       const Field *autoinc_field)
+  { return HA_ERR_UNSUPPORTED; /* Unsupported by default. */}
+  virtual int ha_init_auto_increment(const Autoinc_spec *autoinc_spec,
+                                     const Field *autoinc_field)
+  { return HA_ERR_UNSUPPORTED; /* Unsupported by default. */}
 
   int ha_create_partitioning_metadata(const char *name, const char *old_name,
                                       chf_create_flags action_flag);

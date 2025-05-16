@@ -27,6 +27,8 @@ extern "C" {
 #endif
 
 struct Autoinc_spec;
+#pragma GCC diagnostic ignored "-Wreturn-type-c-linkage"
+
 
 extern struct thd_autoinc_service_st {
   struct Autoinc_spec (*thd_get_autoinc_func)(const MYSQL_THD thd);

@@ -1052,6 +1052,11 @@ dict_table_get_nth_col_pos(
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+unsigned dict_table_get_field_col_idx(
+	const dict_table_t*     table,  /*!< in: table */
+	ulint                   n       /*!< in: column number */);
+
 /** Add a column to an index.
 @param index          index
 @param table          table

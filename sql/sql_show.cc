@@ -2384,7 +2384,10 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(' ');
-        field->default_value->expr->print_default_prefix(packet);
+        if (field->default_value)
+          field->default_value->expr->print_default_prefix(packet);
+        else
+          packet->append(STRING_WITH_LEN("DEFAULT"));
         packet->append(' ');
         packet->append(def_value.ptr(), def_value.length(), &my_charset_utf8mb4_general_ci);
       }

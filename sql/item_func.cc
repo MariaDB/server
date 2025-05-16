@@ -7441,6 +7441,16 @@ longlong Item_identity_next::val_int()
   return nr;
 }
 
+int Item_identity_next::ha_create_table(handler *h, const Field *f) const
+{
+  return h->ha_create_auto_increment(spec, f);
+}
+
+int Item_identity_next::ha_open(handler *h, const Field *f) const
+{
+  return h->ha_init_auto_increment(spec, f);
+}
+
 void Item_identity_next::print_default_prefix(String *str) const
 {
   str->append(STRING_WITH_LEN("GENERATED "));

@@ -1160,7 +1160,7 @@ protected:
   const Sp_rcontext_handler *m_deref_rcontext_handler;
 };
 
-
+extern "C"
 struct Autoinc_spec: Sql_alloc
 {
   ulonglong start;
@@ -1176,6 +1176,12 @@ struct Autoinc_spec: Sql_alloc
   bool generated_always:1;
   bool double_cache:1;
   bool legacy:1;
+  void *operator new(size_t size, void *ptr) noexcept
+  {
+    return ptr;
+  }
+  void *operator new(size_t size, MEM_ROOT *mem_root) noexcept
+  { return alloc_root(mem_root, size); }
 };
 
 #endif /* STRUCTS_INCLUDED */

@@ -11958,7 +11958,7 @@ ib_sequence_t::ib_sequence_t(
 	ulonglong	start_value,
 	ulonglong	max_value)
 	:
-	m_max_value(max_value),
+	m_max_value(max_value), // todo move into spec
 	m_next_value(start_value),
 	m_autoinc_spec(thd_get_autoinc(thd)),
 	m_eof(false)

@@ -4194,10 +4194,10 @@ Autoinc_spec make_session_autoinc_spec(const system_variables *variables)
   return s;
 }
 
-Autoinc_spec make_table_autoinc_spec(const system_variables *variables, TABLE *table)
+Autoinc_spec TABLE::make_autoinc_spec(const THD *thd) const
 {
-  Autoinc_spec spec= make_session_autoinc_spec(variables);
-  spec.maxvalue= table->found_next_number_field->get_max_int_value();
+  Autoinc_spec spec= make_session_autoinc_spec(&thd->variables);
+  spec.maxvalue= found_next_number_field->get_max_int_value();
   return spec;
 }
 bool autoinc_overflows(const Autoinc_spec *spec, ulonglong nr)
@@ -4209,7 +4209,7 @@ bool autoinc_overflows(const Autoinc_spec *spec, ulonglong nr)
 
 void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
 {
-  Autoinc_spec spec= make_table_autoinc_spec(&table->in_use->variables, table);
+  Autoinc_spec spec= table->make_autoinc_spec(table->in_use);
   return adjust_next_insert_id_after_explicit_value(nr, &spec);
 }
 
@@ -4673,7 +4673,7 @@ void handler::get_auto_increment(const Autoinc_spec *spec,
 
 int handler::update_auto_increment()
 {
-  Autoinc_spec spec= make_table_autoinc_spec(&table->in_use->variables, table);
+  Autoinc_spec spec= table->make_autoinc_spec(table->in_use);
   int res= auto_increment_prepare(&spec, table->next_number_field);
   if (res)
   {
@@ -6463,7 +6463,7 @@ public:
   {
     if (!info->has_identity_field)
       return;
-    for (int i = 0; i < t->s->fields; i++)
+    for (uint i = 0; i < t->s->fields; i++)
       if (dynamic_cast<Item_identity_next*>(t->field[i]->default_value->expr))
       {
         t->found_next_number_field= t->field[i];
@@ -6489,11 +6489,12 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
                             &table, true))
     return 1;
 
-  Override_table_share_autoinc_for_create autoinc_override(create_info, &table);
-
   Table_path_buffer name_buff;
   Lex_cstring name= table.file->get_canonical_filename(share->path, &name_buff);
   int error= table.file->ha_create(name.str, &table, create_info);
+
+  for (Field **f= table.default_field; likely(!error) && f && *f; f++)
+    error= (*f)->default_value->expr->ha_create_table(table.file, *f);
 
   if (error)
   {

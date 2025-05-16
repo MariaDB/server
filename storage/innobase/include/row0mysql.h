@@ -656,7 +656,7 @@ struct row_prebuilt_t {
 	ulonglong	autoinc_last_value;
 					/*!< last value of AUTO-INC interval */
 
-	const Autoinc_spec	*autoinc_spec;
+	Autoinc_spec	*autoinc_spec;
 	dberr_t		autoinc_error;	/*!< The actual error code encountered
 					while trying to init or read the
 					autoinc value from the table. We
