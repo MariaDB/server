@@ -159,7 +159,6 @@ static const LEX_CSTRING ha_choice_values[]=
   { STRING_WITH_LEN("1") }
 };
 
-static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
                                 String *packet);
 
@@ -2717,7 +2716,7 @@ bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
 }
 
 
-static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
+int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
 {
   my_bool compact_view_name= TRUE;
   my_bool foreign_db_mode= (thd->variables.sql_mode & (MODE_POSTGRESQL |

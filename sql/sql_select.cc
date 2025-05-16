@@ -69,6 +69,7 @@
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
 #include "opt_hints.h"
+#include "sql_trace_ddl_info.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1395,7 +1396,6 @@ static bool check_list_for_field(ORDER *order)
   return false;
 }
 
-
 /**
   Prepare of whole select (including sub queries in future).
 
@@ -1470,6 +1470,13 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                                     tables_list, select_lex->leaf_tables,
                                     false, SELECT_ACL, SELECT_ACL, false))
       DBUG_RETURN(-1);
+
+  if (thd->variables.optimizer_trace &&
+      thd->variables.store_ddls_in_optimizer_trace &&
+      thd->lex->sql_command == SQLCOM_SELECT)
+  {
+    save_table_definitions(thd, select_lex);
+  }
 
   if (thd->lex->opt_hints_global && select_lex->select_number == 1)
   {
@@ -5259,7 +5266,6 @@ find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
   return find_select_handler_inner(thd, select_lex, select_lex_unit);
 }
 
-
 /**
   An entry point to single-unit select (a select without UNION).
 
@@ -5388,6 +5394,8 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
     goto err;
 
   exec_error= join->exec();
+
+  dump_used_ddls(thd);
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {

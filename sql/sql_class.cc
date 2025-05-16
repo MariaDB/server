@@ -1728,7 +1728,8 @@ void THD::cleanup(void)
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-
+  ddl_info->stmts.clear();
+  ddl_info->tables_map.clear();
   mysql_ull_cleanup(this);
   stmt_map.reset();
   /* All metadata locks must have been released by now. */
@@ -2506,6 +2507,8 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
+  ddl_info->stmts.clear();
+  ddl_info->tables_map.clear();
 
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)

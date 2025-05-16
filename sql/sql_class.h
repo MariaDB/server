@@ -58,6 +58,7 @@
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 #include "sql_basic_types.h"                     // enum class active_dml_stmt
 #include "sql_trigger.h"
+#include "sql_trace_ddl_info.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -892,6 +893,7 @@ typedef struct system_variables
   my_bool session_track_user_variables;
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
+  my_bool store_ddls_in_optimizer_trace;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
   plugin_ref enforced_table_plugin;
@@ -3216,6 +3218,7 @@ public:
     return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
+  DDL_Info *ddl_info;
 private:
   unsigned int m_current_stage_key;
 
