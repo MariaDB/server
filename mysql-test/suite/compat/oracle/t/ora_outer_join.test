@@ -436,3 +436,31 @@ set SQL_MODE= oracle;
 
 drop view v1;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-36830: Oracle outer join syntax (+): outer join not converted to inner
+--echo #
+--source include/have_sequence.inc
+
+create table t1 (
+  a int not null,
+  b int not null
+);
+insert into t1 select seq,seq from seq_1_to_10;
+
+create table t2 (
+  a int not null,
+  b int not null
+);
+insert into t2 select seq,seq from seq_1_to_3;
+
+--echo # Must be converted to inner join:
+explain extended
+select * from t1, t2
+where
+  t1.a=1 and
+  t1.b=t2.b(+) and
+  t2.b=1;
+
+drop table t1,t2;
+
