@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/not_embedded.inc
 --source include/no_valgrind_without_big.inc
 
 #
@@ -76,13 +77,34 @@ reap;
 
 SELECT * FROM t WHERE a<10;
 SELECT COUNT(*),LENGTH(b) FROM t GROUP BY b;
-
+SELECT @@innodb_log_group_home_dir;
+let $datadir=`select @@datadir`;
+--list_files $datadir ib_logfile*
+--mkdir $datadir/log
 SHOW VARIABLES LIKE 'innodb_log_file_size';
-SET GLOBAL innodb_log_file_size=6291456;
+SET GLOBAL innodb_log_file_disabled=ON;
+--list_files $datadir ib_logfile*
+--list_files $datadir/log ib_logfile*
+SET GLOBAL innodb_log_group_home_dir='log';
+SELECT @@innodb_log_group_home_dir;
+--list_files $datadir/log ib_logfile*
+SET GLOBAL innodb_log_file_size=6291456,innodb_log_file_disabled=OFF,
+innodb_log_group_home_dir='log/';
+--list_files $datadir/log ib_logfile*
 SHOW VARIABLES LIKE 'innodb_log_file_size';
-SET GLOBAL innodb_log_file_size=5242880;
+SELECT @@innodb_log_group_home_dir;
+--list_files $datadir ib_logfile*
+SET GLOBAL innodb_log_group_home_dir='log';
+--list_files $datadir/log ib_logfile*
+SELECT @@innodb_log_group_home_dir;
+--list_files $datadir ib_logfile*
+SET GLOBAL innodb_log_file_size=5242880,innodb_log_group_home_dir=default;
 SHOW VARIABLES LIKE 'innodb_log_file_size';
+--list_files $datadir/log ib_logfile*
+SHOW VARIABLES LIKE 'innodb_group_home_dir';
+--list_files $datadir ib_logfile*
 let SEARCH_PATTERN = InnoDB: Resized log to 6\\.000MiB;
 --source include/search_pattern_in_file.inc
+--rmdir $datadir/log
 
 DROP TABLE t;
