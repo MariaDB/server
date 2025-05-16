@@ -974,7 +974,7 @@ err:
   constructors.
 */
 
-Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
+Log_event* Log_event::read_log_event(const uchar *buf, size_t event_len,
                                      const char **error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check,
@@ -1093,6 +1093,64 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
          alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
+    ev= Log_event::read_log_event_no_checksum(buf, event_len, error, fdle);
+  }
+
+  if (ev)
+  {
+#ifdef MYSQL_CLIENT
+    ev->read_checksum_alg= alg;
+    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      ev->read_checksum_value= uint4korr(buf + (event_len));
+#endif
+  }
+
+  DBUG_RETURN(ev);
+}
+
+Log_event *Log_event::read_log_event_no_checksum(
+    const uchar *buf, size_t event_len, const char **error,
+    const Format_description_log_event *fdle)
+{
+  Log_event* ev;
+  DBUG_ENTER("Log_event::read_log_event_no_checksum(char*,...)");
+  DBUG_ASSERT(fdle != 0);
+  DBUG_PRINT("info", ("binlog_version: %d", fdle->binlog_version));
+  DBUG_DUMP_EVENT_BUF(buf, event_len);
+
+  *error= 0;
+  /*
+    Check the integrity; This is needed because handle_slave_io() doesn't
+    check if packet is of proper length.
+ */
+  if (event_len < EVENT_LEN_OFFSET)
+  {
+    *error="Sanity check failed";		// Needed to free buffer
+    DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
+  }
+
+  uint event_type= buf[EVENT_TYPE_OFFSET];
+
+  /*
+    In some previuos versions (see comment in
+    Format_description_log_event::Format_description_log_event(char*,...)),
+    event types were assigned different id numbers than in the
+    present version. In order to replicate from such versions to the
+    present version, we must map those event type id's to our event
+    type id's.  The mapping is done with the event_type_permutation
+    array, which was set up when the Format_description_log_event
+    was read.
+  */
+  if (fdle->event_type_permutation)
+  {
+    int new_event_type= fdle->event_type_permutation[event_type];
+    DBUG_PRINT("info", ("converting event type %d to %d (%s)",
+                 event_type, new_event_type,
+                 get_type_str((Log_event_type)new_event_type)));
+    event_type= new_event_type;
+  }
+
+
     /*
       Create an object of Ignorable_log_event for unrecognized sub-class.
       So that SLAVE SQL THREAD will only update the position and continue.
@@ -1195,6 +1253,9 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
       ev= new Table_map_log_event(buf, event_len, fdle);
       break;
 #endif
+  case PARTIAL_ROW_DATA_EVENT:
+    ev= new Partial_rows_log_event(buf, event_len, fdle);
+    break;
     case BEGIN_LOAD_QUERY_EVENT:
       ev= new Begin_load_query_log_event(buf, event_len, fdle);
       break;
@@ -1238,20 +1299,10 @@ Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
                           (uchar) buf[EVENT_TYPE_OFFSET]));
       ev= NULL;
       break;
-    }
   }
 exit:
 
-  if (ev)
-  {
-#ifdef MYSQL_CLIENT
-    ev->read_checksum_alg= alg;
-    if (alg != BINLOG_CHECKSUM_ALG_OFF && alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      ev->read_checksum_value= uint4korr(buf + (event_len));
-#endif
-  }
-
-  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %u)",
+  DBUG_PRINT("read_event", ("%s(type_code: %u; event_len: %zu)",
                             ev ? ev->get_type_str() : "<unknown>",
                             (uchar)buf[EVENT_TYPE_OFFSET],
                             event_len));
@@ -2136,6 +2187,7 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver,
       post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
       post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
       post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[PARTIAL_ROW_DATA_EVENT-1]=  PARTIAL_ROWS_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -3074,7 +3126,7 @@ const uchar *sql_ex_info::init(const uchar *buf, const uchar *buf_end,
 **************************************************************************/
 
 
-Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
+Rows_log_event::Rows_log_event(const uchar *buf, size_t event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
@@ -3101,7 +3153,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   if (event_len < (uint)(common_header_len + post_header_len))
     DBUG_VOID_RETURN;
 
-  DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
+  DBUG_PRINT("enter",("event_len: %zu  common_header_len: %d  "
 		      "post_header_len: %d",
 		      event_len, common_header_len,
 		      post_header_len));
@@ -3812,7 +3864,7 @@ Optional_metadata_fields(unsigned char* optional_metadata,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
+Write_rows_log_event::Write_rows_log_event(const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Rows_log_event(buf, event_len, description_event)
@@ -3820,7 +3872,7 @@ Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
 }
 
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
+                                           const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Write_rows_log_event(buf, event_len, description_event)
@@ -3838,7 +3890,7 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
+Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, size_t event_len,
                                              const Format_description_log_event
                                              *description_event)
   : Rows_log_event(buf, event_len, description_event)
@@ -3846,7 +3898,7 @@ Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
 }
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
-                                           const uchar *buf, uint event_len,
+                                           const uchar *buf, size_t event_len,
                                            const Format_description_log_event
                                            *description_event)
   : Delete_rows_log_event(buf, event_len, description_event)
@@ -3869,19 +3921,17 @@ Update_rows_log_event::~Update_rows_log_event()
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Update_rows_log_event::Update_rows_log_event(const uchar *buf, uint event_len,
-                                             const
-                                             Format_description_log_event
-                                             *description_event)
-  : Rows_log_event(buf, event_len, description_event)
+Update_rows_log_event::Update_rows_log_event(
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Rows_log_event(buf, event_len, description_event)
 {
 }
 
 Update_rows_compressed_log_event::Update_rows_compressed_log_event(
-                                             const uchar *buf, uint event_len,
-                                             const Format_description_log_event
-                                             *description_event)
-  : Update_rows_log_event(buf, event_len, description_event)
+    const uchar *buf, size_t event_len,
+    const Format_description_log_event *description_event)
+    : Update_rows_log_event(buf, event_len, description_event)
 {
   uncompress_buf();
 }
@@ -3934,6 +3984,48 @@ Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
   DBUG_PRINT("info", ("m_incident: %d", m_incident));
   DBUG_VOID_RETURN;
 }
+
+
+#ifdef HAVE_REPLICATION
+Partial_rows_log_event::Partial_rows_log_event(
+    const uchar *buf, uint event_len,
+    const Format_description_log_event *description_event)
+    : Log_event(buf, description_event), metadata_written(0), rows_event(NULL)
+{
+  DBUG_ENTER("Partial_rows_log_event::Partial_rows_log_even(const uchar*,uint,...)");
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[PARTIAL_ROW_DATA_EVENT-1];
+  DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
+                     event_len, common_header_len, post_header_len));
+  DBUG_ASSERT(post_header_len == PARTIAL_ROWS_HEADER_LEN);
+
+	if (event_len < (uint)(common_header_len + post_header_len))
+		DBUG_VOID_RETURN;
+
+  /* Read the post-header */
+  const uchar *post_start= buf + common_header_len;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  total_fragments= uint4korr(post_start);
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  seq_no= uint4korr((post_start));
+  post_start+= 4;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+  DBUG_ASSERT(seq_no <= total_fragments);
+
+  flags2= *(post_start++);
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
+
+  ev_buffer_base= buf;
+  start_offset= common_header_len + PARTIAL_ROWS_HEADER_LEN;
+  end_offset= event_len;
+
+  DBUG_VOID_RETURN;
+}
+#endif
 
 
 Incident_log_event::~Incident_log_event()
