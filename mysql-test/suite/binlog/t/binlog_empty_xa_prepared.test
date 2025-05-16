@@ -142,31 +142,60 @@ XA PREPARE '1';
 --source include/wait_until_count_sessions.inc
 XA RECOVER;
 
---error ER_XA_RBROLLBACK
+# the read-only xa transaction completed by disconnect
+--error ER_XAER_NOTA
 XA COMMIT '1';
+
+--connect(con1_2,localhost,root,,)
+# The same as above without diconnect
+XA START '1';
+  --error ER_DUP_ENTRY
+  INSERT INTO t1 VALUES (2),(1);
+  SELECT * FROM t1 WHERE a = 2;
+XA END '1';
+XA PREPARE '1';
+# the read-only xa transaction completes seemlessly in the native connect
+--error 0
+XA COMMIT '1';
+--disconnect con1_2
+
+--connection default
 --echo Must be no XA PREPARE group nor XA completion one:
 --source include/show_binlog_events.inc
 DROP TABLE t1;
 
---source include/count_sessions.inc
 
---connect(con2,localhost,root,,)
 CREATE TABLE tm (a INT PRIMARY KEY) ENGINE=MyISAM;
+--source include/count_sessions.inc
+--connect(con2,localhost,root,,)
 XA START '1';
   --error ER_DUP_ENTRY
   INSERT INTO tm VALUES (1),(1);
   SELECT * FROM tm WHERE a = 2;
 XA END '1';
 XA PREPARE '1';
-
 --disconnect con2
 
 --connection default
 --source include/wait_until_count_sessions.inc
 XA RECOVER;
 
---error ER_XA_RBROLLBACK
+# ditto to the commit
+--error ER_XAER_NOTA
 XA ROLLBACK '1';
+
+--connect(con2_2,localhost,root,,)
+XA START '1';
+  --error ER_DUP_ENTRY
+  INSERT INTO tm VALUES (1),(1);
+  SELECT * FROM tm WHERE a = 2;
+XA END '1';
+XA PREPARE '1';
+--error 0
+XA ROLLBACK '1';
+--disconnect con2_2
+
+--connection default
 --echo Must be no XA PREPARE group nor XA completion one:
 --source include/show_binlog_events.inc
 DROP TABLE tm;
@@ -180,6 +209,21 @@ SET pseudo_slave_mode=1;
 XA START 'a';
 XA END 'a';
 XA PREPARE 'a';
---error ER_XA_RBROLLBACK
+--error ER_XAER_NOTA
 XA ROLLBACK 'a';
+
+--source include/show_binlog_events.inc
+
+# MDEV-31949/MDEV-32830/MDEV-32852
+# Prove exceptional empty transaction binlogging in the following case:
+--connect(con_32852,localhost,root,,)
+
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $binlog_file =  query_get_value(SHOW MASTER STATUS, File, 1)
+XA START 'a';
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=InnoDB;
+SELECT * FROM t1;
+--disconnect con_32852
+
+--connection default
 --source include/show_binlog_events.inc

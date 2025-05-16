@@ -1,6 +1,6 @@
 # param $xid    to name xa and take part in the connection name
 # param $query  to execute as the xa body
-# param $db_ign the default database
+# param $db     the default database
 
 --connect (master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,)
 --eval xa start '$xid'
