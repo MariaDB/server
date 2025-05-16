@@ -10309,8 +10309,8 @@ inline void run_xa_complete_ordered(THD *thd)
   {
     DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT ||
                 (thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
-                 (thd->lex->sql_command == SQLCOM_PRELOAD_KEYS &&
-		  thd->get_stmt_da()->get_sql_errno() /* MDEV-32455 */)));
+                  /* MDEV-32455, MDEV-36799 */
+                 thd->get_stmt_da()->get_sql_errno() == ER_XAER_RMFAIL));
 
     transaction_participant *ht= ha_info->ht();
     if (ht == &binlog_tp || !ht->commit_ordered)
@@ -10321,11 +10321,6 @@ inline void run_xa_complete_ordered(THD *thd)
     }
     else
     {
-      DBUG_ASSERT((thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
-                   (thd->lex->sql_command == SQLCOM_PRELOAD_KEYS && thd->get_stmt_da()->get_sql_errno() /* MDEV-32455 */)) ||
-                  thd->transaction->xid_state.get_error() ==
-                  ER_XA_RBROLLBACK);
-
       ht->rollback(thd, true);
     }
   }
