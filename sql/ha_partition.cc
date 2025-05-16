@@ -5665,6 +5665,8 @@ bool ha_partition::init_record_priority_queue()
       blob_storage+= table->s->blob_fields;
     }
     int2store(ptr + sizeof(String **), i);
+    DBUG_ASSERT(m_rec_length == table->s->reclength);
+    memcpy(ptr + ORDERED_REC_OFFSET, table->s->default_values, m_rec_length);
     ptr+= m_priority_queue_rec_len;
   }
   m_start_key.key= (const uchar*)ptr;
