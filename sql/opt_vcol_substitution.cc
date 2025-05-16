@@ -202,14 +202,32 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 static
 void subst_vcols_in_order(Vcol_subst_context *ctx,
                           ORDER *order,
+                          JOIN *join,
                           const char *location)
 {
   int i= 0;
   Field *vcol_field;
+  List_iterator<Item> li(join->all_fields);
+  Item *item_in_all_fields;
+  /* TODO: Wait, shouldn't this be order->next instead of item[i++]? */
   while (Item* item= order->item[i])
   {
     if ((vcol_field= is_vcol_expr(ctx, item)))
+    {
       subst_vcol_if_compatible(ctx, NULL, &order->item[i], vcol_field);
+      /*
+        TODO: we are assuming that the ORDER BY and GROUP BY items
+        appear in the same order as in all_fields. Is that right?
+      */
+      while ((item_in_all_fields= li++))
+      {
+        if (item_in_all_fields == item)
+          li.replace(order->item[i]);
+      }
+      /*
+        join->all_fields.push_back(order->item[i], join->thd->mem_root);
+       */
+    }
     i++;
   }
 }
@@ -235,7 +253,9 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     subst_vcols_in_join_list(&ctx, join->join_list);
   /* TODO: third arg is dummy for now. Also add GROUP BY. */
   if (join->order)
-    subst_vcols_in_order(&ctx, join->order, "ORDER BY");
+    subst_vcols_in_order(&ctx, join->order, join, "ORDER BY");
+  if (join->group_list)
+    subst_vcols_in_order(&ctx, join->group_list, join, "GROUP BY");
 
   if (join->thd->is_error())
     return true; // Out of memory
