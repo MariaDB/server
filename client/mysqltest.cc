@@ -2841,6 +2841,7 @@ do_result_format_version(struct st_command *command)
   dynstr_append_mem(&ds_res, ds_version.str, ds_version.length);
   dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
   dynstr_free(&ds_version);
+  DBUG_VOID_RETURN;
 }
 
 
