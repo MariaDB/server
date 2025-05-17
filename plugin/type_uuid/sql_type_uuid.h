@@ -294,12 +294,11 @@ public:
     extending the binary log format to put the extact data type name into
     the column metadata.
   */
-  static uchar *pack(uchar *to, const uchar *from, uint max_length)
+  static uchar *pack(uchar *to, const uchar *from)
   {
     uchar buf[binary_length()];
     record_to_memory((char *) buf, (const char *) from);
-    return StringPack(&my_charset_bin, binary_length()).
-             pack(to, buf, max_length);
+    return StringPack(&my_charset_bin, binary_length()).pack(to, buf);
   }
 
   // Convert binlog representation to in-record representation
