@@ -103,8 +103,7 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 #ifndef DBUG_OFF
         const uchar *old_pack_ptr= pack_ptr;
 #endif
-        pack_ptr= field->pack(pack_ptr, field->ptr + offset,
-                              field->max_data_length());
+        pack_ptr= field->pack(pack_ptr, field->ptr + offset);
         DBUG_PRINT("debug", ("field: %s; real_type: %d, pack_ptr: %p;"
                              " pack_ptr':%p; bytes: %d",
                              field->field_name.str, field->real_type(),

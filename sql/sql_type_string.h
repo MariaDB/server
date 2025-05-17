@@ -23,24 +23,29 @@ class StringPack
   CHARSET_INFO *charset() const { return m_cs; }
   uint mbmaxlen() const { return m_cs->mbmaxlen; };
   uint32 char_length() const { return m_octet_length / mbmaxlen(); }
+  // Trim trailing spaces for CHAR or 0x00 bytes for BINARY
+  uint rtrimmed_length(const char *from) const;
+  static uint length_bytes(uint max_length)
+  {
+    return max_length > 255 ? 2 : 1;
+  }
 public:
   StringPack(CHARSET_INFO *cs, uint32 octet_length)
    :m_cs(cs),
     m_octet_length(octet_length)
   { }
-  uchar *pack(uchar *to, const uchar *from, uint max_length) const;
+  uchar *pack(uchar *to, const uchar *from) const;
   const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
                       uint param_data) const;
 public:
   static uint max_packed_col_length(uint max_length)
   {
-    return (max_length > 255 ? 2 : 1) + max_length;
+    return length_bytes(max_length) + max_length;
   }
-  static uint packed_col_length(const uchar *data_ptr, uint length)
+  uint packed_col_length(const uchar *data_ptr) const
   {
-    if (length > 255)
-      return uint2korr(data_ptr)+2;
-    return (uint) *data_ptr + 1;
+    return length_bytes(m_octet_length) +
+           rtrimmed_length((const char *) data_ptr);
   }
 };
 
