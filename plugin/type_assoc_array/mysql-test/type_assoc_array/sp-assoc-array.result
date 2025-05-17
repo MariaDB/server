@@ -1522,7 +1522,7 @@ marks(1) := 1;
 SELECT marks(1).name;
 END;
 $$
-ERROR 42S22: Unknown column '1' in 'SELECT'
+ERROR 42S22: Unknown column 'name' in 'marks'
 #
 # Field assignment
 #

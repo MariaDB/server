@@ -128,12 +128,26 @@ public:
     DBUG_ASSERT(field);
     DBUG_ASSERT(m_buffer);
 
-    auto length= field->packed_col_length(field->ptr,
-                                          field->value_length()) + 1;
-    if (unlikely(m_buffer->realloc(length)))
+    uint length= field->packed_col_length();
+    if (unlikely(m_buffer->realloc(length + 1/*QQ: is +1 needed?*/)))
       return true;
 
+#ifndef DBUG_OFF
+    StringBuffer<64> type;
+    field->sql_type(type);
+    const uchar *pend=
+#endif
     field->pack(ptr(), field->ptr);
+    DBUG_ASSERT((uint) (pend - ptr()) == length);
+    DBUG_EXECUTE_IF("assoc_array_pack",
+                    push_warning_printf(current_thd,
+                      Sql_condition::WARN_LEVEL_NOTE,
+                      ER_YES, "pack=%u plen=%u ; mdlen=%u flen=%u ; `%s` %s",
+                      (uint) (pend - ptr()), length,
+                      field->max_data_length(),
+                      field->field_length,
+                      field->field_name.str,
+                      type.c_ptr()););
     return false;
   }
 
@@ -271,8 +285,7 @@ public:
     for (uint i= 0; i < vtable.s->fields; i++)
     {
       auto field= vtable.field[i];
-      length+= field->packed_col_length(field->ptr,
-                                        field->value_length()) + 1;
+      length+= field->packed_col_length() + 1;
     }
 
     return length;
@@ -1532,8 +1545,7 @@ bool Field_assoc_array::create_element_buffer(THD *thd, Binary_string *buffer)
     return buffer->alloc(length);
   }
   
-  uint length= m_element_field->packed_col_length(m_element_field->ptr,
-                                          m_element_field->value_length()) + 1;
+  uint length= m_element_field->packed_col_length() + 1;
   return buffer->alloc(length);
 }
 
@@ -2005,7 +2017,7 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
                                       m_field_name,
                                       m_field_idx))
   {
-    my_error(ER_BAD_FIELD_ERROR, MYF(0), str->c_ptr(), thd_where(thd));
+    my_error(ER_BAD_FIELD_ERROR, MYF(0), m_field_name.str, m_name.str);
     return true;
   }
 

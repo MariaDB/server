@@ -2126,19 +2126,11 @@ int Field_blob::store_from_statistical_minmax_field(Field *stat_field,
    @param from
    Pointer to memory area where record representation of field is
    stored.
-
-   @param max_length
-   Maximum length of the field, as given in the column definition. For
-   example, for <code>CHAR(1000)</code>, the <code>max_length</code>
-   is 1000. This information is sometimes needed to decide how to pack
-   the data.
-
 */
 uchar *
-Field::pack(uchar *to, const uchar *from, uint max_length)
+Field::pack(uchar *to, const uchar *from) const
 {
   uint32 length= pack_length();
-  set_if_smaller(length, max_length);
   memcpy(to, from, length);
   return to+length;
 }
@@ -7607,12 +7599,6 @@ int Field_longstr::store_decimal(const my_decimal *d)
   return store(str.ptr(), str.length(), str.charset());
 }
 
-uint32 Field_longstr::max_data_length() const
-{
-  return field_length + (field_length > 255 ? 2 : 1);
-}
-
-
 Data_type_compatibility
 Field_longstr::cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                                  const Item *item) const
@@ -7916,10 +7902,10 @@ void Field_string::sql_rpl_type(String *res) const
     Field_string::sql_type(*res);
  }
 
-uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_string::pack(uchar *to, const uchar *from) const
 {
   DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
-  return StringPack(field_charset(), field_length).pack(to, from, max_length);
+  return StringPack(field_charset(), field_length).pack(to, from);
 }
 
 
@@ -8003,13 +7989,14 @@ Binlog_type_info Field_string::binlog_type_info() const
 }
 
 
-uint Field_string::packed_col_length(const uchar *data_ptr, uint length)
+uint Field_string::packed_col_length() const
 {
-  return StringPack::packed_col_length(data_ptr, length);
+  return StringPack(field_charset(), field_length).
+           packed_col_length(ptr);
 }
 
 
-uint Field_string::max_packed_col_length(uint max_length)
+uint Field_string::max_packed_col_length(uint max_length) const
 {
   return StringPack::max_packed_col_length(max_length);
 }
@@ -8394,19 +8381,16 @@ uint32 Field_varstring::data_length()
 
 /*
   Functions to create a packed row.
-  Here the number of length bytes are depending on the given max_length
 */
 
-uchar *Field_varstring::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_varstring::pack(uchar *to, const uchar *from) const
 {
   uint length= length_bytes == 1 ? (uint) *from : uint2korr(from);
-  set_if_smaller(max_length, field_length);
-  if (length > max_length)
-    length=max_length;
+  DBUG_ASSERT(length <= field_length);
 
   /* Length always stored little-endian */
   *to++= length & 0xFF;
-  if (max_length > 255)
+  if (field_length > 255)
     *to++= (length >> 8) & 0xFF;
 
   /* Store bytes of string */
@@ -8465,15 +8449,15 @@ Field_varstring::unpack(uchar *to, const uchar *from, const uchar *from_end,
 }
 
 
-uint Field_varstring::packed_col_length(const uchar *data_ptr, uint length)
+uint Field_varstring::packed_col_length() const
 {
-  if (length > 255)
-    return uint2korr(data_ptr)+2;
-  return (uint) *data_ptr + 1;
+  if (field_length > 255)
+    return uint2korr(ptr) + 2;
+  return (uint) *ptr + 1;
 }
 
 
-uint Field_varstring::max_packed_col_length(uint max_length)
+uint Field_varstring::max_packed_col_length(uint max_length) const
 {
   return (max_length > 255 ? 2 : 1)+max_length;
 }
@@ -8822,6 +8806,7 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 
 
 void Field_blob::store_length(uchar *i_ptr, uint i_packlength, uint32 i_number)
+                                                                          const
 {
   store_lowendian(i_number, i_ptr, i_packlength);
 }
@@ -9286,7 +9271,7 @@ void Field_blob::sql_type(String &res) const
   }
 }
 
-uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_blob::pack(uchar *to, const uchar *from) const
 {
   uint32 length=get_length(from, packlength);			// Length of from string
 
@@ -9295,7 +9280,7 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
     length given is smaller than the actual length of the blob, we
     just store the initial bytes of the blob.
   */
-  store_length(to, packlength, MY_MIN(length, max_length));
+  store_length(to, packlength, length);
 
   /*
     Store the actual blob data, which will occupy 'length' bytes.
@@ -9346,15 +9331,13 @@ const uchar *Field_blob::unpack(uchar *to, const uchar *from,
 }
 
 
-uint Field_blob::packed_col_length(const uchar *data_ptr, uint length)
+uint Field_blob::packed_col_length() const
 {
-  if (length > 255)
-    return uint2korr(data_ptr)+2;
-  return (uint) *data_ptr + 1;
+  return (uint) read_lowendian(ptr, packlength) + packlength;
 }
 
 
-uint Field_blob::max_packed_col_length(uint max_length)
+uint Field_blob::max_packed_col_length(uint max_length) const
 {
   return (max_length > 255 ? 2 : 1)+max_length;
 }
@@ -9890,7 +9873,7 @@ bool Field_enum::is_equal(const Column_definition &new_field) const
 }
 
 
-uchar *Field_enum::pack(uchar *to, const uchar *from, uint max_length)
+uchar *Field_enum::pack(uchar *to, const uchar *from) const
 {
   DBUG_ENTER("Field_enum::pack");
   DBUG_PRINT("debug", ("packlength: %d", packlength));
@@ -10388,10 +10371,8 @@ void Field_bit::sql_type(String &res) const
 
 
 uchar *
-Field_bit::pack(uchar *to, const uchar *from, uint max_length)
+Field_bit::pack(uchar *to, const uchar *from) const
 {
-  DBUG_ASSERT(max_length > 0);
-  uint length;
   if (bit_len > 0)
   {
     /*
@@ -10416,9 +10397,8 @@ Field_bit::pack(uchar *to, const uchar *from, uint max_length)
     uchar bits= get_rec_bits(bit_ptr + (from - ptr), bit_ofs, bit_len);
     *to++= bits;
   }
-  length= MY_MIN(bytes_in_rec, max_length - (bit_len > 0));
-  memcpy(to, from, length);
-  return to + length;
+  memcpy(to, from, bytes_in_rec);
+  return to + bytes_in_rec;
 }
 
 
