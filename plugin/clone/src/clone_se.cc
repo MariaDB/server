@@ -169,6 +169,54 @@ std::pair<const unsigned char *, uint32_t> Descriptor::get_descriptor() const
   return std::make_pair(&m_serial[0], length);
 }
 
+static int send_data(Ha_clone_cbk *cbk_ctx, const unsigned char* data,
+                     size_t data_len, uint64_t offset,
+                     const std::string &file_name)
+{
+  Descriptor data_desc(file_name, offset);
+  auto [desc, desc_len]= data_desc.get_descriptor();
+  cbk_ctx->set_data_desc(desc, desc_len);
+  cbk_ctx->clear_flags();
+  cbk_ctx->set_os_buffer_cache();
+  return cbk_ctx->buffer_cbk(const_cast<unsigned char*>(data), data_len);
+}
+
+static int send_file(File file_desc, uchar *buf, size_t buf_size,
+                     Ha_clone_cbk *cbk_ctx, const std::string &fname,
+                     const std::string &tname, size_t &copied_size)
+{
+  assert(file_desc >= 0);
+  assert(buf_size > 0);
+  if (file_desc < 0 || !cbk_ctx || !buf || buf_size == 0)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(ME_ERROR_LOG),
+             "Common SE: Clone send file invalid data");
+    return ER_INTERNAL_ERROR;
+  }
+
+  int err= 0;
+  bool send_file_name= true;
+  copied_size= 0;
+
+  while (size_t bytes_read= my_read(file_desc, buf, buf_size, MY_WME))
+  {
+    if (bytes_read == size_t(-1))
+    {
+      my_printf_error(ER_IO_READ_ERROR, "Error: file %s read for table %s",
+          ME_ERROR_LOG, fname.c_str(), tname.c_str());
+      return ER_IO_READ_ERROR;
+    }
+    err= send_data(cbk_ctx, buf, bytes_read, Descriptor::S_MAX_OFFSET,
+                   send_file_name ? fname : "");
+    if (err) break;
+    copied_size+= bytes_read;
+    send_file_name= false;
+  }
+  if (!err && copied_size == 0)
+    err= send_data(cbk_ctx, buf, 0, Descriptor::S_OFFSET_NO_DATA, fname);
+  return err;
+}
+
 class Table
 {
  public:
@@ -185,28 +233,12 @@ class Table
   std::string &get_version() { return m_version; }
 
  protected:
-  int send_data(Ha_clone_cbk *cbk_ctx, const unsigned char* data,
-                size_t data_len, uint64_t offset,
-                const std::string &file_name);
- protected:
   std::string m_db;
   std::string m_table;
   std::string m_fs_name;
   std::string m_version;
   std::vector<std::string> m_fnames;
 };
-
-int Table::send_data(Ha_clone_cbk *cbk_ctx, const unsigned char* data,
-                     size_t data_len, uint64_t offset,
-                     const std::string &file_name)
-{
-  Descriptor data_desc(file_name, offset);
-  auto [desc, desc_len]= data_desc.get_descriptor();
-  cbk_ctx->set_data_desc(desc, desc_len);
-  cbk_ctx->clear_flags();
-  cbk_ctx->set_os_buffer_cache();
-  return cbk_ctx->buffer_cbk(const_cast<unsigned char*>(data), data_len);
-}
 
 int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
 {
@@ -215,7 +247,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
   std::vector<File> files;
   File frm_file= -1;
 
-  int result= ER_INTERNAL_ERROR;
+  int result= 0;
   bool locked= false;
 
   std::string full_tname("`");
@@ -227,6 +259,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
     my_printf_error(ER_INTERNAL_ERROR,
         "Error on executing BACKUP LOCK for table %s", ME_ERROR_LOG,
         full_tname.c_str());
+    result= ER_INTERNAL_ERROR;
     goto exit;
   }
   else
@@ -241,7 +274,6 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
   {
     // Don't treat it as error, as the table can be dropped after it
     // was added to queue for copying
-    result= 0;
     goto exit;
   }
 
@@ -265,6 +297,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
         "Error on executing BACKUP UNLOCK for table %s", ME_ERROR_LOG,
         full_tname.c_str());
     locked= false;
+    result= ER_INTERNAL_ERROR;
     goto exit;
   }
   locked= false;
@@ -274,7 +307,6 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
   {
     size_t copied_size= 0;
     MY_STAT stat_info;
-
     if (my_fstat(files[i], &stat_info, MYF(0)))
     {
       my_printf_error(ER_INTERNAL_ERROR,
@@ -282,43 +314,18 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
           ME_ERROR_LOG, m_fnames[i].c_str(), full_tname.c_str());
       goto exit;
     }
+    result= send_file(files[i], buf.get(), buf_size, cbk_ctx, m_fnames[i],
+                      full_tname, copied_size);
+    if (result)
+      goto exit;
 
-    /* Send file name while sending the first chunk. */
-    auto &fname= m_fnames[i];
-    bool send_file_name= true;
-    while (size_t bytes_read= my_read(files[i], buf.get(), buf_size, MY_WME))
-    {
-      if (bytes_read == size_t(-1))
-      {
-        my_printf_error(ER_IO_READ_ERROR, "Error: file %s read for table %s",
-            ME_ERROR_LOG, m_fnames[i].c_str(), full_tname.c_str());
-        result= ER_IO_READ_ERROR;
-        goto exit;
-      }
-      result= send_data(cbk_ctx, buf.get(), bytes_read,
-                        Descriptor::S_MAX_OFFSET,
-                        send_file_name ? fname : "");
-      if (result)
-        goto exit;
-      copied_size+= bytes_read;
-      send_file_name= false;
-    }
     mysql_file_close(files[i], MYF(MY_WME));
     files[i] = -1;
-    if (copied_size == 0)
-    {
-      result= send_data(cbk_ctx, buf.get(), 0, Descriptor::S_OFFSET_NO_DATA,
-                        fname);
-      if (result)
-        goto exit;
-    }
     my_printf_error(ER_CLONE_SERVER_TRACE,
         "Common SE: Copied file %s for table %s, %zu bytes",
         MYF(ME_NOTE | ME_ERROR_LOG_ONLY), m_fnames[i].c_str(),
         full_tname.c_str(), copied_size);
   }
-  result= 0;
-
 exit:
   if (frm_file >= 0)
   {
@@ -414,15 +421,22 @@ int Log_Table::close()
 
 int Log_Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize)
 {
+  int err= 0;
   static const size_t buf_size= 10 * 1024 * 1024;
+  std::string full_tname("`");
+  full_tname.append(m_db).append("`.`").append(m_table).append("`");
+
+  auto err_exit= [&](int err)
+  {
+    close();
+    return err;
+  };
+
   if (m_src.empty())
   {
-    auto err= open();
+    err= open();
     if (err)
-    {
-      close();
-      return err;
-    }
+      return err_exit(err);
   }
   std::unique_ptr<uchar[]> buf(new uchar[buf_size]);
   for (size_t i= 0; i < m_src.size(); ++i)
@@ -432,46 +446,15 @@ int Log_Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize)
       continue;
     size_t copied_size= 0;
 
-    /* Send file name while sending the first chunk. */
-    auto &fname= m_fnames[i];
-    bool send_file_name= true;
-    while (size_t bytes_read= my_read(m_src[i], buf.get(), buf_size, MY_WME))
-    {
-      if (bytes_read == size_t(-1))
-      {
-        my_printf_error(ER_IO_READ_ERROR,
-            "Error: file %s read for log table %s", ME_ERROR_LOG,
-            m_fnames[i].c_str(), std::string("`").append(m_db).append("`.`").
-            append(m_table).append("`").c_str());
-        close();
-        return ER_IO_READ_ERROR;
-      }
-      int err= send_data(cbk_ctx, buf.get(), bytes_read,
-                         Descriptor::S_MAX_OFFSET,
-                         send_file_name ? fname : "");
-      if (err)
-      {
-        close();
-        return err;
-      }
-      copied_size+= bytes_read;
-      send_file_name= false;
-    }
-    if (copied_size == 0)
-    {
-      auto err= send_data(cbk_ctx, buf.get(), 0, Descriptor::S_OFFSET_NO_DATA,
-                          fname);
-      if (err)
-      {
-        close();
-        return err;
-      }
-    }
+    int err= send_file(m_src[i], buf.get(), buf_size, cbk_ctx, m_fnames[i],
+                       full_tname, copied_size);
+    if (err)
+      return err_exit(err);
+
     my_printf_error(ER_CLONE_SERVER_TRACE,
         "Common SE: Copied file %s for log table %s, %zu bytes",
         MYF(ME_NOTE | ME_ERROR_LOG_ONLY), m_fnames[i].c_str(),
-        std::string("`").append(m_db).append("`.`").
-        append(m_table).append("`").c_str(), copied_size);
+        full_tname.c_str(), copied_size);
   }
   return 0;
 }
@@ -639,6 +622,9 @@ class Clone_Handle
   int copy_table_job(Table *table, bool no_lock, bool delete_table,
                      bool finalize, Ha_clone_cbk *cbk, uint32_t thread_id,
                      int in_error);
+  int copy_file_job(std::string *file_name, Ha_clone_cbk *cbk,
+                    uint32_t thread_id, int in_error);
+
  private:
   bool m_is_copy= true;
   /** Number of threads attached; Protected by Clone_Sys::mutex_ */
@@ -681,6 +667,37 @@ bool Clone_Handle::detach(size_t id)
   return (0 == --m_num_threads);
 }
 
+int Clone_Handle::copy_file_job(std::string *file_name, Ha_clone_cbk *cbk,
+                                uint32_t, int in_error)
+{
+  int err= in_error;
+  if (err)
+  {
+    delete file_name;
+    return err;
+  }
+  File file= mysql_file_open(0, file_name->c_str(), O_RDONLY | O_SHARE,
+                             MYF(0));
+  if (file < 0)
+  {
+    my_printf_error(ER_CANT_OPEN_FILE, "Error on opening file: %s",
+                    MYF(ME_ERROR_LOG), file_name->c_str());
+    err= ER_CANT_OPEN_FILE;
+  }
+  else
+  {
+    size_t copied_size= 0;
+    static const size_t buf_size = 10 * 1024 * 1024;
+    std::unique_ptr<uchar[]> buf= std::make_unique<uchar[]>(buf_size);
+
+    err= send_file(file, buf.get(), buf_size, cbk, (*file_name), "",
+                   copied_size);
+    mysql_file_close(file, MYF(MY_WME));
+  }
+  delete file_name;
+  return err;
+}
+
 int Clone_Handle::copy_table_job(Table *table, bool no_lock, bool delete_table,
                                  bool finalize, Ha_clone_cbk *cbk, uint32_t,
                                  int in_error)
@@ -710,12 +727,21 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     {".MYD", ".MYI", ".MRG", ".ARM", ".ARZ", ".CSM", ".CSV", ".MAD", ".MAI"};
   std::set<std::string> aria_list= {".MAD", ".MAI"};
 
+  std::set<std::string> gen_list=
+    {".frm", ".isl", ".TRG", ".TRN", ".opt", ".par"};
+  if (!collect_log_and_stats)
+  {
+    std::set copy_gen= gen_list;
+    ext_list.merge(copy_gen);
+  }
+
   namespace fsys= std::filesystem;
   clone_common::foreach_file_in_dir(m_data_dir,
                                     [&](const std::filesystem::path& file_path)
   {
     std::string extn= file_path.extension().string();
     bool is_aria= (aria_list.find(extn) != aria_list.end());
+    bool is_gen= (gen_list.find(extn) != gen_list.end());
 
     if (!collect_log_and_stats && is_aria)
       return;
@@ -775,6 +801,14 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
         table_it->second->add_file_name(file_path.c_str());
         return;
       }
+    }
+    else if(is_gen)
+    {
+      auto file_name= std::make_unique<std::string>(file_path);
+      using namespace std::placeholders;
+      m_jobs.add_one(std::bind(&Clone_Handle::copy_file_job, this,
+                               file_name.release(), _1, _2, _3));
+      return;
     }
     else if (clone_common::is_log_table(std::get<0>(db_table_fs).c_str(),
                                         std::get<1>(db_table_fs).c_str()) ||
