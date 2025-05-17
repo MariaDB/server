@@ -1,6 +1,9 @@
 SET sql_mode=ORACLE;
 SET NAMES utf8mb4;
 
+# Needed for mtr --cursor
+--enable_prepare_warnings
+
 --echo #
 --echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
 --echo #
