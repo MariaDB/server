@@ -177,9 +177,9 @@ void start_test(int id)
     fprintf(stderr,"Can't open isam-file: %s\n",filename);
     exit(1);
   }
-  if (pagecacheing && rnd(2) == 0)
-    init_pagecache(maria_pagecache, 65536L, 0, 0, MARIA_KEY_BLOCK_LENGTH, 0,
-                   MY_WME);
+  multi_init_pagecache(&maria_pagecaches, 1, 65536L, 0, 0,
+                       MARIA_KEY_BLOCK_LENGTH, 0, MY_WME);
+
   printf("Process %d, pid: %ld\n",id,(long) getpid()); fflush(stdout);
 
   for (error=i=0 ; i < tests && !error; i++)

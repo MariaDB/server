@@ -689,9 +689,11 @@ typedef SOCKET_SIZE_TYPE size_socket;
 	/* Typical record cache */
 #define RECORD_CACHE_SIZE	(uint) (128*1024)
 	/* Typical key cache */
-#define KEY_CACHE_SIZE		(uint) (128L*1024L*1024L)
+#define KEY_CACHE_SIZE		(ulong) (128L*1024L*1024L)
 	/* Default size of a key cache block  */
 #define KEY_CACHE_BLOCK_SIZE	(uint) 1024
+        /* Min resonable key cache size, only for testing */
+#define MIN_KEY_CACHE_SIZE      8192*16L
 
 	/* Some things that this system doesn't have */
 

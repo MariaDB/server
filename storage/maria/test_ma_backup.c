@@ -45,8 +45,9 @@ int main(int argc __attribute__((unused)), char *argv[])
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
-      (init_pagecache(maria_pagecache, maria_block_size * 2000, 0, 0,
-                      maria_block_size, 0, MY_WME) == 0) ||
+      multi_init_pagecache(&maria_pagecaches, 1,
+                           maria_block_size * 2000, 0, 0,
+                           maria_block_size, 0, MY_WME) ||
       ma_control_file_open_or_create() ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
