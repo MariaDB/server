@@ -949,6 +949,10 @@ drop table t1;
 mysqltest: At line 1: query 'change_user root,,inexistent' failed: ER_BAD_DB_ERROR (1049): Unknown database 'inexistent'
 mysqltest: At line 1: query 'change_user inexistent,,test' failed: ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'inexistent'@'localhost' (using password: NO)
 mysqltest: At line 1: query 'change_user root,inexistent,test' failed: ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'root'@'localhost' (using password: YES)
+change_user root,,test;
+change_user root,,;
+change_user root,,;
+change_user root,,test;
 REPLACED_FILE1.txt
 file1.txt
 file2.txt
