@@ -42,6 +42,7 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
+#include "mysql/plugin.h"
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
 
@@ -57,7 +58,8 @@ C_MODE_END
 
 #define THD_TRN (TRN*) thd_get_ha_data(thd, maria_hton)
 
-ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
+ulong pagecache_division_limit, pagecache_age_threshold;
+ulong pagecache_file_hash_size, pagecache_segments;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
   "Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system";
@@ -257,6 +259,14 @@ static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
        "Controls syncing directory after log file growth and new file "
        "creation", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
        &maria_sync_log_dir_typelib);
+
+static MYSQL_SYSVAR_ULONG(pagecache_segments, pagecache_segments,
+                          PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                          "The number of segments in the page_cache. "
+                          "Each file is put in their own segments of size "
+                          "pagecache_buffer_size / segments. "
+                          "Having many segments improves parallel performance",
+                          0, 0, 1, 1, 128, 1);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
 #define USE_ARIA_FOR_TMP_TABLES_VAL 1
@@ -3925,10 +3935,11 @@ static int ha_maria_init(void *p)
   res= res ||
     ((force_start_after_recovery_failures != 0 && !aria_readonly) &&
      mark_recovery_start(log_dir)) ||
-    !init_pagecache(maria_pagecache,
-                    (size_t) pagecache_buffer_size, pagecache_division_limit,
-                    pagecache_age_threshold, maria_block_size, pagecache_file_hash_size,
-                    0) ||
+    multi_init_pagecache(&maria_pagecaches, pagecache_segments,
+                         (size_t) pagecache_buffer_size,
+                         pagecache_division_limit,
+                         pagecache_age_threshold, maria_block_size,
+                         pagecache_file_hash_size, 0) ||
     !init_pagecache(maria_log_pagecache,
                     TRANSLOG_PAGECACHE_SIZE, 0, 0,
                     TRANSLOG_PAGE_SIZE, 0, 0) ||
@@ -3945,7 +3956,6 @@ static int ha_maria_init(void *p)
     ma_checkpoint_init(checkpoint_interval);
   maria_multi_threaded= maria_in_ha_maria= TRUE;
   maria_create_trn_hook= maria_create_trn_for_mysql;
-  maria_pagecache->extra_debug= 1;
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
 
   if (res)
@@ -4051,6 +4061,7 @@ static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
   MYSQL_SYSVAR(pagecache_file_hash_size),
+  MYSQL_SYSVAR(pagecache_segments),
   MYSQL_SYSVAR(recover_options),
   MYSQL_SYSVAR(repair_threads),
   MYSQL_SYSVAR(sort_buffer_size),
@@ -4176,14 +4187,31 @@ static void update_log_file_size(MYSQL_THD thd,
 
 
 static SHOW_VAR status_variables[]= {
-  {"pagecache_blocks_not_flushed", (char*) &maria_pagecache_var.global_blocks_changed, SHOW_LONG},
-  {"pagecache_blocks_unused",      (char*) &maria_pagecache_var.blocks_unused, SHOW_LONG},
-  {"pagecache_blocks_used",        (char*) &maria_pagecache_var.blocks_used, SHOW_LONG},
-  {"pagecache_read_requests",      (char*) &maria_pagecache_var.global_cache_r_requests, SHOW_LONGLONG},
-  {"pagecache_reads",              (char*) &maria_pagecache_var.global_cache_read, SHOW_LONGLONG},
-  {"pagecache_write_requests",     (char*) &maria_pagecache_var.global_cache_w_requests, SHOW_LONGLONG},
-  {"pagecache_writes",             (char*) &maria_pagecache_var.global_cache_write, SHOW_LONGLONG},
-  {"transaction_log_syncs",        (char*) &translog_syncs, SHOW_LONGLONG},
+  {"blocks_not_flushed", (char*) &pagecache_stats.global_blocks_changed, SHOW_LONG},
+  {"blocks_unused",      (char*) &pagecache_stats.blocks_unused, SHOW_LONG},
+  {"blocks_used",        (char*) &pagecache_stats.blocks_used, SHOW_LONG},
+  {"read_requests",      (char*) &pagecache_stats.global_cache_r_requests, SHOW_LONGLONG},
+  {"reads",              (char*) &pagecache_stats.global_cache_read, SHOW_LONGLONG},
+  {"write_requests",     (char*) &pagecache_stats.global_cache_w_requests, SHOW_LONGLONG},
+  {"writes",             (char*) &pagecache_stats.global_cache_write, SHOW_LONGLONG},
+  {NullS, NullS, SHOW_LONG}
+};
+
+
+static int pagecache_stats_func(THD *thd, SHOW_VAR *var, void *buff,
+                                system_status_var *, enum_var_type scope)
+{
+  multi_update_pagecache_stats();
+  var->type= SHOW_ARRAY;
+  var->value= status_variables;
+  return 0;
+}
+
+static SHOW_VAR dynamic_status_variables[]=
+{
+  /* Accessing pagecache causes multi_update_pagecache_stats() to be called */
+  {"pagecache",             (char*) &pagecache_stats_func, SHOW_FUNC},
+  {"transaction_log_syncs", (char*) &translog_syncs, SHOW_LONGLONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -4372,10 +4400,10 @@ maria_declare_plugin(aria)
   PLUGIN_LICENSE_GPL,
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */
-  0x0105,                       /* 1.5              */
-  status_variables,             /* status variables */
+  0x0106,                       /* 1.6              */
+  dynamic_status_variables,     /* status variables */
   system_variables,             /* system variables */
-  "1.5",                        /* string version   */
+  "1.6",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity         */
 }
 maria_declare_plugin_end;
