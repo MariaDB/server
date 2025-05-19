@@ -247,6 +247,7 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
   bitmap->share= share;
   bitmap->block_size= share->block_size;
   bitmap->file.file= file;
+  bitmap->file.pagecache= share->kfile.pagecache;
   _ma_bitmap_set_pagecache_callbacks(&bitmap->file, share);
 
   /* Size needs to be aligned on 6 */
@@ -549,7 +550,7 @@ my_bool _ma_bitmap_flush_all(MARIA_SHARE *share)
       be different.
       There should be no pinned pages as bitmap->non_flushable==0.
     */
-    if (flush_pagecache_blocks_with_filter(share->pagecache,
+    if (flush_pagecache_blocks_with_filter(bitmap->file.pagecache,
                                            &bitmap->file, FLUSH_KEEP,
                                            filter_flush_bitmap_pages,
                                            &bitmap->pages_covered) &
@@ -1079,7 +1080,7 @@ static my_bool _ma_read_bitmap_page(MARIA_HA *info,
   }
   else
   {
-    res= pagecache_read(share->pagecache,
+    res= pagecache_read(bitmap->file.pagecache,
                         &bitmap->file, page, 0,
                         bitmap->map, PAGECACHE_PLAIN_PAGE,
                         PAGECACHE_LOCK_LEFT_UNLOCKED, 0) == NULL;
@@ -2869,7 +2870,7 @@ my_bool _ma_bitmap_free_full_pages(MARIA_HA *info, const uchar *extents,
     {
       if (page == 0 && page_count == 0)
         continue;                               /* Not used extent */
-      if (pagecache_delete_pages(info->s->pagecache, &info->dfile, page,
+      if (pagecache_delete_pages(info->dfile.pagecache, &info->dfile, page,
                                  page_count, PAGECACHE_LOCK_WRITE, 1))
         DBUG_RETURN(1);
       mysql_mutex_lock(&bitmap->bitmap_lock);
@@ -3208,7 +3209,7 @@ _ma_bitmap_create_missing_into_pagecache(MARIA_SHARE *share,
       filesystem may fill gaps with zeroes physically which is a waste of
       time.
     */
-    if (pagecache_write(share->pagecache,
+    if (pagecache_write(bitmap->file.pagecache,
                         &bitmap->file, i, 0,
                         zeroes, PAGECACHE_PLAIN_PAGE,
                         PAGECACHE_LOCK_LEFT_UNLOCKED,

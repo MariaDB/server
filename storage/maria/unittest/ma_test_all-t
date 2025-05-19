@@ -289,7 +289,7 @@ sub run_check_tests
                       ["--key_multiple -a -B --key_length=480","-sm"],
                       ["--key_multiple -P -S","-sm"] );
   my @ma_test2_opt= ( ["-L -K -W -P","-sm"],
-                      ["-L -K -W -P -A","-sm"],
+                      ["-L -K -W -P -A -p4","-sm"],
                       ["-L -K -W -P -b32768", "-sm"],
                       ["-L -K -W -P -M -T -c -b32768 -t4 -m300", "-sm"],
                       ["-L -K -P -R3 -m50 -b1000000", "-sm"],
@@ -526,7 +526,7 @@ sub run_tests_on_clrs
           "$maria_exe_path/aria_chk$suffix -h$tmpdir -s -e $tmpdir/test2",
           "rm $tmpdir/test2.MA?",
           $NEW_TEST,
-          "$maria_exe_path/ma_test2$suffix -h$tmpdir -s -L -K -W -P -M -T -c -b -t2 -A1",
+          "$maria_exe_path/ma_test2$suffix -h$tmpdir -s -L -K -W -P -M -T -c -b -t2 -A1 -p4",
           "$maria_exe_path/aria_read_log$suffix -a -s -h$tmpdir ",
           "$maria_exe_path/aria_chk$suffix -h$tmpdir -s -e $tmpdir/test2",
           "rm $tmpdir/test2.MA?",
@@ -595,7 +595,7 @@ sub ok
     $len= length($tmp);
   }
   $output= `$com 2>&1`;
-  if ($verbose)
+  if ($verbose && $len <= 62)
   {
     print " " x (62 - $len);
   }
