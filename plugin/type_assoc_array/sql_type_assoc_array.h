@@ -230,7 +230,7 @@ public:
                                  Item_field *item,
                                  const LEX_CSTRING& name) const override;
 
-  void prepare_for_set(Item_field *item) const override;
+  Item_field *prepare_for_set(Item_field *item) const override;
   bool finalize_for_set(Item_field *item) const override;
 };
 
@@ -238,15 +238,11 @@ public:
 class Field_assoc_array final :public Field_composite
 {
 protected:
-  MEM_ROOT m_mem_root;
   TREE m_tree;
 
-  TABLE *m_table;
-  TABLE_SHARE *m_table_share;
+  Virtual_tmp_table *m_table;
   Row_definition_list *m_def;
 
-  Field *m_key_field;
-  Field *m_element_field;
   Item_field_packable *m_item_pack;
   Item *m_item;
 
@@ -255,7 +251,7 @@ protected:
   {
     return reinterpret_cast<Assoc_array_data *>(tree_search((TREE*) &m_tree,
                                                             key,
-                                                            m_key_field));
+                                                            get_key_field()));
   }
 
 public:
@@ -306,7 +302,8 @@ public:
   }
 
   Item *get_element_item() const override { return m_item; }
-  Field *get_key_field() const { return m_key_field; }
+  Field *get_key_field() const;
+  Field *get_element_field() const;
 
 protected:
   bool copy_and_convert_key(const String &key, String *key_copy) const;
@@ -319,7 +316,17 @@ protected:
   */
   bool init_element_base(THD *thd);
 
-  bool create_element_buffer(THD *thd, Binary_string *buffer);
+  bool init_key_def(THD *thd, Spvar_definition *key_def) const;
+
+  /*
+    Create a packable item field for the associative array element field
+    and return it.
+
+    @param thd        - Current thread
+    @param field      - The element field
+  */
+  Item_field_packable *create_packable(THD *thd, Field *field);
+
   bool insert_element(THD *thd, Assoc_array_data *data, bool warn_on_dup_key);
   bool get_next_or_prior_key(const String *curr_key,
                              String *new_key,
@@ -431,6 +438,9 @@ protected:
     @param array_addr - The run-time address of the assoc array variable.
   */
   bool fix_key(THD *thd, const sp_rcontext_addr &array_addr);
+  bool is_element_exists(THD *thd,
+                         const Field_composite *field,
+                         const LEX_CSTRING &name) const;
 public:
   Item_splocal_assoc_array_base(Item *key);
 };

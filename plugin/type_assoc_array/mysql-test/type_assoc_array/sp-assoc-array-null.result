@@ -1,0 +1,85 @@
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+SET sql_mode=oracle;
+#
+# Scalar element NULL test
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE a_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+a a_t:= a_t('key1'=> 62000, 'key2'=> NULL);
+b a_t;
+BEGIN
+SELECT b IS NULL;
+SELECT a('key1') AS c1, a('key2') AS c2;
+a('key2'):= 78000;
+SELECT a('key1') AS c1, a('key2') AS c2;
+a('key1'):= NULL;
+SELECT a('key1') AS c1, a('key2') AS c2;
+b:= a;
+SELECT a('key1') AS c1, b('key2') AS c2;
+SELECT b IS NULL;
+END;
+$$
+CALL p1;
+b IS NULL
+1
+c1	c2
+62000	NULL
+c1	c2
+62000	78000
+c1	c2
+NULL	78000
+c1	c2
+NULL	78000
+b IS NULL
+0
+#
+# ROW element NULL test
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE r_t IS RECORD (a NUMBER, b NUMBER);
+TYPE a_t IS TABLE OF r_t INDEX BY VARCHAR2(20);
+a a_t:= a_t('key1'=> r_t(62000, 78000), 'key2'=> NULL);
+b a_t;
+BEGIN
+SELECT b IS NULL;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+b:= a;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+SELECT b('key1').a AS c1, b('key1').b AS c2,
+b('key2').a AS c3, b('key2').b AS c4;
+a('key1'):= NULL;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+a('key1'):= b('key1');
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+a('key1').b:= b('key2').a;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+a('key1').b:= b('key1').a + 500;
+SELECT a('key1').a AS c1, a('key1').b AS c2,
+a('key2').a AS c3, a('key2').b AS c4;
+END;
+$$
+CALL p1;
+b IS NULL
+1
+c1	c2	c3	c4
+62000	78000	NULL	NULL
+c1	c2	c3	c4
+62000	78000	NULL	NULL
+c1	c2	c3	c4
+62000	78000	NULL	NULL
+c1	c2	c3	c4
+NULL	NULL	NULL	NULL
+c1	c2	c3	c4
+62000	78000	NULL	NULL
+c1	c2	c3	c4
+62000	NULL	NULL	NULL
+c1	c2	c3	c4
+62000	62500	NULL	NULL
+DROP PROCEDURE p1;

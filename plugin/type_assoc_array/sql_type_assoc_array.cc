@@ -72,11 +72,30 @@ class Item_field_packable
 protected:
   Binary_string *m_buffer;
   uint m_offset;
+  Item_field_packable *m_assign;
 public:
   Item_field_packable()
   : m_buffer(nullptr)
   , m_offset(0)
+  , m_assign(nullptr)
   {}
+
+  void set_assign(Item_field_packable *assign)
+  {
+    m_assign= assign;
+  }
+
+  /*
+    Get the assignment pair for LHS during assignment.
+    We need the pair during self-assignment to ensure that we pack and unpack
+    using the correct buffer.
+  */
+  Item_field_packable *get_assign() const
+  {
+    m_assign->set_buffer(m_buffer);
+    m_assign->set_offset(m_offset);
+    return m_assign;
+  }
 
   void set_buffer(Binary_string *buffer)
   {
@@ -96,7 +115,9 @@ public:
 
   uchar *ptr() const
   {
-    return reinterpret_cast<uchar *>(&(*m_buffer)[0]) + m_offset;
+    return m_buffer->ptr() ? 
+      reinterpret_cast<uchar *>(&(*m_buffer)[0]) + m_offset:
+      nullptr;
   }
   uint buffer_length() const
   {
@@ -120,7 +141,15 @@ public:
     DBUG_ASSERT(field);
     DBUG_ASSERT(m_buffer);
 
-    return field->unpack(field->ptr, ptr(), ptr() + buffer_length());
+    if (!ptr() || *ptr())
+    {
+      field->set_null();
+      return !ptr() ? nullptr : ptr() + 1;
+    }
+
+    field->set_notnull();
+    return field->unpack(field->ptr, ptr() + 1,
+                         ptr() + buffer_length());
   }
 
   bool pack() override
@@ -128,26 +157,36 @@ public:
     DBUG_ASSERT(field);
     DBUG_ASSERT(m_buffer);
 
+    if (field->is_null())
+    {
+      if (unlikely(m_buffer->realloc(1)))
+        return true;
+      *ptr()= true;
+      return false;
+    }
+  
     uint length= field->packed_col_length();
-    if (unlikely(m_buffer->realloc(length + 1/*QQ: is +1 needed?*/)))
+    if (unlikely(m_buffer->realloc(length + 1)))
       return true;
 
+    *ptr()= false;
+    uchar *start= ptr() + 1;
 #ifndef DBUG_OFF
     StringBuffer<64> type;
     field->sql_type(type);
     const uchar *pend=
 #endif
-    field->pack(ptr(), field->ptr);
-    DBUG_ASSERT((uint) (pend - ptr()) == length);
+    field->pack(start, field->ptr);
+    DBUG_ASSERT((uint) (pend - start) == length);
     DBUG_EXECUTE_IF("assoc_array_pack",
                     push_warning_printf(current_thd,
                       Sql_condition::WARN_LEVEL_NOTE,
                       ER_YES, "pack=%u plen=%u ; mdlen=%u flen=%u ; `%s` %s",
-                      (uint) (pend - ptr()), length,
+                      (uint) (pend - start), length,
                       field->max_data_length(),
                       field->field_length,
                       field->field_name.str,
-                      type.c_ptr()););
+                      ErrConvString(&type).ptr()););
     return false;
   }
 
@@ -261,9 +300,7 @@ public:
     for (arg_count= 0; arg_count < vtable.s->fields; arg_count++)
     {
       auto field= vtable.field[arg_count];
-      auto scalar= new (thd->mem_root) Item_field_packable_scalar(thd, field);
-
-      if (!(args[arg_count]= scalar))
+      if (!(args[arg_count]= new (thd->mem_root) Item_field(thd, field)))
         return true;
     }
     return false;
@@ -285,10 +322,11 @@ public:
     for (uint i= 0; i < vtable.s->fields; i++)
     {
       auto field= vtable.field[i];
-      length+= field->packed_col_length() + 1;
+      if (!field->is_null())
+        length+= field->packed_col_length();
     }
 
-    return length;
+    return vtable.s->null_bytes + length + 1;
   }
 
   const uchar* unpack() const override
@@ -297,21 +335,52 @@ public:
     DBUG_ASSERT(field->virtual_tmp_table());
     DBUG_ASSERT(m_buffer);
 
-    uint offset= 0;
-    for (uint i= 0; i < arg_count; i++)
-    {
-      Item_field_packable *item_elem=
-        dynamic_cast<Item_field_packable *>(args[i]);
-      DBUG_ASSERT(item_elem);
-      item_elem->set_buffer(m_buffer);
-      item_elem->set_offset(offset);
+    const Virtual_tmp_table &vtable= *field->virtual_tmp_table();
 
-      auto end= item_elem->unpack();
-      if (unlikely(!end))
-        return nullptr;
-      offset= (uint) (end - ptr());
+    if (!ptr() || *ptr())
+    {
+      field->set_null();
+      for (uint i= 0; i < arg_count; i++)
+      {
+        auto field= vtable.field[i];
+        field->set_null();
+      }
+      return nullptr;
     }
 
+    /*
+      The layout of the buffer for ROW elements is:
+      null flag for the ROW
+      null bytes for the ROW fields
+      packed data for field 0
+      packed data for field 1
+      ...
+      packed data for field n
+
+      Fields where the null flag is set are not packed.
+    */
+    ptr()[0] ? field->set_null() : field->set_notnull();
+
+    // Copy the null bytes
+    memcpy(vtable.null_flags, ptr() + 1, vtable.s->null_bytes);
+    uint offset= vtable.s->null_bytes + 1;
+
+    for (uint i= 0; i < arg_count; i++)
+    {
+      auto field= vtable.field[i];
+      DBUG_ASSERT(field);
+
+      if (!field->is_null())
+      {
+        auto end= field->unpack(field->ptr, ptr() + offset,
+                                ptr() + buffer_length());
+        if (unlikely(!end))
+          return nullptr;
+        offset= (uint) (end - ptr());
+      }
+    }
+
+    DBUG_ASSERT(offset <= buffer_length());
     return ptr() + offset;
   }
 
@@ -326,17 +395,29 @@ public:
     uint length= packed_col_length(field); 
     if (unlikely(m_buffer->realloc(length)))
       return true;
+  
+    *ptr()= field->is_null();
+    if (field->is_null())
+      return false;
+  
+    // Copy the null bytes
+    memcpy(ptr() + 1, vtable.null_flags, vtable.s->null_bytes);
     
-    uint offset= 0;
+    uint offset= 1 + vtable.s->null_bytes;
     for (uint i= 0; i < arg_count; i++)
     {
       auto field= vtable.field[i];
-      auto end= field->pack(ptr() + offset, field->ptr);
-      if (unlikely(!end))
-        return true;
-
-      offset= (uint) (end - ptr());
+      if (!field->is_null())
+      {
+        auto end= field->pack(ptr() + offset, field->ptr);
+        if (unlikely(!end))
+          return true;
+        
+        offset= (uint) (end - ptr());
+      }
     }
+
+    DBUG_ASSERT(offset <= length);
 
     return false;
   }
@@ -1003,25 +1084,11 @@ Field_assoc_array::Field_assoc_array(uchar *ptr_arg,
                                      const LEX_CSTRING *field_name_arg)
   :Field_composite(ptr_arg, field_name_arg),
    m_table(nullptr),
-   m_table_share(nullptr),
-   m_def(nullptr),
-   m_key_field(nullptr),
-   m_element_field(nullptr)
+   m_def(nullptr)
 {
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &m_mem_root, 512, 0, MYF(0));
-
-  m_table_share= (TABLE_SHARE*) alloc_root(&m_mem_root, sizeof(TABLE_SHARE));
-  if (!m_table_share)
-    return;
-
-  bzero((void *)m_table_share, sizeof(TABLE_SHARE));
-
-  m_table_share->table_cache_key= empty_clex_str;
-  m_table_share->table_name= Lex_ident_table(empty_clex_str);
-
   init_tree(&m_tree, 0, 0,
             sizeof(Assoc_array_data), assoc_array_tree_cmp,
-	          assoc_array_tree_del, NULL,
+            assoc_array_tree_del, NULL,
             MYF(MY_THREAD_SPECIFIC | MY_TREE_WITH_DELETE));
 
   // Make sure that we cannot insert elements with duplicate keys
@@ -1031,14 +1098,9 @@ Field_assoc_array::Field_assoc_array(uchar *ptr_arg,
 
 Field_assoc_array::~Field_assoc_array()
 {
-  if (m_table)
-    m_table->alias.free();
   delete_tree(&m_tree, 0);
 
-  free_root(&m_mem_root, MYF(0));
-
-  delete m_element_field;
-  delete m_key_field;
+  delete m_table;
 }
 
 
@@ -1062,6 +1124,10 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
     DBUG_RETURN(true);
   }
 
+  auto item_field_src= src->field_for_view_update();
+  if (item_field_src && item_field_src->field == this)
+    DBUG_RETURN(false); // Self assignment, let's not do anything.
+
   src->bring_value();
   auto composite= dynamic_cast<Item_composite_base *>(src);
   DBUG_ASSERT(composite);
@@ -1077,13 +1143,10 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
       if (!src_elem)
         goto error;
       
-      if (m_element_field->sp_prepare_and_store_item(thd, src_elem))
+      if (get_element_field()->sp_prepare_and_store_item(thd, src_elem))
         goto error;
 
       Assoc_array_data data;
-      if (create_element_buffer(thd, &data.m_value))
-        goto error;
-
       m_item_pack->set_buffer(&data.m_value);
       m_item_pack->pack();
 
@@ -1111,7 +1174,7 @@ bool Field_assoc_array::insert_element(THD *thd, Assoc_array_data *data,
   DBUG_ASSERT(data->m_key.get_thread_specific());
   DBUG_ASSERT(data->m_value.get_thread_specific());
 
-  if (unlikely(!tree_insert(&m_tree, data, 0, m_key_field)))
+  if (unlikely(!tree_insert(&m_tree, data, 0, get_key_field())))
   {
     if (warn_on_dup_key && !thd->is_error())
       push_warning_printf(thd,Sql_condition::WARN_LEVEL_WARN,
@@ -1119,7 +1182,7 @@ bool Field_assoc_array::insert_element(THD *thd, Assoc_array_data *data,
                           ER_THD(thd, ER_DUP_UNKNOWN_IN_INDEX),
                           ErrConvString(data->m_key.ptr(),
                                         data->m_key.length(),
-                                        m_key_field->charset()).ptr());
+                                        get_key_field()->charset()).ptr());
     return thd->is_error(); // We want to return false on duplicate key
   }
 
@@ -1151,10 +1214,8 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
       the buffer to the actual length().
     */
     data.m_key.shrink(data.m_key.length());
-    // Create an element for the key if not found
-    if (create_element_buffer(thd, &data.m_value))
-      return nullptr;
 
+    // Create an element for the key if not found
     if (insert_element(thd, &data, false))
       return nullptr;
     set_notnull();
@@ -1245,10 +1306,10 @@ static bool convert_charset_with_error(CHARSET_INFO *tocs, String *to,
 bool Field_assoc_array::copy_and_convert_key(const String &key,
                                              String *key_copy) const
 {
-  if (m_key_field->type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
+  if (get_key_field()->type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
   {
-    if (convert_charset_with_error(m_key_field->charset(), key_copy, key,
-                                   "INDEX BY", m_key_field->char_length()))
+    if (convert_charset_with_error(get_key_field()->charset(), key_copy, key,
+                                   "INDEX BY", get_key_field()->char_length()))
       return true;
   }
   else
@@ -1275,7 +1336,7 @@ bool Field_assoc_array::copy_and_convert_key(const String &key,
     ulonglong key_ull;
 
     bool is_unsigned= type_handler->is_unsigned();
-    auto cs= m_key_field->charset();
+    auto cs= get_key_field()->charset();
 
     key_ull= cs->strntoull10rnd(key_copy->ptr(), key_copy->length(),
                                 is_unsigned, &endptr, &error);
@@ -1284,7 +1345,7 @@ bool Field_assoc_array::copy_and_convert_key(const String &key,
     if (error || (endptr != key_copy->end()))
     {
       my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
-               key_copy->c_ptr());
+               ErrConvString(key_copy).ptr());
       return true;
     }
 
@@ -1303,7 +1364,7 @@ bool Field_assoc_array::copy_and_convert_key(const String &key,
     if (error)
     {
       my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
-               key_copy->c_ptr());
+               ErrConvString(key_copy).ptr());
       return true;
     }
 
@@ -1311,10 +1372,7 @@ bool Field_assoc_array::copy_and_convert_key(const String &key,
     if (unlikely(key_copy->alloc(8)))
       return true;
     
-    if (is_unsigned)
-      key_copy->q_append_int64((longlong)key_ull);
-    else
-      key_copy->q_append_int64(key_ll);
+    key_copy->q_append_int64(key_ll);
   }
 
   return false;
@@ -1327,7 +1385,7 @@ bool Field_assoc_array::unpack_key(const Binary_string &key,
   auto &key_def= *m_def->begin();
   if (key_def.type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
   {
-    if (key_dst->copy(key.ptr(), key.length(), m_key_field->charset()))
+    if (key_dst->copy(key.ptr(), key.length(), get_key_field()->charset()))
       return true;
   }
   else
@@ -1393,54 +1451,96 @@ static void dbug_print_defs(THD *thd, const char *prefix,
 #endif // DBUG_OFF
 
 
+Field *Field_assoc_array::get_key_field() const
+{
+  DBUG_ASSERT(m_table);
+  return m_table->field[0];
+}
+
+
+Field *Field_assoc_array::get_element_field() const
+{
+  DBUG_ASSERT(m_table);
+  return m_table->field[1];
+}
+
+
+/*
+  We willl create 3 subfields in the associative array:
+   1. The key field
+   2. The value field
+   3. The value assign field
+*/
 bool Field_assoc_array::create_fields(THD *thd)
 {
+  List<Spvar_definition> field_list;
+
+  Spvar_definition key_def;
+  if (init_key_def(thd, &key_def))
+    return true;
+  field_list.push_back(&key_def);
+
   /*
-    Initialize the element field
+    Initialize the value definition
   */
   auto &value_def= *(++m_def->begin());
-  List<Spvar_definition> value_field_list;
   Spvar_definition value_rdef; // A resolved definition, for %ROWTYPE
 
   if (value_def.is_column_type_ref())
   {
     if (value_def.column_type_ref()->resolve_type_ref(thd, &value_rdef) ||
-        value_field_list.push_back(&value_rdef))
+        field_list.push_back(&value_rdef))
       return true;
   }
   else
   {
-    if (value_field_list.push_back(&value_def))
+    if (field_list.push_back(&value_def))
       return true;
   }
 
-  if (!(m_table= create_virtual_tmp_table(thd, value_field_list)))
-    return true;
+  // Create another copy of the value field definition for assignment
+  field_list.push_back(field_list.elem(1));
 
-  m_element_field= m_table->field[0];
-  DBUG_ASSERT(m_element_field);
+  DBUG_EXECUTE_IF("assoc_array",
+                  dbug_print_defs(thd, "create_fields: ",
+                                  key_def, value_def););
+
+  /*
+    Create the fields
+  */
+  if (!(m_table= create_virtual_tmp_table(thd, field_list)))
+    return true;
 
   /*
     Assign the array's field name to it's element field. We want
     any error messages that uses the field_name to use the array's
     name.
   */
-  m_element_field->field_name= field_name;
+  for (uint i= 1; i <= 2; i++)
+  {
+    DBUG_ASSERT(m_table->field[i]);
+    m_table->field[i]->field_name= field_name;
+  }
 
-  /*
-    Initialize the key field
-  */
-  Spvar_definition key_def= *m_def->begin();
+  return false;
+}
 
-  if (key_def.type_handler()->field_type() != MYSQL_TYPE_VARCHAR)
+
+bool Field_assoc_array::init_key_def(THD *thd, Spvar_definition *key_def) const
+{
+  DBUG_ASSERT(key_def);
+
+  *key_def= *m_def->begin();
+
+  if (key_def->type_handler()->field_type() != MYSQL_TYPE_VARCHAR)
   {
     DBUG_ASSERT(dynamic_cast<const Type_handler_general_purpose_int*>
-                                        (key_def.type_handler()));
+                                        (key_def->type_handler()));
 
-    if (key_def.type_handler()->is_unsigned())
-      key_def.set_handler(&type_handler_ulonglong);
+    if (key_def->type_handler()->is_unsigned())
+      key_def->set_handler(&type_handler_ulonglong);
     else
-      key_def.set_handler(&type_handler_slonglong);
+      key_def->set_handler(&type_handler_slonglong);
   }
 
   /*
@@ -1460,19 +1560,9 @@ bool Field_assoc_array::create_fields(THD *thd)
     Sql_mode_instant_set frame_sql_mode(thd, thd->variables.sql_mode |
                                         MODE_STRICT_ALL_TABLES);
     DBUG_ASSERT(thd->really_abort_on_warning());
-    if (key_def.sp_prepare_create_field(thd, thd->mem_root))
+    if (key_def->sp_prepare_create_field(thd, thd->mem_root))
       return true; // E.g. VARCHAR size is too large
   }
-
-  DBUG_EXECUTE_IF("assoc_array",
-                  dbug_print_defs(thd, "create_fields: ",
-                                  key_def, value_def););
-
-  m_key_field= key_def.make_field(m_table_share,
-                                  thd->mem_root,
-                                  &empty_clex_str);
-  if (!m_key_field)
-    return true;
 
   return false;
 }
@@ -1480,38 +1570,52 @@ bool Field_assoc_array::create_fields(THD *thd)
 
 bool Field_assoc_array::init_element_base(THD *thd)
 {
-  if (m_element_field)
+  if (unlikely(m_table))
     return false;
 
   if (unlikely(create_fields(thd)))
     return true;
+  
+  if (unlikely(!(m_item_pack= create_packable(thd, get_element_field()))))
+    return true;
 
-  Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
+  m_item= dynamic_cast<Item *>(m_item_pack);
+  DBUG_ASSERT(m_item);
+
+  auto item_pack_assign= create_packable(thd, m_table->field[2]);
+  if (unlikely(!item_pack_assign))
+    return true;
+
+  m_item_pack->set_assign(item_pack_assign);
+
+  return false;
+}
+
+
+Item_field_packable *Field_assoc_array::create_packable(THD *thd, Field *field)
+{
+  Item_field_packable *packable;
+  Field_row *field_row= dynamic_cast<Field_row*>(field);
   if (field_row)
   {
     auto &value_def= *(++m_def->begin());
     if (field_row->row_create_fields(thd, value_def))
-      return true;
+      return nullptr;
     
-    auto pack= new (thd->mem_root)
+    auto pack_row= new (thd->mem_root)
                     Item_field_packable_row(thd,
-                                            m_element_field);
-    if (pack->add_array_of_item_field(thd))
-      return true;
+                                            field);
+    if (pack_row->add_array_of_item_field(thd))
+      return nullptr;
     
-    m_item_pack= pack;
+    packable= pack_row;
   }
   else
-    m_item_pack= new (thd->mem_root)
+    packable= new (thd->mem_root)
                       Item_field_packable_scalar(thd,
-                                                 m_element_field);
+                                                 field);
 
-  if (!m_item_pack)
-    return true;
-  
-  m_item= dynamic_cast<Item *>(m_item_pack);
-
-  return false;
+  return packable;
 }
 
 
@@ -1529,24 +1633,6 @@ Field_assoc_array::make_item_field_spvar(THD *thd,
     return nullptr;
 
   return item;
-}
-
-
-bool Field_assoc_array::create_element_buffer(THD *thd, Binary_string *buffer)
-{
-  DBUG_ASSERT(m_element_field);
-  DBUG_ASSERT(buffer);
-  DBUG_ASSERT(buffer->get_thread_specific());
-
-  Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
-  if (field_row)
-  {
-    uint length= Item_field_packable_row::packed_col_length(m_element_field);
-    return buffer->alloc(length);
-  }
-  
-  uint length= m_element_field->packed_col_length() + 1;
-  return buffer->alloc(length);
 }
 
 
@@ -1585,9 +1671,9 @@ bool Field_assoc_array::delete_element_by_key(String *key)
   
   String key_copy;
   if (copy_and_convert_key(*key, &key_copy))
-    return NULL;
+    return true;
 
-  (void) tree_delete(&m_tree, &key_copy, 0, m_key_field);
+  (void) tree_delete(&m_tree, &key_copy, 0, get_key_field());
   return false;
 }
 
@@ -1654,7 +1740,7 @@ bool Field_assoc_array::get_next_or_prior_key(const String *curr_key,
                                           &last_pos,
                                           is_next ? HA_READ_AFTER_KEY :
                                                     HA_READ_BEFORE_KEY,
-                                          m_key_field);
+                                          get_key_field());
   if (data)
   {
     unpack_key(data->m_key, new_key);
@@ -1874,6 +1960,33 @@ bool Item_splocal_assoc_array_base::fix_key(THD *thd,
 }
 
 
+bool Item_splocal_assoc_array_base::is_element_exists(THD *thd,
+                                                  const Field_composite *field,
+                                                  const LEX_CSTRING &name)
+                                                  const
+{
+  DBUG_ASSERT(field);
+  DBUG_ASSERT(m_key->fixed());
+
+  StringBufferKey buffer;
+  auto key_str= m_key->val_str(&buffer);
+  if (!key_str)
+  {
+    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
+             name.str);
+    return false;
+  }
+
+  if (field->element_by_key(thd, key_str) == nullptr)
+  {
+    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
+             ErrConvString(key_str).ptr());
+    return false;
+  }
+  return true;
+}
+
+
 bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
@@ -1881,16 +1994,11 @@ bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
   if (fix_key(thd, rcontext_addr()))
     return true;
 
-  StringBufferKey buffer;
-  if (!m_key->val_str(&buffer))
-  {
-    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
-             m_name.str);
-    return true;
-  }
-
   auto field= get_composite_variable(thd->spcont)->get_composite_field();
   DBUG_ASSERT(field);
+
+  if (!is_element_exists(thd, field, m_name))
+    return true;
 
   auto item= field->get_element_item();
   DBUG_ASSERT(item);
@@ -1995,17 +2103,11 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
   if (fix_key(thd, rcontext_addr()))
     return true;
 
-  StringBufferKey buffer;
-  String *str;
-  if (!(str= m_key->val_str(&buffer)))
-  {
-    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
-             m_name.str);
-    return true;
-  }
-
   auto field= get_composite_variable(thd->spcont)->get_composite_field();
   DBUG_ASSERT(field);
+
+  if (!is_element_exists(thd, field, m_name))
+    return true;
 
   auto element_item= field->get_element_item();
   DBUG_ASSERT(element_item);
@@ -2098,14 +2200,6 @@ bool Item_splocal_assoc_array_element::append_for_log(THD *thd, String *str)
 
   if (fix_fields_if_needed(thd, NULL))
     return true;
-  
-  if (this_item() == NULL)
-  {
-    StringBufferKey buffer;
-    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             m_key->val_str(&buffer)->c_ptr());
-    return true;
-  }
 
   if (limit_clause_param)
     return str->append_ulonglong(val_uint());
@@ -2128,14 +2222,6 @@ bool Item_splocal_assoc_array_element_field::append_for_log(THD *thd,
 
   if (fix_fields_if_needed(thd, NULL))
     return true;
-  
-  if (this_item() == NULL)
-  {
-    StringBufferKey buffer;
-    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             m_key->val_str(&buffer)->c_ptr());
-    return true;
-  }
 
   if (limit_clause_param)
     return str->append_ulonglong(val_uint());
@@ -2330,7 +2416,7 @@ bool Type_handler_assoc_array::
   if (!key->can_eval_in_optimize())
   {
     Item::Print tmp(key, QT_ORDINARY);
-    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), ErrConvString(&tmp).ptr());
     return true;
   }
   return false;
@@ -2400,7 +2486,19 @@ bool Type_handler_assoc_array::
     if (const sp_type_def_record *sprec=
         (sp_type_def_record *)value_def->get_attr_const_void_ptr(0))
     {
-      if (lex->sphead->row_fill_field_definitions(thd, sprec->field))
+      /*
+        Hack to ensure that we don't call sp_head::row_fill_field_definitions()
+        for the same row definition twice.
+
+        Check the pack_flag of the first field in the row definition.
+        FIELDFLAG_MAYBE_NULL will be set if the row_fill_field_definitions()
+        has been called.
+      */
+      List_iterator<Spvar_definition> it(*sprec->field);
+      auto first= sprec->field->head();
+
+      if (first && !(first->pack_flag & FIELDFLAG_MAYBE_NULL) &&
+          lex->sphead->row_fill_field_definitions(thd, sprec->field))
         return true;
 
       value_def->set_row_field_definitions(&type_handler_row, sprec->field);
@@ -2475,7 +2573,7 @@ bool Type_handler_assoc_array::check_key_expression_type(Item *key)
       key->walk(&Item::find_function_processor, FALSE, &func_sp))
   {
     Item::Print tmp(key, QT_ORDINARY);
-    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), tmp.c_ptr());
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), ErrConvString(&tmp).ptr());
     return true;
   }
   return false;
@@ -2716,7 +2814,7 @@ Item_field *Type_handler_assoc_array::get_item(THD *thd,
   if (!elem)
   {
     my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             key.c_ptr());
+             ErrConvString(&key).ptr());
     return nullptr;
   }
 
@@ -2752,13 +2850,15 @@ Type_handler_assoc_array::get_or_create_item(THD *thd,
 }
 
 
-void Type_handler_assoc_array::prepare_for_set(Item_field *item) const
+Item_field* Type_handler_assoc_array::prepare_for_set(Item_field *item) const
 {
   Item_field_packable *item_elem= dynamic_cast<Item_field_packable *>(item);
   if (!item_elem)
-    return;
+    return nullptr;
 
-  item_elem->unpack();
+  auto assign= item_elem->get_assign();
+  assign->unpack();
+  return dynamic_cast<Item_field*>(assign);
 }
 
 
