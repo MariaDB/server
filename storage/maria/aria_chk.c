@@ -1224,14 +1224,16 @@ static int maria_chk(HA_CHECK *param, char *filename)
   */
   maria_lock_database(info, F_EXTRA_LCK);
   datafile= info->dfile.file;
-  if (init_pagecache(maria_pagecache, (size_t) param->use_buffers, 0, 0,
-                     maria_block_size, 0, MY_WME) == 0)
+  if (multi_init_pagecache(&maria_pagecaches, 1, (size_t) param->use_buffers,
+                           0, 0, maria_block_size, 0, MY_WME))
   {
     _ma_check_print_error(param, "Can't initialize page cache with %lu memory",
                           (ulong) param->use_buffers);
     error= 1;
     goto end2;
   }
+  /* The pagecache is initialized. Update the table pagecaches pointers */
+  ma_change_pagecache(info);
 
   if (param->testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX |
                          T_ZEROFILL))
@@ -1472,7 +1474,7 @@ end2:
     _ma_check_print_error(param, default_close_errmsg, my_errno, filename);
     DBUG_RETURN(1);
   }
-  end_pagecache(maria_pagecache, 1);
+  multi_end_pagecache(&maria_pagecaches);
   if (error == 0)
   {
     if (param->out_flag & O_NEW_DATA)

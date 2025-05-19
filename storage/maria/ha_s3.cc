@@ -682,7 +682,8 @@ int ha_s3::open(const char *name, int mode, uint open_flags)
         Table is in S3. We have to modify the pagecache callbacks for the
         data file, index file and for bitmap handling.
       */
-      file->s->pagecache= &s3_pagecache;
+      file->s->pagecache= file->s->kfile.pagecache= file->dfile.pagecache=
+        &s3_pagecache;
       file->dfile.big_block_size= file->s->kfile.big_block_size=
         file->s->bitmap.file.big_block_size= file->s->base.s3_block_size;
       file->s->kfile.head_blocks= file->s->base.keystart / file->s->block_size;

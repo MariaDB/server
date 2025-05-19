@@ -613,12 +613,15 @@ static int compress(PACK_MRG_INFO *mrg,char *result_table)
   else
     fn_format(org_name,isam_file->s->open_file_name.str, "",MARIA_NAME_DEXT, 2+4+16);
 
-  if (init_pagecache(maria_pagecache, MARIA_MIN_PAGE_CACHE_SIZE, 0, 0,
-                     maria_block_size, 0, MY_WME) == 0)
+  if (multi_init_pagecache(&maria_pagecaches, 1, MARIA_MIN_PAGE_CACHE_SIZE,
+                           0, 0, maria_block_size, 0, MY_WME))
   {
     fprintf(stderr, "Can't initialize page cache\n");
     goto err;
   }
+  /* The pagecache is initialized. Update the table pagecaches pointers */
+  for (i=0 ; i < mrg->count ; i++)
+    ma_change_pagecache(mrg->file[i]);
 
   if (!test_only && result_table)
   {
@@ -867,7 +870,7 @@ static int compress(PACK_MRG_INFO *mrg,char *result_table)
   if (join_maria_file >= 0)
     my_close(join_maria_file,MYF(0));
   mrg_close(mrg);
-  end_pagecache(maria_pagecache, 1);
+  multi_end_pagecache(&maria_pagecaches);
   fprintf(stderr, "Aborted: %s is not compressed\n", org_name);
   DBUG_RETURN(-1);
 }
