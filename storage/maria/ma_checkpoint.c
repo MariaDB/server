@@ -154,16 +154,29 @@ static int really_execute_checkpoint(void)
 {
   uint i, error= 0;
   int error_errno= 0;
+  uint dirty_pages;
   /** @brief checkpoint_start_log_horizon will be stored there */
-  char *ptr;
   const char *error_place= 0;
-  LEX_STRING record_pieces[4]; /**< only malloc-ed pieces */
+  LEX_STRING *record_pieces; /**< only malloc-ed pieces */
+  LEX_CUSTRING *log_array;
   LSN min_page_rec_lsn, min_trn_rec_lsn, min_first_undo_lsn;
   TRANSLOG_ADDRESS checkpoint_start_log_horizon;
   char checkpoint_start_log_horizon_char[LSN_STORE_SIZE];
+  uint record_pieces_count= 3+maria_pagecaches.segments;
   DBUG_ENTER("really_execute_checkpoint");
   DBUG_PRINT("enter", ("level: %d", checkpoint_in_progress));
-  bzero(&record_pieces, sizeof(record_pieces));
+
+  record_pieces= my_alloca(sizeof(*record_pieces) * record_pieces_count +
+                           sizeof(*log_array) *
+                           (TRANSLOG_INTERNAL_PARTS + 5 +
+                            maria_pagecaches.segments));
+  if (!record_pieces)
+  {
+    error_place= "allocating_memory";
+    goto err;
+  }
+  log_array= (LEX_CUSTRING*) (record_pieces + record_pieces_count);
+  bzero(record_pieces, sizeof(*record_pieces) * record_pieces_count);
 
   /*
     STEP 1: record current end-of-log position using log's lock. It is
@@ -216,9 +229,10 @@ static int really_execute_checkpoint(void)
     and thus we will have less work at Recovery.
   */
   /* Using default pagecache for now */
-  if (unlikely(pagecache_collect_changed_blocks_with_lsn(maria_pagecache,
-                                                         &record_pieces[3],
-                                                         &min_page_rec_lsn)))
+  if (unlikely(multi_pagecache_collect_changed_blocks_with_lsn(&maria_pagecaches,
+                                                               record_pieces+3,
+                                                               &min_page_rec_lsn,
+                                                               &dirty_pages)))
   {
     error_place= "collect_pages";
     goto err;
@@ -229,26 +243,49 @@ static int really_execute_checkpoint(void)
   {
     LSN lsn;
     translog_size_t total_rec_length;
+    uchar dirty_pages_buff[8];
+    LEX_CUSTRING *log_pos;
+
     /*
       the log handler is allowed to modify "str" and "length" (but not "*str")
       of its argument, so we must not pass it record_pieces directly,
       otherwise we would later not know what memory pieces to my_free().
     */
-    LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS + 5];
     log_array[TRANSLOG_INTERNAL_PARTS + 0].str=
       (uchar*) checkpoint_start_log_horizon_char;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].length= total_rec_length=
       sizeof(checkpoint_start_log_horizon_char);
-    for (i= 0; i < (sizeof(record_pieces)/sizeof(record_pieces[0])); i++)
+
+    log_pos= log_array+ TRANSLOG_INTERNAL_PARTS + 1;
+    for (i= 0; i < 3 ; i++)
     {
-      log_array[TRANSLOG_INTERNAL_PARTS + 1 + i].str= (uchar*)record_pieces[i].str;
-      log_array[TRANSLOG_INTERNAL_PARTS + 1 + i].length= record_pieces[i].length;
+      (*log_pos).str= (uchar*)record_pieces[i].str;
+      (*log_pos).length= record_pieces[i].length;
+      log_pos++;
       total_rec_length+= (translog_size_t) record_pieces[i].length;
+    }
+
+    int8store(dirty_pages_buff, (longlong) dirty_pages);
+    (*log_pos).str= dirty_pages_buff;
+    (*log_pos).length= 8;
+    log_pos++;
+    total_rec_length+= 8;
+
+    /* Copy the information about the dirty pages in the page caches */
+    for (i= 0; i < maria_pagecaches.segments; i++)
+    {
+      if (record_pieces[3+i].length)
+      {
+        (*log_pos).str= (uchar*) record_pieces[3+i].str;
+        (*log_pos).length= record_pieces[3+i].length;
+        log_pos++;
+        total_rec_length+= (translog_size_t) record_pieces[3+i].length;
+      }
     }
     if (unlikely(translog_write_record(&lsn, LOGREC_CHECKPOINT,
                                        &dummy_transaction_object, NULL,
                                        total_rec_length,
-                                       sizeof(log_array)/sizeof(log_array[0]),
+                                       log_pos - log_array,
                                        log_array, NULL, NULL) ||
                  translog_flush(lsn)))
     {
@@ -278,8 +315,7 @@ static int really_execute_checkpoint(void)
     written the checkpoint record and control file.
   */
   /* checkpoint succeeded */
-  ptr= record_pieces[3].str;
-  pages_to_flush_before_next_checkpoint= uint4korr(ptr);
+  pages_to_flush_before_next_checkpoint= dirty_pages;
   DBUG_PRINT("checkpoint",("%u pages to flush before next checkpoint",
                           pages_to_flush_before_next_checkpoint));
 
@@ -310,8 +346,12 @@ err:
   pages_to_flush_before_next_checkpoint= 0;
 
 end:
-  for (i= 0; i < (sizeof(record_pieces)/sizeof(record_pieces[0])); i++)
-    my_free(record_pieces[i].str);
+  if (record_pieces)
+  {
+    for (i= 0; i < record_pieces_count; i++)
+      my_free(record_pieces[i].str);
+  }
+  my_afree(record_pieces);
   mysql_mutex_lock(&LOCK_checkpoint);
   checkpoint_in_progress= CHECKPOINT_NONE;
   checkpoints_total++;
@@ -570,7 +610,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   TRANSLOG_ADDRESS log_horizon_at_last_checkpoint=
     translog_get_horizon();
   ulonglong pagecache_flushes_at_last_checkpoint=
-    maria_pagecache->global_cache_write;
+    multi_global_cache_writes(&maria_pagecaches);
   uint UNINIT_VAR(pages_bunch_size);
   struct st_filter_param filter_param;
   PAGECACHE_FILE *UNINIT_VAR(dfile); /**< data file currently being flushed */
@@ -607,6 +647,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
       }
       {
         TRANSLOG_ADDRESS horizon= translog_get_horizon();
+        ulonglong writes= multi_global_cache_writes(&maria_pagecaches);
 
         /*
           With background flushing evenly distributed over the time
@@ -624,9 +665,8 @@ pthread_handler_t ma_checkpoint_background(void *arg)
         */
         if ((ulonglong) (horizon - log_horizon_at_last_checkpoint) <=
             maria_checkpoint_min_log_activity &&
-            ((ulonglong) (maria_pagecache->global_cache_write -
-                          pagecache_flushes_at_last_checkpoint) *
-             maria_pagecache->block_size) <=
+            ((ulonglong) (writes - pagecache_flushes_at_last_checkpoint) *
+             maria_pagecaches.caches->block_size) <=
             maria_checkpoint_min_cache_activity)
         {
           /*
@@ -643,8 +683,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
           below is possibly greater than last_checkpoint_lsn.
         */
         log_horizon_at_last_checkpoint= translog_get_horizon();
-        pagecache_flushes_at_last_checkpoint=
-          maria_pagecache->global_cache_write;
+        pagecache_flushes_at_last_checkpoint= writes;
         /*
           If the checkpoint above succeeded it has set d|kfiles and
           d|kfiles_end. If is has failed, it has set
@@ -685,7 +724,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
             only the OS file descriptor.
           */
           int res=
-            flush_pagecache_blocks_with_filter(maria_pagecache,
+            flush_pagecache_blocks_with_filter(dfile->pagecache,
                                                dfile, FLUSH_KEEP_LAZY,
                                                filter_flush_file_evenly,
                                                &filter_param);
@@ -705,7 +744,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
         while (kfile != kfiles_end)
         {
           int res=
-            flush_pagecache_blocks_with_filter(maria_pagecache,
+            flush_pagecache_blocks_with_filter(kfile->pagecache,
                                                kfile, FLUSH_KEEP_LAZY,
                                                filter_flush_file_evenly,
                                                &filter_param);
@@ -983,7 +1022,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
       Tables in a normal state have their two file descriptors open.
       In some rare cases like REPAIR, some descriptor may be closed or even
       -1. If that happened, the _ma_state_info_write() may fail. This is
-      prevented by enclosing all all places which close/change kfile.file with
+      prevented by enclosing all places which close/change kfile.file with
       intern_lock.
     */
     kfile= share->kfile;
@@ -1104,7 +1143,6 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
         /** @todo all write failures should mark table corrupted */
         ma_message_no_user(0, "checkpoint bitmap page flush failed");
       }
-      DBUG_ASSERT(share->pagecache == maria_pagecache);
     }
     /*
       Clean up any unused states.
@@ -1189,12 +1227,12 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     {
       if (filter != NULL)
       {
-        if ((flush_pagecache_blocks_with_filter(maria_pagecache,
+        if ((flush_pagecache_blocks_with_filter(dfile.pagecache,
                                                 &dfile, FLUSH_KEEP_LAZY,
                                                 filter, &filter_param) &
              PCFLUSH_ERROR))
           ma_message_no_user(0, "checkpoint data page flush failed");
-        if ((flush_pagecache_blocks_with_filter(maria_pagecache,
+        if ((flush_pagecache_blocks_with_filter(kfile.pagecache,
                                                 &kfile, FLUSH_KEEP_LAZY,
                                                 filter, &filter_param) &
              PCFLUSH_ERROR))
