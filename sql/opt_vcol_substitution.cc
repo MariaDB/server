@@ -204,13 +204,21 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
                           ORDER *order,
                           const char *location)
 {
-  int i= 0;
   Field *vcol_field;
-  while (Item* item= order->item[i])
+  for (; order; order= order->next)
   {
+    Item *item= *order->item;
+    ctx->subst_count= 0;
     if ((vcol_field= is_vcol_expr(ctx, item)))
-      subst_vcol_if_compatible(ctx, NULL, &order->item[i], vcol_field);
-    i++;
+      subst_vcol_if_compatible(ctx, NULL, order->item, vcol_field);
+    if (ctx->subst_count && unlikely(ctx->thd->trace_started()))
+    {
+      Json_writer_object trace_wrapper(ctx->thd);
+      Json_writer_object trace_order_by(ctx->thd, "virtual_column_substitution");
+      trace_order_by.add("location", location);
+      trace_order_by.add("from", item);
+      trace_order_by.add("to", *order->item);
+    }
   }
 }
 

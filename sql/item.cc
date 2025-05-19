@@ -1028,7 +1028,7 @@ bool Item_field::update_vcol_processor(void *arg)
    already had its part_of_key fixed, so there is no need to recurse
    further
 */
-bool Item_field::intersect_vcol_index_coverings(void *arg)
+bool Item_field::intersect_field_part_of_key(void *arg)
 {
   key_map *part_of_key= (key_map *) arg;
   part_of_key->intersect(field->part_of_key);

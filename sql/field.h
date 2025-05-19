@@ -828,7 +828,7 @@ public:
     If the field is a vcol, its part_of_key not only contain keys that
     have vcol as parts ("conventional"), but also keys with vcol
     expression fields as parts ("extra"), computed from
-    `intersect_vcol_index_coverings'. The field `vcol_part_of_key' is
+    `intersect_field_part_of_key'. The field `vcol_part_of_key' is
     the "conventional" part_of_key.
   */
   key_map vcol_part_of_key;

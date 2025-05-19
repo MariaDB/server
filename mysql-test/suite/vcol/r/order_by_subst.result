@@ -42,6 +42,24 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select c + 1 from t order by vc limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select c + 1 from t order by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "location": "ORDER BY",
+        "from": "t.c + 1",
+        "to": "t.vc"
+    }
+]
+set optimizer_trace=@old_optimizer_trace;
 drop table t;
 create table t (c int, key (c));
 insert into t select seq from seq_1_to_10000;

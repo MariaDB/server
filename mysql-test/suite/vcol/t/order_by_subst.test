@@ -26,6 +26,17 @@ explain select vc from t order by c + 1 limit 2;
 explain select c + 1 from t order by c + 1 limit 2;
 explain select c + 1 from t order by vc limit 2;
 
+## optimizer trace
+
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select c + 1 from t order by c + 1;
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+set optimizer_trace=@old_optimizer_trace;
+
 drop table t;
 
 # vcol on vcol
@@ -49,4 +60,36 @@ create table t (c int, vc int generated always as (1 + 1) virtual, key (c));
 insert into t values (42, default), (83, default);
 explain select vc from t order by vc;
 select vc from t order by vc;
+drop table t;
+
+# multiple indexes
+
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1);
+alter table t
+  add column vc2 int as (1 - c),
+  add index(vc1, vc2);
+explain select vc1, vc2 from t order by c + 1, 1 - c;
+drop table t;
+
+# multiple items in order by
+
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+  add column vc1 int as (c + 1),
+  add index(vc1);
+alter table t
+  add column vc2 int as (1 - c),
+  add index(vc2);
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select * from t order by c + 1, 1 - c;
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+set optimizer_trace=@old_optimizer_trace;
 drop table t;
