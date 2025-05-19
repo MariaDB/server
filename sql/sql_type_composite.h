@@ -435,9 +435,9 @@ public:
   virtual Item_field *get_or_create_item(THD *thd, Item_field *item,
                                          const LEX_CSTRING& name) const = 0;
 
-  virtual void prepare_for_set(Item_field *item) const
+  virtual Item_field *prepare_for_set(Item_field *item) const
   {
-    return;
+    return item;
   }
   virtual bool finalize_for_set(Item_field *item) const
   {
