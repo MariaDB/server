@@ -55,10 +55,9 @@ ulong maria_concurrent_insert= 2;
 my_off_t maria_max_temp_length= MAX_FILE_SIZE;
 ulong    maria_bulk_insert_tree_size=8192*1024;
 ulong    maria_data_pointer_size= 6;
+ulong    maria_pagecache_segments;
 
-PAGECACHE maria_pagecache_var;
-PAGECACHE *maria_pagecache= &maria_pagecache_var;
-
+PAGECACHES maria_pagecaches;
 PAGECACHE maria_log_pagecache_var;
 PAGECACHE *maria_log_pagecache= &maria_log_pagecache_var;
 MY_TMPDIR *maria_tmpdir;                        /* Tempdir for redo */

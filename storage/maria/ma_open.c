@@ -100,7 +100,10 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   bzero((uchar*) &info,sizeof(info));
 
   if (data_file >= 0)
+  {
     info.dfile.file= data_file;
+    info.dfile.pagecache= share->pagecache;
+  }
   else if (_ma_open_datafile(&info, share))
     goto err;
   errpos= 5;
@@ -332,9 +335,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     share= &share_buff;
     bzero((uchar*) &share_buff,sizeof(share_buff));
     share_buff.state.key_root=key_root;
-    share_buff.pagecache= multi_pagecache_search((uchar*) name_buff,
-						 (uint) strlen(name_buff),
-                                                 maria_pagecache);
 
     if (!s3)
     {
@@ -623,7 +623,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       with different block sizes.
     */
     if (share->base.block_size != maria_block_size &&
-        share_buff.pagecache->inited != 0)
+        maria_pagecaches.initialized)
     {
       DBUG_PRINT("error", ("Wrong block size %u; Expected %u",
                            (uint) share->base.block_size,
@@ -861,6 +861,10 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
                          share->base.pack_bytes +
                          MY_TEST(share->options & HA_OPTION_CHECKSUM));
     share->kfile.file= kfile;
+    /* Pagecaches are not initialize when using aria_chk */
+    if (maria_pagecaches.initialized)
+      share->pagecache= share->kfile.pagecache=
+        multi_get_pagecache(&maria_pagecaches);
 
     if (open_flags & HA_OPEN_COPY)
     {
@@ -2070,6 +2074,8 @@ int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
   info->dfile.file= share->bitmap.file.file=
     mysql_file_open(key_file_dfile, share->data_file_name.str,
                     share->data_mode | O_SHARE | O_CLOEXEC, flags);
+  /* Note that share->pagecache may be 0 here if run from aria_chk */
+  info->dfile.pagecache= share->bitmap.file.pagecache= share->pagecache;
   return info->dfile.file >= 0 ? 0 : 1;
 }
 
@@ -2086,8 +2092,27 @@ int _ma_open_keyfile(MARIA_SHARE *share)
                                      share->index_mode | O_SHARE | O_NOFOLLOW |
                                      O_CLOEXEC,
                                      MYF(MY_WME | MY_NOSYMLINKS));
+  /*
+    share->kfile.pagecache is updated in the caller if needed.
+    This is needed as we don't want to change pagecache in ma_sort_index()
+    as we want to check pagecache concistency in ma_close().
+  */
   mysql_mutex_unlock(&share->intern_lock);
   return (share->kfile.file < 0);
+}
+
+
+/*
+  Update pagecaches for a table. Used by aria_check() which creates
+  the pagecache after the table has been opened.
+*/
+
+void ma_change_pagecache(MARIA_HA *info)
+{
+  MARIA_SHARE *share= info->s;
+  DBUG_ASSERT(share->pagecache == 0);
+  share->pagecache= share->bitmap.file.pagecache= share->kfile.pagecache=
+    info->dfile.pagecache= multi_get_pagecache(&maria_pagecaches);
 }
 
 

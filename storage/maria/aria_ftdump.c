@@ -85,8 +85,9 @@ int main(int argc,char *argv[])
       usage();
   }
 
-  init_pagecache(maria_pagecache, PAGE_BUFFER_INIT, 0, 0,
-                 MARIA_KEY_BLOCK_LENGTH, 0, MY_WME);
+  multi_init_pagecache(&maria_pagecaches, 1,
+                       PAGE_BUFFER_INIT, 0, 0,
+                       MARIA_KEY_BLOCK_LENGTH, 0, MY_WME);
 
   if (!(info=maria_open(argv[0], O_RDONLY,
                         HA_OPEN_ABORT_IF_LOCKED|HA_OPEN_FROM_SQL_LAYER, 0)))
