@@ -199,7 +199,7 @@ BEGIN
   SELECT marks(0) + marks(1) as total, POW(marks(0), 2), POW(marks(1), 2);
 
   marks(1) := NULL;
-  SELECT marks(1);
+  SELECT marks(0), marks(1);
 END;
 $$
 DELIMITER ;$$
@@ -1568,7 +1568,7 @@ DELIMITER ;$$
 
 
 --echo #
---echo # NULL key when assigning variable
+--echo # NULL key when assigning variable (LHS)
 --echo # On Oracle ORA-06502
 --echo #
 DELIMITER $$;
@@ -1578,6 +1578,23 @@ DECLARE
   marks marks_t;
 BEGIN
   marks(NULL):= 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # NULL key when assigning variable (RHS)
+--echo # On Oracle ORA-06502
+--echo #
+DELIMITER $$;
+--error ER_NULL_FOR_ASSOC_ARRAY_INDEX
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+  n NUMBER;
+BEGIN
+  n:= marks(NULL) + 5;
 END;
 $$
 DELIMITER ;$$
@@ -1601,7 +1618,7 @@ DELIMITER ;$$
 
 
 --echo #
---echo # NULL key when assigning variable
+--echo # NULL key when assigning variable (LHS)
 --echo # On Oracle ORA-06502
 --echo #
 DELIMITER $$;
@@ -1616,6 +1633,28 @@ DECLARE
   p table_of_person_t;
 BEGIN
   p(NULL).first_name:= 'aa';
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # NULL key when assigning variable (RHS)
+--echo # On Oracle ORA-06502
+--echo #
+DELIMITER $$;
+--error ER_NULL_FOR_ASSOC_ARRAY_INDEX
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  p table_of_person_t;
+  n VARCHAR(64);
+BEGIN
+  n:= p(NULL).first_name;
 END;
 $$
 DELIMITER ;$$

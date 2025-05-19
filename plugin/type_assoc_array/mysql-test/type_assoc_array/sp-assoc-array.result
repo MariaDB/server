@@ -159,7 +159,7 @@ id:= marks.NEXT(id);
 END LOOP;
 SELECT marks(0) + marks(1) as total, POW(marks(0), 2), POW(marks(1), 2);
 marks(1) := NULL;
-SELECT marks(1);
+SELECT marks(0), marks(1);
 END;
 $$
 marks(id)	id
@@ -168,8 +168,8 @@ marks(id)	id
 78	1
 total	POW(marks(0), 2)	POW(marks(1), 2)
 140	3844	6084
-marks(1)
-NULL
+marks(0)	marks(1)
+62	NULL
 #
 # SCALAR element type with initialization
 #
@@ -1355,7 +1355,7 @@ END;
 $$
 ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: 'Test'
 #
-# NULL key when assigning variable
+# NULL key when assigning variable (LHS)
 # On Oracle ORA-06502
 #
 DECLARE
@@ -1363,6 +1363,19 @@ TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
 BEGIN
 marks(NULL):= 62;
+END;
+$$
+ERROR HY000: NULL key used for associative array 'marks'
+#
+# NULL key when assigning variable (RHS)
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+n NUMBER;
+BEGIN
+n:= marks(NULL) + 5;
 END;
 $$
 ERROR HY000: NULL key used for associative array 'marks'
@@ -1380,7 +1393,7 @@ END;
 $$
 ERROR HY000: NULL key used for associative array 'marks'
 #
-# NULL key when assigning variable
+# NULL key when assigning variable (LHS)
 # On Oracle ORA-06502
 #
 DECLARE
@@ -1393,6 +1406,24 @@ TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
 p table_of_person_t;
 BEGIN
 p(NULL).first_name:= 'aa';
+END;
+$$
+ERROR HY000: NULL key used for associative array 'p'
+#
+# NULL key when assigning variable (RHS)
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+p table_of_person_t;
+n VARCHAR(64);
+BEGIN
+n:= p(NULL).first_name;
 END;
 $$
 ERROR HY000: NULL key used for associative array 'p'

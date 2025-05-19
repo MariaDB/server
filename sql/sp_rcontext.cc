@@ -740,6 +740,9 @@ int sp_rcontext::set_variable_composite_by_name(THD *thd, Item_field *composite,
   if (!elem)
     DBUG_RETURN(1);
 
+  elem= handler->prepare_for_set(elem);
+  DBUG_ASSERT(elem);
+
   DBUG_RETURN(thd->sp_eval_expr(elem->field, value) ||
               handler->finalize_for_set(elem));
 }
@@ -765,7 +768,8 @@ sp_rcontext::set_variable_composite_field_by_key(THD *thd,
   if (!elem)
     DBUG_RETURN(1);
 
-  handler->prepare_for_set(elem);
+  elem= handler->prepare_for_set(elem);
+  DBUG_ASSERT(elem);
 
   DBUG_RETURN(set_variable_composite_by_name(thd, elem, field_name, value) ||
               handler->finalize_for_set(elem));
