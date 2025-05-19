@@ -367,9 +367,9 @@ select table_name, constraint_name, constraint_type from information_schema.tabl
 table_name	constraint_name	constraint_type
 t3	e	UNIQUE
 t3	CONSTRAINT_1	CHECK
-t3	t3_ibfk_1	FOREIGN KEY
-t3	t3_ibfk_2	FOREIGN KEY
-t3	t3_ibfk_3	FOREIGN KEY
+t3	1	FOREIGN KEY
+t3	2	FOREIGN KEY
+t3	3	FOREIGN KEY
 show index in t2;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 show index in t3;
