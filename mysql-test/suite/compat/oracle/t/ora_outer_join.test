@@ -464,3 +464,14 @@ where
 
 drop table t1,t2;
 
+
+--echo #
+--echo # MDEV-36838: Oracle outer join syntax (+): server crash on derived tables
+--echo #
+
+select a.a
+from (select 1 as a) a,
+     (select 2 as b) b
+     where a.a=b.b(+);
+
+--echo # End of 12.0 tests

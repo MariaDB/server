@@ -675,3 +675,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select "test"."t1"."a" AS "a","test"."t1"."b" AS "b","test"."t2"."a" AS "a","test"."t2"."b" AS "b" from "test"."t1" join "test"."t2" where "test"."t1"."a" = 1 and "test"."t2"."b" = 1 and "test"."t1"."b" = 1
 drop table t1,t2;
+#
+# MDEV-36838: Oracle outer join syntax (+): server crash on derived tables
+#
+select a.a
+from (select 1 as a) a,
+(select 2 as b) b
+where a.a=b.b(+);
+a
+1
+# End of 12.0 tests
