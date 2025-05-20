@@ -1,6 +1,5 @@
 --source include/long_test.inc
 --source include/have_debug.inc
---source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/not_valgrind.inc
 

@@ -445,6 +445,19 @@ static Sys_var_double Sys_analyze_sample_percentage(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
        DEFAULT(100));
 
+/*
+  The max length have to be UINT_MAX32 to not remove GEOMETRY fields
+  from analyze.
+*/
+
+static Sys_var_uint Sys_analyze_max_length(
+       "analyze_max_length",
+       "Fields which length in bytes more than this are skipped by ANALYZE "
+       "TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause",
+       SESSION_VAR(analyze_max_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(32, UINT_MAX32),
+       DEFAULT(UINT_MAX32), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",

@@ -27,7 +27,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR may_kill';
 SET DEBUG_SYNC = 'now SIGNAL continue';
 
 --connection node_1
---error 2013
+--error 2013,2026
 --reap
 
 # Verify no tables created on either nodes.

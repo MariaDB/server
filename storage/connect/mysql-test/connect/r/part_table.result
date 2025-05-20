@@ -164,16 +164,16 @@ Warnings:
 Note	1105	xt1: 1 affected rows
 SELECT * FROM t1;
 id	msg
-4	four
-7	sept
 1	one
-8	eight
-40	forty
 10	ten
 11	eleven
 35	thirty five
-72	big
+4	four
+40	forty
 60	big
+7	sept
+72	big
+8	eight
 81	big
 DELETE FROM t1 WHERE id in (60,72);
 Warnings:
@@ -181,14 +181,14 @@ Note	1105	xt3: 2 affected rows
 Note	1105	xt3: 0 affected rows
 SELECT * FROM t1;
 id	msg
-4	four
-7	sept
 1	one
-8	eight
-40	forty
 10	ten
 11	eleven
 35	thirty five
+4	four
+40	forty
+7	sept
+8	eight
 81	big
 DROP TABLE t1;
 CREATE TABLE t1 (

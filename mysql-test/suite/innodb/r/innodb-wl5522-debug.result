@@ -81,8 +81,7 @@ SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_1";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -91,8 +90,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_2";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -101,8 +99,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_3";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -111,8 +108,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_4";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -121,8 +117,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_5";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -131,8 +126,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_6";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -141,8 +135,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_7";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -151,8 +144,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_8";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -161,8 +153,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_9";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -171,8 +162,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_10";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -181,8 +171,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_11";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
@@ -191,8 +180,7 @@ INSERT INTO t1 VALUES (1);
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_12";
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
-Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+Warning	1004	Can't create file './test/t1.cfg' (errno: 9 "Bad file descriptor")
 UNLOCK TABLES;
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;

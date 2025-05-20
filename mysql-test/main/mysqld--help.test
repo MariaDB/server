@@ -20,14 +20,14 @@ exec $MYSQLD_BOOTSTRAP_CMD --symbolic-links=0 --log-bin=foo --lower-case-table-n
 
 perl;
   # Variables which we don't want to display in the result file since
-  # their paths may vary:
+  # their paths may vary or they may use a default of 4294967295 :
   @skipvars=qw/basedir open-files-limit general-log-file log plugin-dir plugin-maturity
                log-slow-queries pid-file slow-query-log-file log-basename
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
                collation-server character-set-server log-tc-size table-cache
                table-open-cache table-open-cache-instances max-connections
-               server-uid tls-version version.*/;
+               server-uid tls-version version.* analyze-max-length/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition s3

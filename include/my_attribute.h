@@ -83,13 +83,13 @@
 
 /* Define pragmas to disable warnings for stack frame checking */
 
-#if defined(__clang__)
+#ifdef __GNUC__
 #define PRAGMA_DISABLE_CHECK_STACK_FRAME                     \
-_Pragma("clang diagnostic push")                             \
-_Pragma("clang diagnostic ignored \"-Wframe-larger-than=\"")
+_Pragma("GCC diagnostic push")                               \
+_Pragma("GCC diagnostic ignored \"-Wframe-larger-than=\"")
 
 #define PRAGMA_REENABLE_CHECK_STACK_FRAME                    \
-_Pragma("clang diagnostic pop")
+_Pragma("GCC diagnostic pop")
 
 #else
 #define PRAGMA_DISABLE_CHECK_STACK_FRAME

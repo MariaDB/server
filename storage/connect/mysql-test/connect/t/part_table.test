@@ -75,11 +75,14 @@ SELECT * FROM t1 WHERE id = 7;
 SELECT * FROM t1 WHERE id = 35;
 UPDATE t1 SET msg = 'number' WHERE id in (60,72);
 UPDATE t1 SET msg = 'soixante' WHERE id = 60;
+--sorted_result
 SELECT * FROM t1 WHERE id > 50;
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 UPDATE t1 SET msg = 'sept' WHERE id = 7;
+--sorted_result
 SELECT * FROM t1;
 DELETE FROM t1 WHERE id in (60,72);
+--sorted_result
 SELECT * FROM t1;
 DROP TABLE t1;
 

@@ -1686,6 +1686,10 @@ public:
   void lex_start(LEX *plex);
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
+
+  TABLE_LIST *find_table(THD *thd,
+                         const LEX_CSTRING *db_name,
+                         const LEX_CSTRING *table_name);
 };
 typedef class st_select_lex SELECT_LEX;
 

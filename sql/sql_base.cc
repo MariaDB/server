@@ -19,6 +19,7 @@
 
 #include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
+#include "sql_list.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"
@@ -1161,7 +1162,6 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
   t_name= &table->table_name;
   t_alias= &table->alias;
 
-retry:
   DBUG_PRINT("info", ("real table: %s.%s", d_name->str, t_name->str));
   for (TABLE_LIST *tl= table_list; tl ; tl= tl->next_global, res= 0)
   {
@@ -1223,27 +1223,52 @@ retry:
     DBUG_PRINT("info",
                ("found same copy of table or table which we should skip"));
   }
-  if (res && res->belong_to_derived)
-  {
-    /*
-      We come here for queries of type:
-      INSERT INTO t1 (SELECT tmp.a FROM (select * FROM t1) as tmp);
-
-      Try to fix by materializing the derived table
-    */
-    TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived() && !derived->derived->is_excluded())
-    {
-      DBUG_PRINT("info",
-                 ("convert merged to materialization to resolve the conflict"));
-      derived->change_refs_to_fields();
-      derived->set_materialized_derived();
-      goto retry;
-    }
-  }
   DBUG_RETURN(res);
 }
 
+
+TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
+{
+  subselect_table_finder_param param= {thd, table, NULL};
+  List_iterator_fast<Item> it(sel->item_list);
+  Item *item;
+  while ((item= it++))
+  {
+    if (item->walk(&Item::subselect_table_finder_processor, FALSE, &param))
+    {
+      if (param.dup == NULL)
+        return ERROR_TABLE;
+      return param.dup;
+    }
+    DBUG_ASSERT(param.dup == NULL);
+  }
+  return NULL;
+}
+
+
+typedef TABLE_LIST* (*find_table_callback)(THD *thd, TABLE_LIST *table,
+                                           TABLE_LIST *table_list,
+                                           uint check_flag, SELECT_LEX *sel);
+
+static
+TABLE_LIST*
+find_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
+           uint check_flag, SELECT_LEX *sel, find_table_callback callback );
+
+TABLE_LIST* unique_table_callback(THD *thd, TABLE_LIST *table,
+                                  TABLE_LIST *table_list,
+                                  uint check_flag, SELECT_LEX *sel)
+{
+  return find_dup_table(thd, table, table_list, check_flag);
+}
+
+
+TABLE_LIST* unique_in_sel_table_callback(THD *thd, TABLE_LIST *table,
+                                         TABLE_LIST *table_list,
+                                         uint check_flag, SELECT_LEX *sel)
+{
+  return unique_table_in_select_list(thd, table, sel);
+}
 
 /**
   Test that the subject table of INSERT/UPDATE/DELETE/CREATE
@@ -1263,6 +1288,25 @@ retry:
 TABLE_LIST*
 unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
              uint check_flag)
+{
+  return find_table(thd, table, table_list, check_flag, NULL,
+                    &unique_table_callback);
+}
+
+
+TABLE_LIST*
+unique_table_in_insert_returning_subselect(THD *thd, TABLE_LIST *table, SELECT_LEX *sel)
+{
+  return find_table(thd, table, NULL, 0, sel,
+                    &unique_in_sel_table_callback);
+
+}
+
+
+static
+TABLE_LIST*
+find_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
+           uint check_flag, SELECT_LEX *sel, find_table_callback callback )
 {
   TABLE_LIST *dup;
 
@@ -1294,12 +1338,12 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
       if (!tmp_parent)
         break;
 
-      if ((dup= find_dup_table(thd, child, child->next_global, check_flag)))
+      if ((dup= (*callback)(thd, child, child->next_global, check_flag, sel)))
         break;
     }
   }
   else
-    dup= find_dup_table(thd, table, table_list, check_flag);
+    dup= (*callback)(thd, table, table_list, check_flag, sel);
   return dup;
 }
 
@@ -4416,6 +4460,7 @@ restart:
             goto error;
 
           error= FALSE;
+          std::this_thread::yield();
           goto restart;
         }
         goto error;
@@ -4478,6 +4523,7 @@ restart:
               goto error;
 
             error= FALSE;
+            std::this_thread::yield();
             goto restart;
           }
           /*
@@ -8115,7 +8161,7 @@ bool setup_tables_and_check_access(THD *thd, Name_resolution_context *context,
     if (table_list->belong_to_view && !table_list->view && 
         check_single_table_access(thd, access, table_list, FALSE))
     {
-      tables->hide_view_error(thd);
+      tables->replace_view_error_with_generic(thd);
       DBUG_RETURN(TRUE);
     }
     access= want_access;
@@ -8591,14 +8637,15 @@ err_no_arena:
 }
 
 
-static void unwind_stored_field_offsets(const List<Item> &fields, Field *end)
+static void unwind_stored_field_offsets(const List<Item> &fields, Item_field *end)
 {
-  for (Item &item_field: fields)
+  for (Item &item: fields)
   {
-    Field *f= item_field.field_for_view_update()->field;
-    if (f == end)
+    Item_field *item_field= item.field_for_view_update();
+    if (item_field == end)
       break;
 
+    Field *f= item_field->field;
     if (f->stored_in_db())
     {
       TABLE *table= f->table;
@@ -8643,7 +8690,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
-  Item_field *field;
+  Item_field *field= NULL;
   Field *rfield;
   TABLE *table;
   bool only_unvers_fields= update && table_arg->versioned();
@@ -8661,11 +8708,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
 
   while ((fld= f++))
   {
-    if (!(field= fld->field_for_view_update()))
-    {
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name.str);
-      goto err_unwind_fields;
-    }
+    field= fld->field_for_view_update();
+    DBUG_ASSERT(field); // ensured by check_fields or check_view_insertability.
     value=v++;
     DBUG_ASSERT(value);
     rfield= field->field;
@@ -8727,7 +8771,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   DBUG_RETURN(thd->is_error());
 err_unwind_fields:
   if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
-    unwind_stored_field_offsets(fields, rfield);
+    unwind_stored_field_offsets(fields, field);
 err:
   DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;
