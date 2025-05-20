@@ -1903,7 +1903,7 @@ void purge_coordinator_state::refresh(bool full)
     max_age= log_sys.max_checkpoint_age;
   mysql_mutex_unlock(&log_sys.mutex);
 
-  lsn_age_factor= ulint(((log_sys.get_lsn() - last) * 100) / max_age);
+  lsn_age_factor= ((log_sys.get_lsn() - last) * 100) / max_age;
 }
 
 
