@@ -453,5 +453,56 @@ SELECT * FROM t1 WHERE f LIKE '2023%';
 f
 DROP TABLE t1;
 #
+# MDEV-36536 Add option to not collect statistics for long char/varchars
+#
+select  @@session.analyze_max_length;
+@@session.analyze_max_length
+4294967295
+create table t1 (c0 char(2), c1 char(16), c2 char(64), v1 varchar(16), v2 varchar(1000), b1 blob, i1 int)
+character set utf8mb4 COLLATE utf8mb4_bin;
+insert into t1 values ("A", "A","A","A","A","A",1), ("B","B","B","B","B","B",1);
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b1'
+test.t1	analyze	status	OK
+select column_name from mysql.column_stats where table_name = 't1';
+column_name
+c0
+c1
+c2
+i1
+v1
+v2
+set @@session.analyze_max_length= 64;
+truncate table mysql.column_stats;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'c2'
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'v2'
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b1'
+test.t1	analyze	status	Table is already up to date
+select column_name from mysql.column_stats where table_name = 't1';
+column_name
+c0
+c1
+i1
+v1
+truncate table mysql.column_stats;
+ANALYZE TABLE t1 PERSISTENT for COLUMNS (c0,c2,v1,v2,i1) INDEXES ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select column_name from mysql.column_stats where table_name = 't1';
+column_name
+c0
+c2
+i1
+v1
+v2
+set @@session.analyze_max_length= default;
+drop table t1;
+#
 # End of 10.6 tests
 #

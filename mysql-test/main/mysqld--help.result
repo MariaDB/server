@@ -16,6 +16,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
+ --analyze-max-length=# 
+ Fields which length in bytes more than this are skipped
+ by ANALYZE TABLE PERSISTENT unless explicitly listed in
+ the FOR COLUMNS () clause
  --analyze-sample-percentage=# 
  Percentage of rows from the table ANALYZE TABLE will
  sample to collect table statistics. Set to 0 to let
