@@ -14195,13 +14195,14 @@ innobase_get_mysql_key_number_for_index(
 	if (index->table != ib_table) {
 		i = 0;
 		ind = dict_table_get_first_index(index->table);
+		const bool auto_gen_clust = dict_index_is_auto_gen_clust(ind);
 
 		while (index != ind) {
 			ind = dict_table_get_next_index(ind);
 			i++;
 		}
 
-		if (dict_index_is_auto_gen_clust(index)) {
+		if (auto_gen_clust) {
 			ut_a(i > 0);
 			i--;
 		}
