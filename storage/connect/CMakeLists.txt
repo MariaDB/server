@@ -403,7 +403,7 @@ ADD_FEATURE_INFO(CONNECT_XMAP CONNECT_WITH_XMAP "Support for index file mapping 
 
 MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
-  COMPONENT connect-engine
+  COMPONENT connect_engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARIES} ${XML_LIBRARY} ${ICONV_LIBRARY}
     ${ODBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
@@ -437,7 +437,7 @@ IF(MSVC)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   INSTALL(FILES "$<TARGET_FILE_DIR:connect>/ha_connect.lib"
-    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect_engine)
 ENDIF()
 
 
@@ -462,6 +462,6 @@ used to interact with external DBMS via Java connector" PARENT_SCOPE)
     INSTALL(FILES
       ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo2.jar
       ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo3.jar
-      DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine)
+      DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect_engine)
   ENDIF()
 ENDIF()

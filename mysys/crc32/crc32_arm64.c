@@ -4,29 +4,36 @@
 #include <stddef.h>
 
 typedef unsigned (*my_crc32_t)(unsigned, const void *, size_t);
+unsigned crc32_aarch64(unsigned, const void *, size_t);
 
 #ifdef HAVE_ARMV8_CRC
-
-#ifdef _WIN32
-#include <windows.h>
-int crc32_aarch64_available(void)
-{
-  return IsProcessorFeaturePresent(PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE);
-}
-
-const char *crc32c_aarch64_available(void)
-{
-  if (crc32_aarch64_available() == 0)
-    return NULL;
-  /* TODO : pmull seems supported, but does not compile*/
-  return "Using ARMv8 crc32 instructions";
-}
-#endif /* _WIN32 */
 
 #ifdef HAVE_ARMV8_CRYPTO
 static unsigned crc32c_aarch64_pmull(unsigned, const void *, size_t);
 # endif
 
+#ifdef _WIN32
+#include <windows.h>
+#ifdef __clang__
+#include <arm_acle.h>
+#include <arm_neon.h>
+#endif
+int crc32_aarch64_available(void)
+{
+  return IsProcessorFeaturePresent(PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE);
+}
+
+unsigned crc32c_aarch64(unsigned, const void *, size_t);
+
+my_crc32_t crc32c_aarch64_available(void)
+{
+  if (crc32_aarch64_available() == 0)
+    return NULL;
+  /* TODO : pmull seems supported, but does not compile*/
+  return crc32c_aarch64;
+}
+
+#else /* _WIN32 */
 # ifdef __APPLE__
 #  include <sys/sysctl.h>
 
@@ -96,6 +103,7 @@ my_crc32_t crc32c_aarch64_available(void)
   return crc32c_aarch64;
 }
 # endif /* __APPLE__ */
+#endif /* _WIN32 */
 
 const char *crc32c_aarch64_impl(my_crc32_t c)
 {

@@ -849,10 +849,21 @@ String *Item_func_hybrid_field_type::val_str_from_int_op(String *str)
   return str;
 }
 
+static double ternary_patch_ulonglong(longlong result) {
+  return (double) ((ulonglong) result);
+}
+
+static double ternary_patch_longlong(longlong result) {
+  return (double) result;
+}
+
 double Item_func_hybrid_field_type::val_real_from_int_op()
 {
   longlong result= int_op();
-  return unsigned_flag ? (double) ((ulonglong) result) : (double) result;
+  if (unsigned_flag)
+    return ternary_patch_ulonglong(result);
+  else
+    return ternary_patch_longlong(result);
 }
 
 my_decimal *

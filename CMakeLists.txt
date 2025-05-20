@@ -16,6 +16,8 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.12.0)
 
+cmake_policy(SET CMP0177 NEW)
+
 IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   # Setting build type to RelWithDebInfo as none was specified.
   # Must occur before PROJECT
@@ -204,6 +206,10 @@ ENDIF()
 
 INCLUDE(check_compiler_flag)
 INCLUDE(check_linker_flag)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd5030")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd5030")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable")
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 
