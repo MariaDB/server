@@ -198,19 +198,35 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 }
 
 
-/* Substitute vcol expressions with vcol fields in ORDER BY */
+/*
+  Substitute vcol expressions with vcol fields in ORDER BY or GROUP
+  BY.
+*/
 static
 void subst_vcols_in_order(Vcol_subst_context *ctx,
                           ORDER *order,
-                          const char *location)
+                          JOIN *join,
+                          bool is_group_by
+)
 {
   Field *vcol_field;
+  const char *location= is_group_by ? "GROUP BY" : "ORDER BY";
   for (; order; order= order->next)
   {
     Item *item= *order->item;
     ctx->subst_count= 0;
     if ((vcol_field= is_vcol_expr(ctx, item)))
       subst_vcol_if_compatible(ctx, NULL, order->item, vcol_field);
+    if (ctx->subst_count && is_group_by)
+    {
+      /*
+        TODO: consider doing the following instead: if
+        order->in_field_list is true then push and flip to false,
+        otherwise replace
+      */
+      join->all_fields.push_front(*order->item);
+      join->tmp_table_param.field_count++;
+    }
     if (ctx->subst_count && unlikely(ctx->thd->trace_started()))
     {
       Json_writer_object trace_wrapper(ctx->thd);
@@ -243,7 +259,9 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     subst_vcols_in_join_list(&ctx, join->join_list);
   /* TODO: third arg is dummy for now. Also add GROUP BY. */
   if (join->order)
-    subst_vcols_in_order(&ctx, join->order, "ORDER BY");
+    subst_vcols_in_order(&ctx, join->order, join, false);
+  if (join->group_list)
+    subst_vcols_in_order(&ctx, join->group_list, join, true);
 
   if (join->thd->is_error())
     return true; // Out of memory
