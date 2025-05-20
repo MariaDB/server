@@ -6541,8 +6541,11 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
 
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
   void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+  mysql_mutex_lock(&LOCK_commit_ordered);
   bool res= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data, len,
                                                        engine_ptr);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
   mngr->engine_binlog_info.out_of_band_offset+= len;
   cache->pos_in_file+= len;
 

@@ -119,6 +119,7 @@ fsp_binlog_page_fifo::get_entry(uint64_t file_no, uint64_t page_no,
   mysql_mutex_assert_owner(&m_mutex);
   ut_a(file_no == first_file_no || file_no == first_file_no + 1);
   page_list *pl= &fifos[file_no & 1];
+  ut_ad(pl->first_page_no + pl->used_entries == page_no);
   if (UNIV_UNLIKELY(pl->used_entries == pl->allocated_entries))
   {
     size_t new_allocated_entries= 2*pl->allocated_entries;
@@ -133,7 +134,7 @@ fsp_binlog_page_fifo::get_entry(uint64_t file_no, uint64_t page_no,
       size_t wrapped_entries=
         pl->first_entry + pl->used_entries - pl->allocated_entries;
       ut_ad(new_allocated_entries >= pl->allocated_entries + wrapped_entries);
-      memcpy(new_entries + pl->allocated_entries, pl->entries,
+      memcpy(new_entries + pl->allocated_entries, new_entries,
              wrapped_entries * sizeof(*new_entries));
     }
     pl->entries= new_entries;
