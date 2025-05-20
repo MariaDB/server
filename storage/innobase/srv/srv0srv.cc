@@ -536,19 +536,7 @@ private:
   ulint n_use_threads;
   ulint n_threads;
 
-  ulint lsn_lwm;
-  ulint lsn_hwm;
-  ulonglong start_time;
-  ulint lsn_age_factor;
-
-  static constexpr ulint adaptive_purge_threshold= 20;
-  static constexpr ulint safety_net= 20;
-  ulint series[innodb_purge_threads_MAX + 1];
-
-  inline void compute_series();
   inline void lazy_init();
-  void refresh(bool full);
-
 public:
   inline void do_purge();
 };
@@ -1748,14 +1736,7 @@ inline void purge_coordinator_state::do_purge()
   {
 loop:
     wakeup= false;
-    const auto now= my_interval_timer();
     const auto sigcount= m_running;
-
-    if (now - start_time >= 1000000)
-    {
-      refresh(false);
-      start_time= now;
-    }
 
     const auto old_activity_count= srv_sys.activity_count;
     const auto history_size= trx_sys.history_size();
@@ -1773,37 +1754,16 @@ loop:
         n_threads= n_use_threads= srv_n_purge_threads;
         srv_purge_thread_count_changed= 0;
       }
-      refresh(true);
-      start_time= now;
     }
-    else if (history_size > m_history_length)
+    else if (history_size > m_history_length ||
+             (srv_max_purge_lag && m_history_length > srv_max_purge_lag))
     {
       /* dynamically adjust the purge thread based on redo log fill factor */
-      if (n_use_threads < n_threads && lsn_age_factor < lsn_lwm)
-      {
-more_threads:
+      if (n_threads > n_use_threads)
         ++n_use_threads;
-        lsn_hwm= lsn_lwm;
-        lsn_lwm-= series[n_use_threads];
-      }
-      else if (n_use_threads > 1 && lsn_age_factor >= lsn_hwm)
-      {
-fewer_threads:
-        --n_use_threads;
-        lsn_lwm= lsn_hwm;
-        lsn_hwm+= series[n_use_threads];
-      }
-      else if (n_use_threads == 1 && lsn_age_factor >= 100 - safety_net)
-      {
-        wakeup= true;
-        break;
-      }
     }
-    else if (n_threads > n_use_threads &&
-             srv_max_purge_lag && m_history_length > srv_max_purge_lag)
-      goto more_threads;
     else if (n_use_threads > 1 && old_activity_count == srv_sys.activity_count)
-      goto fewer_threads;
+      --n_use_threads;
 
     ut_ad(n_use_threads);
     ut_ad(n_use_threads <= n_threads);
@@ -1842,68 +1802,11 @@ fewer_threads:
   m_running= 0;
 }
 
-inline void purge_coordinator_state::compute_series()
-{
-  ulint points= n_threads;
-  memset(series, 0, sizeof series);
-  constexpr ulint spread= 100 - adaptive_purge_threshold - safety_net;
-
-  /* We distribute spread across n_threads,
-  e.g.: spread of 60 is distributed across n_threads=4 as: 6+12+18+24 */
-
-  const ulint additional_points= (points * (points + 1)) / 2;
-  if (spread % additional_points == 0)
-  {
-    /* Arithmetic progression is possible. */
-    const ulint delta= spread / additional_points;
-    ulint growth= delta;
-    do
-    {
-      series[points--]= growth;
-      growth += delta;
-    }
-    while (points);
-    return;
-  }
-
-  /* Use average distribution to spread across the points */
-  const ulint delta= spread / points;
-  ulint total= 0;
-  do
-  {
-    series[points--]= delta;
-    total+= delta;
-  }
-  while (points);
-
-  for (points= 1; points <= n_threads && total++ < spread; )
-    series[points++]++;
-}
-
 inline void purge_coordinator_state::lazy_init()
 {
   if (n_threads)
     return;
   n_threads= n_use_threads= srv_n_purge_threads;
-  refresh(true);
-  start_time= my_interval_timer();
-}
-
-void purge_coordinator_state::refresh(bool full)
-{
-  if (full)
-  {
-    compute_series();
-    lsn_lwm= adaptive_purge_threshold;
-    lsn_hwm= adaptive_purge_threshold + series[n_threads];
-  }
-
-  mysql_mutex_lock(&log_sys.mutex);
-  const lsn_t last= log_sys.last_checkpoint_lsn,
-    max_age= log_sys.max_checkpoint_age;
-  mysql_mutex_unlock(&log_sys.mutex);
-
-  lsn_age_factor= ((log_sys.get_lsn() - last) * 100) / max_age;
 }
 
 

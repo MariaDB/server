@@ -1035,6 +1035,12 @@ try_again:
 		goto err_exit;
 	}
 
+	/* FIXME: We are acquiring exclusive dict_sys.latch only to
+	avoid increased wait times in
+	trx_purge_get_next_rec() and trx_purge_truncate_history(). */
+	dict_sys.lock(SRW_LOCK_CALL);
+	dict_sys.unlock();
+
 already_locked:
 	ut_ad(!node->table->is_temporary());
 
