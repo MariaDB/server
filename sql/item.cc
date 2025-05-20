@@ -10258,9 +10258,9 @@ err:
 
 bool Item_field::ora_join_processor(void *arg)
 {
-  DBUG_ASSERT(cached_table);
+  DBUG_ASSERT(field->table->pos_in_table_list);
   return Item_ident::ora_join_add_table_ref((ora_join_processor_param *)arg,
-                                            cached_table);
+                                            field->table->pos_in_table_list);
 }
 
 
