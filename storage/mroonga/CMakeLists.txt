@@ -49,6 +49,14 @@ if(MSVC)
       message(FATAL_ERROR ${MRN_OLD_MSVC_MESSAGE})
     endif()
   endif()
+else()
+  STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+         CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+         CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+  STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+         CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+  MY_CHECK_AND_SET_COMPILER_FLAG(-Wframe-larger-than=49152)
 endif()
 
 if(MRN_BUNDLED)

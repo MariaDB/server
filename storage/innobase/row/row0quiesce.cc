@@ -432,9 +432,6 @@ row_quiesce_write_header(
 Write the table meta data after quiesce.
 @return DB_SUCCESS or error code */
 
-/* Stack size 20904 with clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_quiesce_write_cfg(
@@ -452,9 +449,10 @@ row_quiesce_write_cfg(
 
 	FILE*	file = fopen(name, "w+b");
 
-	if (file == NULL) {
-		ib_errf(thd, IB_LOG_LEVEL_WARN, ER_CANT_CREATE_FILE,
-			 name, errno, strerror(errno));
+	if (!file) {
+fail:
+		ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_CANT_CREATE_FILE,
+			    name, errno, strerror(errno));
 
 		err = DB_IO_ERROR;
 	} else {
@@ -468,31 +466,18 @@ row_quiesce_write_cfg(
 			err = row_quiesce_write_indexes(table, file, thd);
 		}
 
-		if (fflush(file) != 0) {
-
-			char	msg[BUFSIZ];
-
-			snprintf(msg, sizeof(msg), "%s flush() failed", name);
-
-			ib_senderrf(
-				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-				(ulong) errno, strerror(errno), msg);
+		if (fflush(file)) {
+			std::ignore = fclose(file);
+			goto fail;
 		}
 
-		if (fclose(file) != 0) {
-			char	msg[BUFSIZ];
-
-			snprintf(msg, sizeof(msg), "%s flose() failed", name);
-
-			ib_senderrf(
-				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-				(ulong) errno, strerror(errno), msg);
+		if (fclose(file)) {
+			goto fail;
 		}
 	}
 
 	return(err);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*********************************************************************//**
 Check whether a table has an FTS index defined on it.

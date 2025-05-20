@@ -2287,6 +2287,8 @@ str_to_offset(const char *str, uint length, long *offset)
     specification or other error.
 
 */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 Time_zone *
 my_tz_find(THD *thd, const String *name)
 {
@@ -2355,6 +2357,7 @@ my_tz_find(THD *thd, const String *name)
 
   DBUG_RETURN(result_tz);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
