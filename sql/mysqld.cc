@@ -5531,9 +5531,11 @@ static int init_server_components()
 
     if (opt_bin_log_nonempty)
     {
-      sql_print_error("Binlog name can not be set with --log-bin when "
-                      "--binlog-storage-engine is used. Use --binlog-directory "
-                      "to specify a separate directory for binlogs");
+      sql_print_error("Binlog name can not be set with --log-bin=NAME when "
+                      "--binlog-storage-engine is used. Use --log-bin "
+                      "(without argument) to enable the binlog, and use "
+                      "--binlog-directory to specify a separate directory "
+                      "for binlogs");
       unireg_abort(1);
     }
 #ifdef HAVE_REPLICATION
