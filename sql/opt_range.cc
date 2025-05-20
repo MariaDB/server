@@ -7132,21 +7132,24 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
       order R by (E(#records_matched) * key_record_length).
 
       S= first(R); -- set of scans that will be used for ROR-intersection
-      R= R-first(S);
+      R= R - S;
       min_cost= cost(S);
       min_scan= make_scan(S);
       while (R is not empty)
       {
-        firstR= R - first(R);
-        if (!selectivity(S + firstR < selectivity(S)))
+        firstR= first(R);
+        if (!selectivity(S + firstR) < selectivity(S))
+        {
+          R= R - firstR;
           continue;
-          
+        }
         S= S + first(R);
         if (cost(S) < min_cost)
         {
           min_cost= cost(S);
           min_scan= make_scan(S);
         }
+        R= R - firstR; --  Remove the processed scan from R
       }
       return min_scan;
     }
