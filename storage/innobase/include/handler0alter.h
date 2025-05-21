@@ -65,7 +65,7 @@ struct ib_sequence_t {
 	@param thd the session
 	@param start_value the lower bound
 	@param max_value the upper bound (inclusive) */
-	ib_sequence_t(THD* thd, ulonglong start_value, ulonglong max_value);
+	ib_sequence_t(THD* thd, const Autoinc_spec &autoinc_spec);
 
 	/** Postfix increment
 	@return the value to insert */
@@ -89,12 +89,9 @@ struct ib_sequence_t {
 
 	/** @return maximum column value
 	@retval	0	if not adding AUTO_INCREMENT column */
-	ulonglong max_value() const { return m_max_value; }
+	ulonglong max_value() const { return m_autoinc_spec.maxvalue; }
 
 private:
-	/** Maximum value if adding an AUTO_INCREMENT column, else 0 */
-	ulonglong	m_max_value;
-
 	/** Values of auto_increment_increment and auto_increment_offset */
 	Autoinc_spec	m_autoinc_spec;
 

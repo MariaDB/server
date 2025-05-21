@@ -1003,6 +1003,18 @@ static void get_type(const Field &f, uint &prtype, uint8_t &mtype,
     prtype|= f.charset()->number << 16;
 }
 
+Autoinc_spec thd_get_session_autoinc_spec(THD *thd);
+
+static
+Autoinc_spec innobase_make_autoinc_spec(THD *thd, ulonglong minvalue, ulonglong maxvalue)
+{
+  auto spec=thd_get_session_autoinc_spec(thd);
+  spec.start= minvalue;
+  spec.minvalue=minvalue;
+  spec.maxvalue=maxvalue;
+  return spec;
+}
+
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
 	/** Dummy query graph */
@@ -1134,7 +1146,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		add_autoinc (add_autoinc_arg),
 		defaults (0),
 		sequence(prebuilt->trx->mysql_thd,
-			 autoinc_col_min_value_arg, autoinc_col_max_value_arg),
+			 innobase_make_autoinc_spec(prebuilt->trx->mysql_thd,
+			                            autoinc_col_min_value_arg,
+			                            autoinc_col_max_value_arg)),
 		tmp_name (0),
 		skip_pk_sort(false),
 		num_to_add_vcol(0),
@@ -11955,15 +11969,13 @@ foreign_fail:
 
 ib_sequence_t::ib_sequence_t(
 	THD*		thd,
-	ulonglong	start_value,
-	ulonglong	max_value)
+	const Autoinc_spec &autoinc_spec)
 	:
-	m_max_value(max_value), // todo move into spec
-	m_autoinc_spec(thd_get_autoinc(thd)),
-	m_next_value(start_value),
+	m_autoinc_spec(autoinc_spec),
+	m_next_value(autoinc_spec.start),
 	m_eof(false)
 {
-	if (thd != 0 && m_max_value > 0) {
+	if (thd != 0 && m_autoinc_spec.maxvalue > 0) {
 
 
 		if (m_autoinc_spec.start > 1 || m_autoinc_spec.step > 1) {
@@ -11972,9 +11984,9 @@ ib_sequence_t::ib_sequence_t(
 			then we need to work out the exact next value. */
 
 			m_next_value = innobase_next_autoinc(
-				start_value, 1, &m_autoinc_spec, m_max_value);
+				m_next_value, 1, &m_autoinc_spec, m_autoinc_spec.maxvalue);
 
-		} else if (start_value == 0) {
+		} else if (m_autoinc_spec.start == 0) {
 			/* The next value can never be 0. */
 			m_next_value = 1;
 		}
@@ -11993,12 +12005,12 @@ ib_sequence_t::operator++(int) UNIV_NOTHROW
 	ulonglong	current = m_next_value;
 
 	ut_ad(!m_eof);
-	ut_ad(m_max_value > 0);
+	ut_ad(m_autoinc_spec.maxvalue > 0);
 
 	m_next_value = innobase_next_autoinc(
-		current, 1, &m_autoinc_spec, m_max_value);
+		current, 1, &m_autoinc_spec, m_autoinc_spec.maxvalue);
 
-	if (m_next_value == m_max_value && current == m_next_value) {
+	if (m_next_value == m_autoinc_spec.maxvalue && current == m_next_value) {
 		m_eof = true;
 	}
 
