@@ -3,54 +3,54 @@ connect con1,localhost,root,,,,;
 set debug_sync= "ha_write_row_start signal write1 wait_for step1 execute 12";
 insert t1(source) select 'first' from seq_1_to_12;
 connect con2,localhost,root,,;
+set debug_sync= "now wait_for write1";
 set debug_sync= "ha_write_row_start signal write2 wait_for step2 execute 12";
 insert t1(source) select 'second' from seq_1_to_12;
 connection default;
-set debug_sync= "now wait_for write1";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
-set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write1";
+set debug_sync= "now signal step2";
 set debug_sync= "now wait_for write2";
 set debug_sync= "now signal step1";
 set debug_sync= "now signal step2";
@@ -77,12 +77,12 @@ x	source
 16	second
 17	second
 18	second
-19	second
-20	second
-21	second
-22	first
-23	first
-24	first
+19	first
+20	first
+21	first
+22	second
+23	second
+24	second
 drop table t1;
 disconnect con1;
 disconnect con2;

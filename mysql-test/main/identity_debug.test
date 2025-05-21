@@ -12,19 +12,24 @@ eval set debug_sync= "ha_write_row_start signal write1 wait_for step1 execute $i
 --eval insert t1(source) select 'first' from seq_1_to_$i
 
 connect con2,localhost,root,,;
+set debug_sync= "now wait_for write1";
 eval set debug_sync= "ha_write_row_start signal write2 wait_for step2 execute $i";
 --send
 --eval insert t1(source) select 'second' from seq_1_to_$i
 
 connection default;
 
- while ($i) {
-    set debug_sync= "now wait_for write1";
-    set debug_sync= "now wait_for write2";
+set debug_sync= "now wait_for write2";
+dec $i;
+while ($i) {
     set debug_sync= "now signal step1";
+    set debug_sync= "now wait_for write1";
     set debug_sync= "now signal step2";
+    set debug_sync= "now wait_for write2";
     dec $i;
 }
+set debug_sync= "now signal step1";
+set debug_sync= "now signal step2";
 
 connection con1;
 reap;
