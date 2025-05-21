@@ -843,11 +843,21 @@ String *Item_func_hybrid_field_type::val_str_from_int_op(String *str)
   return str;
 }
 
+#ifdef _M_ARM64
+/* MSVC on ARM incorrectly optimizes the code in val_real_from_int_op() */
+#pragma optimize("", off)
+#endif
+
 double Item_func_hybrid_field_type::val_real_from_int_op()
 {
   longlong result= int_op();
   return unsigned_flag ? (double) ((ulonglong) result) : (double) result;
 }
+
+#ifdef _M_ARM64
+#pragma optimize("", on)
+#endif
+
 
 my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_int_op(my_decimal *dec)
