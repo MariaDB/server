@@ -5592,6 +5592,15 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   If/when this max_allowed_packet restriction is ever lifted, the size of any
   given Partial_rows_log_event should then be 4GB.
 
+  @note When maraidb-binlog replays Partial_rows_log_events, it will re-write
+  the Table_map_log_event at the start of the BINLOG base64 statement for the
+  last fragment in the group. This is necessary because the server logic
+  treats BINLOG statements as standalone, and automatically cleans up and
+  closes tables after each one. The last Partial_rows_log_event is what
+  re-creates and executes the original Rows_log_event, so the
+  Table_map_log_event is needed to run beforehand to set up the context to
+  execute the Rows_log_event.
+
   @section Partial_rows_log_event_binary_format Binary format
 
   See @ref Log_event_binary_format "Binary format for log events" for

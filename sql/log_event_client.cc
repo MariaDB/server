@@ -3622,14 +3622,8 @@ bool Partial_rows_log_event::print(FILE *file,
     DBUG_ASSERT(print_event_info->table_map_event);
     /*
       For the last fragment, re-write the Table_map_log_event into the start of
-      the BINLOG base64 statement. This is necessary, as the server logic
-      treats BINLOG statements as standalone, and automatically cleans up
-      and closes tables after each one. The last Partial_rows_log_event is
-      what re-creates and executes the original Rows_log_event, so the
-      Table_map_log_event is needed to run beforehand to set up the context
-      to execute the Rows_log_event.
-
-      TODO: Probably re-document the above in the .h
+      the BINLOG base64 statement. See the comment in the header file for
+      Partial_rows_log_event for more details why.
     */
     if (seq_no == total_fragments)
       if (print_event_info->table_map_event->print_body(print_event_info))
