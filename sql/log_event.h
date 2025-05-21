@@ -595,12 +595,7 @@ class String;
 /* MariaDB >= 10.0.1, which knows about global transaction id events. */
 #define MARIA_SLAVE_CAPABILITY_GTID 4
 
-/* MariaDB >= 12.1.0, which know about container log events. */
-#define MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA 5
-
 /* Our capability. */
-// TODO
-//#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_PARTIAL_ROW_DATA
 #define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
 
 
@@ -1077,6 +1072,12 @@ private:
   binlog_cache_data *cache_data;
   /**
     Placeholder for event checksum while writing to binlog.
+
+    The crc is reset after writing a binary log event's footer (which is where
+    the crc is written). It isn't reset when starting a new event (i.e. when
+    writing the header) because Partial_rows_log_events will write the header
+    for both its own Partial_rows_log_event, as well as the header for the
+    Rows_log_event which is being fragmented.
    */
   ha_checksum crc;
   /**
@@ -5590,6 +5591,72 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
   current binlog format only supports row events of maximum size 4GB anyway.
   If/when this max_allowed_packet restriction is ever lifted, the size of any
   given Partial_rows_log_event should then be 4GB.
+
+  @section Partial_rows_log_event_binary_format Binary format
+
+  See @ref Log_event_binary_format "Binary format for log events" for
+  a general discussion and introduction to the binary format of binlog
+  events.
+
+  The Post-Header has five components:
+
+  <table>
+  <caption>Post-Header for Partial_rows_log_event</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>Sequence Number</td>
+    <td>4 byte unsigned integer</td>
+    <td>
+      Where the content of a group of Partial_rows_log_events is put
+      together in-order to recreate an original Rows_log_event, the sequence
+      number specifies the position of a single Partial_rows_log_event in
+      relation to the other events in the group.
+    </td>
+  </tr>
+
+  <tr>
+    <td>Total Fragments</td>
+    <td>4 byte unsigned integer</td>
+    <td>
+      The total number of Partial_rows_log_events that exist to recreate the
+      original Rows_log_event
+    </td>
+  </tr>
+
+  <tr>
+    <td>Flags</td>
+    <td>1 byte for flags</td>
+    <td>
+      Currently unused, but put in for future extensibility
+    </td>
+  </tr>
+  </table>
+
+  The Body has the following components:
+
+  <table>
+  <caption>Body for Partial_rows_log_event</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>content</td>
+    <td>String</td>
+    <td>
+      A fragment of the original Rows_log_event content.
+    </td>
+  </tr>
+  </table>
 */
 class Partial_rows_log_event : public Log_event
 {
@@ -5688,57 +5755,11 @@ public:
   ~Partial_rows_log_event() {}
 
   /*
-    TODO: Move to .cc
-
     For the event to be valid, it must hold true to some general principles for
     both fragmentation and assembly; though be set up specifically for the
     fragmentation or assembly use case (and not both).
   */
-  bool is_valid() const override {
-    /*
-      There should be at least 2 fragments for the group, and the sequence
-      number of this instance should fall between 1 and the total number of
-      fragments. Flags2 is also unused right now, so ensure it is always 0.
-    */
-    bool general_validity= seq_no >= 1 && total_fragments >= 2 &&
-                           seq_no <= total_fragments && !flags2;
-
-    bool is_first= seq_no == 1;
-
-    /*
-      To be valid from a fragmentation context, the following should hold true:
-        1) There should be a _valid_ Rows_log_event that is referenced
-        2) Start_offset and end_offset should be representative of the
-           fragment. If it is the first fragment, then start_offset should be
-           0. The end_offset should be after the start_offset.
-        3) If it is the first event, we should have metadata to write;
-           otherwise we should not.
-        4) ev_buffer_base should not be used
-    */
-    bool is_valid_for_fragmentation=
-        (rows_event && rows_event->is_valid()) &&
-        (((start_offset || is_first) && end_offset) &&
-         (end_offset > start_offset)) &&
-        ((is_first && metadata_written) || !metadata_written) &&
-        !ev_buffer_base;
-
-    /*
-      To be valid from an assembly context, the following should hold true:
-        1) ev_buffer_base should be set (referencing the read-in buffer)
-        2) start_offset should point beyond the Partial_rows_log_event header,
-           as it points to the start of the Rows_log_event content
-        3) end_offset should be non-zero (there should always be some content)
-        4) Neither rows_event nor metadata_written should be set
-    */
-    bool is_valid_for_assembly=
-        ev_buffer_base && start_offset > PARTIAL_ROWS_HEADER_LEN &&
-        end_offset && (!rows_event && !metadata_written);
-
-    bool is_valid= general_validity &&
-                   (is_valid_for_fragmentation ^ is_valid_for_assembly);
-
-    return is_valid;
-  }
+  bool is_valid() const override;
 
   Log_event_type get_type_code() override {
     return PARTIAL_ROW_DATA_EVENT;
@@ -5760,10 +5781,7 @@ public:
   bool write_data_body(Log_event_writer *writer) override;
   int do_apply_event(rpl_group_info *rgi) override;
 #ifdef HAVE_REPLICATION
-  /*
-    TODO Implement & test
-  */
-  //void pack_info(Protocol* protocol) override;
+  void pack_info(Protocol* protocol) override;
 #endif /* HAVE_REPLICATION */
 #else
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
@@ -5853,53 +5871,14 @@ public:
 
     /*
       Write all Partial_rows_log_event fragments
-
-      TODO Put in .cc
     */
-    bool write(Log_event_writer *writer) override {
-      for (uint32_t i= 0; i < n_fragments; i++)
-      {
-#ifndef DBUG_OFF
-        bool skip_writing_pev=
-            (DBUG_IF("partial_rows_skip_binlogging_first_fragment") &&
-             i == 0) ||
-            (DBUG_IF("partial_rows_skip_binlogging_middle_fragment") &&
-             i == 1) ||
-            (DBUG_IF("partial_rows_skip_binlogging_last_fragment") &&
-             i == n_fragments - 1);
-#endif
-
-        bool res=
-#ifndef DBUG_OFF
-            !skip_writing_pev &&
-#endif
-            writer->write(&fragments[i]);
-
-        if (res)
-          return res;
-      }
-      return 0;
-    }
+    bool write(Log_event_writer *writer) override;
 
     /*
       Valid if all fragments are correctly ordered, and each fragment itself
       is valid
     */
-    bool is_valid() const override
-    {
-      uint32_t last_fragment_seen= 0;
-      for (uint32_t i= 0; i < n_fragments; i++)
-      {
-        Partial_rows_log_event *frag= &fragments[i];
-        bool is_valid= (frag->total_fragments == n_fragments) &&
-                       (frag->seq_no == last_fragment_seen + 1) &&
-                       frag->is_valid();
-        if (!is_valid)
-          return false;
-        last_fragment_seen= frag->seq_no;
-      }
-      return true;
-    }
+    bool is_valid() const override;
 
     /* Not applicable */
     Log_event_type get_type_code() override {
@@ -5949,9 +5928,7 @@ public:
   Partial_rows_log_event *fragments;
 
 public:
-  /*
-    TODO: Move to .cc
-  */
+
   Rows_log_event_fragmenter(uint32_t fragment_size, Rows_log_event *rows_event)
       : fragment_size(fragment_size), rows_event(rows_event)
   {
@@ -5964,7 +5941,6 @@ public:
   ~Rows_log_event_fragmenter() {}
 
   /*
-    TODO: Move to .cc
     Fragments our Rows_log_event (provided in the constructor) into num_chunks
     Partial_rows_log_events, housed by a Fragmented_rows_log_event.
   */

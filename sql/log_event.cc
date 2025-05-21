@@ -697,6 +697,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case WRITE_ROWS_COMPRESSED_EVENT_V1: return "Write_rows_compressed_v1";
   case UPDATE_ROWS_COMPRESSED_EVENT_V1: return "Update_rows_compressed_v1";
   case DELETE_ROWS_COMPRESSED_EVENT_V1: return "Delete_rows_compressed_v1";
+  case PARTIAL_ROW_DATA_EVENT: return "Partial_rows";
 
   default: return "Unknown";				/* impossible */
   }
@@ -4026,6 +4027,52 @@ Partial_rows_log_event::Partial_rows_log_event(
   DBUG_VOID_RETURN;
 }
 #endif
+
+bool Partial_rows_log_event::is_valid() const {
+  /*
+    There should be at least 2 fragments for the group, and the sequence
+    number of this instance should fall between 1 and the total number of
+    fragments. Flags2 is also unused right now, so ensure it is always 0.
+  */
+  bool general_validity= seq_no >= 1 && total_fragments >= 2 &&
+                         seq_no <= total_fragments && !flags2;
+
+  bool is_first= seq_no == 1;
+
+  /*
+    To be valid from a fragmentation context, the following should hold true:
+      1) There should be a _valid_ Rows_log_event that is referenced
+      2) Start_offset and end_offset should be representative of the
+         fragment. If it is the first fragment, then start_offset should be
+         0. The end_offset should be after the start_offset.
+      3) If it is the first event, we should have metadata to write;
+         otherwise we should not.
+      4) ev_buffer_base should not be used
+  */
+  bool is_valid_for_fragmentation=
+      (rows_event && rows_event->is_valid()) &&
+      (((start_offset || is_first) && end_offset) &&
+       (end_offset > start_offset)) &&
+      ((is_first && metadata_written) || !metadata_written) &&
+      !ev_buffer_base;
+
+  /*
+    To be valid from an assembly context, the following should hold true:
+      1) ev_buffer_base should be set (referencing the read-in buffer)
+      2) start_offset should point beyond the Partial_rows_log_event header,
+         as it points to the start of the Rows_log_event content
+      3) end_offset should be non-zero (there should always be some content)
+      4) Neither rows_event nor metadata_written should be set
+  */
+  bool is_valid_for_assembly=
+      ev_buffer_base && start_offset > PARTIAL_ROWS_HEADER_LEN &&
+      end_offset && (!rows_event && !metadata_written);
+
+  bool is_valid= general_validity &&
+                 (is_valid_for_fragmentation ^ is_valid_for_assembly);
+
+  return is_valid;
+}
 
 
 Incident_log_event::~Incident_log_event()

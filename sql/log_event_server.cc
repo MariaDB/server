@@ -837,9 +837,6 @@ int Log_event_writer::write_footer()
   }
   }
 
-  /*
-    TODO write a comment about the lifecycle of crc
-  */
   crc= 0;
   DBUG_RETURN(0);
 }
@@ -5589,9 +5586,6 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 	Partial_rows_log_event member functions
 **************************************************************************/
 
-/*
-  TODO Relocate this to make more sense
-*/
 int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int res= 0;
@@ -5685,14 +5679,62 @@ bool Partial_rows_log_event::write_data_body(Log_event_writer *writer)
 
 bool Partial_rows_log_event::write_data_header(Log_event_writer *writer)
 {
-  /*
-    TODO: Need to write rows_event->write_data_header() in after metadata
-  */
   uchar buf[PARTIAL_ROWS_HEADER_LEN];        // No need to init the buffer
   int4store(buf + PRW_TOTAL_SEQS_OFFSET, this->total_fragments);
   int4store(buf + PRW_SELF_SEQ_OFFSET, this->seq_no);
   buf[PRW_FLAGS_OFFSET]= this->flags2;
   return write_data(writer, buf, PARTIAL_ROWS_HEADER_LEN);
+}
+
+#if defined(HAVE_REPLICATION)
+void Partial_rows_log_event::pack_info(Protocol *protocol)
+{
+  char buf[256];
+  size_t bytes= my_snprintf(buf, sizeof(buf),
+                               "Fragment %u of %u", seq_no, total_fragments);
+  protocol->store(buf, bytes, &my_charset_bin);
+}
+#endif
+
+bool Rows_log_event_fragmenter::Fragmented_rows_log_event::write(
+    Log_event_writer *writer)
+{
+  for (uint32_t i= 0; i < n_fragments; i++)
+  {
+#ifndef DBUG_OFF
+    bool skip_writing_pev=
+        (DBUG_IF("partial_rows_skip_binlogging_first_fragment") && i == 0) ||
+        (DBUG_IF("partial_rows_skip_binlogging_middle_fragment") && i == 1) ||
+        (DBUG_IF("partial_rows_skip_binlogging_last_fragment") &&
+         i == n_fragments - 1);
+#endif
+
+    bool res=
+#ifndef DBUG_OFF
+        !skip_writing_pev &&
+#endif
+        writer->write(&fragments[i]);
+
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+bool Rows_log_event_fragmenter::Fragmented_rows_log_event::is_valid() const
+{
+  uint32_t last_fragment_seen= 0;
+  for (uint32_t i= 0; i < n_fragments; i++)
+  {
+    Partial_rows_log_event *frag= &fragments[i];
+    bool is_valid= (frag->total_fragments == n_fragments) &&
+                   (frag->seq_no == last_fragment_seen + 1) &&
+                   frag->is_valid();
+    if (!is_valid)
+      return false;
+    last_fragment_seen= frag->seq_no;
+  }
+  return true;
 }
 
 Rows_log_event_fragmenter::Fragmented_rows_log_event *
