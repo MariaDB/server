@@ -268,41 +268,41 @@ private:
 
   // Rules consisting of a single token
 
-  class TokenAT: public TOKEN<Parser, TokenID::tAT>
+  class TokenAT: public TokenParser<Parser, TokenID::tAT>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
-  class TokenEOF: public TOKEN<Parser, TokenID::tEOF>
+  class TokenEOF: public TokenParser<Parser, TokenID::tEOF>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
-  class Keyword_QB_NAME: public TOKEN<Parser, TokenID::keyword_QB_NAME>
+  class Keyword_QB_NAME: public TokenParser<Parser, TokenID::keyword_QB_NAME>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
   class Keyword_MAX_EXECUTION_TIME:
-      public TOKEN<Parser, TokenID::keyword_MAX_EXECUTION_TIME>
+      public TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
-  class Keyword_SUBQUERY: public TOKEN<Parser, TokenID::keyword_SUBQUERY>
+  class Keyword_SUBQUERY: public TokenParser<Parser, TokenID::keyword_SUBQUERY>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
-  class Identifier: public TOKEN<Parser, TokenID::tIDENT>
+  class Identifier: public TokenParser<Parser, TokenID::tIDENT>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
     Lex_ident_cli_st to_ident_cli() const
     {
       Lex_ident_cli_st cli;
@@ -317,10 +317,10 @@ private:
     }
   };
 
-  class Unsigned_Number: public TOKEN<Parser, TokenID::tUNSIGNED_NUMBER>
+  class Unsigned_Number: public TokenParser<Parser, TokenID::tUNSIGNED_NUMBER>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
 
     /*
       Converts token string to a non-negative number ( >=0 ).
@@ -339,16 +339,16 @@ private:
     }
   };
 
-  class LParen: public TOKEN<Parser, TokenID::tLPAREN>
+  class LParen: public TokenParser<Parser, TokenID::tLPAREN>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
-  class RParen: public TOKEN<Parser, TokenID::tRPAREN>
+  class RParen: public TokenParser<Parser, TokenID::tRPAREN>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
   };
 
 

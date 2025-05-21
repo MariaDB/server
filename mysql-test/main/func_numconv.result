@@ -1,0 +1,1525 @@
+#
+# MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+#
+#
+# to_number() with one argument
+#
+SELECT to_number(ROW(1,1));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT to_number(point(1,1));
+ERROR HY000: Illegal parameter data type point for operation 'to_number'
+# With one arg, to_number() works similarly CAST(expr AS DOUBLE)
+CREATE TABLE t1 AS SELECT
+to_number('123') AS c1,
+to_number(123) AS c2,
+to_number(123e0) AS c3,
+to_number(123.0) AS c4;
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+c1	double	YES		NULL	
+c2	double	YES		NULL	
+c3	double	YES		NULL	
+c4	double	YES		NULL	
+SELECT * FROM t1;
+c1	c2	c3	c4
+123	123	123	123
+DROP TABLE t1;
+SELECT to_number('') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='' value: '' for function to_number
+SELECT to_number('1E+400') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='' value: '1E+400' for function to_number
+SELECT to_number('123x') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='' value: '123x' for function to_number
+#
+# With two args only string+string are allowed
+#
+SELECT to_number(point(1,1), '');
+ERROR HY000: Illegal parameter data types point and varchar for operation 'to_number'
+SELECT to_number('',point(1,1));
+ERROR HY000: Illegal parameter data types varchar and point for operation 'to_number'
+SELECT to_number(1,'');
+ERROR HY000: Illegal parameter data types int and varchar for operation 'to_number'
+SELECT to_number('',1);
+ERROR HY000: Illegal parameter data types varchar and int for operation 'to_number'
+SELECT to_number(1e0,'');
+ERROR HY000: Illegal parameter data types double and varchar for operation 'to_number'
+SELECT to_number('',1e0);
+ERROR HY000: Illegal parameter data types varchar and double for operation 'to_number'
+#
+# Multiple dollar or B signs are not allowed
+#
+SELECT to_number('0', '99$99$');
+ERROR HY000: Incorrect <number format> value: '' for function to_number
+SELECT to_number('0', '$9999$');
+ERROR HY000: Incorrect <number format> value: '$9999 + $' for function to_number
+SELECT to_number('0', '$9.99$');
+ERROR HY000: Incorrect <number format> value: '$9.99 + $' for function to_number
+SELECT to_number('0', '9$9.9$99EEEE');
+ERROR HY000: Incorrect <number format> value: '9$9.9 + $99EEEE' for function to_number
+SELECT to_number('0', '99B99B');
+ERROR HY000: Incorrect <number format> value: '' for function to_number
+SELECT to_number('0', 'B99B99B');
+ERROR HY000: Incorrect <number format> value: '' for function to_number
+SELECT to_number('0', 'B999B');
+ERROR HY000: Incorrect <number format> value: 'B999 + B' for function to_number
+SELECT to_number('0', 'B9.99B');
+ERROR HY000: Incorrect <number format> value: 'B9.99 + B' for function to_number
+SELECT to_number('0', '9B9.9B99EEEE');
+ERROR HY000: Incorrect <number format> value: '9B9.9 + B99EEEE' for function to_number
+SELECT to_number('0', '.9$9BB$0B');
+ERROR HY000: Incorrect <number format> value: '$0B' for function to_number
+SELECT to_number('0', '.0$0BB$9B');
+ERROR HY000: Incorrect <number format> value: '$9B' for function to_number
+# Comma and G cannot co-exist
+SELECT to_number('1', '9G9,9G9');
+ERROR HY000: Incorrect <number format> value: '9G9' for function to_number
+SELECT to_number('1', '9,9G9,9');
+ERROR HY000: Incorrect <number format> value: '9,9' for function to_number
+SELECT to_number('1', '0G0,0G0');
+ERROR HY000: Incorrect <number format> value: '0G0' for function to_number
+SELECT to_number('1', '0,0G0,0');
+ERROR HY000: Incorrect <number format> value: '0,0' for function to_number
+#
+# Dollar and C,L,U cannot co-exist
+#
+SELECT to_number('1', '$C');
+ERROR HY000: Incorrect <number format> value: '$ + C' for function to_number
+SELECT to_number('1', '$L');
+ERROR HY000: Incorrect <number format> value: '$ + L' for function to_number
+SELECT to_number('1', '$U');
+ERROR HY000: Incorrect <number format> value: '$ + U' for function to_number
+SELECT to_number('1', '$C99');
+ERROR HY000: Incorrect <number format> value: '$ + C99' for function to_number
+SELECT to_number('1', '$L99');
+ERROR HY000: Incorrect <number format> value: '$ + L99' for function to_number
+SELECT to_number('1', '$U99');
+ERROR HY000: Incorrect <number format> value: '$ + U99' for function to_number
+SELECT to_number('1', '0$C');
+ERROR HY000: Incorrect <number format> value: '0$ + C' for function to_number
+SELECT to_number('1', '0$L');
+ERROR HY000: Incorrect <number format> value: '0$ + L' for function to_number
+SELECT to_number('1', '0$U');
+ERROR HY000: Incorrect <number format> value: '0$ + U' for function to_number
+SELECT to_number('1', '9$C');
+ERROR HY000: Incorrect <number format> value: '9$ + C' for function to_number
+SELECT to_number('1', '9$L');
+ERROR HY000: Incorrect <number format> value: '9$ + L' for function to_number
+SELECT to_number('1', '9$U');
+ERROR HY000: Incorrect <number format> value: '9$ + U' for function to_number
+SELECT to_number('1', 'C0$');
+ERROR HY000: Incorrect <number format> value: 'C0 + $' for function to_number
+SELECT to_number('1', 'L0$');
+ERROR HY000: Incorrect <number format> value: 'L0 + $' for function to_number
+SELECT to_number('1', 'U0$');
+ERROR HY000: Incorrect <number format> value: 'U0 + $' for function to_number
+SELECT to_number('1', '.$C');
+ERROR HY000: Incorrect <number format> value: '.$ + C' for function to_number
+SELECT to_number('1', '.$L');
+ERROR HY000: Incorrect <number format> value: '.$ + L' for function to_number
+SELECT to_number('1', '.$U');
+ERROR HY000: Incorrect <number format> value: '.$ + U' for function to_number
+SELECT to_number('1', 'D$C');
+ERROR HY000: Incorrect <number format> value: 'D$ + C' for function to_number
+SELECT to_number('1', 'D$L');
+ERROR HY000: Incorrect <number format> value: 'D$ + L' for function to_number
+SELECT to_number('1', 'D$U');
+ERROR HY000: Incorrect <number format> value: 'D$ + U' for function to_number
+SELECT to_number('1', 'V$C');
+ERROR HY000: Incorrect <number format> value: 'V$ + C' for function to_number
+SELECT to_number('1', 'V$L');
+ERROR HY000: Incorrect <number format> value: 'V$ + L' for function to_number
+SELECT to_number('1', 'V$U');
+ERROR HY000: Incorrect <number format> value: 'V$ + U' for function to_number
+SELECT to_number('1', '$.C');
+ERROR HY000: Incorrect <number format> value: '$. + C' for function to_number
+SELECT to_number('1', '$.L');
+ERROR HY000: Incorrect <number format> value: '$. + L' for function to_number
+SELECT to_number('1', '$.U');
+ERROR HY000: Incorrect <number format> value: '$. + U' for function to_number
+SELECT to_number('1', '$DC');
+ERROR HY000: Incorrect <number format> value: '$D + C' for function to_number
+SELECT to_number('1', '$DL');
+ERROR HY000: Incorrect <number format> value: '$D + L' for function to_number
+SELECT to_number('1', '$DU');
+ERROR HY000: Incorrect <number format> value: '$D + U' for function to_number
+#
+# Test that non-constant wrong formats raise a warning (not an error)
+#
+CREATE TABLE t1 (fmt VARCHAR(32));
+INSERT INTO t1 VALUES ('$999$'),('C999');
+SELECT to_number('9999', fmt) FROM t1;
+to_number('9999', fmt)
+NULL
+NULL
+Warnings:
+Warning	1411	Incorrect <number format> value: '$999 + $' for function to_number
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='C999''
+DROP TABLE t1;
+#
+# An empty format is allowed and returns NULL
+#
+SELECT to_number('', '');
+to_number('', '')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='' value: '' for function to_number
+SELECT to_number('1', '');
+to_number('1', '')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='' value: '1' for function to_number
+#
+# B/dollar can go alone, in combination, with FM, and return NULL
+#
+SELECT to_number('1', 'B');
+to_number('1', 'B')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B' value: '1' for function to_number
+SELECT to_number('1', '$');
+to_number('1', '$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$' value: '1' for function to_number
+SELECT to_number('1', 'B$');
+to_number('1', 'B$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B$' value: '1' for function to_number
+SELECT to_number('1', '$B');
+to_number('1', '$B')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$B' value: '1' for function to_number
+SELECT to_number('$', '$');
+to_number('$', '$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$' value: '$' for function to_number
+SELECT to_number('$', 'B$');
+to_number('$', 'B$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B$' value: '$' for function to_number
+SELECT to_number('$', '$B');
+to_number('$', '$B')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$B' value: '$' for function to_number
+SELECT to_number('1', 'FMB');
+to_number('1', 'FMB')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMB' value: '1' for function to_number
+SELECT to_number('1', 'FM$');
+to_number('1', 'FM$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FM$' value: '1' for function to_number
+SELECT to_number('1', 'FMB$');
+to_number('1', 'FMB$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMB$' value: '1' for function to_number
+SELECT to_number('1', 'FM$B');
+to_number('1', 'FM$B')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FM$B' value: '1' for function to_number
+SELECT to_number('$', 'FM$');
+to_number('$', 'FM$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FM$' value: '$' for function to_number
+SELECT to_number('$', 'FMB$');
+to_number('$', 'FMB$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMB$' value: '$' for function to_number
+SELECT to_number('$', 'FM$B');
+to_number('$', 'FM$B')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FM$B' value: '$' for function to_number
+#
+# . can go alone
+#
+SELECT to_number('.', '.');
+to_number('.', '.')
+0
+SELECT to_number('1', '.');
+to_number('1', '.')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='.' value: '1' for function to_number
+#
+# 'S', 'MI', 'PR' alone are allowed (optionally with FM), NULL returned
+#
+SELECT to_number('-', 'S');
+to_number('-', 'S')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S' value: '-' for function to_number
+SELECT to_number('-', 'MI');
+to_number('-', 'MI')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='MI' value: '-' for function to_number
+SELECT to_number('<>', 'PR');
+to_number('<>', 'PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='PR' value: '<>' for function to_number
+SELECT to_number('-', 'FMS');
+to_number('-', 'FMS')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMS' value: '-' for function to_number
+SELECT to_number('-', 'SFM');
+to_number('-', 'SFM')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='SFM' value: '-' for function to_number
+SELECT to_number('-', 'FMMI');
+to_number('-', 'FMMI')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMMI' value: '-' for function to_number
+SELECT to_number('<>', 'FMPR');
+to_number('<>', 'FMPR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMPR' value: '<>' for function to_number
+SELECT to_number('1', 'S');
+to_number('1', 'S')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S' value: '1' for function to_number
+SELECT to_number('1', 'MI');
+to_number('1', 'MI')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='MI' value: '1' for function to_number
+SELECT to_number('1', 'PR');
+to_number('1', 'PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='PR' value: '1' for function to_number
+SELECT to_number('1', 'FMMI');
+to_number('1', 'FMMI')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMMI' value: '1' for function to_number
+SELECT to_number('1', 'FMPR');
+to_number('1', 'FMPR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMPR' value: '1' for function to_number
+#
+# Integer
+#
+SELECT to_number('1', 'x999');
+ERROR HY000: Incorrect <number format> value: '999' for function to_number
+SELECT to_number('1', '999x');
+ERROR HY000: Incorrect <number format> value: 'x' for function to_number
+# Correct formats
+SELECT to_number('1', '999');
+to_number('1', '999')
+1
+SELECT to_number('$12', '$99');
+to_number('$12', '$99')
+12
+SELECT to_number('$12', '9$9');
+to_number('$12', '9$9')
+12
+SELECT to_number('$12', '99$');
+to_number('$12', '99$')
+12
+SELECT to_number('1', 'B99');
+to_number('1', 'B99')
+1
+SELECT to_number('1', '9B9');
+to_number('1', '9B9')
+1
+SELECT to_number('1', '99B');
+to_number('1', '99B')
+1
+SELECT to_number('$1', 'B$9');
+to_number('$1', 'B$9')
+1
+SELECT to_number('$1', '9B$');
+to_number('$1', '9B$')
+1
+SELECT to_number('$1', '$B9');
+to_number('$1', '$B9')
+1
+SELECT to_number('$1', '9$B');
+to_number('$1', '9$B')
+1
+SELECT to_number('1', '9,9,9,9');
+to_number('1', '9,9,9,9')
+1
+SELECT to_number('1', '9G9G9G9');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='9G9G9G9''
+SELECT to_number('1', '0000');
+to_number('1', '0000')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='0000' value: '1' for function to_number
+SELECT to_number('1', '0,0,0,0');
+to_number('1', '0,0,0,0')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='0,0,0,0' value: '1' for function to_number
+SELECT to_number('1', '9999');
+to_number('1', '9999')
+1
+SELECT to_number('1', '9,9,9,9');
+to_number('1', '9,9,9,9')
+1
+SELECT to_number('1', '0G0G0G0');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='0G0G0G0''
+SELECT to_number('1', '00009999');
+to_number('1', '00009999')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='00009999' value: '1' for function to_number
+SELECT to_number('1', '99999999');
+to_number('1', '99999999')
+1
+SELECT to_number('1', '0,0,0,0,9,9,9,9');
+to_number('1', '0,0,0,0,9,9,9,9')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='0,0,0,0,9,9,9,9 value: '1' for function to_number
+SELECT to_number('1', '9,9,9,9,9,9,9,9');
+to_number('1', '9,9,9,9,9,9,9,9')
+1
+SELECT to_number('1', '0G0G0G0G9G9G9G9');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='0G0G0G0G9G9G9G9''
+SELECT to_number('1', '99990000');
+to_number('1', '99990000')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99990000' value: '1' for function to_number
+SELECT to_number('1', '99999999');
+to_number('1', '99999999')
+1
+SELECT to_number('1', '9,9,9,9,0,0,0,0');
+to_number('1', '9,9,9,9,0,0,0,0')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9,9,9,9,0,0,0,0 value: '1' for function to_number
+SELECT to_number('1', '9,9,9,9,9,9,9,9');
+to_number('1', '9,9,9,9,9,9,9,9')
+1
+SELECT to_number('1', '9G9G9G9G0G0G0G0');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='9G9G9G9G0G0G0G0''
+SELECT to_number('123456.123456', '999999.999999') AS c1;
+c1
+123456.123456
+SELECT to_number('123,456.123456', '999,999.999999') AS c1;
+c1
+123456.123456
+SELECT to_number('1,2,3,4,5,6.123456', '9,9,9,9,9,9.999999') AS c1;
+c1
+123456.123456
+#
+# Integer: 0 vs 9
+#
+CREATE TABLE t1 (fmt VARCHAR(32));
+INSERT INTO t1 VALUES
+('0'),('9'),
+('00'),('09'),('90'),('99'),
+('000'),('009'),('090'),('099'), ('900'),('909'),('990'),('999');
+CREATE TABLE t2 (sbj VARCHAR(32));
+INSERT INTO t2 VALUES ('0'),('00'),('000'),('0000');
+# Expect NULL if
+# - the subject is shorter than the format, or
+# - if there's a format 0 outside of the subject length
+SELECT
+fmt, sbj, to_number(sbj,fmt),
+IF(length(fmt)<length(sbj) OR
+(fmt LIKE '0_' AND sbj LIKE '_') OR
+(fmt LIKE '0__' AND sbj LIKE '__') OR
+(fmt LIKE '0__' AND sbj LIKE '_') OR
+(fmt LIKE '_0_' AND sbj LIKE '_'),
+'Expect NULL','') AS comment
+FROM t1, t2
+WHERE length(fmt)>=length(sbj)
+ORDER BY length(fmt),fmt,sbj;
+fmt	sbj	to_number(sbj,fmt)	comment
+0	0	0	
+9	0	0	
+00	0	NULL	Expect NULL
+00	00	0	
+09	0	NULL	Expect NULL
+09	00	0	
+90	0	0	
+90	00	0	
+99	0	0	
+99	00	0	
+000	0	NULL	Expect NULL
+000	00	NULL	Expect NULL
+000	000	0	
+009	0	NULL	Expect NULL
+009	00	NULL	Expect NULL
+009	000	0	
+090	0	NULL	Expect NULL
+090	00	NULL	Expect NULL
+090	000	0	
+099	0	NULL	Expect NULL
+099	00	NULL	Expect NULL
+099	000	0	
+900	0	NULL	Expect NULL
+900	00	0	
+900	000	0	
+909	0	NULL	Expect NULL
+909	00	0	
+909	000	0	
+990	0	0	
+990	00	0	
+990	000	0	
+999	0	0	
+999	00	0	
+999	000	0	
+Warnings:
+Warning	1411	Incorrect <number format>='00' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='09' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='000' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='000' value: '00' for function to_number
+Warning	1411	Incorrect <number format>='009' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='009' value: '00' for function to_number
+Warning	1411	Incorrect <number format>='090' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='090' value: '00' for function to_number
+Warning	1411	Incorrect <number format>='099' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='099' value: '00' for function to_number
+Warning	1411	Incorrect <number format>='900' value: '0' for function to_number
+Warning	1411	Incorrect <number format>='909' value: '0' for function to_number
+DROP TABLE t1, t2;
+#
+# Fraction
+#
+SELECT to_number('.', '.');
+to_number('.', '.')
+0
+SELECT to_number('.', 'B.');
+to_number('.', 'B.')
+0
+SELECT to_number('.', 'B.9');
+to_number('.', 'B.9')
+0
+SELECT to_number('.1', 'B.9');
+to_number('.1', 'B.9')
+0.1
+SELECT to_number('1', 'B.');
+to_number('1', 'B.')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B.' value: '1' for function to_number
+SELECT to_number('1', 'B.9');
+to_number('1', 'B.9')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B.9' value: '1' for function to_number
+#
+# Fraction + dollar
+#
+SELECT to_number('$.', '$.');
+to_number('$.', '$.')
+0
+SELECT to_number('1', '$.');
+to_number('1', '$.')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$.' value: '1' for function to_number
+SELECT to_number('.1', '.9999');
+to_number('.1', '.9999')
+0.1
+SELECT to_number('.1', '.99990000');
+to_number('.1', '.99990000')
+0.1
+SELECT to_number('$.1', '.9$9B');
+to_number('$.1', '.9$9B')
+0.1
+SELECT to_number('.1', '.0000');
+to_number('.1', '.0000')
+0.1
+SELECT to_number('.1', '.00009999');
+to_number('.1', '.00009999')
+0.1
+SELECT to_number('$.1', '.0$0B');
+to_number('$.1', '.0$0B')
+0.1
+SELECT to_number('1', '$.9');
+to_number('1', '$.9')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$.9' value: '1' for function to_number
+SELECT to_number('1', '$.9');
+to_number('1', '$.9')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$.9' value: '1' for function to_number
+#
+# Decimal
+#
+SELECT to_number('1', '9999.');
+to_number('1', '9999.')
+1
+SELECT to_number('1', '9999.9999');
+to_number('1', '9999.9999')
+1
+SELECT to_number('1', '9999.99990000');
+to_number('1', '9999.99990000')
+1
+SELECT to_number('1', '9999.00009999');
+to_number('1', '9999.00009999')
+1
+SELECT to_number('1', '9999.');
+to_number('1', '9999.')
+1
+SELECT to_number('1', '9999.9999');
+to_number('1', '9999.9999')
+1
+SELECT to_number('1', '9999.99990000');
+to_number('1', '9999.99990000')
+1
+SELECT to_number('1', '9999.00009999');
+to_number('1', '9999.00009999')
+1
+# The subject has more integer digits than the format
+SELECT to_number('111.1','9.9');
+to_number('111.1','9.9')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9.9' value: '111.1' for function to_number
+# The subject has more fractional digits than the format
+SELECT to_number('1.111','9.9');
+to_number('1.111','9.9')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9.9' value: '1.111' for function to_number
+# Multiple dollar and B prefix flags are not allowed
+select to_number('$1','$$9.9');
+ERROR HY000: Incorrect <number format> value: '$ + $9.9' for function to_number
+select to_number('11','BB9.9');
+ERROR HY000: Incorrect <number format> value: 'B + B9.9' for function to_number
+#
+# Decimal starting with zeros
+#
+CREATE TABLE t1 (num VARCHAR(32), fmt VARCHAR(64));
+INSERT INTO t1 VALUES
+('1', '0.999'),
+('111', '000.999'),
+('111111','000999.999'),
+('11111111','00090909.999');
+SELECT to_number(num, fmt), fmt FROM t1;
+to_number(num, fmt)	fmt
+1	0.999
+111	000.999
+111111	000999.999
+11111111	00090909.999
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','D')), @fmt FROM t1;
+to_number(num, @fmt:=REPLACE(fmt,'.','D'))	@fmt
+NULL	0D999
+NULL	000D999
+NULL	000999D999
+NULL	00090909D999
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0D999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000D999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999D999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909D999''
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','V')), @fmt FROM t1;
+to_number(num, @fmt:=REPLACE(fmt,'.','V'))	@fmt
+NULL	0V999
+NULL	000V999
+NULL	000999V999
+NULL	00090909V999
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0V999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000V999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999V999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909V999''
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','C')), @fmt FROM t1;
+to_number(num, @fmt:=REPLACE(fmt,'.','C'))	@fmt
+NULL	0C999
+NULL	000C999
+NULL	000999C999
+NULL	00090909C999
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0C999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000C999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999C999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909C999''
+SELECT to_number(num, @fmt:=REPLACE(fmt,'.','L')), @fmt FROM t1;
+to_number(num, @fmt:=REPLACE(fmt,'.','L'))	@fmt
+NULL	0L999
+NULL	000L999
+NULL	000999L999
+NULL	00090909L999
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0L999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000L999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999L999''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909L999''
+DROP TABLE t1;
+#
+# Decimal + flags B/dollar + signs
+#
+SELECT to_number('-1', 'SB');
+to_number('-1', 'SB')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='SB' value: '-1' for function to_number
+SELECT to_number('-$1', 'S$');
+to_number('-$1', 'S$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$' value: '-$1' for function to_number
+SELECT to_number('-$1', 'SB$');
+to_number('-$1', 'SB$')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='SB$' value: '-$1' for function to_number
+SELECT to_number('-$1', 'S$B');
+to_number('-$1', 'S$B')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$B' value: '-$1' for function to_number
+SELECT to_number('1', 'BS');
+to_number('1', 'BS')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='BS' value: '1' for function to_number
+SELECT to_number('1', 'BMI');
+to_number('1', 'BMI')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='BMI' value: '1' for function to_number
+SELECT to_number('1', 'BPR');
+to_number('1', 'BPR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='BPR' value: '1' for function to_number
+SELECT to_number('1', '$S');
+to_number('1', '$S')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$S' value: '1' for function to_number
+SELECT to_number('1', '$MI');
+to_number('1', '$MI')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$MI' value: '1' for function to_number
+SELECT to_number('1', '$PR');
+to_number('1', '$PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$PR' value: '1' for function to_number
+SELECT to_number('1', 'BC');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BC''
+SELECT to_number('1', 'BL');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BL''
+SELECT to_number('1', 'BU');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BU''
+SELECT to_number('1', 'BC99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BC99''
+SELECT to_number('1', 'BL99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BL99''
+SELECT to_number('1', 'BU99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BU99''
+SELECT to_number('1', 'BV');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BV''
+SELECT to_number('1', 'BV99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BV99''
+SELECT to_number('1', '$V');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='$V''
+SELECT to_number('1', '$V99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='$V99''
+SELECT to_number('1', 'B.');
+to_number('1', 'B.')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B.' value: '1' for function to_number
+SELECT to_number('1', 'BD');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BD''
+SELECT to_number('1', 'B.99');
+to_number('1', 'B.99')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='B.99' value: '1' for function to_number
+SELECT to_number('1', 'BD99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='BD99''
+SELECT to_number('1', '$.');
+to_number('1', '$.')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$.' value: '1' for function to_number
+SELECT to_number('1', '$D');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='$D''
+SELECT to_number('1', '$.99');
+to_number('1', '$.99')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$.99' value: '1' for function to_number
+SELECT to_number('1', '$D99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='$D99''
+#
+# Number1 (i.e. not starting with zeros)
+#
+SELECT to_number('1', 'CB,999');
+ERROR HY000: Incorrect <number format> value: ',999' for function to_number
+SELECT to_number('1', 'CBG999');
+ERROR HY000: Incorrect <number format> value: 'G999' for function to_number
+SELECT to_number('1', 'C999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C999''
+SELECT to_number('1', 'C000');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C000''
+SELECT to_number('1', 'CB999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CB999''
+SELECT to_number('1', 'CB000');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CB000''
+SELECT to_number('1', 'C');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C''
+SELECT to_number('1', 'C.');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C.''
+SELECT to_number('1', 'CD');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CD''
+SELECT to_number('1', 'CV');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CV''
+SELECT to_number('1', 'C.99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C.99''
+SELECT to_number('1', 'CD99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CD99''
+SELECT to_number('1', 'CV99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CV99''
+SELECT to_number('1', 'CB.999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CB.999''
+SELECT to_number('1', 'CBD999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CBD999''
+SELECT to_number('1', 'CB');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='CB''
+SELECT to_number('1', 'L999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L999''
+SELECT to_number('1', 'L000');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L000''
+SELECT to_number('1', 'LB999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LB999''
+SELECT to_number('1', 'LB000');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LB000''
+SELECT to_number('1', 'L');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L''
+SELECT to_number('1', 'L.');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L.''
+SELECT to_number('1', 'LD');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LD''
+SELECT to_number('1', 'LV');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LV''
+SELECT to_number('1', 'L.99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L.99''
+SELECT to_number('1', 'LD99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LD99''
+SELECT to_number('1', 'LV99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LV99''
+SELECT to_number('1', 'LB.999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LB.999''
+SELECT to_number('1', 'LBD999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LBD999''
+SELECT to_number('1', 'LB');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='LB''
+SELECT to_number('1', 'U999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U999''
+SELECT to_number('1', 'U000');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U000''
+SELECT to_number('1', 'UB999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UB999''
+SELECT to_number('1', 'UB000');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UB000''
+SELECT to_number('1', 'U');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U''
+SELECT to_number('1', 'U.');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U.''
+SELECT to_number('1', 'UD');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UD''
+SELECT to_number('1', 'UV');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UV''
+SELECT to_number('1', 'U.99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U.99''
+SELECT to_number('1', 'UD99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UD99''
+SELECT to_number('1', 'UV99');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UV99''
+SELECT to_number('1', 'UB.999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UB.999''
+SELECT to_number('1', 'UBD999');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UBD999''
+SELECT to_number('1', 'UB');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='UB''
+#
+# Number0: zeros + postfix sign
+#
+SELECT to_number('12-', '00S');
+to_number('12-', '00S')
+-12
+SELECT to_number('12+', '00S');
+to_number('12+', '00S')
+12
+SELECT to_number('12-', '00MI');
+to_number('12-', '00MI')
+-12
+SELECT to_number('12 ', '00MI');
+to_number('12 ', '00MI')
+12
+SELECT to_number('<12>', '00PR');
+to_number('<12>', '00PR')
+-12
+SELECT to_number(' 12 ', '00PR');
+to_number(' 12 ', '00PR')
+12
+SELECT to_number('[12]', '00PR');
+to_number('[12]', '00PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='00PR' value: '[12]' for function to_number
+SELECT to_number('<1234>', '999999PR') AS c1;
+c1
+-1234
+SELECT to_number(' 1234 ', '999999PR') AS c1;
+c1
+1234
+#
+# Postfix sign
+#
+SELECT to_number('12-', '99S');
+to_number('12-', '99S')
+-12
+SELECT to_number('12+', '99S');
+to_number('12+', '99S')
+12
+SELECT to_number('12-', '99MI');
+to_number('12-', '99MI')
+-12
+SELECT to_number('12 ', '99MI');
+to_number('12 ', '99MI')
+12
+SELECT to_number('<12>', '99PR');
+to_number('<12>', '99PR')
+-12
+SELECT to_number(' 12 ', '99PR');
+to_number(' 12 ', '99PR')
+12
+#
+# Prefix sign
+#
+SELECT to_number('-1', 'S');
+to_number('-1', 'S')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S' value: '-1' for function to_number
+SELECT to_number('-1', 'S00');
+to_number('-1', 'S00')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S00' value: '-1' for function to_number
+SELECT to_number('-12', 'S00');
+to_number('-12', 'S00')
+-12
+SELECT to_number('-1', 'S99');
+to_number('-1', 'S99')
+-1
+SELECT to_number('1', 'FMS');
+to_number('1', 'FMS')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FMS' value: '1' for function to_number
+SELECT to_number('-12', 'FMS00');
+to_number('-12', 'FMS00')
+-12
+SELECT to_number('-12', 'FMS99');
+to_number('-12', 'FMS99')
+-12
+SELECT to_number('1', 'SFM');
+to_number('1', 'SFM')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='SFM' value: '1' for function to_number
+SELECT to_number('-12', 'SFM00');
+to_number('-12', 'SFM00')
+-12
+SELECT to_number('-12', 'SFM99');
+to_number('-12', 'SFM99')
+-12
+#
+# Prefix-signed currency
+#
+# CLU are not supported yet
+SELECT to_number('1', 'S00.99C');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S00.99C''
+SELECT to_number('1', 'S99.99L');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S99.99L''
+SELECT to_number('1', 'S99.99U');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S99.99U''
+SELECT to_number('1', 'S00D99C');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S00D99C''
+SELECT to_number('1', 'S99D99L');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S99D99L''
+SELECT to_number('1', 'S99D99U');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S99D99U''
+SELECT to_number('-$12,345.67', 'S$999,099.99') AS c1;
+c1
+-12345.67
+SELECT to_number('+$12,345.67', 'S$999,099.99') AS c1;
+c1
+12345.67
+SELECT to_number('-$12,345.67', 'S$999,999.99') AS c1;
+c1
+-12345.67
+SELECT to_number('+$12,345.67', 'S$999,999.99') AS c1;
+c1
+12345.67
+SELECT to_number('$12,345.67', 'S$999,099.99')  AS c1, 'Missing sign' AS comment;
+c1	comment
+NULL	Missing sign
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '$12,345.67' for function to_number
+SELECT to_number('-$45', 'S$999,099.99') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '-$45' for function to_number
+SELECT to_number('+$45', 'S$999,099.99') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '+$45' for function to_number
+SELECT to_number('$45', 'S$999,099.99')  AS c1, 'Missing sign' AS comment;
+c1	comment
+NULL	Missing sign
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '$45' for function to_number
+SELECT to_number('-$45', 'S$999,999.99') AS c1;
+c1
+-45
+SELECT to_number('+$45', 'S$999,999.99') AS c1;
+c1
+45
+SELECT to_number('$45', 'S$999,999.99')  AS c1, 'Missing sign' AS comment;
+c1	comment
+NULL	Missing sign
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,999.99' value: '$45' for function to_number
+SELECT to_number('+$5', 'S$999,099.99') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '+$5' for function to_number
+SELECT to_number('+$45', 'S$999,099.99') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '+$45' for function to_number
+SELECT to_number('+$045', 'S$999,099.99') AS c1;
+c1
+45
+SELECT to_number('+$0,045', 'S$999,099.99') AS c1;
+c1
+45
+SELECT to_number('+$00,045', 'S$999,099.99') AS c1;
+c1
+45
+SELECT to_number('+$000,045', 'S$999,099.99') AS c1;
+c1
+45
+SELECT to_number('+$0000,045', 'S$999,099.99') AS c1;
+c1
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='S$999,099.99' value: '+$0000,045' for function to_number
+#
+# FM
+#
+SELECT to_number('1', 'FM');
+to_number('1', 'FM')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='FM' value: '1' for function to_number
+SELECT to_number('1', 'FM9');
+to_number('1', 'FM9')
+1
+SELECT to_number('1,2', 'FM9,9');
+to_number('1,2', 'FM9,9')
+12
+SELECT to_number('1.2', 'FM9.9');
+to_number('1.2', 'FM9.9')
+1.2
+SELECT to_number('1-', 'FM9S');
+to_number('1-', 'FM9S')
+-1
+SELECT to_number('-1', 'FMS9');
+to_number('-1', 'FMS9')
+-1
+SELECT to_number('12-', 'FM00S');
+to_number('12-', 'FM00S')
+-12
+SELECT to_number('12-', 'FM99S');
+to_number('12-', 'FM99S')
+-12
+SELECT to_number('12-', 'FM99S');
+to_number('12-', 'FM99S')
+-12
+SELECT to_number('12-', 'FM00.99S');
+to_number('12-', 'FM00.99S')
+-12
+SELECT to_number('12-', 'FM99.99S');
+to_number('12-', 'FM99.99S')
+-12
+SELECT to_number('12-', 'FM99.99S');
+to_number('12-', 'FM99.99S')
+-12
+SELECT to_number('12.34-', 'FM00.99S');
+to_number('12.34-', 'FM00.99S')
+-12.34
+SELECT to_number('12.34-', 'FM99.99S');
+to_number('12.34-', 'FM99.99S')
+-12.34
+SELECT to_number('12.34-', 'FM99.99S');
+to_number('12.34-', 'FM99.99S')
+-12.34
+#
+# Long examples
+#
+SELECT to_number('123,456,789','999,999,999') AS c1;
+c1
+123456789
+SELECT to_number('111,222,333,444,555','999,999,999,999,999') AS c1;
+c1
+111222333444555
+SELECT to_number('111,222,333,444,555,666,777,888,999',
+'999,999,999,999,999,999,999,999,999') AS c1;
+c1
+1.1122233344455566e26
+#
+# EEEE specific tests
+#
+# EEEE cannot go without any integer digits
+SELECT to_number('', 'EEEE');
+ERROR HY000: Incorrect <number format> value: 'EEEE' for function to_number
+SELECT to_number('', '.EEEE');
+ERROR HY000: Incorrect <number format> value: '. + EEEE' for function to_number
+SELECT to_number('', '.9EEEE');
+ERROR HY000: Incorrect <number format> value: '.9 + EEEE' for function to_number
+SELECT to_number('1', '.999EEEE');
+ERROR HY000: Incorrect <number format> value: '.999 + EEEE' for function to_number
+SELECT to_number('1', '.9$9EEEE');
+ERROR HY000: Incorrect <number format> value: '.9$9 + EEEE' for function to_number
+SELECT to_number('1', '.9B9EEEE');
+ERROR HY000: Incorrect <number format> value: '.9B9 + EEEE' for function to_number
+SELECT to_number('1', '$EEEE');
+ERROR HY000: Incorrect <number format> value: 'EEEE' for function to_number
+SELECT to_number('1', 'BEEEE');
+ERROR HY000: Incorrect <number format> value: 'EEEE' for function to_number
+SELECT to_number('', 'S.9EEEE');
+ERROR HY000: Incorrect <number format> value: 'S.9 + EEEE' for function to_number
+SELECT to_number('', 'S.9EEEES');
+ERROR HY000: Incorrect <number format> value: 'S' for function to_number
+SELECT to_number('', 'FM.EEEE');
+ERROR HY000: Incorrect <number format> value: 'FM. + EEEE' for function to_number
+#
+# EEEE correct formats
+#
+# Currency CLU is not supported yet
+SELECT to_number('1', 'C0EEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C0EEEE''
+SELECT to_number('1', 'L0EEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L0EEEE''
+SELECT to_number('1', 'U0EEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U0EEEE''
+SELECT to_number('1', 'C9EEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='C9EEEE''
+SELECT to_number('1', 'L9EEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='L9EEEE''
+SELECT to_number('1', 'U9EEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='U9EEEE''
+#
+# The following formats are not supported in Oracle.
+# However, it works if change C/L/U to dollar sign.
+# Looks like a bug in Oracle.
+# Anyway, CLU is not supported yet.
+#
+SELECT to_number('1', 'S00.99CEEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S00.99CEEEE''
+SELECT to_number('1', 'S99.99LEEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S99.99LEEEE''
+SELECT to_number('1', 'S99.99UEEEE');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='S99.99UEEEE''
+# Trailing gargabe:
+SELECT to_number('1E+3x', '99EEEE');
+to_number('1E+3x', '99EEEE')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99EEEE' value: '1E+3x' for function to_number
+SELECT to_number('$1E+3x', '$99EEEE');
+to_number('$1E+3x', '$99EEEE')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='$99EEEE' value: '$1E+3x' for function to_number
+#
+# Simple examples with EEEE
+#
+SELECT to_number('1', '9EEEE');
+to_number('1', '9EEEE')
+1
+SELECT to_number('1', '9.9EEEE');
+to_number('1', '9.9EEEE')
+1
+SELECT to_number('1.2', '9.9EEEE');
+to_number('1.2', '9.9EEEE')
+1.2
+#
+# EEEE formats starting with zeros
+#
+SELECT to_number('1', '00EEEE');
+to_number('1', '00EEEE')
+1
+CREATE TABLE t1 (num VARCHAR(32), fmt VARCHAR(64));
+INSERT INTO t1 VALUES
+('1', '0.999'),
+('111', '000.999'),
+('111111','000999.999'),
+('11111111','00090909.999');
+SELECT to_number(num, @fmt:=CONCAT(fmt,'EEEE')), @fmt FROM t1;
+to_number(num, @fmt:=CONCAT(fmt,'EEEE'))	@fmt
+1	0.999EEEE
+111	000.999EEEE
+111111	000999.999EEEE
+11111111	00090909.999EEEE
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','D'),'EEEE')), @fmt FROM t1;
+to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','D'),'EEEE'))	@fmt
+NULL	0D999EEEE
+NULL	000D999EEEE
+NULL	000999D999EEEE
+NULL	00090909D999EEEE
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0D999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000D999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999D999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909D999EEEE''
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','V'),'EEEE')), @fmt FROM t1;
+to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','V'),'EEEE'))	@fmt
+NULL	0V999EEEE
+NULL	000V999EEEE
+NULL	000999V999EEEE
+NULL	00090909V999EEEE
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0V999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000V999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999V999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909V999EEEE''
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','C'),'EEEE')), @fmt FROM t1;
+to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','C'),'EEEE'))	@fmt
+NULL	0C999EEEE
+NULL	000C999EEEE
+NULL	000999C999EEEE
+NULL	00090909C999EEEE
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0C999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000C999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999C999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909C999EEEE''
+SELECT to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','L'),'EEEE')), @fmt FROM t1;
+to_number(num, @fmt:=CONCAT(REPLACE(fmt,'.','L'),'EEEE'))	@fmt
+NULL	0L999EEEE
+NULL	000L999EEEE
+NULL	000999L999EEEE
+NULL	00090909L999EEEE
+Warnings:
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='0L999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000L999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='000999L999EEEE''
+Warning	1235	This version of MariaDB doesn't yet support '<number format>='00090909L999EEEE''
+DROP TABLE t1;
+#
+# B and dollar inside a EEEE format
+#
+SELECT to_number('1', 'B0EEEE');
+to_number('1', 'B0EEEE')
+1
+SELECT to_number('1', 'B9EEEE');
+to_number('1', 'B9EEEE')
+1
+SELECT to_number('1', 'B0.EEEE');
+to_number('1', 'B0.EEEE')
+1
+SELECT to_number('1', 'B9.EEEE');
+to_number('1', 'B9.EEEE')
+1
+SELECT to_number('1', 'B0.9EEEE');
+to_number('1', 'B0.9EEEE')
+1
+SELECT to_number('1', 'B9.9EEEE');
+to_number('1', 'B9.9EEEE')
+1
+SELECT to_number('$1E+1', '$0EEEE');
+to_number('$1E+1', '$0EEEE')
+10
+SELECT to_number('$1E+1', '$9EEEE');
+to_number('$1E+1', '$9EEEE')
+10
+SELECT to_number('$1E+1', '$0.EEEE');
+to_number('$1E+1', '$0.EEEE')
+10
+SELECT to_number('$1E+1', '$9.EEEE');
+to_number('$1E+1', '$9.EEEE')
+10
+SELECT to_number('$1.E+1', '$0.EEEE');
+to_number('$1.E+1', '$0.EEEE')
+10
+SELECT to_number('$1.E+1', '$9.EEEE');
+to_number('$1.E+1', '$9.EEEE')
+10
+SELECT to_number('$1.2E+1', '$0.EEEE');
+to_number('$1.2E+1', '$0.EEEE')
+12
+SELECT to_number('$1.2E+1', '$9.EEEE');
+to_number('$1.2E+1', '$9.EEEE')
+12
+SELECT to_number('$1.2E+1', '$0.9EEEE');
+to_number('$1.2E+1', '$0.9EEEE')
+12
+SELECT to_number('$1.2E+1', '$9.9EEEE');
+to_number('$1.2E+1', '$9.9EEEE')
+12
+SELECT to_number('1', '999EEEE');
+to_number('1', '999EEEE')
+1
+SELECT to_number('1', '999.EEEE');
+to_number('1', '999.EEEE')
+1
+SELECT to_number('1', '999.9999EEEE');
+to_number('1', '999.9999EEEE')
+1
+SELECT to_number ('$1', '9$9EEEE');
+to_number ('$1', '9$9EEEE')
+1
+SELECT to_number ('$1', '9$9.EEEE');
+to_number ('$1', '9$9.EEEE')
+1
+SELECT to_number('1', '9B9EEEE');
+to_number('1', '9B9EEEE')
+1
+SELECT to_number('1', '9B9.EEEE');
+to_number('1', '9B9.EEEE')
+1
+#
+# EEEE formats with prefix and postfix signs and FM
+#
+SELECT to_number('1.2E+1-',  '99EEEES');
+to_number('1.2E+1-',  '99EEEES')
+-12
+SELECT to_number('1.2E+1+',  '99EEEES');
+to_number('1.2E+1+',  '99EEEES')
+12
+SELECT to_number('1.2E+1-',  '99EEEEMI');
+to_number('1.2E+1-',  '99EEEEMI')
+-12
+SELECT to_number('1.2E+1 ',  '99EEEEMI');
+to_number('1.2E+1 ',  '99EEEEMI')
+12
+SELECT to_number('<1.2E+1>', '99EEEEPR');
+to_number('<1.2E+1>', '99EEEEPR')
+-12
+SELECT to_number(' 1.2E+1 ', '99EEEEPR');
+to_number(' 1.2E+1 ', '99EEEEPR')
+12
+SELECT to_number('-12.34E+2', 'S00.99EEEE');
+to_number('-12.34E+2', 'S00.99EEEE')
+-1234
+SELECT to_number('-12.34E+2', 'S99.99EEEE');
+to_number('-12.34E+2', 'S99.99EEEE')
+-1234
+SELECT to_number('$1.2E+1-',  '$9.9EEEES');
+to_number('$1.2E+1-',  '$9.9EEEES')
+-12
+SELECT to_number('$1.2E+1+',  '$9.9EEEES');
+to_number('$1.2E+1+',  '$9.9EEEES')
+12
+SELECT to_number('$1.2E+1-',  '$9.9EEEEMI');
+to_number('$1.2E+1-',  '$9.9EEEEMI')
+-12
+SELECT to_number('$1.2E+1 ',  '$9.9EEEEMI');
+to_number('$1.2E+1 ',  '$9.9EEEEMI')
+12
+SELECT to_number('<$1.2E+1>', '$9.9EEEEPR');
+to_number('<$1.2E+1>', '$9.9EEEEPR')
+-12
+SELECT to_number(' $1.2E+1 ', '$9.9EEEEPR');
+to_number(' $1.2E+1 ', '$9.9EEEEPR')
+12
+SELECT to_number('12.34E+2-', 'FM00.99EEEES');
+to_number('12.34E+2-', 'FM00.99EEEES')
+-1234
+SELECT to_number('12.34E+2-', 'FM99.99EEEES');
+to_number('12.34E+2-', 'FM99.99EEEES')
+-1234
+#
+# X formats (hexadecimal)
+#
+# X cannot co-exist with dollar, B, dec, group, signs, currency
+SELECT to_number('0', '$X');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', 'BX');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', 'X,X');
+ERROR HY000: Incorrect <number format> value: ',X' for function to_number
+SELECT to_number('0', 'XGX');
+ERROR HY000: Incorrect <number format> value: 'GX' for function to_number
+SELECT to_number('0', 'X.X');
+ERROR HY000: Incorrect <number format> value: '.X' for function to_number
+SELECT to_number('0', 'XCX');
+ERROR HY000: Incorrect <number format> value: 'CX' for function to_number
+SELECT to_number('0', 'XLX');
+ERROR HY000: Incorrect <number format> value: 'LX' for function to_number
+SELECT to_number('0', 'XUX');
+ERROR HY000: Incorrect <number format> value: 'UX' for function to_number
+SELECT to_number('0', 'SX');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', '$X');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', 'CX');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', 'LX');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', 'UX');
+ERROR HY000: Incorrect <number format> value: 'X' for function to_number
+SELECT to_number('0', 'X$');
+ERROR HY000: Incorrect <number format> value: '$' for function to_number
+SELECT to_number('0', 'XC');
+ERROR HY000: Incorrect <number format> value: 'C' for function to_number
+SELECT to_number('0', 'XL');
+ERROR HY000: Incorrect <number format> value: 'L' for function to_number
+SELECT to_number('0', 'XU');
+ERROR HY000: Incorrect <number format> value: 'U' for function to_number
+SELECT to_number('0', 'XMI');
+ERROR HY000: Incorrect <number format> value: 'MI' for function to_number
+SELECT to_number('0', 'XPR');
+ERROR HY000: Incorrect <number format> value: 'PR' for function to_number
+SELECT to_number('0', 'XS');
+ERROR HY000: Incorrect <number format> value: 'S' for function to_number
+#
+# FM and X can co-exist
+#
+SELECT to_number('F', 'FMXXXX');
+to_number('F', 'FMXXXX')
+15
+SELECT to_number('FF', 'FMXXXX');
+to_number('FF', 'FMXXXX')
+255
+SELECT to_number('FFF', 'FMXXXX');
+to_number('FFF', 'FMXXXX')
+4095
+SELECT to_number('FFFF', 'FMXXXX');
+to_number('FFFF', 'FMXXXX')
+65535
+#
+# X simple exaples
+#
+SELECT to_number('0', 'X');
+to_number('0', 'X')
+0
+SELECT to_number('20', 'XX');
+to_number('20', 'XX')
+32
+SELECT to_number('020', 'XXX');
+to_number('020', 'XXX')
+32
+SELECT to_number('2020', 'XXXX');
+to_number('2020', 'XXXX')
+8224
+SELECT to_number('02020', 'XXXXX');
+to_number('02020', 'XXXXX')
+8224
+SELECT to_number('202020', 'XXXXXX');
+to_number('202020', 'XXXXXX')
+2105376
+SELECT to_number('202020', 'XXXXX');
+to_number('202020', 'XXXXX')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='XXXXX' value: '202020' for function to_number
+#
+# Zeros + xchain
+#
+SELECT to_number('061', '00X');
+to_number('061', '00X')
+97
+SELECT to_number('0061', '00XX');
+to_number('0061', '00XX')
+97
+SELECT to_number('00061', '00XXX');
+to_number('00061', '00XXX')
+97
+SELECT to_number('000061', '00XXXX');
+to_number('000061', '00XXXX')
+97
+SELECT to_number('0000061', '00XXXXX');
+to_number('0000061', '00XXXXX')
+97
+SELECT to_number('00000061', '00XXXXXX');
+to_number('00000061', '00XXXXXX')
+97
+#
+# 0 vs X
+#
+CREATE TABLE t1 (fmt VARCHAR(32));
+CREATE TABLE t2 (sbj VARCHAR(32));
+FOR i IN 0..3 DO
+INSERT INTO t1 VALUES (CONCAT(REPEAT('0',i), REPEAT('X',4-i)));
+END FOR;
+$$
+FOR i IN 0..4 DO
+INSERT INTO t2 VALUES (REPEAT('1',i));
+END FOR;
+$$
+SELECT fmt, sbj, to_number(sbj, fmt) AS c1 FROM t1, t2 ORDER BY fmt, sbj;
+fmt	sbj	c1
+000X		NULL
+000X	1	NULL
+000X	11	NULL
+000X	111	NULL
+000X	1111	4369
+00XX		NULL
+00XX	1	NULL
+00XX	11	NULL
+00XX	111	NULL
+00XX	1111	4369
+0XXX		NULL
+0XXX	1	NULL
+0XXX	11	NULL
+0XXX	111	NULL
+0XXX	1111	4369
+XXXX		NULL
+XXXX	1	1
+XXXX	11	17
+XXXX	111	273
+XXXX	1111	4369
+DROP TABLE t1, t2;
+#
+# Format TM is not supported by to_number(), only supported by to_char()
+#
+SELECT to_number('1', 'TM');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='TM''
+SELECT to_number('1', 'TM9');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='TM9''
+SELECT to_number('1', 'TME');
+ERROR 42000: This version of MariaDB doesn't yet support '<number format>='TME''
