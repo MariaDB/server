@@ -22,6 +22,10 @@
 #include "my_cpu.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
+#ifndef DBUG_OFF
+#include "rpl_rli.h"  // rpl_group_info
+#endif
+#include "debug_sync.h"         // DEBUG_SYNC
 
 static bool slave_applier_reset_xa_trans(THD *thd);
 
@@ -79,6 +83,13 @@ public:
   uint rm_error;
   enum xa_states xa_state;
   XA_data xid;
+  /*
+    The flag memorizes the fact of the prepared XA has been binlogged.
+    It gets dropped with binlogging of the transaction's XA-COMPLETE.
+    FIXME: alternatively, could we use bit 32 of m_state or,
+    TODO:  better, XID::formatID highest bit (also required by MDEV-21777).
+  */
+  bool xap_binlogged_awaiting_xac;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -106,6 +117,7 @@ public:
       old&= ACQUIRED | RECOVERED;
       (void) LF_BACKOFF();
     }
+    xap_binlogged_awaiting_xac= FALSE;
   }
   void acquired_to_recovered()
   {
@@ -126,6 +138,16 @@ public:
     }
     return true;
   }
+  void notify_xap_binlogged()
+  {
+    xap_binlogged_awaiting_xac= TRUE;
+  }
+  void notify_xac_binlogged()
+  {
+    DBUG_ASSERT(opt_bin_log);
+
+    xap_binlogged_awaiting_xac= FALSE;
+  }
   static void lf_hash_initializer(LF_HASH *, void *el, const void *ie)
   {
     XID_cache_element *element= static_cast<XID_cache_element*>(el);
@@ -135,6 +157,7 @@ public:
     element->rm_error= 0;
     element->xa_state= new_element->xa_state;
     element->xid.set(new_element->xid);
+    element->xap_binlogged_awaiting_xac= FALSE;
     new_element->xid_cache_element= element;
   }
   static void lf_alloc_constructor(uchar *ptr)
@@ -194,6 +217,12 @@ void XID_STATE::set_rollback_only()
     MYSQL_SET_TRANSACTION_XA_STATE(current_thd->m_transaction_psi,
                                    XA_ROLLBACK_ONLY);
 }
+#ifndef DBUG_OFF
+uint XID_STATE::get_error()
+{
+  return is_explicit_XA() ? xid_cache_element->rm_error : 0;
+}
+#endif
 
 void XID_STATE::er_xaer_rmfail() const
 {
@@ -278,8 +307,7 @@ static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
   return element;
 }
 
-
-bool xid_cache_insert(XID *xid)
+bool xid_cache_insert(XID *xid, bool is_binlogged)
 {
   XID_cache_insert_element new_element(XA_PREPARED, xid);
   LF_PINS *pins;
@@ -292,6 +320,8 @@ bool xid_cache_insert(XID *xid)
   {
   case 0:
     new_element.xid_cache_element->set(XID_cache_element::RECOVERED);
+    if (is_binlogged)
+      new_element.xid_cache_element->notify_xap_binlogged();
     break;
   case 1:
     res= 0;
@@ -334,10 +364,45 @@ static void xid_cache_delete(THD *thd, XID_cache_element *&element)
 void xid_cache_delete(THD *thd, XID_STATE *xid_state)
 {
   DBUG_ASSERT(xid_state->is_explicit_XA());
+
   xid_cache_delete(thd, xid_state->xid_cache_element);
   xid_state->xid_cache_element= 0;
 }
 
+void xid_cache_delete(THD *thd)
+{
+  xid_cache_delete(thd, &thd->transaction->xid_state);
+}
+
+
+void xid_cache_update_xa_binlog_state(THD *thd, XID_STATE *xid_state,
+                                      bool is_xap)
+{
+  DBUG_ASSERT(xid_state->is_explicit_XA());
+  if (is_xap)
+  {
+    DBUG_ASSERT(!xid_state->xid_cache_element->xap_binlogged_awaiting_xac);
+
+    xid_state->xid_cache_element->notify_xap_binlogged();
+  }
+  else
+  {
+    /*
+      The flag may not be set by ineffective XA-PREPARE groups
+      that logged on master in few exceptional cases.
+    */
+    DBUG_ASSERT(xid_state->xid_cache_element->xap_binlogged_awaiting_xac ||
+                thd->transaction->all.ha_list == 0);
+
+    xid_state->xid_cache_element->notify_xac_binlogged();
+  }
+}
+
+bool is_xap_binlogged(THD *thd)
+{
+  return
+    thd->transaction->xid_state.xid_cache_element->xap_binlogged_awaiting_xac;
+}
 
 struct xid_cache_iterate_arg
 {
@@ -570,6 +635,15 @@ bool trans_xa_prepare(THD *thd)
     my_error(ER_XAER_NOTA, MYF(0));
   else
   {
+#ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF(
+        "stop_before_binlog_prepare",
+        if (thd->rgi_slave->current_gtid.seq_no % 100 == 0)
+        {
+          DBUG_ASSERT(!debug_sync_set_action(
+                        thd, STRING_WITH_LEN("now WAIT_FOR binlog_xap")));
+        };);
+#endif
     MDL_request mdl_request;
     if (trans_xa_get_backup_lock(thd, &mdl_request) ||
         ha_prepare(thd))
@@ -586,6 +660,8 @@ bool trans_xa_prepare(THD *thd)
     }
     else
     {
+      DBUG_ASSERT(thd->transaction->xid_state.xid_cache_element);
+
       if (thd->transaction->xid_state.xid_cache_element->xa_state !=
           XA_ROLLBACK_ONLY)
       {
@@ -595,14 +671,37 @@ bool trans_xa_prepare(THD *thd)
       else
       {
         /*
-          In the non-err case, XA_ROLLBACK_ONLY should only be set by a slave
-          thread which prepared an empty transaction, to prevent binlogging a
-          standalone XA COMMIT.
+          In the non-err case, XA_ROLLBACK_ONLY should be set for a
+          read-only transaction, has nothing to binlog.
         */
-        DBUG_ASSERT(thd->rgi_slave && !(thd->transaction->all.ha_list));
+#ifndef DBUG_OFF
+        bool is_rw;
+        Ha_trx_info *ha_info= thd->transaction->all.ha_list;
+        for (is_rw= false; ha_info; ha_info= ha_info->next())
+        {
+          transaction_participant *ht= ha_info->ht();
+          if (ht == &binlog_tp || !ht->prepare)
+            continue;
+          is_rw= is_rw || ha_info->is_trx_read_write();
+        }
+        DBUG_ASSERT((thd->rgi_slave && !(thd->transaction->all.ha_list)) ||
+                    !is_rw);
+#endif
       }
       res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
         slave_applier_reset_xa_trans(thd) : 0;
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF(
+        "stop_after_binlog_prepare",
+        if (thd->rgi_slave->current_gtid.seq_no % 100 == 0)
+        {
+          DBUG_ASSERT(!debug_sync_set_action(
+            thd,
+            STRING_WITH_LEN(
+                "now SIGNAL xa_prepare_binlogged WAIT_FOR continue_xap")));
+        };);
+#endif
+
     }
     trans_xa_release_backup_lock(thd);
   }
@@ -610,6 +709,98 @@ bool trans_xa_prepare(THD *thd)
   DBUG_RETURN(res);
 }
 
+
+/**
+  Commit/Rollback a prepared XA transaction through "external" connection.
+
+  @param thd        Current "external" connection thread
+  @bool  do_commit  true for Commit, false for Rollback
+
+  @retval FALSE  Success
+  @retval TRUE   Failure
+*/
+
+static bool xa_complete(THD *thd, bool do_commit)
+{
+  XID_STATE &xid_state= thd->transaction->xid_state;
+
+  DBUG_ENTER("xa_complete");
+
+  if (thd->in_multi_stmt_transaction_mode())
+  {
+    /*
+      Not allow to commit from inside an not-"native" to xid
+      ongoing transaction: the commit effect can't be reversed.
+    */
+    my_error(ER_XAER_OUTSIDE, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+  if (do_commit && thd->lex->xa_opt != XA_NONE)
+  {
+    /*
+      Not allow to commit with one phase a prepared xa out of compatibility
+      with the native commit branch's error out.
+    */
+    my_error(ER_XAER_INVAL, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+  if (thd->fix_xid_hash_pins())
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
+  if (auto xs= xid_cache_search(thd, thd->lex->xid))
+  {
+    bool res;
+    MDL_request mdl_request;
+    bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
+
+    if (rw_trans && thd->check_read_only_with_error())
+    {
+      DBUG_ASSERT(thd->is_error());
+
+      goto _end_external_xid;
+    }
+
+    res= xa_trans_rolled_back(xs);
+    if (trans_xa_get_backup_lock(thd, &mdl_request))
+    {
+      /*
+        We can't rollback an XA transaction on lock failure due to
+        Innodb redo log and bin log update is involved in rollback.
+        Return error to user for a retry.
+      */
+      DBUG_ASSERT(thd->is_error());
+
+      goto _end_external_xid;
+    }
+
+    DBUG_ASSERT(!xid_state.xid_cache_element);
+
+    xid_state.xid_cache_element= xs;
+    ha_commit_or_rollback_by_xid(&xs->xid, do_commit ? !res : 0, thd);
+
+    if (!res && thd->is_error())
+    {
+      // hton completion error retains xs/xid in the cache,
+      // unless there had been already one as reflected by `res`.
+      goto _end_external_xid;
+    }
+    xid_cache_delete(thd, &xid_state);
+
+    xs= NULL;
+
+_end_external_xid:
+    if (xs)
+      xs->acquired_to_recovered();
+    xid_state.xid_cache_element= 0;
+    trans_xa_release_backup_lock(thd);
+  }
+  else
+    my_error(ER_XAER_NOTA, MYF(0));
+  DBUG_RETURN(thd->get_stmt_da()->is_error());
+}
 
 /**
   Commit and terminate the a XA transaction.
@@ -624,87 +815,14 @@ bool trans_xa_prepare(THD *thd)
 
 bool trans_xa_commit(THD *thd)
 {
-  bool res= true;
   XID_STATE &xid_state= thd->transaction->xid_state;
+  bool res;
 
   DBUG_ENTER("trans_xa_commit");
 
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
-  {
-    if (thd->in_multi_stmt_transaction_mode())
-    {
-      /*
-        Not allow to commit from inside an not-"native" to xid
-        ongoing transaction: the commit effect can't be reversed.
-      */
-      my_error(ER_XAER_OUTSIDE, MYF(0));
-      DBUG_RETURN(TRUE);
-    }
-    if (thd->lex->xa_opt != XA_NONE)
-    {
-      /*
-        Not allow to commit with one phase a prepared xa out of compatibility
-        with the native commit branch's error out.
-      */
-      my_error(ER_XAER_INVAL, MYF(0));
-      DBUG_RETURN(TRUE);
-    }
-    if (thd->fix_xid_hash_pins())
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      DBUG_RETURN(TRUE);
-    }
-
-    if (auto xs= xid_cache_search(thd, thd->lex->xid))
-    {
-      bool xid_deleted= false;
-      MDL_request mdl_request;
-      bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
-
-      if (rw_trans && thd->check_read_only_with_error())
-      {
-        res= 1;
-        goto _end_external_xid;
-      }
-      res= xa_trans_rolled_back(xs);
-      if (trans_xa_get_backup_lock(thd, &mdl_request))
-      {
-        /*
-          We can't rollback an XA transaction on lock failure due to
-          Innodb redo log and bin log update is involved in rollback.
-          Return error to user for a retry.
-        */
-        DBUG_ASSERT(thd->is_error());
-
-        res= true;
-        goto _end_external_xid;
-      }
-      DBUG_ASSERT(!xid_state.xid_cache_element);
-
-      xid_state.xid_cache_element= xs;
-      ha_commit_or_rollback_by_xid(&xs->xid, !res);
-      if (!res && thd->is_error())
-      {
-        // hton completion error retains xs/xid in the cache,
-        // unless there had been already one as reflected by `res`.
-        res= true;
-        goto _end_external_xid;
-      }
-      xid_cache_delete(thd, xs);
-      xid_deleted= true;
-
-  _end_external_xid:
-      xid_state.xid_cache_element= 0;
-      res= res || thd->is_error();
-      if (!xid_deleted)
-        xs->acquired_to_recovered();
-      trans_xa_release_backup_lock(thd);
-    }
-    else
-      my_error(ER_XAER_NOTA, MYF(0));
-    DBUG_RETURN(res);
-  }
+    DBUG_RETURN(xa_complete(thd, true));
 
   if (thd->transaction->all.is_trx_read_write() && thd->check_read_only_with_error())
     DBUG_RETURN(TRUE);
@@ -802,63 +920,7 @@ bool trans_xa_rollback(THD *thd)
 
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
-  {
-    if (thd->in_multi_stmt_transaction_mode())
-    {
-      my_error(ER_XAER_OUTSIDE, MYF(0));
-      DBUG_RETURN(TRUE);
-    }
-    if (thd->fix_xid_hash_pins())
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      DBUG_RETURN(TRUE);
-    }
-
-    if (auto xs= xid_cache_search(thd, thd->lex->xid))
-    {
-      bool res;
-      bool xid_deleted= false;
-      bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
-
-      if (rw_trans && thd->check_read_only_with_error())
-      {
-        res= 1;
-        goto _end_external_xid;
-      }
-
-      if (trans_xa_get_backup_lock(thd, &mdl_request))
-      {
-        /*
-          We can't rollback an XA transaction on lock failure due to
-          Innodb redo log and bin log update is involved in rollback.
-          Return error to user for a retry.
-        */
-        DBUG_ASSERT(thd->is_error());
-
-        goto _end_external_xid;
-      }
-      res= xa_trans_rolled_back(xs);
-      DBUG_ASSERT(!xid_state.xid_cache_element);
-
-      xid_state.xid_cache_element= xs;
-      ha_commit_or_rollback_by_xid(&xs->xid, 0);
-      if (!res && thd->is_error())
-      {
-        goto _end_external_xid;
-      }
-      xid_cache_delete(thd, xs);
-      xid_deleted= true;
-
-  _end_external_xid:
-      xid_state.xid_cache_element= 0;
-      if (!xid_deleted)
-        xs->acquired_to_recovered();
-      trans_xa_release_backup_lock(thd);
-    }
-    else
-      my_error(ER_XAER_NOTA, MYF(0));
-    DBUG_RETURN(thd->get_stmt_da()->is_error());
-  }
+    DBUG_RETURN(xa_complete(thd, false));
 
   if (thd->transaction->all.is_trx_read_write() && thd->check_read_only_with_error())
     DBUG_RETURN(TRUE);
@@ -891,7 +953,12 @@ bool trans_xa_detach(THD *thd)
   DBUG_ASSERT(thd->transaction->xid_state.is_explicit_XA());
 
   if (thd->transaction->xid_state.xid_cache_element->xa_state != XA_PREPARED)
+  {
+#ifndef DBUG_OFF
+    thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
+#endif
     return xa_trans_force_rollback(thd);
+  }
   else if (!thd->transaction->all.is_trx_read_write())
   {
     thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
@@ -1151,13 +1218,17 @@ static bool slave_applier_reset_xa_trans(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
 
-  if (thd->variables.pseudo_slave_mode &&
-      !thd->transaction->all.is_trx_read_write())
+  if  (thd->transaction->xid_state.xid_cache_element->xa_state != XA_PREPARED)
   {
-    thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
+    DBUG_ASSERT(thd->transaction->xid_state.xid_cache_element->xa_state ==
+                XA_ROLLBACK_ONLY);
+    xa_trans_force_rollback(thd);
   }
-  thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
-  thd->transaction->xid_state.xid_cache_element= 0;
+  else
+  {
+    thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
+    thd->transaction->xid_state.xid_cache_element= 0;
+  }
 
   for (Ha_trx_info *ha_info= thd->transaction->all.ha_list, *ha_info_next;
        ha_info; ha_info= ha_info_next)

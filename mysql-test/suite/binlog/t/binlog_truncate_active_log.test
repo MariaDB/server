@@ -15,6 +15,7 @@
 
 call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
+call mtr.add_suppression("Found 1 prepared XA transactions");
 
 # The following cases are tested:
 # A. 2pc transaction is followed by a blank "zero-engines" one
@@ -55,29 +56,7 @@ CREATE TABLE tm (f INT) ENGINE=Aria;
 --let $query2 = INSERT INTO t VALUES (20)
 --source binlog_truncate_active_log.inc
 
-
 --echo # Case C.
-delimiter |;
-CREATE PROCEDURE sp_blank_xa()
-BEGIN
- XA START   'blank';
- DELETE FROM t2 WHERE f = 0 /* no such record */;
- XA END     'blank';
- XA PREPARE 'blank';
-END|
-delimiter ;|
-
-# The same as in A with $query2 being the zero-engine XA transaction.
-# Both $query1 and $query2 are going to be truncated.
---let $truncate_gtid_pos = 0-1-15
---let $query1 = INSERT INTO t VALUES (20)
---let $query2 = CALL sp_blank_xa
---source binlog_truncate_active_log.inc
-
-DROP PROCEDURE sp_blank_xa;
-
-
---echo # Case D.
 delimiter |;
 CREATE PROCEDURE sp_xa()
 BEGIN
@@ -90,7 +69,7 @@ delimiter ;|
 
 # The same as in B with $query1 being the prepared XA transaction.
 # Truncation must occurs at $query2.
---let $truncate_gtid_pos = 0-1-21
+--let $truncate_gtid_pos = 0-1-16
 --let $query1 = CALL sp_xa
 --let $query2 = INSERT INTO t2 VALUES (20)
 --source binlog_truncate_active_log.inc
