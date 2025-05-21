@@ -2276,6 +2276,14 @@ struct TABLE_LIST
     open_and_lock_tables
   */
   inline void reset() { bzero((void*)this, sizeof(*this)); }
+  inline void reset_view()
+  {
+    view= NULL;
+    derived= NULL;
+    derived_type= VIEW_ALGORITHM_UNDEFINED;
+    updatable= true;
+    effective_with_check= VIEW_CHECK_NONE;
+  }
   inline void init_one_table(const LEX_CSTRING *db_arg,
                              const LEX_CSTRING *table_name_arg,
                              const LEX_CSTRING *alias_arg,
