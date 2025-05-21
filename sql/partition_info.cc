@@ -831,6 +831,7 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     return 0;
   }
   else if (vers_info->interval.is_set() &&
+           /* Left boundary is closed */
            vers_info->hist_part->range_value <= thd->query_start())
   {
     partition_element *next= NULL;
@@ -842,7 +843,8 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     while ((next= it++) != vers_info->now_part)
     {
       vers_info->hist_part= next;
-      if (next->range_value > thd->query_start())
+      /* Right boundary is open */
+      if (thd->query_start() < next->range_value)
       {
         error= false;
         break;
