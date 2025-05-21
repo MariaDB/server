@@ -1,0 +1,70 @@
+name: clang-cl ARM64
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Configure git
+        run: |
+          # Nope, we won't be able to successfully run test
+          # if you do not configure that freaking autocrlf
+          git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          echo Processor Architecture: $Env:PROCESSOR_ARCHITECTURE
+          systeminfo
+          where.exe perl.exe
+      - name: Install bison
+        run: |
+          choco install winflexbison3 ninja
+
+      - name: Install Latest LLVM (manual installer)
+        shell: pwsh
+        run: |
+           $llvmVersion = "19.1.7"  # Replace with latest stable version
+           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
+           $installer = "$env:TEMP\llvm-installer.exe"
+           Invoke-WebRequest $url -OutFile $installer
+           Start-Process -Wait -FilePath $installer -ArgumentList "/S", "/D=C:\LLVM"
+
+      - name: Build project
+        run: |
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          mkdir bld
+          cd bld
+          rem set PATH=C:\LLVM\bin;%PATH%
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" arm64
+          cmake .. -DWITH_SSL=bundled -DWITH_UNIT_TESTS=0 -DWITHOUT_DYNAMIC_PLUGINS=1 -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -GNinja -DCMAKE_SYSTEM_PROCESSOR=ARM64 -DCMAKE_C_COMPILER_TARGET=arm64-windows-msvc -DCMAKE_CXX_COMPILER_TARGET=arm64-windows-msvc
+          cmake --build . 
+          cmake --build . --target win_package_zip
+        shell: cmd
+
+      - name: List all environment variables
+        shell: cmd
+        run: set
+
+      - name: Test
+        run: |
+          $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
+          #Calculate parallel as 4 * number of processors
+          $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
+          # Run mtr, skip unit.tzinfo
+          perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=$parallel `
+            --testcase-timeout=4 --suite=main,unit --skip-test=unit.my_tzinfo --skip-test=main.charset_client_win_utf8mb4 `
+            --skip-test=main.mariadb-upgrade-service  --skip-test=main.timezone4  --skip-test=main.timezone `
+            --mysqld=--loose-innodb-flush-log-at-trx-commit=2
+
+      - name: Test2
+        run: |
+          perl bld\mysql-test\mysql-test-run.pl --suite=main main.charset_client_win_utf8mb4
