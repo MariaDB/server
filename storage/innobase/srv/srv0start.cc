@@ -1392,7 +1392,7 @@ dberr_t srv_start(bool create_new_db)
 
 	log_sys.create();
 	recv_sys.create();
-	lock_sys.create(srv_lock_table_size);
+	lock_sys.create(srv_lock_table_size = 5 * buf_pool.curr_size());
 
 	srv_startup_is_before_trx_rollback_phase = true;
 

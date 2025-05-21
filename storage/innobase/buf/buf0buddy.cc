@@ -637,7 +637,7 @@ func_exit:
 	buf_buddy_add_to_free(reinterpret_cast<buf_buddy_free_t*>(buf), i);
 }
 
-/** Reallocate a ROW_FORMAT=COMPRESSED page frame during buf_pool_t::resize().
+/** Reallocate a ROW_FORMAT=COMPRESSED page frame during buf_pool_t::shrink().
 @param bpage page descriptor covering a ROW_FORMAT=COMPRESSED page
 @param block uncompressed block for storage
 @return block
@@ -672,10 +672,9 @@ buf_block_t *buf_buddy_shrink(buf_page_t *bpage, buf_block_t *block) noexcept
   bpage->zip.data= static_cast<page_zip_t*>(dst);
   buf_pool.buddy_stat[i].relocated++;
 
-  for (;;)
+  while (i < BUF_BUDDY_SIZES)
   {
     MEM_UNDEFINED(src, BUF_BUDDY_LOW << i);
-    ut_ad(i < BUF_BUDDY_SIZES);
     /* Try to combine adjacent blocks. */
     buf_buddy_free_t *buddy= reinterpret_cast<buf_buddy_free_t*>
       (buf_buddy_get(static_cast<byte*>(src), BUF_BUDDY_LOW << i));
@@ -684,20 +683,16 @@ buf_block_t *buf_buddy_shrink(buf_page_t *bpage, buf_block_t *block) noexcept
     {
       ut_ad(!buf_pool.contains_zip(src, BUF_BUDDY_LOW_SHIFT + i));
       buf_buddy_add_to_free(static_cast<buf_buddy_free_t*>(src), i);
-      break;
+      return block;
     }
 
     /* The buddy is free: recombine */
     buf_buddy_remove_from_free(buddy, i);
     i++;
     src= ut_align_down(src, BUF_BUDDY_LOW << i);
-    if (i == BUF_BUDDY_SIZES)
-    {
-      buf_buddy_block_free(src);
-      break;
-    }
   }
 
+  buf_buddy_block_free(src);
   return block;
 }
 
