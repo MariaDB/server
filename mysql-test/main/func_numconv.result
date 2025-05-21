@@ -1,0 +1,1019 @@
+SELECT to_number(123456, '');
+to_number(123456, '')
+1
+#
+# 'MI' and 'PR' alone are allowed (with an optional FM prefix)
+#
+SELECT to_number(123456, 'MI');
+to_number(123456, 'MI')
+1
+SELECT to_number(123456, 'PR');
+to_number(123456, 'PR')
+1
+SELECT to_number(123456, 'FMMI');
+to_number(123456, 'FMMI')
+1
+SELECT to_number(123456, 'FMPR');
+to_number(123456, 'FMPR')
+1
+# Multiple dollar or B signs are not allowed
+SELECT to_number(0, '99$99$');
+to_number(0, '99$99$')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '' at line 0
+SELECT to_number(0, '$9999$');
+to_number(0, '$9999$')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '$9999$' at line 0
+SELECT to_number(0, '$9.99$');
+to_number(0, '$9.99$')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '$9.99$' at line 0
+SELECT to_number(0, '9$9.9$99EEEE');
+to_number(0, '9$9.9$99EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '9$9.9$99EEEE' at line 0
+SELECT to_number(0, '99B99B');
+to_number(0, '99B99B')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '' at line 0
+SELECT to_number(0, 'B99B99B');
+to_number(0, 'B99B99B')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '' at line 0
+SELECT to_number(0, 'B999B');
+to_number(0, 'B999B')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'B999B' at line 0
+SELECT to_number(0, 'B9.99B');
+to_number(0, 'B9.99B')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'B9.99B' at line 0
+SELECT to_number(0, '9B9.9B99EEEE');
+to_number(0, '9B9.9B99EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '9B9.9B99EEEE' at line 0
+SELECT to_number(0, '.9$9BB$0B');
+to_number(0, '.9$9BB$0B')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '$0B' at line 0
+SELECT to_number(0, '.0$0BB$9B');
+to_number(0, '.0$0BB$9B')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '$9B' at line 0
+#
+# Dollar and C,L,U cannot co-exist
+#
+SELECT to_number(123456, '$C');
+to_number(123456, '$C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, '$L');
+to_number(123456, '$L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, '$U');
+to_number(123456, '$U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, '$C99');
+to_number(123456, '$C99')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C99' at line 0
+SELECT to_number(123456, '$L99');
+to_number(123456, '$L99')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L99' at line 0
+SELECT to_number(123456, '$U99');
+to_number(123456, '$U99')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U99' at line 0
+SELECT to_number(123456, '0$C');
+to_number(123456, '0$C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, '0$L');
+to_number(123456, '0$L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, '0$U');
+to_number(123456, '0$U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, '9$C');
+to_number(123456, '9$C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, '9$L');
+to_number(123456, '9$L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, '9$U');
+to_number(123456, '9$U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, 'C0$');
+to_number(123456, 'C0$')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '0$' at line 0
+SELECT to_number(123456, 'L0$');
+to_number(123456, 'L0$')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '0$' at line 0
+SELECT to_number(123456, 'U0$');
+to_number(123456, 'U0$')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near '0$' at line 0
+SELECT to_number(123456, '.$C');
+to_number(123456, '.$C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, '.$L');
+to_number(123456, '.$L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, '.$U');
+to_number(123456, '.$U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, 'D$C');
+to_number(123456, 'D$C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, 'D$L');
+to_number(123456, 'D$L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, 'D$U');
+to_number(123456, 'D$U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, 'V$C');
+to_number(123456, 'V$C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, 'V$L');
+to_number(123456, 'V$L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, 'V$U');
+to_number(123456, 'V$U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, '$.C');
+to_number(123456, '$.C')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, '$.L');
+to_number(123456, '$.L')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, '$.U');
+to_number(123456, '$.U')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+SELECT to_number(123456, '$DC');
+to_number(123456, '$DC')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'C' at line 0
+SELECT to_number(123456, '$DL');
+to_number(123456, '$DL')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'L' at line 0
+SELECT to_number(123456, '$DU');
+to_number(123456, '$DU')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'U' at line 0
+#
+# Integer_with_group
+#
+SELECT to_number(123456, 'x999');
+to_number(123456, 'x999')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'x999' at line 0
+SELECT to_number(123456, '999x');
+to_number(123456, '999x')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'x' at line 0
+# Correct formats
+SELECT to_number(123456, '999');
+to_number(123456, '999')
+1
+SELECT to_number(123456, '$99');
+to_number(123456, '$99')
+1
+SELECT to_number(123456, '9$9');
+to_number(123456, '9$9')
+1
+SELECT to_number(123456, '99$');
+to_number(123456, '99$')
+1
+SELECT to_number(123456, 'B99');
+to_number(123456, 'B99')
+1
+SELECT to_number(123456, '9B9');
+to_number(123456, '9B9')
+1
+SELECT to_number(123456, '99B');
+to_number(123456, '99B')
+1
+SELECT to_number(123456, 'B$9');
+to_number(123456, 'B$9')
+1
+SELECT to_number(123456, '9B$');
+to_number(123456, '9B$')
+1
+SELECT to_number(123456, '$B9');
+to_number(123456, '$B9')
+1
+SELECT to_number(123456, '9$B');
+to_number(123456, '9$B')
+1
+SELECT to_number(123456, '9,9,9,9');
+to_number(123456, '9,9,9,9')
+1
+SELECT to_number(123456, '9G9G9G9');
+to_number(123456, '9G9G9G9')
+1
+SELECT to_number(123456, '9G9,9G9');
+to_number(123456, '9G9,9G9')
+1
+SELECT to_number(123456, '9,9G9,9');
+to_number(123456, '9,9G9,9')
+1
+SELECT to_number(123456, '0000');
+to_number(123456, '0000')
+1
+SELECT to_number(123456, '0,0,0,0');
+to_number(123456, '0,0,0,0')
+1
+SELECT to_number(123456, '0G0G0G0');
+to_number(123456, '0G0G0G0')
+1
+SELECT to_number(123456, '0G0,0G0');
+to_number(123456, '0G0,0G0')
+1
+SELECT to_number(123456, '0,0G0,0');
+to_number(123456, '0,0G0,0')
+1
+SELECT to_number(123456, '00009999');
+to_number(123456, '00009999')
+1
+SELECT to_number(123456, '0,0,0,0,9,9,9,9');
+to_number(123456, '0,0,0,0,9,9,9,9')
+1
+SELECT to_number(123456, '0G0G0G0G9G9G9G9');
+to_number(123456, '0G0G0G0G9G9G9G9')
+1
+SELECT to_number(123456, '99990000');
+to_number(123456, '99990000')
+1
+SELECT to_number(123456, '9,9,9,9,0,0,0,0');
+to_number(123456, '9,9,9,9,0,0,0,0')
+1
+SELECT to_number(123456, '9G9G9G9G0G0G0G0');
+to_number(123456, '9G9G9G9G0G0G0G0')
+1
+#
+# decimal_with_group_pDVCLU 1: integer_with_group \[ fraction_pDVCLU \]
+#
+SELECT to_number(123456, '9999.');
+to_number(123456, '9999.')
+1
+SELECT to_number(123456, '9999.9999');
+to_number(123456, '9999.9999')
+1
+SELECT to_number(123456, '9999.99990000');
+to_number(123456, '9999.99990000')
+1
+SELECT to_number(123456, '9999.00009999');
+to_number(123456, '9999.00009999')
+1
+SELECT to_number(123456, '9999.');
+to_number(123456, '9999.')
+1
+SELECT to_number(123456, '9999.9999');
+to_number(123456, '9999.9999')
+1
+SELECT to_number(123456, '9999.99990000');
+to_number(123456, '9999.99990000')
+1
+SELECT to_number(123456, '9999.00009999');
+to_number(123456, '9999.00009999')
+1
+#
+# decimal_with_group_pDVCLU 2: fraction_pDVCLU
+#
+SELECT to_number(123456, '.');
+to_number(123456, '.')
+1
+SELECT to_number(123456, '.9999');
+to_number(123456, '.9999')
+1
+SELECT to_number(123456, '.99990000');
+to_number(123456, '.99990000')
+1
+SELECT to_number(123456, '.0000');
+to_number(123456, '.0000')
+1
+SELECT to_number(123456, '.00009999');
+to_number(123456, '.00009999')
+1
+SELECT to_number(123456, '.9$9B');
+to_number(123456, '.9$9B')
+1
+SELECT to_number(123456, '.0$0B');
+to_number(123456, '.0$0B')
+1
+#
+# Zeros_or_nines_opt_approximate_tail_pDV
+#
+SELECT to_number(123456, 'C0EEEE');
+to_number(123456, 'C0EEEE')
+1
+SELECT to_number(123456, 'L0EEEE');
+to_number(123456, 'L0EEEE')
+1
+SELECT to_number(123456, 'U0EEEE');
+to_number(123456, 'U0EEEE')
+1
+SELECT to_number(123456, 'C9EEEE');
+to_number(123456, 'C9EEEE')
+1
+SELECT to_number(123456, 'L9EEEE');
+to_number(123456, 'L9EEEE')
+1
+SELECT to_number(123456, 'U9EEEE');
+to_number(123456, 'U9EEEE')
+1
+#
+# number1: decimal_flags zeros_or_nines \[ approximate_tail_pDVCLU \] -- #2a
+# number1: decimal_flags                \[ fraction_pDVCLU \]         -- #2b
+#
+SELECT to_number(1, '$0EEEE');
+to_number(1, '$0EEEE')
+1
+SELECT to_number(1, 'B0EEEE');
+to_number(1, 'B0EEEE')
+1
+SELECT to_number(1, '$9EEEE');
+to_number(1, '$9EEEE')
+1
+SELECT to_number(1, 'B9EEEE');
+to_number(1, 'B9EEEE')
+1
+SELECT to_number(1, '$0.EEEE');
+to_number(1, '$0.EEEE')
+1
+SELECT to_number(1, 'B0.EEEE');
+to_number(1, 'B0.EEEE')
+1
+SELECT to_number(1, '$9.EEEE');
+to_number(1, '$9.EEEE')
+1
+SELECT to_number(1, 'B9.EEEE');
+to_number(1, 'B9.EEEE')
+1
+SELECT to_number(1, '$0.9EEEE');
+to_number(1, '$0.9EEEE')
+1
+SELECT to_number(1, 'B0.9EEEE');
+to_number(1, 'B0.9EEEE')
+1
+SELECT to_number(1, '$9.9EEEE');
+to_number(1, '$9.9EEEE')
+1
+SELECT to_number(1, 'B9.9EEEE');
+to_number(1, 'B9.9EEEE')
+1
+SELECT to_number(1, '$.');
+to_number(1, '$.')
+1
+SELECT to_number(1, 'B.');
+to_number(1, 'B.')
+1
+SELECT to_number(1, '$.');
+to_number(1, '$.')
+1
+SELECT to_number(1, 'B.');
+to_number(1, 'B.')
+1
+SELECT to_number(1, '$.9');
+to_number(1, '$.9')
+1
+SELECT to_number(1, 'B.9');
+to_number(1, 'B.9')
+1
+SELECT to_number(1, '$.9');
+to_number(1, '$.9')
+1
+SELECT to_number(1, 'B.9');
+to_number(1, 'B.9')
+1
+#
+# numeric_tail_pDVCLU: decimal_with_group_pDVCLU \[ EEEE \]\
+#                    | \[ EEEE \]
+#
+# EEEE without integer digits is not allowed
+SELECT to_number (123456,  '.EEEE');
+to_number (123456,  '.EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'EEEE' at line 0
+SELECT to_number (123456,  '.999EEEE');
+to_number (123456,  '.999EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'EEEE' at line 0
+SELECT to_number (123456,  '.9$9EEEE');
+to_number (123456,  '.9$9EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'EEEE' at line 0
+SELECT to_number (123456,  '.9B9EEEE');
+to_number (123456,  '.9B9EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'EEEE' at line 0
+# Correct formats
+SELECT to_number (123456,  '999EEEE');
+to_number (123456,  '999EEEE')
+1
+SELECT to_number (123456,  '999.EEEE');
+to_number (123456,  '999.EEEE')
+1
+SELECT to_number (123456,  '999.9999EEEE');
+to_number (123456,  '999.9999EEEE')
+1
+SELECT to_number (123456,  '9$9EEEE');
+to_number (123456,  '9$9EEEE')
+1
+SELECT to_number (123456,  '9$9.EEEE');
+to_number (123456,  '9$9.EEEE')
+1
+SELECT to_number (123456,  '9B9EEEE');
+to_number (123456,  '9B9EEEE')
+1
+SELECT to_number (123456,  '9B9.EEEE');
+to_number (123456,  '9B9.EEEE')
+1
+#
+# number0: zeros \[ numeric_tail_pDVCLU \]
+# numeric_tail_pDVCLU: decimal_with_group_pDVCLU \[ EEEE \]
+#                    | EEEE
+#
+CREATE TABLE t1 (fmt VARCHAR(64));
+INSERT INTO t1 VALUES
+('0.999'),
+('000.999'),
+('000999.999'),
+('00090909.999');
+SELECT to_number(123456, fmt), fmt FROM t1;
+to_number(123456, fmt)	fmt
+1	0.999
+1	000.999
+1	000999.999
+1	00090909.999
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','D')), @fmt FROM t1;
+to_number(123456, @fmt:=REPLACE(fmt,'.','D'))	@fmt
+1	0D999
+1	000D999
+1	000999D999
+1	00090909D999
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','V')), @fmt FROM t1;
+to_number(123456, @fmt:=REPLACE(fmt,'.','V'))	@fmt
+1	0V999
+1	000V999
+1	000999V999
+1	00090909V999
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','C')), @fmt FROM t1;
+to_number(123456, @fmt:=REPLACE(fmt,'.','C'))	@fmt
+1	0C999
+1	000C999
+1	000999C999
+1	00090909C999
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','L')), @fmt FROM t1;
+to_number(123456, @fmt:=REPLACE(fmt,'.','L'))	@fmt
+1	0L999
+1	000L999
+1	000999L999
+1	00090909L999
+SELECT to_number(123456, @fmt:=CONCAT(fmt,'EEEE')), @fmt FROM t1;
+to_number(123456, @fmt:=CONCAT(fmt,'EEEE'))	@fmt
+1	0.999EEEE
+1	000.999EEEE
+1	000999.999EEEE
+1	00090909.999EEEE
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','D'),'EEEE')), @fmt FROM t1;
+to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','D'),'EEEE'))	@fmt
+1	0D999EEEE
+1	000D999EEEE
+1	000999D999EEEE
+1	00090909D999EEEE
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','V'),'EEEE')), @fmt FROM t1;
+to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','V'),'EEEE'))	@fmt
+1	0V999EEEE
+1	000V999EEEE
+1	000999V999EEEE
+1	00090909V999EEEE
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','C'),'EEEE')), @fmt FROM t1;
+to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','C'),'EEEE'))	@fmt
+1	0C999EEEE
+1	000C999EEEE
+1	000999C999EEEE
+1	00090909C999EEEE
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','L'),'EEEE')), @fmt FROM t1;
+to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','L'),'EEEE'))	@fmt
+1	0L999EEEE
+1	000L999EEEE
+1	000999L999EEEE
+1	00090909L999EEEE
+DROP TABLE t1;
+SELECT to_number(123456, '00EEEE');
+to_number(123456, '00EEEE')
+1
+#
+# number1: decimal_flags \[ fraction_pDVCLU \]  -- branch #2b
+#
+SELECT to_number(123456, '$EEEE');
+to_number(123456, '$EEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'EEEE' at line 0
+SELECT to_number(123456, 'BEEEE');
+to_number(123456, 'BEEEE')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'EEEE' at line 0
+SELECT to_number(123456, 'B');
+to_number(123456, 'B')
+1
+SELECT to_number(123456, '$');
+to_number(123456, '$')
+1
+SELECT to_number(123456, 'B$');
+to_number(123456, 'B$')
+1
+SELECT to_number(123456, '$B');
+to_number(123456, '$B')
+1
+SELECT to_number(123456, 'SB');
+to_number(123456, 'SB')
+1
+SELECT to_number(123456, 'S$');
+to_number(123456, 'S$')
+1
+SELECT to_number(123456, 'SB$');
+to_number(123456, 'SB$')
+1
+SELECT to_number(123456, 'S$B');
+to_number(123456, 'S$B')
+1
+SELECT to_number(123456, 'BS');
+to_number(123456, 'BS')
+1
+SELECT to_number(123456, 'BMI');
+to_number(123456, 'BMI')
+1
+SELECT to_number(123456, 'BPR');
+to_number(123456, 'BPR')
+1
+SELECT to_number(123456, '$S');
+to_number(123456, '$S')
+1
+SELECT to_number(123456, '$MI');
+to_number(123456, '$MI')
+1
+SELECT to_number(123456, '$PR');
+to_number(123456, '$PR')
+1
+SELECT to_number(123456, 'BC');
+to_number(123456, 'BC')
+1
+SELECT to_number(123456, 'BL');
+to_number(123456, 'BL')
+1
+SELECT to_number(123456, 'BU');
+to_number(123456, 'BU')
+1
+SELECT to_number(123456, 'BC99');
+to_number(123456, 'BC99')
+1
+SELECT to_number(123456, 'BL99');
+to_number(123456, 'BL99')
+1
+SELECT to_number(123456, 'BU99');
+to_number(123456, 'BU99')
+1
+SELECT to_number(123456, 'BV');
+to_number(123456, 'BV')
+1
+SELECT to_number(123456, 'BV99');
+to_number(123456, 'BV99')
+1
+SELECT to_number(123456, '$V');
+to_number(123456, '$V')
+1
+SELECT to_number(123456, '$V99');
+to_number(123456, '$V99')
+1
+SELECT to_number(123456, 'B.');
+to_number(123456, 'B.')
+1
+SELECT to_number(123456, 'BD');
+to_number(123456, 'BD')
+1
+SELECT to_number(123456, 'B.99');
+to_number(123456, 'B.99')
+1
+SELECT to_number(123456, 'BD99');
+to_number(123456, 'BD99')
+1
+SELECT to_number(123456, '$.');
+to_number(123456, '$.')
+1
+SELECT to_number(123456, '$D');
+to_number(123456, '$D')
+1
+SELECT to_number(123456, '$.99');
+to_number(123456, '$.99')
+1
+SELECT to_number(123456, '$D99');
+to_number(123456, '$D99')
+1
+#
+# number1: positional_currency     zeros_or_nines \[ approximate_tail_pDV \] -- #3a
+# number1: positional_currency 'B' zeros_or_nines \[ approximate_tail_pDV \] -- #3b
+# number1: positional_currency 'B' \[ fraction_pDV // no EEEE?\]  -- #3c
+# number1: positional_currency \[ fraction_pDV \] -- #3d
+#
+SELECT to_number(1, 'CB,999');
+to_number(1, 'CB,999')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near ',999' at line 0
+SELECT to_number(1, 'CBG999');
+to_number(1, 'CBG999')
+NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'G999' at line 0
+SELECT to_number(1, 'C999');
+to_number(1, 'C999')
+1
+SELECT to_number(1, 'C000');
+to_number(1, 'C000')
+1
+SELECT to_number(1, 'CB999');
+to_number(1, 'CB999')
+1
+SELECT to_number(1, 'CB000');
+to_number(1, 'CB000')
+1
+SELECT to_number(1, 'C');
+to_number(1, 'C')
+1
+SELECT to_number(1, 'C.');
+to_number(1, 'C.')
+1
+SELECT to_number(1, 'CD');
+to_number(1, 'CD')
+1
+SELECT to_number(1, 'CV');
+to_number(1, 'CV')
+1
+SELECT to_number(1, 'C.99');
+to_number(1, 'C.99')
+1
+SELECT to_number(1, 'CD99');
+to_number(1, 'CD99')
+1
+SELECT to_number(1, 'CV99');
+to_number(1, 'CV99')
+1
+SELECT to_number(1, 'CB.999');
+to_number(1, 'CB.999')
+1
+SELECT to_number(1, 'CBD999');
+to_number(1, 'CBD999')
+1
+SELECT to_number(1, 'CB');
+to_number(1, 'CB')
+1
+SELECT to_number(1, 'L999');
+to_number(1, 'L999')
+1
+SELECT to_number(1, 'L000');
+to_number(1, 'L000')
+1
+SELECT to_number(1, 'LB999');
+to_number(1, 'LB999')
+1
+SELECT to_number(1, 'LB000');
+to_number(1, 'LB000')
+1
+SELECT to_number(1, 'L');
+to_number(1, 'L')
+1
+SELECT to_number(1, 'L.');
+to_number(1, 'L.')
+1
+SELECT to_number(1, 'LD');
+to_number(1, 'LD')
+1
+SELECT to_number(1, 'LV');
+to_number(1, 'LV')
+1
+SELECT to_number(1, 'L.99');
+to_number(1, 'L.99')
+1
+SELECT to_number(1, 'LD99');
+to_number(1, 'LD99')
+1
+SELECT to_number(1, 'LV99');
+to_number(1, 'LV99')
+1
+SELECT to_number(1, 'LB.999');
+to_number(1, 'LB.999')
+1
+SELECT to_number(1, 'LBD999');
+to_number(1, 'LBD999')
+1
+SELECT to_number(1, 'LB');
+to_number(1, 'LB')
+1
+SELECT to_number(1, 'U999');
+to_number(1, 'U999')
+1
+SELECT to_number(1, 'U000');
+to_number(1, 'U000')
+1
+SELECT to_number(1, 'UB999');
+to_number(1, 'UB999')
+1
+SELECT to_number(1, 'UB000');
+to_number(1, 'UB000')
+1
+SELECT to_number(1, 'U');
+to_number(1, 'U')
+1
+SELECT to_number(1, 'U.');
+to_number(1, 'U.')
+1
+SELECT to_number(1, 'UD');
+to_number(1, 'UD')
+1
+SELECT to_number(1, 'UV');
+to_number(1, 'UV')
+1
+SELECT to_number(1, 'U.99');
+to_number(1, 'U.99')
+1
+SELECT to_number(1, 'UD99');
+to_number(1, 'UD99')
+1
+SELECT to_number(1, 'UV99');
+to_number(1, 'UV99')
+1
+SELECT to_number(1, 'UB.999');
+to_number(1, 'UB.999')
+1
+SELECT to_number(1, 'UBD999');
+to_number(1, 'UBD999')
+1
+SELECT to_number(1, 'UB');
+to_number(1, 'UB')
+1
+#
+# format_without_prefix_sign: xchain
+#
+SELECT to_number(123456, 'X');
+to_number(123456, 'X')
+1
+SELECT to_number(123456, 'XX');
+to_number(123456, 'XX')
+1
+SELECT to_number(123456, 'XXX');
+to_number(123456, 'XXX')
+1
+SELECT to_number(123456, 'XXXX');
+to_number(123456, 'XXXX')
+1
+SELECT to_number(123456, 'XXXXX');
+to_number(123456, 'XXXXX')
+1
+SELECT to_number(123456, 'XXXXXX');
+to_number(123456, 'XXXXXX')
+1
+#
+# format_without_prefix_sign: zeros xchain
+#
+SELECT to_number(123456, '00X');
+to_number(123456, '00X')
+1
+SELECT to_number(123456, '00XX');
+to_number(123456, '00XX')
+1
+SELECT to_number(123456, '00XXX');
+to_number(123456, '00XXX')
+1
+SELECT to_number(123456, '00XXXX');
+to_number(123456, '00XXXX')
+1
+SELECT to_number(123456, '00XXXXX');
+to_number(123456, '00XXXXX')
+1
+SELECT to_number(123456, '00XXXXXX');
+to_number(123456, '00XXXXXX')
+1
+#
+# format_without_prefix_sign:
+#   zeros \[ numeric_tail_pDVCLU \] \[ postfix_sign \]
+#
+SELECT to_number(123456, '00S');
+to_number(123456, '00S')
+1
+SELECT to_number(123456, '00MI');
+to_number(123456, '00MI')
+1
+SELECT to_number(123456, '00PR');
+to_number(123456, '00PR')
+1
+#
+# format_without_prefix_sign: number1 \[ postfix_sign \]
+#
+SELECT to_number(123456, '99S');
+to_number(123456, '99S')
+1
+SELECT to_number(123456, '99MI');
+to_number(123456, '99MI')
+1
+SELECT to_number(123456, '99PR');
+to_number(123456, '99PR')
+1
+#
+# format_without_prefix_sign: format_TM_signature
+#
+SELECT to_number(123456, 'TM');
+to_number(123456, 'TM')
+1
+SELECT to_number(123456, 'TM9');
+to_number(123456, 'TM9')
+1
+SELECT to_number(123456, 'TME');
+to_number(123456, 'TME')
+1
+#
+# format#2: prefix_with_sign \[ format_with_prefix_sign \]
+#
+SELECT to_number(123456, 'S');
+to_number(123456, 'S')
+1
+SELECT to_number(123456, 'S00');
+to_number(123456, 'S00')
+1
+SELECT to_number(123456, 'S99');
+to_number(123456, 'S99')
+1
+SELECT to_number(123456, 'S99');
+to_number(123456, 'S99')
+1
+SELECT to_number(123456, 'FMS');
+to_number(123456, 'FMS')
+1
+SELECT to_number(123456, 'FMS00');
+to_number(123456, 'FMS00')
+1
+SELECT to_number(123456, 'FMS99');
+to_number(123456, 'FMS99')
+1
+SELECT to_number(123456, 'FMS99');
+to_number(123456, 'FMS99')
+1
+SELECT to_number(123456, 'SFM');
+to_number(123456, 'SFM')
+1
+SELECT to_number(123456, 'SFM00');
+to_number(123456, 'SFM00')
+1
+SELECT to_number(123456, 'SFM99');
+to_number(123456, 'SFM99')
+1
+SELECT to_number(123456, 'SFM99');
+to_number(123456, 'SFM99')
+1
+SELECT to_number(123456, 'S00.99EEEE');
+to_number(123456, 'S00.99EEEE')
+1
+SELECT to_number(123456, 'S99.99EEEE');
+to_number(123456, 'S99.99EEEE')
+1
+SELECT to_number(123456, 'S99.99EEEE');
+to_number(123456, 'S99.99EEEE')
+1
+SELECT to_number(123456, 'S00.99C');
+to_number(123456, 'S00.99C')
+1
+SELECT to_number(123456, 'S99.99L');
+to_number(123456, 'S99.99L')
+1
+SELECT to_number(123456, 'S99.99U');
+to_number(123456, 'S99.99U')
+1
+SELECT to_number(123456, 'S00D99C');
+to_number(123456, 'S00D99C')
+1
+SELECT to_number(123456, 'S99D99L');
+to_number(123456, 'S99D99L')
+1
+SELECT to_number(123456, 'S99D99U');
+to_number(123456, 'S99D99U')
+1
+#
+# TODO: the following formats are not supported in Oracle.
+# However, it works if change C/L/U to dollar sign:
+#
+SELECT to_number(123456, 'S00.99CEEEE');
+to_number(123456, 'S00.99CEEEE')
+1
+SELECT to_number(123456, 'S99.99LEEEE');
+to_number(123456, 'S99.99LEEEE')
+1
+SELECT to_number(123456, 'S99.99UEEEE');
+to_number(123456, 'S99.99UEEEE')
+1
+#
+# format#3: prefix_without_sign \[ format_without_prefix_sign \]
+#
+SELECT to_number(123456, 'FM');
+to_number(123456, 'FM')
+1
+SELECT to_number(123456, 'FM00S');
+to_number(123456, 'FM00S')
+1
+SELECT to_number(123456, 'FM99S');
+to_number(123456, 'FM99S')
+1
+SELECT to_number(123456, 'FM99S');
+to_number(123456, 'FM99S')
+1
+SELECT to_number(123456, 'FM00.99S');
+to_number(123456, 'FM00.99S')
+1
+SELECT to_number(123456, 'FM99.99S');
+to_number(123456, 'FM99.99S')
+1
+SELECT to_number(123456, 'FM99.99S');
+to_number(123456, 'FM99.99S')
+1
+SELECT to_number(123456, 'FM00.99EEEES');
+to_number(123456, 'FM00.99EEEES')
+1
+SELECT to_number(123456, 'FM99.99EEEES');
+to_number(123456, 'FM99.99EEEES')
+1
+SELECT to_number(123456, 'FM99.99EEEES');
+to_number(123456, 'FM99.99EEEES')
+1

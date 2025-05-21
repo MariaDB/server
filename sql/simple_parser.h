@@ -56,9 +56,353 @@
   storage, like Extended_string_tokenizer.
 */
 
+/*
+  TODO:
+  Let's change all rule constructor to have a "const Parser &p" parameter.
+  This is to avoid having two versions of empty:
+   - empty(const Parser &p)
+   - empty()
+*/
+
 class Parser_templates
 {
 protected:
+
+  // A container consisting of 2 parts, e.g. for OR2C
+  template<class PARSER, class A, class B>
+  class CONTAINER2: public A,
+                    public B
+  {
+  public:
+    CONTAINER2()
+    {
+      DBUG_ASSERT(!operator bool());
+    }
+
+    CONTAINER2(CONTAINER2 && rhs)
+     :A(std::move(rhs)),
+      B(std::move(rhs))
+    { }
+    CONTAINER2 & operator=(CONTAINER2 && rhs)
+    {
+#ifndef DBUG_OFF
+      bool a= rhs.A::operator bool();
+      bool b= rhs.B::operator bool();
+#endif
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      DBUG_ASSERT(a == A::operator bool());
+      DBUG_ASSERT(b == B::operator bool());
+      return *this;
+    }
+
+    static CONTAINER2 empty(const PARSER &parser)
+    {
+      CONTAINER2 tmp(A::empty(parser), B::empty(parser));
+      DBUG_ASSERT((bool)tmp);
+      return tmp;
+    }
+    static CONTAINER2 empty()
+    {
+      CONTAINER2 tmp(A::empty(), B::empty());
+      DBUG_ASSERT((bool)tmp);
+      return tmp;
+    }
+
+    CONTAINER2(A && a)
+     :A(std::move(a)),
+      B(B::empty())
+    {
+      DBUG_ASSERT(B::operator bool());
+    }
+    CONTAINER2(B && b)
+     :A(A::empty()),
+      B(std::move(b))
+    {
+      DBUG_ASSERT(A::operator bool());
+    }
+    CONTAINER2(A && a, B && b)
+     :A(std::move(a)),
+      B(std::move(b))
+    { }
+    operator bool() const
+    {
+      return A::operator bool() &&
+             B::operator bool();
+    }
+  };
+
+
+  // A container consisting of 3 parts, e.g. for OR3C
+  template<class PARSER, class A, class B, class C>
+  class CONTAINER3: public A,
+                    public B,
+                    public C
+  {
+  public:
+    CONTAINER3()
+    {
+      DBUG_ASSERT(!operator bool());
+    }
+
+    CONTAINER3(CONTAINER3 && rhs)
+     :A(std::move(rhs)),
+      B(std::move(rhs)),
+      C(std::move(rhs))
+    { }
+    CONTAINER3 & operator=(CONTAINER3 && rhs)
+    {
+#ifndef DBUG_OFF
+      bool a= rhs.A::operator bool();
+      bool b= rhs.B::operator bool();
+      bool c= rhs.C::operator bool();
+#endif
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      C::operator=(std::move(static_cast<C&&>(rhs)));
+      DBUG_ASSERT(a == A::operator bool());
+      DBUG_ASSERT(b == B::operator bool());
+      DBUG_ASSERT(c == C::operator bool());
+      return *this;
+    }
+    static CONTAINER3 empty(const PARSER &parser)
+    {
+      CONTAINER3 tmp(A::empty(parser), B::empty(parser), C::empty(parser));
+      DBUG_ASSERT((bool) tmp);
+      return tmp;
+    }
+    static CONTAINER3 empty()
+    {
+      CONTAINER3 tmp(A::empty(), B::empty(), C::empty());
+      DBUG_ASSERT((bool) tmp);
+      return tmp;
+    }
+
+    CONTAINER3(A && a, B && b, C && c)
+     :A(std::move(a)),
+      B(std::move(b)),
+      C(std::move(c))
+    { }
+    CONTAINER3(A && a)
+     :A(std::move(a)),
+      B(B::empty()),
+      C(C::empty())
+    {
+      DBUG_ASSERT(B::operator bool());
+      DBUG_ASSERT(C::operator bool());
+    }
+    CONTAINER3(B && b)
+     :A(A::empty()),
+      B(std::move(b)),
+      C(C::empty())
+    {
+      DBUG_ASSERT(A::operator bool());
+      DBUG_ASSERT(C::operator bool());
+    }
+    CONTAINER3(C && c)
+     :A(A::empty()),
+      B(B::empty()),
+      C(std::move(c))
+    {
+      DBUG_ASSERT(A::operator bool());
+      DBUG_ASSERT(B::operator bool());
+    }
+    operator bool() const
+    {
+      return A::operator bool() &&
+             B::operator bool() &&
+             C::operator bool();
+    }
+  };
+
+
+  // A container consisting of 4 parts, e.g. for OR4C
+  template<class PARSER, class A, class B, class C, class D>
+  class CONTAINER4: public A,
+                    public B,
+                    public C,
+                    public D
+  {
+  public:
+    CONTAINER4()
+    {
+      DBUG_ASSERT(!operator bool());
+    }
+
+    CONTAINER4(CONTAINER4 && rhs)
+     :A(std::move(rhs)),
+      B(std::move(rhs)),
+      C(std::move(rhs)),
+      D(std::move(rhs))
+    { }
+    CONTAINER4 & operator=(CONTAINER4 && rhs)
+    {
+#ifndef DBUG_OFF
+      bool a= rhs.A::operator bool();
+      bool b= rhs.B::operator bool();
+      bool c= rhs.C::operator bool();
+      bool d= rhs.D::operator bool();
+#endif
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      C::operator=(std::move(static_cast<C&&>(rhs)));
+      D::operator=(std::move(static_cast<D&&>(rhs)));
+      DBUG_ASSERT(a == A::operator bool());
+      DBUG_ASSERT(b == B::operator bool());
+      DBUG_ASSERT(c == C::operator bool());
+      DBUG_ASSERT(d == D::operator bool());
+      return *this;
+    }
+    static CONTAINER4 empty(const PARSER &parser)
+    {
+      return CONTAINER4(A::empty(parser), B::empty(parser),
+                        C::empty(parser), D::empty(parser));
+    }
+    static CONTAINER4 empty()
+    {
+      return CONTAINER4(A::empty(), B::empty(), C::empty(), D::empty());
+    }
+
+    CONTAINER4(A && a, B && b, C && c, D && d)
+     :A(std::move(a)),
+      B(std::move(b)),
+      C(std::move(c)),
+      D(std::move(d))
+    { }
+    CONTAINER4(A && a)
+     :A(std::move(a)),
+      B(B::empty()),
+      C(C::empty()),
+      D(D::empty())
+    { }
+    CONTAINER4(B && b)
+     :A(A::empty()),
+      B(std::move(b)),
+      C(C::empty()),
+      D(D::empty())
+    { }
+    CONTAINER4(C && c)
+     :A(A::empty()),
+      B(B::empty()),
+      C(std::move(c)),
+      D(D::empty())
+    { }
+    CONTAINER4(D && d)
+     :A(A::empty()),
+      B(B::empty()),
+      C(C::empty()),
+      D(std::move(d))
+    { }
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() &&
+             C::operator bool() && D::operator bool();
+    }
+  };
+
+  // A containler consisting of 5 parts, e.g. for OR5C
+  template<class PARSER, class A, class B, class C, class D, class E>
+  class CONTAINER5: public A,
+                    public B,
+                    public C,
+                    public D,
+                    public E
+  {
+  public:
+    CONTAINER5()
+    {
+      DBUG_ASSERT(!operator bool());
+    }
+
+    CONTAINER5(CONTAINER5 && rhs)
+     :A(std::move(rhs)),
+      B(std::move(rhs)),
+      C(std::move(rhs)),
+      D(std::move(rhs)),
+      E(std::move(rhs))
+    { }
+    CONTAINER5 & operator=(CONTAINER5 && rhs)
+    {
+#ifndef DBUG_OFF
+      bool a= rhs.A::operator bool();
+      bool b= rhs.B::operator bool();
+      bool c= rhs.C::operator bool();
+      bool d= rhs.D::operator bool();
+      bool e= rhs.E::operator bool();
+#endif
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      C::operator=(std::move(static_cast<C&&>(rhs)));
+      D::operator=(std::move(static_cast<D&&>(rhs)));
+      E::operator=(std::move(static_cast<E&&>(rhs)));
+      DBUG_ASSERT(a == A::operator bool());
+      DBUG_ASSERT(b == B::operator bool());
+      DBUG_ASSERT(c == C::operator bool());
+      DBUG_ASSERT(d == D::operator bool());
+      DBUG_ASSERT(e == E::operator bool());
+      return *this;
+    }
+    static CONTAINER5 empty(const PARSER &parser)
+    {
+      return CONTAINER5(A::empty(parser), B::empty(parser), C::empty(parser),
+                        D::empty(parser), E::empty(parser));
+    }
+    static CONTAINER5 empty()
+    {
+      return CONTAINER5(A::empty(), B::empty(), C::empty(),
+                        D::empty(), E::empty());
+    }
+
+    CONTAINER5(A && a, B && b, C && c, D && d, E && e)
+     :A(std::move(a)),
+      B(std::move(b)),
+      C(std::move(c)),
+      D(std::move(d)),
+      E(std::move(e))
+    { }
+    CONTAINER5(A && a)
+     :A(std::move(a)),
+      B(B::empty()),
+      C(C::empty()),
+      D(D::empty()),
+      E(E::empty())
+    { }
+    CONTAINER5(B && b)
+     :A(A::empty()),
+      B(std::move(b)),
+      C(C::empty()),
+      D(D::empty()),
+      E(E::empty())
+    { }
+    CONTAINER5(C && c)
+     :A(A::empty()),
+      B(B::empty()),
+      C(std::move(c)),
+      D(D::empty()),
+      E(E::empty())
+    { }
+    CONTAINER5(D && d)
+     :A(A::empty()),
+      B(B::empty()),
+      C(C::empty()),
+      D(std::move(d)),
+      E(E::empty())
+    { }
+    CONTAINER5(E && e)
+     :A(A::empty()),
+      B(B::empty()),
+      C(C::empty()),
+      D(D::empty()),
+      E(std::move(e))
+    { }
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() &&
+             C::operator bool() && D::operator bool() &&
+             E::operator bool();
+    }
+  };
+
 
   // Templates to parse common rule sequences
 
@@ -86,6 +430,10 @@ protected:
     {
       return TOKEN(p.empty_token());
     }
+    static TOKEN empty()
+    {
+      return TOKEN(PARSER::Token::empty());
+    }
   };
 
 
@@ -106,8 +454,37 @@ protected:
     {
       DBUG_ASSERT(!p->is_error() || !PARSER::Token::operator bool());
     }
+    TokenChoice(const class PARSER::Token &tok)
+     :PARSER::Token(tok)
+    { }
+    static TokenChoice empty(const PARSER &parser)
+    {
+      return TokenChoice(parser.empty_token());
+    }
+    static TokenChoice empty()
+    {
+      return PARSER::Token::empty();
+    }
   };
 
+  template<class PARSER, typename PARSER::TokenID a,
+                         typename PARSER::TokenID b>
+  class TokenChoiceCond2
+  {
+  public:
+    static bool allowed_token_id(typename PARSER::TokenID id)
+    { return id == a || id == b; }
+  };
+
+  template<class PARSER, typename PARSER::TokenID a,
+                         typename PARSER::TokenID b,
+                         typename PARSER::TokenID c>
+  class TokenChoiceCond3
+  {
+  public:
+    static bool allowed_token_id(typename PARSER::TokenID id)
+    { return id == a || id == b || id == c; }
+  };
 
   /*
     An optional rule:
@@ -119,6 +496,9 @@ protected:
   public:
     OPT()
     { }
+    explicit OPT(RULE && rhs)
+     :RULE(std::move(rhs))
+    { }
     OPT(PARSER *p)
      :RULE(p)
     {
@@ -127,6 +507,25 @@ protected:
         RULE::operator=(RULE::empty(*p));
         DBUG_ASSERT(RULE::operator bool());
       }
+      else if (p->is_error() && RULE::operator bool())
+      {
+#ifdef LIST_CONTAINERS_PROVIDE_EMPTY /*Rename or use new?*/
+        /*
+          TODO: this seems to be wrong in a general case.
+          The rule might have allocated memory.
+        */
+        RULE::operator=(RULE());
+        DBUG_ASSERT(!RULE::operator bool());
+#endif
+      }
+    }
+    static OPT empty(const PARSER &parser)
+    {
+      return OPT(RULE::empty(parser));
+    }
+    static OPT empty()
+    {
+      return OPT(RULE::empty());
     }
   };
 
@@ -225,7 +624,7 @@ protected:
     }
     static AND3 empty(const PARSER &p)
     {
-      return AND3(A::empty(p), B::empty(p), C::empty());
+      return AND3(A::empty(p), B::empty(p), C::empty(p));
     }
   };
 
@@ -305,6 +704,9 @@ protected:
      :A(std::move(static_cast<A&&>(rhs))),
       B(std::move(static_cast<B&&>(rhs)))
     { }
+    OR2(A &&a, B &&b)
+     :A(std::move(a)), B(std::move(b))
+    { }
     OR2(A && rhs)
      :A(std::move(rhs)), B()
     { }
@@ -325,6 +727,10 @@ protected:
     operator bool() const
     {
       return A::operator bool() || B::operator bool();
+    }
+    static OR2 empty(const PARSER &p)
+    {
+      return OR2(A::empty(p), B::empty(p));
     }
   };
 
@@ -353,6 +759,16 @@ protected:
     OR2C(OR2C &&rhs)
      :CONTAINER(std::move(rhs))
     { }
+    OR2C(CONTAINER && rhs)
+     :CONTAINER(std::move(rhs))
+    { }
+    static OR2C empty(const PARSER &parser)
+    {
+      CONTAINER tmp(CONTAINER::empty(parser));
+      DBUG_ASSERT((bool) tmp);
+      return tmp;
+    }
+
     OR2C & operator=(OR2C &&rhs)
     {
       CONTAINER::operator=(std::move(rhs));
@@ -396,6 +812,10 @@ protected:
       B(std::move(static_cast<B&&>(rhs))),
       C(std::move(static_cast<C&&>(rhs)))
     { }
+    OR3(A &&a, B &&b, C &&c)
+     :A(std::move(a)), B(std::move(b)), C(std::move(c))
+    { }
+
     OR3 & operator=(OR3 &&rhs)
     {
       A::operator=(std::move(static_cast<A&&>(rhs)));
@@ -413,6 +833,10 @@ protected:
     operator bool() const
     {
       return A::operator bool() || B::operator bool() || C::operator bool();
+    }
+    static OR3 empty(const PARSER &p)
+    {
+      return OR3(A::empty(p), B::empty(p), C::empty(p));
     }
   };
 
@@ -435,6 +859,14 @@ protected:
     OR3C(OR3C &&rhs)
      :CONTAINER(std::move(rhs))
     { }
+    OR3C(CONTAINER && rhs)
+     :CONTAINER(std::move(rhs))
+    { }
+    static OR3C empty(const PARSER &parser)
+    {
+      return CONTAINER::empty(parser);
+    }
+
     OR3C(A &&a)
      :CONTAINER(std::move(a))
     { }
@@ -444,6 +876,7 @@ protected:
     OR3C(C &&c)
      :CONTAINER(std::move(c))
     { }
+
     OR3C & operator=(OR3C &&rhs)
     {
       CONTAINER::operator=(std::move(rhs));
@@ -517,6 +950,161 @@ protected:
              D::operator bool();
     }
   };
+
+
+  /*
+    A rule consisting of a choice of four rules, e.g.
+      rule ::= rule1 | rule2 | rule3 | rule4
+
+    For the cases when the three branches have a compatible storage,
+    passed as a CONTAINER, which must have constructors:
+      CONTAINER(const A && a)
+      CONTAINER(const B && b)
+      CONTAINER(const C && c)
+      CONTAINER(const D && d)
+  */
+  template<class PARSER, class CONTAINER, class A, class B, class C, class D>
+  class OR4C: public CONTAINER
+  {
+  public:
+    OR4C()
+    { }
+    OR4C(OR4C && rhs)      :CONTAINER(std::move(rhs)) { }
+    OR4C(CONTAINER && rhs) :CONTAINER(std::move(rhs)) { }
+    OR4C(A && a)           :CONTAINER(std::move(a))   { }
+    OR4C(B && b)           :CONTAINER(std::move(b))   { }
+    OR4C(C && c)           :CONTAINER(std::move(c))   { }
+    OR4C(D && d)           :CONTAINER(std::move(d))   { }
+
+    OR4C & operator=(OR4C && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(CONTAINER && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(A && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(B && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(C && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR4C & operator=(D && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+
+    OR4C(PARSER *p)
+     :CONTAINER(A(p))
+    {
+      if (CONTAINER::operator bool() ||
+          CONTAINER::operator=(B(p)) ||
+          CONTAINER::operator=(C(p)) ||
+          CONTAINER::operator=(D(p)))
+        return;
+      DBUG_ASSERT(!CONTAINER::operator bool());
+    }
+  };
+
+
+  /*
+    A rule consisting of a choice of four rules, e.g.
+      rule ::= rule1 | rule2 | rule3 | rule4 | rule5
+
+    For the cases when the three branches have a compatible storage,
+    passed as a CONTAINER, which must have constructors:
+      CONTAINER(const A && a)
+      CONTAINER(const B && b)
+      CONTAINER(const C && c)
+      CONTAINER(const D && d)
+      CONTAINER(const E && e)
+  */
+  template<class PARSER, class CONTAINER,
+           class A, class B, class C, class D, class E>
+  class OR5C: public CONTAINER
+  {
+  public:
+    OR5C()
+    { }
+    OR5C(OR5C && rhs) :CONTAINER(std::move(rhs)) { }
+    OR5C(CONTAINER && rhs) :CONTAINER(std::move(rhs)) { }
+    OR5C & operator=(OR5C && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR5C & operator=(CONTAINER && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    static OR5C empty(const PARSER &parser)
+    {
+      return CONTAINER::empty(parser);
+    }
+    static OR5C empty()
+    {
+      return CONTAINER::empty();
+    }
+
+    OR5C(A && a)      :CONTAINER(std::move(a))   { }
+    OR5C(B && b)      :CONTAINER(std::move(b))   { }
+    OR5C(C && c)      :CONTAINER(std::move(c))   { }
+    OR5C(D && d)      :CONTAINER(std::move(d))   { }
+    OR5C(E && e)      :CONTAINER(std::move(e))   { }
+
+    OR5C & operator=(A && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR5C & operator=(B && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR5C & operator=(C && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR5C & operator=(D && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+    OR5C & operator=(E && rhs)
+    {
+      CONTAINER::operator=(std::move(rhs));
+      return *this;
+    }
+
+    OR5C(PARSER *p)
+     :CONTAINER(A(p))
+    {
+      if (CONTAINER::operator bool() ||
+          CONTAINER::operator=(B(p)) ||
+          CONTAINER::operator=(C(p)) ||
+          CONTAINER::operator=(D(p)) ||
+          CONTAINER::operator=(E(p)))
+        return;
+      DBUG_ASSERT(!CONTAINER::operator bool());
+    }
+  };
+
 
   /*
      A rule consisting of a choice of seven rules:
@@ -602,6 +1190,10 @@ protected:
     LIST()
      :m_error(true)
     { }
+    LIST(LIST_CONTAINER &&rhs)
+     :LIST_CONTAINER(std::move(rhs)),
+      m_error(false)
+    { }
     LIST(LIST &&rhs)
      :LIST_CONTAINER(std::move(rhs)),
       m_error(rhs.m_error)
@@ -611,6 +1203,10 @@ protected:
       LIST_CONTAINER::operator=(std::move(rhs));
       m_error= rhs.m_error;
       return *this;
+    }
+    static LIST empty(const PARSER &parser)
+    {
+      return LIST(LIST_CONTAINER::empty(parser));
     }
     LIST(PARSER *p)
      :m_error(true)
@@ -630,6 +1226,13 @@ protected:
             */
             m_error= p->is_error();
             DBUG_ASSERT(!m_error || !operator bool());
+#ifdef LIST_CONTAINERS_PROVIDE_EMPTY
+            if (!p->is_error())
+            {
+              if (LIST_CONTAINER::count() == 0)
+                LIST_CONTAINER::operator=(empty(*p));
+            }
+#endif
             return;
           }
           // Could not get the next element after the separator

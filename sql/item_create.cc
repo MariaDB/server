@@ -37,6 +37,7 @@
 #include "sql_time.h"
 #include "sql_type_geom.h"
 #include "item_vectorfunc.h"
+#include "item_numconvfunc.h"
 #include <mysql/plugin_function.h>
 
 
@@ -2562,6 +2563,19 @@ public:
 protected:
   Create_func_to_char() = default;
   virtual ~Create_func_to_char() = default;
+};
+
+
+class Create_func_to_number : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_to_number s_singleton;
+
+protected:
+  Create_func_to_number() = default;
+  ~Create_func_to_number() override = default;
 };
 
 
@@ -5979,6 +5993,16 @@ Create_func_to_days::create_1_arg(THD *thd, Item *arg1)
 
 Create_func_to_seconds Create_func_to_seconds::s_singleton;
 
+
+Create_func_to_number Create_func_to_number::s_singleton;
+
+Item*
+Create_func_to_number::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_to_number(thd, arg1, arg2);
+}
+
+
 Item*
 Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 {
@@ -6553,6 +6577,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { STRING_WITH_LEN("TO_CHAR") }, BUILDER(Create_func_to_char)},
+  { { STRING_WITH_LEN("TO_NUMBER") }, BUILDER(Create_func_to_number)},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
