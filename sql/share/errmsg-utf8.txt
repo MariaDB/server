@@ -10758,7 +10758,3 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
-ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS
-        eng "Fewer than one row in the table"
-ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS
-        eng "More than one row in the table"
