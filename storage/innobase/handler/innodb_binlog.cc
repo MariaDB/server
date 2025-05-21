@@ -1725,7 +1725,12 @@ innodb_binlog_prealloc_thread()
       mysql_mutex_unlock(&purge_binlog_mutex);
 
       mysql_mutex_lock(&active_binlog_mutex);
-      ut_a(res2 == DB_SUCCESS /* ToDo: Error handling. */);
+       /*
+         ToDo: Error handling.
+         For example, disk full, while tricky to handle well, should not crash
+         the server at least.
+       */
+      ut_a(res2 == DB_SUCCESS);
       last_created_binlog_file_no= last_created;
 
       /* If we created the initial tablespace file, make it the active one. */
