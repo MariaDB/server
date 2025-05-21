@@ -232,20 +232,6 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 4	i	2003-10-30 05:01:03
 5	h	2001-10-31 23:59:59
 
-select sql_calc_found_rows
-connection master_1;
-SELECT SQL_CALC_FOUND_ROWS a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
-ORDER BY a LIMIT 4;
-a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
-1	f	2008-07-01 10:21:39
-2	g	2000-02-01 00:00:00
-3	j	2007-05-04 20:03:11
-4	i	2003-10-30 05:01:03
-connection master_1;
-SELECT found_rows();
-found_rows()
-5
-
 select high_priority
 connection master_1;
 SELECT HIGH_PRIORITY a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l

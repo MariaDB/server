@@ -430,6 +430,8 @@ int main(int argc, char **argv)
   return 0;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 void concurrency_loop(MYSQL *mysql, uint current, option_string *eptr)
 {
   unsigned int x;
@@ -525,6 +527,7 @@ void concurrency_loop(MYSQL *mysql, uint current, option_string *eptr)
   my_free(head_sptr);
 
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 static struct my_option my_long_options[] =
@@ -2297,6 +2300,7 @@ statement_cleanup(statement *stmt)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 int 
 slap_connect(MYSQL *mysql)
@@ -2330,3 +2334,4 @@ slap_connect(MYSQL *mysql)
 
   return 0;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME

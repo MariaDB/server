@@ -4734,6 +4734,7 @@ restart:
             goto error;
 
           error= FALSE;
+          std::this_thread::yield();
           goto restart;
         }
         goto error;
@@ -4799,6 +4800,7 @@ restart:
 
             error= FALSE;
             sroutine_to_open= &thd->lex->sroutines_list.first;
+            std::this_thread::yield();
             goto restart;
           }
           /*
