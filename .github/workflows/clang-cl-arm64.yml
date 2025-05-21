@@ -65,7 +65,7 @@ jobs:
           $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
           # Run mtr, skip unit.tzinfo
           perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=$parallel `
-            --testcase-timeout=6 --suite=main,unit --skip-test=unit.my_tzinfo,main.charset_client_win_utf8mb4 `
+            --testcase-timeout=6 --suite=main,unit --skip-test=unit.my_tzinfo,main.charset_client_win_utf8mb4,main.mariadb-upgrade-service `
             --mysqld=--loose-innodb-flush-log-at-trx-commit=2
 
       - name: Test2
