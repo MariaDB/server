@@ -171,7 +171,7 @@ public:
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
-  const char *get_username() { return user.str; }
+  const char *get_username() const { return user.str; }
 };
 
 class ACL_USER_PARAM
@@ -209,6 +209,12 @@ public:
 
 class ACL_USER :public ACL_USER_BASE, public ACL_USER_PARAM
 {
+  /*
+    Ephemeral state (meaning it is not stored anywhere in the Data Dictionary)
+    to disable establishing sessions in case the user is being dropped.
+  */
+  bool dont_accept_conn= false;
+
 public:
   ACL_USER() = default;
   ACL_USER(THD *, const LEX_USER &, const Account_options &, const privilege_t);
@@ -242,6 +248,7 @@ public:
     dst->host.hostname= safe_strdup_root(root, host.hostname);
     dst->default_rolename= safe_lexcstrdup_root(root, default_rolename);
     bzero(&dst->role_grants, sizeof(role_grants));
+    dst->dont_accept_conn= dont_accept_conn;
     return dst;
   }
 
@@ -273,6 +280,16 @@ public:
         DBUG_ASSERT(0);
         break;
     }
+  }
+
+  void disable_new_connections()
+  {
+    dont_accept_conn= true;
+  }
+
+  bool dont_accept_new_connections() const
+  {
+    return dont_accept_conn;
   }
 };
 
@@ -580,6 +597,43 @@ static const uchar *acl_role_get_key(const void *entry_, size_t *length,
   return reinterpret_cast<const uchar *>(entry->user.str);
 }
 
+
+/**
+  This class introduced in order to add a conditional variable associated with
+  the mutex hash_filo.lock, that is used for waiting until all sessions of
+  the user being dropped be closed.
+*/
+
+class Acl_cache : public Hash_filo<acl_entry>
+{
+public:
+  Acl_cache()
+  : Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0,
+                         0, acl_entry_get_key, my_free,
+                         &my_charset_utf8mb3_bin)
+  {}
+
+  void clear(bool locked)
+  {
+    Hash_filo<acl_entry>::clear(locked);
+    if (!cond_inited)
+    {
+      mysql_cond_init(key_COND_acl_cache, &cond, nullptr);
+      cond_inited= true;
+    }
+  }
+
+  /**
+    Conditional variable that in pair with the data member hash_filo::lock
+    is used for signaling about the fact that a user session terminated.
+  */
+  mysql_cond_t cond;
+
+private:
+  bool cond_inited= false;
+};
+
+
 struct ROLE_GRANT_PAIR : public Sql_alloc
 {
   LEX_CSTRING u_uname;
@@ -701,7 +755,7 @@ static bool allow_all_hosts=1;
 static HASH acl_check_hosts, column_priv_hash, proc_priv_hash, func_priv_hash;
 static HASH package_spec_priv_hash, package_body_priv_hash;
 static DYNAMIC_ARRAY acl_wild_hosts;
-static Hash_filo<acl_entry> *acl_cache;
+static Acl_cache *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
 static int acl_compare(const void *a, const void *b);
@@ -2549,9 +2603,7 @@ bool acl_init(bool dont_read_acl_tables)
   bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0,
-                                      0, acl_entry_get_key, my_free,
-                                      &my_charset_utf8mb3_bin);
+  acl_cache= new Acl_cache();
 
   /*
     cache built-in native authentication plugins,
@@ -11336,6 +11388,116 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   DBUG_RETURN(result);
 }
 
+
+/**
+  Find the specified user and mark it as not accepting incoming sessions
+
+  @param user_name  the user for that accept of incoming connections
+                    should be disabled
+*/
+
+static void disable_connections_for_user(LEX_USER *user)
+{
+  ACL_USER *found_user= find_user_or_anon(user->host.str, user->user.str,
+                                          nullptr);
+
+  if(found_user != nullptr)
+    found_user->disable_new_connections();
+}
+
+
+struct count_user_threads_callback_arg
+{
+  explicit count_user_threads_callback_arg(LEX_USER *user_arg)
+  : user(user_arg), counter(0)
+  {}
+
+  LEX_USER *user;
+  uint counter;
+};
+
+
+/**
+  Callback function invoked for every active THD to count a number of
+  sessions established by specified user
+
+  @param[in] thd   Thread context
+  @param arg       Account info for that a number of active connections
+                   should be countered
+*/
+
+static my_bool count_threads_callback(THD *thd,
+                                      count_user_threads_callback_arg *arg)
+{
+  if (thd->security_ctx->user)
+  {
+    /*
+      Check that hostname (if given) and user name matches.
+
+      host.str[0] == '%' means that host name was not given. See sql_yacc.yy
+    */
+    if (((arg->user->host.str[0] == '%' && !arg->user->host.str[1]) ||
+         !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
+        !strcmp(thd->security_ctx->user, arg->user->user.str))
+      arg->counter++;
+  }
+  return false;
+}
+
+
+/**
+  Get a number of connections currently established on behalf the user
+
+  @param[in] thd   Thread context
+  @param[in] user  User credential to count up a number of connections
+
+  @return  a number of connections established by the user at the moment of
+           the function call
+*/
+
+static int count_sessions_for_user(LEX_USER *user)
+{
+  count_user_threads_callback_arg arg(user);
+  bool ret __attribute__((unused));
+
+  ret= server_threads.iterate(count_threads_callback, &arg);
+  DBUG_ASSERT(ret == false);
+
+  return arg.counter;
+}
+
+
+/**
+  Wait until all established sessions for the user be disconnected.
+*/
+
+static void wait_until_user_sessions_closed(LEX_USER *user_name)
+{
+  /*
+    acl_cache->lock is hold at the moment this function called
+  */
+
+  mysql_rwlock_unlock(&LOCK_grant);
+  while (count_sessions_for_user(user_name) != 0)
+    mysql_cond_wait(&acl_cache->cond, &acl_cache->lock);
+
+  mysql_mutex_unlock(&acl_cache->lock);
+  mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+
+}
+
+
+/**
+  Notify a thread waiting until all user's session be closed about
+  termination of current connection.
+*/
+
+void notify_acl_cache_on_connection_terminate()
+{
+  mysql_cond_signal(&acl_cache->cond);
+}
+
 /*
   Drop a list of users and all their privileges.
 
@@ -11372,9 +11534,9 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
+  List<LEX_USER> correct_users_list;
   while ((tmp_user_name= user_list++))
   {
-    int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
     if (!user_name || (handle_as_role && is_public(user_name)))
     {
@@ -11394,9 +11556,38 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       continue;
     }
 
+    correct_users_list.push_front(user_name);
+    /*
+      Prevent new connections to be established on behalf the user
+      being dropped.
+    */
+    disable_connections_for_user(user_name);
+  }
+
+  user_list.init(correct_users_list);
+  while ((user_name= user_list++))
+  {
+    int rc;
+
+    if (!thd->lex->create_info.force())
+      /*
+        In case the FORCE clause isn't specified in the DROP USER statement,
+        wait until the user being dropped terminates all its active sessions.
+      */
+      wait_until_user_sessions_closed(user_name);
+
     if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
     {
       // The user or role was successfully deleted
+      /*
+        If the user (not a role) was successfully dropped and
+        the clause `FORCE` is specified for the statement DROP USER,
+        then terminate every connection established on behalf of this user.
+      */
+      if (!user_name->is_role() &&
+          thd->lex->create_info.force())
+        kill_dropped_user(thd, user_name);
+
       binlog= true;
       continue;
     }
@@ -14828,6 +15019,17 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
   if (acl_user)
   {
+    /*
+      Attempt to establish a new connection on behalf the user that is
+      currently being dropped from a concurrent session.
+      Terminate the connection.
+    */
+    if (acl_user->dont_accept_new_connections())
+    {
+      my_error(ER_CONNECT_WHILE_DROP_USER_IN_PROGRESS, MYF(0),
+               acl_user->get_username());
+      DBUG_RETURN(1);
+    }
     /*
       retry the authentication with curr_auth==0 if after receiving the user
       name we found that we need to switch to a non-default plugin

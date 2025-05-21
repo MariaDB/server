@@ -190,6 +190,7 @@ check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
 
+void kill_dropped_user(THD *thd, LEX_USER *user);
 /*
   Allocating memory and *also* using it (reading and
   writing from it) because some build instructions cause

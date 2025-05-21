@@ -1484,6 +1484,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         create_or_replace
         opt_if_not_exists
         opt_if_exists
+        opt_force
 
 /*
   Bit field of MYSQL_START_TRANS_OPT_* flags.
@@ -13447,9 +13448,9 @@ drop:
             lex->set_command(SQLCOM_DROP_DB, $3);
             lex->name= $4;
           }
-        | DROP USER_SYM opt_if_exists clear_privileges user_list
+        | DROP USER_SYM opt_if_exists clear_privileges user_list opt_force
           {
-            Lex->set_command(SQLCOM_DROP_USER, $3);
+            Lex->set_command(SQLCOM_DROP_USER, $3 | $6);
           }
         | DROP ROLE_SYM opt_if_exists clear_privileges role_list
           {
@@ -13570,6 +13571,12 @@ opt_temporary:
           /* empty */ { $$= 0; }
         | TEMPORARY { $$= HA_LEX_CREATE_TMP_TABLE; }
         ;
+
+opt_force:
+          /* empty */ { $$.set(DDL_options_st::OPT_NONE); }
+        | FORCE_SYM   { $$.set(DDL_options_st::OPT_FORCE); }
+        ;
+
 /*
 ** Insert : add new data to table
 */

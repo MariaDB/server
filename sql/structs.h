@@ -577,7 +577,9 @@ public:
                                        // not in the original query on master.
     OPT_IF_EXISTS= 64,
     OPT_CREATE_SELECT= 128,             // CREATE ... SELECT
-    OPT_IMPORT_TABLESPACE= 256      // ALTER ... IMPORT TABLESPACE
+    OPT_IMPORT_TABLESPACE= 256,      // ALTER ... IMPORT TABLESPACE
+    OPT_FORCE= 512                     /* the FORCE clause, e.g. for
+                                          the statement DROP USER ... FORCE */
   };
 
 private:
@@ -607,6 +609,7 @@ public:
   bool if_exists() const { return m_options & OPT_IF_EXISTS; }
   bool is_create_select() const { return m_options & OPT_CREATE_SELECT; }
   bool import_tablespace() const { return m_options & OPT_IMPORT_TABLESPACE; }
+  bool force() const { return m_options & OPT_FORCE; }
 
   void add(const DDL_options_st::Options other)
   {

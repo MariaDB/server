@@ -1131,6 +1131,7 @@ PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_prepare_ordered;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 PSI_cond_key key_COND_ack_receiver;
+PSI_cond_key key_COND_acl_cache;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1179,7 +1180,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
   { &key_COND_ack_receiver, "Ack_receiver::cond", 0},
   { &key_COND_binlog_send, "COND_binlog_send", 0},
-  { &key_TABLE_SHARE_COND_rotation, "TABLE_SHARE::COND_rotation", 0}
+  { &key_TABLE_SHARE_COND_rotation, "TABLE_SHARE::COND_rotation", 0},
+  { &key_COND_acl_cache, "COND_acl_cache", 0}
 };
 
 PSI_thread_key key_thread_delayed_insert,
@@ -2834,6 +2836,13 @@ void close_connection(THD *thd, uint sql_errno)
     sleep(0); /* Workaround to avoid tailcall optimisation */
   }
   mysql_audit_notify_connection_disconnect(thd, sql_errno);
+  /*
+    Notify a thread waiting until every connection on behalf some user
+    to be closed (this is a thread that running the DROP USER statement),
+    that yet another connection terminated.
+  */
+  notify_acl_cache_on_connection_terminate();
+
   DBUG_VOID_RETURN;
 }
 

@@ -77,6 +77,8 @@ enum enum_slave_parallel_mode {
 /* Function prototypes */
 void kill_mysql(THD *thd);
 void close_connection(THD *thd, uint sql_errno= 0);
+void notify_acl_cache_on_connection_terminate();
+
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void unlink_thd(THD *thd);
@@ -382,6 +384,7 @@ extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
+extern PSI_cond_key key_COND_acl_cache;
 
 extern PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,

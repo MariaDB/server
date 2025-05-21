@@ -9351,6 +9351,20 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 }
 
 
+/**
+  Kill active sessions established by specified user
+
+  @param thd   Thread context
+  @param user  The user whose connections should be teared down
+*/
+
+void kill_dropped_user(THD *thd, LEX_USER *user)
+{
+  ha_rows rows __attribute__((unused));
+  (void)kill_threads_for_user(thd, user, KILL_CONNECTION, &rows);
+}
+
+
 /** If pointer is not a null pointer, append filename to it. */
 
 bool append_file_to_dir(THD *thd, const char **filename_ptr,

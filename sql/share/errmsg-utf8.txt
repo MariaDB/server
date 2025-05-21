@@ -12311,3 +12311,5 @@ ER_LATITUDE_OUT_OF_RANGE
         eng "Latitude %f is out of range in function %s. It must be within [-90.000000, 90.000000]."
 ER_GIS_DIFFERENT_SRIDS_AGGREGATION
         eng "Arguments to function %s contains geometries with different SRIDs: %d and %d. All geometries must have the same SRID."
+ER_CONNECT_WHILE_DROP_USER_IN_PROGRESS
+        eng "Attempt to make a connection on behalf the user [%s] being currently dropped"
