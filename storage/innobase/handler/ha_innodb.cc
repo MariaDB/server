@@ -7831,7 +7831,6 @@ ha_innobase::write_row(
 		auto_inc = dfield_is_null(ai_field)
 				? 0
 				: dfield_read_int(ai_field);
-	  longlong positive_autoinc= auto_inc;
 		switch (error) {
 		case DB_DUPLICATE_KEY:
 
