@@ -1,0 +1,294 @@
+--echo #
+--echo # Integer_with_group
+--echo #
+
+SELECT to_number(123456, 'x999');
+SELECT to_number(123456, '999x');
+
+SELECT to_number(123456, '999');
+
+SELECT to_number(123456, '$99');
+SELECT to_number(123456, '9$9');
+SELECT to_number(123456, '99$');
+
+SELECT to_number(123456, 'B99');
+SELECT to_number(123456, '9B9');
+SELECT to_number(123456, '99B');
+
+SELECT to_number(123456, 'B$9');
+SELECT to_number(123456, '9B$');
+
+SELECT to_number(123456, '$B9');
+SELECT to_number(123456, '9$B');
+
+SELECT to_number(123456, '9,9,9,9');
+SELECT to_number(123456, '9G9G9G9');
+SELECT to_number(123456, '9G9,9G9');
+SELECT to_number(123456, '9,9G9,9');
+SELECT to_number(123456, '0000');
+SELECT to_number(123456, '0,0,0,0');
+SELECT to_number(123456, '0G0G0G0');
+SELECT to_number(123456, '0G0,0G0');
+SELECT to_number(123456, '0,0G0,0');
+
+SELECT to_number(123456, '00009999');
+SELECT to_number(123456, '0,0,0,0,9,9,9,9');
+SELECT to_number(123456, '0G0G0G0G9G9G9G9');
+
+SELECT to_number(123456, '99990000');
+SELECT to_number(123456, '9,9,9,9,0,0,0,0');
+SELECT to_number(123456, '9G9G9G9G0G0G0G0');
+
+
+--echo #
+--echo # decimal_with_group_pDVCLU 1: integer_with_group \[ fraction_pDVCLU \]
+--echo #
+
+SELECT to_number(123456, '9999.');
+SELECT to_number(123456, '9999.9999');
+SELECT to_number(123456, '9999.99990000');
+SELECT to_number(123456, '9999.00009999');
+
+SELECT to_number(123456, '9999.');
+SELECT to_number(123456, '9999.9999');
+SELECT to_number(123456, '9999.99990000');
+SELECT to_number(123456, '9999.00009999');
+
+
+--echo #
+--echo # decimal_with_group_pDVCLU 2: fraction_pDVCLU
+--echo #
+
+SELECT to_number(123456, '.');
+SELECT to_number(123456, '.9999');
+SELECT to_number(123456, '.99990000');
+SELECT to_number(123456, '.0000');
+SELECT to_number(123456, '.00009999');
+
+SELECT to_number(123456, '.9$9B');
+SELECT to_number(123456, '.9$9BB$0B');
+SELECT to_number(123456, '.0$0B');
+SELECT to_number(123456, '.0$0BB$9B');
+
+
+--echo #
+--echo # numeric_tail_pDVCLU: decimal_with_group_pDVCLU \[ EEEE \]\
+--echo #                    | \[ EEEE \]
+--echo #
+
+SELECT to_number (123456,  '999EEEE');
+SELECT to_number (123456,  '999.EEEE');
+SELECT to_number (123456,  '999.9999EEEE');
+SELECT to_number (123456,  '.EEEE');
+SELECT to_number (123456,  '.999EEEE');
+
+SELECT to_number (123456,  '9$9EEEE');
+SELECT to_number (123456,  '9$9.EEEE');
+SELECT to_number (123456,  '9$9.9$99EEEE');
+SELECT to_number (123456,  '.EEEE');
+SELECT to_number (123456,  '.9$9EEEE');
+
+SELECT to_number (123456,  '9B9EEEE');
+SELECT to_number (123456,  '9B9.EEEE');
+SELECT to_number (123456,  '9B9.9B99EEEE');
+SELECT to_number (123456,  '.EEEE');
+SELECT to_number (123456,  '.9B9EEEE');
+
+
+--echo #
+--echo # number0: zeros \[ numeric_tail_pDVCLU \]
+--echo # numeric_tail_pDVCLU: decimal_with_group_pDVCLU \[ EEEE \]
+--echo #                    | EEEE
+--echo #
+
+CREATE TABLE t1 (fmt VARCHAR(64));
+INSERT INTO t1 VALUES
+('0.999'),
+('000.999'),
+('000999.999'),
+('00090909.999');
+
+SELECT to_number(123456, fmt), fmt FROM t1;
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','D')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','V')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','C')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=REPLACE(fmt,'.','L')), @fmt FROM t1;
+
+SELECT to_number(123456, @fmt:=CONCAT(fmt,'EEEE')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','D'),'EEEE')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','V'),'EEEE')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','C'),'EEEE')), @fmt FROM t1;
+SELECT to_number(123456, @fmt:=CONCAT(REPLACE(fmt,'.','L'),'EEEE')), @fmt FROM t1;
+
+DROP TABLE t1;
+
+SELECT to_number(123456, '00EEEE');
+
+
+--echo #
+--echo # number1: decimal_flags \[ fraction_pDVCLU \]  -- branch #2b
+--echo #
+
+# B/$ cannot be followed directly by EEEE
+SELECT to_number(123456, '$EEEE');
+SELECT to_number(123456, 'BEEEE');
+
+# B/$ can go alone (and in combination to each other)
+SELECT to_number(123456, 'B');
+SELECT to_number(123456, '$');
+SELECT to_number(123456, 'B$');
+SELECT to_number(123456, '$B');
+
+# B/$ can follow a leading sign
+SELECT to_number(123456, 'SB');
+SELECT to_number(123456, 'S$');
+SELECT to_number(123456, 'SB$');
+SELECT to_number(123456, 'S$B');
+
+# B/$ can be followed by a trailing sign
+SELECT to_number(123456, 'BS');
+SELECT to_number(123456, 'BMI');
+SELECT to_number(123456, 'BPR');
+SELECT to_number(123456, '$S');
+SELECT to_number(123456, '$MI');
+SELECT to_number(123456, '$PR');
+
+# B/$ can be followed a currency
+SELECT to_number(123456, 'BC');
+SELECT to_number(123456, 'BL');
+SELECT to_number(123456, 'BU');
+SELECT to_number(123456, '$C');
+SELECT to_number(123456, '$L');
+SELECT to_number(123456, '$U');
+SELECT to_number(123456, 'BC99');
+SELECT to_number(123456, 'BL99');
+SELECT to_number(123456, 'BU99');
+SELECT to_number(123456, '$C99');
+SELECT to_number(123456, '$L99');
+SELECT to_number(123456, '$U99');
+
+# B/$ can be followed a V
+SELECT to_number(123456, 'BV');
+SELECT to_number(123456, 'BV99');
+SELECT to_number(123456, '$V');
+SELECT to_number(123456, '$V99');
+
+# B/$ can be followed a decimal point
+SELECT to_number(123456, 'B.');
+SELECT to_number(123456, 'BD');
+SELECT to_number(123456, 'B.99');
+SELECT to_number(123456, 'BD99');
+
+SELECT to_number(123456, '$.');
+SELECT to_number(123456, '$D');
+SELECT to_number(123456, '$.99');
+SELECT to_number(123456, '$D99');
+
+
+--echo #
+--echo # format_without_prefix_sign: xchain
+--echo #
+
+SELECT to_number(123456, 'X');
+SELECT to_number(123456, 'XX');
+SELECT to_number(123456, 'XXX');
+SELECT to_number(123456, 'XXXX');
+SELECT to_number(123456, 'XXXXX');
+SELECT to_number(123456, 'XXXXXX');
+
+--echo #
+--echo # format_without_prefix_sign: zeros xchain
+--echo #
+
+SELECT to_number(123456, '00X');
+SELECT to_number(123456, '00XX');
+SELECT to_number(123456, '00XXX');
+SELECT to_number(123456, '00XXXX');
+SELECT to_number(123456, '00XXXXX');
+SELECT to_number(123456, '00XXXXXX');
+
+--echo #
+--echo # format_without_prefix_sign:
+--echo #   zeros \[ numeric_tail_pDVCLU \] \[ postfix_sign \]
+--echo #
+
+SELECT to_number(123456, '00S');
+SELECT to_number(123456, '00MI');
+SELECT to_number(123456, '00PR');
+
+--echo #
+--echo # format_without_prefix_sign: number1 \[ postfix_sign \]
+--echo #
+
+SELECT to_number(123456, '99S');
+SELECT to_number(123456, '99MI');
+SELECT to_number(123456, '99PR');
+
+
+--echo #
+--echo # format_without_prefix_sign: format_TM_signature
+--echo #
+
+SELECT to_number(123456, 'TM');
+SELECT to_number(123456, 'TM9');
+SELECT to_number(123456, 'TME');
+
+
+--echo #
+--echo # format#2: prefix_with_sign \[ format_with_prefix_sign \]
+--echo #
+
+SELECT to_number(123456, 'S');
+SELECT to_number(123456, 'S00');
+SELECT to_number(123456, 'S99');
+SELECT to_number(123456, 'S99');
+
+SELECT to_number(123456, 'FMS');
+SELECT to_number(123456, 'FMS00');
+SELECT to_number(123456, 'FMS99');
+SELECT to_number(123456, 'FMS99');
+
+SELECT to_number(123456, 'SFM');
+SELECT to_number(123456, 'SFM00');
+SELECT to_number(123456, 'SFM99');
+SELECT to_number(123456, 'SFM99');
+
+SELECT to_number(123456, 'S00.99EEEE');
+SELECT to_number(123456, 'S99.99EEEE');
+SELECT to_number(123456, 'S99.99EEEE');
+
+SELECT to_number(123456, 'S00.99C');
+SELECT to_number(123456, 'S99.99L');
+SELECT to_number(123456, 'S99.99U');
+
+SELECT to_number(123456, 'S00D99C');
+SELECT to_number(123456, 'S99D99L');
+SELECT to_number(123456, 'S99D99U');
+
+
+--echo #
+--echo # TODO: the following formats are not supported in Oracle.
+--echo # However, it works if change C/L/U to dollar sign:
+--echo #
+
+SELECT to_number(123456, 'S00.99CEEEE');
+SELECT to_number(123456, 'S99.99LEEEE');
+SELECT to_number(123456, 'S99.99UEEEE');
+
+
+--echo #
+--echo # format#3: prefix_without_sign \[ format_without_prefix_sign \]
+--echo #
+
+# TODO:
+SELECT to_number(123456, 'FM');
+
+SELECT to_number(123456, 'FM00S');
+SELECT to_number(123456, 'FM99S');
+SELECT to_number(123456, 'FM99S');
+SELECT to_number(123456, 'FM00.99S');
+SELECT to_number(123456, 'FM99.99S');
+SELECT to_number(123456, 'FM99.99S');
+SELECT to_number(123456, 'FM00.99EEEES');
+SELECT to_number(123456, 'FM99.99EEEES');
+SELECT to_number(123456, 'FM99.99EEEES');

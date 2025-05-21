@@ -106,6 +106,13 @@ protected:
     {
       DBUG_ASSERT(!p->is_error() || !PARSER::Token::operator bool());
     }
+    TokenChoice(const class PARSER::Token &tok)
+     :PARSER::Token(tok)
+    { }
+    static TokenChoice empty(const PARSER &parser)
+    {
+      return TokenChoice(parser.empty_token());
+    }
   };
 
 
@@ -119,6 +126,12 @@ protected:
   public:
     OPT()
     { }
+    //OPT(const RULE &rule)
+    // :RULE(rule)
+    //{ }
+    OPT(RULE && rhs)
+     :RULE(std::move(rhs))
+    { }
     OPT(PARSER *p)
      :RULE(p)
     {
@@ -127,6 +140,18 @@ protected:
         RULE::operator=(RULE::empty(*p));
         DBUG_ASSERT(RULE::operator bool());
       }
+    }
+    //OPT & operator=(const RULE &rhs)
+    //{
+    //  RULE::operator=(rhs);
+    //}
+    OPT & operator=(RULE &&rhs)
+    {
+      RULE::operator=(std::move(rhs));
+    }
+    static OPT empty(const PARSER &parser)
+    {
+      return OPT(RULE::empty(parser));
     }
   };
 
@@ -305,6 +330,9 @@ protected:
      :A(std::move(static_cast<A&&>(rhs))),
       B(std::move(static_cast<B&&>(rhs)))
     { }
+    OR2(A &&a, B &&b)
+     :A(std::move(a)), B(std::move(b))
+    { }
     OR2(A && rhs)
      :A(std::move(rhs)), B()
     { }
@@ -325,6 +353,10 @@ protected:
     operator bool() const
     {
       return A::operator bool() || B::operator bool();
+    }
+    static OR2 empty(const PARSER &p)
+    {
+      return OR2(A::empty(p), B::empty(p));
     }
   };
 
@@ -352,6 +384,9 @@ protected:
     { }
     OR2C(OR2C &&rhs)
      :CONTAINER(std::move(rhs))
+    { }
+    OR2C(CONTAINER && rhs)
+     :CONTAINER(rhs)
     { }
     OR2C & operator=(OR2C &&rhs)
     {
@@ -396,6 +431,20 @@ protected:
       B(std::move(static_cast<B&&>(rhs))),
       C(std::move(static_cast<C&&>(rhs)))
     { }
+    OR3(A &&a, B &&b, C &&c)
+     :A(std::move(a)), B(std::move(b)), C(std::move(c))
+    { }
+
+//    OR3(A && rhs)
+//     :A(std::move(rhs))
+//    { }
+//    OR3(B && rhs)
+//     :B(std::move(rhs))
+//    { }
+//    OR3(C && rhs)
+//     :C(std::move(rhs))
+//    { }
+
     OR3 & operator=(OR3 &&rhs)
     {
       A::operator=(std::move(static_cast<A&&>(rhs)));
@@ -413,6 +462,10 @@ protected:
     operator bool() const
     {
       return A::operator bool() || B::operator bool() || C::operator bool();
+    }
+    static OR3 empty(const PARSER &p)
+    {
+      return OR3(A::empty(p), B::empty(p), C::empty(p));
     }
   };
 
@@ -602,6 +655,10 @@ protected:
     LIST()
      :m_error(true)
     { }
+    LIST(LIST_CONTAINER &&rhs)
+     :LIST_CONTAINER(std::move(rhs)),
+      m_error(false)
+    { }
     LIST(LIST &&rhs)
      :LIST_CONTAINER(std::move(rhs)),
       m_error(rhs.m_error)
@@ -611,6 +668,10 @@ protected:
       LIST_CONTAINER::operator=(std::move(rhs));
       m_error= rhs.m_error;
       return *this;
+    }
+    static LIST empty(const PARSER &parser)
+    {
+      return LIST(LIST_CONTAINER::empty(parser));
     }
     LIST(PARSER *p)
      :m_error(true)
