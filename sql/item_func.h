@@ -742,6 +742,44 @@ public:
   };
 
 
+  class Handler_double: public Handler
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *)
+                                                        const override
+    {
+      return &type_handler_double;
+    }
+
+    String *val_str(Item_handled_func *item, String *to) const override
+    {
+      double nr= val_real(item);
+      if (item->null_value)
+        return 0;
+      to->set_real(nr, NOT_FIXED_DEC, item->collation.collation);
+      return to;
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const override
+    {
+      return item->Item::val_str_ascii(to);
+    }
+    double val_real(Item_handled_func *item) const override= 0;
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const override
+    {
+      return item->val_decimal_from_real(to);
+    }
+    bool get_date(THD *thd, Item_handled_func *item,
+                  MYSQL_TIME *to, date_mode_t fuzzydate) const override
+    {
+      return item->get_date_from_real(thd, to, fuzzydate);
+    }
+    longlong val_int(Item_handled_func *item) const override
+    {
+      return item->val_int_from_real();
+    }
+  };
+
+
   class Handler_int: public Handler
   {
   public:
@@ -826,6 +864,8 @@ public:
 protected:
   const Handler *m_func_handler;
 public:
+  Item_handled_func(THD *thd, List<Item> & args)
+   :Item_func(thd, args), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a)
    :Item_func(thd, a), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a, Item *b)

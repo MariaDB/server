@@ -1,0 +1,35 @@
+#
+# MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+#
+SET NAMES utf8mb4;
+SELECT to_number('$123-', CONVERT('$999S' USING ucs2)) AS c1;
+c1
+-123
+SELECT to_number('$123-', CONVERT('$999Š' USING ucs2)) AS c1;
+ERROR HY000: Incorrect <number format> value: 'Š' for function to_number
+SELECT to_number(CONVERT('$123-' USING ucs2), '$999S') AS c1;
+c1
+-123
+SELECT to_number(CONVERT('$123-' USING ucs2), CONVERT('$999S' USING ucs2)) AS c1;
+c1
+-123
+CREATE TABLE t1 (fmt VARCHAR(32) CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('$999S'), ('$999MI'), ('$999Š');
+SELECT fmt, to_number('$123-', fmt) AS c1 FROM t1;
+fmt	c1
+$999S	-123
+$999MI	-123
+$999Š	NULL
+Warnings:
+Warning	1411	Incorrect <number format> value: 'Š' for function to_number
+DROP TABLE t1;
+CREATE TABLE t1 (fmt VARCHAR(32) CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('$999S'), ('$999MI'), ('$999Š');
+SELECT fmt, to_number(CONVERT('$123-' USING ucs2), fmt) AS c1 FROM t1;
+fmt	c1
+$999S	-123
+$999MI	-123
+$999Š	NULL
+Warnings:
+Warning	1411	Incorrect <number format> value: 'Š' for function to_number
+DROP TABLE t1;
