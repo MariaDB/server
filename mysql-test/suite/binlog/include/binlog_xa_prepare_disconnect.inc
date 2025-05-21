@@ -10,7 +10,12 @@
 #
 --connection default
 
---echo *** $num_trx_prepared prepared transactions must be in the list ***
+--let $num_of_recovered = 0
+if (`select '$type' <> 'ro' and '$type' <> 'empty' and '$type' <> 'tmp'`)
+{
+  --let $num_of_recovered = $num_trx_prepared
+}
+--echo *** $num_of_recovered transactions must be in the list ***
 --replace_column 2 LEN1 3 LEN2 4 TRX_N
 XA RECOVER;
 
@@ -23,7 +28,7 @@ XA RECOVER;
 --source include/wait_condition.inc
 
 # It will conclude now
---error 0,1402
+--error 0,1402,ER_XAER_NOTA
 --eval  $terminate_with 'trx1$type'
 
 --replace_result $conn3_id CONN_ID
@@ -33,5 +38,5 @@ XA RECOVER;
 --source include/wait_condition.inc
 
 # It will conclude now
---error 0,1402
+--error 0,1402,ER_XAER_NOTA
 --eval  $terminate_with 'trx3$type'

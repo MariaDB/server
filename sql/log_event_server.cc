@@ -1467,7 +1467,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
       case SQLCOM_RELEASE_SAVEPOINT:
       case SQLCOM_ROLLBACK_TO_SAVEPOINT:
       case SQLCOM_SAVEPOINT:
-      case SQLCOM_XA_END:
+      case SQLCOM_XA_PREPARE:
         use_cache= trx_cache= TRUE;
         break;
       default:
@@ -2907,7 +2907,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     }
     else if (thd->lex->sql_command == SQLCOM_XA_PREPARE)
     {
-      DBUG_ASSERT(thd_arg->in_multi_stmt_transaction_mode());
+      /* destined to rollback xa has already reset the multi-stmt feature */
+      DBUG_ASSERT(thd->in_multi_stmt_transaction_mode() ||
+                  xid_state.get_state_code() == XA_ROLLBACK_ONLY);
 
       uint8 count= ha_count_rw_2pc(thd_arg, true);
       extra_engines= count > 1 ? 0 : UCHAR_MAX;

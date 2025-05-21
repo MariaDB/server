@@ -1308,10 +1308,14 @@ flush tables with read lock;
 xa start 'test1';
 xa end 'test1';
 xa prepare 'test1';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback 'test1';
 xa start 'test1';
 xa end 'test1';
 xa prepare 'test1';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa commit 'test1';
 xa recover;
 unlock tables;

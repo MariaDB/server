@@ -64,7 +64,11 @@ INSERT INTO t VALUES(100);
 --let $how_to_restart=restart_mysqld.inc
 --source suite/binlog/include/binlog_xa_prepared_do_and_restart.inc
 
---let $how_to_restart=kill_and_restart_mysqld.inc
+if (`select @@log_bin`)
+{
+  # crash-restart is tested only on the binlog-ON server
+  --let $how_to_restart=kill_and_restart_mysqld.inc
+}
 --source suite/binlog/include/binlog_xa_prepared_do_and_restart.inc
 
 --connection default

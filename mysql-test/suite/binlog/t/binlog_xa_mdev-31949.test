@@ -1,0 +1,97 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+# MDEV-31949 slow xa on parallel slave
+# Prove that XA-prepare,commit,rollback are crash-recoverable when
+# the crash occurs after the OK is sent/received by the client.
+# Both the external and native connection branches are tested.
+call mtr.add_suppression("Found 1 prepared XA transactions");
+call mtr.add_suppression("unknown option");
+
+CREATE TABLE t31949 (a INT PRIMARY KEY) ENGINE=Innodb;
+CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
+
+XA START '1';
+INSERT INTO t31949 SET a=1;
+XA END '1';
+XA PREPARE '1';
+# prepare is always durable
+--source include/kill_and_restart_mysqld.inc
+
+--echo # xid '1' most be recovered
+XA RECOVER;
+--echo # COMMIT from an external connection
+XA COMMIT '1';
+
+# wait of the above XA-complete:s durable
+FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+--source include/kill_and_restart_mysqld.inc
+
+--echo # xid '1' must be committed
+XA RECOVER;
+select count(*) = 1 from t31949;
+
+
+XA START '2';
+INSERT INTO t31949 SET a=2;
+XA END '2';
+XA PREPARE '2';
+--echo # ROLLBACK from the native connection
+XA ROLLBACK '2';
+
+# wait of the above XA-complete:s durable
+FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+--source include/kill_and_restart_mysqld.inc
+
+--echo # xid '1' must be rolled back
+XA RECOVER;
+select count(*) = 1 from t31949;
+
+XA START '3';
+INSERT INTO t31949 SET a=3;
+XA END '3';
+XA PREPARE '3';
+--echo # COMMIT from the native connection
+XA COMMIT '3';
+
+# wait of the above XA-complete:s durable
+FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+--source include/kill_and_restart_mysqld.inc
+
+--echo # xid '3' must be committed
+XA RECOVER;
+select count(*) = 2 from t31949;
+
+--connect(con4,127.0.0.1,root,,test,$MASTER_MYPORT,)
+--let $conn1_id=`SELECT connection_id()`
+XA START '4';
+INSERT INTO t31949 SET a=4;
+XA END '4';
+XA PREPARE '4';
+
+--disconnect con4
+--connection default
+--let $wait_condition= SELECT count(*) = 0 FROM v_processlist WHERE PROCESSLIST_ID = $conn1_id
+--source include/wait_condition.inc
+
+--echo # ROLLBACK from an external connection
+XA ROLLBACK '4';
+
+# wait of the above XA-complete:s durable
+FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+--source include/kill_and_restart_mysqld.inc
+
+--echo # xid '4' must be rolled back
+XA RECOVER;
+select count(*) = 2 from t31949;
+
+
+# cleanup
+DROP TABLE t31949;
+DROP VIEW v_processlist;
+
+--echo End of the tests
