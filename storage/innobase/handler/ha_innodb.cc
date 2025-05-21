@@ -7614,11 +7614,16 @@ no_icp:
 	}
 }
 
-static
-int innobase_get_autoinc_lock_mode(const Autoinc_spec *autoinc_spec)
+int ha_innobase::innobase_get_autoinc_lock_mode(
+                                        const Autoinc_spec *autoinc_spec) const
 {
-  return autoinc_spec->legacy ? innobase_autoinc_lock_mode :
-	 autoinc_spec->order ? AUTOINC_OLD_STYLE_LOCKING : AUTOINC_NO_LOCKING;
+  return autoinc_spec->legacy
+         ? innobase_autoinc_lock_mode
+         : autoinc_spec->order
+           ? AUTOINC_OLD_STYLE_LOCKING
+             : !mysql_bin_log.is_open() || row_logging
+               ? AUTOINC_NO_LOCKING
+               : AUTOINC_NEW_STYLE_LOCKING;
 }
 
 /********************************************************************//**

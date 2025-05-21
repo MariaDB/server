@@ -457,7 +457,8 @@ protected:
 	bool
 	can_convert_blob(const Field_blob* field,
 			 const Column_definition& new_field) const;
-
+	int innobase_get_autoinc_lock_mode(const Autoinc_spec *autoinc_spec)
+	                                                                 const;
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
