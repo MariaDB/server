@@ -106,6 +106,7 @@ SET (SQL_SOURCE
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc
                item_create.cc item_func.cc item_geofunc.cc item_row.cc
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc
+               item_numconvfunc.cc
                key.cc log.cc log_cache.cc lock.cc
                log_event.cc log_event_server.cc
                rpl_record.cc rpl_reporting.cc
