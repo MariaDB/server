@@ -1,0 +1,38 @@
+--source include/have_ucs2.inc
+
+--echo #
+--echo # MDEV-20022 sql_mode="oracle" does not support TO_NUMBER() function
+--echo #
+
+SET NAMES utf8mb4;
+
+# Constant UCS2 format
+SELECT to_number('$123-', CONVERT('$999S' USING ucs2)) AS c1;
+
+# Make sure the error is readable
+--error ER_WRONG_VALUE_FOR_TYPE
+SELECT to_number('$123-', CONVERT('$999Š' USING ucs2)) AS c1;
+
+# UCS2 subject + utf8mb4 format
+SELECT to_number(CONVERT('$123-' USING ucs2), '$999S') AS c1;
+
+# UCS2 subject + UCS2 format
+SELECT to_number(CONVERT('$123-' USING ucs2), CONVERT('$999S' USING ucs2)) AS c1;
+
+# UCS2 subject + UCS2 format - check the warning:
+SELECT to_number(CONVERT('GarbageŠ' USING ucs2), CONVERT('$999S' USING ucs2)) AS c1;
+
+
+# utf8mb4 subject + non-constant UCS2 format
+CREATE TABLE t1 (fmt VARCHAR(32) CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('$999S'), ('$999MI'), ('$999Š');
+SELECT fmt, to_number('$123-', fmt) AS c1 FROM t1;
+SELECT fmt, to_number('GarbageŠ', fmt) AS c1 FROM t1;
+DROP TABLE t1;
+
+# UCS2 subject + non-constant UCS2 format
+CREATE TABLE t1 (fmt VARCHAR(32) CHARACTER SET ucs2);
+INSERT INTO t1 VALUES ('$999S'), ('$999MI'), ('$999Š');
+SELECT fmt, to_number(CONVERT('$123-' USING ucs2), fmt) AS c1 FROM t1;
+SELECT fmt, to_number(CONVERT('GarbageŠ' USING ucs2), fmt) AS c1 FROM t1;
+DROP TABLE t1;
