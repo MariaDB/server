@@ -1,7 +1,7 @@
 !include ../my.cnf
 
 [mysqlbinlog]
-debug_binlog_row_event_max_encoded_size=1KB
+debug_binlog_row_event_max_encoded_size=1024
 
 [mysqld.1]
 gtid_domain_id=0

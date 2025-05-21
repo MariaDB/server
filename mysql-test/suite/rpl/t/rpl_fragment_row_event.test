@@ -21,21 +21,25 @@
 #     b) If rows_data size is less than slave_max_allowed_packet, but adding
 #        the metadata of the Rows_event would result in surpassing
 #        slave_max_allowed_packet (by one byte), fragmentation should occur
+#   : SHOW BINLOG EVENTS should show Partial_rows_log_event fragment sequencing
 #   : Parallel replication applier
 #   : Using chain-replication, servers configured with different
 #     slave_max_allowed_packet should binlog according to the configured policy
 #     of that specific server
+#   : Ensure test mysqlbinlog fragmentation @1, @2 works on
+#     Partial_rows_log_event (debug_binlog_row_event_max_encoded_size=1024
+#     for this test, so mysqlbinlog will fragment events larger than 1024
+#     bytes)
+#
 #
 #   Test cases still TODO
 #   : Multi-statement transaction w/ multiple tables
-#   : Explicitly test mysqlbinlog fragmentation @1, @2 style 
 #   : Multi-row-event transactions
 #   : Replication delay
 #   : Replication filters
 #   : Event_skip_count (because of apply_event_and_update_pos_setup)
 #   : Skip replication should be honored
 #   : Change slave_max_allowed_packet in a transaction
-#   : Mariadb capability testing (probably in a different test file though)
 #
 #
 #   Note this test users MTR variables to save old variables rather than user
@@ -119,8 +123,8 @@ set @@global.log_bin_compress= 1;
 --let $old_s3_compress= `SELECT @@global.log_bin_compress`
 set @@global.log_bin_compress= 1;
 
---let $test_mysqlbinlog_replay= 1
 --source rpl_fragment_row_event.inc
+--let $test_mysqlbinlog_replay=
 
 --connection server_1
 --eval set @@global.log_bin_compress= $old_s1_compress
@@ -128,6 +132,15 @@ set @@global.log_bin_compress= 1;
 --eval set @@global.log_bin_compress= $old_s2_compress
 --connection server_3
 --eval set @@global.log_bin_compress= $old_s3_compress
+
+
+--echo #
+--echo #
+--echo # Test case ) SHOW BINLOG EVENTS should show Partial_rows_log_event fragment sequencing
+
+--let $test_show_binlog_events= 1
+--source rpl_fragment_row_event.inc
+--let $test_show_binlog_events=
 
 
 --echo #

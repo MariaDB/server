@@ -1,14 +1,22 @@
 #
-#
+#   Helper file to run a test case for rpl_fragment_row_event.test with various
+# parameters to define what to verify for the test.
 #
 # Parameters:
-#   $insert_size             : (uint)
-#   $test_mysqlbinlog_replay : (bool)
-#   $test_update             : (bool)
-#   $test_delete             : (bool)
-#   $server_1_max_packet     : (uint)
-#   $server_2_max_packet     : (uint)
-#   $server_3_max_packet     : (uint)
+#   $insert_size             (uint) : Size of the row to insert in the test
+#                                     case
+#   $test_mysqlbinlog_replay (bool) : Whether or not to replay the binary log
+#                                     via mysqlbinlog and verify the server
+#                                     executes the BINLOG base64 statements
+#                                     in the same manner the SQL thread does.
+#   $test_show_binlog_events (bool) : Whether or not to test SHOW BINLOG EVENTS
+#   $test_update             (bool) : Whether or not to test UPDATE commands
+#                                     can be fragmented
+#   $test_delete             (bool) : Whether or not to test DELETE commands
+#                                     can be fragmented
+#   $server_1_max_packet     (uint) : slave_max_allowed_packet on server_1
+#   $server_2_max_packet     (uint) : slave_max_allowed_packet on server_2
+#   $server_3_max_packet     (uint) : slave_max_allowed_packet on server_3
 #
 
 --connection server_1
@@ -96,9 +104,15 @@ while (`SELECT $i <= $n_servers`)
   --source include/search_pattern_in_file.inc
   --let SEARCH_OUTPUT= matches
   --source include/search_pattern_in_file.inc
+
+  if ($test_show_binlog_events)
+  {
+    --echo # Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+    --let $binlog_file= $binlog_insert_filename
+    --source include/show_binlog_events.inc
+  }
   --inc $i
 }
-
 
 if ($test_update)
 {
@@ -145,6 +159,13 @@ if ($test_update)
     --source include/search_pattern_in_file.inc
     --let SEARCH_OUTPUT= matches
     --source include/search_pattern_in_file.inc
+
+    if ($test_show_binlog_events)
+    {
+      --echo # Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+      --let $binlog_file= $binlog_update_filename
+      --source include/show_binlog_events.inc
+    }
 
     --inc $i
   }
@@ -195,6 +216,14 @@ if ($test_delete)
     --source include/search_pattern_in_file.inc
     --let SEARCH_OUTPUT= matches
     --source include/search_pattern_in_file.inc
+
+    if ($test_show_binlog_events)
+    {
+      --echo # Ensure SHOW BINLOG EVENTS shows Partial_rows_log_event data
+      --let $binlog_file= $binlog_delete_filename
+      --source include/show_binlog_events.inc
+    }
+
     --inc $i
   }
 }
@@ -205,8 +234,24 @@ if ($test_mysqlbinlog_replay)
   --connection server_2
   set statement sql_log_bin=0 for drop table t1;
 
-  --echo # MYSQL_BINLOG mysqld_datadir/binlog_insert_filename | MYSQL_SLAVE --init-command="set sql_log_bin=0"
-  --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_insert_filename | $MYSQL_SLAVE --init-command="set sql_log_bin=0"
+  --let $binlog_analysis_file= $MYSQLTEST_VARDIR/binlog_base64_output.sql
+  --echo # MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
+  --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_insert_filename --result-file=$binlog_analysis_file
+
+  --echo # Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+  --let SEARCH_FILE= $binlog_analysis_file
+  --let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
+  --let SEARCH_OUTPUT= count
+  --source include/search_pattern_in_file.inc
+
+  --echo # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+  --echo #  Note: 1 always comes from the Format_description_log_event
+  --let SEARCH_PATTERN= BINLOG '
+  --let SEARCH_OUTPUT= count
+  --source include/search_pattern_in_file.inc
+
+  --echo # MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
+  --exec $MYSQL_SLAVE --init-command="set sql_log_bin=0" < $binlog_analysis_file
 
   if ($test_update)
   {
