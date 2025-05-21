@@ -144,7 +144,7 @@ asm(".arch_extension crypto");
 #else /* HAVE_ARMV8_CRC_CRYPTO_INTRINSICS  */
 
 /* Intrinsics header*/
-#ifndef _WIN32
+#if !defined _MSC_VER || defined __clang__
 #include <arm_acle.h>
 #endif
 
