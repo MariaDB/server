@@ -290,41 +290,24 @@ private:
 
   // Rules consisting of a single token
 
-  class TokenAT: public TOKEN<Parser, TokenID::tAT>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using TokenAT= TokenParser<Parser, TokenID::tAT>;
 
-  class TokenEOF: public TOKEN<Parser, TokenID::tEOF>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using TokenEOF= TokenParser<Parser, TokenID::tEOF>;
 
-  class Keyword_QB_NAME: public TOKEN<Parser, TokenID::keyword_QB_NAME>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using Keyword_QB_NAME= TokenParser<Parser, TokenID::keyword_QB_NAME>;
 
-  class Keyword_MAX_EXECUTION_TIME:
-      public TOKEN<Parser, TokenID::keyword_MAX_EXECUTION_TIME>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using Keyword_MAX_EXECUTION_TIME=
+          TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>;
 
-  class Keyword_SUBQUERY: public TOKEN<Parser, TokenID::keyword_SUBQUERY>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using Keyword_SUBQUERY= TokenParser<Parser, TokenID::keyword_SUBQUERY>;
 
-  class Identifier: public TOKEN<Parser, TokenID::tIDENT>
+  class Identifier: public TokenParser<Parser, TokenID::tIDENT>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
+    Identifier(Token &&tok)
+     :TokenParser(std::move(tok))
+    { }
     Lex_ident_cli_st to_ident_cli() const
     {
       Lex_ident_cli_st cli;
@@ -339,10 +322,10 @@ private:
     }
   };
 
-  class Unsigned_Number: public TOKEN<Parser, TokenID::tUNSIGNED_NUMBER>
+  class Unsigned_Number: public TokenParser<Parser, TokenID::tUNSIGNED_NUMBER>
   {
   public:
-    using TOKEN::TOKEN;
+    using TokenParser::TokenParser;
 
     /*
       Converts token string to a non-negative number ( >=0 ).
@@ -361,17 +344,9 @@ private:
     }
   };
 
-  class LParen: public TOKEN<Parser, TokenID::tLPAREN>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using LParen= TokenParser<Parser, TokenID::tLPAREN>;
 
-  class RParen: public TOKEN<Parser, TokenID::tRPAREN>
-  {
-  public:
-    using TOKEN::TOKEN;
-  };
+  using RParen= TokenParser<Parser, TokenID::tRPAREN>;
 
 
   // Rules consisting of multiple choices of tokens
