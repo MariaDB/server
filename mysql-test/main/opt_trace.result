@@ -192,12 +192,6 @@ select * from v1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -362,12 +356,6 @@ select * from (select * from t1 where t1.a=1)q	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -651,19 +639,6 @@ select * from v2	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": [
-          {
-            "join_execution": {
-              "select_id": 2,
-              "steps": []
-            }
-          }
-        ]
-      }
     }
   ]
 }	0	0
@@ -807,12 +782,6 @@ explain select * from v2	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -1054,19 +1023,6 @@ explain select * from v1	{
           },
           {
             "make_join_readinfo": []
-          }
-        ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": [
-          {
-            "join_execution": {
-              "select_id": 2,
-              "steps": []
-            }
           }
         ]
       }
@@ -1395,12 +1351,6 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -1579,12 +1529,6 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
             "test_if_skip_sort_order": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -1836,12 +1780,6 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -2068,12 +2006,6 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -2276,12 +2208,6 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
             "test_if_skip_sort_order": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -2677,12 +2603,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -2861,12 +2781,6 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -3078,12 +2992,6 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -3269,12 +3177,6 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -3653,12 +3555,6 @@ explain extended select * from t1 where a in (select p from t2)	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -4029,12 +3925,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -4170,12 +4060,6 @@ select f1(a) from t1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -4287,12 +4171,6 @@ select f2(a) from t1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -4313,7 +4191,7 @@ a
 2
 select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 length(trace)
-2819
+2728
 set optimizer_trace_max_mem_size=100;
 select * from t1;
 a
@@ -4327,7 +4205,7 @@ select * from t1	{
       "join_preparation": {
         "select_id": 1,
         "steps": [
-        	2719	0
+        	2628	0
 set optimizer_trace_max_mem_size=0;
 select * from t1;
 a
@@ -4335,7 +4213,7 @@ a
 2
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-select * from t1		2819	0
+select * from t1		2728	0
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
@@ -4857,12 +4735,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -5083,19 +4955,6 @@ explain select * from (select rand() from t1)q	{
           },
           {
             "make_join_readinfo": []
-          }
-        ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": [
-          {
-            "join_execution": {
-              "select_id": 2,
-              "steps": []
-            }
           }
         ]
       }
@@ -5683,12 +5542,6 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -8090,12 +7943,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -10521,12 +10368,6 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -11750,12 +11591,6 @@ SELECT 'a\0' LIMIT 0	{
         "select_id": 1,
         "steps": []
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }
@@ -12141,115 +11976,90 @@ UPDATE t, v SET t.b = t.a, t.a = v.c WHERE v.c < t.a	{
       }
     },
     {
-      "join_execution": {
-        "select_id": 1,
+      "join_optimization": {
+        "select_id": "fake",
         "steps": [
           {
-            "join_execution": {
-              "select_id": 2,
-              "steps": []
-            }
+            "table_dependencies": [
+              {
+                "table": "union",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
           },
           {
-            "join_execution": {
-              "select_id": 3,
-              "steps": []
-            }
-          },
-          {
-            "join_optimization": {
-              "select_id": "fake",
-              "steps": [
-                {
-                  "table_dependencies": [
-                    {
-                      "table": "union",
-                      "row_may_be_null": false,
-                      "map_bit": 0,
-                      "depends_on_map_bits": []
-                    }
-                  ]
-                },
-                {
-                  "rows_estimation": [
-                    {
-                      "table": "union",
-                      "table_scan": {
-                        "rows": 2,
-                        "read_cost": 0.010020701,
-                        "read_and_compare_cost": 0.010084701
-                      }
-                    }
-                  ]
-                },
-                {
-                  "considered_execution_plans": [
-                    {
-                      "plan_prefix": "",
-                      "get_costs_for_tables": [
-                        {
-                          "best_access_path": {
-                            "table": "union",
-                            "plan_details": {
-                              "record_count": 1
-                            },
-                            "considered_access_paths": [
-                              {
-                                "access_type": "scan",
-                                "rows": 2,
-                                "rows_after_filter": 2,
-                                "rows_out": 2,
-                                "cost": 0.010084701,
-                                "index_only": false,
-                                "chosen": true
-                              }
-                            ],
-                            "chosen_access_method": {
-                              "type": "scan",
-                              "rows_read": 2,
-                              "rows_out": 2,
-                              "cost": 0.010084701,
-                              "uses_join_buffering": false
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "plan_prefix": "",
-                      "table": "union",
-                      "rows_for_plan": 2,
-                      "cost_for_plan": 0.010084701
-                    }
-                  ]
-                },
-                {
-                  "best_join_order": ["union"],
+            "rows_estimation": [
+              {
+                "table": "union",
+                "table_scan": {
                   "rows": 2,
-                  "cost": 0.010084701
-                },
-                {
-                  "attaching_conditions_to_tables": {
-                    "attached_conditions_computation": [],
-                    "attached_conditions_summary": [
-                      {
-                        "table": "union",
-                        "attached_condition": null
+                  "read_cost": 0.010020701,
+                  "read_and_compare_cost": 0.010084701
+                }
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": "",
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "union",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 2,
+                          "rows_after_filter": 2,
+                          "rows_out": 2,
+                          "cost": 0.010084701,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 2,
+                        "rows_out": 2,
+                        "cost": 0.010084701,
+                        "uses_join_buffering": false
                       }
-                    ]
+                    }
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "union",
+                "rows_for_plan": 2,
+                "cost_for_plan": 0.010084701
+              }
+            ]
+          },
+          {
+            "best_join_order": ["union"],
+            "rows": 2,
+            "cost": 0.010084701
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
                 {
-                  "make_join_readinfo": []
+                  "table": "union",
+                  "attached_condition": null
                 }
               ]
             }
           },
           {
-            "join_execution": {
-              "select_id": "fake",
-              "steps": []
-            }
+            "make_join_readinfo": []
           }
         ]
       }
@@ -12503,12 +12313,6 @@ select count(*) from seq_1_to_10000000	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -13000,6 +12804,136 @@ left(trace, 100)
 set optimizer_trace='enabled=off';
 # End of 10.6 tests
 #
+# MDEV-36461: Remove join_execution nodes and add range_check_for_each_record when appropriate
+#
+create table t1 (a int, b int);
+insert into t1 values (1, 999),(999, 1),(987,987);
+create table t2 (a int, b int, index(a),index(b));
+insert into t2 select seq, seq from seq_1_to_1000;
+create table t3 (a int);
+insert into t3 select seq from seq_1_to_2;
+set optimizer_trace='enabled=on';
+analyze
+select 
+(
+select count(*) 
+from t1, t2 
+where t2.a<t1.a and t2.b<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a 
+from t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	100.00	
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	DEPENDENT SUBQUERY	t2	ALL	a,b	NULL	NULL	NULL	1000	333.33	100.00	98.60	Range checked for each record (index map: 0x3)
+# The trace must contain 6 objects with select_id 2 and
+# loop varying from 1..2 for each of the 3 ranges from t1:
+set @trace=(select trace from information_schema.optimizer_trace);
+set @trace=(select json_extract(@trace, '$**.range-checked-for-each-record'));
+set @trace=json_replace(@trace, '$[0].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[1].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[2].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[3].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[4].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[5].rows_estimation[0].range_analysis','REPLACED');
+select json_detailed(@trace) as TRACE;
+TRACE
+[
+    {
+        "select_id": 2,
+        "loop": 1,
+        "rows_estimation": 
+        [
+            {
+                "table": "t2",
+                "range_analysis": "REPLACED"
+            }
+        ]
+    },
+    {
+        "select_id": 2,
+        "loop": 1,
+        "rows_estimation": 
+        [
+            {
+                "table": "t2",
+                "range_analysis": "REPLACED"
+            }
+        ]
+    },
+    {
+        "select_id": 2,
+        "loop": 1,
+        "rows_estimation": 
+        [
+            {
+                "table": "t2",
+                "range_analysis": "REPLACED"
+            }
+        ]
+    },
+    {
+        "select_id": 2,
+        "loop": 2,
+        "rows_estimation": 
+        [
+            {
+                "table": "t2",
+                "range_analysis": "REPLACED"
+            }
+        ]
+    },
+    {
+        "select_id": 2,
+        "loop": 2,
+        "rows_estimation": 
+        [
+            {
+                "table": "t2",
+                "range_analysis": "REPLACED"
+            }
+        ]
+    },
+    {
+        "select_id": 2,
+        "loop": 2,
+        "rows_estimation": 
+        [
+            {
+                "table": "t2",
+                "range_analysis": "REPLACED"
+            }
+        ]
+    }
+]
+# The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.join_execution'))
+NULL
+select
+(
+select count(*)
+from t1, t2
+where t2.a+1<t1.a and t2.b+1<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a
+from t3;
+SUBQ	a
+985	1
+985	2
+# The trace must be empty:
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+NULL
+# The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.join_execution'))
+NULL
+set optimizer_trace='enabled=off';
+drop table t1,t2,t3;
+# End of 10.11 tests
+#
 # Testing of records_out
 #
 set @save_optimizer_switch= @@optimizer_switch;
@@ -13310,12 +13244,6 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
             ]
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
@@ -13783,12 +13711,6 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -13923,3 +13845,4 @@ set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;
 set  @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+# End of 11.4 tests

@@ -4,8 +4,10 @@
 
 INSTALL SONAME 'ha_spider';
 SET character_set_connection=ucs2;
+--disable_view_protocol
 --error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
 SELECT SPIDER_DIRECT_SQL('SELECT SLEEP(1)', '', 'srv "dummy", port "3307"');
+--enable_view_protocol
 --disable_query_log
 --source ../../include/clean_up_spider.inc
 --enable_query_log

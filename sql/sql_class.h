@@ -20,6 +20,7 @@
 /* Classes in mysql */
 
 #include <atomic>
+#include <thread>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -744,6 +745,7 @@ typedef struct system_variables
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
+  uint analyze_max_length;
 
 #ifdef WITH_WSREP
   /*

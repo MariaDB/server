@@ -40,6 +40,7 @@ SET(MY_WARNING_FLAGS
   -Wvla
   -Wwrite-strings
   -Wcast-function-type-strict
+  -Wframe-larger-than=16384
   )
 
 # Warning flags that are in testing before moving

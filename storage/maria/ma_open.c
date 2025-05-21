@@ -1558,7 +1558,7 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
      @retval 1      Error
 */
 
-/* Stack size 26376 from clang */
+/* MARIA_STATE_INFO_SIZE + MARIA_STATE_EXTRA_SIZE == 25559 */
 PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 uint _ma_state_info_write_sub(File file, MARIA_STATE_INFO *state, uint pWrite)
