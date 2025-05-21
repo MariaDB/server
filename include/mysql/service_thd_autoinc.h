@@ -26,10 +26,9 @@
 extern "C" {
 #endif
 
-struct Autoinc_spec;
-
 extern struct thd_autoinc_service_st {
-  struct Autoinc_spec (*thd_get_autoinc_func)(const MYSQL_THD thd);
+  void (*thd_get_autoinc_func)(const MYSQL_THD thd,
+                               unsigned long* off, unsigned long* inc);
 } *thd_autoinc_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -42,7 +41,8 @@ extern struct thd_autoinc_service_st {
   @param  OUT off   the value of @@SESSION.auto_increment_offset
   @param  OUT inc   the value of @@SESSION.auto_increment_increment
 */
-struct Autoinc_spec thd_get_autoinc(const MYSQL_THD thd);
+void thd_get_autoinc(const MYSQL_THD thd,
+                     unsigned long* off, unsigned long* inc);
 #endif
 
 #ifdef __cplusplus

@@ -5975,17 +5975,16 @@ extern "C" enum durability_properties thd_get_durability_property(const MYSQL_TH
   return ret;
 }
 
-Autoinc_spec make_session_autoinc_spec(const system_variables *variables);
-
 /** Get the auto_increment_offset auto_increment_increment.
 Exposed by thd_autoinc_service.
 Needed by InnoDB.
 @param thd	Thread object
 @param off	auto_increment_offset
 @param inc	auto_increment_increment */
-extern "C" struct Autoinc_spec thd_get_autoinc(const MYSQL_THD thd)
+extern "C" void thd_get_autoinc(const MYSQL_THD thd, ulong* off, ulong* inc)
 {
-  return make_session_autoinc_spec(&thd->variables);
+  *off = thd->variables.auto_increment_offset;
+  *inc = thd->variables.auto_increment_increment;
 }
 
 
@@ -9021,4 +9020,11 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
 {
   size_t length= end_ptr - start_ptr;
   return {strmake_root(thd->mem_root, start_ptr, length), length};
+}
+
+
+Autoinc_spec make_session_autoinc_spec(const system_variables *variables);
+Autoinc_spec thd_get_session_autoinc_spec(THD *thd)
+{
+  return make_session_autoinc_spec(&thd->variables);
 }
