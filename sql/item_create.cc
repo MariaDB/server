@@ -37,6 +37,7 @@
 #include "sql_time.h"
 #include "sql_type_geom.h"
 #include "item_vectorfunc.h"
+#include "item_numconvfunc.h"
 #include <mysql/plugin_function.h>
 
 
@@ -6613,6 +6614,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
   { { STRING_WITH_LEN("TO_CHAR") }, BUILDER(Create_func_to_char)},
+  { { STRING_WITH_LEN("TO_NUMBER") }, &create_func_to_number},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
   { { STRING_WITH_LEN("TRUNC") }, BUILDER(Create_func_trunc)},
