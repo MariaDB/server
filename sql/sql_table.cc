@@ -8011,7 +8011,7 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   if (table->file->ha_prepare_inplace_alter_table(altered_table,
                                                   ha_alter_info))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   debug_crash_here("ddl_log_alter_after_prepare_inplace");
 
@@ -8067,21 +8067,17 @@ static bool mysql_inplace_alter_table(THD *thd,
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
 
-  if (start_alter_id && wait_for_master(thd))
-    goto rollback;
-
-  if (res)
-    goto rollback;
-
+  if (res || (start_alter_id && wait_for_master(thd)))
+    goto rollback_no_restore_lock;
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Set MDL_BACKUP_DDL */
   if (backup_reset_alter_copy_lock(thd))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Crashing here should cause the original table to be used */
   debug_crash_here("ddl_log_alter_after_copy");
@@ -8110,7 +8106,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (!(table->file->partition_ht()->flags &
         HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT) &&
       notify_tabledef_changed(table_list))
-    goto rollback;
+    goto rollback_restore_lock;
 
   {
     TR_table trt(thd, true);
@@ -8123,17 +8119,17 @@ static bool mysql_inplace_alter_table(THD *thd,
         if (!TR_table::use_transaction_registry)
         {
           my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-          goto rollback;
+          goto rollback_restore_lock;
         }
         if (trt.update(trx_start_id, trx_end_id))
-          goto rollback;
+          goto rollback_restore_lock;
       }
     }
 
     if (table->file->ha_commit_inplace_alter_table(altered_table,
                                                   ha_alter_info,
                                                   true))
-      goto rollback;
+      goto rollback_restore_lock;
     DEBUG_SYNC(thd, "alter_table_inplace_after_commit");
   }
 
@@ -8230,7 +8226,11 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DBUG_RETURN(commit_succeded_with_error);
 
- rollback:
+rollback_restore_lock:
+  /* Wait for backup if it is running */
+  backup_reset_alter_copy_lock(thd);
+
+rollback_no_restore_lock:
   table->file->ha_commit_inplace_alter_table(altered_table,
                                              ha_alter_info,
                                              false);
@@ -12154,6 +12154,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   Create_field *def;
   copy_end=copy;
   to->s->default_fields= 0;
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE &&
+      from->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT &&
+      from->file->stats.records != 1)
+  {
+    if (from->file->stats.records > 1)
+      my_error(ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS, MYF(0));
+    else
+      my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
+    goto err;
+  }
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -12337,6 +12347,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
       else
         to->next_number_field->reset();
     }
+    if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 1)
+    {
+      my_error(ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS, MYF(0));
+      error= 1;
+      break;
+    }
     error= to->file->ha_write_row(to->record[0]);
     to->auto_increment_field_not_null= FALSE;
     if (unlikely(error))
@@ -12354,6 +12370,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
       mysql_stage_set_work_completed(thd->m_stage_progress_psi, found_count);
     }
     thd->get_stmt_da()->inc_current_row_for_warning();
+  }
+
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 0)
+  {
+    my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
+    error= 1;
   }
 
   THD_STAGE_INFO(thd, stage_enabling_keys);
@@ -12392,7 +12414,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
 
- err:
+end:
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
 
@@ -12423,6 +12445,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     error= 1;
   thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
+
+err:
+  backup_reset_alter_copy_lock(thd);
+  goto end;
 }
 
 

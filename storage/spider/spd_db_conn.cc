@@ -9329,6 +9329,7 @@ error:
   DBUG_RETURN(error_num);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 bool spider_db_conn_is_network_error(
   int error_num
 ) {
@@ -9345,3 +9346,4 @@ bool spider_db_conn_is_network_error(
   }
   DBUG_RETURN(FALSE);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
