@@ -33,7 +33,7 @@ jobs:
       - name: Install Latest LLVM (manual installer)
         shell: pwsh
         run: |
-           $llvmVersion = "19.1.7"  # Replace with latest stable version
+           $llvmVersion = "20.1.5"  # Replace with latest stable version
            $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
            $installer = "$env:TEMP\llvm-installer.exe"
            Invoke-WebRequest $url -OutFile $installer
@@ -54,9 +54,6 @@ jobs:
           cmake --build . --target win_package_zip
         shell: cmd
 
-      - name: List all environment variables
-        shell: cmd
-        run: set
 
       - name: Test
         run: |
@@ -65,9 +62,9 @@ jobs:
           $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
           # Run mtr, skip unit.tzinfo
           perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=$parallel `
-            --testcase-timeout=6 --suite=main,unit --skip-test=unit.my_tzinfo,main.charset_client_win_utf8mb4,main.mariadb-upgrade-service `
+            --testcase-timeout=6 --suite=main --skip-test=main.mariadb-upgrade-service `
             --mysqld=--loose-innodb-flush-log-at-trx-commit=2
 
-      - name: Test2
+      - name: Test 2
         run: |
           perl bld\mysql-test\mysql-test-run.pl --suite=main main.charset_client_win_utf8mb4
