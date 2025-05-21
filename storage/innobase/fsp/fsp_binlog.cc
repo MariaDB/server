@@ -471,16 +471,22 @@ fsp_binlog_page_fifo::do_fdatasync(uint64_t file_no)
 {
   File fh;
   mysql_mutex_lock(&m_mutex);
-  if (file_no < first_file_no)
-    goto done;   /* Old files are already fully synced. */
-  /* Guard against simultaneous RESET MASTER. */
-  if (file_no > first_file_no + 1)
-    goto done;
-  fh= fifos[file_no & 1].fh;
-  if (fh != (File)-1)
+  for (;;)
   {
-    while (flushing)
-      my_cond_wait(&m_cond, &m_mutex.m_mutex);
+    if (file_no < first_file_no)
+      break;   /* Old files are already fully synced. */
+    /* Guard against simultaneous RESET MASTER. */
+    if (file_no > first_file_no + 1)
+      break;
+    fh= fifos[file_no & 1].fh;
+    if (fh <= (File)-1)
+      break;
+    if (flushing)
+    {
+      while (flushing)
+        my_cond_wait(&m_cond, &m_mutex.m_mutex);
+      continue;  /* Loop again to recheck state, as we released the mutex */
+    }
     flushing= true;
     mysql_mutex_unlock(&m_mutex);
     int res= my_sync(fh, MYF(MY_WME));
@@ -488,8 +494,8 @@ fsp_binlog_page_fifo::do_fdatasync(uint64_t file_no)
     mysql_mutex_lock(&m_mutex);
     flushing= false;
     pthread_cond_broadcast(&m_cond);
+    break;
   }
-done:
   mysql_mutex_unlock(&m_mutex);
 }
 
