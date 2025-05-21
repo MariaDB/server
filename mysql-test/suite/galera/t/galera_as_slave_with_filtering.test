@@ -1,0 +1,146 @@
+#
+# Test Galera as a slave to a MySQL master
+#
+# The galera/galera_2node_slave.cnf describes the setup of the nodes
+#
+# mariadb master (node_3) ----async replication--->galera node_2 <---galera replication-->node_1
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source include/have_sequence.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+--connection node_3
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't3';
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't3';
+--source include/wait_condition.inc
+
+--echo #
+--echo # Set up replication filtering this should work for slave
+--echo #
+--connection node_2
+STOP SLAVE;
+SET GLOBAL replicate_ignore_table='test.t2,mysql.gtid_slave_pos';
+SELECT @@replicate_ignore_table;
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+--echo #
+--echo # Set up replication filtering, this should not have any effect
+--echo #
+--connection node_1
+SET GLOBAL replicate_ignore_table='test.t2,mysql.gtid_slave_pos';
+SELECT @@replicate_ignore_table;
+
+--echo #
+--echo # Insert data to MariaDB master, inserts to t2 should not be on slave
+--echo #
+--connection node_3
+INSERT INTO t1 SELECT * FROM seq_1_to_100;
+INSERT INTO t2 SELECT * FROM seq_1_to_100;
+INSERT INTO t3 SELECT * FROM seq_1_to_100;
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) FROM t3;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 100 FROM t1;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 100 FROM t3;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_100 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t2;
+SELECT COUNT(*) AS EXPECT_100 FROM t3;
+
+--echo #
+--echo # Insert data to Galera node_2, all these should be replicated
+--echo #
+INSERT INTO t1 SELECT * FROM seq_101_to_200;
+INSERT INTO t2 SELECT * FROM seq_101_to_200;
+INSERT INTO t3 SELECT * FROM seq_101_to_200;
+SELECT COUNT(*) AS EXPECT_200 FROM t1;
+SELECT COUNT(*) AS EXPECT_100 FROM t2;
+SELECT COUNT(*) AS EXPECT_200 FROM t3;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 200 FROM t3;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_200 FROM t1;
+SELECT COUNT(*) AS EXPECT_100 FROM t2;
+SELECT COUNT(*) AS EXPECT_200 FROM t3;
+
+--echo #
+--echo # Insert data to Galera node_1, all these should be replicated
+--echo #
+INSERT INTO t1 SELECT * FROM seq_201_to_300;
+INSERT INTO t2 SELECT * FROM seq_201_to_300;
+INSERT INTO t3 SELECT * FROM seq_201_to_300;
+
+SELECT COUNT(*) AS EXPECT_300 FROM t1;
+SELECT COUNT(*) AS EXPECT_200 FROM t2;
+SELECT COUNT(*) AS EXPECT_300 FROM t3;
+
+--connection node_3
+SELECT @@GLOBAL.gtid_slave_pos;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 300 FROM t3;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_300 FROM t1;
+SELECT COUNT(*) AS EXPECT_200 FROM t2;
+SELECT COUNT(*) AS EXPECT_300 FROM t3;
+SELECT @@GLOBAL.gtid_slave_pos;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 300 FROM t3;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_300 FROM t1;
+SELECT COUNT(*) AS EXPECT_200 FROM t2;
+SELECT COUNT(*) AS EXPECT_300 FROM t3;
+SELECT @@GLOBAL.gtid_slave_pos;
+
+--connection node_2
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL replicate_ignore_table='';
+
+--connection node_1
+SET GLOBAL replicate_ignore_table='';
+
+--connection node_3
+DROP TABLE t1,t2,t3;
+
+--connection node_2
+DROP TABLE t1,t2,t3;
+
+--connection node_3
+RESET MASTER;
