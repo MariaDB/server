@@ -1584,6 +1584,16 @@ DELETE from t;
 drop table t;
 
 --echo #
+--echo # MDEV-36817 Server crashes in do_mark_index_columns instead of
+--echo #            ER_DUP_ENTRY on partitioned table
+--echo #
+create table t (f int, unique(f)) engine=innodb partition by key (f) partitions 2;
+insert into t (f) values (1), (3);
+--error ER_DUP_ENTRY
+update t set f = 0;
+drop table t;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 
