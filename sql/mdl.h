@@ -18,6 +18,7 @@
 
 #include "sql_plist.h"
 #include "ilist.h"
+#include "lex_string.h"
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>
@@ -1157,4 +1158,38 @@ typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);
 extern MYSQL_PLUGIN_IMPORT
 int mdl_iterate(mdl_iterator_callback callback, void *arg);
+
+#ifdef ENABLED_DEBUG_SYNC
+void debug_sync_mdl(MYSQL_THD thd, Lex_cstring_strlen prefix,
+                    const LEX_CSTRING &table_name, const LEX_CSTRING &mdl_type);
+#endif
+
+static inline void DEBUG_SYNC_MDL(MYSQL_THD thd,
+                                  Lex_cstring_strlen prefix,
+                                  const LEX_CSTRING &table_name,
+                                  const LEX_CSTRING &mdl_type)
+{
+#ifdef ENABLED_DEBUG_SYNC
+  debug_sync_mdl(thd, prefix, table_name, mdl_type);
+#endif
+}
+static inline void DEBUG_SYNC_MDL(MYSQL_THD thd,
+                                  Lex_cstring_strlen prefix,
+                                  const MDL_request *mdl_request)
+{
+#ifdef ENABLED_DEBUG_SYNC
+  MDL_key *key= mdl_request->ticket->get_key();
+  LEX_CSTRING table_name{key->name(), key->name_length()};
+  LEX_CSTRING mdl_type{LEX_STRING_WITH_LEN(*mdl_request->ticket->get_type_name())};
+  DEBUG_SYNC_MDL(thd, prefix, table_name, mdl_type);
+#endif
+}
+static inline void DEBUG_SYNC_MDL(MYSQL_THD thd,
+                                  const char* prefix,
+                                  const MDL_request *mdl_request)
+{
+#ifdef ENABLED_DEBUG_SYNC
+  DEBUG_SYNC_MDL(thd, Lex_cstring_strlen(prefix), mdl_request);
+#endif
+}
 #endif /* MDL_H */

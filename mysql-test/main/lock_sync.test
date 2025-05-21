@@ -1100,6 +1100,7 @@ SELECT * FROM t1;
 # Seized:   test/t1 (MDL_SHARED_READ)
 
 --connect (con1,localhost,root,,test)
+set debug_sync='mdl_seized_MDL_SHARED_NO_WRITE_t1 SIGNAL con1_seized';
 --send
   DROP TRIGGER tr1;
 # T@7
@@ -1109,7 +1110,8 @@ SELECT * FROM t1;
 # Deadlock: test/t1 (MDL_SHARED_WRITE)
 
 --connection default
---error 0, ER_LOCK_DEADLOCK
+set debug_sync='now WAIT_FOR con1_seized';
+--error 0,ER_LOCK_DEADLOCK
 INSERT INTO t2 SELECT * FROM t2;
 # T@6
 # Released: test/t1 (MDL_SHARED_READ)
@@ -1172,6 +1174,7 @@ CREATE FUNCTION f() RETURNS INT RETURN 1;
 --connection default
 set debug_sync= 'now wait_for s1';
 --disable_result_log
+--error 0, ER_LOCK_DEADLOCK
 SELECT * FROM ( SELECT * FROM v1 ) sq;
 --enable_result_log
 # T@6
