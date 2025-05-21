@@ -333,7 +333,7 @@ a
 drop view v1;
 create view v1 as select a from t3;
 insert into t1 (a) values (6);
-ERROR 42S02: Table 'test.t2' doesn't exist
+ERROR HY000: Table definition has changed, please retry transaction
 flush table t1;
 insert into t1 (a) values (6);
 select * from t2;
@@ -372,7 +372,7 @@ set @var=8;
 # but the trigger still tries to deal with 't3', which is not opened.
 # That's why '8' is not inserted neither into 't2', nor into 't3'.
 execute stmt using @var;
-ERROR 42S02: Table 'test.t3' doesn't exist
+ERROR HY000: Table definition has changed, please retry transaction
 call p_verify_reprepare_count(1);
 SUCCESS
 

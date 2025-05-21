@@ -1737,6 +1737,18 @@ bool is_locked_view(THD *thd, TABLE_LIST *t)
         DBUG_RETURN(FALSE);
       }
 
+      Reprepare_observer reprepare_observer;
+      auto scope_exit= make_scope_exit(
+        [thd]() mutable { thd->m_reprepare_observer= NULL; },
+        false);
+      if (!thd->m_reprepare_observer)
+      {
+        reprepare_observer.reset_reprepare_observer();
+        reprepare_observer.error_code= ER_TABLE_DEF_CHANGED;
+        thd->m_reprepare_observer= &reprepare_observer;
+        scope_exit.engage();
+      }
+
       if (!tdc_open_view(thd, t, CHECK_METADATA_VERSION))
       {
         DBUG_ASSERT(t->view != 0);
@@ -3059,9 +3071,7 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
 
   DBUG_ASSERT(share->is_view);
 
-  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
-
-  if (!err && (flags & CHECK_METADATA_VERSION))
+  if (flags & CHECK_METADATA_VERSION)
   {
     /*
       Check TABLE_SHARE-version of view only if we have been instructed to do
@@ -3075,6 +3085,8 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, uint flags)
     if (check_and_update_table_version(thd, table_list, share))
       goto ret;
   }
+
+  err= mysql_make_view(thd, share, table_list, (flags & OPEN_VIEW_NO_PARSE));
 
 ret:
   tdc_release_share(share);

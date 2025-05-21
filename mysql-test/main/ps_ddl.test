@@ -341,7 +341,7 @@ select * from t2;
 select * from t3;
 drop view v1;
 create view v1 as select a from t3;
---error ER_NO_SUCH_TABLE
+--error ER_TABLE_DEF_CHANGED
 insert into t1 (a) values (6);
 flush table t1;
 insert into t1 (a) values (6);
@@ -370,7 +370,7 @@ set @var=8;
 --echo # (the prepared statement has noticed the meta-data change),
 --echo # but the trigger still tries to deal with 't3', which is not opened.
 --echo # That's why '8' is not inserted neither into 't2', nor into 't3'.
---error ER_NO_SUCH_TABLE
+--error ER_TABLE_DEF_CHANGED
 execute stmt using @var;
 call p_verify_reprepare_count(1);
 select * from t2;

@@ -65,6 +65,9 @@ public:
   bool report_error(THD *thd);
   bool is_invalidated() const { return m_invalidated; }
   void reset_reprepare_observer() { m_invalidated= FALSE; }
+
+  uint error_code= ER_NEED_REPREPARE;
+
 private:
   bool m_invalidated;
 };
