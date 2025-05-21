@@ -2838,6 +2838,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
+        DBUG_ASSERT(hash_field->invisible == INVISIBLE_FULL);
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
         share->stored_fields--;

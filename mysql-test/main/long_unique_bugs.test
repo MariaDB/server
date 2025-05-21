@@ -772,3 +772,15 @@ select hex(c1), hex(c2), c3, hex(c4) from t1;
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-36852 Table definition gets corrupt after adding unique hash key
+--echo #
+
+create table t1 (a text, b int, foreign key(a) references x(x)) engine=myisam;
+show create table t1;
+alter table t1 add unique(a), add key(a);
+show create table t1;
+drop table t1;
+
+--echo # End of 10.6 tests

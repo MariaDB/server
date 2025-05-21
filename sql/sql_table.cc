@@ -3337,8 +3337,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
-    bool is_hash_field_needed= key->key_create_info.algorithm
-                               == HA_KEY_ALG_LONG_HASH;
     if (key->type == Key::IGNORE_KEY)
     {
       /* ignore redundant keys */
@@ -3348,6 +3346,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (!key)
 	break;
     }
+
+    bool is_hash_field_needed= key->key_create_info.algorithm
+                               == HA_KEY_ALG_LONG_HASH;
 
     if (key_check_without_overlaps(thd, create_info, alter_info, *key))
       DBUG_RETURN(true);

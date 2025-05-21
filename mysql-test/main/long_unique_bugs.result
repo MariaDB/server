@@ -809,3 +809,29 @@ hex(c1)	hex(c2)	c3	hex(c4)
 NULL	NULL	NULL	NULL
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-36852 Table definition gets corrupt after adding unique hash key
+#
+create table t1 (a text, b int, foreign key(a) references x(x)) engine=myisam;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`(1000))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+alter table t1 add unique(a), add key(a);
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  UNIQUE KEY `a` (`a`) USING HASH,
+  KEY `a_2` (`a`(1000))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
+# End of 10.6 tests
