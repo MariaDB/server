@@ -1,0 +1,67 @@
+name: clang-cl ARM64
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Configure git
+        # mtr will spit random errors, if we don't do that
+        run: |
+          git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          echo Processor Architecture: $Env:PROCESSOR_ARCHITECTURE
+          systeminfo
+          where.exe perl.exe
+      - name: Install bison
+        run: |
+          choco install winflexbison3 ninja
+
+      - name: Install Latest LLVM (manual installer)
+        run: |
+           $llvmVersion = "20.1.5"  # Replace with latest stable version
+           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
+           $installer = "$env:TEMP\llvm-installer.exe"
+           Invoke-WebRequest $url -OutFile $installer
+           Start-Process -Wait -FilePath $installer -ArgumentList "/S", "/D=C:\LLVM"
+
+      - name: Build project
+        run: |
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          mkdir bld
+          cd bld
+          set PATH=C:\LLVM\bin;%PATH%
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" arm64
+          cmake .. -DWITH_SSL=bundled -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_LINKER=lld-link -DCMAKE_SYSTEM_PROCESSOR=ARM64 -GNinja
+          cmake --build . --parallel --verbose
+          cmake --build . --target win_package_zip
+        shell: cmd
+
+
+      - name: Test
+        run: |
+          $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
+          #Calculate parallel as 4 * number of processors
+          $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
+          # Run mtr, skip main.mariadb-upgrade-service (currently crashes)
+          perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=$parallel `
+            --testcase-timeout=6 --suite=main  --mysqld=--loose-innodb-flush-log-at-trx-commit=2
+
+      - name: Test 2
+        run: |
+          perl bld\mysql-test\mysql-test-run.pl --suite=main main.charset_client_win_utf8mb4

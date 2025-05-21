@@ -1,0 +1,62 @@
+name: Build on Windows ARM64
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'bb-*'
+      - '[0-9]+.[0-9]+'
+  pull_request:
+
+jobs:
+  build:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Configure git
+        run: |
+          # Nope, we won't be able to successfully run test
+          # if you do not configure that freaking autocrlf
+          git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+
+      - name: Install bison
+        run: |
+          choco install winflexbison3
+
+      - name: Build
+        run: |
+          # speedup checkout by excluding uninteresting modules
+          git config submodule.storage/columnstore/columnstore.update none
+          git config submodule.storage/maria/libmarias3.update none
+          git config submodule.storage/rocksdb/rocksdb.update none
+          git config submodule.wsrep-lib.update none
+          mkdir bld
+          cd bld
+          cmake .. -DWITH_SSL=bundled
+          cmake --build . --config RelWithDebinfo --verbose -- -m
+          cmake --build . --config RelWithDebInfo --target win_package_zip
+
+      - name: Test
+        run: |
+          $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
+          #Calculate parallel as 4 * number of processors
+          $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
+          # Run mtr, skip unit.tzinfo
+          perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=10 --retry=2 --parallel=$parallel `
+            --testcase-timeout=10 --suite=main,unit --skip-test=unit.my_tzinfo `
+            --mysqld=--loose-innodb-flush-log-at-trx-commit=2
+
+      - name: Test sequential
+        # tests that can't run in parallel
+        run: |
+          $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
+          #Calculate parallel as 4 * number of processors
+          $parallel = 4 * [int]$env:NUMBER_OF_PROCESSORS
+          # Run mtr, skip unit.tzinfo
+          perl bld\mysql-test\mysql-test-run.pl --suite=main --force --max-test-fail=10 --retry=2 charset_client_win_utf8mb4 `
