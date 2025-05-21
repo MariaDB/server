@@ -174,10 +174,9 @@ if(MSVC)
       -Wno-unused-local-typedef
       -Wno-microsoft-static-assert
       -Wno-c++17-extensions
-      -msse4.2
     )
     if((CMAKE_SIZEOF_VOID_P MATCHES 8) AND MSVC_INTEL)
-      add_compile_options(-mpclmul)
+      add_compile_options(-mpclmul -msse4.2)
     endif()
   endif()
 
