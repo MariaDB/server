@@ -82,9 +82,9 @@ SET GLOBAL innodb_ft_aux_table=default;
 SELECT * FROM t1 WHERE MATCH(title) AGAINST('mysql database');
 FTS_DOC_ID	title
 3	mysql database
-4	mysql database
-1	mysql
 2	database
+1	mysql
+4	mysql database
 connection default;
 disconnect con1;
 DROP TABLE t1;
