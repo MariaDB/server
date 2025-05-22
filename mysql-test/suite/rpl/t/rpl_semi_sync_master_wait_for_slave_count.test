@@ -1,0 +1,23 @@
+# MDEV-18983: Test the `@@rpl_semi_sync_master_wait_for_slave_count` feature
+
+--source include/have_binlog_format_statement.inc # format-agnostic
+# The variable's default is 1 to match the behavior before this feature came.
+# Therefore, this test uses two slaves to prove that the variable took effect.
+--let $rpl_topology= 1->2, 1->3
+--source include/rpl_init.inc
+
+--echo # Case 1: immediately commits when the requirement is exact
+CREATE TABLE t (a INT);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+--echo # Cases 2.1: a high requirement triggers `rpl_semi_sync_master_wait_no_slave=0`
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+INSERT INTO t VALUES (0);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+--echo # Case 2.2: Semi-Sync turns back ON when the requirement is exact
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+DROP TABLE t;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+--source include/rpl_end.inc

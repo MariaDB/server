@@ -255,7 +255,7 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
 
 Tranx_node *Active_tranx::find_acked_tranx_node()
 {
-  Tranx_node *new_front;
+  Tranx_node *new_front= nullptr;
   for (Tranx_node *entry= m_trx_front; entry; entry= entry->next)
     if (entry->acks >= rpl_semi_sync_master_wait_for_slave_count)
       new_front= entry;
@@ -1488,16 +1488,18 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
 
 void Repl_semi_sync_master::refresh_wait_for_slave_count(uint32 server_id)
 {
+  Tranx_node *entry= nullptr;
   DBUG_ENTER("refresh_wait_for_slave_count");
   lock();
     if (get_master_enabled())
     {
-      Tranx_node *entry;
       DBUG_ASSERT(m_active_tranxs);
-      if ((entry= m_active_tranxs->find_acked_tranx_node()))
-        report_reply_binlog(server_id, entry->log_name, entry->log_pos);
+      entry= m_active_tranxs->find_acked_tranx_node();
     }
   unlock();
+  if (entry)
+    report_reply_binlog(server_id, entry->log_name, entry->log_pos);
+  DBUG_VOID_RETURN;
 }
 
 /* Get the waiting time given the wait's staring time.
