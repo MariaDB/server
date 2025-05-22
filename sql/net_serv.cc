@@ -116,10 +116,6 @@ extern my_bool thd_net_is_killed(THD *thd);
 #define thd_net_is_killed(A) 0
 #endif
 
-extern "C" {
-void my_net_local_init_server(NET *net);
-}
-
 
 static my_bool net_write_buff(NET *, const uchar *, size_t len);
 
@@ -134,7 +130,7 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   net->vio = vio;
   net->read_timeout= 0;
   net->write_timeout= 0;
-  my_net_local_init_server(net);			/* Set some limits */
+  my_net_local_init(net);			/* Set some limits */
 
   if (net_allocate_new_packet(net, thd, my_flags))
     DBUG_RETURN(1);
