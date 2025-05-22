@@ -957,7 +957,8 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
   ut_ad(mmap == is_mmap());
-  ut_ad(!mmap || buf_size == std::min<uint64_t>(capacity(), buf_size_max));
+  ut_ad(!mmap || disabled ||
+        buf_size == std::min<uint64_t>(capacity(), buf_size_max));
   const size_t buf_size{this->buf_size - size};
   uint64_t l;
   static_assert(WRITE_TO_BUF == WRITE_BACKOFF << 1, "");
@@ -1122,8 +1123,9 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     size_t s;
 
 #ifdef HAVE_PMEM
-    if (!resize_flush_buf)
+    if (!resize_log.is_opened())
     {
+      ut_ad(!resize_flush_buf || disabled);
       ut_ad(is_mmap());
       resize_wrap_mutex.wr_lock();
       const size_t resize_capacity{resize_target - START_OFFSET};
