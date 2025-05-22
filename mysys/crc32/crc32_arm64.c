@@ -8,16 +8,16 @@ unsigned crc32_aarch64(unsigned, const void *, size_t);
 
 #ifdef HAVE_ARMV8_CRC
 
-#ifdef HAVE_ARMV8_CRYPTO
+# ifdef HAVE_ARMV8_CRYPTO
 static unsigned crc32c_aarch64_pmull(unsigned, const void *, size_t);
 # endif
 
-#ifdef _WIN32
-#include <windows.h>
-#ifdef __clang__
-#include <arm_acle.h>
-#include <arm_neon.h>
-#endif
+# ifdef _WIN32
+#  include <windows.h>
+#  ifdef __clang__
+#   include <arm_acle.h>
+#   include <arm_neon.h>
+# endif
 int crc32_aarch64_available(void)
 {
   return IsProcessorFeaturePresent(PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE);
@@ -33,9 +33,9 @@ my_crc32_t crc32c_aarch64_available(void)
   return crc32c_aarch64;
 }
 
-#else /* _WIN32 */
-# ifdef __APPLE__
-#  include <sys/sysctl.h>
+# else /* _WIN32 */
+#  ifdef __APPLE__
+#   include <sys/sysctl.h>
 
 int crc32_aarch64_available(void)
 {
@@ -48,16 +48,16 @@ int crc32_aarch64_available(void)
 
 my_crc32_t crc32c_aarch64_available(void)
 {
-# ifdef HAVE_ARMV8_CRYPTO
+#   ifdef HAVE_ARMV8_CRYPTO
   if (crc32_aarch64_available())
     return crc32c_aarch64_pmull;
-# endif
+#   endif
   return NULL;
 }
 
-# else /* __APPLE__ */
-#  include <sys/auxv.h>
-#  ifdef __FreeBSD__
+#  else /* __APPLE__ */
+#   include <sys/auxv.h>
+#   ifdef __FreeBSD__
 static unsigned long getauxval(unsigned int key)
 {
   unsigned long val;
@@ -65,17 +65,17 @@ static unsigned long getauxval(unsigned int key)
     return 0ul;
   return val;
 }
-#  else
-#   include <asm/hwcap.h>
-#  endif
+#   else
+#    include <asm/hwcap.h>
+#   endif
 
-#  ifndef HWCAP_CRC32
-#   define HWCAP_CRC32 (1 << 7)
-#  endif
+#   ifndef HWCAP_CRC32
+#    define HWCAP_CRC32 (1 << 7)
+#   endif
 
-#  ifndef HWCAP_PMULL
-#   define HWCAP_PMULL (1 << 4)
-#  endif
+#   ifndef HWCAP_PMULL
+#    define HWCAP_PMULL (1 << 4)
+#   endif
 
 /* ARM made crc32 default from ARMv8.1 but optional in ARMv8A
  * Runtime check API.
@@ -85,9 +85,9 @@ int crc32_aarch64_available(void)
   unsigned long auxv= getauxval(AT_HWCAP);
   return (auxv & HWCAP_CRC32) != 0;
 }
-# endif /* __APPLE__ */
+#  endif /* __APPLE__ */
 
-# ifndef __APPLE__
+#  ifndef __APPLE__
 static unsigned crc32c_aarch64(unsigned, const void *, size_t);
 
 my_crc32_t crc32c_aarch64_available(void)
@@ -95,15 +95,15 @@ my_crc32_t crc32c_aarch64_available(void)
   unsigned long auxv= getauxval(AT_HWCAP);
   if (!(auxv & HWCAP_CRC32))
     return NULL;
-#  ifdef HAVE_ARMV8_CRYPTO
+#   ifdef HAVE_ARMV8_CRYPTO
   /* Raspberry Pi 4 supports crc32 but doesn't support pmull (MDEV-23030). */
   if (auxv & HWCAP_PMULL)
     return crc32c_aarch64_pmull;
-#  endif
+#   endif
   return crc32c_aarch64;
 }
-# endif /* __APPLE__ */
-#endif /* _WIN32 */
+#  endif /* __APPLE__ */
+# endif /* _WIN32 */
 
 const char *crc32c_aarch64_impl(my_crc32_t c)
 {
