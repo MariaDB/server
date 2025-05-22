@@ -58,8 +58,8 @@ C_MODE_END
 
 #define THD_TRN (TRN*) thd_get_ha_data(thd, maria_hton)
 
-ulong pagecache_division_limit, pagecache_age_threshold;
-ulong pagecache_file_hash_size, pagecache_segments;
+uint pagecache_segments, pagecache_division_limit, pagecache_file_hash_size;
+ulong pagecache_age_threshold;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
   "Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system";
@@ -116,7 +116,7 @@ const char *maria_group_commit_names[]=
 TYPELIB maria_group_commit_typelib= CREATE_TYPELIB_FOR(maria_group_commit_names);
 
 /** Interval between background checkpoints in seconds */
-static ulong checkpoint_interval;
+static uint checkpoint_interval;
 static void update_checkpoint_interval(MYSQL_THD thd,
                                        struct st_mysql_sys_var *var,
                                        void *var_ptr, const void *save);
@@ -127,32 +127,36 @@ static void update_maria_group_commit_interval(MYSQL_THD thd,
                                            struct st_mysql_sys_var *var,
                                            void *var_ptr, const void *save);
 /** After that many consecutive recovery failures, remove logs */
-static ulong force_start_after_recovery_failures;
+static uint force_start_after_recovery_failures;
 static void update_log_file_size(MYSQL_THD thd,
                                  struct st_mysql_sys_var *var,
                                  void *var_ptr, const void *save);
 
 /* The 4096 is there because of MariaDB privilege tables */
-static MYSQL_SYSVAR_ULONG(block_size, maria_block_size,
+static MYSQL_SYSVAR_UINT(block_size, maria_block_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Block size to be used for Aria index pages", 0, 0,
        MARIA_KEY_BLOCK_LENGTH, 4096,
        MARIA_MAX_KEY_BLOCK_LENGTH, MARIA_MIN_KEY_BLOCK_LENGTH);
 
-static MYSQL_SYSVAR_ULONG(checkpoint_interval, checkpoint_interval,
-       PLUGIN_VAR_RQCMDARG,
-       "Interval between tries to do an automatic checkpoints. In seconds; 0 means"
-       " 'no automatic checkpoints' which makes sense only for testing",
-       NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
+static MYSQL_SYSVAR_UINT(checkpoint_interval, checkpoint_interval,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Interval between tries to do an automatic "
+                         "checkpoints. In seconds; 0 means "
+                         "'no automatic checkpoints' which makes sense only "
+                         "for testing",
+                         NULL, update_checkpoint_interval, 30, 0, UINT_MAX, 1);
 
-static MYSQL_SYSVAR_ULONG(checkpoint_log_activity, maria_checkpoint_min_log_activity,
-       PLUGIN_VAR_RQCMDARG,
-       "Number of bytes that the transaction log has to grow between checkpoints before a new "
-       "checkpoint is written to the log",
-       NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
+static MYSQL_SYSVAR_UINT(checkpoint_log_activity,
+                         maria_checkpoint_min_log_activity,
+                         PLUGIN_VAR_RQCMDARG,
+                         "Number of bytes that the transaction log has to grow "
+                         "between checkpoints before a new checkpoint is "
+                         "written to the log",
+                         NULL, NULL, 1024*1024, 0, UINT_MAX, 1);
 
-static MYSQL_SYSVAR_ULONG(force_start_after_recovery_failures,
-       force_start_after_recovery_failures,
+static MYSQL_SYSVAR_UINT(force_start_after_recovery_failures,
+                         force_start_after_recovery_failures,
        /*
          Read-only because setting it on the fly has no useful effect,
          should be set on command-line.
@@ -224,12 +228,12 @@ static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, pagecache_buffer_size,
        "multiple writes) to as much as you can afford", 0, 0,
        KEY_CACHE_SIZE, 8192*16L, ~(ulonglong) 0, 1);
 
-static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
+static MYSQL_SYSVAR_UINT(pagecache_division_limit, pagecache_division_limit,
        PLUGIN_VAR_RQCMDARG,
        "The minimum percentage of warm blocks in key cache", 0, 0,
        100,  1, 100, 1);
 
-static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
+static MYSQL_SYSVAR_UINT(pagecache_file_hash_size, pagecache_file_hash_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Number of hash buckets for open and changed files.  If you have a lot of Aria "
        "files open you should increase this for faster flush of changes. A good "
@@ -240,7 +244,7 @@ static MYSQL_SYSVAR_SET(recover_options, maria_recover_options, PLUGIN_VAR_OPCMD
        "Specifies how corrupted tables should be automatically repaired",
        NULL, NULL, HA_RECOVER_BACKUP|HA_RECOVER_QUICK, &maria_recover_typelib);
 
-static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
+static MYSQL_THDVAR_UINT(repair_threads, PLUGIN_VAR_RQCMDARG,
        "Number of threads to use when repairing Aria tables. The value of 1 "
        "disables parallel repair",
        0, 0, 1, 1, 128, 1);
@@ -260,13 +264,13 @@ static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
        "creation", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
        &maria_sync_log_dir_typelib);
 
-static MYSQL_SYSVAR_ULONG(pagecache_segments, pagecache_segments,
-                          PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-                          "The number of segments in the page_cache. "
-                          "Each file is put in their own segments of size "
-                          "pagecache_buffer_size / segments. "
-                          "Having many segments improves parallel performance",
-                          0, 0, 1, 1, 128, 1);
+static MYSQL_SYSVAR_UINT(pagecache_segments, pagecache_segments,
+                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                         "The number of segments in the page_cache. "
+                         "Each file is put in their own segments of size "
+                         "pagecache_buffer_size / segments. "
+                         "Having many segments improves parallel performance",
+                         0, 0, 1, 1, 128, 1);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
 #define USE_ARIA_FOR_TMP_TABLES_VAL 1
@@ -4083,7 +4087,7 @@ static void update_checkpoint_interval(MYSQL_THD thd,
                                         void *var_ptr, const void *save)
 {
   ma_checkpoint_end();
-  ma_checkpoint_init(*(ulong *)var_ptr= (ulong)(*(long *)save));
+  ma_checkpoint_init(*(uint *)var_ptr= *(uint*)save);
 }
 
 

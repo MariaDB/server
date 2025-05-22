@@ -7619,7 +7619,7 @@ void _ma_print_block_info(MARIA_SHARE *share, uchar *buff)
          (uint)buff[DIR_COUNT_OFFSET],
          (uint)buff[DIR_FREE_OFFSET],
          (uint) uint2korr(buff + EMPTY_SPACE_OFFSET));
-  printf("Start of directory: %lu\n",
+  printf("Start of directory: %u\n",
          maria_block_size - PAGE_SUFFIX_SIZE -
          (uint) buff[DIR_COUNT_OFFSET] * DIR_ENTRY_SIZE);
   _ma_print_directory(share, stdout, buff, maria_block_size);
