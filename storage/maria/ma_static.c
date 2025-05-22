@@ -33,7 +33,7 @@ uchar	maria_pack_file_magic[]=
 /* Unique number for this maria instance */
 uchar   maria_uuid[MY_UUID_SIZE];
 uint	maria_quick_table_bits=9;
-ulong	__attribute__((visibility("default"))) maria_block_size= MARIA_KEY_BLOCK_LENGTH;
+uint	__attribute__((visibility("default"))) maria_block_size= MARIA_KEY_BLOCK_LENGTH;
 my_bool maria_flush= 0, maria_single_user= 0;
 my_bool maria_delay_key_write= 0, maria_page_checksums= 1;
 my_bool maria_inited= FALSE;
