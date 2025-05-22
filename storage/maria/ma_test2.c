@@ -992,7 +992,7 @@ end:
     printf("Write records: %d\nUpdate records: %d\nSame-key-read: %d\nDelete records: %d\n", write_count,update,dupp_keys,opt_delete);
     if (rec_pointer_size)
       printf("Record pointer size:  %d\n",rec_pointer_size);
-    printf("maria_block_size:    %lu\n", maria_block_size);
+    printf("maria_block_size:    %u\n", maria_block_size);
     if (write_cacheing)
       puts("Key cache resized");
     if (write_cacheing)
