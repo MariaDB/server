@@ -6,6 +6,7 @@ on:
       - 'main'
       - 'bb-*'
       - '[0-9]+.[0-9]+'
+      - '*wlad*'
   pull_request:
 
 jobs:
@@ -27,7 +28,7 @@ jobs:
 
       - name: Install bison
         run: |
-          choco install winflexbison3
+          choco install winflexbison3 wixtoolset
 
       - name: Build
         run: |
@@ -40,9 +41,90 @@ jobs:
           cd bld
           cmake .. -DWITH_SSL=bundled
           cmake --build . --config RelWithDebinfo --verbose -- -m
-          cmake --build . --config RelWithDebInfo --target win_package_zip
+          cmake --build . --config RelWithDebInfo --target MSI
 
-      - name: Test
+      - name: Test MSI
+        shell: pwsh
+        run: |
+          # Find the MSI file
+          $msi = Get-ChildItem -Recurse -Filter *.msi -Path bld\win\packaging | Select-Object -First 1
+          if (-not $msi) {
+             Write-Error "No MSI file found in build directory"
+             exit 1
+          }
+          # Define install parameters
+          $msiPath = $msi.FullName
+          $installDir = "C:\mariadb"
+          $serviceName = "MariaDB"
+          $rootPassword = "b1ctUj5rcRSADLC"
+          $logPath = "$env:RUNNER_TEMP\msi-install.log"
+          # Install MSI
+          $installArgs = "/i `"$msiPath`" INSTALLDIR=`"$installDir`" SERVICE=$serviceName PASSWORD=$rootPassword /qn /norestart /l*v `"$logPath`""
+          echo "Installing MSI: $msiPath , args=$installArgs "
+          $process = Start-Process msiexec.exe -Wait -NoNewWindow -ArgumentList $installArgs
+          if ($process.ExitCode -ne 0) {
+            Write-Error "MSI installation failed with exit code $($process.ExitCode)"
+            echo "::group::MSI Install Log"
+            Get-Content $logPath
+            echo "::endgroup::"
+            exit 1
+          }
+          # Wait for Windows service to reach "Running"
+          $maxAttempts = 30
+          $attempt = 0
+          while ($attempt -lt $maxAttempts) {
+             $status = (Get-Service -Name $serviceName).Status
+             if ($status -eq "Running") {
+               echo "Service $serviceName is running"
+               break
+            }
+            Start-Sleep -Seconds 1
+            $attempt++
+          }
+          if ($status -ne "Running") {
+            Write-Error "Service $serviceName did not start within timeout"
+            exit 1
+          }
+          $port = 3306
+          $maxAttempts = 30
+          $attempt = 0
+          $ready = $false
+          while ($attempt -lt $maxAttempts) {
+            $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+            if ($connections) {
+              echo "Port $port is now listening"
+              $ready = $true
+              break
+            }
+            Start-Sleep -Seconds 1
+            $attempt++
+          }
+          if (-not $ready) {
+            Write-Error "Port $port did not start listening within timeout"
+            exit 1
+          }
+          $mysqlExe = Join-Path $installDir "bin\mysql.exe"
+          if (-Not (Test-Path $mysqlExe)) {
+            Write-Error "mysql.exe not found at $mysqlExe"
+            exit 1
+          }
+          & $mysqlExe -uroot "--password=$rootPassword" -e "select 1"
+          if ($LASTEXITCODE -ne 0) {
+             Write-Error "Smoke test failed"
+             exit 1
+          }
+          # Get product code for uninstall
+          $product = Get-WmiObject Win32_Product | Where-Object { $_.InstallLocation -eq $installDir } | Select-Object -First 1
+          if (-not $product) {
+               Write-Error "Could not determine MSI product for uninstall"
+               exit 1
+          }
+          $productCode = $product.IdentifyingNumber
+          echo "Uninstalling product code: $productCode"
+          $uninstallArgs = "/x $productCode /qn /norestart"
+          Start-Process msiexec.exe -Wait -NoNewWindow -ArgumentList $uninstallArgs
+
+      - name: Test MTR
         run: |
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
           #Calculate parallel as 4 * number of processors
@@ -52,7 +134,7 @@ jobs:
             --testcase-timeout=10 --suite=main,unit --skip-test=unit.my_tzinfo `
             --mysqld=--loose-innodb-flush-log-at-trx-commit=2
 
-      - name: Test sequential
+      - name: Test MTR non-parallel
         # tests that can't run in parallel
         run: |
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
