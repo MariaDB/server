@@ -30,7 +30,7 @@ connection default;
 # restart: --innodb-log-group-home-dir=foo\;bar
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /syntax error in innodb_log_group_home_dir/ in mysqld.1.err
+FOUND 1 /InnoDB: File foo.*bar/ib_logfile0 was not found/ in mysqld.1.err
 # restart: --debug-dbug=d,innodb_log_abort_1
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'

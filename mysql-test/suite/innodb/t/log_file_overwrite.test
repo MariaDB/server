@@ -29,4 +29,6 @@ SET GLOBAL innodb_log_checkpoint_now=1;
 let $restart_parameters=;
 --source include/restart_mysqld.inc
 
+SET GLOBAL innodb_log_checkpoint_now=1;
+
 DROP TABLE t1;

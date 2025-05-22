@@ -12,11 +12,8 @@ INSERT INTO t1 SELECT seq, repeat('a', 4000) FROM seq_1_to_1800;
 #
 # restart: --innodb-force-recovery=6
 SET GLOBAL innodb_log_checkpoint_now=1;
-Warnings:
-Warning	138	InnoDB doesn't force checkpoint when innodb-force-recovery=6.
 # restart: --innodb-read-only=1
 SET GLOBAL innodb_log_checkpoint_now=1;
-Warnings:
-Warning	138	InnoDB doesn't force checkpoint when innodb-read-only=1.
 # restart
+SET GLOBAL innodb_log_checkpoint_now=1;
 DROP TABLE t1;

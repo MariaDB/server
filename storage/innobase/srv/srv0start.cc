@@ -160,7 +160,8 @@ static PSI_stage_info*	srv_stages[] =
 static void delete_log_files()
 {
   for (size_t i= 1; i < 102; i++)
-    delete_log_file(std::to_string(i).c_str());
+    os_file_delete_if_exists_func(get_log_file_path(LOG_FILE_NAME_PREFIX).
+                                  append(std::to_string(i)).c_str(), nullptr);
 }
 
 /** Creates log file.
@@ -168,7 +169,7 @@ static void delete_log_files()
 @param lsn             log sequence number
 @param logfile0        name of the log file
 @return DB_SUCCESS or error code */
-static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
+static dberr_t create_log_file(bool create_new_db, lsn_t lsn) noexcept
 {
 	ut_ad(!srv_read_only_mode);
 
@@ -194,11 +195,15 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 
 	std::string logfile0{get_log_file_path("ib_logfile101")};
 	bool ret;
-	os_file_t file{
-          os_file_create_func(logfile0.c_str(),
-                              OS_FILE_CREATE,
-                              OS_LOG_FILE, false, &ret)
-        };
+	os_file_t file;
+
+	if (UNIV_UNLIKELY(log_sys.disabled)) {
+		file = OS_FILE_CLOSED;
+		goto file_created;
+	}
+
+	file = os_file_create_func(logfile0.c_str(), OS_FILE_CREATE,
+				   OS_LOG_FILE, false, &ret);
 
 	if (!ret) {
 		sql_print_error("InnoDB: Cannot create %.*s",
@@ -217,6 +222,7 @@ close_and_exit:
 		goto err_exit;
 	}
 
+file_created:
 	log_sys.set_latest_format(srv_encrypt_log);
 	if (!log_sys.attach(file, srv_log_file_size)) {
 		goto close_and_exit;
@@ -265,18 +271,61 @@ close_and_exit:
 @return whether an error occurred */
 bool log_t::resize_rename() noexcept
 {
-  std::string old_name{get_log_file_path("ib_logfile101")};
+  ut_ad(!log_sys.resize_dir || log_sys.latch_have_wr());
+  std::string old_name{get_log_file_path("ib_logfile101", log_sys.resize_dir)};
   std::string new_name{get_log_file_path()};
 
   if (IF_WIN(MoveFileEx(old_name.c_str(), new_name.c_str(),
                         MOVEFILE_REPLACE_EXISTING),
              !rename(old_name.c_str(), new_name.c_str())))
+  {
+    if (log_sys.resize_dir)
+    {
+      old_name= get_log_file_path("ib_logfile0", log_sys.resize_dir);
+      if (IF_WIN(MoveFileEx(new_name.c_str(), old_name.c_str(),
+                            MOVEFILE_REPLACE_EXISTING),
+                 !rename(new_name.c_str(), old_name.c_str())));
+      else
+      {
+        /* We succeeded in atomically renaming the file to the
+        original innodb_log_group_home_dir, but not back to the new
+        innodb_log_group_home_dir.
+        Retain the current innodb_log_group_home_dir. */
+        if (srv_log_group_home_dir != log_sys.resize_dir)
+        {
+          my_free(const_cast<char*>(log_sys.resize_dir));
+          log_sys.resize_dir= srv_log_group_home_dir;
+        }
+      }
+    }
     return false;
+  }
 
+  const int err= IF_WIN(int(GetLastError()), errno);
+  const char *remove= old_name.c_str();
+
+  if (log_sys.resize_dir && err == IF_WIN(ERROR_NOT_SAME_DEVICE, EXDEV))
+  {
+    /* The innodb_log_group_home_dir will point to a different file system.
+    Try to rename the new file to ib_logfile0 in thew new location. */
+    std::string name{get_log_file_path("ib_logfile0", log_sys.resize_dir)};
+    if (IF_WIN(MoveFileEx(remove, name.c_str(), MOVEFILE_REPLACE_EXISTING),
+               !rename(remove, name.c_str())))
+    {
+      /* Now we have two ib_logfile0, both of them valid for recovery.
+      Remove the one at the old innodb_log_group_home_dir location. */
+      IF_WIN(DeleteFile(new_name.c_str()), unlink(new_name.c_str()));
+      return false;
+    }
+  }
+  else if (log_sys.disabled)
+    remove= new_name.c_str();
+  IF_WIN(DeleteFile(remove), unlink(remove));
+  if (log_sys.disabled)
+    return false;
   sql_print_error("InnoDB: Failed to rename log from %.*s to %.*s (error %d)",
                   int(old_name.size()), old_name.data(),
-                  int(new_name.size()), new_name.data(),
-                  IF_WIN(int(GetLastError()), errno));
+                  int(new_name.size()), new_name.data(), err);
   return true;
 }
 
@@ -1077,7 +1126,7 @@ srv_init_abort_low(
 /** Prepare to delete the redo log file. Flush the dirty pages from all the
 buffer pools.  Flush the redo log buffer to the redo log file.
 @return lsn upto which data pages have been flushed. */
-ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file()
+ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
@@ -1091,7 +1140,7 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file()
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const bool latest_format{log_sys.is_latest()};
-  lsn_t flushed_lsn{log_sys.get_lsn()};
+  lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
   if (latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
@@ -1099,6 +1148,11 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file()
        ? SIZE_OF_FILE_CHECKPOINT + 8
        : SIZE_OF_FILE_CHECKPOINT))
   {
+#ifdef HAVE_PMEM
+    if (!log_sys.is_opened())
+      log_sys.buf_size= unsigned(std::min<uint64_t>(log_sys.capacity(),
+                                                    log_sys.buf_size_max));
+#endif
     fil_names_clear(flushed_lsn);
     flushed_lsn= log_sys.get_lsn();
   }
@@ -1139,7 +1193,7 @@ same_size:
   if (latest_format)
     log_write_up_to(flushed_lsn, false);
 
-  ut_ad(flushed_lsn == log_sys.get_lsn());
+  ut_ad(flushed_lsn == log_get_lsn());
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -1221,6 +1275,18 @@ ATTRIBUTE_COLD static dberr_t ibuf_log_rebuild_if_needed()
   dberr_t err= srv_log_rebuild_if_needed();
   recv_sys.debug_free();
   return err;
+}
+
+inline lsn_t log_t::init_lsn() noexcept
+{
+  latch.wr_lock(SRW_LOCK_CALL);
+  ut_ad(!write_lsn_offset);
+  write_lsn_offset= 0;
+  const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
+  flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  write_lsn= lsn;
+  latch.wr_unlock();
+  return lsn;
 }
 
 /** Start InnoDB.
