@@ -343,7 +343,7 @@ static void get_service_config()
   if (!service)
     die("OpenService failed with %u", GetLastError());
 
-  BYTE config_buffer[8 * 1024];
+  alignas(QUERY_SERVICE_CONFIGW) BYTE config_buffer[8 * 1024];
   LPQUERY_SERVICE_CONFIGW config = (LPQUERY_SERVICE_CONFIGW)config_buffer;
   DWORD size = sizeof(config_buffer);
   DWORD needed;
