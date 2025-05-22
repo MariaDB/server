@@ -1548,6 +1548,16 @@ group_by_handler *spider_create_group_by_handler(
         if (item->const_item())
         {
           /*
+            Do not create the GBH when a derived table or view is
+            involved
+          */
+          if (thd->derived_tables != NULL)
+          {
+            keep_going= FALSE;
+            break;
+          }
+
+          /*
             Do not handle the complex case where there's a const item
             in the auxiliary fields. It is too unlikely (if at all) to
             happen to be covered by the GBH.

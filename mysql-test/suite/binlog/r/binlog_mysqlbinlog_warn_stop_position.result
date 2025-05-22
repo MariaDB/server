@@ -18,6 +18,51 @@ drop table t1;
 # Ensuring file offset of binlog_f2_mid < binlog_f1_end
 #
 #
+# Test using --read-from-remote-server
+#
+connection default;
+#
+# --stop-position tests
+#
+#  Case 1.a) With one binlog file, a --stop-position before the end of
+# the file should not result in a warning
+# MYSQL_BINLOG --read-from-remote-server --stop-position=binlog_f1_pre_rotate binlog_f1_full --result-file=tmp/warn_position_test_file.out 2>&1
+#
+#  Case 1.b) With one binlog file, a --stop-position at the exact end of
+# the file should not result in a warning
+# MYSQL_BINLOG --read-from-remote-server --stop-position=binlog_f1_end binlog_f1_full --result-file=tmp/warn_position_test_file.out 2>&1
+#
+#  Case 1.c) With one binlog file, a --stop-position past the end of the
+# file should(!) result in a warning
+# MYSQL_BINLOG --read-from-remote-server --short-form --stop-position=binlog_f1_over_eof binlog_f1_full --result-file=tmp/warn_position_test_file.out 2>&1
+WARNING: Did not reach stop position <BINLOG_F1_OVER_EOF> before end of input
+#
+#  Case 2.a) With two binlog files, a --stop-position targeting b2 which
+# exists in the size of b1 should:
+#    1) not provide any warnings
+#    2) not prevent b2 from outputting its desired events before the
+#       stop position
+# MYSQL_BINLOG --read-from-remote-server --stop-position=binlog_f2_mid binlog_f1_full binlog_f2_full --result-file=tmp/warn_position_test_file.out 2>&1
+include/assert_grep.inc [Ensure all intended GTIDs are present]
+include/assert_grep.inc [Ensure the next GTID binlogged is _not_ present]
+#
+#  Case 2.b) With two binlog files, a --stop-position targeting the end
+# of binlog 2 should:
+#    1) not provide any warnings
+#    2) not prevent b2 from outputting its entire binary log
+# MYSQL_BINLOG --read-from-remote-server --stop-position=binlog_f2_end binlog_f1_full binlog_f2_full --result-file=tmp/warn_position_test_file.out 2>&1
+include/assert_grep.inc [Ensure a GTID exists for each transaction]
+include/assert_grep.inc [Ensure the last GTID binlogged is present]
+#
+#  Case 2.c) With two binlog files, a --stop-position targeting beyond
+# the eof of binlog 2 should:
+#    1) provide a warning that the stop position was not reached
+#    2) not prevent b2 from outputting its entire binary log
+# MYSQL_BINLOG --read-from-remote-server --stop-position=binlog_f2_over_eof binlog_f1_full binlog_f2_full --result-file=tmp/warn_position_test_file.out 2>&1
+WARNING: Did not reach stop position <BINLOG_F2_OVER_EOF> before end of input
+include/assert_grep.inc [Ensure a GTID exists for each transaction]
+#
+#
 # Test using local binlog files
 #
 connection default;

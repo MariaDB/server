@@ -36,9 +36,9 @@ class aio_uring final : public tpool::aio
 public:
   aio_uring(tpool::thread_pool *tpool, int max_aio) : tpool_(tpool)
   {
-    if (io_uring_queue_init(max_aio, &uring_, 0) != 0)
+    if (const auto e= io_uring_queue_init(max_aio, &uring_, 0))
     {
-      switch (const auto e= errno) {
+      switch (-e) {
       case ENOMEM:
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with ENOMEM:"
@@ -59,6 +59,12 @@ public:
                         "(newer than 5.1 required)",
                         ME_ERROR_LOG | ME_WARNING);
         break;
+      case EPERM:
+	my_printf_error(ER_UNKNOWN_ERROR,
+                        "io_uring_queue_init() failed with EPERM:"
+			" sysctl kernel.io_uring_disabled has the value 2, or 1 and the user of the process is not a member of sysctl kernel.io_uring_group. (see man 2 io_uring_setup).",
+                        ME_ERROR_LOG | ME_WARNING);
+	break;
       default:
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with errno %d",

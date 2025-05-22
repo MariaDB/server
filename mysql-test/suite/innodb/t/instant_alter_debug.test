@@ -652,11 +652,19 @@ DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 
 --echo # End of 10.5 tests
-
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'a');
+ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;
+--error ER_INTERNAL_ERROR
+SET STATEMENT DEBUG_DBUG="+d,instant_insert_fail" FOR
+ALTER TABLE t1 DROP COLUMN f1;
+ALTER TABLE t1 DROP COLUMN f1;
+CHECK TABLE t1;
+DROP TABLE t1;
 
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 --echo # End of 10.6 tests

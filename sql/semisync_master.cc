@@ -565,12 +565,14 @@ void Repl_semi_sync_master::remove_slave()
 {
   lock();
   DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
-  if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave)
+  if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave
+      && get_master_enabled())
   {
     /*
       Signal transactions waiting in commit_trx() that they do not have to
       wait anymore.
     */
+    DBUG_ASSERT(m_active_tranxs);
     m_active_tranxs->clear_active_tranx_nodes(NULL, 0,
                                               signal_waiting_transaction);
   }
