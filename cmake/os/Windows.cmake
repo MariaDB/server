@@ -224,7 +224,7 @@ IF(MSVC)
 -Wno-deprecated-register -Wno-missing-braces \
 -Wno-unused-function -Wno-unused-local-typedef -msse4.2 "
     )
-    IF(CMAKE_SIZEOF_VOID_P MATCHES 8 AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    IF(CMAKE_SIZEOF_VOID_P MATCHES 8 AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
       STRING(APPEND CLANG_CL_FLAGS "-mpclmul ")
     ENDIF()
     
