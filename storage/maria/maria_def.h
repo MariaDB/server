@@ -184,7 +184,7 @@ struct st_maria_decode_tree     /* Decode huff-table */
 
 typedef struct s3_info S3_INFO;
 
-extern ulong maria_block_size, maria_checkpoint_frequency;
+extern uint maria_block_size, maria_checkpoint_frequency;
 extern ulong maria_concurrent_insert;
 extern my_bool maria_flush, maria_single_user, maria_page_checksums;
 extern my_off_t maria_max_temp_length;
@@ -1273,7 +1273,7 @@ extern uchar maria_zero_string[];
 extern my_bool maria_inited, maria_in_ha_maria, maria_recovery_changed_data;
 extern my_bool maria_recovery_verbose, maria_checkpoint_disabled;
 extern my_bool maria_assert_if_crashed_table, aria_readonly;
-extern ulong maria_checkpoint_min_log_activity;
+extern uint maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
 extern int (*maria_create_trn_hook)(MARIA_HA *);
 extern my_bool (*ma_killed)(MARIA_HA *);

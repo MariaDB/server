@@ -594,7 +594,7 @@ filter_flush_file_evenly(enum pagecache_page_type type,
 
 static ulong maria_checkpoint_min_cache_activity= 10*1024*1024;
 /* Set in ha_maria.cc */
-ulong maria_checkpoint_min_log_activity= 1*1024*1024;
+uint maria_checkpoint_min_log_activity= 1*1024*1024;
 
 pthread_handler_t ma_checkpoint_background(void *arg)
 {
