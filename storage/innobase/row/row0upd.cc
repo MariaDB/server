@@ -2324,6 +2324,92 @@ err_exit:
 	return(err);
 }
 
+dberr_t row_upd_clust_rec_low(ulint flags, upd_t *update, btr_pcur_t *pcur,
+                              ulint cmpl_info, dict_index_t *index,
+                              rec_offs *offsets, mem_heap_t **offsets_heap,
+                              que_thr_t *thr, trx_t *trx, mtr_t *mtr)
+{
+  ut_ad(dict_index_is_clust(index));
+  ut_ad(!trx->in_rollback);
+  ut_ad(!index->table->skip_alter_undo);
+
+  mem_heap_t *heap= nullptr;
+  big_rec_t *big_rec= nullptr;
+  dberr_t err;
+  btr_cur_t *btr_cur = btr_pcur_get_btr_cur(pcur);
+  ut_ad(btr_cur_get_index(btr_cur) == index);
+  ut_ad(!rec_get_deleted_flag(btr_cur_get_rec(btr_cur),
+                              dict_table_is_comp(index->table)));
+  ut_ad(rec_offs_validate(btr_cur_get_rec(btr_cur), index, offsets));
+
+  /* Try optimistic updating of the record, keeping changes within
+  the page; we do not check locks because we assume the x-lock on the
+  record to update */
+  if (cmpl_info & UPD_NODE_NO_SIZE_CHANGE)
+    err = btr_cur_update_in_place(
+	    flags | BTR_NO_LOCKING_FLAG, btr_cur, offsets, update,
+            cmpl_info, thr, trx->id, mtr);
+  else
+    err = btr_cur_optimistic_update(flags | BTR_NO_LOCKING_FLAG, btr_cur,
+                                    &offsets, offsets_heap, update,
+			            cmpl_info, thr, trx->id, mtr);
+
+  if (err == DB_SUCCESS) goto func_exit;
+
+  if (buf_pool.running_out())
+  {
+    err = DB_LOCK_TABLE_FULL;
+    goto func_exit;
+  }
+
+  /* We may have to modify the tree structure: do a pessimistic descent
+  down the index tree */
+  mtr->commit();
+  mtr->start();
+
+  if (index->table->is_temporary())
+  {
+    /* Disable locking, because temporary tables are never
+    shared between transactions or connections. */
+    flags |= BTR_NO_LOCKING_FLAG;
+    mtr->set_log_mode(MTR_LOG_NO_REDO);
+  }
+  else index->set_modified(*mtr);
+
+  /* NOTE: this transaction has an s-lock or x-lock on the record and
+  therefore other transactions cannot modify the record when we have no
+  latch on the page. In addition, we assume that other query threads of
+  the same transaction do not modify the record in the meantime.
+  Therefore we can assert that the restoration of the cursor succeeds. */
+
+  ut_a(pcur->restore_position(BTR_MODIFY_TREE, mtr) ==
+       btr_pcur_t::SAME_ALL);
+
+  ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
+                              dict_table_is_comp(index->table)));
+
+  if (!heap) heap = mem_heap_create(1024);
+  err= btr_cur_pessimistic_update(
+         flags | BTR_NO_LOCKING_FLAG | BTR_KEEP_POS_FLAG, btr_cur, &offsets,
+         offsets_heap, heap, &big_rec, update, cmpl_info, thr, trx->id, mtr);
+
+  if (big_rec)
+  {
+    ut_a(err == DB_SUCCESS);
+    DEBUG_SYNC_C("before_row_upd_extern");
+    err = btr_store_big_rec_extern_fields(pcur, offsets, big_rec, mtr,
+                                          BTR_STORE_UPDATE);
+    DEBUG_SYNC_C("after_row_upd_extern");
+  }
+
+func_exit:
+  if (heap) mem_heap_free(heap);
+
+  if (big_rec) dtuple_big_rec_free(big_rec);
+
+  return err;
+}
+
 /***********************************************************//**
 Updates a clustered index record of a row when the ordering fields do
 not change.
@@ -2343,104 +2429,9 @@ row_upd_clust_rec(
 	mtr_t*		mtr)	/*!< in,out: mini-transaction; may be
 				committed and restarted here */
 {
-	mem_heap_t*	heap		= NULL;
-	big_rec_t*	big_rec		= NULL;
-	btr_pcur_t*	pcur;
-	btr_cur_t*	btr_cur;
-	dberr_t		err;
-
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(!thr_get_trx(thr)->in_rollback);
-	ut_ad(!node->table->skip_alter_undo);
-
-	pcur = node->pcur;
-	btr_cur = btr_pcur_get_btr_cur(pcur);
-
-	ut_ad(btr_cur_get_index(btr_cur) == index);
-	ut_ad(!rec_get_deleted_flag(btr_cur_get_rec(btr_cur),
-				    dict_table_is_comp(index->table)));
-	ut_ad(rec_offs_validate(btr_cur_get_rec(btr_cur), index, offsets));
-
-	/* Try optimistic updating of the record, keeping changes within
-	the page; we do not check locks because we assume the x-lock on the
-	record to update */
-
-	if (node->cmpl_info & UPD_NODE_NO_SIZE_CHANGE) {
-		err = btr_cur_update_in_place(
-			flags | BTR_NO_LOCKING_FLAG, btr_cur,
-			offsets, node->update,
-			node->cmpl_info, thr, thr_get_trx(thr)->id, mtr);
-	} else {
-		err = btr_cur_optimistic_update(
-			flags | BTR_NO_LOCKING_FLAG, btr_cur,
-			&offsets, offsets_heap, node->update,
-			node->cmpl_info, thr, thr_get_trx(thr)->id, mtr);
-	}
-
-	if (err == DB_SUCCESS) {
-		goto func_exit;
-	}
-
-	if (buf_pool.running_out()) {
-		err = DB_LOCK_TABLE_FULL;
-		goto func_exit;
-	}
-
-	/* We may have to modify the tree structure: do a pessimistic descent
-	down the index tree */
-
-	mtr->commit();
-	mtr->start();
-
-	if (index->table->is_temporary()) {
-		/* Disable locking, because temporary tables are never
-		shared between transactions or connections. */
-		flags |= BTR_NO_LOCKING_FLAG;
-		mtr->set_log_mode(MTR_LOG_NO_REDO);
-	} else {
-		index->set_modified(*mtr);
-	}
-
-	/* NOTE: this transaction has an s-lock or x-lock on the record and
-	therefore other transactions cannot modify the record when we have no
-	latch on the page. In addition, we assume that other query threads of
-	the same transaction do not modify the record in the meantime.
-	Therefore we can assert that the restoration of the cursor succeeds. */
-
-	ut_a(pcur->restore_position(BTR_MODIFY_TREE, mtr) ==
-	    btr_pcur_t::SAME_ALL);
-
-	ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
-				    dict_table_is_comp(index->table)));
-
-	if (!heap) {
-		heap = mem_heap_create(1024);
-	}
-
-	err = btr_cur_pessimistic_update(
-		flags | BTR_NO_LOCKING_FLAG | BTR_KEEP_POS_FLAG, btr_cur,
-		&offsets, offsets_heap, heap, &big_rec,
-		node->update, node->cmpl_info,
-		thr, thr_get_trx(thr)->id, mtr);
-	if (big_rec) {
-		ut_a(err == DB_SUCCESS);
-
-		DEBUG_SYNC_C("before_row_upd_extern");
-		err = btr_store_big_rec_extern_fields(
-			pcur, offsets, big_rec, mtr, BTR_STORE_UPDATE);
-		DEBUG_SYNC_C("after_row_upd_extern");
-	}
-
-func_exit:
-	if (heap) {
-		mem_heap_free(heap);
-	}
-
-	if (big_rec) {
-		dtuple_big_rec_free(big_rec);
-	}
-
-	return(err);
+  return row_upd_clust_rec_low(flags, node->update, node->pcur,
+                               node->cmpl_info, index, offsets, offsets_heap,
+                               thr, thr_get_trx(thr), mtr);
 }
 
 /***********************************************************//**
