@@ -44,8 +44,13 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_BLOCK_SIZE
 VARIABLE_SCOPE	GLOBAL
+<<<<<<< HEAD
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Block size to be used for Aria index pages
+=======
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Block size to be used for Aria index pages.
+>>>>>>> e862484ea1d (Change some Aria ULONG variables to UINT)
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	32768
 NUMERIC_BLOCK_SIZE	1024
@@ -54,8 +59,13 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_CHECKPOINT_INTERVAL
 VARIABLE_SCOPE	GLOBAL
+<<<<<<< HEAD
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing
+=======
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing.
+>>>>>>> e862484ea1d (Change some Aria ULONG variables to UINT)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -64,8 +74,13 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_CHECKPOINT_LOG_ACTIVITY
 VARIABLE_SCOPE	GLOBAL
+<<<<<<< HEAD
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log
+=======
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log.
+>>>>>>> e862484ea1d (Change some Aria ULONG variables to UINT)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -84,8 +99,13 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ARIA_FORCE_START_AFTER_RECOVERY_FAILURES
 VARIABLE_SCOPE	GLOBAL
+<<<<<<< HEAD
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature
+=======
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature.
+>>>>>>> e862484ea1d (Change some Aria ULONG variables to UINT)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	255
 NUMERIC_BLOCK_SIZE	1
@@ -174,7 +194,7 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_PAGECACHE_DIVISION_LIMIT
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	The minimum percentage of warm blocks in key cache
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	100
@@ -184,8 +204,13 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_PAGECACHE_FILE_HASH_SIZE
 VARIABLE_SCOPE	GLOBAL
+<<<<<<< HEAD
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files
+=======
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files.
+>>>>>>> e862484ea1d (Change some Aria ULONG variables to UINT)
 NUMERIC_MIN_VALUE	128
 NUMERIC_MAX_VALUE	16384
 NUMERIC_BLOCK_SIZE	1
@@ -194,7 +219,7 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_PAGECACHE_SEGMENTS
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	The number of segments in the page_cache. Each file is put in their own segments of size pagecache_buffer_size / segments. Having many segments improves parallel performance
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	128
@@ -224,8 +249,13 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ARIA_REPAIR_THREADS
 VARIABLE_SCOPE	SESSION
+<<<<<<< HEAD
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair
+=======
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair.
+>>>>>>> e862484ea1d (Change some Aria ULONG variables to UINT)
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	128
 NUMERIC_BLOCK_SIZE	1
