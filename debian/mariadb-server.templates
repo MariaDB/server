@@ -43,3 +43,13 @@ _Description: Remove all MariaDB databases?
  If you're removing the MariaDB package in order to later install a more
  recent version or if a different mariadb-server package is already
  using it, the data should be kept.
+
+Template: mariadb-server/feedback_optin
+Type: boolean
+Default: false
+_Description: Enable the Feedback plugin and submit anonymous usage information?
+ Feedback plugin for MariaDB, if enabled, collects basic anonymous
+ statistical information. This information is used by the developers to
+ improve MariaDB. Enabling this plugin is an easy way to help with MariaDB
+ development. Collected statistics, and more information on the plugin,
+ can be viewed at http://mariadb.org/feedback_plugin
