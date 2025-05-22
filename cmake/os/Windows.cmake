@@ -224,12 +224,13 @@ IF(MSVC)
 -Wno-deprecated-register -Wno-missing-braces \
 -Wno-unused-function -Wno-unused-local-typedef -msse4.2 "
     )
-    # IF(CMAKE_SIZEOF_VOID_P MATCHES 8)
-    #   STRING(APPEND CLANG_CL_FLAGS "-mpclmul ")
-    # ENDIF()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+    IF(CMAKE_SIZEOF_VOID_P MATCHES 8 AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+      STRING(APPEND CLANG_CL_FLAGS "-mpclmul ")
+    ENDIF()
+    
     STRING(APPEND CMAKE_C_FLAGS " ${CLANG_CL_FLAGS} ${MSVC_CRT_TYPE}")
     STRING(APPEND CMAKE_CXX_FLAGS " ${CLANG_CL_FLAGS}  ${MSVC_CRT_TYPE}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   ENDIF()
 
   FOREACH(type EXE SHARED MODULE)
