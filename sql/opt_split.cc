@@ -228,6 +228,7 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
+#include "opt_hints.h"
 #include "opt_trace.h"
 #include "optimizer_defaults.h"
 
@@ -320,6 +321,30 @@ double TABLE::get_materialization_cost()
 }
 
 
+/**
+  Returns true if split materialization is permitted for the
+  derived table passed in argument 'derived'.
+
+  @param thd     The connection state for the current thread.
+  @param derived The candidate derived table for split materialization.
+  @return true   if split materialization allowed, either by hint
+                 or by optimizer option.  The hint takes precedence.
+ */
+
+static bool is_split_materialized_allowed(THD *thd, TABLE_LIST *derived)
+{
+  if (!derived)
+    return false;
+
+  const bool fallback= optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_MATERIALIZED);
+  const bool hint_state= hint_table_state(thd,
+                                          derived,
+                                          SPLIT_MATERIALIZED_HINT_ENUM,
+                                          fallback);
+  return hint_state;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
@@ -330,7 +355,8 @@ struct SplM_field_ext_info: public SplM_field_info
 
 /**
   @brief
-    Check whether this join is one for potentially splittable materialized table
+    Check whether this join is one for potentially splittable materialized
+    table
 
   @details
     The function checks whether this join is for select that specifies
@@ -339,7 +365,8 @@ struct SplM_field_ext_info: public SplM_field_info
     of the TABLE structure for T.
 
     The function returns a positive answer if the following holds:
-    1. the optimizer switch 'split_materialized' is set 'on'
+    1. The is_split_materialized_allowed() function indicates that split
+       materialization is permitted for the derived table.
     2. the select owning this join specifies a materialized derived/view/cte T
     3. this is the only select in the specification of T
     4. condition pushdown is not prohibited into T
@@ -355,7 +382,7 @@ struct SplM_field_ext_info: public SplM_field_info
     9. There are defined some keys usable for ref access of fields from C
        with available statistics.
     10. The select doesn't use WITH ROLLUP (This limitation can probably be
-       lifted)
+        lifted)
 
   @retval
     true   if the answer is positive
@@ -367,8 +394,9 @@ bool JOIN::check_for_splittable_materialized()
   ORDER *partition_list= 0;
   st_select_lex_unit *unit= select_lex->master_unit();
   TABLE_LIST *derived= unit->derived;
-  if (!(optimizer_flag(thd, OPTIMIZER_SWITCH_SPLIT_MATERIALIZED)) ||  // !(1)
-      !(derived && derived->is_materialized_derived()) ||             // !(2)
+
+  if (!is_split_materialized_allowed(thd, derived) ||                 // !(1)
+      !derived->is_materialized_derived() ||                          // !(2)
       (unit->first_select()->next_select()) ||                        // !(3)
       (derived->prohibit_cond_pushdown) ||                            // !(4)
       (derived->is_recursive_with_table()) ||                         // !(5)

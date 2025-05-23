@@ -47,6 +47,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
   {{STRING_WITH_LEN("MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
   {null_clex_str, 0, 0, 0}
 };
 
