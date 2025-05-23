@@ -51,6 +51,7 @@ enum opt_hints_enum
   DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
   MERGE_HINT_ENUM,
   SPLIT_MATERIALIZED_HINT_ENUM,
+  INDEX_MERGE_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 
@@ -121,7 +122,9 @@ public:
     keyword_MERGE,
     keyword_NO_MERGE,
     keyword_SPLIT_MATERIALIZED,
-    keyword_NO_SPLIT_MATERIALIZED
+    keyword_NO_SPLIT_MATERIALIZED,
+    keyword_INDEX_MERGE,
+    keyword_NO_INDEX_MERGE
   };
 
   class Token: public Lex_cstring
@@ -398,7 +401,9 @@ private:
       return id == TokenID::keyword_MRR ||
              id == TokenID::keyword_NO_RANGE_OPTIMIZATION ||
              id == TokenID::keyword_NO_ICP ||
-             id == TokenID::keyword_NO_MRR;
+             id == TokenID::keyword_NO_MRR ||
+             id == TokenID::keyword_INDEX_MERGE ||
+             id == TokenID::keyword_NO_INDEX_MERGE;
     }
   };
   class Index_level_hint_type: public TokenChoice<Parser,
