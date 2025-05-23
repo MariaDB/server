@@ -5989,6 +5989,7 @@ void  TABLE_LIST::calc_md5(char *buffer)
 bool TABLE_LIST::create_field_translation(THD *thd)
 {
   Item *item;
+  Item *last_item_in_list= nullptr;
   Field_translator *transl;
   SELECT_LEX *select= get_single_select();
   List_iterator_fast<Item> it(select->item_list);
@@ -6052,8 +6053,16 @@ allocate:
     goto exit;
   }
 
+  if (select->item_list.elements > 0)
+    last_item_in_list= select->item_list.elem(select->item_list.elements - 1);
+
   while ((item= it++))
   {
+    if (!item->name.str || item->name.str[0] == '\0')
+    {
+      item->set_name(thd, "c", 1, system_charset_info);
+      make_unique_view_field_name(thd, item, select->item_list, last_item_in_list);
+    }
     DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;

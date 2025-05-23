@@ -1,0 +1,46 @@
+DROP TABLE IF EXISTS t;
+Warnings:
+Note	1051	Unknown table 'test.t'
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a) FROM t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+SELECT * FROM (SELECT 1, '' FROM t) AS a;
+1	My_exp_c
+1	
+1	
+1	
+SELECT * FROM (SELECT '', 1 FROM t) AS a;
+My_exp_c	1
+	1
+	1
+	1
+SELECT * FROM (SELECT 1, 2, '' FROM t) AS a;
+1	2	My_exp_c
+1	2	
+1	2	
+1	2	
+SELECT * FROM (SELECT pk, '' FROM t) AS a;
+pk	My_exp_c
+1	
+2	
+3	
+SELECT * FROM (SELECT pk, '', '' as My_exp_c FROM t) AS a;
+pk	My_exp_1_c	My_exp_c
+1		
+2		
+3		
+DROP TABLE t;
+SET sql_mode='';
+DROP TABLE IF EXISTS t;
+Warnings:
+Note	1051	Unknown table 'test.t'
+CREATE TABLE t (id INT);
+PREPARE p FROM 'SELECT SHA(id) IN (SELECT * FROM (SELECT \'\' FROM t) AS a) FROM t;';
+EXECUTE p;
+SHA(id) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+DEALLOCATE PREPARE p;
+DROP TABLE t;

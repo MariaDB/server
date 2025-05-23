@@ -63,7 +63,7 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
     NAME_LEN, it is truncated.
 */
 
-static void make_unique_view_field_name(THD *thd, Item *target,
+void make_unique_view_field_name(THD *thd, Item *target,
                                         List<Item> &item_list,
                                         Item *last_element)
 {
