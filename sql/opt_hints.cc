@@ -32,26 +32,28 @@
 
 struct st_opt_hint_info opt_hint_info[]=
 {
-  {{STRING_WITH_LEN("BKA")}, true, false, false},
-  {{STRING_WITH_LEN("BNL")}, true, false, false},
-  {{STRING_WITH_LEN("ICP")}, true, false, false},
-  {{STRING_WITH_LEN("MRR")}, true, false, false},
-  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, false, false},
-  {{STRING_WITH_LEN("QB_NAME")}, false, false, false},
-  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true, false},
-  {{STRING_WITH_LEN("SEMIJOIN")}, false, true, false},
-  {{STRING_WITH_LEN("SUBQUERY")}, false, true, false},
-  {{STRING_WITH_LEN("JOIN_PREFIX")}, false, true, true},
-  {{STRING_WITH_LEN("JOIN_SUFFIX")}, false, true, true},
-  {{STRING_WITH_LEN("JOIN_ORDER")}, false, true, true},
-  {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
+  // hint_type                             check_upper   has_args     irregular
+  {{STRING_WITH_LEN("BKA")},                   true,      false,        false},
+  {{STRING_WITH_LEN("BNL")},                   true,      false,        false},
+  {{STRING_WITH_LEN("ICP")},                   true,      false,        false},
+  {{STRING_WITH_LEN("MRR")},                   true,      false,        false},
+  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true,      false,        false},
+  {{STRING_WITH_LEN("QB_NAME")},               false,     false,        false},
+  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")},    false,     true,         false},
+  {{STRING_WITH_LEN("SEMIJOIN")},              false,     true,         false},
+  {{STRING_WITH_LEN("SUBQUERY")},              false,     true,         false},
+  {{STRING_WITH_LEN("JOIN_PREFIX")},           false,     true,         true},
+  {{STRING_WITH_LEN("JOIN_SUFFIX")},           false,     true,         true},
+  {{STRING_WITH_LEN("JOIN_ORDER")},            false,     true,         true},
+  {{STRING_WITH_LEN("JOIN_FIXED_ORDER")},      false,     true,         false},
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
   {{STRING_WITH_LEN("MERGE")}, false, false, false},
   {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
-  {{STRING_WITH_LEN("INDEX")}, false, true, false},
-  {{STRING_WITH_LEN("JOIN_INDEX")}, false, true, false},
-  {{STRING_WITH_LEN("GROUP_INDEX")}, false, true, false},
-  {{STRING_WITH_LEN("ORDER_INDEX")}, false, true, false},
+  {{STRING_WITH_LEN("INDEX")},                 false,     true,         false},
+  {{STRING_WITH_LEN("JOIN_INDEX")},            false,     true,         false},
+  {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},
+  {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
+  {{STRING_WITH_LEN("ROWID_FILTER")},          false,     true,         false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -584,7 +586,8 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
   */
   for (opt_hints_enum
            hint_type : { INDEX_HINT_ENUM, JOIN_INDEX_HINT_ENUM,
-                         GROUP_INDEX_HINT_ENUM, ORDER_INDEX_HINT_ENUM })
+                         GROUP_INDEX_HINT_ENUM, ORDER_INDEX_HINT_ENUM,
+                         ROWID_FILTER_HINT_ENUM })
   {
     if (is_specified(hint_type))
     {
@@ -630,6 +633,8 @@ void Opt_hints_table::set_compound_key_hint_map(Opt_hints *hint, uint keynr)
     group_index_map.set_key_map(keynr);
   if (hint->is_specified(ORDER_INDEX_HINT_ENUM))
     order_index_map.set_key_map(keynr);
+  if (hint->is_specified(ROWID_FILTER_HINT_ENUM))
+    rowid_filter_map.set_key_map(keynr);
 }
 
 
@@ -644,6 +649,8 @@ Opt_hints_key_bitmap *Opt_hints_table::get_key_hint_bitmap(opt_hints_enum type)
       return &group_index_map;
     case ORDER_INDEX_HINT_ENUM:
       return &order_index_map;
+    case ROWID_FILTER_HINT_ENUM:
+      return &rowid_filter_map;
     default:
       DBUG_ASSERT(0);
       return nullptr;
@@ -666,6 +673,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
   // Check if hint is resolved.
   if (is_fixed(type_arg))
   {
+    // Whitelisting hints: INDEX(), ORDER_INDEX(), etc
     Key_map *keys_specified_in_hint=
         get_key_hint_bitmap(type_arg)->get_key_map();
     if (get_switch(type_arg))
@@ -691,6 +699,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
     }
     else
     {
+      // Blacklisting hints: NO_INDEX(), NO_JOIN_INDEX(), etc
       if (keys_specified_in_hint->is_clear_all())
       {
         /*
@@ -703,7 +712,7 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
       {
         /*
           If hint is off and some keys are specified in the hint, then remove
-          the specified keys from "keys_to_use.
+          the specified keys from "keys_to_use"
         */
         keys_to_use->subtract(*keys_specified_in_hint);
       }
@@ -724,9 +733,9 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
       GROUP_INDEX
     - tbl->keys_in_use_for_order_by if the hint is INDEX or
       ORDER_INDEX
+    - tbl->keys_in_use_for_rowid_filter if the hint is ROWID_FILTER
     conversely, subtract the index from the corresponding
     tbl->keys_in_use_for_... map if the hint is prefixed with NO_.
-
   See also: TABLE_LIST::process_index_hints(), which handles similar logic
   for old-style index hints.
 
@@ -741,20 +750,22 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
 bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
 {
   if (!is_fixed(INDEX_HINT_ENUM) && !is_fixed(JOIN_INDEX_HINT_ENUM) &&
-      !is_fixed(GROUP_INDEX_HINT_ENUM) && !is_fixed(ORDER_INDEX_HINT_ENUM))
+      !is_fixed(GROUP_INDEX_HINT_ENUM) && !is_fixed(ORDER_INDEX_HINT_ENUM) &&
+      !is_fixed(ROWID_FILTER_HINT_ENUM))
     return false;  // No index hint is specified
 
   Key_map usable_index_map(tbl->s->usable_indexes(thd));
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by=
-      tbl->keys_in_use_for_order_by= usable_index_map;
+      tbl->keys_in_use_for_order_by= tbl->keys_in_use_for_rowid_filter=
+        usable_index_map;
 
-  bool is_force= is_force_index_hint(INDEX_HINT_ENUM);
-  tbl->force_index_join=
-      (is_force || is_force_index_hint(JOIN_INDEX_HINT_ENUM));
-  tbl->force_index_group=
-      (is_force || is_force_index_hint(GROUP_INDEX_HINT_ENUM));
-  tbl->force_index_order=
-      (is_force || is_force_index_hint(ORDER_INDEX_HINT_ENUM));
+  bool is_global_whitelisting= is_whitelisting_index_hint(INDEX_HINT_ENUM);
+  tbl->force_index_join= (is_global_whitelisting ||
+                          is_whitelisting_index_hint(JOIN_INDEX_HINT_ENUM));
+  tbl->force_index_group= (is_global_whitelisting ||
+                           is_whitelisting_index_hint(GROUP_INDEX_HINT_ENUM));
+  tbl->force_index_order= (is_global_whitelisting ||
+                           is_whitelisting_index_hint(ORDER_INDEX_HINT_ENUM));
 
   if (tbl->force_index_join)
     tbl->keys_in_use_for_query.clear_all();
@@ -762,6 +773,8 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
     tbl->keys_in_use_for_group_by.clear_all();
   if (tbl->force_index_order)
     tbl->keys_in_use_for_order_by.clear_all();
+  if (is_whitelisting_index_hint(ROWID_FILTER_HINT_ENUM))
+    tbl->keys_in_use_for_rowid_filter.clear_all();
 
   // See comment to the identical code at TABLE_LIST::process_index_hints
   tbl->force_index= (tbl->force_index_order | tbl->force_index_group |
@@ -779,6 +792,19 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
                         GROUP_INDEX_HINT_ENUM);
   update_index_hint_map(&tbl->keys_in_use_for_order_by, &usable_index_map,
                         ORDER_INDEX_HINT_ENUM);
+  if (is_fixed(ROWID_FILTER_HINT_ENUM))
+  {
+    update_index_hint_map(&tbl->keys_in_use_for_rowid_filter, &usable_index_map,
+                          ROWID_FILTER_HINT_ENUM);
+  }
+  else
+  {
+    /*
+      If ROWID_FILTER/NO_ROWID_FILTER hint is not specified, then keys
+      for building ROWID filters are the same as for retrieving data
+    */
+    tbl->keys_in_use_for_rowid_filter= tbl->keys_in_use_for_query;
+  }
   /* Make sure "covering_keys" does not include indexes disabled with a hint */
   Key_map covering_keys(tbl->keys_in_use_for_query);
   covering_keys.merge(tbl->keys_in_use_for_group_by);
@@ -804,6 +830,9 @@ void Opt_hints_table::append_hint_arguments(THD *thd, opt_hints_enum hint,
       break;
     case ORDER_INDEX_HINT_ENUM:
       order_index_map.parsed_hint->append_args(thd, str);
+      break;
+    case ROWID_FILTER_HINT_ENUM:
+      rowid_filter_map.parsed_hint->append_args(thd, str);
       break;
     default:
       DBUG_ASSERT(0);
@@ -905,31 +934,46 @@ hint_state hint_table_state(const THD *thd,
 }
 
 
-/* 
-  @brief
-    Check whether a given optimization is enabled for table.keyno.
-  
-  @detail
-    First check if a hint is present, then check optimizer_switch
-*/
-
-bool hint_key_state(const THD *thd, const TABLE *table,
-                    uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch)
+bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
+                    opt_hints_enum type_arg, bool fallback_value)
 {
   Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
 
-  /* Parent should always be initialized */
   if (table_hints && keyno != MAX_KEY)
   {
-    Opt_hints_key *key_hints= table_hints->keyinfo_array.size() > 0 ?
-      table_hints->keyinfo_array[keyno] : NULL;
-    bool ret_val= false;
-    if (get_hint_state(key_hints, table_hints, type_arg, &ret_val))
-      return ret_val;
+    if (!is_compound_hint(type_arg))
+    {
+      // Simple index hint
+      Opt_hints_key *key_hints= table_hints->keyinfo_array.size() > 0 ?
+                                     table_hints->keyinfo_array[keyno] : NULL;
+      bool ret_val= false;
+      if (get_hint_state(key_hints, table_hints, type_arg, &ret_val))
+        return ret_val;
+    }
+    else if (table_hints->is_fixed(type_arg))
+    {
+      // Compound index hint
+      Key_map *keys_specified_in_hint=
+          table_hints->get_key_hint_bitmap(type_arg)->get_key_map();
+      if (keys_specified_in_hint->is_clear_all())
+      {
+        /*
+          No keys are specified (i.e., it is a table-level hint).
+          This means either all or no keys can be used, depending on whether
+          the hint is whitelisting (INDEX, GROUP_INDEX) or blacklisting
+          (NO_INDEX, NO_ORDER_INDEX)
+        */
+        return table_hints->get_switch(type_arg);
+      }
+      else
+      {
+        bool is_specified= keys_specified_in_hint->is_set(keyno);
+        bool is_on= table_hints->get_switch(type_arg);
+        return (is_on && is_specified) || (!is_on && !is_specified);
+      }
+    }
   }
-
-  return optimizer_flag(thd, optimizer_switch);
+  return fallback_value;
 }
 
 
@@ -1358,6 +1402,9 @@ bool is_index_hint_conflicting(Opt_hints_table *table_hint,
                                Opt_hints_key *key_hint,
                                opt_hints_enum hint_type)
 {
+  if (hint_type == ROWID_FILTER_HINT_ENUM)
+    return table_or_key_hint_type_specified(table_hint, key_hint,
+                                            ROWID_FILTER_HINT_ENUM);
   if (hint_type != INDEX_HINT_ENUM)
     return table_or_key_hint_type_specified(table_hint, key_hint,
                                             INDEX_HINT_ENUM);
@@ -1374,7 +1421,8 @@ bool is_compound_hint(opt_hints_enum type_arg)
 {
   return (
       type_arg == INDEX_HINT_ENUM || type_arg == JOIN_INDEX_HINT_ENUM ||
-      type_arg == GROUP_INDEX_HINT_ENUM || type_arg == ORDER_INDEX_HINT_ENUM);
+      type_arg == GROUP_INDEX_HINT_ENUM || type_arg == ORDER_INDEX_HINT_ENUM ||
+      type_arg == ROWID_FILTER_HINT_ENUM);
 }
 
 

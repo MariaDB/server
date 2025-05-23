@@ -1,0 +1,275 @@
+CREATE TABLE t1 (a INT, b VARCHAR(10), c VARCHAR(100), d VARCHAR(200),
+KEY key_a(a), KEY key_b(b), KEY key_c(c), KEY key_d(d));
+INSERT INTO t1 VALUES
+(1,'w','z','F'), (1,'X','o','s'), (1,'q','c','a'), (5,'w','c','d'), (2,'j','m','k'),
+(2,'Q','s','q'), (9,'e','J','B'), (2,'p','W','l'), (9,'o','F','Y'), (2,'g','S','M'),
+(1,'Y','a','h'), (NULL,'Y','p','J'), (NULL,'s','x','M'), (NULL,'i','S','k'),
+(1,'l','q','w'), (7,'r','e','_'), (4,'b','h','I'), (NULL,'E','c','z'),
+(NULL,'M','a','j'), (3,'e','X','K'), (NULL,'p','r','R'), (9,'e','i','g'),
+(3,'g','x','m'), (2,'h','y','p');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set optimizer_switch='rowid_filter=on';
+# range|filter `key_d|key_b` is applied by default when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_b	803|43	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Sample result set to compare against later
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+a
+5
+# Disable rowid filter for t1
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	20.83	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't'
+# Force using rowid filter made from `key_c` despite being less
+# efficient then the one made from `key_b`
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Allow the optimizer to choose the best rowid filter from key_a,key_b,key_c,key_d
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_a,key_b,key_c,key_d)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_b	803|43	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_a`,`key_b`,`key_c`,`key_d`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Forbid `key_b` for rowid filtering, so `key_c` is used
+EXPLAIN EXTENDED SELECT /*+ no_rowid_filter(t1 key_b)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Validate the result set
+SELECT /*+ no_rowid_filter(t1 key_b)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+a
+5
+# Forbid both `key_b` and `key_c`, so no rowid filter can be applied
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_b`,`key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Disable rowid filter for indexes which would not be used anyway
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_b	803|43	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`,`key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Test the hint with query blocks
+set optimizer_switch='derived_merge=off';
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1@qb1)*/ * FROM (
+SELECT /*+ qb_name(qb1)*/ a FROM t1 WHERE c < 'e' AND b > 't') dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t1	range	key_b,key_c	key_b	43	NULL	5	20.83	Using index condition; Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_ROWID_FILTER(`t1`@`qb1`) */ `dt`.`a` AS `a` from (/* select#2 */ select /*+ QB_NAME(`qb1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't') `dt`
+# `key_b|key_c` access is forced
+EXPLAIN EXTENDED
+SELECT /*+ /*+ rowid_filter(t1@qb1 key_c)*/ * FROM (
+SELECT /*+ qb_name(qb1)*/ a FROM t1 WHERE c < 'e' AND b > 't') dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	range|filter	key_b,key_c	key_b|key_c	43|403	NULL	5 (21%)	20.83	Using index condition; Using where; Using rowid filter
+Warnings:
+Warning	1064	Optimizer hint syntax error near '/*+ rowid_filter(t1@qb1 key_c)*/ * FROM (
+SELECT /*+ qb_name(qb1)*/ a FROM t1...' at line 2
+Note	1003	/* select#1 */ select `dt`.`a` AS `a` from (/* select#2 */ select /*+ QB_NAME(`qb1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't') `dt`
+set optimizer_switch=default;
+# Turn rowid filtering off and enable it selectively
+set optimizer_switch='rowid_filter=off';
+# Make sure rowid filter is not used when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Enable rowid filter for t1
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_b	803|43	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Enable rowid filter only for some indexes of t1
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_a, key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_a`,`key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Enable rowid filter for the same index that is used to access data (impossible)
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_d)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_d`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Conflicting hints
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1) ROWID_FILTER(t1 key_a)*/a FROM t1
+WHERE c < 'e' AND b > 't';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	20.83	Using index condition; Using where
+Warnings:
+Warning	4238	Hint ROWID_FILTER(`t1` `key_a`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't'
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a, key_b) no_rowid_filter(t1 key_c, key_b)*/a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Warning	4238	Hint NO_ROWID_FILTER(`t1` `key_c`,`key_b`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`,`key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b) rowid_filter(t1 key_c)*/a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Warning	4238	Hint ROWID_FILTER(`t1` `key_c`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`,`key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Wrong table name
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(missing_table)*/a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Warning	4221	Unresolved table name `missing_table`@`select#1` for NO_ROWID_FILTER hint
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Some index names are wrong but key_c is applicable
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 wrong_key1, key_c, wrong_key2)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `wrong_key1` for ROWID_FILTER hint
+Warning	4222	Unresolved index name `t1`@`select#1` `wrong_key2` for ROWID_FILTER hint
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `wrong_key1`,`key_c`,`wrong_key2`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Test cases mixing with index hints.
+# Keys must be whitelisted in INDEX()/JOIN_INDEX() hint to be
+# applicable as a rowid filter. ROWID_FILTER() hint cannot enable keys
+# not enabled by INDEX()/JOIN_INDEX() hints or disabled by
+# NO_INDEX()/NO_JOIN_INDEX() hints
+EXPLAIN EXTENDED
+SELECT /*+ index(t1 key_b,key_c) rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|403	NULL	5 (21%)	3.47	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `key_b`,`key_c`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ join_index(t1 key_b,key_c) rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|403	NULL	5 (21%)	3.47	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ JOIN_INDEX(`t1`@`select#1` `key_b`,`key_c`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ index(t1 key_d,key_c) rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_c,key_d	key_d|key_c	803|403	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1` `key_d`,`key_c`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ no_index(t1) rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	24	0.72	Using where
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ no_index(t1 key_d) rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|403	NULL	5 (21%)	3.47	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `key_d`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ no_index(t1 key_c) rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `key_c`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+EXPLAIN EXTENDED
+SELECT /*+ index(t1) no_rowid_filter(t1 key_c)*/ a FROM t1
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c,key_d	key_d|key_b	803|43	NULL	4 (21%)	4.34	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select /*+ INDEX(`t1`@`select#1`) NO_ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# Test cases for old-style hints
+EXPLAIN EXTENDED
+SELECT a FROM t1 FORCE INDEX(key_d, key_b)
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` FORCE INDEX (`key_b`) FORCE INDEX (`key_d`) where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# `key_c` is not listed in the hint so is not applicable as rowid filter
+# (also see comment for new-style index hints above)
+EXPLAIN EXTENDED
+SELECT a FROM t1 FORCE INDEX(key_d)
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` FORCE INDEX (`key_d`) where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# `key_c` is blacklisted, so `key_b` is used for rowid filter
+EXPLAIN EXTENDED
+SELECT a FROM t1 IGNORE INDEX(key_c)
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` IGNORE INDEX (`key_c`) where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+# `key_b` is blacklisted, so `key_c` is used for rowid filter
+EXPLAIN EXTENDED
+SELECT a FROM t1 IGNORE INDEX(key_b)
+WHERE c < 'e' AND b > 't' and d < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_c,key_d	key_d	803	NULL	4	4.34	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` IGNORE INDEX (`key_b`) where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' and `test`.`t1`.`d` < 'e'
+DROP TABLE t1;

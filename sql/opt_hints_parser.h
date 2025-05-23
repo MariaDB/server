@@ -55,6 +55,7 @@ enum opt_hints_enum
   JOIN_INDEX_HINT_ENUM,
   GROUP_INDEX_HINT_ENUM,
   ORDER_INDEX_HINT_ENUM,
+  ROWID_FILTER_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 
@@ -134,7 +135,9 @@ public:
     keyword_GROUP_INDEX,
     keyword_NO_GROUP_INDEX,
     keyword_ORDER_INDEX,
-    keyword_NO_ORDER_INDEX
+    keyword_NO_ORDER_INDEX,
+    keyword_ROWID_FILTER,
+    keyword_NO_ROWID_FILTER
   };
 
   class Token: public Lex_cstring
@@ -398,7 +401,9 @@ private:
              id == TokenID::keyword_ORDER_INDEX ||
              id == TokenID::keyword_NO_ORDER_INDEX ||
              id == TokenID::keyword_GROUP_INDEX ||
-             id == TokenID::keyword_NO_GROUP_INDEX;
+             id == TokenID::keyword_NO_GROUP_INDEX ||
+             id == TokenID::keyword_ROWID_FILTER ||
+             id == TokenID::keyword_NO_ROWID_FILTER;
     }
   };
   class Index_level_hint_type: public TokenChoice<Parser,

@@ -1,0 +1,180 @@
+--enable_prepare_warnings
+--disable_view_protocol # Since optimizer hints are not supported inside views
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c VARCHAR(100), d VARCHAR(200),
+  KEY key_a(a), KEY key_b(b), KEY key_c(c), KEY key_d(d));
+
+INSERT INTO t1 VALUES
+  (1,'w','z','F'), (1,'X','o','s'), (1,'q','c','a'), (5,'w','c','d'), (2,'j','m','k'),
+  (2,'Q','s','q'), (9,'e','J','B'), (2,'p','W','l'), (9,'o','F','Y'), (2,'g','S','M'),
+  (1,'Y','a','h'), (NULL,'Y','p','J'), (NULL,'s','x','M'), (NULL,'i','S','k'),
+  (1,'l','q','w'), (7,'r','e','_'), (4,'b','h','I'), (NULL,'E','c','z'),
+  (NULL,'M','a','j'), (3,'e','X','K'), (NULL,'p','r','R'), (9,'e','i','g'),
+  (3,'g','x','m'), (2,'h','y','p');
+
+ANALYZE TABLE t1;
+
+set optimizer_switch='rowid_filter=on';
+--echo # range|filter `key_d|key_b` is applied by default when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Sample result set to compare against later
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Disable rowid filter for t1
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't';
+
+--echo # Force using rowid filter made from `key_c` despite being less
+--echo # efficient then the one made from `key_b`
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Allow the optimizer to choose the best rowid filter from key_a,key_b,key_c,key_d
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_a,key_b,key_c,key_d)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Forbid `key_b` for rowid filtering, so `key_c` is used
+let $q= SELECT /*+ no_rowid_filter(t1 key_b)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+eval EXPLAIN EXTENDED $q;
+--echo # Validate the result set
+eval $q;
+
+--echo # Forbid both `key_b` and `key_c`, so no rowid filter can be applied
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Disable rowid filter for indexes which would not be used anyway
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Test the hint with query blocks
+set optimizer_switch='derived_merge=off';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1@qb1)*/ * FROM (
+  SELECT /*+ qb_name(qb1)*/ a FROM t1 WHERE c < 'e' AND b > 't') dt;
+
+--echo # `key_b|key_c` access is forced
+EXPLAIN EXTENDED
+SELECT /*+ /*+ rowid_filter(t1@qb1 key_c)*/ * FROM (
+  SELECT /*+ qb_name(qb1)*/ a FROM t1 WHERE c < 'e' AND b > 't') dt;
+
+set optimizer_switch=default;
+
+--echo # Turn rowid filtering off and enable it selectively
+set optimizer_switch='rowid_filter=off';
+
+--echo # Make sure rowid filter is not used when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Enable rowid filter for t1
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Enable rowid filter only for some indexes of t1
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_a, key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Enable rowid filter for the same index that is used to access data (impossible)
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_d)*/ a FROM t1 WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Conflicting hints
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1) ROWID_FILTER(t1 key_a)*/a FROM t1
+  WHERE c < 'e' AND b > 't';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a, key_b) no_rowid_filter(t1 key_c, key_b)*/a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b) rowid_filter(t1 key_c)*/a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+--echo # Wrong table name
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(missing_table)*/a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Some index names are wrong but key_c is applicable
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 wrong_key1, key_c, wrong_key2)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+--enable_ps_protocol
+
+--echo # Test cases mixing with index hints.
+--echo # Keys must be whitelisted in INDEX()/JOIN_INDEX() hint to be
+--echo # applicable as a rowid filter. ROWID_FILTER() hint cannot enable keys
+--echo # not enabled by INDEX()/JOIN_INDEX() hints or disabled by
+--echo # NO_INDEX()/NO_JOIN_INDEX() hints
+EXPLAIN EXTENDED
+SELECT /*+ index(t1 key_b,key_c) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ join_index(t1 key_b,key_c) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ index(t1 key_d,key_c) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_index(t1) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_index(t1 key_d) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ no_index(t1 key_c) rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+EXPLAIN EXTENDED
+SELECT /*+ index(t1) no_rowid_filter(t1 key_c)*/ a FROM t1
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # Test cases for old-style hints
+EXPLAIN EXTENDED
+SELECT a FROM t1 FORCE INDEX(key_d, key_b)
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # `key_c` is not listed in the hint so is not applicable as rowid filter
+--echo # (also see comment for new-style index hints above)
+EXPLAIN EXTENDED
+SELECT a FROM t1 FORCE INDEX(key_d)
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # `key_c` is blacklisted, so `key_b` is used for rowid filter
+EXPLAIN EXTENDED
+SELECT a FROM t1 IGNORE INDEX(key_c)
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+--echo # `key_b` is blacklisted, so `key_c` is used for rowid filter
+EXPLAIN EXTENDED
+SELECT a FROM t1 IGNORE INDEX(key_b)
+  WHERE c < 'e' AND b > 't' and d < 'e';
+
+DROP TABLE t1;
