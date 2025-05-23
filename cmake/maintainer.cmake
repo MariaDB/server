@@ -19,6 +19,12 @@ IF(MSVC OR MYSQL_MAINTAINER_MODE STREQUAL "NO")
   RETURN()
 ENDIF()
 
+IF((WITH_MSAN OR WITH_ASAN) AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+  SET(STACK_FRAME_LIMIT 65536)
+ELSE()
+  SET(STACK_FRAME_LIMIT 16384)
+ENDIF()
+
 # Common warning flags for GCC, G++, Clang and Clang++
 SET(MY_WARNING_FLAGS
   -Wall
@@ -41,7 +47,7 @@ SET(MY_WARNING_FLAGS
   -Wvla
   -Wwrite-strings
   -Wcast-function-type-strict
-  -Wframe-larger-than=16384
+  -Wframe-larger-than=${STACK_FRAME_LIMIT}
   )
 
 # Warning flags that are in testing before moving
