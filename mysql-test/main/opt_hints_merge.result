@@ -1,0 +1,469 @@
+create table t1 select seq as i, 10*seq as j from seq_1_to_10;
+create view v1 as select * from t1 where i % 2 = 0;
+set @save_optimizer_switch=@@optimizer_switch;
+set session optimizer_switch='derived_merge=on';
+explain format=json SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.i < 3 and t1.j > 8"
+        }
+      }
+    ]
+  }
+}
+SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+explain format=json SELECT /*+ NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.a < 3 and dt.b > 8",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i < 3 and t1.j > 8"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT /*+ NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+explain format=json select * from (select i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.j MOD 5 = 0 and t1.i MOD 2 = 0"
+        }
+      }
+    ]
+  }
+}
+select * from (select i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain format=json select /*+ NO_MERGE(dt) */ * from (select /*+ NO_MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.j MOD 5 = 0",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i MOD 2 = 0 and t1.j MOD 5 = 0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select /*+ NO_MERGE(dt) */ * from (select /*+ NO_MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain format=json select /*+ NO_MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.j MOD 5 = 0",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i MOD 2 = 0 and t1.j MOD 5 = 0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select /*+ NO_MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain extended SELECT /*+ NO_MERGE(dt2) NO_MERGE(dt)*/ * FROM
+(SELECT i as a, j as b FROM t1) AS dt, (SELECT i as a, j as b FROM t1) AS dt2
+WHERE dt.a = dt2.a and dt.b = dt2.b AND dt.a < 3 AND dt.b > 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	16	dt.a,dt.b	1	100.00	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(`dt2`@`select#1`) NO_MERGE(`dt`@`select#1`) */ `dt`.`a` AS `a`,`dt`.`b` AS `b`,`dt2`.`a` AS `a`,`dt2`.`b` AS `b` from (/* select#2 */ select `test`.`t1`.`i` AS `a`,`test`.`t1`.`j` AS `b` from `test`.`t1` where `test`.`t1`.`i` < 3 and `test`.`t1`.`j` > 8) `dt` join (/* select#3 */ select `test`.`t1`.`i` AS `a`,`test`.`t1`.`j` AS `b` from `test`.`t1` where `test`.`t1`.`i` < 3 and `test`.`t1`.`j` > 8) `dt2` where `dt2`.`a` = `dt`.`a` and `dt2`.`b` = `dt`.`b` and `dt`.`a` < 3 and `dt`.`b` > 8
+set session optimizer_switch='derived_merge=off';
+explain format=json SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.a < 3 and dt.b > 8",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i < 3 and t1.j > 8"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+explain format=json select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.j MOD 5 = 0 and t1.i MOD 2 = 0"
+        }
+      }
+    ]
+  }
+}
+select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain format=json select * from (select i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.j MOD 5 = 0",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i MOD 2 = 0 and t1.j MOD 5 = 0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select * from (select i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain format=json select /*+ MERGE(dt) */ * from (select /*+ MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.j MOD 5 = 0 and t1.i MOD 2 = 0"
+        }
+      }
+    ]
+  }
+}
+select /*+ MERGE(dt) */ * from (select /*+ MERGE(v1) */ i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain format=json select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.j MOD 5 = 0 and t1.i MOD 2 = 0"
+        }
+      }
+    ]
+  }
+}
+select /*+ MERGE(dt) */ * from (select i, j from v1) dt where dt.j % 5 = 0;
+i	j
+2	20
+4	40
+6	60
+8	80
+10	100
+explain extended SELECT /*+ MERGE(dt2) MERGE(dt)*/ * FROM
+(SELECT i as a, j as b FROM t1) AS dt, (SELECT i as a, j as b FROM t1) AS dt2
+WHERE dt.a = dt2.a and dt.b = dt2.b AND dt.a < 3 AND dt.b > 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ MERGE(`dt2`@`select#1`) MERGE(`dt`@`select#1`) */ `test`.`t1`.`i` AS `a`,`test`.`t1`.`j` AS `b`,`test`.`t1`.`i` AS `a`,`test`.`t1`.`j` AS `b` from `test`.`t1` join `test`.`t1` where `test`.`t1`.`i` = `test`.`t1`.`i` and `test`.`t1`.`j` = `test`.`t1`.`j` and `test`.`t1`.`i` < 3 and `test`.`t1`.`j` > 8
+set optimizer_switch=@save_optimizer_switch;
+explain extended select /*+ NO_MERGE(t) */ * from (select * from t1) t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(`t`@`select#1`) */ `t`.`i` AS `i`,`t`.`j` AS `j` from (/* select#2 */ select `test`.`t1`.`i` AS `i`,`test`.`t1`.`j` AS `j` from `test`.`t1`) `t`
+explain extended select /*+ MERGE(t) */ * from (select * from t1) t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
+Warnings:
+Note	1003	select /*+ MERGE(`t`@`select#1`) */ `test`.`t1`.`i` AS `i`,`test`.`t1`.`j` AS `j` from `test`.`t1`
+create table t2 select seq as i, 10*seq as j from seq_1_to_10;
+create view v2 as select * from t2;
+set session optimizer_switch='derived_merge=off';
+explain extended
+SELECT /*+ merge(wrong_name) */a, b FROM
+(SELECT /*+ merge(wrong_name) */ i as a, j as b FROM
+(select i*10 as i, j*5 as j from v2) dt_in) AS dt_out
+WHERE a < 3 AND b > 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Warning	4221	Unresolved table name `wrong_name`@`select#2` for MERGE hint
+Warning	4221	Unresolved table name `wrong_name`@`select#1` for MERGE hint
+Note	1003	/* select#1 */ select `dt_out`.`a` AS `a`,`dt_out`.`b` AS `b` from (/* select#2 */ select `dt_in`.`i` AS `a`,`dt_in`.`j` AS `b` from (/* select#3 */ select `test`.`t2`.`i` * 10 AS `i`,`test`.`t2`.`j` * 5 AS `j` from `test`.`t2` where `test`.`t2`.`i` * 10 < 3 and `test`.`t2`.`j` * 5 > 8) `dt_in` where `dt_in`.`i` < 3 and `dt_in`.`j` > 8) `dt_out` where `dt_out`.`a` < 3 and `dt_out`.`b` > 8
+SELECT /*+ MERGE(dt) MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4221	Unresolved table name `foo`@`select#1` for MERGE hint
+SELECT /*+ MERGE(dt) MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4219	Hint MERGE(`dt`) is ignored as conflicting/duplicated
+SELECT /*+ MERGE(bar) MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4221	Unresolved table name `bar`@`select#1` for MERGE hint
+SELECT /*+ MERGE(bar) MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4221	Unresolved table name `bar`@`select#1` for MERGE hint
+Warning	4221	Unresolved table name `foo`@`select#1` for MERGE hint
+SELECT /*+ NO_MERGE(dt) NO_MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4221	Unresolved table name `foo`@`select#1` for NO_MERGE hint
+SELECT /*+ NO_MERGE(dt) NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4219	Hint NO_MERGE(`dt`) is ignored as conflicting/duplicated
+SELECT /*+ NO_MERGE(bar) NO_MERGE(dt) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4221	Unresolved table name `bar`@`select#1` for NO_MERGE hint
+SELECT /*+ NO_MERGE(bar) NO_MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
+a	b
+1	10
+2	20
+Warnings:
+Warning	4221	Unresolved table name `bar`@`select#1` for NO_MERGE hint
+Warning	4221	Unresolved table name `foo`@`select#1` for NO_MERGE hint
+drop table t1, t2;
+drop view v1, v2;
