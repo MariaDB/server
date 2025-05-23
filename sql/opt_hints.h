@@ -657,6 +657,7 @@ public:
   Key_map *get_key_map() { return &key_map; }
 };
 
+bool is_compound_hint(opt_hints_enum type_arg);
 
 /**
   Table level hints.
@@ -679,6 +680,7 @@ public:
   Opt_hints_key_bitmap join_index_map;   // JOIN_INDEX(), NO_JOIN_INDEX()
   Opt_hints_key_bitmap group_index_map;  // GROUP_INDEX(), NO_GROUP_INDEX()
   Opt_hints_key_bitmap order_index_map;  // ORDER_INDEX(), NO_ORDER_INDEX()
+  Opt_hints_key_bitmap rowid_filter_map; // ROWID_FILTER(), NO_ROWID_FILTER()
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
@@ -739,8 +741,17 @@ public:
   bool update_index_hint_maps(THD *thd, TABLE *tbl);
 
 private:
-  bool is_force_index_hint(opt_hints_enum type_arg)
+  /**
+    Returns `true` for index hints that whitelist certain keys or tables
+    like INDEX(), ORDER_INDEX(), etc.
+    Returns `false` for hints that blacklist keys or tables:
+    NO_INDEX(), NO_ROWID_FILTER(), etc.
+
+    @param type_arg  hint type
+  */
+  bool is_whitelisting_index_hint(opt_hints_enum type_arg)
   {
+    DBUG_ASSERT(is_compound_hint(type_arg));
     return (get_key_hint_bitmap(type_arg)->is_fixed() &&
             get_switch(type_arg));
   }
@@ -755,9 +766,6 @@ private:
 bool is_index_hint_conflicting(Opt_hints_table *table_hint,
                                Opt_hints_key *key_hint,
                                opt_hints_enum hint_type);
-
-bool is_compound_hint(opt_hints_enum type_arg);
-
 
 /**
   Key level hints.
@@ -816,21 +824,20 @@ enum class hint_state
 
 
 /**
-  Returns key hint value if hint is specified, returns
-  optimizer switch value if hint is not specified.
+  Returns key hint value if the hint is specified and resolved (fixed),
+  returns `fallback_value` otherwise
 
   @param thd               Pointer to THD object
   @param tab               Pointer to TABLE object
   @param keyno             Key number
   @param type_arg          Hint type
-  @param optimizer_switch  Optimizer switch flag
+  @param fallback_value    Value to be returned if the hint is not fixed
 
   @return key hint value if hint is specified,
           otherwise optimizer switch value.
 */
-bool hint_key_state(const THD *thd, const TABLE *table,
-                    uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch);
+bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
+                    opt_hints_enum type_arg, bool fallback_value);
 
 /**
   Returns table hint value if hint is specified, returns
@@ -848,13 +855,13 @@ bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
                       opt_hints_enum type_arg, bool fallback_value);
 
 /**
-  Returns table hint value if hint is specified, returns
-  fallback value if hint is not specified.
+  Returns table hint value if the hint is specified,
+  returns `fallback_value` if the hint is not specified.
 
   @param thd                Pointer to THD object
   @param tab                Pointer to TABLE object
   @param type_arg           Hint type
-  @param fallback_value     Value to be returned if the hint is not set
+  @param fallback_value     Value to be returned if the hint is not specified
 
   @return table hint value if hint is specified,
           otherwise fallback value.

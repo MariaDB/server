@@ -1377,6 +1377,8 @@ public:
   key_map keys_in_use_for_group_by;
   /* Map of keys that can be used to calculate ORDER BY without sorting */
   key_map keys_in_use_for_order_by;
+  /* Map of keys that can be used to build ROWID filters */
+  key_map keys_in_use_for_rowid_filter;
   /* Map of keys dependent on some constraint */
   key_map constraint_dependent_keys;
   KEY  *key_info;			/* data of keys in database */
@@ -1979,20 +1981,9 @@ public:
     return key_info[index].index_flags & HA_CLUSTERED_INDEX;
   }
 
-  /*
-    Return true if we can use rowid filter with this index
-    rowid filter can be used if
-    - filter pushdown is supported by the engine for the index. If this is set then
-      file->ha_table_flags() should not contain HA_NON_COMPARABLE_ROWID!
-    - The index is not a clustered primary index
-  */
+  bool rowid_filter_can_be_applied_to_key(uint index) const;
 
-  inline bool can_use_rowid_filter(uint index) const
-  {
-    return ((key_info[index].index_flags &
-             (HA_DO_RANGE_FILTER_PUSHDOWN | HA_CLUSTERED_INDEX)) ==
-            HA_DO_RANGE_FILTER_PUSHDOWN);
-  }
+  bool key_can_be_used_as_rowid_filter(THD *thd, uint index) const;
 
   ulonglong vers_start_id(const uchar *ptr) const;
   ulonglong vers_end_id(const uchar *ptr) const;

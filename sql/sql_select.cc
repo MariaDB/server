@@ -6217,8 +6217,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           select->quick=0;
           s->needed_reg=select->needed_reg;
           impossible_range= records == 0 && s->table->reginfo.impossible_range;
-          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
-            s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
+          s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
         }
         if (!impossible_range)
         {
@@ -8366,7 +8365,8 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
 
 
 /**
-   Apply filter if the filter is better than the current cost
+   Apply filter if the filter is better than the current cost or
+   if it forced by ROWID_FILTER hint
 
    @param thd             Thread handler
    @param table           Table
@@ -8440,7 +8440,7 @@ apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
              new_records * tmp + filter_startup_cost);
 
   DBUG_ASSERT(new_cost >= 0 && new_records >= 0);
-  use_filter= new_cost < org_cost;
+  use_filter= new_cost < org_cost || is_forced_by_hint;
 
   if (unlikely(thd->trace_started()))
   {
@@ -9347,7 +9347,7 @@ best_access_path(JOIN      *join,
         Records can be 0 in case of empty tables.
       */
       if ((found_part & 1) && records &&
-          table->can_use_rowid_filter(start_key->key))
+          table->rowid_filter_can_be_applied_to_key(start_key->key))
       {
         /*
           If we use filter F with selectivity s the cost of fetching data
@@ -9740,7 +9740,7 @@ best_access_path(JOIN      *join,
                                  range->cost.setup_cost,
                                  s->quick->read_time));
 
-        if (table->can_use_rowid_filter(key_no))
+        if (table->rowid_filter_can_be_applied_to_key(key_no))
         {
           filter= table->best_range_rowid_filter(key_no,
                                                  rows2double(range->rows),
