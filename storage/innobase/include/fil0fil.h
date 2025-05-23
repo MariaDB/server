@@ -77,6 +77,19 @@ enum srv_flush_t
 #endif
 };
 
+/** Possible values of innodb_linux_aio */
+#ifdef __linux__
+enum srv_linux_aio_t
+{
+  /** auto, io_uring first and then aio */
+  SRV_LINUX_AIO_AUTO,
+  /** io_uring */
+  SRV_LINUX_AIO_IO_URING,
+  /** aio (libaio interface) */
+  SRV_LINUX_AIO_LIBAIO
+};
+#endif
+
 /** innodb_flush_method */
 extern ulong srv_file_flush_method;
 
