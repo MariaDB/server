@@ -1,0 +1,34 @@
+
+# SET @stats.save= @@innodb_stats_persistent;
+# SET GLOBAL innodb_stats_persistent= ON;
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c VARCHAR(1024), KEY key_a(a), KEY key_b(b), KEY key_c(c));
+
+INSERT INTO t1 VALUES
+  (1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
+  (2,'Q','s'), (9,'e','J'), (2,'p','W'), (9,'o','F'), (2,'g','S'),
+  (1,'Y','a'), (NULL,'Y','p'), (NULL,'s','x'), (NULL,'i','S'),
+  (1,'l','q'), (7,'r','e'), (4,'b','h'), (NULL,'E','c'),
+  (NULL,'M','a'), (3,'e','X'), (NULL,'p','r'), (9,'e','i'),
+  (3,'g','x'), (2,'h','y');
+
+ANALYZE TABLE t1;
+
+--echo # Rowid filter is applied when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+
+--echo # Sample resultset to compare against later
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+
+--echo # Conflicting hints
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1) rowid_filter(t1)*/a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a, key_b) no_rowid_filter(t1 key_c, key_b)*/a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b) rowid_filter(t1 key_c)*/a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+
+DROP TABLE t1;
