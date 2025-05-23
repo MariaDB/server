@@ -473,6 +473,42 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
       )
 ENDIF()
 
+# clang ~16+ with return values being uninitialized is resolved by basic optimization
+# compiler flags. The inlining of these function means the uninitalized paths are
+# elimated from mach_read_from_2 (per MDEV-36316) and i_s_dict_fill_sys_columns MDEV-36327
+IF(WITH_MSAN AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    SET_SOURCE_FILES_PROPERTIES(
+        btr/btr0btr.cc
+        btr/btr0bulk.cc
+        data/data0data.cc
+        dict/dict0load.cc
+        dict/dict0mem.cc
+        fil/fil0crypt.cc
+        fil/fil0pagecompress.cc
+        fsp/fsp0fsp.cc
+        fut/fut0lst.cc
+        gis/gis0rtree.cc
+        handler/ha_innodb.cc
+        handler/i_s.cc
+        ibuf/ibuf0ibuf.cc
+        log/log0recv.cc
+        page/page0cur.cc
+        page/page0page.cc
+        page/page0zip.cc
+        rem/rem0rec.cc
+        row/row0import.cc
+        row/row0mysql.cc
+        row/row0purge.cc
+        row/row0uins.cc
+        row/row0undo.cc
+        row/row0upd.cc
+        trx/trx0purge.cc
+        trx/trx0rec.cc
+        trx/trx0trx.cc
+        trx/trx0undo.cc
+        PROPERTIES COMPILE_FLAGS -Og)
+ENDIF()
+
 # Older gcc version insist on -mhtm flag for including the
 # htmxlintrin.h header. This is also true for new gcc versions
 # like 11.2.0 in Debian Sid
