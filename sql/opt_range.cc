@@ -2848,7 +2848,7 @@ SQL_SELECT::test_quick_select(THD *thd,
             add("cause", "not applicable");
         continue;
       }
-      if (hint_key_state(thd, head, idx, NO_RANGE_HINT_ENUM, 0))
+      if (hint_key_state(thd, head, idx, NO_RANGE_HINT_ENUM, false))
       {
         trace_idx_details.
             add("usable", false).
