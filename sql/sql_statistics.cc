@@ -4023,16 +4023,24 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   int err;
   enum_binlog_format save_binlog_format;
   TABLE *stat_table;
-  TABLE_LIST tables[STATISTICS_TABLES];
   int rc= 0;
   DBUG_ENTER("rename_table_in_stat_tables");
-   
+
+  TABLE_LIST *tables=
+    static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
+                                       STATISTICS_TABLES * sizeof *tables,
+                                       MYF(MY_WME)));
+  if (!tables)
+    DBUG_RETURN(1);
+
   start_new_trans new_trans(thd);
 
   if (open_stat_tables(thd, tables, TRUE))
   {
+  func_exit:
+    my_free(tables);
     new_trans.restore_old_transaction();
-    DBUG_RETURN(0);
+    DBUG_RETURN(rc);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -4093,9 +4101,7 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   thd->restore_stmt_binlog_format(save_binlog_format);
   if (thd->commit_whole_transaction_and_close_tables())
     rc= 1;
-
-  new_trans.restore_old_transaction();
-  DBUG_RETURN(rc);
+  goto func_exit;
 }
 
 
