@@ -1612,7 +1612,7 @@ static enum json_esc_char_classes json_escape_chr_map[0x60] = {
 };
 
 
-static const char hexconv[16] = "0123456789ABCDEF";
+static const char hexconv[17] = "0123456789ABCDEF";
 
 
 int json_escape(CHARSET_INFO *str_cs,
