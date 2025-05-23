@@ -44,7 +44,7 @@ SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c
             ma_checkpoint.c ma_recovery.c ma_commit.c ma_pagecrc.c
             ha_maria.h maria_def.h ma_recovery_util.c ma_servicethread.c
             ma_norec.c
-            ma_crypt.c ma_backup.c
+            ma_crypt.c ma_backup.c ma_clone.cc
 )
 
 IF(APPLE)

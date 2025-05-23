@@ -253,7 +253,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
   std::string full_tname("`");
   full_tname.append(m_db).append("`.`").append(m_table).append("`");
 
-  no_lock =true; // TODO: Remove after implementing lock
+  no_lock= true; // TODO: Remove after implementing lock
   if (!no_lock /* TODO: && ! cbk_ctx->backup_lock(full_tname) */)
   {
     my_printf_error(ER_INTERNAL_ERROR,
@@ -319,7 +319,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
     if (result)
       goto exit;
 
-    mysql_file_close(files[i], MYF(MY_WME));
+    mysql_file_close(files[i], MYF(0));
     files[i] = -1;
     my_printf_error(ER_CLONE_SERVER_TRACE,
         "Common SE: Copied file %s for table %s, %zu bytes",
@@ -330,7 +330,7 @@ exit:
   if (frm_file >= 0)
   {
     m_version= clone_common::read_table_version_id(frm_file);
-    mysql_file_close(frm_file, MYF(MY_WME));
+    mysql_file_close(frm_file, MYF(0));
   }
 
   if (locked /* TODO: && !backup_unlock(con) */)
@@ -340,7 +340,7 @@ exit:
   }
 
   for (auto file : files)
-    if (file >= 0) mysql_file_close(file, MYF(MY_WME));
+    if (file >= 0) mysql_file_close(file, MYF(0));
   return result;
 }
 
@@ -404,7 +404,7 @@ int Log_Table::open()
     return ER_CANT_OPEN_FILE;
   }
   m_version= clone_common::read_table_version_id(frm_file);
-  mysql_file_close(frm_file, MYF(MY_WME));
+  mysql_file_close(frm_file, MYF(0));
   return 0;
 }
 
@@ -414,7 +414,7 @@ int Log_Table::close()
   {
     auto f= m_src.back();
     m_src.pop_back();
-    mysql_file_close(f, MYF(MY_WME));
+    mysql_file_close(f, MYF(0));
   }
   return 0;
 }
@@ -583,7 +583,7 @@ void Thread_Context::close()
 {
   if (m_file < 0)
     return;
-  mysql_file_close(m_file, MYF(MY_WME));
+  mysql_file_close(m_file, MYF(0));
   m_file= -1;
 }
 
@@ -692,7 +692,7 @@ int Clone_Handle::copy_file_job(std::string *file_name, Ha_clone_cbk *cbk,
 
     err= send_file(file, buf.get(), buf_size, cbk, (*file_name), "",
                    copied_size);
-    mysql_file_close(file, MYF(MY_WME));
+    mysql_file_close(file, MYF(0));
   }
   delete file_name;
   return err;
@@ -821,7 +821,7 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     if (exclude_tables.count(tk))
     {
       my_printf_error(ER_CLONE_SERVER_TRACE,
-          "Common SE: Skip table %s at it is in exclude list",
+          "Common SE: Skip table %s as it is in exclude list",
           MYF(ME_NOTE | ME_ERROR_LOG_ONLY), tk.c_str());
       return;
     }

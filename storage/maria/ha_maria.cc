@@ -73,6 +73,7 @@ const char *zerofill_error_msg=
 */
 ulonglong maria_recover_options= HA_RECOVER_NONE;
 handlerton *maria_hton;
+void init_maria_clone_interfaces(handlerton *aria_hton);
 
 /* bits in maria_recover_options */
 const char *maria_recover_names[]=
@@ -3962,6 +3963,7 @@ static int ha_maria_init(void *p)
   maria_multi_threaded= maria_in_ha_maria= TRUE;
   maria_create_trn_hook= maria_create_trn_for_mysql;
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
+  init_maria_clone_interfaces(maria_hton);
 
   if (res)
   {
