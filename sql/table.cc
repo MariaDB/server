@@ -6054,7 +6054,6 @@ allocate:
 
   while ((item= it++))
   {
-    DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
     transl[field_count++].item= item;
