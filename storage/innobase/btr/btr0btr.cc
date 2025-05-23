@@ -1175,7 +1175,6 @@ ib_uint64_t
 btr_read_autoinc(dict_index_t* index)
 {
   ut_ad(index->is_primary());
-  ut_ad(index->table->persistent_autoinc);
   ut_ad(!index->table->is_temporary());
   mtr_t mtr;
   mtr.start();
@@ -1267,7 +1266,6 @@ void
 btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 {
   ut_ad(index->is_primary());
-  ut_ad(index->table->persistent_autoinc);
   ut_ad(!index->table->is_temporary());
 
   mtr_t mtr;

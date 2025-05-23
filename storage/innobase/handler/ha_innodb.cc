@@ -7810,7 +7810,8 @@ ha_innobase::write_row(
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
 	/* Handling of errors related to auto-increment. */
-	if (m_prebuilt->table->persistent_autoinc) {
+	if (m_prebuilt->table->persistent_autoinc &&
+	    m_prebuilt->autoinc_spec->legacy) {
 		ulonglong	auto_inc;
 
 		/* Note the number of rows processed for this statement, used
@@ -13375,6 +13376,8 @@ int ha_innobase::ha_create_auto_increment(const Autoinc_spec *autoinc_spec,
   create_table_info_t::create_table_init_auto_increment(ib_table,
                                                         autoinc_spec->start,
                                                         autoinc_field);
+  // Override autoinc detection to avoid internal innodb mechanics
+  ib_table->persistent_autoinc= 0;
   ib_table->release();
   return 0;
 }
@@ -13395,6 +13398,23 @@ int ha_innobase::ha_init_auto_increment(const Autoinc_spec *autoinc_spec,
 	return 0;
 }
 
+int ha_innobase::ha_persistent_write_autoinc(ulonglong nr, uint,
+                                             bool update_max)
+{
+  if (update_max)
+  {
+    nr = innobase_next_autoinc(nr, 1,
+            m_prebuilt->autoinc_spec, m_prebuilt->autoinc_spec->maxvalue);
+
+    if (int error = innobase_set_max_autoinc(nr))
+      return error;
+  }
+
+  btr_write_autoinc(dict_table_get_first_index(m_prebuilt->table), nr,
+                    !update_max);
+
+  return 0;
+}
 /*****************************************************************//**
 Discards or imports an InnoDB tablespace.
 @return 0 == success, -1 == error */

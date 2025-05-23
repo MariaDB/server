@@ -3692,6 +3692,13 @@ public:
                                      const Field *autoinc_field)
   { return HA_ERR_UNSUPPORTED; /* Unsupported by default. */}
 
+  virtual int ha_persistent_write_autoinc(ulonglong nr, uint fieldnr,
+                                          bool update_max)
+  {
+    DBUG_ASSERT(0); // Never called.
+    return HA_ERR_UNSUPPORTED;
+  }
+
   int ha_create_partitioning_metadata(const char *name, const char *old_name,
                                       chf_create_flags action_flag);
 

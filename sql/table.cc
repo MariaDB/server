@@ -4877,9 +4877,9 @@ bool TABLE_SHARE::fix_identity_field(Autoinc_spec *autoinc_spec)
        IDENTITY at ALTER TABLE.
        In particular, limiting only one such field present.
     */
-    // (*found_next_number_field)->unireg_check= Field::NONE;
-    // found_next_number_field= NULL;
-    // next_number_index= next_number_key_offset= next_number_keypart= 0;
+    (*found_next_number_field)->unireg_check= Field::NONE;
+    found_next_number_field= NULL;
+    next_number_index= next_number_key_offset= next_number_keypart= 0;
   }
   return true;
 }

@@ -7431,13 +7431,24 @@ longlong Item_identity_next::val_int()
   if (unlikely(!table))
     return 0; // Default record initialization
   DBUG_ASSERT(spec);
-  int error;
+  int error= 0;
   ulonglong values_reserved;
   bool update_interval;
   int nr= table->file->get_next_auto_increment(spec, &error, &values_reserved,
                                                &update_interval);
+  if (unlikely(error))
+  {
+    if (error == HA_ERR_AUTOINC_ERANGE)
+      my_error(error, MYF(0), "IDENTITY",
+             table->in_use->get_stmt_da()->current_row_for_warning());
+    else
+      table->file->print_error(error, MYF(0));
+    return nr;
+  }
+
   table->file->update_auto_increment_finalize(spec, nr, values_reserved, error,
                                               update_interval);
+  table->file->ha_persistent_write_autoinc(nr, -1, true);
   return nr;
 }
 

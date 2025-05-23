@@ -202,6 +202,8 @@ public:
 	int ha_report_autonc_usage(Autoinc_spec *spec);
 	int ha_create_auto_increment(const Autoinc_spec *autoinc_spec,
 		                     const Field *autoinc_field) override;
+	int ha_persistent_write_autoinc(ulonglong nr, uint fieldnr,
+		                        bool update_max) override;
 	int ha_init_auto_increment(const Autoinc_spec *autoinc_spec,
 				   const Field *autoinc_field) override;
 
