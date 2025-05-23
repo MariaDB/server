@@ -1,0 +1,156 @@
+--source include/not_embedded.inc
+set store_ddls_in_optimizer_trace=ON;
+--echo # 
+show variables like 'store_ddls_in_optimizer_trace';
+
+--echo # 
+set store_ddls_in_optimizer_trace=OFF;
+--echo # 
+show variables like 'store_ddls_in_optimizer_trace';
+
+--echo # 
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+
+--echo # 
+create table t2 (a int);
+insert into t2 values (1),(2);
+
+--echo # 
+create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+
+--echo # 
+--echo # disable both optimizer_trace and store_ddls_in_optimizer_trace
+--echo # there should be no trace
+--echo # 
+set optimizer_trace=0;
+set store_ddls_in_optimizer_trace=OFF;
+--echo # 
+select * from t1 where t1.a = 3;
+--echo # 
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+    from information_schema.optimizer_trace;
+
+--echo #
+--echo # disable optimizer_trace, but enable store_ddls_in_optimizer_trace
+--echo # there should be no trace here as well
+--echo #
+
+set store_ddls_in_optimizer_trace=ON;
+--echo # 
+select * from t1 where t1.a = 3;
+--echo # 
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+    from information_schema.optimizer_trace;
+
+--echo # 
+--echo # enable optimizer_trace, but disable store_ddls_in_optimizer_trace
+--echo # trace result should be empty
+--echo # 
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=OFF;
+--echo # 
+select * from t1 where t1.a = 3;
+--echo # 
+select json_detailed(json_extract(trace, '$**.list_ddls'))
+    from information_schema.optimizer_trace;
+
+--echo # 
+--echo # enable both optimizer_trace and store_ddls_in_optimizer_trace
+--echo # trace result should have 1 ddl statement for table t1
+--echo # 
+set optimizer_trace=1;
+set store_ddls_in_optimizer_trace=ON;
+--echo # 
+select * from t1 where t1.a = 3;
+--echo # 
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo # 
+--echo # enable both optimizer_trace and store_ddls_in_optimizer_trace
+--echo # test for view
+--echo # trace result should have 3 ddl statements
+--echo # 
+set store_ddls_in_optimizer_trace=ON;
+select * from view1 where view1.a = 3;
+--echo # 
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo # 
+--echo # enable both optimizer_trace and store_ddls_in_optimizer_trace
+--echo # test for temp table
+--echo # trace result should have 1 ddl statement for table t1
+--echo # 
+create temporary table temp1(col1 int);
+insert into temp1 select * from t2;
+
+--echo # 
+
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # there should be no duplicate ddls
+--echo # there should be only 1 ddl for table t2
+--echo #
+select * from t2 union select * from t2 union select * from t2;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # there should be no duplicate ddls
+--echo # there should be only 3 ddls for tables t1, t2, and view1
+--echo #
+select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for insert
+--echo # there should be no trace for insert with values
+--echo # 
+insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for delete
+--echo # trace result should have 1 ddl statement for table t1
+--echo # 
+delete from t1 where t1.a=3;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for update
+--echo # trace result should have 1 ddl statement for table t1
+--echo # 
+update t1 set t1.b = t1.a;
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for insert as select
+--echo # trace result should have 2 ddl statements for tables t1, t2
+--echo # 
+insert into t1 (select t2.a as a, t2.a as b from t2);
+set @js= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl 
+from json_table(@js, '$[*]' columns(ddl text path '$')) as jt;
+
+drop table temp1;
+drop view view1;
+drop table t1;
+drop table t2;
