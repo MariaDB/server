@@ -125,7 +125,7 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 8	8	stage/sql/After opening tables	(stage)	STATEMENT	0
 9	9	stage/sql/init	(stage)	STATEMENT	0
 10	10	stage/sql/Optimizing	(stage)	STATEMENT	0
-11	11	stage/sql/Executing	(stage)	STATEMENT	0
+11	11	stage/sql/Preparing for execution	(stage)	STATEMENT	0
 12	12	stage/sql/End of update loop	(stage)	STATEMENT	0
 13	14	stage/sql/Query end	(stage)	STATEMENT	0
 14	14	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	13
@@ -149,7 +149,7 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 32	32	stage/sql/After opening tables	(stage)	STATEMENT	24
 33	33	stage/sql/init	(stage)	STATEMENT	24
 34	34	stage/sql/Optimizing	(stage)	STATEMENT	24
-35	35	stage/sql/Executing	(stage)	STATEMENT	24
+35	35	stage/sql/Preparing for execution	(stage)	STATEMENT	24
 36	36	stage/sql/End of update loop	(stage)	STATEMENT	24
 37	38	stage/sql/Query end	(stage)	STATEMENT	24
 38	38	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	37
@@ -173,7 +173,7 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 56	56	stage/sql/After opening tables	(stage)	STATEMENT	48
 57	57	stage/sql/init	(stage)	STATEMENT	48
 58	58	stage/sql/Optimizing	(stage)	STATEMENT	48
-59	59	stage/sql/Executing	(stage)	STATEMENT	48
+59	59	stage/sql/Preparing for execution	(stage)	STATEMENT	48
 60	60	stage/sql/End of update loop	(stage)	STATEMENT	48
 61	62	stage/sql/Query end	(stage)	STATEMENT	48
 62	62	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	61
@@ -200,7 +200,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 81	81	stage/sql/After opening tables	(stage)	STATEMENT	72
 82	82	stage/sql/init	(stage)	STATEMENT	72
 83	83	stage/sql/Optimizing	(stage)	STATEMENT	72
-84	84	stage/sql/Executing	(stage)	STATEMENT	72
+84	84	stage/sql/Preparing for execution	(stage)	STATEMENT	72
 85	85	stage/sql/End of update loop	(stage)	STATEMENT	72
 86	87	stage/sql/Query end	(stage)	STATEMENT	72
 87	87	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	86
@@ -219,7 +219,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 99	99	stage/sql/After opening tables	(stage)	STATEMENT	93
 100	100	stage/sql/init	(stage)	STATEMENT	93
 101	101	stage/sql/Optimizing	(stage)	STATEMENT	93
-102	102	stage/sql/Executing	(stage)	STATEMENT	93
+102	102	stage/sql/Preparing for execution	(stage)	STATEMENT	93
 103	103	stage/sql/End of update loop	(stage)	STATEMENT	93
 104	105	stage/sql/Query end	(stage)	STATEMENT	93
 105	105	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	104
@@ -236,7 +236,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 116	116	stage/sql/After opening tables	(stage)	STATEMENT	111
 117	117	stage/sql/init	(stage)	STATEMENT	111
 118	118	stage/sql/Optimizing	(stage)	STATEMENT	111
-119	119	stage/sql/Executing	(stage)	STATEMENT	111
+119	119	stage/sql/Preparing for execution	(stage)	STATEMENT	111
 120	120	stage/sql/End of update loop	(stage)	STATEMENT	111
 121	122	stage/sql/Query end	(stage)	STATEMENT	111
 122	122	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	121
@@ -260,7 +260,7 @@ select "With a third part to make things complete" as payload	NULL	NULL
 140	140	stage/sql/After opening tables	(stage)	STATEMENT	132
 141	141	stage/sql/init	(stage)	STATEMENT	132
 142	142	stage/sql/Optimizing	(stage)	STATEMENT	132
-143	143	stage/sql/Executing	(stage)	STATEMENT	132
+143	143	stage/sql/Preparing for execution	(stage)	STATEMENT	132
 144	144	stage/sql/End of update loop	(stage)	STATEMENT	132
 145	146	stage/sql/Query end	(stage)	STATEMENT	132
 146	146	wait/synch/mutex/sql/THD::LOCK_thd_kill	lock	STAGE	145
