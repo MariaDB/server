@@ -351,7 +351,7 @@ public:
   ~Active_tranx();
 
   /** Find (if any) the active transaction node with the specified position */
-  Tranx_node *get_tranx_node(const char *log_file_name, my_off_t log_file_pos);
+  const Tranx_node *get_tranx_node(const char *log_file_name, my_off_t log_file_pos);
 
   /* Insert an active transaction node with the specified position.
    *
@@ -361,26 +361,22 @@ public:
   int insert_tranx_node(THD *thd_to_wait, const char *log_file_name,
                         my_off_t log_file_pos);
 
+  /** Clear the active transaction nodes until (exclusive) the specified node.
+   If it's not in the collection (e.g., is `nullptr`), everything will
+   be cleared: the sorted list and the hash table will be reset to empty.
+
+   @pre Repl_semi_sync_binlog::LOCK_binlog should be held while calling this.
+  */
+  void clear_active_tranx_nodes(Tranx_node *node);
+
   /**
-    Find (if any) the (last) transaction node with at least
-    rpl_semi_sync_master_wait_for_slave_count Tranx_node::acks
+    Find (if any) and clear up to (inclusive) the last transaction with at least
+    @ref rpl_semi_sync_master_wait_for_slave_count number of Tranx_node::acks
+
+    @pre Repl_semi_sync_binlog::LOCK_binlog should be held while calling this.
     @see Repl_semi_sync_master::refresh_wait_for_slave_count
   */
-  Tranx_node *find_acked_tranx_node();
-
-  /* Clear the active transaction nodes until(inclusive) the specified
-   * position.
-   * If log_file_name is NULL, everything will be cleared: the sorted
-   * list and the hash table will be reset to empty.
-   *
-   * The pre_delete_hook parameter is a function pointer that will be invoked
-   * for each Active_tranx node, in order, from m_trx_front to m_trx_rear,
-   * e.g. to signal their wakeup condition. Repl_semi_sync_binlog::LOCK_binlog
-   * is held while this is invoked.
-   */
-  void clear_active_tranx_nodes(const char *log_file_name,
-                                my_off_t log_file_pos,
-                                active_tranx_action pre_delete_hook);
+  void clear_acked_tranx_nodes();
 
   /* Unlinks a thread from a Tranx_node, so it will not be referenced/signalled
    * if it is separately killed. Note that this keeps the Tranx_node itself in
@@ -701,12 +697,8 @@ class Repl_semi_sync_master
   /*called before reset master*/
   int before_reset_master();
 
-  /**
-    If `SET rpl_semi_sync_master_wait_for_slave_count` lowered the requirement,
-    the transaction queue `m_active_tranxs` needs to flush any that did not have
-    enough Tranx_node::acks before but now have.
-  */
-  void refresh_wait_for_slave_count(uint32 server_id);
+  /** call Active_tranx::clear_acked_tranx_nodes() with lock() */
+  void clear_acked_tranx_nodes();
 
   mysql_mutex_t LOCK_rpl_semi_sync_master_enabled;
 };

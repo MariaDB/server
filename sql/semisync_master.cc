@@ -253,32 +253,16 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
   DBUG_RETURN(get_tranx_node(log_file_name, log_file_pos));
 }
 
-Tranx_node *Active_tranx::find_acked_tranx_node()
-{
-  Tranx_node *new_front= nullptr;
-  for (Tranx_node *entry= m_trx_front; entry; entry= entry->next)
-    if (entry->acks >= rpl_semi_sync_master_wait_for_slave_count)
-      new_front= entry;
-  return new_front;
-}
-
-void Active_tranx::clear_active_tranx_nodes(
-    const char *log_file_name, my_off_t log_file_pos,
-    active_tranx_action pre_delete_hook)
+void Active_tranx::clear_active_tranx_nodes(Tranx_node *node)
 {
   Tranx_node *new_front;
 
   DBUG_ENTER("Active_tranx::::clear_active_tranx_nodes");
 
-  new_front= m_trx_front;
-  while (new_front)
-  {
-    if ((log_file_name != NULL) &&
-        compare(new_front, log_file_name, log_file_pos) > 0)
-      break;
-    pre_delete_hook(new_front->thd, new_front->log_name, new_front->log_pos);
-    new_front = new_front->next;
-  }
+  for (new_front= m_trx_front; new_front && new_front != node;
+       new_front= new_front->next)
+    signal_waiting_transaction(new_front->thd,
+                               new_front->log_name, new_front->log_pos);
 
   if (new_front == NULL)
   {
@@ -348,6 +332,16 @@ void Active_tranx::clear_active_tranx_nodes(
     mysql_cond_signal(m_cond_empty);
 
   DBUG_VOID_RETURN;
+}
+
+void Active_tranx::clear_acked_tranx_nodes()
+{
+  Tranx_node *acked_node= nullptr;
+  for (Tranx_node *entry= m_trx_front; entry; entry= entry->next)
+    if (entry->acks >= rpl_semi_sync_master_wait_for_slave_count)
+      acked_node= entry;
+  if (acked_node)
+    clear_active_tranx_nodes(acked_node->next);
 }
 
 void Active_tranx::unlink_thd_as_waiter(const char *log_file_name,
@@ -554,8 +548,7 @@ void Repl_semi_sync_master::remove_slave()
       Signal transactions waiting in commit_trx() that they do not have to
       wait anymore.
     */
-    m_active_tranxs->clear_active_tranx_nodes(NULL, 0,
-                                              signal_waiting_transaction);
+    m_active_tranxs->clear_active_tranx_nodes(nullptr);
   }
   unlock();
 }
@@ -697,8 +690,7 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
     if (entry && ++(entry->acks) >= rpl_semi_sync_master_wait_for_slave_count)
     {
       /* Remove all active transaction nodes before this point. */
-      m_active_tranxs->clear_active_tranx_nodes(log_file_name, log_file_pos,
-                                                signal_waiting_transaction);
+      m_active_tranxs->clear_active_tranx_nodes(entry->next);
       if (m_active_tranxs->is_empty())
         m_wait_file_name_inited= false;
     }
@@ -1102,8 +1094,7 @@ void Repl_semi_sync_master::switch_off()
 
   /* Clear the active transaction list. */
   if (m_active_tranxs)
-    m_active_tranxs->clear_active_tranx_nodes(NULL, 0,
-                                              signal_waiting_transaction);
+    m_active_tranxs->clear_active_tranx_nodes(nullptr);
 
   if (m_state)
   {
@@ -1486,19 +1477,13 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
   DBUG_VOID_RETURN;
 }
 
-void Repl_semi_sync_master::refresh_wait_for_slave_count(uint32 server_id)
+void Repl_semi_sync_master::clear_acked_tranx_nodes()
 {
-  Tranx_node *entry= nullptr;
   DBUG_ENTER("refresh_wait_for_slave_count");
   lock();
     if (get_master_enabled())
-    {
-      DBUG_ASSERT(m_active_tranxs);
-      entry= m_active_tranxs->find_acked_tranx_node();
-    }
+      m_active_tranxs->clear_acked_tranx_nodes();
   unlock();
-  if (entry)
-    report_reply_binlog(server_id, entry->log_name, entry->log_pos);
   DBUG_VOID_RETURN;
 }
 
