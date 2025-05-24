@@ -826,3 +826,59 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-9343: Copying from YEAR to DATE result in '0000-00-00'
+--echo #
+
+--echo #
+--echo # Setup
+--echo #
+DROP TABLE IF EXISTS t1, t2, t3;
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DATE);
+CREATE TABLE t3 (a DATETIME);
+
+SET SESSION sql_mode = '';
+INSERT INTO t1 VALUES (2000), (0), (1901), (2155), (70);
+
+INSERT INTO t2 SELECT a FROM t1;
+INSERT INTO t3 SELECT a FROM t1;
+
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+SHOW WARNINGS;
+
+SET SESSION sql_mode = 'NO_ZERO_IN_DATE';
+DELETE FROM t2;
+DELETE FROM t3;
+
+INSERT INTO t2 SELECT a FROM t1;
+INSERT INTO t3 SELECT a FROM t1;
+
+SHOW ERRORS;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+SET SESSION sql_mode = '';
+ALTER TABLE t1 MODIFY a DATE;
+SELECT * FROM t1;
+
+ALTER TABLE t1 MODIFY a YEAR;
+SELECT * FROM t1;
+
+SET SESSION sql_mode = 'NO_ZERO_IN_DATE';
+ALTER TABLE t1 MODIFY a DATE;
+SELECT * FROM t1;
+
+SET SESSION sql_mode = '';
+SELECT CAST(a AS DATE), CAST(a AS DATETIME) FROM t1 ORDER BY a;
+
+SET SESSION sql_mode = 'NO_ZERO_IN_DATE';
+SELECT CAST(a AS DATE), CAST(a AS DATETIME) FROM t1;
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP TABLE t1, t2, t3;
+SET SESSION sql_mode = DEFAULT;
