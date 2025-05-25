@@ -5589,9 +5589,12 @@ bool Rows_log_event::write_data_body(Log_event_writer *writer)
 int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int res= 0;
-  Rows_log_event_assembler *assembler;
   DBUG_ASSERT(rgi);
   DBUG_ASSERT(rgi->thd);
+  Rows_log_event_assembler *assembler;
+  PSI_stage_info org_stage;
+  rgi->thd->backup_stage(&org_stage);
+
   if (!rgi->assembler)
   {
     rgi->assembler= new Rows_log_event_assembler(rgi, total_fragments);
@@ -5605,9 +5608,7 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
   }
   assembler= rgi->assembler;
 
-  /*
-    TODO: Needs stage
-  */
+  THD_STAGE_INFO(rgi->thd, stage_buffer_partial_rows);
   if ((res= assembler->append(this)))
   {
     goto end;
@@ -5615,11 +5616,7 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (assembler->all_fragments_assembled())
   {
-    PSI_stage_info org_stage;
-    rgi->thd->backup_stage(&org_stage);
-    /*
-      TODO: Needs stage
-    */
+    THD_STAGE_INFO(rgi->thd, stage_constructing_rows_ev);
     Log_event *ev= assembler->create_rows_event(
         rgi->rli->relay_log.description_event_for_exec);
     delete rgi->assembler;
@@ -5649,11 +5646,11 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_ASSERT(skip_res == EVENT_SKIP_NOT);
 
     res= ev->apply_event(rgi);
-    THD_STAGE_INFO(rgi->thd, org_stage);
     delete ev;
   }
 
 end:
+  THD_STAGE_INFO(rgi->thd, org_stage);
   return res;
 }
 
