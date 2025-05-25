@@ -1970,14 +1970,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ref	e	e	3	test.t2.d	1	Using index
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
+SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3 order by t2.d;
 d
-w
-w
-w
-w
-w
-w
 d
 d
 d
@@ -1996,6 +1990,12 @@ e
 e
 e
 e
+w
+w
+w
+w
+w
+w
 SET SESSION join_cache_level = @exit_join_cache_level;
 SET SESSION join_buffer_size = @exit_join_buffer_size;
 DROP VIEW v3;

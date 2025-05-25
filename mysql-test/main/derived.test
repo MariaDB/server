@@ -1182,3 +1182,76 @@ drop table t1,t2,t3;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-26944 Server crash on selecting some data from information_schema
+--echo #
+create table t1 (i int);
+prepare stmt from "SELECT x FROM
+ ( SELECT i AS y, (SELECT y FROM t1 LIMIT 1 ) AS x FROM  t1 a) dt;";
+
+execute stmt;
+EXECUTE stmt;
+# Cleanup
+drop table t1;
+
+create table t0 (a int, b int);
+insert into t0 values (6 , -1) , (97 , 0) , (34 , -1);
+create table t1 as select * from t0;
+
+prepare stmt2 from "SELECT * FROM t0 WHERE t0.b IN
+  (SELECT t0.b FROM t0 WHERE t0.b IN (SELECT 27 FROM t1 HAVING (t0.b = -1)));";
+execute stmt2;
+EXECUTE stmt2;
+# Cleanup
+drop table t0, t1;
+
+--echo #
+--echo # MDEV-36585 a segmentation fault (SIGSEGV) due to a null pointer
+--echo #            dereference in Item_field::used_tables() at sql/item.cc:3479
+--echo #
+create table t0 (v1 int , v2 bigint);
+insert into t0 values (6 , -1) , (97 , 0) , (34 , -1) , (0 , -128);
+create table t2 as select v1 , v2 from t0 order by v2;
+create trigger trig0 before insert on t2 for each row insert into t0 select * from t0 as v4 where v2 in (select v2 from t0 where -1 >= v2 is not null = 1 not in (select 27 from t2 where v2 = v2 or v2 = 'x' group by v1 having (v2 = -1)));
+insert into t2 (v2) values ((v1 , v1) > ('x' , 'x')) , (16);
+drop tables t0, t2;
+
+--echo #
+--echo # MDEV-31175 Server crash on 2n execution of select with view and
+--echo #            aggregate function
+--echo #
+create table t1(a int, b int);
+insert into t1 values (1,1), (2,2);
+
+create view v1 as
+select a as x, (select x) as y from t1;
+
+prepare stmt1 from "SELECT sum(y) FROM v1";
+execute stmt1;
+execute stmt1;
+
+deallocate prepare stmt1;
+
+drop table t1;
+drop view v1;
+
+--echo #
+--echo # MDEV-31937 Server crash on 2nd execution query SELECT from view of
+--echo #            prepare statement if query has impossible HAVING
+--echo #
+create table t1 (
+  col1 int(8),
+  col2 int(10)
+) engine=myisam;
+
+create view v1 as SELECT col2, (SELECT col1 FROM t1 HAVING col2=1) FROM (SELECT * FROM t1) as a;
+explain select * from v1;
+
+prepare stmt from "SELECT * FROM v1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v1;
+drop table t1;
