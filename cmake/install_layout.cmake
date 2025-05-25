@@ -196,10 +196,10 @@ SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
 
 SET(INSTALL_RUNDATADIR_DEB              "/run/mysqld")
 SET(INSTALL_UNIX_ADDRDIR_DEB            "${INSTALL_RUNDATADIR_DEB}/mysqld.sock")
-SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
+SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
-SET(INSTALL_PAMDIR_DEB                  "/lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}/security")
+SET(INSTALL_PAMDIR_DEB                  "/usr/lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}/security")
 SET(INSTALL_PAMDATADIR_DEB              "/etc/security")
 
 #
