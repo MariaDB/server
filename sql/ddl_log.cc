@@ -3051,13 +3051,15 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
   error= ((ddl_log_write_entry(ddl_log_entry, &log_entry)) ||
           ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                       &ddl_state->execute_entry));
-  mysql_mutex_unlock(&LOCK_gdl);
+  DBUG_EXECUTE_IF("ddl_log_write_fail", error= true;);
   if (error)
   {
     if (log_entry)
       ddl_log_release_memory_entry(log_entry);
+    mysql_mutex_unlock(&LOCK_gdl);
     DBUG_RETURN(1);
   }
+  mysql_mutex_unlock(&LOCK_gdl);
   ddl_log_add_entry(ddl_state, log_entry);
   ddl_state->flags|= ddl_log_entry->flags;      // Update cache
   DBUG_RETURN(0);

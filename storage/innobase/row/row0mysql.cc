@@ -708,6 +708,7 @@ handle_new_error:
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
+	case DB_TEMP_FILE_WRITE_FAIL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
