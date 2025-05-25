@@ -3317,12 +3317,16 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
 
 handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 {
+  int error= 0;
   handler *new_handler= get_new_handler(table->s, mem_root, ht);
 
   if (!new_handler)
     return NULL;
   if (new_handler->set_ha_share_ref(ha_share))
+  {
+    error= ER_OUT_OF_RESOURCES;
     goto err;
+  }
 
   /*
     TODO: Implement a more efficient way to have more than one index open for
@@ -3331,14 +3335,17 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     This is not critical as the engines already have the table open
     and should be able to use the original instance of the table.
   */
-  if (new_handler->ha_open(table, name, table->db_stat,
-                           HA_OPEN_IGNORE_IF_LOCKED, mem_root))
+  if ((error= new_handler->ha_open(table, name,
+                                   table->db_stat & HA_READ_ONLY ?
+                                   O_RDONLY : O_RDWR,
+                                   HA_OPEN_IGNORE_IF_LOCKED, mem_root)))
     goto err;
   new_handler->handler_stats= handler_stats;
 
   return new_handler;
 
 err:
+  new_handler->print_error(error, MYF(0));
   delete new_handler;
   return NULL;
 }

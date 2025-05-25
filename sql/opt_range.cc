@@ -1532,14 +1532,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
 
   if (!(file= head->file->clone(head->s->normalized_path.str, local_alloc)))
   {
-    /* 
-      Manually set the error flag. Note: there seems to be quite a few
-      places where a failure could cause the server to "hang" the client by
-      sending no response to a query. ATM those are not real errors because 
-      the storage engine calls in question happen to never fail with the 
-      existing storage engines. 
-    */
-    my_error(ER_OUT_OF_RESOURCES, MYF(0)); /* purecov: inspected */
+    /* clone() has already generated an error message */
     /* Caller will free the memory */
     goto failure;  /* purecov: inspected */
   }
