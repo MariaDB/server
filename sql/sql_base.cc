@@ -5946,34 +5946,43 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
   Field_iterator_view field_it;
   field_it.set(table_list);
   Query_arena *arena= 0, backup;  
+  Item *item;
 
   for (; !field_it.end_of_fields(); field_it.next())
   {
     if (!my_strcasecmp(system_charset_info, field_it.name()->str, name))
     {
-      // in PS use own arena or data will be freed after prepare
-      if (register_tree_change &&
-          thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())
-        arena= thd->activate_stmt_arena_if_needed(&backup);
-      /*
-        create_item() may, or may not create a new Item, depending on
-        the column reference. See create_view_field() for details.
-      */
-      Item *item= field_it.create_item(thd);
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
-      
-      if (!item)
-        DBUG_RETURN(0);
-      if (!ref)
-        DBUG_RETURN((Field*) view_ref_found);
-      /*
-       *ref != NULL means that *ref contains the item that we need to
-       replace. If the item was aliased by the user, set the alias to
-       the replacing item.
-      */
-      if (*ref && (*ref)->is_explicit_name())
-        item->set_name(thd, (*ref)->name);
+      // Statement arena scope
+      {
+        // in PS use own arena or data will be freed after prepare
+        if (register_tree_change &&
+            thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())
+        {
+          arena= thd->activate_stmt_arena_if_needed(&backup);
+        }
+        SCOPE_EXIT([thd, arena, backup]() mutable {
+          if (arena)
+            thd->restore_active_arena(arena, &backup);});
+        /*
+          create_item() may, or may not create a new Item, depending on
+          the column reference. See create_view_field() for details.
+        */
+        item= field_it.create_item(thd);
+
+        if (!item) {
+          DBUG_RETURN(0);
+        }
+        if (!ref) {
+          DBUG_RETURN((Field*) view_ref_found);
+        }
+        /*
+        *ref != NULL means that *ref contains the item that we need to
+        replace. If the item was aliased by the user, set the alias to
+        the replacing item.
+        */
+	if (*ref && (*ref)->is_explicit_name())
+          item->set_name(thd, (*ref)->name);
+      }
       if (register_tree_change)
         thd->change_item_tree(ref, item);
       else
