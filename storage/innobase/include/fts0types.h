@@ -38,7 +38,8 @@ struct fts_que_t;
 struct fts_node_t;
 
 /** Callbacks used within FTS. */
-typedef pars_user_func_cb_t fts_sql_callback;
+typedef bool fts_sql_callback(dict_index_t *index, const rec_t *rec,
+                              const rec_offs *offsets, void *user_arg);
 typedef void (*fts_filter)(void*, fts_node_t*, void*, ulint len);
 
 /** Statistics relevant to a particular document, used during retrieval. */
@@ -53,30 +54,23 @@ struct fts_get_doc_t {
 	fts_index_cache_t*
 			index_cache;	/*!< The index cache instance */
 
-					/*!< Parsed sql statement */
-	que_t*		get_document_graph;
 	fts_cache_t*	cache;		/*!< The parent cache */
 };
 
 /** Since we can have multiple FTS indexes on a table, we keep a
 per index cache of words etc. */
-struct fts_index_cache_t {
-	dict_index_t*	index;		/*!< The FTS index instance */
-
-	ib_rbt_t*	words;		/*!< Nodes; indexed by fts_string_t*,
-					cells are fts_tokenizer_word_t*.*/
-
-	ib_vector_t*	doc_stats;	/*!< Array of the fts_doc_stats_t
-					contained in the memory buffer.
-					Must be in sorted order (ascending).
-					The  ideal choice is an rb tree but
-					the rb tree imposes a space overhead
-					that we can do without */
-
-	que_t**		ins_graph;	/*!< Insert query graphs */
-
-	que_t**		sel_graph;	/*!< Select query graphs */
-	CHARSET_INFO*	charset;	/*!< charset */
+struct fts_index_cache_t
+{
+  /** FTS index instance */
+  dict_index_t *index;
+  /** Nodes; indexed by fts_string_t*, cells are fts_tokenizer_word_t*. */
+  ib_rbt_t  *words;
+  /** Array of fts_doc_stats_t contained in memory buffer. Must be in
+  ascending sorted order. Ideal choice is an rb tree but rb tree imposes
+  a space overhead that we can do without */
+  ib_vector_t *doc_stats;
+  /** charset */
+  CHARSET_INFO*	charset;
 };
 
 /** Stop word control infotmation. */
@@ -225,12 +219,12 @@ struct fts_word_t {
 
 /** Callback for reading and filtering nodes that are read from FTS index */
 struct fts_fetch_t {
-	void*		read_arg;	/*!< Arg for the sql_callback */
-
-	fts_sql_callback
-			read_record;	/*!< Callback for reading index
-					record */
-	size_t		total_memory;	/*!< Total memory used */
+	void*		  read_arg;	  /*!< Arg for the sql_callback */
+	fts_sql_callback* callback;       /*!< Callback function for
+                                          filtering nodes */
+	size_t		total_memory;	  /*!< Total memory used */
+	mem_heap_t*     heap;             /*!< Heap to read data
+                                          for externally stored field */
 };
 
 /** For horizontally splitting an FTS auxiliary index */

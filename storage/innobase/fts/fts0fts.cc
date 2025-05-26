@@ -38,6 +38,9 @@ Full Text Search interface
 #include "dict0stats.h"
 #include "btr0pcur.h"
 #include "log.h"
+#include "row0sel.h"
+#include "row0ins.h"
+#include "row0vers.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -156,27 +159,6 @@ const  fts_index_selector_t fts_index_selector[] = {
 	{  0 , NULL	 }
 };
 
-/** Default config values for FTS indexes on a table. */
-static const char* fts_config_table_insert_values_sql =
-	"PROCEDURE P() IS\n"
-	"BEGIN\n"
-	"\n"
-	"INSERT INTO $config_table VALUES('"
-		FTS_MAX_CACHE_SIZE_IN_MB "', '256');\n"
-	""
-	"INSERT INTO $config_table VALUES('"
-		FTS_OPTIMIZE_LIMIT_IN_SECS  "', '180');\n"
-	""
-	"INSERT INTO $config_table VALUES ('"
-		FTS_SYNCED_DOC_ID "', '0');\n"
-	""
-	"INSERT INTO $config_table VALUES ('"
-		FTS_TOTAL_DELETED_COUNT "', '0');\n"
-	"" /* Note: 0 == FTS_TABLE_STATE_RUNNING */
-	"INSERT INTO $config_table VALUES ('"
-		FTS_TABLE_STATE "', '0');\n"
-	"END;\n";
-
 /** FTS tokenize parmameter for plugin parser */
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
@@ -280,6 +262,54 @@ fts_cache_destroy(fts_cache_t* cache)
 	mem_heap_free(cache->cache_heap);
 }
 
+/** Get the table id.
+@param fts_table FTS Auxiliary table
+@param table_id table id must be FTS_AUX_MIN_TABLE_ID_LENGTH bytes
+                long
+@return number of bytes written */
+int fts_get_table_id(const fts_table_t *fts_table, char *table_id)
+{
+  int len;
+  ut_a(fts_table->table != NULL);
+  switch (fts_table->type) {
+  case FTS_COMMON_TABLE:
+    len = fts_write_object_id(fts_table->table_id, table_id);
+    break;
+  case FTS_INDEX_TABLE:
+    len = fts_write_object_id(fts_table->table_id, table_id);
+    table_id[len] = '_';
+    ++len;
+    table_id += len;
+    len += fts_write_object_id(fts_table->index_id, table_id);
+    break;
+  default: ut_error;
+  }
+  ut_a(len >= 16);
+  ut_a(len < FTS_AUX_MIN_TABLE_ID_LENGTH);
+  return len;
+}
+
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[out]	table_name	a name up to MAX_FULL_NAME_LEN
+@param[in]	dict_locked	whether dict_sys.latch is being held */
+void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
+			bool dict_locked)
+{
+  if (!dict_locked) dict_sys.freeze(SRW_LOCK_CALL);
+  ut_ad(dict_sys.frozen());
+  /* Include the separator as well. */
+  const size_t dbname_len = fts_table->table->name.dblen() + 1;
+  ut_ad(dbname_len > 1);
+  memcpy(table_name, fts_table->table->name.m_name, dbname_len);
+  if (!dict_locked) dict_sys.unfreeze();
+  memcpy(table_name += dbname_len, "FTS_", 4);
+  table_name += 4;
+  table_name += fts_get_table_id(fts_table, table_name);
+  *table_name++ = '_';
+  strcpy(table_name, fts_table->suffix);
+}
+
 /** Get a character set based on precise type.
 @param prtype precise type
 @return the corresponding character set */
@@ -360,87 +390,67 @@ fts_load_default_stopword(
 	stopword_info->status = STOPWORD_FROM_DEFAULT;
 }
 
-/****************************************************************//**
-Callback function to read a single stopword value.
-@return Always return TRUE */
+/** Callback function to read a single stopword value. */
 static
-ibool
-fts_read_stopword(
-/*==============*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: pointer to ib_vector_t */
+bool fts_read_stopword(dict_index_t *index, const rec_t *rec,
+                       const rec_offs *offsets, void *user_arg)
 {
-	ib_alloc_t*	allocator;
-	fts_stopword_t*	stopword_info;
-	sel_node_t*	sel_node;
-	que_node_t*	exp;
-	ib_rbt_t*	stop_words;
-	dfield_t*	dfield;
-	fts_string_t	str;
-	mem_heap_t*	heap;
-	ib_rbt_bound_t	parent;
-	dict_table_t*	table;
+  ut_ad(dict_index_is_clust(index));
+  ib_rbt_bound_t parent;
+  fts_stopword_t *stopword_info= static_cast<fts_stopword_t*>(user_arg);
+  ib_rbt_t *stop_words= stopword_info->cached_stopword;
+  ib_alloc_t *allocator=  static_cast<ib_alloc_t*>(stopword_info->heap);
+  mem_heap_t *heap= static_cast<mem_heap_t*>(allocator->arg);
+  const byte *data= nullptr;
+  ulint len;
+  fts_string_t str;
+  bool versioning= index->table->versioned();
 
-	sel_node = static_cast<sel_node_t*>(row);
-	table = sel_node->table_list->table;
-	stopword_info = static_cast<fts_stopword_t*>(user_arg);
+  for (uint32_t i= 0; i < index->n_fields; i++)
+  {
+    dict_field_t *f= &index->fields[i];
+    if (!strcmp(f->name(), "value"))
+    {
+      data= rec_get_nth_field(rec, offsets, i, &len);
+      str.f_n_char= 0;
+      str.f_str= const_cast<byte*>(data);
+      str.f_len= len;
+    }
 
-	stop_words = stopword_info->cached_stopword;
-	allocator =  static_cast<ib_alloc_t*>(stopword_info->heap);
-	heap = static_cast<mem_heap_t*>(allocator->arg);
+    if (versioning && !strcmp(f->name(), "row_end"))
+    {
+      data= rec_get_nth_field(rec, offsets, i, &len);
+      if (index->table->versioned_by_id())
+      {
+        ut_ad(len == sizeof trx_id_max_bytes);
+        if (0 != memcmp(data, trx_id_max_bytes, len)) return true;
+      }
+      else
+      {
+        ut_ad(len == sizeof timestamp_max_bytes);
+        if (!IS_MAX_TIMESTAMP(data)) return true;
+      }
+    }
+  }
 
-	exp = sel_node->select_list;
+  /* Only create new node if it is a value not already existed */
+  if (str.f_len != UNIV_SQL_NULL &&
+      rbt_search(stop_words, &parent, &str) != 0)
+  {
+    fts_tokenizer_word_t new_word;
+    new_word.nodes = ib_vector_create(allocator, sizeof(fts_node_t), 4);
+    new_word.text.f_str = static_cast<byte*>(
+      mem_heap_alloc(heap, str.f_len + 1));
 
-	/* We only need to read the first column */
-	dfield = que_node_get_val(exp);
+    memcpy(new_word.text.f_str, str.f_str, str.f_len);
 
-	str.f_n_char = 0;
-	str.f_str = static_cast<byte*>(dfield_get_data(dfield));
-	str.f_len = dfield_get_len(dfield);
-	exp = que_node_get_next(exp);
-	ut_ad(exp);
+    new_word.text.f_n_char = 0;
+    new_word.text.f_len = str.f_len;
+    new_word.text.f_str[str.f_len] = 0;
+    rbt_insert(stop_words, &new_word, &new_word);
+  }
 
-	if (table->versioned()) {
-		dfield = que_node_get_val(exp);
-		ut_ad(dfield_get_type(dfield)->vers_sys_end());
-		void* data = dfield_get_data(dfield);
-		ulint len = dfield_get_len(dfield);
-		if (table->versioned_by_id()) {
-			ut_ad(len == sizeof trx_id_max_bytes);
-			if (0 != memcmp(data, trx_id_max_bytes, len)) {
-				return true;
-			}
-		} else {
-			ut_ad(len == sizeof timestamp_max_bytes);
-			if (!IS_MAX_TIMESTAMP(data)) {
-				return true;
-			}
-		}
-	}
-	ut_ad(!que_node_get_next(exp));
-
-	/* Only create new node if it is a value not already existed */
-	if (str.f_len != UNIV_SQL_NULL
-	    && rbt_search(stop_words, &parent, &str) != 0) {
-
-		fts_tokenizer_word_t	new_word;
-
-		new_word.nodes = ib_vector_create(
-			allocator, sizeof(fts_node_t), 4);
-
-		new_word.text.f_str = static_cast<byte*>(
-			 mem_heap_alloc(heap, str.f_len + 1));
-
-		memcpy(new_word.text.f_str, str.f_str, str.f_len);
-
-		new_word.text.f_n_char = 0;
-		new_word.text.f_len = str.f_len;
-		new_word.text.f_str[str.f_len] = 0;
-
-		rbt_insert(stop_words, &new_word, &new_word);
-	}
-
-	return(TRUE);
+  return true;
 }
 
 /******************************************************************//**
@@ -485,61 +495,36 @@ cleanup:
 
 	}
 
-	pars_info_t* info = pars_info_create();
+	FTSQueryRunner sqlRunner(trx);
+	dberr_t err= DB_SUCCESS;
+	dict_table_t *table= dict_table_open_on_name(stopword_table_name, true,
+						     DICT_ERR_IGNORE_NONE);
+	if (table) {
+		err = sqlRunner.prepare_for_read(table);
 
-	pars_info_bind_id(info, "table_stopword", stopword_table_name);
-	pars_info_bind_id(info, "row_end", row_end);
+		if (err == DB_SUCCESS) {
+			dict_index_t *index = dict_table_get_first_index(table);
+			ut_d(sqlRunner.is_stopword_table= true;);
+			err= sqlRunner.record_executor(
+				index, READ, MATCH_ALL, PAGE_CUR_GE,
+				&fts_read_stopword, stopword_info);
+			if (err == DB_END_OF_INDEX) err= DB_SUCCESS;
+		}
 
-	pars_info_bind_function(info, "my_func", fts_read_stopword,
-				stopword_info);
-
-	que_t* graph = pars_sql(
-		info,
-		"PROCEDURE P() IS\n"
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS"
-		" SELECT value, $row_end"
-		" FROM $table_stopword;\n"
-		"BEGIN\n"
-		"\n"
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;"
-		"END;\n");
-
-	for (;;) {
-		dberr_t error = fts_eval_sql(trx, graph);
-
-		if (UNIV_LIKELY(error == DB_SUCCESS)) {
+		if (err == DB_SUCCESS) {
 			fts_sql_commit(trx);
-			stopword_info->status = STOPWORD_USER_TABLE;
-			break;
-		} else {
-			fts_sql_rollback(trx);
-
-			if (error == DB_LOCK_WAIT_TIMEOUT) {
-				ib::warn() << "Lock wait timeout reading user"
-					" stopword table. Retrying!";
-
-				trx->error_state = DB_SUCCESS;
-			} else {
-				ib::error() << "Error '" << error
-					<< "' while reading user stopword"
-					" table.";
-				ret = FALSE;
-				break;
-			}
+			ret = true;
 		}
 	}
 
-	que_graph_free(graph);
+	if (err) {
+		ib::error() << "Error '" << err << "' while reading user "
+			    << "stopword table.";
+		trx->rollback();
+	}
+
+	if (table) table->release();
 	trx->free();
-	ret = true;
 	goto cleanup;
 }
 
@@ -552,8 +537,6 @@ fts_index_cache_init(
 	ib_alloc_t*		allocator,	/*!< in: the allocator to use */
 	fts_index_cache_t*	index_cache)	/*!< in: index cache */
 {
-	ulint			i;
-
 	ut_a(index_cache->words == NULL);
 
 	index_cache->words = rbt_create_arg_cmp(
@@ -564,11 +547,6 @@ fts_index_cache_init(
 
 	index_cache->doc_stats = ib_vector_create(
 		allocator, sizeof(fts_doc_stats_t), 4);
-
-	for (i = 0; i < FTS_NUM_AUX_INDEX; ++i) {
-		ut_a(index_cache->ins_graph[i] == NULL);
-		ut_a(index_cache->sel_graph[i] == NULL);
-	}
 }
 
 /*********************************************************************//**
@@ -937,7 +915,6 @@ fts_cache_index_cache_create(
 	dict_table_t*		table,		/*!< in: table with FTS index */
 	dict_index_t*		index)		/*!< in: FTS index */
 {
-	ulint			n_bytes;
 	fts_index_cache_t*	index_cache;
 	fts_cache_t*		cache = table->fts->cache;
 
@@ -956,16 +933,6 @@ fts_cache_index_cache_create(
 	index_cache->index = index;
 
 	index_cache->charset = fts_index_get_charset(index);
-
-	n_bytes = sizeof(que_t*) * FTS_NUM_AUX_INDEX;
-
-	index_cache->ins_graph = static_cast<que_t**>(
-		mem_heap_zalloc(static_cast<mem_heap_t*>(
-			cache->self_heap->arg), n_bytes));
-
-	index_cache->sel_graph = static_cast<que_t**>(
-		mem_heap_zalloc(static_cast<mem_heap_t*>(
-			cache->self_heap->arg), n_bytes));
 
 	fts_index_cache_init(cache->sync_heap, index_cache);
 
@@ -1020,7 +987,6 @@ fts_cache_clear(
 	ulint		i;
 
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
-		ulint			j;
 		fts_index_cache_t*	index_cache;
 
 		index_cache = static_cast<fts_index_cache_t*>(
@@ -1031,23 +997,6 @@ fts_cache_clear(
 		rbt_free(index_cache->words);
 
 		index_cache->words = NULL;
-
-		for (j = 0; j < FTS_NUM_AUX_INDEX; ++j) {
-
-			if (index_cache->ins_graph[j] != NULL) {
-
-				que_graph_free(index_cache->ins_graph[j]);
-
-				index_cache->ins_graph[j] = NULL;
-			}
-
-			if (index_cache->sel_graph[j] != NULL) {
-
-				que_graph_free(index_cache->sel_graph[j]);
-
-				index_cache->sel_graph[j] = NULL;
-			}
-		}
 
 		index_cache->doc_stats = NULL;
 	}
@@ -1901,25 +1850,24 @@ fts_create_common_tables(
 	dict_table_t*	table,
 	bool		skip_doc_id_index)
 {
-	dberr_t		error;
-	que_t*		graph;
+	dberr_t		err;
 	fts_table_t	fts_table;
-	mem_heap_t*	heap = mem_heap_create(1024);
-	pars_info_t*	info;
-	char		fts_name[MAX_FULL_NAME_LEN];
 	char		full_name[sizeof(fts_common_tables) / sizeof(char*)]
 				[MAX_FULL_NAME_LEN];
 
-	dict_index_t*					index = NULL;
+	dict_index_t*	index = NULL;
+	dict_table_t*   fts_config= nullptr;
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
-	error = fts_drop_common_tables(trx, &fts_table, true);
+	err = fts_drop_common_tables(trx, &fts_table, true);
 
-	if (error != DB_SUCCESS) {
-
-		goto func_exit;
+	if (err != DB_SUCCESS) {
+		return err;
 	}
+
+	FTSQueryRunner sqlRunner(trx);
+	mem_heap_t* heap = sqlRunner.heap();
 
 	/* Create the FTS tables that are common to an FTS index. */
 	for (ulint i = 0; fts_common_tables[i] != NULL; ++i) {
@@ -1931,38 +1879,65 @@ fts_create_common_tables(
 
 		if (!common_table) {
 			trx->error_state = DB_SUCCESS;
-			error = DB_ERROR;
+			err = DB_ERROR;
 			goto func_exit;
 		}
 
 		mem_heap_empty(heap);
 	}
 
-	/* Write the default settings to the config table. */
-	info = pars_info_create();
-
 	fts_table.suffix = "CONFIG";
-	fts_get_table_name(&fts_table, fts_name, true);
-	pars_info_bind_id(info, "config_table", fts_name);
 
-	graph = pars_sql(
-		info, fts_config_table_insert_values_sql);
+	fts_config= sqlRunner.open_table(&fts_table, &err, true);
+	if (fts_config == nullptr)
+          goto func_exit;
 
-	error = fts_eval_sql(trx, graph);
 
-	que_graph_free(graph);
+	err = sqlRunner.prepare_for_write(fts_config);
+	if (err) goto func_exit;
 
-	if (error != DB_SUCCESS || skip_doc_id_index) {
+	ut_ad(UT_LIST_GET_LEN(fts_config->indexes) == 1);
+	sqlRunner.build_tuple(dict_table_get_first_index(fts_config));
 
-		goto func_exit;
-	}
+	/* Following commands are executed:
+	INSERT INTO $config_table VALUES("FTS_MAX_CACHE_SIZE_IN_MB", "256");
+	INSERT INTO $config_table VALUES("FTS_OPTIMIZE_LIMIT_IN_SECS","180");
+	INSERT INTO $config_table VALUES ("FTS_SYNCED_DOC_ID", "0");
+	INSERT INTO $config_table VALUES ("FTS_TOTAL_DELETED_COUNT","0");
+	Note: 0 == FTS_TABLE_STATE_RUNNING
+	INSERT INTO $config_table VALUES ("FTS_TABLE_STATE","0"); */
+	sqlRunner.assign_config_fields(FTS_MAX_CACHE_SIZE_IN_MB, "256", 3);
+	err = sqlRunner.write_record(fts_config);
+
+	if (err) goto func_exit;
+
+	sqlRunner.assign_config_fields(FTS_OPTIMIZE_LIMIT_IN_SECS, "180", 3);
+	err = sqlRunner.write_record(fts_config);
+
+	if (err) goto func_exit;
+
+	sqlRunner.assign_config_fields(FTS_SYNCED_DOC_ID, "0", 1);
+	err = sqlRunner.write_record(fts_config);
+
+	if (err) goto func_exit;
+
+	sqlRunner.assign_config_fields(FTS_TOTAL_DELETED_COUNT, "0", 1);
+	err = sqlRunner.write_record(fts_config);
+
+	if (err) goto func_exit;
+
+	sqlRunner.assign_config_fields(FTS_TABLE_STATE, "0", 1);
+	err = sqlRunner.write_record(fts_config);
+
+	if (err || skip_doc_id_index) goto func_exit;
 
 	if (table->versioned()) {
 		index = dict_mem_index_create(table,
 					      FTS_DOC_ID_INDEX.str,
 					      DICT_UNIQUE, 2);
 		dict_mem_index_add_field(index, FTS_DOC_ID.str, 0);
-		dict_mem_index_add_field(index, table->cols[table->vers_end].name(*table).str, 0);
+		dict_mem_index_add_field(
+		  index, table->cols[table->vers_end].name(*table).str, 0);
 	} else {
 		index = dict_mem_index_create(table,
 					      FTS_DOC_ID_INDEX.str,
@@ -1970,14 +1945,12 @@ fts_create_common_tables(
 		dict_mem_index_add_field(index, FTS_DOC_ID.str, 0);
 	}
 
-	error =	row_create_index_for_mysql(index, trx, NULL,
-					   FIL_ENCRYPTION_DEFAULT,
-					   FIL_DEFAULT_ENCRYPTION_KEY);
-
+	err = row_create_index_for_mysql(index, trx, NULL,
+	                                 FIL_ENCRYPTION_DEFAULT,
+					 FIL_DEFAULT_ENCRYPTION_KEY);
 func_exit:
-	mem_heap_free(heap);
-
-	return(error);
+	if (fts_config) fts_config->release();
+	return err;
 }
 
 /** Create one FTS auxiliary index table for an FTS index.
@@ -2442,37 +2415,30 @@ fts_trx_add_op(
 	fts_trx_table_add_op(stmt_ftt, doc_id, state, fts_indexes);
 }
 
-/******************************************************************//**
-Fetch callback that converts a textual document id to a binary value and
+/** Fetch callback that converts a textual document id to a binary value and
 stores it in the given place.
 @return always returns NULL */
-static
-ibool
-fts_fetch_store_doc_id(
-/*===================*/
-	void*		row,			/*!< in: sel_node_t* */
-	void*		user_arg)		/*!< in: doc_id_t* to store
-						doc_id in */
+static bool fts_fetch_store_doc_id(dict_index_t *index, const rec_t *rec,
+                                   const rec_offs *offsets, void *user_arg)
 {
-	int		n_parsed;
-	sel_node_t*	node = static_cast<sel_node_t*>(row);
-	doc_id_t*	doc_id = static_cast<doc_id_t*>(user_arg);
-	dfield_t*	dfield = que_node_get_val(node->select_list);
-	dtype_t*	type = dfield_get_type(dfield);
-	ulint		len = dfield_get_len(dfield);
+  ut_ad(dict_index_is_clust(index));
+  doc_id_t *doc_id= static_cast<doc_id_t*>(user_arg);
 
-	char		buf[32];
+  for (uint32_t i= 0; i < index->n_fields; i++)
+  {
+    if (strcmp(index->fields[i].name, "value") != 0)
+      continue;
 
-	ut_a(dtype_get_mtype(type) == DATA_VARCHAR);
-	ut_a(len > 0 && len < sizeof(buf));
+    ulint len;
+    const byte *data= rec_get_nth_field(rec, offsets, i, &len);
+    ut_ad(len != 8);
+    char buf[32];
+    memcpy(buf, data, len);
+    buf[len]= '\0';
 
-	memcpy(buf, dfield_get_data(dfield), len);
-	buf[len] = '\0';
-
-	n_parsed = sscanf(buf, FTS_DOC_ID_FORMAT, doc_id);
-	ut_a(n_parsed == 1);
-
-	return(FALSE);
+    return sscanf(buf, FTS_DOC_ID_FORMAT, doc_id) == 1;
+  }
+  return false;
 }
 
 #ifdef FTS_CACHE_SIZE_DEBUG
@@ -2586,9 +2552,7 @@ dberr_t fts_read_synced_doc_id(const dict_table_t *table,
                                doc_id_t *doc_id,
                                trx_t *trx)
 {
-  dberr_t error;
-  char    table_name[MAX_FULL_NAME_LEN];
-
+  dberr_t err= DB_SUCCESS;
   fts_table_t fts_table;
   fts_table.suffix= "CONFIG";
   fts_table.table_id= table->id;
@@ -2597,33 +2561,28 @@ dberr_t fts_read_synced_doc_id(const dict_table_t *table,
   ut_a(table->fts->doc_col != ULINT_UNDEFINED);
 
   trx->op_info = "update the next FTS document id";
-  pars_info_t *info= pars_info_create();
-  pars_info_bind_function(info, "my_func", fts_fetch_store_doc_id,
-                          doc_id);
+  FTSQueryRunner sqlRunner(trx);
 
-  fts_get_table_name(&fts_table, table_name);
-  pars_info_bind_id(info, "config_table", table_name);
-
-  que_t *graph= fts_parse_sql(
-           &fts_table, info,
-           "DECLARE FUNCTION my_func;\n"
-           "DECLARE CURSOR c IS SELECT value FROM $config_table"
-           " WHERE key = 'synced_doc_id' FOR UPDATE;\n"
-           "BEGIN\n"
-           ""
-           "OPEN c;\n"
-           "WHILE 1 = 1 LOOP\n"
-           "  FETCH c INTO my_func();\n"
-           "  IF c % NOTFOUND THEN\n"
-           "    EXIT;\n"
-           "  END IF;\n"
-           "END LOOP;\n"
-           "CLOSE c;");
-
-  *doc_id= 0;
-  error = fts_eval_sql(trx, graph);
-  que_graph_free(graph);
-  return error;
+  dict_table_t *fts_config= sqlRunner.open_table(&fts_table, &err);
+  if (fts_config)
+  {
+    err= sqlRunner.prepare_for_write(fts_config);
+    if (err == DB_SUCCESS)
+    {
+      ut_ad(UT_LIST_GET_LEN(fts_config->indexes) == 1);
+      dict_index_t *clust_index= dict_table_get_first_index(fts_config);
+      sqlRunner.build_tuple(clust_index, 1, 1);
+      sqlRunner.assign_config_fields("synced_doc_id");
+      err= sqlRunner.record_executor(clust_index, SELECT_UPDATE,
+                                     MATCH_UNIQUE, PAGE_CUR_GE,
+                                     &fts_fetch_store_doc_id,
+                                     doc_id);
+      if (err == DB_END_OF_INDEX || err == DB_RECORD_NOT_FOUND)
+        err= DB_SUCCESS;
+    }
+    fts_config->release();
+  }
+  return err;
 }
 
 /** This function fetch the Doc ID from CONFIG table, and compare with
@@ -2714,75 +2673,102 @@ transaction to update the last document id.
 @param  doc_id  last document id
 @param  trx     update trx or null
 @retval DB_SUCCESS if OK */
-dberr_t
-fts_update_sync_doc_id(
-	const dict_table_t*	table,
-	doc_id_t		doc_id,
-	trx_t*			trx)
+dberr_t fts_update_sync_doc_id(const dict_table_t *table, doc_id_t doc_id,
+                               trx_t *trx)
 {
-	byte		id[FTS_MAX_ID_LEN];
-	pars_info_t*	info;
-	fts_table_t	fts_table;
-	ulint		id_len;
-	que_t*		graph = NULL;
-	dberr_t		error;
-	ibool		local_trx = FALSE;
-	fts_cache_t*	cache = table->fts->cache;
-	char		fts_name[MAX_FULL_NAME_LEN];
+  fts_table_t fts_table;
+  dberr_t err= DB_SUCCESS;
+  bool local_trx= false;
+  fts_cache_t *cache = table->fts->cache;
 
-	if (srv_read_only_mode) {
-		return DB_READ_ONLY;
-	}
+  if (srv_read_only_mode) return DB_READ_ONLY;
 
-	fts_table.suffix = "CONFIG";
-	fts_table.table_id = table->id;
-	fts_table.type = FTS_COMMON_TABLE;
-	fts_table.table = table;
+  fts_table.suffix = "CONFIG";
+  fts_table.table_id = table->id;
+  fts_table.type = FTS_COMMON_TABLE;
+  fts_table.table = table;
 
-	if (!trx) {
-		trx = trx_create();
-		trx_start_internal(trx);
+  if (!trx)
+  {
+    trx= trx_create();
+    trx_start_internal(trx);
+    trx->op_info= "setting last FTS document id";
+    local_trx= true;
+  }
 
-		trx->op_info = "setting last FTS document id";
-		local_trx = TRUE;
-	}
+  FTSQueryRunner sqlRunner(trx);
+  dict_table_t *fts_config= sqlRunner.open_table(&fts_table, &err);
+  if (fts_config)
+  {
+    err= sqlRunner.prepare_for_write(fts_config);
+    if (err == DB_SUCCESS)
+    {
+      ut_ad(UT_LIST_GET_LEN(fts_config->indexes) == 1);
+      dict_index_t *clust_index= dict_table_get_first_index(fts_config);
+      sqlRunner.build_tuple(clust_index, 1, 1);
+      sqlRunner.assign_config_fields("synced_doc_id");
+      fts_string_t old_value;
+      fts_string_t new_value;
 
-	info = pars_info_create();
+      old_value.f_len= FTS_MAX_ID_LEN;
+      old_value.f_str=
+        static_cast<byte*>(ut_malloc_nokey(old_value.f_len + 1));
 
-	id_len = (ulint) snprintf(
-		(char*) id, sizeof(id), FTS_DOC_ID_FORMAT, doc_id + 1);
+      err= sqlRunner.record_executor(clust_index, SELECT_UPDATE, MATCH_UNIQUE,
+                                     PAGE_CUR_GE, &read_fts_config, &old_value);
 
-	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
+      ut_a(err != DB_END_OF_INDEX || err != DB_RECORD_NOT_FOUND);
 
-	fts_get_table_name(&fts_table, fts_name,
-			   table->fts->dict_locked);
-	pars_info_bind_id(info, "table_name", fts_name);
+      if (err != DB_SUCCESS)
+      {
+        ut_free(old_value.f_str);
+        goto func_exit;
+      }
 
-	graph = fts_parse_sql(
-		&fts_table, info,
-		"BEGIN"
-		" UPDATE $table_name SET value = :doc_id"
-		" WHERE key = 'synced_doc_id';");
+      /* Construct new value for the record to be updated */
+      byte id[FTS_MAX_ID_LEN];
+      ulint new_len= (ulint) snprintf((char*) id, sizeof(id),
+                                      FTS_DOC_ID_FORMAT, doc_id + 1);
 
-	error = fts_eval_sql(trx, graph);
+      new_value.f_len= new_len;
+      new_value.f_str=
+        static_cast<byte*>(ut_malloc_nokey(new_value.f_len + 1));
+      memcpy(new_value.f_str, id, new_len);
+      new_value.f_str[new_len]='\0';
 
-	que_graph_free(graph);
+      /* Update only if there is a change in new value */
+      if (old_value.f_len != new_value.f_len ||
+           memcmp(old_value.f_str, new_value.f_str, new_value.f_len) != 0)
+      {
+        sqlRunner.build_update_config(fts_config, 3, &new_value);
+        err= sqlRunner.update_record(fts_config,
+                                     static_cast<uint16_t>(old_value.f_len),
+                                     static_cast<uint16_t>(new_len));
+      }
+      ut_free(new_value.f_str);
+      ut_free(old_value.f_str);
+    }
+  }
 
-	if (local_trx) {
-		if (UNIV_LIKELY(error == DB_SUCCESS)) {
-			fts_sql_commit(trx);
-			cache->synced_doc_id = doc_id;
-		} else {
-			ib::error() << "(" << error << ") while"
-				" updating last doc id for table"
-				<< table->name;
+func_exit:
+  if (local_trx)
+  {
+    if (UNIV_LIKELY(err == DB_SUCCESS))
+    {
+      fts_sql_commit(trx);
+      cache->synced_doc_id = doc_id;
+    }
+    else
+    {
+      ib::error() << "(" << err << ") while updating last doc id for table"
+                  << table->name;
+      fts_sql_rollback(trx);
+    }
+    trx->free();
+  }
 
-			fts_sql_rollback(trx);
-		}
-		trx->free();
-	}
-
-	return(error);
+  if (fts_config) fts_config->release();
+  return err;
 }
 
 /*********************************************************************//**
@@ -2841,13 +2827,11 @@ fts_delete(
 	fts_trx_table_t*ftt,			/*!< in: FTS trx table */
 	fts_trx_row_t*	row)			/*!< in: row */
 {
-	que_t*		graph;
 	fts_table_t	fts_table;
 	doc_id_t	write_doc_id;
 	dict_table_t*	table = ftt->table;
 	doc_id_t	doc_id = row->doc_id;
 	trx_t*		trx = ftt->fts_trx->trx;
-	pars_info_t*	info = pars_info_create();
 	fts_cache_t*	cache = table->fts->cache;
 
 	/* we do not index Documents whose Doc ID value is 0 */
@@ -2862,7 +2846,6 @@ fts_delete(
 
 	/* Convert to "storage" byte order. */
 	fts_write_doc_id((byte*) &write_doc_id, doc_id);
-	fts_bind_doc_id(info, "doc_id", &write_doc_id);
 
 	/* It is possible we update a record that has not yet been sync-ed
 	into cache from last crash (delete Doc will not initialize the
@@ -2887,25 +2870,28 @@ fts_delete(
 		ut_a(row->state == FTS_DELETE || row->state == FTS_MODIFY);
 	}
 
-	/* Note the deleted document for OPTIMIZE to purge. */
-	char	table_name[MAX_FULL_NAME_LEN];
-
 	trx->op_info = "adding doc id to FTS DELETED";
-
 	fts_table.suffix = "DELETED";
 
-	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, "deleted", table_name);
+	dberr_t err= DB_SUCCESS;
+	FTSQueryRunner sqlRunner(trx);
+	dict_table_t *fts_deleted= sqlRunner.open_table(&fts_table, &err);
 
-	graph = fts_parse_sql(&fts_table, info,
-			      "BEGIN INSERT INTO $deleted VALUES (:doc_id);");
+	if (fts_deleted == nullptr) goto func_exit;
 
-	dberr_t error = fts_eval_sql(trx, graph);
-	que_graph_free(graph);
+	err = sqlRunner.prepare_for_write(fts_deleted);
+	if (err) {
+		goto func_exit;
+	}
 
-	/* Increment the total deleted count, this is used to calculate the
-	number of documents indexed. */
-	if (error == DB_SUCCESS) {
+	ut_ad(UT_LIST_GET_LEN(fts_deleted->indexes) == 1);
+	sqlRunner.build_tuple(dict_table_get_first_index(fts_deleted));
+	sqlRunner.assign_common_table_fields(&write_doc_id);
+	/* INSERT INTO FTS_DELETED VALUES(:DOC_ID)  */
+	err = sqlRunner.write_record(fts_deleted);
+	if (err == DB_SUCCESS) {
+		/* Increment the total deleted count, this is used to
+		calculate the number of documents indexed. */
 		mysql_mutex_lock(&table->fts->cache->deleted_lock);
 
 		++table->fts->cache->deleted;
@@ -2913,7 +2899,11 @@ fts_delete(
 		mysql_mutex_unlock(&table->fts->cache->deleted_lock);
 	}
 
-	return(error);
+func_exit:
+	if (fts_deleted) {
+		fts_deleted->release();
+	}
+	return err;
 }
 
 /*********************************************************************//**
@@ -3068,91 +3058,56 @@ fts_doc_free(
 	mem_heap_free(heap);
 }
 
-/*********************************************************************//**
-Callback function for fetch that stores the text of an FTS document,
+/** Callback function for fetch that stores the text of an FTS document,
 converting each column to UTF-16.
-@return always FALSE */
-ibool
-fts_query_expansion_fetch_doc(
-/*==========================*/
-	void*		row,			/*!< in: sel_node_t* */
-	void*		user_arg)		/*!< in: fts_doc_t* */
+@param index    clustered index
+@param rec      clustered index record
+@param offsets  offsets for the record
+@param user_arg points to fts_fetch_doc_id since it has field information
+                to fetch and user_arg which points to fts_doc_t
+@return always true */
+bool fts_query_expansion_fetch_doc(dict_index_t *index, const rec_t *rec,
+                                   const rec_offs *offsets, void *user_arg)
 {
-	que_node_t*	exp;
-	sel_node_t*	node = static_cast<sel_node_t*>(row);
-	fts_doc_t*	result_doc = static_cast<fts_doc_t*>(user_arg);
-	dfield_t*	dfield;
-	ulint		len;
-	ulint		doc_len;
-	fts_doc_t	doc;
-	CHARSET_INFO*	doc_charset = NULL;
-	ulint		field_no = 0;
+  ut_ad(dict_index_is_clust(index));
+  fts_fetch_doc_id *fetch= static_cast<fts_fetch_doc_id*>(user_arg);
+  fts_doc_t *result_doc= static_cast<fts_doc_t*>(fetch->user_arg);
+  ulint	doc_len= 0;
+  fts_doc_t doc;
+  CHARSET_INFO *doc_charset = NULL;
 
-	len = 0;
+  fts_doc_init(&doc);
+  doc.found= TRUE;
+  doc_charset= result_doc->charset;
 
-	fts_doc_init(&doc);
-	doc.found = TRUE;
+  bool start_doc= true;
+  for (uint32_t i= 0; i < fetch->field_to_fetch.size(); i++)
+  {
+    ulint field_no= fetch->field_to_fetch[i];
+    if (!doc_charset)
+      doc_charset = fts_get_charset(index->fields[field_no].col->prtype);
+    doc.charset = doc_charset;
 
-	exp = node->select_list;
-	doc_len = 0;
+    /* We ignore columns that are stored externally, this
+    could result in too many words to search */
+    if (rec_offs_nth_extern(offsets, field_no)) continue;
+    else
+      doc.text.f_str = (byte*) rec_get_nth_field(rec, offsets, field_no,
+                                                 &doc.text.f_len);
+    if (start_doc)
+    {
+      fts_tokenize_document(&doc, result_doc, result_doc->parser);
+      start_doc= false;
+    }
+    else fts_tokenize_document_next(&doc, ++doc_len, result_doc,
+                                    result_doc->parser);
+    doc_len+= doc.text.f_len;
+  }
 
-	doc_charset  = result_doc->charset;
-
-	/* Copy each indexed column content into doc->text.f_str */
-	while (exp) {
-		dfield = que_node_get_val(exp);
-		len = dfield_get_len(dfield);
-
-		/* NULL column */
-		if (len == UNIV_SQL_NULL) {
-			exp = que_node_get_next(exp);
-			continue;
-		}
-
-		if (!doc_charset) {
-			doc_charset = fts_get_charset(dfield->type.prtype);
-		}
-
-		doc.charset = doc_charset;
-
-		if (dfield_is_ext(dfield)) {
-			/* We ignore columns that are stored externally, this
-			could result in too many words to search */
-			exp = que_node_get_next(exp);
-			continue;
-		} else {
-			doc.text.f_n_char = 0;
-
-			doc.text.f_str = static_cast<byte*>(
-				dfield_get_data(dfield));
-
-			doc.text.f_len = len;
-		}
-
-		if (field_no == 0) {
-			fts_tokenize_document(&doc, result_doc,
-					      result_doc->parser);
-		} else {
-			fts_tokenize_document_next(&doc, doc_len, result_doc,
-						   result_doc->parser);
-		}
-
-		exp = que_node_get_next(exp);
-
-		doc_len += (exp) ? len + 1 : len;
-
-		field_no++;
-	}
-
-	ut_ad(doc_charset);
-
-	if (!result_doc->charset) {
-		result_doc->charset = doc_charset;
-	}
-
-	fts_doc_free(&doc);
-
-	return(FALSE);
+  ut_ad(doc_charset);
+  if (!result_doc->charset) result_doc->charset = doc_charset;
+  fts_doc_free(&doc);
+  return true;
 }
 
 /*********************************************************************//**
@@ -3591,28 +3546,6 @@ func_exit:
 	mem_heap_free(heap);
 }
 
-
-/*********************************************************************//**
-Callback function to read a single ulint column.
-return always returns TRUE */
-static
-ibool
-fts_read_ulint(
-/*===========*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: pointer to ulint */
-{
-	sel_node_t*	sel_node = static_cast<sel_node_t*>(row);
-	ulint*		value = static_cast<ulint*>(user_arg);
-	que_node_t*	exp = sel_node->select_list;
-	dfield_t*	dfield = que_node_get_val(exp);
-	void*		data = dfield_get_data(dfield);
-
-	*value = mach_read_from_4(static_cast<const byte*>(data));
-
-	return(TRUE);
-}
-
 /*********************************************************************//**
 Get maximum Doc ID in a table if index "FTS_DOC_ID_INDEX" exists
 @return max Doc ID or 0 if index "FTS_DOC_ID_INDEX" does not exist */
@@ -3689,200 +3622,122 @@ func_exit:
 	return(doc_id);
 }
 
-/*********************************************************************//**
-Fetch document with the given document id.
+/** Fetch document with the given document id.
+@param get_doc      state
+@param doc_id       document id to fetch
+@param index_to_use index to be used for fetching fts information
+@param option       search option, if it is greater than doc_id or equal
+@param callback     callback function after fetching the fulltext indexed
+                    column
+@param arg          callback argument
 @return DB_SUCCESS if OK else error */
-dberr_t
-fts_doc_fetch_by_doc_id(
-/*====================*/
-	fts_get_doc_t*	get_doc,	/*!< in: state */
-	doc_id_t	doc_id,		/*!< in: id of document to
-					fetch */
-	dict_index_t*	index_to_use,	/*!< in: caller supplied FTS index,
-					or NULL */
-	ulint		option,		/*!< in: search option, if it is
-					greater than doc_id or equal */
-	fts_sql_callback
-			callback,	/*!< in: callback to read */
-	void*		arg)		/*!< in: callback arg */
+dberr_t fts_doc_fetch_by_doc_id(fts_get_doc_t *get_doc, doc_id_t doc_id,
+                                dict_index_t *index_to_use, ulint option,
+                                fts_sql_callback *callback, void *arg)
 {
-	pars_info_t*	info;
-	dberr_t		error;
-	const char*	select_str;
-	doc_id_t	write_doc_id;
-	dict_index_t*	index;
-	trx_t*		trx = trx_create();
-	que_t*          graph;
+  dberr_t  err;
+  doc_id_t write_doc_id;
+  dict_index_t *index= nullptr;
+  trx_t *trx = trx_create();
+  trx->op_info = "fetching indexed FTS document";
 
-	trx->op_info = "fetching indexed FTS document";
+  /* The FTS index can be supplied by caller directly with
+  "index_to_use", otherwise, get it from "get_doc" */
+  index = (index_to_use) ? index_to_use : get_doc->index_cache->index;
 
-	/* The FTS index can be supplied by caller directly with
-	"index_to_use", otherwise, get it from "get_doc" */
-	index = (index_to_use) ? index_to_use : get_doc->index_cache->index;
+  fts_fetch_doc_id fetch;
+  fetch.user_arg= arg;
 
-	if (get_doc && get_doc->get_document_graph) {
-		info = get_doc->get_document_graph->info;
-	} else {
-		info = pars_info_create();
-	}
+  fts_match_key match_op= MATCH_UNIQUE;
+  page_cur_mode_t mode= PAGE_CUR_GE;
+  dict_table_t *table= index->table;
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  dict_index_t *fts_idx = dict_table_get_index_on_name(table,
+                                                       FTS_DOC_ID_INDEX.str);
 
-	/* Convert to "storage" byte order. */
-	fts_write_doc_id((byte*) &write_doc_id, doc_id);
-	fts_bind_doc_id(info, "doc_id", &write_doc_id);
-	pars_info_bind_function(info, "my_func", callback, arg);
+  if (option == FTS_FETCH_DOC_BY_ID_LARGE)
+  {
+    /* Get the FTS_DOC_ID field number in clustered index record */
+    dict_col_t *col= fts_idx->fields[0].col;
+    for (uint32_t i= 0; i < clust_index->n_fields; i++)
+    {
+      if (clust_index->fields[i].col == col)
+      {
+        fetch.field_to_fetch.push_back(i);
+        break;
+      }
+    }
 
-	select_str = fts_get_select_columns_str(index, info, info->heap);
-	pars_info_bind_id(info, "table_name", index->table->name.m_name);
+    /* SELECT %s, %s FROM $table_name WHERE %s > :doc_id */
+    match_op= MATCH_ALL;
+    mode= PAGE_CUR_G;
+  }
+  else if (table->versioned())
+    /* In case of versioned table, FTS_DOC_ID_IDX can have
+    {FTS_DOC_ID, ROW_END}. So there can be multiple entries
+    for the same DOC_ID */
+    match_op= MATCH_PREFIX;
 
-	if (!get_doc || !get_doc->get_document_graph) {
-		if (option == FTS_FETCH_DOC_BY_ID_EQUAL) {
-			graph = fts_parse_sql(
-				NULL,
-				info,
-				mem_heap_printf(info->heap,
-					"DECLARE FUNCTION my_func;\n"
-					"DECLARE CURSOR c IS"
-					" SELECT %s FROM $table_name"
-					" WHERE %s = :doc_id;\n"
-					"BEGIN\n"
-					""
-					"OPEN c;\n"
-					"WHILE 1 = 1 LOOP\n"
-					"  FETCH c INTO my_func();\n"
-					"  IF c %% NOTFOUND THEN\n"
-					"    EXIT;\n"
-					"  END IF;\n"
-					"END LOOP;\n"
-					"CLOSE c;",
-					select_str,
-					FTS_DOC_ID.str));
-		} else {
-			ut_ad(option == FTS_FETCH_DOC_BY_ID_LARGE);
+  if (index == fts_idx);
+  else
+  {
+    /* Get the field number of INDEX FIELDS in clustered index record */
+    for (uint32_t i= 0; i < index->n_user_defined_cols; i++)
+    {
+      dict_col_t *col= index->fields[i].col;
+      for (uint32_t j= 0; j < clust_index->n_fields; j++)
+      {
+        if (clust_index->fields[j].col == col)
+        {
+          fetch.field_to_fetch.push_back(j);
+          break;
+        }
+      }
+    }
+  }
 
-			/* This is used for crash recovery of table with
-			hidden DOC ID or FTS indexes. We will scan the table
-			to re-processing user table rows whose DOC ID or
-			FTS indexed documents have not been sync-ed to disc
-			during recent crash.
-			In the case that all fulltext indexes are dropped
-			for a table, we will keep the "hidden" FTS_DOC_ID
-			column, and this scan is to retreive the largest
-			DOC ID being used in the table to determine the
-			appropriate next DOC ID.
-			In the case of there exists fulltext index(es), this
-			operation will re-tokenize any docs that have not
-			been sync-ed to the disk, and re-prime the FTS
-			cached */
-			graph = fts_parse_sql(
-				NULL,
-				info,
-				mem_heap_printf(info->heap,
-					"DECLARE FUNCTION my_func;\n"
-					"DECLARE CURSOR c IS"
-					" SELECT %s, %s FROM $table_name"
-					" WHERE %s > :doc_id;\n"
-					"BEGIN\n"
-					""
-					"OPEN c;\n"
-					"WHILE 1 = 1 LOOP\n"
-					"  FETCH c INTO my_func();\n"
-					"  IF c %% NOTFOUND THEN\n"
-					"    EXIT;\n"
-					"  END IF;\n"
-					"END LOOP;\n"
-					"CLOSE c;",
-					FTS_DOC_ID.str,
-					select_str,
-					FTS_DOC_ID.str));
-		}
-		if (get_doc) {
-			get_doc->get_document_graph = graph;
-		}
-	} else {
-		graph = get_doc->get_document_graph;
-	}
+  /* Convert to "storage" byte order. */
+  fts_write_doc_id((byte*) &write_doc_id, doc_id);
 
-	error = fts_eval_sql(trx, graph);
-	fts_sql_commit(trx);
-	trx->free();
-
-	if (!get_doc) {
-		que_graph_free(graph);
-	}
-
-	return(error);
+  FTSQueryRunner sqlRunner(trx);
+  sqlRunner.build_tuple(fts_idx, 1, 1);
+  err= sqlRunner.prepare_for_read(table);
+  if (err == DB_SUCCESS)
+  {
+    dtuple_t *tuple= sqlRunner.tuple();
+    dfield_set_data(&tuple->fields[0], &write_doc_id, sizeof(doc_id_t));
+    err= sqlRunner.record_executor(fts_idx, READ, match_op,
+                                   mode, callback, &fetch);
+  }
+  if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+    err= DB_SUCCESS;
+  fts_sql_commit(trx);
+  trx->free();
+  return err;
 }
 
-/*********************************************************************//**
-Write out a single word's data as new entry/entries in the INDEX table.
+/** Write out a single word's data as new entry/entries in the INDEX table.
+@param word word in UTF-8
+@param node node columns
+@param sqlRunner Runs the query in FTS SYSTEM TABLES
 @return DB_SUCCESS if all OK. */
 dberr_t
-fts_write_node(
-/*===========*/
-	trx_t*		trx,			/*!< in: transaction */
-	que_t**		graph,			/*!< in: query graph */
-	fts_table_t*	fts_table,		/*!< in: aux table */
-	fts_string_t*	word,			/*!< in: word in UTF-8 */
-	fts_node_t*	node)			/*!< in: node columns */
+fts_write_node(dict_table_t *table,
+               fts_string_t *word, fts_node_t* node,
+               FTSQueryRunner *sqlRunner)
 {
-	pars_info_t*	info;
-	dberr_t		error;
-	ib_uint32_t	doc_count;
-	time_t		start_time;
-	doc_id_t	last_doc_id;
-	doc_id_t	first_doc_id;
-	char		table_name[MAX_FULL_NAME_LEN];
-
-	ut_a(node->ilist != NULL);
-
-	if (*graph) {
-		info = (*graph)->info;
-	} else {
-		info = pars_info_create();
-
-		fts_get_table_name(fts_table, table_name);
-		pars_info_bind_id(info, "index_table_name", table_name);
-	}
-
-	pars_info_bind_varchar_literal(info, "token", word->f_str, word->f_len);
-
-	/* Convert to "storage" byte order. */
-	fts_write_doc_id((byte*) &first_doc_id, node->first_doc_id);
-	fts_bind_doc_id(info, "first_doc_id", &first_doc_id);
-
-	/* Convert to "storage" byte order. */
-	fts_write_doc_id((byte*) &last_doc_id, node->last_doc_id);
-	fts_bind_doc_id(info, "last_doc_id", &last_doc_id);
-
-	ut_a(node->last_doc_id >= node->first_doc_id);
-
-	/* Convert to "storage" byte order. */
-	mach_write_to_4((byte*) &doc_count, node->doc_count);
-	pars_info_bind_int4_literal(
-		info, "doc_count", (const ib_uint32_t*) &doc_count);
-
-	/* Set copy_name to FALSE since it's a static. */
-	pars_info_bind_literal(
-		info, "ilist", node->ilist, node->ilist_size,
-		DATA_BLOB, DATA_BINARY_TYPE);
-
-	if (!*graph) {
-
-		*graph = fts_parse_sql(
-			fts_table,
-			info,
-			"BEGIN\n"
-			"INSERT INTO $index_table_name VALUES"
-			" (:token, :first_doc_id,"
-			"  :last_doc_id, :doc_count, :ilist);");
-	}
-
-	start_time = time(NULL);
-	error = fts_eval_sql(trx, *graph);
-	elapsed_time += time(NULL) - start_time;
-	++n_nodes;
-
-	return(error);
+  dberr_t err= sqlRunner->prepare_for_write(table);
+  if (err == DB_SUCCESS)
+  {
+    dict_index_t *index= dict_table_get_first_index(table);
+    sqlRunner->build_tuple(index);
+    sqlRunner->assign_aux_table_fields(word->f_str, word->f_len, node);
+    time_t start_time = time(NULL);
+    err= sqlRunner->write_record(table);
+    elapsed_time += time(NULL) - start_time;
+    ++n_nodes;
+  }
+  return err;
 }
 
 /** Sort an array of doc_id */
@@ -3892,60 +3747,42 @@ void fts_doc_ids_sort(ib_vector_t *doc_ids)
   std::sort(data, data + doc_ids->used);
 }
 
-/*********************************************************************//**
-Add rows to the DELETED_CACHE table.
+/** Add rows to the DELETED_CACHE table.
 @return DB_SUCCESS if all went well else error code*/
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_sync_add_deleted_cache(
-/*=======================*/
-	fts_sync_t*	sync,			/*!< in: sync state */
-	ib_vector_t*	doc_ids)		/*!< in: doc ids to add */
+dberr_t fts_sync_add_deleted_cache(fts_sync_t *sync, ib_vector_t *doc_ids)
 {
-	ulint		i;
-	pars_info_t*	info;
-	que_t*		graph;
-	fts_table_t	fts_table;
-	char		table_name[MAX_FULL_NAME_LEN];
-	doc_id_t	dummy = 0;
-	dberr_t		error = DB_SUCCESS;
-	ulint		n_elems = ib_vector_size(doc_ids);
+  ulint	n_elems = ib_vector_size(doc_ids);
+  ut_a(ib_vector_size(doc_ids) > 0);
+  fts_doc_ids_sort(doc_ids);
 
-	ut_a(ib_vector_size(doc_ids) > 0);
+  fts_table_t fts_table;
+  FTS_INIT_FTS_TABLE(&fts_table, "DELETED_CACHE", FTS_COMMON_TABLE,
+                     sync->table);
+  FTSQueryRunner sqlRunner(sync->trx);
+  dberr_t err= DB_SUCCESS;
+  dict_index_t *clust_index= nullptr;
+  dict_table_t *deleted_cache= sqlRunner.open_table(&fts_table, &err);
 
-	fts_doc_ids_sort(doc_ids);
+  if (deleted_cache)
+  {
+    err= sqlRunner.prepare_for_write(deleted_cache);
+    if (err) goto func_exit;
+    ut_ad(UT_LIST_GET_LEN(deleted_cache->indexes) == 1);
+    clust_index= dict_table_get_first_index(deleted_cache);
+    sqlRunner.build_tuple(clust_index);
+    for (ulint i = 0; i < n_elems && err == DB_SUCCESS; ++i)
+    {
+      doc_id_t* update= static_cast<doc_id_t*>(ib_vector_get(doc_ids, i));
+      sqlRunner.assign_common_table_fields(update);
+      /* INSERT INTO DELETED_CACHE VALUES(doc_id) */
+      err= sqlRunner.write_record(deleted_cache);
+    }
+  }
 
-	info = pars_info_create();
-
-	fts_bind_doc_id(info, "doc_id", &dummy);
-
-	FTS_INIT_FTS_TABLE(
-		&fts_table, "DELETED_CACHE", FTS_COMMON_TABLE, sync->table);
-
-	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		&fts_table,
-		info,
-		"BEGIN INSERT INTO $table_name VALUES (:doc_id);");
-
-	for (i = 0; i < n_elems && error == DB_SUCCESS; ++i) {
-		doc_id_t*	update;
-		doc_id_t	write_doc_id;
-
-		update = static_cast<doc_id_t*>(ib_vector_get(doc_ids, i));
-
-		/* Convert to "storage" byte order. */
-		fts_write_doc_id((byte*) &write_doc_id, *update);
-		fts_bind_doc_id(info, "doc_id", &write_doc_id);
-
-		error = fts_eval_sql(sync->trx, graph);
-	}
-
-	que_graph_free(graph);
-
-	return(error);
+func_exit:
+  if (deleted_cache) deleted_cache->release();
+  return err;
 }
 
 /** Write the words and ilist to disk.
@@ -3967,6 +3804,9 @@ fts_sync_write_words(
 	dberr_t		error = DB_SUCCESS;
 	ibool		print_error = FALSE;
 	dict_table_t*	table = index_cache->index->table;
+	dict_table_t*   aux_table = nullptr;
+	std::map<ulint, dict_table_t*> aux_tables;
+	FTSQueryRunner  sqlRunner(trx);
 
 	FTS_INIT_INDEX_TABLE(
 		&fts_table, NULL, FTS_INDEX_TABLE, index_cache->index);
@@ -3996,6 +3836,17 @@ fts_sync_write_words(
 
 		fts_table.suffix = fts_get_suffix(selected);
 
+		auto find_table = aux_tables.find(selected);
+		if (find_table != aux_tables.end()) {
+			aux_table = find_table->second;
+		} else {
+			fts_table.suffix = fts_get_suffix(selected);
+			aux_table= sqlRunner.open_table(&fts_table, &error);
+			if (error == DB_SUCCESS) {
+				aux_tables[selected]= aux_table;
+			}
+                }
+
 		/* We iterate over all the nodes even if there was an error */
 		for (i = 0; i < ib_vector_size(word->nodes); ++i) {
 
@@ -4014,12 +3865,9 @@ fts_sync_write_words(
 					mysql_mutex_unlock(
 						&table->fts->cache->lock);
 				}
-
 				error = fts_write_node(
-					trx,
-					&index_cache->ins_graph[selected],
-					&fts_table, &word->text, fts_node);
-
+					aux_table, &word->text, fts_node,
+					&sqlRunner);
 				DEBUG_SYNC_C("fts_write_node");
 				DBUG_EXECUTE_IF("fts_write_node_crash",
 					DBUG_SUICIDE(););
@@ -4044,6 +3892,10 @@ fts_sync_write_words(
 				<< table->name;
 			print_error = TRUE;
 		}
+	}
+
+	for (auto it : aux_tables) {
+		it.second->release();
 	}
 
 	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
@@ -4229,7 +4081,6 @@ fts_sync_rollback(
 	fts_cache_t*	cache = sync->table->fts->cache;
 
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); ++i) {
-		ulint			j;
 		fts_index_cache_t*	index_cache;
 
 		index_cache = static_cast<fts_index_cache_t*>(
@@ -4238,23 +4089,6 @@ fts_sync_rollback(
 		/* Reset synced flag so nodes will not be skipped
 		in the next sync, see fts_sync_write_words(). */
 		fts_sync_index_reset(index_cache);
-
-		for (j = 0; fts_index_selector[j].value; ++j) {
-
-			if (index_cache->ins_graph[j] != NULL) {
-
-				que_graph_free(index_cache->ins_graph[j]);
-
-				index_cache->ins_graph[j] = NULL;
-			}
-
-			if (index_cache->sel_graph[j] != NULL) {
-
-				que_graph_free(index_cache->sel_graph[j]);
-
-				index_cache->sel_graph[j] = NULL;
-			}
-		}
 	}
 
 	mysql_mutex_unlock(&cache->lock);
@@ -4801,32 +4635,6 @@ fts_get_docs_create(
 	return(get_docs);
 }
 
-/********************************************************************
-Release any resources held by the fts_get_doc_t instances. */
-static
-void
-fts_get_docs_clear(
-/*===============*/
-	ib_vector_t*	get_docs)		/*!< in: Doc retrieval vector */
-{
-	ulint		i;
-
-	/* Release the get doc graphs if any. */
-	for (i = 0; i < ib_vector_size(get_docs); ++i) {
-
-		fts_get_doc_t*	get_doc = static_cast<fts_get_doc_t*>(
-			ib_vector_get(get_docs, i));
-
-		if (get_doc->get_document_graph != NULL) {
-
-			ut_a(get_doc->index_cache);
-
-			que_graph_free(get_doc->get_document_graph);
-			get_doc->get_document_graph = NULL;
-		}
-	}
-}
-
 /*********************************************************************//**
 Get the initial Doc ID by consulting the CONFIG table
 @return initial Doc ID */
@@ -4901,79 +4709,51 @@ fts_is_index_updated(
 }
 #endif
 
-/*********************************************************************//**
-Fetch COUNT(*) from specified table.
-@return the number of rows in the table */
-ulint
-fts_get_rows_count(
-/*===============*/
-	fts_table_t*	fts_table)	/*!< in: fts table to read */
+bool fts_read_count(dict_index_t *index, const rec_t *rec,
+                    const rec_offs *offset, void *user_arg)
 {
-	trx_t*		trx;
-	pars_info_t*	info;
-	que_t*		graph;
-	dberr_t		error;
-	ulint		count = 0;
-	char		table_name[MAX_FULL_NAME_LEN];
+  ut_ad(dict_index_is_clust(index));
+  ulint* n_count= static_cast<ulint*>(user_arg);
+  (*n_count)++;
+  return true;
+}
 
-	trx = trx_create();
-	trx->op_info = "fetching FT table rows count";
+/** Fetch COUNT(*) from specified table.
+@param fts_table Fulltext table to be fetched
+@return the number of rows in the table */
+ulint fts_get_rows_count(fts_table_t *fts_table)
+{
+  trx_t *trx= trx_create();
+  trx->op_info= "fetching FT table rows count";
+  FTSQueryRunner sqlRunner(trx);
+  ulint n_count= 0;
+  dberr_t err= DB_SUCCESS;
+  dict_table_t *table= sqlRunner.open_table(fts_table, &err);
+  if (table)
+  {
+    err= sqlRunner.prepare_for_read(table);
+    if (err == DB_SUCCESS)
+    {
+      ut_ad(UT_LIST_GET_LEN(table->indexes) == 1);
+      dict_index_t *clust_index= dict_table_get_first_index(table); 
+      err= sqlRunner.record_executor(clust_index, READ, MATCH_UNIQUE,
+                                     PAGE_CUR_GE, &fts_read_count, &n_count);
+      if (err == DB_END_OF_INDEX) err= DB_SUCCESS;
+    }
+  }
 
-	info = pars_info_create();
+  if (err == DB_SUCCESS)
+    fts_sql_commit(trx);
+  else
+  {
+    fts_sql_rollback(trx);
+    ib::error() << "(" << err << ") while reading FTS table "
+                << table->name.m_name;
+  }
 
-	pars_info_bind_function(info, "my_func", fts_read_ulint, &count);
-
-	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		fts_table,
-		info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS"
-		" SELECT COUNT(*)"
-		" FROM $table_name;\n"
-		"BEGIN\n"
-		"\n"
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	for (;;) {
-		error = fts_eval_sql(trx, graph);
-
-		if (UNIV_LIKELY(error == DB_SUCCESS)) {
-			fts_sql_commit(trx);
-
-			break;				/* Exit the loop. */
-		} else {
-			fts_sql_rollback(trx);
-
-			if (error == DB_LOCK_WAIT_TIMEOUT) {
-				ib::warn() << "lock wait timeout reading"
-					" FTS table. Retrying!";
-
-				trx->error_state = DB_SUCCESS;
-			} else {
-				ib::error() << "(" << error
-					<< ") while reading FTS table "
-					<< table_name;
-
-				break;			/* Exit the loop. */
-			}
-		}
-	}
-
-	que_graph_free(graph);
-
-	trx->free();
-
-	return(count);
+  if (table) table->release();
+  trx->free();
+  return n_count;
 }
 
 #ifdef FTS_CACHE_SIZE_DEBUG
@@ -5945,168 +5725,110 @@ cleanup:
 	return error == DB_SUCCESS;
 }
 
-/**********************************************************************//**
-Callback function when we initialize the FTS at the start up
+/** Callback function when we initialize the FTS at the start up
 time. It recovers the maximum Doc IDs presented in the current table.
 Tested by innodb_fts.crash_recovery
+@param index    clustered index
+@param rec      clustered index record
+@param offsets  offsets to the clustered index record
+@param user_arg points to fts_fetch_doc_id. fetch->user_arg points
+                to dict_table_t
 @return: always returns TRUE */
 static
-ibool
-fts_init_get_doc_id(
-/*================*/
-	void*	row,			/*!< in: sel_node_t* */
-	void*	user_arg)		/*!< in: table with fts */
+bool fts_init_get_doc_id(dict_index_t *index, const rec_t *rec,
+                         const rec_offs *offsets, void *user_arg)
 {
-	doc_id_t	doc_id = FTS_NULL_DOC_ID;
-	sel_node_t*	node = static_cast<sel_node_t*>(row);
-	que_node_t*	exp = node->select_list;
-	dict_table_t*	table = static_cast<dict_table_t *>(user_arg);
-	fts_cache_t*    cache = table->fts->cache;
+  fts_fetch_doc_id *fetch= static_cast<fts_fetch_doc_id*>(user_arg);
+  dict_table_t *table= static_cast<dict_table_t *>(fetch->user_arg);
+  fts_cache_t *cache= table->fts->cache;
+  ut_ad(fetch->field_to_fetch.size() == 1);
+  ut_ad(ib_vector_is_empty(cache->get_docs));
+  ulint len;
+  const byte *data= rec_get_nth_field(rec, offsets,
+                                fetch->field_to_fetch.front(), &len);
+  doc_id_t doc_id = static_cast<doc_id_t>(mach_read_from_8(data));
 
-	ut_ad(ib_vector_is_empty(cache->get_docs));
-
-	/* Copy each indexed column content into doc->text.f_str */
-	if (exp) {
-		dfield_t*	dfield = que_node_get_val(exp);
-		dtype_t*        type = dfield_get_type(dfield);
-		void*           data = dfield_get_data(dfield);
-
-		ut_a(dtype_get_mtype(type) == DATA_INT);
-
-		doc_id = static_cast<doc_id_t>(mach_read_from_8(
-			static_cast<const byte*>(data)));
-
-		exp = que_node_get_next(que_node_get_next(exp));
-		if (exp) {
-			ut_ad(table->versioned());
-			dfield = que_node_get_val(exp);
-			type = dfield_get_type(dfield);
-			ut_ad(type->vers_sys_end());
-			data = dfield_get_data(dfield);
-			ulint len = dfield_get_len(dfield);
-			if (table->versioned_by_id()) {
-				ut_ad(len == sizeof trx_id_max_bytes);
-				if (0 != memcmp(data, trx_id_max_bytes, len)) {
-					return true;
-				}
-			} else {
-				ut_ad(len == sizeof timestamp_max_bytes);
-				if (!IS_MAX_TIMESTAMP(data)) {
-					return true;
-				}
-			}
-			ut_ad(!(exp = que_node_get_next(exp)));
-		}
-		ut_ad(!exp);
-
-		if (doc_id >= cache->next_doc_id) {
-			cache->next_doc_id = doc_id + 1;
-		}
-	}
-
-	return(TRUE);
+  if (doc_id >= cache->next_doc_id)
+    cache->next_doc_id = doc_id + 1;
+  return true;
 }
 
-/**********************************************************************//**
-Callback function when we initialize the FTS at the start up
+/** Callback function when we initialize the FTS at the start up
 time. It recovers Doc IDs that have not sync-ed to the auxiliary
 table, and require to bring them back into FTS index.
+@param   index    clustered index
+@param   rec      clustered index record
+@param   offsets  offset to clustered index record
+@param   user_arg points to fts_fetch_doc_id &
+                  fts_fetch_doc_id->user_arg points to fts_get_doc_t
 @return: always returns TRUE */
 static
-ibool
-fts_init_recover_doc(
-/*=================*/
-	void*	row,			/*!< in: sel_node_t* */
-	void*	user_arg)		/*!< in: fts cache */
+bool fts_init_recover_doc(dict_index_t *index, const rec_t *rec,
+                           const rec_offs *offsets, void *user_arg)
 {
+  ut_ad(dict_index_is_clust(index));
+  fts_fetch_doc_id *fetch= static_cast<fts_fetch_doc_id*>(user_arg);
+  fts_get_doc_t *get_doc= static_cast<fts_get_doc_t*>(fetch->user_arg);
+  ut_ad(get_doc->cache);
+  fts_cache_t *cache= get_doc->cache;
+  st_mysql_ftparser *parser= get_doc->index_cache->index->parser;
+  doc_id_t doc_id= FTS_NULL_DOC_ID;
+  ulint doc_len= 0;
 
-	fts_doc_t       doc;
-	ulint		doc_len = 0;
-	ulint		field_no = 0;
-	fts_get_doc_t*  get_doc = static_cast<fts_get_doc_t*>(user_arg);
-	doc_id_t	doc_id = FTS_NULL_DOC_ID;
-	sel_node_t*	node = static_cast<sel_node_t*>(row);
-	que_node_t*	exp = node->select_list;
-	fts_cache_t*	cache = get_doc->cache;
-	st_mysql_ftparser*	parser = get_doc->index_cache->index->parser;
+  fts_doc_t doc;
+  fts_doc_init(&doc);
+  doc.found = TRUE;
 
-	fts_doc_init(&doc);
-	doc.found = TRUE;
+  bool first_doc= true;
+  for (uint32_t i= 0; i < fetch->field_to_fetch.size(); i++)
+  {
+    ulint field_no= fetch->field_to_fetch[i];
+    if (i == 0)
+    {
+      ulint len;
+      const byte *data= rec_get_nth_field(rec, offsets, field_no, &len);
+      ut_ad(len == 8);
+      doc_id= static_cast<doc_id_t>(mach_read_from_8(
+                static_cast<const byte*>(data)));
+      continue;
+    }
 
-	ut_ad(cache);
+    if (rec_offs_nth_sql_null(offsets, field_no))
+      continue;
 
-	/* Copy each indexed column content into doc->text.f_str */
-	while (exp) {
-		dfield_t*	dfield = que_node_get_val(exp);
-		ulint		len = dfield_get_len(dfield);
+    if (!get_doc->index_cache->charset)
+      get_doc->index_cache->charset=
+        fts_get_charset(index->fields[field_no].col->prtype);
 
-		if (field_no == 0) {
-			dtype_t*        type = dfield_get_type(dfield);
-			void*           data = dfield_get_data(dfield);
+    doc.charset = get_doc->index_cache->charset;
+    if (rec_offs_nth_extern(offsets, field_no))
+      doc.text.f_str=
+        static_cast<byte*>(
+          btr_rec_copy_externally_stored_field(
+            rec, offsets, 0, field_no, &doc.text.f_len,
+            static_cast<mem_heap_t*>(doc.self_heap->arg)));
+    else
+    {
+      ulint len;
+      const byte *data= rec_get_nth_field(rec, offsets, field_no, &len);
+      doc.text.f_str= const_cast<byte*>(data);
+      doc.text.f_len= len;
+    }
+    if (first_doc)
+    {
+      fts_tokenize_document(&doc, NULL, parser);
+      first_doc= false;
+    }
+    else fts_tokenize_document_next(&doc, ++doc_len, NULL, parser);
+    doc_len+= doc.text.f_len;
+  }
 
-			ut_a(dtype_get_mtype(type) == DATA_INT);
-
-			doc_id = static_cast<doc_id_t>(mach_read_from_8(
-				static_cast<const byte*>(data)));
-
-			field_no++;
-			exp = que_node_get_next(exp);
-			continue;
-		}
-
-		if (len == UNIV_SQL_NULL) {
-			exp = que_node_get_next(exp);
-			continue;
-		}
-
-		ut_ad(get_doc);
-
-		if (!get_doc->index_cache->charset) {
-			get_doc->index_cache->charset = fts_get_charset(
-				dfield->type.prtype);
-		}
-
-		doc.charset = get_doc->index_cache->charset;
-
-		if (dfield_is_ext(dfield)) {
-			dict_table_t*	table = cache->sync->table;
-
-			doc.text.f_str = btr_copy_externally_stored_field(
-				&doc.text.f_len,
-				static_cast<byte*>(dfield_get_data(dfield)),
-				table->space->zip_size(), len,
-				static_cast<mem_heap_t*>(doc.self_heap->arg));
-		} else {
-			doc.text.f_str = static_cast<byte*>(
-				dfield_get_data(dfield));
-
-			doc.text.f_len = len;
-		}
-
-		if (field_no == 1) {
-			fts_tokenize_document(&doc, NULL, parser);
-		} else {
-			fts_tokenize_document_next(&doc, doc_len, NULL, parser);
-		}
-
-		exp = que_node_get_next(exp);
-
-		doc_len += (exp) ? len + 1 : len;
-
-		field_no++;
-	}
-
-	fts_cache_add_doc(cache, get_doc->index_cache, doc_id, doc.tokens);
-
-	fts_doc_free(&doc);
-
-	cache->added++;
-
-	if (doc_id >= cache->next_doc_id) {
-		cache->next_doc_id = doc_id + 1;
-	}
-
-	return(TRUE);
+  fts_cache_add_doc(cache, get_doc->index_cache, doc_id, doc.tokens);
+  fts_doc_free(&doc);
+  cache->added++;
+  if (doc_id >= cache->next_doc_id)
+    cache->next_doc_id = doc_id + 1;
+  return true;
 }
 
 /**********************************************************************//**
@@ -6192,8 +5914,6 @@ fts_init_index(
 
 	table->fts->added_synced = true;
 
-	fts_get_docs_clear(cache->get_docs);
-
 func_exit:
 	if (!has_cache_lock) {
 		mysql_mutex_unlock(&cache->lock);
@@ -6205,4 +5925,573 @@ func_exit:
 		fts_optimize_add_table(table);
 		dict_sys.unlock();
 	}
+}
+
+/** Callback function for fetching the config value. */
+bool read_fts_config(dict_index_t *index, const rec_t *rec,
+                     const rec_offs *offsets, void *user_arg)
+{
+  ut_ad(dict_index_is_clust(index));
+  ulint len;
+  fts_string_t *value= static_cast<fts_string_t*>(user_arg);
+  
+  for (uint32_t i= 0; i < index->n_fields; i++)
+  {
+    if (strcmp(index->fields[i].name, "value") == 0)
+    {
+      const byte *data= rec_get_nth_field(rec, offsets, i, &len);
+      if (len != UNIV_SQL_NULL)
+      {
+        ulint max_len= ut_min(value->f_len - 1, len);
+        memcpy(value->f_str, data, max_len);
+        value->f_len= max_len;
+        value->f_str[value->f_len]= '\0';
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+void FTSQueryRunner::create_query_thread() noexcept
+{
+  ut_ad(m_heap);
+  m_thr= que_thr_create(que_fork_create(m_heap), m_heap, nullptr);
+}
+
+void FTSQueryRunner::build_tuple(dict_index_t *index, uint32_t n_fields,
+                                 uint32_t n_uniq) noexcept
+{
+  if (m_tuple && m_tuple->n_fields == index->n_fields) return;
+  if (!n_fields) n_fields= index->n_fields;
+  if (!n_uniq) n_uniq= index->n_uniq;
+  m_tuple= dtuple_create(m_heap, n_fields);
+  dtuple_set_n_fields_cmp(m_tuple, n_uniq);
+  dict_index_copy_types(m_tuple, index, n_fields);
+}
+
+void FTSQueryRunner::build_clust_ref(dict_index_t *index) noexcept
+{
+  if (m_clust_ref && m_clust_ref->n_fields == index->n_fields) return;
+  m_clust_ref= dtuple_create(m_heap, index->n_uniq);
+  dtuple_set_n_fields_cmp(m_clust_ref, index->n_uniq);
+  dict_index_copy_types(m_clust_ref, index, m_clust_ref->n_fields);
+}
+
+void FTSQueryRunner::assign_config_fields(const char *name, const void* value,
+                                          ulint value_len) noexcept
+{
+  dfield_set_data(dtuple_get_nth_field(m_tuple, 0), name, strlen(name));
+
+  if (m_tuple->n_fields == 1) return;
+
+  if (m_sys_buf == nullptr)
+  {
+    m_sys_buf= static_cast<byte*>(
+      mem_heap_zalloc(m_heap, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 1),
+                    m_sys_buf, DATA_TRX_ID_LEN);
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 2),
+                    &m_sys_buf[DATA_TRX_ID_LEN], DATA_ROLL_PTR_LEN);
+  }
+  else
+  {
+    memset(dtuple_get_nth_field(m_tuple, 1)->data, 0x00, DATA_TRX_ID_LEN);
+    memset(dtuple_get_nth_field(m_tuple, 2)->data, 0x00, DATA_ROLL_PTR_LEN);
+  }
+
+  if (value)
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 3), value, value_len);
+}
+
+void FTSQueryRunner::assign_common_table_fields(doc_id_t *doc_id) noexcept
+{
+  dfield_set_data(dtuple_get_nth_field(m_tuple, 0), doc_id,
+                  sizeof(doc_id_t));
+  if (m_tuple->n_fields == 1) return;
+  if (!m_sys_buf)
+  {
+    m_sys_buf= static_cast<byte*>(
+      mem_heap_zalloc(m_heap, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 1), m_sys_buf,
+                    DATA_TRX_ID_LEN);
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 2),
+                    &m_sys_buf[DATA_TRX_ID_LEN], DATA_ROLL_PTR_LEN);
+  }
+  else
+  {
+    memset(dtuple_get_nth_field(m_tuple, 1)->data, 0x00, DATA_TRX_ID_LEN);
+    memset(dtuple_get_nth_field(m_tuple, 2)->data, 0x00, DATA_ROLL_PTR_LEN);
+  }
+}
+
+void FTSQueryRunner::assign_aux_table_fields(const byte *word,
+                                             ulint word_len,
+                                             const fts_node_t *node) noexcept
+{
+  dfield_set_data(dtuple_get_nth_field(m_tuple, 0), word, word_len);
+  if (m_tuple->n_fields == 1) return;
+  if (!m_sys_buf)
+  {
+    byte *first_doc_id= static_cast<byte*>(mem_heap_zalloc(m_heap, 8));
+    mach_write_to_8(first_doc_id, node->first_doc_id);
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 1), first_doc_id, 8);
+
+    m_sys_buf= static_cast<byte*>(
+      mem_heap_zalloc(m_heap, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 2),
+                    m_sys_buf, DATA_TRX_ID_LEN);
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 3),
+                    &m_sys_buf[DATA_TRX_ID_LEN], DATA_ROLL_PTR_LEN);
+    byte *last_doc_id= static_cast<byte*>(mem_heap_zalloc(m_heap, 8));
+    mach_write_to_8(last_doc_id, node->last_doc_id);
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 4), last_doc_id, 8);
+
+    byte *doc_count= static_cast<byte*>(mem_heap_zalloc(m_heap, 4));
+    mach_write_to_4(doc_count, node->doc_count);
+    dfield_set_data(dtuple_get_nth_field(m_tuple, 5), doc_count, 4);
+  }
+  else
+  {
+    mach_write_to_8(static_cast<byte*>(dtuple_get_nth_field(m_tuple, 1)->data),
+                    node->first_doc_id);
+    memset(dtuple_get_nth_field(m_tuple, 2)->data, 0x00, DATA_TRX_ID_LEN);
+    memset(dtuple_get_nth_field(m_tuple, 3)->data, 0x00, DATA_ROLL_PTR_LEN);
+    mach_write_to_8(static_cast<byte*>(dtuple_get_nth_field(m_tuple, 4)->data),
+                    node->last_doc_id);
+    mach_write_to_4(static_cast<byte*>(dtuple_get_nth_field(m_tuple, 5)->data),
+                    node->doc_count);
+  }
+  dfield_set_data(dtuple_get_nth_field(m_tuple, 6), node->ilist,
+                  node->ilist_size);
+}
+
+dberr_t FTSQueryRunner::handle_wait(dberr_t err, bool table_lock) noexcept
+{
+  m_trx->error_state= err;
+  m_thr->lock_state= QUE_THR_LOCK_ROW;
+  if (table_lock)
+    m_thr->lock_state= QUE_THR_LOCK_TABLE;
+  if (m_trx->lock.wait_thr)
+  {
+    if (lock_wait(m_thr) == DB_SUCCESS)
+    {
+      m_thr->lock_state= QUE_THR_LOCK_NOLOCK;
+      return DB_SUCCESS;
+    }
+  }
+  return m_trx->error_state;
+}
+
+dict_table_t *FTSQueryRunner::open_table(fts_table_t *fts_table, dberr_t *err,
+                                         bool dict_locked) noexcept
+{
+  char table_name[MAX_FULL_NAME_LEN];
+  fts_get_table_name(fts_table, table_name, dict_locked);
+  dict_table_t *table= dict_table_open_on_name(table_name, dict_locked,
+                                               DICT_ERR_IGNORE_NONE);
+  if (table == nullptr) *err= DB_TABLE_NOT_FOUND;
+  return table;
+}
+
+dberr_t FTSQueryRunner::prepare_for_write(dict_table_t *table) noexcept
+{
+  if (!m_thr) create_query_thread();
+  trx_start_if_not_started(m_trx, true);
+  m_thr->graph->trx = m_trx;
+  if (!m_trx->read_view.is_open())
+    m_trx->read_view.open(m_trx);
+  dberr_t err= DB_SUCCESS;
+lock_again:
+  err= lock_table(table, nullptr, LOCK_IX, m_thr);
+  if (err)
+  {
+    err= handle_wait(err, true);
+    if (err == DB_SUCCESS)
+      goto lock_again;
+  }
+  return err;
+}
+
+dberr_t FTSQueryRunner::prepare_for_read(dict_table_t *table) noexcept
+{
+  if (!m_thr) create_query_thread();
+  trx_start_if_not_started(m_trx, false);
+  m_thr->graph->trx = m_trx;
+  if (!m_trx->read_view.is_open())
+    m_trx->read_view.open(m_trx);
+  dberr_t err= DB_SUCCESS;
+lock_again:
+  err= lock_table(table, nullptr, LOCK_IS, m_thr);
+  if (err)
+  {
+    err= handle_wait(err, true);
+    if (err == DB_SUCCESS)
+      goto lock_again;
+  }
+  return err;
+}
+
+dberr_t FTSQueryRunner::write_record(dict_table_t *table) noexcept
+{
+  dberr_t err= DB_SUCCESS;
+run_again:
+  err= row_ins_clust_index_entry(dict_table_get_first_index(table),
+                                 m_tuple, m_thr, 0);
+  if (err)
+  {
+    err= handle_wait(err);
+    if (err == DB_SUCCESS)
+      goto run_again;
+  }
+  return err;
+}
+
+dberr_t FTSQueryRunner::lock_or_sees_rec(dict_index_t *index, const rec_t *rec,
+                                         const rec_t **out_rec,
+                                         rec_offs **offsets, mtr_t *mtr,
+                                         fts_operation op) noexcept
+{
+  uint32_t lock_mode= LOCK_REC_NOT_GAP;
+  buf_block_t *block= btr_pcur_get_block(m_pcur);
+  dberr_t err= DB_SUCCESS;
+  bool supremum= page_rec_is_supremum(rec);
+  *out_rec= rec;
+  switch (op) {
+  case SELECT_UPDATE:
+  case REMOVE:
+    ut_ad(index->is_clust());
+    if (supremum) lock_mode= LOCK_ORDINARY;
+    err= lock_clust_rec_read_check_and_lock(0, block, rec, index, *offsets,
+                                            m_lock_type, lock_mode, m_thr);
+    if (err == DB_SUCCESS_LOCKED_REC) err= DB_SUCCESS;
+    break;
+  case READ:
+    if (supremum) return err;
+
+    if (index->is_clust())
+    {
+      /* Construct the record based on transaction read view */
+      const trx_id_t id= row_get_rec_trx_id(rec, index, *offsets);
+      ReadView *view= &m_trx->read_view;
+      if (view->changes_visible(id));
+      else if (id < view->low_limit_id() || id < trx_sys.get_max_trx_id())
+      {
+        rec_t *old_vers;
+        err= row_vers_build_for_consistent_read(rec, mtr, index, offsets,
+                                                view, &m_heap, m_heap, 
+                                                &old_vers, nullptr);
+        if (err) return err;
+        *out_rec= old_vers;
+      }
+    }
+    else
+    {
+      /* Do lookup and construct the clustered index record */
+      dict_index_t *clust_index= dict_table_get_first_index(index->table);
+      if (!m_clust_pcur)
+        m_clust_pcur= static_cast<btr_pcur_t*>(
+          mem_heap_zalloc(m_heap, sizeof(btr_pcur_t)));
+      build_clust_ref(clust_index);
+
+      Row_sel_get_clust_rec_for_mysql row_sel_get_clust_rec_for_mysql;
+
+      err= row_sel_get_clust_rec_for_mysql(m_clust_pcur, m_pcur,
+                                           m_clust_ref, m_lock_type,
+                                           m_trx, index, rec, m_thr,
+                                           out_rec, offsets, &m_heap,
+                                           &m_old_vers_heap, nullptr, mtr);
+    }
+    break;
+  default: err= DB_CORRUPTION;
+  }
+  return err;
+}
+
+static
+int fts_cmp_rec_dtuple_pattern(const dtuple_t *dtuple, const rec_t *rec,
+                               const dict_index_t *index,
+                               const rec_offs *offsets) noexcept
+{
+  for (uint32_t i= 0; i < dtuple->n_fields; i++)
+  {
+    const byte*	rec_b_ptr;
+    const dfield_t* dtuple_field= dtuple_get_nth_field(dtuple, i);
+    const byte*	dtuple_b_ptr=
+      static_cast<const byte*>(dfield_get_data(dtuple_field));
+    const dtype_t* type= dfield_get_type(dtuple_field);
+    ulint dtuple_f_len= dfield_get_len(dtuple_field);
+    ulint rec_f_len;
+
+    ut_ad(!rec_offs_nth_extern(offsets, i));
+    ut_ad(!rec_offs_nth_default(offsets, i));
+
+    rec_b_ptr= rec_get_nth_field(rec, offsets, i, &rec_f_len);
+    ut_ad(!dfield_is_ext(dtuple_field));
+    rec_f_len= dtuple_f_len;
+    int ret= cmp_data(type->mtype, type->prtype, false, dtuple_b_ptr,
+                      dtuple_f_len, rec_b_ptr, rec_f_len);
+    if (ret) return ret;
+  }
+  return 0;
+}
+
+dberr_t FTSQueryRunner::record_executor(dict_index_t *index, fts_operation op,
+                                        fts_match_key match_op,
+                                        page_cur_mode_t mode,
+                                        fts_sql_callback *func,
+                                        void *user_arg) noexcept
+{
+  if (m_pcur == nullptr)
+    m_pcur= static_cast<btr_pcur_t*>(mem_heap_zalloc(m_heap,
+                                                     sizeof(btr_pcur_t)));
+
+  btr_latch_mode latch_mode;
+  /* Determine the latch mode and lock type based on statement */
+  switch (op) {
+  case REMOVE:
+  case SELECT_UPDATE:
+    latch_mode= BTR_MODIFY_LEAF;
+    m_lock_type= LOCK_X;
+    break;
+  case READ:
+    latch_mode= BTR_SEARCH_LEAF;
+    m_lock_type= LOCK_NONE;
+    break;
+  default: return DB_CORRUPTION;
+  }
+
+  ut_ad(is_stopword_table ||
+        strstr(index->name(), FTS_DOC_ID_INDEX.str) ||
+        strstr(index->table->name.m_name, "/FTS_"));
+  mtr_t mtr;
+  rec_t *rec= nullptr;
+  dberr_t err= DB_SUCCESS;
+  bool restore_cursor= false;
+  bool move_next= false;
+  /* If the function executor can't handle any more records then
+  abort the operation and retry again */
+  bool interrupt= false;
+  const rec_t *clust_rec= nullptr;
+  dict_table_t *table= index->table;
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  bool need_to_access_clust= index != clust_index;
+
+  mtr.start();
+  mtr.set_named_space(index->table->space);
+  m_pcur->btr_cur.page_cur.index= index;
+  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs *offsets= offsets_;
+  rec_offs_init(offsets_);
+
+reopen_index:
+  if (restore_cursor)
+  {
+    /* Restore the cursor */
+    auto status= m_pcur->restore_position(latch_mode, &mtr);
+    if (status == btr_pcur_t::SAME_ALL)
+    {
+      restore_cursor= false;
+      if (move_next)
+      {
+        move_next= false;
+        goto next_rec;
+      }
+    }
+    else err= DB_CORRUPTION;
+  }
+  else if (m_tuple)
+    err= btr_pcur_open_with_no_init(m_tuple, mode, latch_mode,
+                                    m_pcur, &mtr);
+  else err= m_pcur->open_leaf(true, index, latch_mode, &mtr);
+
+  if (err)
+  {
+func_exit:
+    mtr.commit();
+    return err;
+  }
+
+rec_loop:
+  rec= btr_pcur_get_rec(m_pcur);
+  if (page_rec_is_infimum(rec))
+    goto next_rec;
+
+  offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields,
+                           ULINT_UNDEFINED, &m_heap);
+
+  if (page_rec_is_supremum(rec))
+  {
+    /* lock the supremum record based on the operation */
+    err= lock_or_sees_rec(index, rec, &clust_rec, &offsets, &mtr, op);
+    if (err) goto lock_wait_or_error;
+    goto next_rec;
+  }
+
+  if (m_tuple)
+  {
+    /* In case of unique match, InnoDB should compare the tuple with record */
+    if (match_op == MATCH_UNIQUE &&
+        cmp_dtuple_rec(m_tuple, rec, index, offsets) != 0)
+    {
+      err= DB_RECORD_NOT_FOUND;
+      goto func_exit;
+    }
+
+    if (match_op == MATCH_PREFIX &&
+       cmp_dtuple_is_prefix_of_rec(m_tuple, rec, index, offsets) == 0)
+    {
+      err= DB_RECORD_NOT_FOUND;
+      goto func_exit;
+    }
+
+    /* Searching tuple field can be pattern of the record key. So compare
+    the tuple field data with record only till tuple field length */
+    if (match_op == MATCH_PATTERN &&
+        fts_cmp_rec_dtuple_pattern(m_tuple, rec, index, offsets))
+    {
+      err= DB_RECORD_NOT_FOUND;
+      goto func_exit;
+    }
+  }
+
+  err= lock_or_sees_rec(index, rec, &clust_rec, &offsets, &mtr, op);
+
+  if (err) goto lock_wait_or_error;
+
+  if (!need_to_access_clust &&
+      (clust_rec == nullptr ||
+       rec_get_deleted_flag(clust_rec, dict_table_is_comp(table))))
+    goto next_rec;
+
+  /* Found the suitable record and do the operation based on the statement */
+  switch (op) {
+  case REMOVE:
+    if (dict_index_is_clust(index) && clust_rec)
+    {
+      ut_ad(clust_rec == rec);
+      err= btr_cur_del_mark_set_clust_rec(btr_pcur_get_block(m_pcur),
+                                          rec, index, offsets, m_thr,
+                                          m_tuple, &mtr);
+    }
+    else err= DB_CORRUPTION;
+    break;
+  case READ:
+  case SELECT_UPDATE:
+    if (func && clust_rec)
+      interrupt= !((*func)(clust_index, clust_rec, offsets, user_arg));
+    break;
+  default: err= DB_CORRUPTION;
+  }
+
+  if (err == DB_SUCCESS)
+  {
+    /* Avoid storing and restoring of cursor if we are doing READ_ALL
+    operation directly on clustered index */
+    if (!interrupt && !need_to_access_clust && op == READ
+        && match_op != MATCH_UNIQUE)
+      goto next_rec;
+  }
+
+lock_wait_or_error:
+  if (m_clust_pcur)
+    btr_pcur_store_position(m_clust_pcur, &mtr);
+  btr_pcur_store_position(m_pcur, &mtr);
+  mtr.commit();
+
+  if (err == DB_SUCCESS)
+  {
+    /* In case, InnoDB got interruption from function handler or
+    we already found the unique key value */
+    if ((op != REMOVE && match_op == MATCH_UNIQUE) || interrupt)
+      return err;
+    move_next= true;
+  }
+  else
+  {
+    err= handle_wait(err);
+    if (err != DB_SUCCESS) return err;
+  }
+  mtr.start();
+  restore_cursor= true;
+  goto reopen_index;
+
+next_rec:
+  if (btr_pcur_is_after_last_on_page(m_pcur))
+  {
+    if (btr_pcur_is_after_last_in_tree(m_pcur))
+    {
+      err= DB_END_OF_INDEX;
+      goto func_exit;
+    }
+    err= btr_pcur_move_to_next_page(m_pcur, &mtr);
+    if (err) goto lock_wait_or_error;
+  }
+  else if (!btr_pcur_move_to_next_on_page(m_pcur))
+  {
+    err= DB_CORRUPTION;
+    goto func_exit;
+  }
+  goto rec_loop;
+}
+
+void FTSQueryRunner::build_update_config(dict_table_t *table, uint16_t field_no,
+                                         const fts_string_t *new_value) noexcept
+{
+  m_update= upd_create(1, m_heap);
+  upd_field_t *uf= upd_get_nth_field(m_update, 0);
+
+  dict_index_t *index= dict_table_get_first_index(table);
+  dict_field_t *ifield= dict_index_get_nth_field(index, field_no);
+  dict_col_copy_type(dict_field_get_col(ifield),
+                     dfield_get_type(&uf->new_val));
+  dfield_set_data(&uf->new_val, new_value->f_str, new_value->f_len);
+  uf->field_no= field_no;
+  uf->orig_len= 0;
+}
+
+dberr_t FTSQueryRunner::update_record(dict_table_t *table, uint16_t old_len,
+                                      uint16_t new_len) noexcept
+{
+  dberr_t err= DB_SUCCESS;
+  dict_index_t *index= dict_table_get_first_index(table);
+  ulint cmpl_info= (old_len == new_len)
+                   ? UPD_NODE_NO_SIZE_CHANGE : 0;
+
+  mtr_t mtr;
+  mtr.start();
+  mtr.set_named_space(table->space);
+  if (m_pcur->restore_position(BTR_MODIFY_LEAF, &mtr)
+      != btr_pcur_t::SAME_ALL)
+  {
+    err= DB_RECORD_NOT_FOUND;
+    mtr.commit();
+    return err;
+  }
+
+  rec_t *rec= btr_pcur_get_rec(m_pcur);
+  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs *offsets;
+  rec_offs_init(offsets_);
+
+  offsets= rec_get_offsets(rec, index, offsets_, index->n_core_fields,
+                           ULINT_UNDEFINED, &m_heap);
+
+  if (old_len == new_len)
+    cmpl_info= UPD_NODE_NO_SIZE_CHANGE;
+
+  err= row_upd_clust_rec_low(0, m_update, m_pcur, cmpl_info,
+                             index, offsets, &m_heap, m_thr,
+                             m_trx, &mtr);
+  mtr.commit();
+  return err;
+}
+
+FTSQueryRunner::~FTSQueryRunner()
+{
+  if (m_pcur) btr_pcur_close(m_pcur);
+  if (m_clust_pcur) btr_pcur_close(m_clust_pcur);
+  if (m_old_vers_heap) mem_heap_free(m_old_vers_heap);
+  mem_heap_free(m_heap);
 }

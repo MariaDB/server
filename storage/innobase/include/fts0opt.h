@@ -28,12 +28,12 @@ Created 2011-02-15 Jimmy Yang
 /** The FTS optimize thread's work queue. */
 extern ib_wqueue_t*	fts_optimize_wq;
 
-/********************************************************************
-Callback function to fetch the rows in an FTS INDEX record. */
-ibool
-fts_optimize_index_fetch_node(
-/*==========================*/
-                                        /* out: always returns non-NULL */
-        void*           row,		/* in: sel_node_t* */
-        void*           user_arg);	/* in: pointer to ib_vector_t */
+/** Callback function to fetch the rows in an FTS INDEX record.
+@param index    auxiliary table clustered index
+@param rec      auxiliary table record
+@param offsets  offset to the record
+@param user_arg points to ib_vector_t
+@retval false if result memory exceeds FTS result cache limit */
+bool fts_optimize_index_fetch_node(dict_index_t *index, const rec_t *rec,
+                                   const rec_offs *offsets, void *user_arg);
 #endif
