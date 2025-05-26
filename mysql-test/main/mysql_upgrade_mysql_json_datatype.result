@@ -168,6 +168,7 @@ Repairing tables
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 #
 # Now check if the table structure is correct and that the data
 # is still present.
