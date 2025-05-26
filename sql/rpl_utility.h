@@ -32,7 +32,7 @@ class Relay_log_info;
 class Log_event;
 class Rows_log_event;
 struct rpl_group_info;
-class RPL_TABLE_LIST;
+struct RPL_TABLE_LIST;
 
 /**
   A table definition from the master.
@@ -236,7 +236,7 @@ public:
   LEX_CUSTRING optional_metadata;
   uint *master_to_slave_map;
   uint *master_to_slave_error;
-  char const **master_column_name;
+  char **master_column_name;
 };
 
 /* Different errors when converting a field from master to slave */

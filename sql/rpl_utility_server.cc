@@ -982,7 +982,6 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       }
       if (convtype == CONV_TYPE_PRECISE && tmp_table != NULL)
         tmp_table->field[conv_table_idx]= NULL;
-      conv_table_idx++;
     }
     else
     {
@@ -995,6 +994,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
 
       master_to_slave_error[col]= SLAVE_FIELD_WRONG_TYPE;
     }
+    conv_table_idx++;
   }
 
 #ifndef DBUG_OFF
@@ -1030,17 +1030,18 @@ bool RPL_TABLE_LIST::check_wrong_column_usage(rpl_group_info *rgi,
                                               MY_BITMAP *m_cols)
 {
   DBUG_ENTER("RPL_TABLE_LIST::check_wrong_column_usage");
+  bool has_err= false;
   for (uint col= 0 ; col < m_tabledef.size() ; col++)
   {
     if (!bitmap_is_set(m_cols, col))
       continue;
     if (m_tabledef.master_to_slave_error[col])
     {
-      if (give_compatibility_error(rgi, col))
-        DBUG_RETURN(1);
+      has_err= give_compatibility_error(rgi, col) || has_err;
     }
+    DBUG_ASSERT(m_tabledef.master_column_name[col] == NULL);
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(has_err);
 }
 
 /*
@@ -1056,27 +1057,31 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
 
   switch (m_tabledef.master_to_slave_error[col]) {
   case SLAVE_FIELD_NAME_MISSING:
+    DBUG_ASSERT(m_tabledef.master_column_name[col]);
+    DBUG_ASSERT(m_tabledef.master_to_slave_map[col] == UINT_MAX32);
     if (!(slave_type_conversions_options &
-          SLAVE_TYPE_CONVERSIONS_ERROR_IF_MISSING_FIELD))
+          (1ULL << SLAVE_TYPE_CONVERSIONS_ERROR_IF_MISSING_FIELD)))
       error_level= WARNING_LEVEL;
     if (error_level == ERROR_LEVEL || table->in_use->variables.log_warnings >= 1)
       rgi->rli->report(error_level, ER_SLAVE_CORRUPT_EVENT, rgi->gtid_info(),
-                       "Column '%s' missing from table '%s.%s",
+                       "Column '%s' missing from table '%s.%s'",
                        m_tabledef.master_column_name[col],
                        table->s->db.str, table->s->table_name.str);
+    my_free(m_tabledef.master_column_name[col]);
+    m_tabledef.master_column_name[col]= NULL;
     break;
   case SLAVE_FIELD_NR_MISSING:
   {
+    DBUG_ASSERT(m_tabledef.master_to_slave_map[col] == UINT_MAX32);
     char number[LONGLONG_BUFFER_SIZE];
     if (!(slave_type_conversions_options &
-          SLAVE_TYPE_CONVERSIONS_ERROR_IF_MISSING_FIELD))
+          (1ULL << SLAVE_TYPE_CONVERSIONS_ERROR_IF_MISSING_FIELD)))
       error_level= WARNING_LEVEL;
     if (error_level == ERROR_LEVEL || table->in_use->variables.log_warnings >= 1)
       rgi->rli->report(error_level, ER_SLAVE_CORRUPT_EVENT, rgi->gtid_info(),
-                       "Column %s missing from table '%s.%s",
+                       "Column %s missing from table '%s.%s'",
                        llstr(col+1, number),
                        table->s->db.str, table->s->table_name.str);
-    return 0;
     break;
   }
   case SLAVE_FIELD_UNKNOWN_TYPE:
@@ -1113,7 +1118,7 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
     break;
   }
   }
-  return 1;
+  return error_level == ERROR_LEVEL;
 }
 
 
@@ -1326,7 +1331,12 @@ default_column_mapping:
       m_tabledef.master_to_slave_map[col]= col;
     for ( ; col < master_cols ; col++)
     {
-      m_tabledef.master_to_slave_map[col]= INT_MAX32;
+      /*
+        Note master_to_slave_map[col] is set to UINT_MAX32, but is never
+        actually used - the master_to_slave_error check always happens
+        before looking up the slave-side index.
+      */
+      m_tabledef.master_to_slave_map[col]= UINT_MAX32;
       m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NR_MISSING;
     }
     DBUG_RETURN(0);
@@ -1354,8 +1364,26 @@ default_column_mapping:
     Field *field= table->find_field_by_name(&field_name);
     if (unlikely(!field))
     {
-      m_tabledef.master_column_name[col]= field_name.str;
-      m_tabledef.master_to_slave_map[col]= INT_MAX32; // Not used
+      DBUG_ASSERT(m_tabledef.master_column_name[col] == NULL);
+
+      /*
+        This field name will be referenced later in the execution path when
+        writing errors/warnings, so allocate memory to hold the table name, as
+        the ones that currently exist (opt_metadata.m_column_name[col] and
+        field_name) are stored on the stack.
+      */
+      size_t field_name_sz= master_col_name_cppstr.size();
+      m_tabledef.master_column_name[col]= (char *) my_malloc(
+          PSI_INSTRUMENT_ME, field_name_sz * sizeof(char) + 1, MYF(MY_WME));
+      strncpy(m_tabledef.master_column_name[col], master_col_name_cppstr.c_str(), field_name_sz);
+      m_tabledef.master_column_name[col][field_name_sz] = '\0';
+
+      /*
+        Note master_to_slave_map[col] is set to UINT_MAX32, but is never
+        actually used - the master_to_slave_error check always happens
+        before looking up the slave-side index.
+      */
+      m_tabledef.master_to_slave_map[col]= UINT_MAX32;
       m_tabledef.master_to_slave_error[col]= SLAVE_FIELD_NAME_MISSING;
       continue;                               // ok that field did not exists
     }
