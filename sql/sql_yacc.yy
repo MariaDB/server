@@ -870,6 +870,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  EXPANSION_SYM
 %token  <kwd>  EXPIRE_SYM                    /* MySQL */
 %token  <kwd>  EXPORT_SYM
+%token  <kwd>  EXTEND_SYM
 %token  <kwd>  EXTENDED_SYM
 %token  <kwd>  EXTENT_SIZE_SYM
 %token  <kwd>  FAST_SYM
@@ -903,6 +904,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  HOUR_SYM                      /* SQL-2003-R */
 %token  <kwd>  ID_SYM                        /* MYSQL */
 %token  <kwd>  IDENTIFIED_SYM
+%token  <kwd>  IDENTITY
 %token  <kwd>  IGNORE_SERVER_IDS_SYM
 %token  <kwd>  IMMEDIATE_SYM                 /* SQL-2003-R */
 %token  <kwd>  IMPORT
@@ -920,6 +922,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  INVISIBLE_SYM
 %token  <kwd>  JSON_SYM
 %token  <kwd>  KEY_BLOCK_SIZE
+%token  <kwd>  KEEP_SYM
 %token  <kwd>  LANGUAGE_SYM                  /* SQL-2003-R */
 %token  <kwd>  LAST_SYM                      /* SQL-2003-N */
 %token  <kwd>  LAST_VALUE
@@ -988,13 +991,18 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NEXTVAL_SYM                   /* PostgreSQL sequence function */
 %token  <kwd>  NOCACHE_SYM
 %token  <kwd>  NOCYCLE_SYM
+%token  <kwd>  NOEXTEND_SYM
 %token  <kwd>  NODEGROUP_SYM
 %token  <kwd>  NONE_SYM                      /* SQL-2003-R */
 %token  <kwd>  NOTFOUND_SYM                  /* Oracle-R   */
 %token  <kwd>  NO_SYM                        /* SQL-2003-R */
+%token  <kwd>  NOKEEP_SYM
 %token  <kwd>  NOMAXVALUE_SYM
 %token  <kwd>  NOMINVALUE_SYM
 %token  <kwd>  NO_WAIT_SYM
+%token  <kwd>  NOORDER_SYM
+%token  <kwd>  NOSCALE_SYM
+%token  <kwd>  NOSHARD_SYM
 %token  <kwd>  NOWAIT_SYM
 %token  <kwd>  NUMBER_MARIADB_SYM            /* SQL-2003-N  */
 %token  <kwd>  NUMBER_ORACLE_SYM             /* Oracle-R, PLSQL-R */
@@ -1077,6 +1085,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ROW_FORMAT_SYM
 %token  <kwd>  RTREE_SYM
 %token  <kwd>  SAVEPOINT_SYM                 /* SQL-2003-R */
+%token  <kwd>  SCALE_SYM
 %token  <kwd>  SCHEDULE_SYM
 %token  <kwd>  SCHEMA_NAME_SYM               /* SQL-2003-N */
 %token  <kwd>  SECOND_SYM                    /* SQL-2003-R */
@@ -1089,6 +1098,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SERVER_SYM
 %token  <kwd>  SETVAL_SYM                    /* PostgreSQL sequence function */
 %token  <kwd>  SHARE_SYM
+%token  <kwd>  SHARD_SYM
 %token  <kwd>  SHUTDOWN
 %token  <kwd>  SIGNED_SYM
 %token  <kwd>  SIMPLE_SYM                    /* SQL-2003-N */
@@ -1756,7 +1766,7 @@ rule:
 %type <myvar> select_outvar
 
 %type <virtual_column> opt_check_constraint check_constraint virtual_column_func
-        column_default_expr
+        column_default_expr expr_or_aux_expr auxiliary_expr
 
 %type <unit_operation> unit_type_decl
 
@@ -1978,6 +1988,8 @@ rule:
 %type <NONE>
         sp_package_function_body
         sp_package_procedure_body
+
+%type <num> opt_on_null
 
 
 %ifdef MARIADB
@@ -2806,14 +2818,7 @@ sequence_def:
             seq->used_fields|=
               seq_field_specified_min_value;
           }
-        | NO_SYM MINVALUE_SYM
-          {
-            sequence_definition *seq= Lex->create_info.seq_create_info;
-            if (unlikely(seq->used_fields & seq_field_used_min_value))
-              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
-            seq->used_fields|= seq_field_used_min_value;
-          }
-        | NOMINVALUE_SYM
+        | nominvalue
           {
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_min_value))
@@ -2829,14 +2834,7 @@ sequence_def:
             seq->used_fields|= seq_field_used_max_value;
             seq->used_fields|= seq_field_specified_max_value;
           }
-        | NO_SYM MAXVALUE_SYM
-          {
-            sequence_definition *seq= Lex->create_info.seq_create_info;
-            if (unlikely(seq->used_fields & seq_field_used_max_value))
-              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
-            seq->used_fields|= seq_field_used_max_value;
-          }
-        | NOMAXVALUE_SYM
+        | nomaxvalue
           {
             sequence_definition *seq= Lex->create_info.seq_create_info;
             if (unlikely(seq->used_fields & seq_field_used_max_value))
@@ -2917,6 +2915,13 @@ sequence_def:
             seq->used_fields|=
               seq_field_used_restart | seq_field_used_restart_value;
           }
+        ;
+
+nomaxvalue:
+        NOMAXVALUE_SYM {} | NO_SYM MAXVALUE_SYM {}
+        ;
+nominvalue:
+        NOMINVALUE_SYM {} | NO_SYM MINVALUE_SYM {}
         ;
 
 /* this rule is used to force look-ahead in the parser */
@@ -6319,10 +6324,49 @@ field_def:
           }
         ;
 
+identity_spec:
+          opt_generated_always AS IDENTITY identity_props
+          {
+            if (!Lex->last_field_identity(true))
+              MYSQL_YYABORT;
+            Lex->last_field->flags|= NOT_NULL_FLAG;
+          }
+        | GENERATED_SYM BY DEFAULT opt_on_null AS IDENTITY identity_props
+          {
+            if (!Lex->last_field_identity(false))
+              MYSQL_YYABORT;
+          }
+
 opt_generated_always:
           /* empty */ {}
         | GENERATED_SYM ALWAYS_SYM {}
         ;
+
+opt_on_null:
+          /* empty */ { $$= 0; }
+        | ON NULL_SYM { $$= 1; }
+
+identity_props:
+    /* empty */
+  | identity_props START_SYM WITH simple_expr
+  | identity_props INCREMENT_SYM BY simple_expr
+  | identity_props MINVALUE_SYM simple_expr
+  | identity_props nominvalue
+  | identity_props MAXVALUE_SYM simple_expr
+  | identity_props nomaxvalue
+  | identity_props CYCLE_SYM
+  | identity_props NOCYCLE_SYM
+  | identity_props ORDER_SYM
+  | identity_props NOORDER_SYM
+  | identity_props CACHE_SYM simple_expr
+  | identity_props NOCACHE_SYM
+  | identity_props identity_orcl_compat // Oracle compatibility properties
+;
+
+identity_orcl_compat:
+  EXTEND_SYM | KEEP_SYM | SCALE_SYM | SHARD_SYM |
+  NOEXTEND_SYM | NOKEEP_SYM | NOSCALE_SYM | NOSHARD_SYM
+  ;
 
 vcol_opt_specifier:
           /* empty */
@@ -6385,15 +6429,29 @@ parse_vcol_expr:
             if (Lex->main_select_push())
               MYSQL_YYABORT;
           }
-          expr
+          expr_or_aux_expr
           {
-            Virtual_column_info *v= add_virtual_expression(thd, $3);
-            if (unlikely(!v))
-              MYSQL_YYABORT;
-            Lex->last_field->vcol_info= v;
+            Lex->last_field->vcol_info= $3;
             Lex->pop_select(); //main select
           }
         ;
+
+expr_or_aux_expr:
+        expr
+        {
+          Virtual_column_info *v= add_virtual_expression(thd, $1);
+          if (unlikely(!v))
+            MYSQL_YYABORT;
+          $$= v;
+        }
+      | auxiliary_expr
+        { $$= $1; }
+
+// auxiliary_expr is used for parsing special internal expressions,
+// they cannot be created by a user
+auxiliary_expr:
+        identity_spec
+        { $$= Lex->last_field->default_value; }
 
 parenthesized_expr:
           expr
@@ -6834,6 +6892,7 @@ attribute:
             $$= Lex_exact_charset_extended_collation_attrs($2);
           }
         | serial_attribute { $$.init(); }
+        | identity_spec { $$.init(); }
         ;
 
 opt_compression_method:
@@ -16470,6 +16529,7 @@ keyword_func_sp_var_and_label:
         | EXPIRE_SYM
         | EXPORT_SYM
         | EXTENDED_SYM
+        | EXTEND_SYM
         | EXTENT_SIZE_SYM
         | ENABLE_SYM
         | ENDS_SYM
@@ -16500,6 +16560,7 @@ keyword_func_sp_var_and_label:
         | HISTORY_SYM
         | HOSTS_SYM
         | IDENTIFIED_SYM
+        | IDENTITY
         | IGNORE_SERVER_IDS_SYM
         | INCREMENT_SYM
         | IMMEDIATE_SYM
@@ -16516,6 +16577,7 @@ keyword_func_sp_var_and_label:
         | INVISIBLE_SYM
         | JSON_TABLE_SYM
         | KEY_BLOCK_SIZE
+        | KEEP_SYM
         | LAST_SYM
         | LEAVES
         | LESS_SYM
@@ -16576,10 +16638,14 @@ keyword_func_sp_var_and_label:
         | NEXT_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | NOCACHE_SYM
         | NOCYCLE_SYM
+        | NOEXTEND_SYM
+        | NOKEEP_SYM
         | NOMINVALUE_SYM
         | NOMAXVALUE_SYM
         | NO_WAIT_SYM
         | NOCOPY_SYM
+        | NOSHARD_SYM
+        | NOSCALE_SYM
         | NOWAIT_SYM
         | NODEGROUP_SYM
         | NONE_SYM
@@ -16644,12 +16710,14 @@ keyword_func_sp_var_and_label:
         | ROWTYPE_MARIADB_SYM
         | ROW_FORMAT_SYM
         | RTREE_SYM
+        | SCALE_SYM
         | SCHEDULE_SYM
         | SCHEMA_NAME_SYM
         | SEQUENCE_SYM
         | SERIALIZABLE_SYM
         | SIMPLE_SYM
         | SHARE_SYM
+        | SHARD_SYM
         | SKIP_SYM
         | SLAVE_POS_SYM
         | SLOW

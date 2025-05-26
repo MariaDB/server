@@ -2383,7 +2383,12 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       def_value.set(def_value_buf, sizeof(def_value_buf), &my_charset_utf8mb4_general_ci);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
-        packet->append(STRING_WITH_LEN(" DEFAULT "));
+        packet->append(' ');
+        if (field->default_value)
+          field->default_value->expr->print_default_prefix(packet);
+        else
+          packet->append(STRING_WITH_LEN("DEFAULT"));
+        packet->append(' ');
         packet->append(def_value.ptr(), def_value.length(), &my_charset_utf8mb4_general_ci);
       }
 
@@ -2402,7 +2407,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
 
     if (!(sql_mode & MODE_NO_FIELD_OPTIONS) && !foreign_db_mode)
     {
-      if (field->unireg_check == Field::NEXT_NUMBER)
+      if (field->unireg_check == Field::NEXT_NUMBER && !field->default_value)
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
       if (!limited_mysql_mode)
       {
