@@ -1202,12 +1202,12 @@ public:
     return bulk_insert == type ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
+  /** Rollback the bulk insert operation for the transaction */
+  void bulk_rollback_low();
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();
 
-  /** Rollback the bulk insert operation for the transaction */
-  void bulk_rollback_low();
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

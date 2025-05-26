@@ -2163,9 +2163,6 @@ convert_error_code_to_mysql(
 	case DB_TEMP_FILE_WRITE_FAIL:
 		/* This error can happen during
 		copy_data_between_tables() or bulk insert operation */
-		innodb_transaction_abort(thd,
-					 innobase_rollback_on_timeout,
-					 error);
 		my_error(ER_GET_ERRMSG, MYF(0),
                          DB_TEMP_FILE_WRITE_FAIL,
                          ut_strerr(DB_TEMP_FILE_WRITE_FAIL),
@@ -15937,7 +15934,7 @@ ha_innobase::extra(
 		}
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
-			trx->rollback();
+			trx->bulk_rollback_low();
 			return convert_error_code_to_mysql(
 				 err, m_prebuilt->table->flags,
 				 trx->mysql_thd);
@@ -15967,7 +15964,7 @@ ha_innobase::extra(
 		if (m_prebuilt->table->skip_alter_undo) {
 			trx = check_trx_exists(ha_thd());
 			m_prebuilt->table->skip_alter_undo = 0;
-			trx->rollback();
+			trx->bulk_rollback_low();
 		}
 		break;
 	default:/* Do nothing */
