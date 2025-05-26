@@ -1989,7 +1989,6 @@ public:
   void vers_fix_old_timestamp(rpl_group_info *rgi);
 #endif
   void find_constraint_correlated_indexes();
-
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 };

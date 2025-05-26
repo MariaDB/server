@@ -7424,3 +7424,45 @@ void pause_execution(THD *thd, double timeout)
 
   do_pause(thd, &timed_cond, &cond, timeout);
 }
+
+
+void Item_identity_next::print_default_prefix(String *str) const
+{
+  str->append(STRING_WITH_LEN("GENERATED "));
+  if (generated_always)
+    str->append(STRING_WITH_LEN("ALWAYS "));
+  else
+    str->append(STRING_WITH_LEN("BY DEFAULT "));
+  str->append(STRING_WITH_LEN("AS"));
+}
+
+void Item_identity_next::print(String *str, enum_query_type query_type)
+{
+  str->append(name);
+}
+
+int Item_identity_next::save_in_field(Field *field, bool no_conversions)
+{
+  TABLE *table= table_list->table;
+  DBUG_ASSERT(table);
+
+  int ha_err= table->file->update_auto_increment_impl(field);
+  if (ha_err)
+  {
+    table->file->print_error(ha_err, MYF(0));
+    return ha_err;
+  }
+  field->set_notnull();
+  return 0;
+}
+
+bool Item_identity_next::fix_fields(THD *thd, Item **ref)
+{
+  TABLE *table= table_list->table;
+  if (unlikely(!table || !table->found_next_number_field))
+    return true; // corrupt frm
+
+  if (generated_always)
+    table->found_next_number_field->generated_always= true;
+  return Item_longlong_func::fix_fields(thd, ref);
+}
