@@ -126,7 +126,8 @@ endif()
 # Silence some warnings
 if(MSVC)
   # truncation warnings
-  target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:/wd4244>)
+  target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:/wd4244 /wd5287 /wd5286>)
+  target_compile_definitions(wolfssl PUBLIC WC_NO_STATIC_ASSERT)
   if(CMAKE_C_COMPILER_ID MATCHES Clang)
     target_compile_options(wolfssl PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-function-pointer-types>)
   endif()
