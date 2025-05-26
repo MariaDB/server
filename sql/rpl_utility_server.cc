@@ -935,7 +935,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
   for (uint col= 0 ; col < master_cols ; ++col)
   {
     uint slave_idx;
-    /* Skip columns on the master that where not replicated */
+    /* Skip columns on the master that are not replicated */
     if (master_to_slave_error[col])
       continue;                       // Field is not usable on the slave
     slave_idx= master_to_slave_map[col];
