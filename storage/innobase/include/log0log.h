@@ -413,7 +413,8 @@ public:
   @param buf        log header buffer
   @param lsn        log sequence number corresponding to log_sys.START_OFFSET
   @param encrypted  whether the log is encrypted */
-  static void header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept;
+  static void header_write(byte *buf, lsn_t lsn, bool encrypted,
+                           bool is_clone= false) noexcept;
 
   /** @return an estimate of get_lsn(),
   using acquire-release ordering with write_buf() or persist();

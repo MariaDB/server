@@ -220,12 +220,8 @@ void Arch_Log_Sys::update_header(byte *header, lsn_t checkpoint_lsn,
 {
   /* Copy Header information. */
   /* TODO: Synchronize with Key rotation or block it. */
-  log_t::header_write(header, checkpoint_lsn, log_sys.is_encrypted());
-
-  /* Update Creator Name. */
-  strncpy(reinterpret_cast<char*>(header) + LOG_HEADER_CREATOR,
-          "MariaDB Clone " PACKAGE_VERSION,
-          LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR);
+  auto start_lsn= ut_uint64_align_down(checkpoint_lsn, OS_FILE_LOG_BLOCK_SIZE);
+  log_t::header_write(header, start_lsn, log_sys.is_encrypted(), true);
 
   /* Write checkpoint information */
   for (int i= 0; i < 2; i++)
@@ -892,9 +888,7 @@ bool Arch_Log_Sys::archive(bool init, Arch_File_Ctx *curr_ctx, lsn_t *arch_lsn,
   /* Initialize system redo log file context first time. */
   if (init)
   {
-    /* We will use curr_ctx to read data from existing log files.
-    We set the limit for number of files as the biggest value to
-    avoid any such limitation in practice. */
+    /* We will use curr_ctx to read data from existing log file.*/
     err= curr_ctx->init(get_log_file_path().c_str(), nullptr,
                         LOG_FILE_NAME, 1);
     if (err != DB_SUCCESS)
