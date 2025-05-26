@@ -1391,14 +1391,13 @@ int main(int argc,char *argv[])
 	fprintf(stderr, "Couldn't allocate memory for temp histfile!\n");
 	exit(1);
       }
-      sprintf(histfile_tmp, "%s.TMP", histfile);
+      snprintf(histfile_tmp, histfile_tmp_sz, "%s.TMP", histfile);
     }
   }
 
 #endif
 
-  sprintf(buff, "%s",
-	  "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n");
+  snprintf(buff, sizeof(buff), "%s", "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n");
   put_info(buff,INFO_INFO);
   status.exit_status= read_and_execute(!status.batch);
   if (opt_outfile)
@@ -1570,7 +1569,7 @@ bool kill_query(const char *reason)
     interrupted_query= 2;
 
   /* kill_buffer is always big enough because max length of %lu is 15 */
-  sprintf(kill_buffer, "KILL %s%lu",
+  snprintf(kill_buffer, sizeof(kill_buffer), "KILL %s%lu",
           (interrupted_query == 1) ? "QUERY " : "",
           mysql_thread_id(&mysql));
   if (verbose)
@@ -2630,7 +2629,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       }
       else
       {
-	sprintf(buff,"Unknown command '\\%c'.",inchar);
+	snprintf(buff, sizeof(buff), "Unknown command '\\%c'.", inchar);
 	if (put_info(buff,INFO_ERROR) > 0)
 	  DBUG_RETURN(1);
 	*out++='\\';
@@ -3144,7 +3143,7 @@ You can turn off this feature to get a quicker startup with -A\n\n");
       j=0;
       while ((sql_field=mysql_fetch_field(fields)))
       {
-	sprintf(buf,"%.64s.%.64s",table_row[0],sql_field->name);
+	snprintf(buf, sizeof(buf), "%.64s.%.64s",table_row[0], sql_field->name);
 	field_names[i][j] = strdup_root(&hash_mem_root,buf);
 	add_word(&ht,field_names[i][j]);
 	field_names[i][num_fields+j] = strdup_root(&hash_mem_root,
@@ -3596,7 +3595,7 @@ static int com_go(String *buffer, char *)
 	  print_tab_data(result);
 	else
 	  print_table_data(result);
-	sprintf(buff,"%ld %s in set",
+	snprintf(buff, sizeof(buff), "%ld %s in set",
 		(long) mysql_num_rows(result),
 		(long) mysql_num_rows(result) == 1 ? "row" : "rows");
 	end_pager();
@@ -3611,7 +3610,7 @@ static int com_go(String *buffer, char *)
     else if (mysql_affected_rows(&mysql) == ~(ulonglong) 0)
       strmov(buff,"Query OK");
     else
-      sprintf(buff,"Query OK, %ld %s affected",
+      snprintf(buff, sizeof(buff), "Query OK, %ld %s affected",
 	      (long) mysql_affected_rows(&mysql),
 	      (long) mysql_affected_rows(&mysql) == 1 ? "row" : "rows");
 
@@ -3791,7 +3790,7 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
   if (f)
-    sprintf(s, " unknows=0x%04x", f);
+    snprintf(s, sizeof(buf),  " unknows=0x%04x", f);
   return buf;
 }
 
@@ -4533,7 +4532,7 @@ com_edit(String *buffer,char *)
   if ((error= system(buff)))
   {
     char errmsg[100];
-    sprintf(errmsg, "Command '%.40s' failed", buff);
+    snprintf(errmsg, sizeof(errmsg), "Command '%.40s' failed", buff);
     put_info(errmsg, INFO_ERROR, 0, NullS);
     goto err;
   }
@@ -4679,9 +4678,9 @@ static int com_connect(String *buffer, char *line)
 
   if (connected)
   {
-    sprintf(buff,"Connection id:    %lu",mysql_thread_id(&mysql));
+    snprintf(buff, sizeof(buff), "Connection id:    %lu",mysql_thread_id(&mysql));
     put_info(buff,INFO_INFO);
-    sprintf(buff,"Current database: %.128s\n",
+    snprintf(buff, sizeof(buff), "Current database: %.128s\n",
 	    current_db ? current_db : "*** NONE ***");
     put_info(buff,INFO_INFO);
   }
@@ -4719,7 +4718,7 @@ static int com_source(String *, char *line)
   if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
   {
     char buff[FN_REFLEN+60];
-    sprintf(buff,"Failed to open file '%s', error: %d", source_name,errno);
+    snprintf(buff, sizeof(buff), "Failed to open file '%s', error: %d", source_name,errno);
     return put_info(buff, INFO_ERROR, 0);
   }
 
@@ -5040,7 +5039,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   if (safe_updates)
   {
     char init_command[100];
-    sprintf(init_command,
+    snprintf(init_command, sizeof(init_command),
 	    "SET SQL_SAFE_UPDATES=1,SQL_SELECT_LIMIT=%lu,MAX_JOIN_SIZE=%lu",
 	    select_limit,max_join_size);
     mysql_options(&mysql, MYSQL_INIT_COMMAND, init_command);
