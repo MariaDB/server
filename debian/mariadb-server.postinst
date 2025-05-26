@@ -242,6 +242,23 @@ EOF
     chown 0:0 $dc
     chmod 0600 $dc
 
+    feedback_cnf=$mariadb_cfgdir/mariadb.conf.d/feedback.cnf
+    if [ ! -f $feedback_cnf ]; then
+      if db_input high mariadb-server/feedback_optin; then
+        db_go || true
+      fi
+      db_get mariadb-server/feedback_optin
+      {
+        echo "# THIS IS A GENERATED FILE. ALL CHANGES TO IT MIGHT BE LOST.";
+        echo "[server]";
+        if [ "$RET" = true ]; then
+          echo "feedback=ON";
+        else
+          echo "feedback=OFF";
+        fi
+      } >> $feedback_cnf
+    fi
+
     # If there is a real AppArmor profile, we reload it.
     # If the default empty profile is installed, then we remove any old
     # profile that may be loaded.
