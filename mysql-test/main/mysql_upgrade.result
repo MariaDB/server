@@ -1159,11 +1159,13 @@ connection default;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
 GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+change_user even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length,,;
 GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
 GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
 CREATE PROCEDURE test.pr() BEGIN END;
+change_user root,,;
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
