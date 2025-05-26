@@ -10540,6 +10540,32 @@ bool LEX::last_field_generated_always_as_row_end()
                                                          VERS_ROW_END);
 }
 
+bool LEX::last_field_identity(Autoinc_spec *spec)
+{
+  create_info.auto_increment_value= spec->start;
+  create_info.used_fields|= HA_CREATE_USED_AUTO;
+
+  // This is needed to make sure there is only one autoinc field
+  last_field->flags|= AUTO_INCREMENT_FLAG;
+  last_field->identity_field= true;
+
+  if (spec->maxvalue == 0)
+    spec->has_maxvalue= false; // Display NOMAXVALUE
+
+  if (!spec->has_maxvalue)
+    spec->maxvalue= LONGLONG_MAX;
+  if (!spec->has_minvalue)
+    spec->minvalue= 1;
+
+
+  Virtual_column_info *v= add_virtual_expression(thd,
+                                   new (thd) Item_identity_next(thd,
+                                                                last_table(),
+                                                                spec));
+  last_field->default_value= v;
+  return v != NULL;
+}
+
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;

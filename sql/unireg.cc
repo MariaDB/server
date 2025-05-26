@@ -778,7 +778,7 @@ static bool pack_expression(String *buf, Virtual_column_info *vcol,
   buf->q_append((char)vcol->name.length);
   buf->q_append(&vcol->name);
   size_t expr_start= buf->length();
-  vcol->print(buf);
+  vcol->expr->print_for_frm(buf);
   size_t expr_len= buf->length() - expr_start;
   if (expr_len >= 65536)
   {

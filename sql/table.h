@@ -1817,8 +1817,6 @@ public:
   Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
-  Autoinc_spec make_autoinc_spec(const THD *thd) const;
-
   // Check if the value list is assignable to the explicit field list
   static bool check_assignability_explicit_fields(List<Item> fields,
                                                   List<Item> values,
@@ -1991,6 +1989,7 @@ public:
   void vers_fix_old_timestamp(rpl_group_info *rgi);
 #endif
   void find_constraint_correlated_indexes();
+  Autoinc_spec make_autoinc_spec(const THD *thd) const;
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2

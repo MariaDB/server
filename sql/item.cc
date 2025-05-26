@@ -1640,7 +1640,7 @@ bool Item_field::check_vcol_func_processor(void *arg)
     r|= res->alter_info->check_vcol_field(this);
   else if (field)
   {
-    if (field->unireg_check == Field::NEXT_NUMBER)
+    if (field->unireg_check == Field::NEXT_NUMBER && !field->default_value)
       r|= VCOL_AUTO_INC;
     if (field->vcol_info &&
         field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))

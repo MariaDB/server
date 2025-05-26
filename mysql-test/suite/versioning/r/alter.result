@@ -53,8 +53,8 @@ add column trx_start timestamp(6) not null as row start invisible,
 add column trx_end timestamp(6) not null as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as row start invisible,
-add column trx_end timestamp(6) not null as row end i...' at line 2
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'row start invisible,
+add column trx_end timestamp(6) not null as row end invi...' at line 2
 alter table t
 add column trx_start timestamp(6) as row start invisible,
 add column trx_end timestamp(6) as row end invisible,

@@ -7424,3 +7424,120 @@ void pause_execution(THD *thd, double timeout)
 
   do_pause(thd, &timed_cond, &cond, timeout);
 }
+
+
+void Item_identity_next::print_default_prefix(String *str) const
+{
+  str->append(STRING_WITH_LEN("GENERATED "));
+  if (spec->generated_always)
+    str->append(STRING_WITH_LEN("ALWAYS "));
+  else
+  {
+    str->append(STRING_WITH_LEN("BY DEFAULT "));
+    if (spec->default_on_null)
+      str->append(STRING_WITH_LEN("ON NULL "));
+  }
+  str->append(STRING_WITH_LEN("AS"));
+}
+
+void Item_identity_next::print(String *str, enum_query_type query_type)
+{
+  HA_CREATE_INFO create_info{};
+  TABLE *table= table_list->table;
+  if (table && table->file)
+  {
+    table->file->update_create_info(&create_info);
+    /*
+      update_create_info shows a last-inserted + 1 value. This is AUTO_INCREMENT
+      heritage, where it could not be sure, which value will come next,
+      since it'd be adjusted by auto_increment_increment.
+
+      Let's adjust it to the real next generated value.
+      First, decrement it to leave it no chance to overflow.
+    */
+    create_info.auto_increment_value--;
+    create_info.auto_increment_value+= spec->step;
+  }
+  else
+  {
+    create_info.auto_increment_value= spec->start;
+  }
+  str->append(name);
+  str->append(STRING_WITH_LEN(" "));
+  str->append(STRING_WITH_LEN("START WITH "));
+  str->append_ulonglong(create_info.auto_increment_value);
+  str->append(STRING_WITH_LEN(" "));
+  str->append(STRING_WITH_LEN("INCREMENT BY "));
+  str->append_ulonglong(spec->step);
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->has_minvalue)
+  {
+    str->append(STRING_WITH_LEN("MINVALUE"));
+    str->append(STRING_WITH_LEN(" "));
+    str->append_ulonglong(spec->minvalue);
+  }
+  else
+    str->append(STRING_WITH_LEN("NOMINVALUE"));
+
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->has_maxvalue)
+  {
+    str->append(STRING_WITH_LEN("MAXVALUE"));
+    str->append(STRING_WITH_LEN(" "));
+    str->append_ulonglong(spec->maxvalue);
+  }
+  else
+    str->append(STRING_WITH_LEN("NOMAXVALUE"));
+
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->cache > 1 || spec->double_cache)
+  {
+    str->append(STRING_WITH_LEN("CACHE"));
+    str->append(STRING_WITH_LEN(" "));
+    str->append_ulonglong(spec->cache);
+    str->append(STRING_WITH_LEN(" "));
+    if (spec->double_cache)
+      str->append(STRING_WITH_LEN("DOUBLE"));
+  }
+  else
+    str->append(STRING_WITH_LEN("NOCACHE"));
+
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->cycle)
+    str->append(STRING_WITH_LEN("CYCLE"));
+  else
+    str->append(STRING_WITH_LEN("NOCYCLE"));
+  str->append(STRING_WITH_LEN(" "));
+
+  if (spec->order)
+    str->append(STRING_WITH_LEN("ORDER"));
+  else
+    str->append(STRING_WITH_LEN("NOORDER"));
+}
+
+int Item_identity_next::save_in_field(Field *field, bool no_conversions)
+{
+  int ha_err= table_list->table->file->update_auto_increment(spec, field);
+  if (ha_err)
+  {
+    table_list->table->file->print_error(ha_err, MYF(0));
+    return ha_err;
+  }
+  field->set_notnull();
+  return 0;
+}
+
+bool Item_identity_next::fix_fields(THD *thd, Item **ref)
+{
+  TABLE *table= table_list->table;
+  if (unlikely(!table || !table->found_next_number_field))
+    return true; // corrupt frm
+
+  if (spec->generated_always)
+    table->found_next_number_field->generated_always= true;
+  return Item_longlong_func::fix_fields(thd, ref);
+}

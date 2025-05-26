@@ -7475,6 +7475,9 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->key_count= table->s->keys;
   }
 
+  if (table->found_next_number_field && table->found_next_number_field->default_value)
+    ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
 }
