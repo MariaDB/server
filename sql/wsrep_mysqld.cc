@@ -4116,3 +4116,36 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables)
   }
   return false;
 }
+
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
+{
+  if (WSREP(thd) && !thd->wsrep_applier &&
+      wsrep_is_active(thd) &&
+      (sql_command_flags[thd->lex->sql_command] &
+       (CF_UPDATES_DATA | CF_DELETES_DATA)))
+  {
+    wsrep::key key(wsrep::key::shared);
+    key.append_key_part(fk->foreign_db->str, fk->foreign_db->length);
+    key.append_key_part(fk->foreign_table->str, fk->foreign_table->length);
+
+    if (thd->wsrep_cs().append_key(key))
+    {
+      WSREP_ERROR("Appending table key failed: %s",
+                  wsrep_thd_query(thd));
+      sql_print_information("Failed Foreign key referenced table found: "
+                            "%s.%s",
+                            fk->foreign_db->str,
+                            fk->foreign_table->str);
+      return true;
+    }
+
+    DBUG_EXECUTE_IF(
+      "wsrep_print_foreign_keys_table",
+      sql_print_information("Foreign key referenced table found: %s.%s",
+                            fk->foreign_db->str,
+                            fk->foreign_table->str);
+    );
+  }
+
+  return false;
+}

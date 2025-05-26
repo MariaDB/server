@@ -1973,7 +1973,7 @@ my_bool bsonvalue_init(UDF_INIT* initid, UDF_ARGS* args, char* message)
 } // end of bsonvalue_init
 
 char* bsonvalue(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char*, char*)
+	unsigned long* res_length, uchar *, uchar *)
 {
 	char   *str;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2015,7 +2015,7 @@ my_bool bson_make_array_init(UDF_INIT* initid, UDF_ARGS* args, char* message)
 } // end of bson_make_array_init
 
 char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char*, char*)
+	unsigned long* res_length, uchar *, uchar *)
 {
 	char* str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2082,7 +2082,7 @@ my_bool bson_array_add_values_init(UDF_INIT* initid, UDF_ARGS* args, char* messa
 } // end of bson_array_add_values_init
 
 char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char* is_null, char*) {
+	unsigned long* res_length, uchar * is_null, uchar *) {
 	char* str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
@@ -2160,7 +2160,7 @@ my_bool bson_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_array_add_init
 
 char *bson_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2264,7 +2264,7 @@ my_bool bson_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_array_delete_init
 
 char *bson_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2333,7 +2333,7 @@ my_bool bson_make_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_make_object_init
 
 char *bson_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, uchar *, uchar *)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2382,7 +2382,7 @@ my_bool bson_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,
 } // end of bson_object_nonull_init
 
 char *bson_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, uchar *, uchar *)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2436,7 +2436,7 @@ my_bool bson_object_key_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_object_key_init
 
 char *bson_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, uchar *, uchar *)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2505,7 +2505,7 @@ my_bool bson_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_object_add_init
 
 char *bson_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PSZ     key;
 	char   *str = NULL;
@@ -2600,7 +2600,7 @@ my_bool bson_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_object_delete_init
 
 char *bson_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2679,7 +2679,7 @@ my_bool bson_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_object_list_init
 
 char *bson_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2746,7 +2746,7 @@ my_bool bson_object_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_object_values_init
 
 char *bson_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2816,7 +2816,7 @@ my_bool bsonset_def_prec_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 } // end of bsonset_def_prec_init
 
-long long bsonset_def_prec(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+long long bsonset_def_prec(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	long long n = *(long long*)args->args[0];
 
@@ -2837,7 +2837,7 @@ my_bool bsonget_def_prec_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 } // end of bsonget_def_prec_init
 
-long long bsonget_def_prec(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+long long bsonget_def_prec(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	return (long long)GetJsonDefPrec();
 } // end of bsonget_def_prec
@@ -2855,7 +2855,7 @@ my_bool bsonset_grp_size_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 } // end of bsonset_grp_size_init
 
-long long bsonset_grp_size(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+long long bsonset_grp_size(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	long long n = *(long long*)args->args[0];
 
@@ -2876,7 +2876,7 @@ my_bool bsonget_grp_size_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 } // end of bsonget_grp_size_init
 
-long long bsonget_grp_size(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+long long bsonget_grp_size(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	return (long long)GetJsonGroupSize();
 } // end of bsonget_grp_size
@@ -2910,7 +2910,7 @@ my_bool bson_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return false;
 } // end of bson_array_grp_init
 
-void bson_array_grp_clear(UDF_INIT *initid, char*, char*)
+void bson_array_grp_clear(UDF_INIT *initid, uchar *, uchar *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBJNX   bxp = (PBJNX)((char*)g->Sarea + sizeof(POOLHEADER));
@@ -2920,7 +2920,7 @@ void bson_array_grp_clear(UDF_INIT *initid, char*, char*)
 	g->N = GetJsonGroupSize();
 } // end of bson_array_grp_clear
 
-void bson_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
+void bson_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBJNX   bxp = (PBJNX)((char*)g->Sarea + sizeof(POOLHEADER));
@@ -2932,7 +2932,7 @@ void bson_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 } // end of bson_array_grp_add
 
 char *bson_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, uchar *, uchar *)
 {
 	char   *str;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -2983,7 +2983,7 @@ my_bool bson_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return false;
 } // end of bson_object_grp_init
 
-void bson_object_grp_clear(UDF_INIT *initid, char*, char*)
+void bson_object_grp_clear(UDF_INIT *initid, uchar *, uchar *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBJNX   bxp = (PBJNX)((char*)g->Sarea + sizeof(POOLHEADER));
@@ -2993,7 +2993,7 @@ void bson_object_grp_clear(UDF_INIT *initid, char*, char*)
 	g->N = GetJsonGroupSize();
 } // end of bson_object_grp_clear
 
-void bson_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
+void bson_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBJNX   bxp = (PBJNX)((char*)g->Sarea + sizeof(POOLHEADER));
@@ -3005,7 +3005,7 @@ void bson_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 } // end of bson_object_grp_add
 
 char *bson_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
-	unsigned long *res_length, char *, char *)
+	unsigned long *res_length, uchar *, uchar *)
 {
 	char   *str;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3046,7 +3046,7 @@ my_bool bson_test_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of bson_test_init
 
 char* bson_test(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char* is_null, char* error) {
+	unsigned long* res_length, uchar * is_null, uchar * error) {
 	char* str = NULL, *fn = NULL;
 	int     pretty = 1;
 	PBVAL   bvp;
@@ -3150,7 +3150,7 @@ my_bool bsonlocate_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of bsonlocate_init
 
 char* bsonlocate(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char* is_null, char* error) {
+	unsigned long* res_length, uchar * is_null, uchar * error) {
 	char   *path = NULL;
 	int     k;
 	PBVAL   bvp, bvp2;
@@ -3271,7 +3271,7 @@ my_bool bson_locate_all_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of bson_locate_all_init
 
 char* bson_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char* is_null, char* error) {
+	unsigned long* res_length, uchar * is_null, uchar * error) {
 	char* path = NULL;
 	int     mx = 10;
 	PBVAL   bvp, bvp2;
@@ -3396,9 +3396,10 @@ my_bool bson_contains_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, false, reslen, memlen, more);
 } // end of bson contains_init
 
-long long bson_contains(UDF_INIT *initid, UDF_ARGS *args, char *, char *error)
+long long bson_contains(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *error)
 {
-	char          isn, res[256];
+	unsigned char isn;
+	char          res[256];
 	unsigned long reslen;
 
 	isn = 0;
@@ -3445,7 +3446,7 @@ my_bool bsoncontains_path_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of bsoncontains_path_init
 
-long long bsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *, char *error)
+long long bsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, uchar *, uchar *error)
 {
 	char   *p, *path;
 	long long n;
@@ -3560,7 +3561,7 @@ my_bool bson_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_item_merge_init
 
 char *bson_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -3670,7 +3671,7 @@ my_bool bson_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_get_item_init
 
 char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *path, *str = NULL;
 	PBVAL   jvp;
@@ -3776,7 +3777,7 @@ my_bool bsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bsonget_string_init
 
 char *bsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *p, *path, *str = NULL;
 	PBVAL   jsp, jvp;
@@ -3887,7 +3888,7 @@ my_bool bsonget_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bsonget_int_init
 
 long long bsonget_int(UDF_INIT *initid, UDF_ARGS *args,
-	char *is_null, char *error)
+	uchar *is_null, uchar *error)
 {
 	char   *p, *path;
 	long long n;
@@ -4009,7 +4010,7 @@ my_bool bsonget_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bsonget_real_init
 
 double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
-	char *is_null, char *error)
+	uchar *is_null, uchar *error)
 {
 	char   *p, *path;
 	double  d;
@@ -4131,7 +4132,7 @@ my_bool bson_delete_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_delete_item_init
 
 char *bson_delete_item(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *path, *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -4214,7 +4215,7 @@ void bson_delete_item_deinit(UDF_INIT* initid)
 /*  This function is used by the json_set/insert/update_item functions.          */
 /*********************************************************************************/
 static char *bson_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *path, *str = NULL;
 	int     w;
@@ -4361,7 +4362,7 @@ my_bool bson_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_set_item_init
 
 char *bson_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$set");
 	return bson_handle_item(initid, args, result, res_length, is_null, p);
@@ -4381,7 +4382,7 @@ my_bool bson_insert_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_insert_item_init
 
 char *bson_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$insert");
 	return bson_handle_item(initid, args, result, res_length, is_null, p);
@@ -4401,7 +4402,7 @@ my_bool bson_update_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_update_item_init
 
 char *bson_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$update");
 	return bson_handle_item(initid, args, result, res_length, is_null, p);
@@ -4460,7 +4461,7 @@ my_bool bson_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_file_init
 
 char *bson_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *fn, *str = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -4553,7 +4554,7 @@ my_bool bfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bfile_make_init
 
 char *bfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+	unsigned long *res_length, uchar *is_null, uchar *)
 {
 	char   *p, *str = NULL, *fn = NULL;
 	int     n, pretty = 2;
@@ -4674,7 +4675,7 @@ my_bool bfile_convert_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of bfile_convert_init
 
 char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long *res_length, char *is_null, char *error) {
+	unsigned long *res_length, uchar *is_null, uchar *error) {
 	char   *str, *fn, *ofn;
 	int     lrecl = (int)*(longlong*)args->args[2];
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -4733,7 +4734,7 @@ my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of bfile_bjson_init
 
 char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char*, char *error) {
+	unsigned long *res_length, uchar *, uchar *error) {
 	char   *buf, *str = NULL, fn[_MAX_PATH], ofn[_MAX_PATH];
 	bool    loop;
 	ssize_t len, newloc;
@@ -4847,7 +4848,7 @@ my_bool bson_serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bson_serialize_init
 
 char *bson_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *, char *error)
+	unsigned long *res_length, uchar *, uchar *error)
 {
 	char   *str;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -4894,7 +4895,7 @@ my_bool bbin_make_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_make_array_init
 
 char *bbin_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = NULL;
@@ -4967,7 +4968,7 @@ my_bool bbin_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_array_add_init
 
 char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = NULL;
@@ -5036,7 +5037,7 @@ my_bool bbin_array_add_values_init(UDF_INIT* initid, UDF_ARGS* args, char* messa
 } // end of bbin_array_add_values_init
 
 char* bbin_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char* is_null, char* error)
+	unsigned long* res_length, uchar * is_null, uchar * error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = NULL;
@@ -5088,18 +5089,18 @@ my_bool bbin_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return bson_array_grp_init(initid, args, message);
 } // end of bbin_array_grp_init
 
-void bbin_array_grp_clear(UDF_INIT *initid, char *a, char *b)
+void bbin_array_grp_clear(UDF_INIT *initid, uchar *a, uchar *b)
 {
 	bson_array_grp_clear(initid, a, b);
 } // end of bbin_array_grp_clear
 
-void bbin_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char *a, char *b)
+void bbin_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, uchar *a, uchar *b)
 {
 	bson_array_grp_add(initid, args, a, b);
 } // end of bbin_array_grp_add
 
 char *bbin_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PBSON   bsp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5136,18 +5137,18 @@ my_bool bbin_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return bson_object_grp_init(initid, args, message);
 } // end of bbin_object_grp_init
 
-void bbin_object_grp_clear(UDF_INIT *initid, char *a, char *b)
+void bbin_object_grp_clear(UDF_INIT *initid, uchar *a, uchar *b)
 {
 	bson_object_grp_clear(initid, a, b);
 } // end of bbin_object_grp_clear
 
-void bbin_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char *a, char *b)
+void bbin_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, uchar *a, uchar *b)
 {
 	bson_object_grp_add(initid, args, a, b);
 } // end of bbin_object_grp_add
 
 char *bbin_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PBSON   bsp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5188,7 +5189,7 @@ my_bool bbin_make_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_make_object_init
 
 char *bbin_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5242,7 +5243,7 @@ my_bool bbin_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,	char *message)
 } // end of bbin_object_nonull_init
 
 char *bbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5302,7 +5303,7 @@ my_bool bbin_object_key_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_object_key_init
 
 char *bbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5364,7 +5365,7 @@ my_bool bbin_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_object_add_init
 
 char *bbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = NULL;
@@ -5426,7 +5427,7 @@ my_bool bbin_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_array_delete_init
 
 char *bbin_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = NULL;
@@ -5497,7 +5498,7 @@ my_bool bbin_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_object_delete_init
 
 char *bbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = NULL;
@@ -5556,7 +5557,7 @@ my_bool bbin_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_object_list_init
 
 char *bbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5608,7 +5609,7 @@ my_bool bbin_object_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_object_values_init
 
 char *bbin_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	PBSON   bsp = (PBSON)g->Xchk;
@@ -5663,7 +5664,7 @@ my_bool bbin_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_get_item_init																								           
 
 char *bbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PBSON   bsp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5713,7 +5714,7 @@ my_bool bbin_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_item_merge_init
 
 char *bbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	PBSON   bsp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5786,7 +5787,7 @@ void bbin_item_merge_deinit(UDF_INIT* initid)
 /*  This function is used by the jbin_set/insert/update_item functions.          */
 /*********************************************************************************/
 static char *bbin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *path;
 	int     w;
@@ -5892,7 +5893,7 @@ my_bool bbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_set_item_init
 
 char *bbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$set");
 	return bbin_handle_item(initid, args, result, res_length, is_null, p);
@@ -5912,7 +5913,7 @@ my_bool bbin_insert_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_insert_item_init
 
 char *bbin_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$insert");
 	return bbin_handle_item(initid, args, result, res_length, is_null, p);
@@ -5932,7 +5933,7 @@ my_bool bbin_update_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_update_item_init
 
 char *bbin_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *p)
+	unsigned long *res_length, uchar *is_null, uchar *p)
 {
 	strcpy(result, "$update");
 	return bbin_handle_item(initid, args, result, res_length, is_null, p);
@@ -5952,7 +5953,7 @@ my_bool bbin_delete_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_delete_item_init
 
 char *bbin_delete_item(UDF_INIT *initid, UDF_ARGS *args, char *result, 
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *path;
 	PBSON   bsp = NULL;
@@ -6046,7 +6047,7 @@ my_bool bbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 } // end of bbin_file_init
 
 char *bbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+	unsigned long *res_length, uchar *is_null, uchar *error)
 {
 	char   *fn;
 	int     pretty = 3;
@@ -6123,7 +6124,7 @@ my_bool bbin_locate_all_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 } // end of bbin_locate_all_init
 
 char* bbin_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	unsigned long* res_length, char* is_null, char* error) {
+	unsigned long* res_length, uchar * is_null, uchar * error) {
 	char   *path = NULL;
 	int     mx = 10;
 	PBVAL   bvp, bvp2;
