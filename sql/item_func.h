@@ -4500,6 +4500,47 @@ public:
   { return get_item_copy<Item_func_setval>(thd, this); }
 };
 
+class Item_identity_next: public Item_longlong_func
+{
+  static constexpr LEX_CSTRING name {STRING_WITH_LEN("IDENTITY") };
+protected:
+  TABLE_LIST *table_list;
+  Autoinc_spec *spec;
+public:
+  Item_identity_next(THD *thd, TABLE_LIST *table_list, Autoinc_spec *spec):
+  Item_longlong_func(thd), table_list(table_list), spec(spec) {}
+
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return name;
+  }
+  void print(String *str, enum_query_type query_type) override;
+  void print_default_prefix(String *str) const override;
+  void print_for_frm(String *str) override
+  {
+    print_default_prefix(str);
+    str->append(' ');
+    print(str, enum_query_type());
+  }
+
+  bool fix_length_and_dec(THD *thd) override
+  {
+    max_length= MAX_BIGINT_WIDTH;
+    unsigned_flag= true; // Limitation: only positive numbers for now
+    return FALSE;
+  }
+  bool const_item() const override { return false; }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_identity_next>(thd, this); }
+  longlong val_int() override { DBUG_ASSERT(0); return 0; }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NEXTVAL);
+  }
+  int save_in_field(Field *field, bool no_conversions) override;
+  bool fix_fields(THD *thd, Item **ref) override;
+};
+
 class Interruptible_wait;
 
 Item *get_system_var(THD *thd, enum_var_type var_type,

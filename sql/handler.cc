@@ -4415,7 +4415,7 @@ int handler::update_auto_increment(const Autoinc_spec* spec,
     }
   }
 
-  if (unlikely(nr == ULONGLONG_MAX && nr > spec->maxvalue))
+  if (unlikely(nr >= spec->maxvalue))
       DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
 
   DBUG_ASSERT(nr != 0);
