@@ -429,7 +429,8 @@ public:
   @param buf        log header buffer
   @param lsn        log sequence number corresponding to log_sys.START_OFFSET
   @param encrypted  whether the log is encrypted */
-  static void header_write(byte *buf, lsn_t lsn, bool encrypted);
+  static void header_write(byte *buf, lsn_t lsn, bool encrypted,
+                           bool is_clone= false);
 
   lsn_t get_lsn(std::memory_order order= std::memory_order_relaxed) const
   { return lsn.load(order); }

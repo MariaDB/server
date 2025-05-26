@@ -408,7 +408,7 @@ bool log_t::attach(log_file_t file, os_offset_t size)
 @param buf        log header buffer
 @param lsn        log sequence number corresponding to log_sys.START_OFFSET
 @param encrypted  whether the log is encrypted */
-void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
+void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted, bool is_clone)
 {
   mach_write_to_4(my_assume_aligned<4>(buf) + LOG_HEADER_FORMAT,
                   log_sys.FORMAT_10_8);
@@ -419,7 +419,8 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
 # pragma GCC diagnostic ignored "-Wstringop-truncation"
 #endif
   strncpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
-          "MariaDB " PACKAGE_VERSION,
+          is_clone ? "MariaDB Clone" PACKAGE_VERSION :
+                     "MariaDB " PACKAGE_VERSION,
           LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR);
 #if defined __GNUC__ && __GNUC__ > 7
 # pragma GCC diagnostic pop
