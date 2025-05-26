@@ -22,6 +22,7 @@
 #    $add_col          Boolean.
 #    $add_col_loc      One of "first", "middle", "end"
 #    $drop_col         One of the existing columns, i.e. pk, a, b, or c
+#    $drop_col_2       One of the existing columns, i.e. pk, a, b, or c
 #
 #
 
@@ -79,6 +80,10 @@ if ($drop_col)
 {
   --eval alter table t1 drop column $drop_col
 }
+if ($drop_col_2)
+{
+  --eval alter table t1 drop column $drop_col_2
+}
 --source include/save_master_gtid.inc
 
 --connection server_3
@@ -131,12 +136,12 @@ if ($can_convert) {
       --let $master_val= $master_c
     }
 
-    if (`SELECT strcmp("$col","$drop_col")=0`)
+    if (`SELECT strcmp("$col","$drop_col")=0 OR strcmp("$col","$drop_col_2")=0`)
     {
       --echo # Column $col was dropped, skipping its validation
     }
 
-    if (`SELECT strcmp("$col","$drop_col")!=0`)
+    if (`SELECT strcmp("$col","$drop_col")!=0 AND strcmp("$col","$drop_col_2")!=0`)
     {
       if (`select $col != $master_val from t1`)
       {

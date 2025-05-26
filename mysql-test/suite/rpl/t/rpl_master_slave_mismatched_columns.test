@@ -104,6 +104,9 @@ set global slave_type_conversions='ALL_NON_LOSSY';
 --source rpl_master_slave_mismatched_columns.inc
 --let $drop_col= pk
 --source rpl_master_slave_mismatched_columns.inc
+--let $drop_col= a
+--let $drop_col_2= c
+--source rpl_master_slave_mismatched_columns.inc
 
 --let $source_type=
 --let $target_type=
@@ -111,6 +114,7 @@ set global slave_type_conversions='ALL_NON_LOSSY';
 --let $target_value=
 --let $can_convert=
 --let $drop_col=
+--let $drop_col_2=
 
 --echo #
 --echo # Test Case 7: (Re-test 1-6 with type conversion)
