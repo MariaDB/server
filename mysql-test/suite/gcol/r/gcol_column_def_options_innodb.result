@@ -464,7 +464,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (i INT COLLATE utf8_bin, c INT COLLATE utf8_bin GENERATED ALWAYS AS (10));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GENERATED ALWAYS AS (10))' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(10))' at line 1
 # Check for a charset mismatch processing:
 # Bug #21469535: VALGRIND ERROR (CONDITIONAL JUMP) WHEN INSERT
 #                ROWS INTO A PARTITIONED TABLE

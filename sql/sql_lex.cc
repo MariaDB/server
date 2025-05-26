@@ -10313,6 +10313,22 @@ bool LEX::last_field_generated_always_as_row_end()
                                                          VERS_ROW_END);
 }
 
+bool LEX::last_field_identity(bool generated_always)
+{
+  create_info.used_fields|= HA_CREATE_USED_AUTO;
+
+  // This is needed to make sure there is only one autoinc field
+  last_field->flags|= AUTO_INCREMENT_FLAG;
+  last_field->identity_field= true;
+
+  Virtual_column_info *v= add_virtual_expression(thd,
+                               new (thd->mem_root) Item_identity_next(thd,
+                                                            last_table(),
+                                                            generated_always));
+  last_field->default_value= v;
+  return v != NULL;
+}
+
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;

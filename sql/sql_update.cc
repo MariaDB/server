@@ -1237,6 +1237,7 @@ error:
 
 update_end:
   table->file->try_semi_consistent_read(0);
+  table->file->ha_release_auto_increment();
 
   if (!transactional_table && updated > 0)
     thd->transaction->stmt.modified_non_trans_table= TRUE;
@@ -2816,6 +2817,7 @@ int multi_update::do_updates()
         thd->transaction->stmt.modified_non_trans_table= TRUE;
       }
     }
+    table->file->ha_release_auto_increment();
     (void) table->file->ha_rnd_end();
     (void) tmp_table->file->ha_rnd_end();
     check_opt_it.rewind();

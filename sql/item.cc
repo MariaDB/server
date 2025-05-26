@@ -1629,7 +1629,7 @@ bool Item_field::check_vcol_func_processor(void *arg)
     r|= res->alter_info->check_vcol_field(this);
   else if (field)
   {
-    if (field->unireg_check == Field::NEXT_NUMBER)
+    if (field->unireg_check == Field::NEXT_NUMBER && !field->default_value)
       r|= VCOL_AUTO_INC;
     if (field->vcol_info &&
         field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
@@ -10198,6 +10198,17 @@ bool Item_default_value::tie_field(THD *thd)
              field_arg->field->field_name.str);
     goto error;
   }
+
+  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
+      thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
+
+  if (!vcol_assignment_ok && field_arg->field->default_value &&
+      field_arg->field->unireg_check == Field::NEXT_NUMBER)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "DEFAULT()");
+    goto error;
+  }
+
   def_field= make_default_field(thd, field_arg->field);
   if (!def_field)
     goto error;

@@ -3679,6 +3679,7 @@ public:
   int ha_rename_partitions(const char *path);
 
   void adjust_next_insert_id_after_explicit_value(ulonglong nr);
+  int update_auto_increment_impl(Field *autoinc_field);
   int update_auto_increment();
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);

@@ -3794,6 +3794,8 @@ public:
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
 
+  bool last_field_identity(bool generated_always);
+
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
   bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);

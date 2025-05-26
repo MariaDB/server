@@ -4256,44 +4256,20 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
 #define AUTO_INC_DEFAULT_NB_MAX_BITS 16
 #define AUTO_INC_DEFAULT_NB_MAX ((1 << AUTO_INC_DEFAULT_NB_MAX_BITS) - 1)
 
-int handler::update_auto_increment()
+int handler::update_auto_increment_impl(Field *autoinc_field)
 {
   ulonglong nr, nb_reserved_values;
   bool append= FALSE;
   THD *thd= table->in_use;
   struct system_variables *variables= &thd->variables;
   int result=0, tmp;
-  DBUG_ENTER("handler::update_auto_increment");
+  DBUG_ENTER("handler::update_auto_increment_impl");
 
   /*
     next_insert_id is a "cursor" into the reserved interval, it may go greater
     than the interval, but not smaller.
   */
   DBUG_ASSERT(next_insert_id >= auto_inc_interval_for_cur_row.minimum());
-
-  if ((nr= table->next_number_field->val_int()) != 0 ||
-      (table->auto_increment_field_not_null &&
-       thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO))
-  {
-
-    /*
-      There could be an error reported because value was truncated
-      when strict mode is enabled.
-    */
-    if (thd->is_error())
-      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
-    /*
-      Update next_insert_id if we had already generated a value in this
-      statement (case of INSERT VALUES(null),(3763),(null):
-      the last NULL needs to insert 3764, not the value of the first NULL plus
-      1).
-      Ignore negative values.
-    */
-    if ((longlong) nr > 0 || (table->next_number_field->flags & UNSIGNED_FLAG))
-      adjust_next_insert_id_after_explicit_value(nr);
-    insert_id_for_cur_row= 0; // didn't generate anything
-    DBUG_RETURN(0);
-  }
 
   if (table->versioned())
   {
@@ -4304,9 +4280,9 @@ int handler::update_auto_increment()
     {
       if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
       {
-        if (!table->next_number_field->real_maybe_null())
+        if (!autoinc_field->real_maybe_null())
           DBUG_RETURN(HA_ERR_UNSUPPORTED);
-        table->next_number_field->set_null();
+        autoinc_field->set_null();
       }
       DBUG_RETURN(0);
     }
@@ -4314,7 +4290,7 @@ int handler::update_auto_increment()
 
   // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
   if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
-    table->next_number_field->set_notnull();
+    autoinc_field->set_notnull();
 
   if ((nr= next_insert_id) >= auto_inc_interval_for_cur_row.maximum())
   {
@@ -4415,7 +4391,7 @@ int handler::update_auto_increment()
   /* Store field without warning (Warning will be printed by insert) */
   {
     Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-    tmp= table->next_number_field->store((longlong)nr, TRUE);
+    tmp= autoinc_field->store((longlong)nr, TRUE);
   }
 
   if (unlikely(tmp))                            // Out of range value in store
@@ -4425,7 +4401,7 @@ int handler::update_auto_increment()
       or new field value greater than maximum integer value:
     */
     if (thd->killed == KILL_BAD_DATA ||
-        nr > table->next_number_field->get_max_int_value())
+        nr > autoinc_field->get_max_int_value())
     {
       /*
         It's better to return an error here than getting a confusing
@@ -4443,9 +4419,9 @@ int handler::update_auto_increment()
         bother shifting the right bound (anyway any other value from this
         interval will cause a duplicate key).
       */
-      nr= prev_insert_id(table->next_number_field->val_int(), variables);
-      if (unlikely(table->next_number_field->store((longlong)nr, TRUE)))
-        nr= table->next_number_field->val_int();
+      nr= prev_insert_id(autoinc_field->val_int(), variables);
+      if (unlikely(autoinc_field->store((longlong)nr, TRUE)))
+        nr= autoinc_field->val_int();
     }
   }
   if (append)
@@ -4482,6 +4458,40 @@ int handler::update_auto_increment()
   set_next_insert_id(compute_next_insert_id(nr, variables));
 
   DBUG_RETURN(0);
+}
+
+int handler::update_auto_increment()
+{
+  DBUG_ENTER("handler::update_auto_increment");
+  if (table->next_number_field->default_value)
+    DBUG_RETURN(0); // Skip, already called.
+
+  THD *thd= table->in_use;
+  ulonglong nr;
+  if ((nr= table->next_number_field->val_int()) != 0 ||
+    (table->auto_increment_field_not_null &&
+     thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO))
+  {
+
+    /*
+      There could be an error reported because value was truncated
+      when strict mode is enabled.
+    */
+    if (thd->is_error())
+      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+    /*
+      Update next_insert_id if we had already generated a value in this
+      statement (case of INSERT VALUES(null),(3763),(null):
+      the last NULL needs to insert 3764, not the value of the first NULL plus
+      1).
+      Ignore negative values.
+    */
+    if ((longlong) nr > 0 || (table->next_number_field->flags & UNSIGNED_FLAG))
+      adjust_next_insert_id_after_explicit_value(nr);
+    insert_id_for_cur_row= 0; // didn't generate anything
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(update_auto_increment_impl(table->next_number_field));
 }
 
 
