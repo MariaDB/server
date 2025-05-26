@@ -237,6 +237,18 @@ unpack_row(rpl_group_info *rgi,
   TABLE *conv_table= table_list->m_conv_table;
   uint conv_table_idx= 0, null_pos= 0;
 
+  /*
+    Two phases:
+      1. First, perform a sanity check to see if the value should actually be
+         unpacked, i.e. if nothing was binlogged (NULL) or the column doesn't
+         exist on the slave. If there is nothing to unpack, we can just skip
+         that column; but the unpack state needs to be maintained (i.e.
+         pack_ptr and conv_table_idx need to be incremented appropriately), and
+         the field must be configured with the correct default value (or NULL).
+
+      2. Unpack the actual value into the slave field with any necessary
+         conversions.
+  */
   for (uint master_idx= 0; master_idx < master_cols; master_idx++)
   {
     bool null_value;
@@ -245,20 +257,22 @@ unpack_row(rpl_group_info *rgi,
     Copy_field copy;
 
     /*
-      Skip columns on the master that where not replicated
+      Part 1: Skip columns on the master that were not replicated
     */
     if (!bitmap_is_set(cols, master_idx))
     {
       if (!(tabledef->master_to_slave_error[master_idx]))
       {
-#ifdef NOT_YET
         DBUG_ASSERT(!bitmap_is_set(table->write_set,
                                    master_to_slave_map[master_idx]));
-#endif
         conv_table_idx++;
         continue;
       }
     }
+    /*
+      TODO BN: I Think null_ptr needs to be initially offset like in the base
+      patch
+    */
     null_value= rpl_bitmap_is_set(null_ptr, null_pos++);
     if (tabledef->master_to_slave_error[master_idx])
     {
@@ -308,6 +322,11 @@ unpack_row(rpl_group_info *rgi,
       conv_table_idx++;
       continue;
     }
+
+    /*
+      Part 2: Unpack the actual value into the slave field with any necessary
+      conversions.
+    */
 
     /* Found not null field */
     field->set_notnull();
@@ -375,7 +394,7 @@ unpack_row(rpl_group_info *rgi,
     String target_type(target_buf, sizeof(target_buf), system_charset_info);
     field->sql_type(target_type);
     field->val_str(&value_string);
-    DBUG_PRINT("debug", ("Value of field '%s' of type '%s' is now '%s'",
+    DBUG_PRINT("rpl", ("Value of field '%s' of type '%s' is now '%s'",
                          field->field_name.str,
                          target_type.c_ptr_safe(), value_string.c_ptr_safe()));
 #endif

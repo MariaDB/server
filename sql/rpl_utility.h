@@ -32,7 +32,7 @@ class Relay_log_info;
 class Log_event;
 class Rows_log_event;
 struct rpl_group_info;
-class RPL_TABLE_LIST;
+struct RPL_TABLE_LIST;
 
 /**
   A table definition from the master.
@@ -216,7 +216,8 @@ public:
    serve no purpose. If the conversion table is referenced while iterating
    through this table_def, one needs a separate index to keep track of the
    conv_table fields, which are only incremented when the slave has that
-   column. This can be checked by using RPL_TABLE_LIST::lookup_slave_column().
+   column. This can be checked using member variable master_to_slave_error:
+   when an element in that array is 0, it means that field exists on the slave.
    See other member function of table_def compatible_with() for an example of
    this.
    */
@@ -236,7 +237,7 @@ public:
   LEX_CUSTRING optional_metadata;
   uint *master_to_slave_map;
   uint *master_to_slave_error;
-  char const **master_column_name;
+  char **master_column_name;
 };
 
 /* Different errors when converting a field from master to slave */

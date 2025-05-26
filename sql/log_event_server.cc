@@ -5827,9 +5827,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
     else
     {
-      if (rpl_table->create_column_mapping(rgi))
-        DBUG_RETURN(1);                         // Internal errror
-
       bitmap_clear_all(table->read_set);
       bitmap_clear_all(table->write_set);
 

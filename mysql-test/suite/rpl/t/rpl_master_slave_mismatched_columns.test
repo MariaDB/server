@@ -29,7 +29,7 @@
 #   6. ALTER TABLE drops the last column on the slave, that column is not
 #      replicated, but all other fields replicate correctly.
 #   7. Re-test use-cases 1-6 with type conversion.
-#   8. Re-test use-cases 1-6 with NULL columns. *TODO
+#   8. Re-test use-cases 1-6 with NULL columns.
 #   9. Re-test use-cases 1-6 with type conversion and NULL columns. *TODO
 #   10. ALTER TABLE adds a column with the same name as an existing column,
 #      but with a prefix, and before the existing column. Replication should
@@ -53,101 +53,7 @@
 --let $rpl_topology=1->2, 2->3
 --source include/rpl_init.inc
 
---connection server_2
-set @saved_slave_type_conversions = @@global.slave_type_conversions;
-set global slave_type_conversions='ALL_NON_LOSSY';
---connection server_3
-set @saved_slave_type_conversions = @@global.slave_type_conversions;
-set global slave_type_conversions='ALL_NON_LOSSY';
-
---echo #
---echo # Test Cases 1-3: Add columns
-
-# No type-conversion, so have source and target match
---let $source_type= BLOB
---let $target_type= BLOB
---let $source_value= 'aaa'
---let $target_value= 'aaa'
---let $can_convert= 1
---let $add_col= 1
---let $add_col_loc= first
---source rpl_master_slave_mismatched_columns.inc
-
---let $add_col_loc= middle
---source rpl_master_slave_mismatched_columns.inc
-
---let $add_col_loc= end
---source rpl_master_slave_mismatched_columns.inc
-
---let $source_type=
---let $target_type=
---let $source_value=
---let $target_value=
---let $can_convert=
---let $add_col=
---let $add_col_loc=
-
---echo #
---echo # Test Case 4-6: Drop columns
-# No type-conversion, so have source and target match
---let $source_type= BLOB
---let $target_type= BLOB
---let $source_value= 'aaa'
---let $target_value= 'aaa'
---let $can_convert= 1
-
---let $drop_col= a
---source rpl_master_slave_mismatched_columns.inc
---let $drop_col= b
---source rpl_master_slave_mismatched_columns.inc
---let $drop_col= c
---source rpl_master_slave_mismatched_columns.inc
---let $drop_col= pk
---source rpl_master_slave_mismatched_columns.inc
-
---let $source_type=
---let $target_type=
---let $source_value=
---let $target_value=
---let $can_convert=
---let $drop_col=
-
---echo #
---echo # Test Case 7: (Re-test 1-6 with type conversion)
---let $source_type= TINYBLOB
---let $target_type= BLOB
---let $source_value= 'aaa'
---let $target_value= 'aaa'
-
---echo # ALTER ADD COLUMN tests
---let $can_convert= 1
---let $add_col= 1
---let $add_col_loc= first
---source rpl_master_slave_mismatched_columns.inc
---let $add_col_loc= middle
---source rpl_master_slave_mismatched_columns.inc
---let $add_col_loc= end
---source rpl_master_slave_mismatched_columns.inc
-
---let $add_col=
---let $add_col_loc=
-
---echo # ALTER DROP COLUMN tests
---let $drop_col= a
---source rpl_master_slave_mismatched_columns.inc
---let $drop_col= b
---source rpl_master_slave_mismatched_columns.inc
---let $drop_col= c
---source rpl_master_slave_mismatched_columns.inc
---let $drop_col= pk
---source rpl_master_slave_mismatched_columns.inc
-
---let $source_type=
---let $target_type=
---let $source_value=
---let $target_value=
---let $can_convert=
---let $drop_col=
+--source rpl_master_slave_mismatched_columns_null.inc
 
 --echo #
 --echo # Cleanup
@@ -157,10 +63,6 @@ set global slave_type_conversions='ALL_NON_LOSSY';
 --connection server_3
 --source include/sync_with_master_gtid.inc
 
---connection server_2
-set global slave_type_conversions= @saved_slave_type_conversions;
---connection server_3
-set global slave_type_conversions= @saved_slave_type_conversions;
 
 --source include/rpl_end.inc
 --echo # End of .test

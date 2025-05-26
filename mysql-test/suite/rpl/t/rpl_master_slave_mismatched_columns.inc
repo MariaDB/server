@@ -19,9 +19,17 @@
 #                      shall generate an error
 #    $engine_type      The storage engine to be used for storing table
 #                      on both master and slave
-#    $add_col          Boolean.
-#    $add_col_loc      One of "first", "middle", "end"
-#    $drop_col         One of the existing columns, i.e. pk, a, b, or c
+#    $add_col          Boolean that indicates whether or not the ALTER TABLE
+#                      should add a column.
+#    $add_col_loc      Specifies the location to add a column when parameter
+#                      $add_col is set. One of "first", "middle", "end".
+#    $drop_col         Specifies a column for the ALTER TABLE to drop. Must be
+#                      one of the existing columns, i.e. pk, a, b, or c.
+#    $drop_col_2       Specifies another column for the ALTER TABLE to drop.
+#                      Must be one of the existing columns, i.e. pk, a, b, or
+#                      c.
+#    $null_col         Specifies a field for the MDL operation to nullify. One
+#                      of the existing NOT NULL columns, i.e. a, b, or c.
 #
 #
 
@@ -50,11 +58,6 @@ eval create table t1(
 --connection server_2
 --source include/sync_with_master_gtid.inc
 
---echo #
---echo # TODO: Handle:
---echo #    * ADD AFTER (positional)
---echo #    * DROP
---echo #
 eval alter table t1 modify b $target_type;
 
 if ($add_col)
@@ -79,6 +82,10 @@ if ($drop_col)
 {
   --eval alter table t1 drop column $drop_col
 }
+if ($drop_col_2)
+{
+  --eval alter table t1 drop column $drop_col_2
+}
 --source include/save_master_gtid.inc
 
 --connection server_3
@@ -87,8 +94,20 @@ if ($drop_col)
 connection server_1;
 --let $master_pk= 1
 --let $master_a= 1000
+if (`SELECT strcmp("$null_col","a")=0`)
+{
+  --let $master_a= NULL
+}
 --let $master_b= $source_value
+if (`SELECT strcmp("$null_col","b")=0`)
+{
+  --let $master_b= NULL
+}
 --let $master_c= 2000
+if (`SELECT strcmp("$null_col","c")=0`)
+{
+  --let $master_c= NULL
+}
 eval INSERT INTO t1 (pk, a, b, c) VALUES($master_pk, $master_a, $master_b, $master_c);
 --source include/save_master_gtid.inc
 
@@ -131,12 +150,12 @@ if ($can_convert) {
       --let $master_val= $master_c
     }
 
-    if (`SELECT strcmp("$col","$drop_col")=0`)
+    if (`SELECT strcmp("$col","$drop_col")=0 OR strcmp("$col","$drop_col_2")=0`)
     {
       --echo # Column $col was dropped, skipping its validation
     }
 
-    if (`SELECT strcmp("$col","$drop_col")!=0`)
+    if (`SELECT strcmp("$col","$drop_col")!=0 AND strcmp("$col","$drop_col_2")!=0`)
     {
       if (`select $col != $master_val from t1`)
       {
