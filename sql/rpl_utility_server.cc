@@ -1192,7 +1192,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
 
   /*
     Iterate through the number of columns logged on the master, and if
-    skip any that is missing on the slave. Skipped columns are not
+    skip any that are missing on the slave. Skipped columns are not
     added to the conv_table, as there is no column on the slave to use
     as the reference for the target_field.
   */
