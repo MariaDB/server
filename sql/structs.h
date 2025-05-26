@@ -1160,5 +1160,21 @@ protected:
   const Sp_rcontext_handler *m_deref_rcontext_handler;
 };
 
+struct Autoinc_spec: Sql_alloc
+{
+  ulonglong start;
+  ulonglong step;
+  ulonglong minvalue;
+  ulonglong maxvalue;
+  unsigned int cache;
+  bool has_minvalue:1;
+  bool has_maxvalue:1;
+  bool cycle:1;
+  bool order:1;
+  bool generated_always:1;
+  bool no_auto_value_on_zero:1;
+  bool default_on_null:1;
+  bool double_cache:1;
+};
 
 #endif /* STRUCTS_INCLUDED */

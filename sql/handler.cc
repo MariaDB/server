@@ -49,6 +49,7 @@
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
 #include "vector_mhnsw.h"
+#include "structs.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -4090,25 +4091,22 @@ int handler::read_first_row(uchar * buf, uint primary_key)
   @verbatim 1,5,15,25,35,... @endverbatim
 */
 inline ulonglong
-compute_next_insert_id(ulonglong nr,struct system_variables *variables)
+compute_next_insert_id(ulonglong nr, const Autoinc_spec* spec)
 {
   const ulonglong save_nr= nr;
 
-  if (variables->auto_increment_increment == 1)
+  if (spec->step == 1)
     nr= nr + 1; // optimization of the formula below
   else
   {
     /*
        Calculating the number of complete auto_increment_increment extents:
     */
-    nr= (nr + variables->auto_increment_increment -
-         variables->auto_increment_offset) /
-        (ulonglong) variables->auto_increment_increment;
+    nr= (nr + spec->step - spec->start) / (ulonglong) spec->step;
     /*
-       Adding an offset to the auto_increment_increment extent boundary:
+       Adding an offset to the step extent boundary:
     */
-    nr= nr * (ulonglong) variables->auto_increment_increment +
-        variables->auto_increment_offset;
+    nr= nr * (ulonglong) spec->step + spec->start;
   }
 
   if (unlikely(nr <= save_nr))
@@ -4116,9 +4114,14 @@ compute_next_insert_id(ulonglong nr,struct system_variables *variables)
 
   return nr;
 }
-
-
 void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
+{
+  Autoinc_spec spec= table->make_autoinc_spec(table->in_use);
+  return adjust_next_insert_id_after_explicit_value(nr, &spec);
+}
+
+void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr,
+                                               const Autoinc_spec* spec)
 {
   /*
     If we have set THD::next_insert_id previously and plan to insert an
@@ -4126,7 +4129,7 @@ void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
     THD::next_insert_id to be greater than the explicit value.
   */
   if ((next_insert_id > 0) && (nr >= next_insert_id))
-    set_next_insert_id(compute_next_insert_id(nr, &table->in_use->variables));
+    set_next_insert_id(compute_next_insert_id(nr, spec));
 }
 
 
@@ -4146,9 +4149,9 @@ void handler::adjust_next_insert_id_after_explicit_value(ulonglong nr)
     The number X if it exists, "nr" otherwise.
 */
 inline ulonglong
-prev_insert_id(ulonglong nr, struct system_variables *variables)
+prev_insert_id(ulonglong nr, const Autoinc_spec *spec)
 {
-  if (unlikely(nr < variables->auto_increment_offset))
+  if (unlikely(nr < spec->start))
   {
     /*
       There's nothing good we can do here. That is a pathological case, where
@@ -4156,22 +4159,22 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
       the first sequence value may be inserted. User will receive warning.
     */
     DBUG_PRINT("info",("auto_increment: nr: %lu cannot honour "
-                       "auto_increment_offset: %lu",
-                       (ulong) nr, variables->auto_increment_offset));
+                       "auto_increment_offset / START WITH: %llu",
+                       (ulong) nr, spec->start));
     return nr;
   }
-  if (variables->auto_increment_increment == 1)
+  if (spec->step == 1)
     return nr; // optimization of the formula below
   /*
-     Calculating the number of complete auto_increment_increment extents:
+     Calculating the number of complete spec->step extents:
   */
-  nr= (nr - variables->auto_increment_offset) /
-      (ulonglong) variables->auto_increment_increment;
+  nr= (nr - spec->start) /
+      (ulonglong) spec->step;
   /*
-     Adding an offset to the auto_increment_increment extent boundary:
+     Adding an offset to the spec->step extent boundary:
   */
-  return (nr * (ulonglong) variables->auto_increment_increment +
-          variables->auto_increment_offset);
+  return (nr * (ulonglong) spec->step +
+          spec->start);
 }
 
 
@@ -4254,7 +4257,8 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
 #define AUTO_INC_DEFAULT_NB_MAX_BITS 16
 #define AUTO_INC_DEFAULT_NB_MAX ((1 << AUTO_INC_DEFAULT_NB_MAX_BITS) - 1)
 
-int handler::update_auto_increment()
+int handler::update_auto_increment(const Autoinc_spec* spec,
+                                   Field *autoinc_field)
 {
   ulonglong nr, nb_reserved_values;
   bool append= FALSE;
@@ -4269,9 +4273,8 @@ int handler::update_auto_increment()
   */
   DBUG_ASSERT(next_insert_id >= auto_inc_interval_for_cur_row.minimum());
 
-  if ((nr= table->next_number_field->val_int()) != 0 ||
-      (table->auto_increment_field_not_null &&
-       thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO))
+  if ((nr= autoinc_field->val_int()) != 0 ||
+      (table->auto_increment_field_not_null && spec->no_auto_value_on_zero))
   {
 
     /*
@@ -4287,8 +4290,8 @@ int handler::update_auto_increment()
       1).
       Ignore negative values.
     */
-    if ((longlong) nr > 0 || (table->next_number_field->flags & UNSIGNED_FLAG))
-      adjust_next_insert_id_after_explicit_value(nr);
+    if ((longlong) nr > 0 || (autoinc_field->flags & UNSIGNED_FLAG))
+      adjust_next_insert_id_after_explicit_value(nr, spec);
     insert_id_for_cur_row= 0; // didn't generate anything
     DBUG_RETURN(0);
   }
@@ -4302,9 +4305,9 @@ int handler::update_auto_increment()
     {
       if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
       {
-        if (!table->next_number_field->real_maybe_null())
+        if (!autoinc_field->real_maybe_null())
           DBUG_RETURN(HA_ERR_UNSUPPORTED);
-        table->next_number_field->set_null();
+        autoinc_field->set_null();
       }
       DBUG_RETURN(0);
     }
@@ -4312,7 +4315,7 @@ int handler::update_auto_increment()
 
   // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
   if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
-    table->next_number_field->set_notnull();
+    autoinc_field->set_notnull();
 
   if ((nr= next_insert_id) >= auto_inc_interval_for_cur_row.maximum())
   {
@@ -4359,21 +4362,29 @@ int handler::update_auto_increment()
       else /* go with the increasing defaults */
       {
         /* avoid overflow in formula, with this if() */
-        if (auto_inc_intervals_count <= AUTO_INC_DEFAULT_NB_MAX_BITS)
+        if (spec->double_cache)
         {
-          nb_desired_values= AUTO_INC_DEFAULT_NB_ROWS *
-            (1 << auto_inc_intervals_count);
-          set_if_smaller(nb_desired_values, AUTO_INC_DEFAULT_NB_MAX);
+          if (auto_inc_intervals_count <= AUTO_INC_DEFAULT_NB_MAX_BITS) {
+            nb_desired_values= spec->cache * (1ULL << auto_inc_intervals_count);
+            set_if_smaller(nb_desired_values, (ulonglong)AUTO_INC_DEFAULT_NB_MAX);
+          }
+          else
+          {
+            nb_desired_values= AUTO_INC_DEFAULT_NB_MAX;
+          }
         }
         else
-          nb_desired_values= AUTO_INC_DEFAULT_NB_MAX;
+        {
+            nb_desired_values= spec->cache;
+        }
       }
-      get_auto_increment(variables->auto_increment_offset,
-                         variables->auto_increment_increment,
-                         nb_desired_values, &nr,
+      if (nb_desired_values == 0) nb_desired_values= 1;
+
+      get_auto_increment(spec->start, spec->step, nb_desired_values, &nr,
                          &nb_reserved_values);
+
       if (nr == ULONGLONG_MAX)
-        DBUG_RETURN(HA_ERR_AUTOINC_READ_FAILED);  // Mark failure
+        DBUG_RETURN(HA_ERR_AUTOINC_READ_FAILED);
 
       /*
         That rounding below should not be needed when all engines actually
@@ -4383,7 +4394,7 @@ int handler::update_auto_increment()
         if it did we cannot do anything about it (calling the engine again
         will not help as we inserted no row).
       */
-      nr= compute_next_insert_id(nr-1, variables);
+      nr= compute_next_insert_id(nr-1, spec);
     }
 
     if (table->s->next_number_keypart == 0)
@@ -4399,11 +4410,12 @@ int handler::update_auto_increment()
         thd->auto_inc_interval_for_cur_row, so we are sure to call the engine
         for next row.
       */
+      nb_reserved_values= 1;
       DBUG_PRINT("info",("auto_increment: special not-first-in-index"));
     }
   }
 
-  if (unlikely(nr == ULONGLONG_MAX))
+  if (unlikely(nr == ULONGLONG_MAX && nr > spec->maxvalue))
       DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
 
   DBUG_ASSERT(nr != 0);
@@ -4413,7 +4425,7 @@ int handler::update_auto_increment()
   /* Store field without warning (Warning will be printed by insert) */
   {
     Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-    tmp= table->next_number_field->store((longlong)nr, TRUE);
+    tmp= autoinc_field->store((longlong)nr, TRUE);
   }
 
   if (unlikely(tmp))                            // Out of range value in store
@@ -4422,8 +4434,7 @@ int handler::update_auto_increment()
       First, test if the query was aborted due to strict mode constraints
       or new field value greater than maximum integer value:
     */
-    if (thd->killed == KILL_BAD_DATA ||
-        nr > table->next_number_field->get_max_int_value())
+    if (thd->killed == KILL_BAD_DATA || nr > spec->maxvalue)
     {
       /*
         It's better to return an error here than getting a confusing
@@ -4441,9 +4452,9 @@ int handler::update_auto_increment()
         bother shifting the right bound (anyway any other value from this
         interval will cause a duplicate key).
       */
-      nr= prev_insert_id(table->next_number_field->val_int(), variables);
-      if (unlikely(table->next_number_field->store((longlong)nr, TRUE)))
-        nr= table->next_number_field->val_int();
+      nr= prev_insert_id(autoinc_field->val_int(), spec);
+      if (unlikely(autoinc_field->store((longlong)nr, TRUE)))
+        nr= autoinc_field->val_int();
     }
   }
   if (append)
@@ -4477,9 +4488,40 @@ int handler::update_auto_increment()
     Set next insert id to point to next auto-increment value to be able to
     handle multi-row statements.
   */
-  set_next_insert_id(compute_next_insert_id(nr, variables));
+  set_next_insert_id(compute_next_insert_id(nr, spec));
 
   DBUG_RETURN(0);
+}
+
+Autoinc_spec make_session_autoinc_spec(const system_variables *variables)
+{
+  Autoinc_spec s{};
+  s.start= variables->auto_increment_offset
+            ? (longlong) variables->auto_increment_offset
+            : 1LL;
+  s.step= variables->auto_increment_increment
+           ? (longlong) variables->auto_increment_increment
+           : 1LL;
+  s.minvalue= 0;
+  s.maxvalue= LONGLONG_MAX;
+  s.double_cache= true;
+  s.no_auto_value_on_zero = variables->sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO;
+  s.default_on_null= false;
+  s.cache= AUTO_INC_DEFAULT_NB_ROWS;
+  return s;
+}
+
+Autoinc_spec TABLE::make_autoinc_spec(const THD *thd) const
+{
+  Autoinc_spec spec= make_session_autoinc_spec(&thd->variables);
+  spec.maxvalue= found_next_number_field->get_max_int_value();
+  return spec;
+}
+
+int handler::update_auto_increment()
+{
+  Autoinc_spec spec= table->make_autoinc_spec(table->in_use);
+  return update_auto_increment(&spec, table->next_number_field);
 }
 
 
