@@ -4,6 +4,7 @@
 --source include/not_embedded.inc
 #enable view protocol after fix MDEV-29542
 --source include/no_view_protocol.inc
+--source include/count_sessions.inc
 
 CREATE DATABASE test_user_db;
 
@@ -27,6 +28,7 @@ GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 REVOKE PROXY ON plug_dest FROM plug_user;
 --error 1
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
+--source include/wait_until_count_sessions.inc
 DROP USER plug_user,plug_dest;
 #
 # GRANT...WITH
@@ -48,6 +50,7 @@ REVOKE PROXY ON plug_dest FROM plug_user;
 --echo 3)
 --error 1
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
+--source include/wait_until_count_sessions.inc
 DROP USER plug_user,plug_dest;
 #
 # GRANT...WITH/CREATE...BY
@@ -62,6 +65,7 @@ GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 --echo 2)
 --replace_result $MASTER_MYSOCK MASTER_MYSOCK
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
+--source include/wait_until_count_sessions.inc
 DROP USER plug_user,plug_dest;
 
 --echo ========== test 1.2 ========================================
@@ -81,6 +85,7 @@ GRANT PROXY ON new_dest TO plug_user;
 --exec $MYSQL -u plug_user --password=new_dest -e "SELECT current_user();SELECT user();" 2>&1
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
+--source include/wait_until_count_sessions.inc
 DROP USER plug_user,new_dest;
 
 # CREATE...WITH/CREATE...BY
@@ -100,6 +105,7 @@ GRANT PROXY ON new_dest TO plug_user;
 --exec $MYSQL -u plug_user --password=new_dest -e "SELECT current_user();SELECT user();" 2>&1
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
+--source include/wait_until_count_sessions.inc
 DROP USER plug_user,new_dest;
 # CREATE...WITH
 CREATE USER plug_user

@@ -279,6 +279,8 @@ GRANT PROXY ON ''@'%' TO 'not_root'@'localhost' WITH GRANT OPTION;
 connect  con1,localhost,not_root,,;
 connection con1;
 DROP USER 'root'@'localhost';
+Warnings:
+Note	4227	Dropped users 'root'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP USER 'root'@'127.0.0.1';
 DROP USER 'root'@'::1';
 use mysqltest1;

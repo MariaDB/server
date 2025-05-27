@@ -1585,6 +1585,8 @@ mysqltest1.f1()
 0
 connection default;
 drop user mysqluser1@localhost;
+Warnings:
+Note	4227	Dropped users 'mysqluser1'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 #
 # Test that dropping of user is properly reflected in
 # both privilege tables and in in-memory structures.
