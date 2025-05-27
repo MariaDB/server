@@ -7,6 +7,7 @@
 --source include/not_embedded.inc
 #enable view protocol after fix MDEV-29542
 --source include/no_view_protocol.inc
+--source include/count_sessions.inc
 
 CREATE DATABASE test_user_db;
 
@@ -29,6 +30,7 @@ SELECT @@external_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_1_user;
 DROP USER qa_test_1_dest;
 
@@ -52,6 +54,7 @@ SELECT @@external_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_2_user;
 DROP USER qa_test_2_dest;
 DROP USER authenticated_as;
@@ -66,6 +69,7 @@ GRANT PROXY ON qa_test_3_dest TO qa_test_3_user;
 --echo exec MYSQL -h localhost -u qa_test_3_user --password=qa_test_3_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 --exec $MYSQL -h localhost -u qa_test_3_user --password=qa_test_3_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_3_user;
 DROP USER qa_test_3_dest;
 
@@ -79,6 +83,7 @@ GRANT PROXY ON qa_test_4_dest TO qa_test_4_user;
 --echo exec MYSQL -h localhost -u qa_test_4_user --password=qa_test_4_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 --exec $MYSQL -h localhost -u qa_test_4_user --password=qa_test_4_dest  test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_4_user;
 DROP USER qa_test_4_dest;
 
@@ -99,6 +104,7 @@ SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 
 --error 1
 --exec $MYSQL -h localhost --user=qa_test_5_user --password=qa_test_5_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_5_user;
 DROP USER qa_test_5_dest;
 DROP USER ''@'localhost';
@@ -133,6 +139,7 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 --error 1
 --exec $MYSQL -h localhost --user=root --password=qa_test_6_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_6_user;
 DROP USER qa_test_6_dest;
 DELETE FROM mysql.user WHERE user='root' AND plugin='qa_auth_interface';
@@ -151,7 +158,6 @@ GRANT PROXY ON qa_test_11_dest TO qa_test_11_user;
 --error 1
 --exec $MYSQL --default_auth=qa_auth_client -h localhost -u qa_test_11_user --password=qa_test_11_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--source include/wait_until_count_sessions.inc
 DROP USER qa_test_11_user, qa_test_11_dest;
 DROP DATABASE test_user_db;
-
---exit

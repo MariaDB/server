@@ -12356,3 +12356,5 @@ ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
 ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
         eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
+ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
+        eng "Dropped users %s have active connections. Use KILL CONNECTION if they should not be used anymore."

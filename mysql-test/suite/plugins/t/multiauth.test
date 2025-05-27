@@ -219,7 +219,9 @@ show create user mysqltest1;
 --exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
 --echo # no plugin, second password works = ok
 --exec $try_auth -u mysqltest1 -pworks --plugin-dir=$plugindir/no
+--disable_warnings
 drop user mysqltest1;
+--enable_warnings
 
 uninstall soname 'auth_ed25519';
 --remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt

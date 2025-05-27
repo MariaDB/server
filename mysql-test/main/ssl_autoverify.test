@@ -121,9 +121,11 @@ inc $mitm_port;
 }
 
 drop function have_ssl;
+--disable_warnings
 drop user native@'%';
 drop user ed@'%';
 drop user nohash@'%';
 drop user multi@'%';
+--enable_warnings
 uninstall plugin ed25519;
 uninstall plugin three_attempts;

@@ -789,6 +789,8 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 connection root;
 GRANT SELECT ON db17254.v1 TO inv_17254@localhost;
 DROP USER def_17254@localhost;
+Warnings:
+Note	4240	Dropped users 'def_17254'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connect  inv,localhost,inv_17254,,db17254;
 connection inv;
 for a user without SET USER

@@ -9,6 +9,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create role current_role;
 ERROR HY000: Operation CREATE ROLE failed for CURRENT_ROLE
 drop user current_user;
+Warnings:
+Note	4240	Dropped users 'foo'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user current_role;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_role' at line 1
 drop role current_user;
