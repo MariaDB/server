@@ -368,6 +368,7 @@ static void insert_element_after(table_pos *end, table_pos *t,
     t->next= end->next;
     end->next= t;
     t->prev= end;
+    if (t->next) t->next->prev= t;
   }
   t->processed= TRUE;
   (*processed)++;

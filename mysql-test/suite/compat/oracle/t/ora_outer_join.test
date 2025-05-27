@@ -20,7 +20,7 @@ insert into t4 values (3),(1),(20);
 
 set SQL_MODE= oracle;
 
-# (yuchen comment: additional testcase to demonstrate the breaking of
+# (yuchen comment: additional testcase to demonstrate the fixing of
 # Criterion 3 of LEFT JOIN syntax order)
 select t1.a, t4.d, t2.b, t3.c
   from t1, t2, t3, t4

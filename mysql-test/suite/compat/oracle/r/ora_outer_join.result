@@ -54,7 +54,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select "test"."t1"."a" AS "a","test"."t4"."d" AS "d","test"."t2"."b" AS "b","test"."t3"."c" AS "c" from "test"."t1" join "test"."t4" join "test"."t3" left join "test"."t2" on("test"."t3"."c" = "test"."t1"."a" and "test"."t4"."d" = "test"."t1"."a" and "test"."t2"."b" = "test"."t1"."a") where 1
+Note	1003	select "test"."t1"."a" AS "a","test"."t4"."d" AS "d","test"."t2"."b" AS "b","test"."t3"."c" AS "c" from "test"."t1" join "test"."t3" join "test"."t4" left join "test"."t2" on("test"."t3"."c" = "test"."t1"."a" and "test"."t4"."d" = "test"."t1"."a" and "test"."t2"."b" = "test"."t1"."a") where 1
 select t1.a, t4.d, t2.b, t3.c
 from t1, t2, t3, t4
 where
