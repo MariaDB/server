@@ -1,4 +1,4 @@
---echo # MDEV-18983: `@@rpl_semi_sync_master_wait_for_slave_count` Feature Test
+--echo # MDEV-18983: `@@rpl_semi_sync_master_wait_for_slave_count` feature test
 
 --source include/have_binlog_format_mixed.inc # format-agnostic
 # The variable's default is 1 to match the behavior before this feature came.
