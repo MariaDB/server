@@ -173,7 +173,7 @@
   are:
   1. Outer tables must come before their inner tables.
   2. Tables that are connected to the tables already in the order must come
-     before those who are not
+     before those who are not (one disjoint subgraph at a time)
   3. Tables that were listed earlier in the original FROM clause come before.
 
   == 2.2.3 Building the TABLE_LIST structure ==
@@ -228,8 +228,9 @@ struct table_pos: public Sql_alloc
   /* Incoming edges */
   List<table_pos> outer_side;
 
-  /* ON condition expressions (to be AND-ed together) */
+  /* ON condition expressions if inner (to be AND-ed together) */
   List<Item> on_conds;
+  /* The corresponding table */
   TABLE_LIST *table;
 
   /* Ordinal number of the table in the original FROM clause */
@@ -241,6 +242,7 @@ struct table_pos: public Sql_alloc
   /* TRUE <=> All tables in outer_side are already linked in prev/next */
   bool outer_processed;
 
+  /* Whether tab is outer of this */
   bool is_outer_of(table_pos *tab)
   {
     List_iterator_fast<table_pos> it(outer_side);
@@ -291,7 +293,7 @@ static int table_pos_sort(table_pos *a, table_pos *b, void *arg)
     these dependencies in the table graph.
 
     Also, the predicates that will form the ON expression are collected in
-    table_list::on_conds.
+    table_pos::on_conds.
 */
 
 static bool
@@ -358,6 +360,7 @@ ora_join_process_expression(THD *thd, Item *cond,
 static void insert_element_after(table_pos *end, table_pos *t,
                                  uint * const processed)
 {
+  /* (yuchen comment: also assert !t->processed?) */
   DBUG_ASSERT(t->next == NULL);
   DBUG_ASSERT(t->prev == NULL);
   if (end)
@@ -806,8 +809,9 @@ bool setup_oracle_join(THD *thd, Item **conds,
       tab[i].on_conds.empty();
     }
     /*
-      Sort the outgoing edges in reverse order (those that should come
-      first are the last). This is because we will do this:
+      Sort the outgoing edges in reverse to the "LEFT JOIN syntax
+      order" (those that should come first are the last). This is
+      because we will do this:
 
         for each T in tab[i].inner_side
           insert_element_after(tab[i], T);
@@ -878,6 +882,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
   /*
     Now we build new permanent list of table according to our new order
 
+    (yuchen comment: why inner? isn't it outer join?)
     table1 [left inner] join table2 ... [left inner] join tableN
 
     which parses in:

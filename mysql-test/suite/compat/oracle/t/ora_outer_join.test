@@ -8,12 +8,34 @@ create table t4 (d int);
 insert into t4 values (3),(1),(20);
 
 #select t1.a, t4.d, t2.b, t3.c from t1 join t4 left join t3 on (t1.a = t3.c and t4.d = t3.c) left join t2 on (t1.a = t2.b and t4.d = t2.b) ;
+
+# (yuchen comment: what is this second commented out query? It is not
+# the same as the first one above, which is the same as the first two
+# oracle ones below)
+
 #select t1.a, t4.d, t2.b, t3.c
 #  from t1 left join t2 on (t1.a = t2.b)
 #          left join t3 on (t2.b = t3.c)
 #          join t4;
 
 set SQL_MODE= oracle;
+
+# (yuchen comment: additional testcase to demonstrate the breaking of
+# Criterion 3 of LEFT JOIN syntax order)
+select t1.a, t4.d, t2.b, t3.c
+  from t1, t2, t3, t4
+  where
+    t1.a = t2.b(+) and
+    t3.c = t2.b(+) and
+    t4.d = t2.b(+);
+
+explain extended
+select t1.a, t4.d, t2.b, t3.c
+  from t1, t2, t3, t4
+  where
+    t1.a = t2.b(+) and
+    t3.c = t2.b(+) and
+    t4.d = t2.b(+);
 
 select t1.a, t4.d, t2.b, t3.c
   from t1, t2, t3, t4
