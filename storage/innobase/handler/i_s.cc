@@ -1209,6 +1209,7 @@ struct st_maria_plugin	i_s_innodb_cmp_reset =
         MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
 
 namespace Show {
 /* Fields of the dynamic tables

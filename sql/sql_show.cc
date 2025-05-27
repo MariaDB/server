@@ -9747,6 +9747,13 @@ void init_fill_schema_files_row(TABLE* table)
 }
 
 
+/*
+  gcc 7.5.0 uses a lot of stack at startup to resolve Column() expressions
+  Note, do not use PRAGMA_REENABLE_CHECK_STACK_FRAME later on in this file
+  as this causes compilation to fail.
+*/
+PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
+
 namespace Show {
 
 ST_FIELD_INFO referential_constraints_fields_info[]=
