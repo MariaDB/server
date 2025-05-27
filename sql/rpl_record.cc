@@ -143,6 +143,52 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 }
 #endif
 
+#ifndef DBUG_OFF
+/*
+  Validate that master_idx is in-sync with null bit tracking. However, we can
+  only do it when all bits in cols are set, e.g. when the row is logged with
+  binlog_row_image=FULL. If some columns are missing, we won't be able to
+  compute which column the null_mask points to, as the null bits are only
+  present for written columns.
+
+  Note that if extending this assertion to cover the missing columns case would
+  involve consistently checking master_idx, which would invalidate the purpose
+  of the assertion.
+*/
+inline void assert_master_idx_matches_null_tracking(uint master_idx,
+                                                    MY_BITMAP const *cols,
+                                                    unsigned int null_mask,
+                                                    const uchar *cur_null_ptr,
+                                                    const uchar *base_null_ptr)
+{
+  if (bitmap_is_set_all(cols))
+  {
+    /*
+      Count trailing zeros in null_mask
+    */
+    unsigned int null_mask_col_ctr= 0;
+    while (null_mask)
+    {
+      null_mask_col_ctr++;
+      null_mask >>= 1;
+    }
+    DBUG_ASSERT(null_mask_col_ctr);
+
+    /*
+      Ensure that master_idx aligns with our null bit tracking
+    */
+    unsigned long prev_seen_null_mask_chunks=
+        (cur_null_ptr - base_null_ptr) * 8;
+    fprintf(stderr,
+            "\n\tcur null (%p), start null (%p), diff: %lu, offset: "
+            "%lu, null_col_ctr: %u, master_idx %u\n",
+            cur_null_ptr, base_null_ptr, cur_null_ptr - base_null_ptr,
+            prev_seen_null_mask_chunks, null_mask_col_ctr - 1, master_idx);
+    DBUG_ASSERT(prev_seen_null_mask_chunks + (null_mask_col_ctr - 1) ==
+                (master_idx));
+  }
+}
+#endif
 
 /**
    Unpack a row into @c table->record[0].
@@ -205,9 +251,8 @@ unpack_row(rpl_group_info *rgi,
   uchar const *null_ptr= row_data;
   uchar const *pack_ptr= row_data + master_null_byte_count;
 
-  Field **const begin_ptr = table->field;
-  Field **field_ptr;
-  Field **const end_ptr= begin_ptr + colcnt;
+  Field **field_ptr= NULL;
+  uint conv_table_idx= 0;
 
   if (bitmap_is_clear_all(cols))
   {
@@ -225,12 +270,10 @@ unpack_row(rpl_group_info *rgi,
   unsigned int null_mask= 1U;
   // The "current" null bits
   unsigned int null_bits= *null_ptr++;
-  uint i= 0;
-  table_def *tabledef= NULL;
-  TABLE *conv_table= NULL;
-  bool table_found= rgi && rgi->get_table_data(table, &tabledef, &conv_table);
-  DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
-                       table_found, tabledef, conv_table));
+  RPL_TABLE_LIST *table_list= NULL;
+  table_def *tabledef;
+  TABLE *conv_table;
+  bool table_found= rgi && rgi->get_table_list_el(table, &table_list);
   DBUG_ASSERT(table_found);
 
   /*
@@ -242,28 +285,91 @@ unpack_row(rpl_group_info *rgi,
   if (rgi && !table_found)
     DBUG_RETURN(HA_ERR_GENERIC);
 
-  for (field_ptr= begin_ptr ; field_ptr < end_ptr && *field_ptr ; ++field_ptr)
+  tabledef= &table_list->m_tabledef;
+  conv_table= table_list->m_conv_table;
+
+  DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
+                       table_found, tabledef, conv_table));
+
+  /*
+    Colcnt is the number of columns that were binlogged. If there are more
+    columns here than on the slave, that is ok, because lookup_slave_column
+    will return non-zero if the slave doesn't have the value, and we will
+    continue on.
+  */
+  for (uint master_idx= 0; master_idx < colcnt; master_idx++)
   {
+    uint slave_field_idx;
+    /*
+      If the slave doesn't have the column, just continue on, but keep the
+      unpack state consistent (i.e. we need to increase pack_ptr to ensure that
+      when the next column is unpacked, it points to the correct spot, and that
+      the null_mask corresponds to the correct column).
+    */
+    if (table_list->lookup_slave_column(master_idx, &slave_field_idx))
+    {
+      if (bitmap_is_set(cols, master_idx))
+      {
+        /*
+          Correct potential null_mask overflow from the shift in the last
+          loop iteration
+        */
+        if ((null_mask & 0xFF) == 0)
+        {
+          DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
+          null_mask= 1U;
+          null_bits= *null_ptr++;
+        }
+        DBUG_ASSERT(null_mask & 0xFF); // One of the 8 LSB should be set
+#ifndef DBUG_OFF
+        assert_master_idx_matches_null_tracking(master_idx, cols, null_mask,
+                                                null_ptr, row_data + 1);
+#endif
+
+        /*
+          If this column isn't null, move ahead the pack_ptr so it aligns with
+          the next iterations master_idx field.
+        */
+        if (!((null_bits & null_mask) && tabledef->maybe_null(master_idx))) {
+          fprintf(stderr, "\n\tunpack_row Moving pack_ptr up for master col %u\n", master_idx);
+          uint32 len= tabledef->calc_field_size(master_idx, (uchar *) pack_ptr);
+          DBUG_DUMP("field_data", pack_ptr, len);
+          pack_ptr+= len;
+        }
+
+        /*
+          Move ahead the null_mask bitmask to the next column
+        */
+        null_mask <<= 1;
+      }
+      continue;
+    }
+
     /*
       If there is a conversion table, we pick up the field pointer to
       the conversion table.  If the conversion table or the field
       pointer is NULL, no conversions are necessary.
      */
+    fprintf(stderr, "\n\tpack_row Unpacking master col %u to slave col %u\n", master_idx, slave_field_idx);
     Field *conv_field=
-      conv_table ? conv_table->field[field_ptr - begin_ptr] : NULL;
+      conv_table ? conv_table->field[conv_table_idx++] : NULL;
+    Field **field_ptr= &(table->field[slave_field_idx]);
     Field *const f=
       conv_field ? conv_field : *field_ptr;
+
+    fprintf(stderr, "\n\tpack_row f is %s\n", f->field_name.str);
+
     DBUG_PRINT("debug", ("Conversion %srequired for field '%s' (#%ld)",
                          conv_field ? "" : "not ",
                          (*field_ptr)->field_name.str,
-                         (long) (field_ptr - begin_ptr)));
+                         (long) (master_idx)));
     DBUG_ASSERT(f != NULL);
 
     /*
       No need to bother about columns that does not exist: they have
       gotten default values when being emptied above.
      */
-    if (bitmap_is_set(cols, (uint)(field_ptr -  begin_ptr)))
+    if (bitmap_is_set(cols, master_idx))
     {
       if ((null_mask & 0xFF) == 0)
       {
@@ -273,6 +379,10 @@ unpack_row(rpl_group_info *rgi,
       }
 
       DBUG_ASSERT(null_mask & 0xFF); // One of the 8 LSB should be set
+#ifndef DBUG_OFF
+      assert_master_idx_matches_null_tracking(master_idx, cols, null_mask,
+                                              null_ptr, row_data + 1);
+#endif
 
       if (null_bits & null_mask)
       {
@@ -318,7 +428,7 @@ unpack_row(rpl_group_info *rgi,
           Use the master's size information if available else call
           normal unpack operation.
         */
-        uint16 const metadata= tabledef->field_metadata(i);
+        uint16 const metadata= tabledef->field_metadata(master_idx);
 #ifdef DBUG_TRACE
         uchar const *const old_pack_ptr= pack_ptr;
 #endif
@@ -375,32 +485,6 @@ unpack_row(rpl_group_info *rgi,
 
       null_mask <<= 1;
     }
-    i++;
-  }
-
-  /*
-    throw away master's extra fields
-  */
-  uint max_cols= MY_MIN(tabledef->size(), cols->n_bits);
-  for (; i < max_cols; i++)
-  {
-    if (bitmap_is_set(cols, i))
-    {
-      if ((null_mask & 0xFF) == 0)
-      {
-        DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
-        null_mask= 1U;
-        null_bits= *null_ptr++;
-      }
-      DBUG_ASSERT(null_mask & 0xFF); // One of the 8 LSB should be set
-
-      if (!((null_bits & null_mask) && tabledef->maybe_null(i))) {
-        uint32 len= tabledef->calc_field_size(i, (uchar *) pack_ptr);
-        DBUG_DUMP("field_data", pack_ptr, len);
-        pack_ptr+= len;
-      }
-      null_mask <<= 1;
-    }
   }
 
   /*
@@ -420,7 +504,7 @@ unpack_row(rpl_group_info *rgi,
   *current_row_end = pack_ptr;
   if (master_reclength)
   {
-    if (*field_ptr)
+    if (field_ptr && *field_ptr)
       *master_reclength = (ulong)((*field_ptr)->ptr - table->record[0]);
     else
       *master_reclength = table->s->reclength;
