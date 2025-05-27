@@ -928,7 +928,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   my_hash_init(PSI_INSTRUMENT_ME, &sequences, Lex_ident_fs::charset_info(),
                SEQUENCES_HASH_SIZE, 0, 0, get_sequence_last_key,
                free_sequence_last, HASH_THREAD_SPECIFIC);
-
+  my_hash_init(key_memory_trace_ddl_info, &tbl_trace_ctx_hash,
+               system_charset_info, 16, 0, 0, get_tbl_trace_ctx_key,
+               0, HASH_UNIQUE);
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(key_memory_user_var_entry, &user_var_events,
@@ -1583,6 +1585,9 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
+  my_hash_init(key_memory_trace_ddl_info, &tbl_trace_ctx_hash,
+               system_charset_info, 16, 0, 0, get_tbl_trace_ctx_key, 0,
+               HASH_UNIQUE);
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
   sp_caches_clear();
@@ -1724,6 +1729,7 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
+  my_hash_free(&tbl_trace_ctx_hash);
   sp_caches_clear();
   statement_rcontext_reinit();
   auto_inc_intervals_forced.empty();
@@ -2516,7 +2522,7 @@ void THD::cleanup_after_query()
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
-
+  my_hash_reset(&tbl_trace_ctx_hash);
   DBUG_VOID_RETURN;
 }
 

@@ -18,7 +18,6 @@
 #include "opt_trace_ddl_info.h"
 #include "sql_show.h"
 #include "my_json_writer.h"
-#include "sql_list.h"
 #include "sql_table.h"
 #include "mysql.h"
 #include "hash.h"
@@ -101,31 +100,73 @@ static bool dump_name_ddl_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt,
     return true;
 
   escaped_stmt[act_escape_stmt_len]= 0;
-  ctx_wrapper.add("name", ddl_key->name);
+  ctx_wrapper.add("ddl", escaped_stmt);
   return false;
 }
 
-static void dump_stats_to_trace(THD *thd, TABLE_LIST *tbl,
-                                Json_writer_object &ctx_wrapper)
+static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
+                                            size_t tbl_name_len)
 {
-  ctx_wrapper.add("num_of_records", tbl->table->stat_records());
-  TABLE *table= tbl->table;
-  if (table->key_info)
+  if (!thd->tbl_trace_ctx_hash.records)
+    return;
+
+  trace_table_index_range_context *context=
+      (trace_table_index_range_context *) my_hash_search(
+          &thd->tbl_trace_ctx_hash, tbl_name, tbl_name_len);
+
+  if (!context)
+    return;
+
+  Json_writer_array list_ranges_wrapper(thd, "list_ranges");
+  List_iterator irc_li(*context->list_index_range_context);
+  while (trace_index_range_context *irc= irc_li++)
   {
-    Json_writer_array indexes(thd, "indexes");
-    for (uint idx= 0; idx < table->s->keys; idx++)
+    Json_writer_object irc_wrapper(thd);
+    irc_wrapper.add("index_name", irc->idx_name);
+    List_iterator rc_li(*irc->list_range_context);
+    Json_writer_array ranges_wrapper(thd, "ranges");
+    while (trace_range_context *rc= rc_li++)
     {
-      KEY key= table->key_info[idx];
-      uint num_key_parts= key.user_defined_key_parts;
-      Json_writer_object index_wrapper(thd);
-      index_wrapper.add("index_name", key.name);
-      Json_writer_array rpk_wrapper(thd, "rec_per_key");
-      for (uint i= 0; i < num_key_parts; i++)
-      {
-        rpk_wrapper.add(key.actual_rec_per_key(i));
-      }
+      ranges_wrapper.add(rc->range, strlen(rc->range));
+    }
+    ranges_wrapper.end();
+    irc_wrapper.add("num_rows", irc->num_records);
+  }
+}
+
+/*
+  dump the following table stats to trace: -
+  1. total number of records in the table
+  2. if there any indexes for the table then
+      their names, and the num of records per key
+  3. range stats on the indexes
+*/
+static void dump_table_stats_to_trace(THD *thd, TABLE_LIST *tbl,
+                                      uchar *tbl_name,
+                                      size_t tbl_name_len,
+                                      Json_writer_object &ctx_wrapper)
+{
+  TABLE *table= tbl->table;
+  ctx_wrapper.add("num_of_records", tbl->table->stat_records());
+
+  if (!table->key_info)
+    return;
+
+  Json_writer_array indexes_wrapper(thd, "indexes");
+  for (uint idx= 0; idx < table->s->keys; idx++)
+  {
+    KEY key= table->key_info[idx];
+    uint num_key_parts= key.user_defined_key_parts;
+    Json_writer_object index_wrapper(thd);
+    index_wrapper.add("index_name", key.name);
+    Json_writer_array rpk_wrapper(thd, "rec_per_key");
+    for (uint i= 0; i < num_key_parts; i++)
+    {
+      rpk_wrapper.add(key.actual_rec_per_key(i));
     }
   }
+  indexes_wrapper.end();
+  dump_index_range_stats_to_trace(thd, tbl_name, tbl_name_len);
 }
 
 static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
@@ -206,16 +247,12 @@ bool store_tables_context_in_trace(THD *thd)
     String ddl;
     String name;
     DDL_Key *ddl_key;
-    char *name_copy;
+    store_full_table_name(thd, tbl, &name);
 
     /*
       A query can use the same table multiple times. Do not dump the DDL
       multiple times.
     */
-    name.append(tbl->get_db_name().str, tbl->get_db_name().length);
-    name.append(STRING_WITH_LEN("."));
-    name.append(tbl->get_table_name().str, tbl->get_table_name().length);
-
     if (my_hash_search(&hash, (uchar *) name.c_ptr(), name.length()))
       continue;
 
@@ -236,9 +273,7 @@ bool store_tables_context_in_trace(THD *thd)
       }
     }
 
-    name_copy= (char *) thd->alloc(name.length() + 1);
-    strcpy(name_copy, name.c_ptr());
-    ddl_key->name= name_copy;
+    ddl_key->name= create_new_copy(thd, name.c_ptr());
     ddl_key->name_len= name.length();
     my_hash_insert(&hash, (uchar *) ddl_key);
     Json_writer_object ctx_wrapper(thd);
@@ -250,8 +285,44 @@ bool store_tables_context_in_trace(THD *thd)
     }
 
     if (!tbl->is_view())
-      dump_stats_to_trace(thd, tbl, ctx_wrapper);
+      dump_table_stats_to_trace(thd, tbl, (uchar *) ddl_key->name,
+                                ddl_key->name_len, ctx_wrapper);
   }
   my_hash_free(&hash);
   return res;
+}
+
+/*
+  helper function to know the key portion of the 
+  trace table context that is stored in hash.
+*/
+const uchar *get_tbl_trace_ctx_key(const void *entry_, size_t *length,
+                                   my_bool flags)
+{
+  auto entry= static_cast<const trace_table_index_range_context *>(entry_);
+  *length= entry->name_len;
+  return reinterpret_cast<const uchar *>(entry->name);
+}
+
+/*
+  store full table name i.e. "db_name.table_name",
+  into the supplied variable buf
+*/
+void store_full_table_name(THD *thd, TABLE_LIST *tbl, String *buf)
+{
+  buf->append(tbl->get_db_name().str, tbl->get_db_name().length);
+  buf->append(STRING_WITH_LEN("."));
+  buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
+}
+
+/*
+  return a new c style string by allocating memory 
+  from the heap and copying the contents of buf into it.
+  uses thd's mem_root for allocating the memory
+*/
+char *create_new_copy(THD *thd, const char *buf)
+{
+  char *name_copy= (char *) thd->calloc(strlen(buf) + 1);
+  strcpy(name_copy, buf);
+  return name_copy;
 }

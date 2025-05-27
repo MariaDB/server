@@ -155,7 +155,7 @@ SET (SQL_SOURCE
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc opt_trace_ddl_info.cc
+               sql_reload.cc
 
                # added in MariaDB:
                grant.cc

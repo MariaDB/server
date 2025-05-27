@@ -58,6 +58,7 @@
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 #include "sql_basic_types.h"                     // enum class active_dml_stmt
 #include "sql_trigger.h"
+#include "opt_trace_ddl_info.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -3297,6 +3298,12 @@ public:
   HASH ull_hash;
   /* Hash of used sequences (for PREVIOUS value) */
   HASH sequences;
+  /* 
+    Hash of table contexts used for storing
+    all the ranges of indexes that are used
+    in the current query, into the trace 
+  */
+  HASH tbl_trace_ctx_hash;
 #ifdef DBUG_ASSERT_EXISTS
   uint dbug_sentry; // watch out for memory corruption
 #endif

@@ -448,7 +448,8 @@ static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
 static void trace_ranges(Json_writer_array *range_trace,
                          PARAM *param, uint idx,
                          SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts);
+                         const KEY_PART_INFO *key_parts,
+                         List<trace_range_context> *list_trc= NULL);
 
 static
 void print_range(String *out, const KEY_PART_INFO *key_part,
@@ -7893,7 +7894,73 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         *tree->index_scans_end++= index_scan;
 
         if (unlikely(thd->trace_started()))
-          trace_ranges(&trace_range, param, idx, key, key_part);
+        {
+          if (thd->variables.optimizer_record_context &&
+              !thd->lex->explain->is_query_plan_ready())
+          {
+            String tbl_name;
+            TABLE_LIST *tbl= param->table->pos_in_table_list;
+            /*
+              Set the thd's mem_root to that of the top level statement.
+              Required to persist the ranges that are created for each index
+              until the end of the query execution.
+            */
+            MEM_ROOT *tmp_root= param->mem_root;
+            param->thd->mem_root= param->old_root;
+
+            List<trace_range_context> *list_trc=
+                (List<trace_range_context> *) thd->calloc(
+                    sizeof(List<trace_range_context>));
+            list_trc->empty();
+
+            /*
+              compute the ranges, and persist them in the list of range
+              contexts
+            */
+            trace_ranges(&trace_range, param, idx, key, key_part, list_trc);
+
+            /*
+              Create a new table context if it is not already present in the
+              hash.
+              Store the ranges of every index of the table into the
+              table context.
+              The table context is also persisted in the hash which is to be
+              used later for dumping all the context infomation into the trace.
+            */
+            store_full_table_name(param->thd, tbl, &tbl_name);
+            trace_table_index_range_context *table_ctx=
+                (trace_table_index_range_context *) my_hash_search(
+                    &thd->tbl_trace_ctx_hash, (uchar *) tbl_name.c_ptr(),
+                    tbl_name.length());
+
+            if (!table_ctx)
+            {
+              table_ctx= (trace_table_index_range_context *) thd->calloc(
+                  sizeof(trace_table_index_range_context));
+              table_ctx->name= create_new_copy(thd, tbl_name.c_ptr());
+              table_ctx->name_len= tbl_name.length();
+              table_ctx->list_index_range_context=
+                  (List<trace_index_range_context> *) thd->calloc(
+                      sizeof(List<trace_index_range_context>));
+              table_ctx->list_index_range_context->empty();
+              my_hash_insert(&thd->tbl_trace_ctx_hash, (uchar *) table_ctx);
+            }
+
+            trace_index_range_context *index_ctx=
+                (trace_index_range_context *) thd->calloc(
+                    sizeof(trace_index_range_context));
+            index_ctx->idx_name= create_new_copy(
+                thd, param->table->key_info[keynr].name.str);
+            index_ctx->list_range_context= list_trc;
+            index_ctx->num_records= found_records;
+            table_ctx->list_index_range_context->push_back(index_ctx);
+
+            // restore the mem_root value
+            param->thd->mem_root= tmp_root;
+          }
+          else
+            trace_ranges(&trace_range, param, idx, key, key_part);
+        }
         trace_range.end();
 
         if (unlikely(trace_idx.trace_started()))
@@ -17350,12 +17417,14 @@ void print_range_for_non_indexed_field(String *out, Field *field,
     so we create a range:
       (2,4) <= (a,b) <= (2,4)
     this is added to the trace
+  Also, store the created range into the list_trc, if it is not null.
 */
 
 static void trace_ranges(Json_writer_array *range_trace,
                          PARAM *param, uint idx,
                          SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts)
+                         const KEY_PART_INFO *key_parts,
+                         List<trace_range_context> *list_trc)
 {
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
@@ -17384,6 +17453,13 @@ static void trace_ranges(Json_writer_array *range_trace,
     StringBuffer<128> range_info(system_charset_info);
     print_range(&range_info, cur_key_part, &range, n_key_parts);
     range_trace->add(range_info.c_ptr_safe(), range_info.length());
+    if (list_trc)
+    {
+      trace_range_context *trc= (trace_range_context *) param->thd->calloc(
+          sizeof(trace_range_context));
+      trc->range= create_new_copy(param->thd, range_info.c_ptr_safe());
+      list_trc->push_back(trc);
+    }
   }
 }
 

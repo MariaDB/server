@@ -11446,9 +11446,6 @@ ha_innobase::update_create_info(
 /*============================*/
 	HA_CREATE_INFO*	create_info)	/*!< in/out: create info */
 {
-	if (!this->is_open())
-		return;
-
 	if (!(create_info->used_fields & HA_CREATE_USED_AUTO)) {
 		info(HA_STATUS_AUTO);
 		create_info->auto_increment_value = stats.auto_increment_value;
