@@ -172,7 +172,7 @@ public:
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
-  const char *get_username() { return user.str; }
+  const char *get_username() const { return user.str; }
 };
 
 class ACL_USER_PARAM
@@ -210,6 +210,12 @@ public:
 
 class ACL_USER :public ACL_USER_BASE, public ACL_USER_PARAM
 {
+  /*
+    Ephemeral state (meaning it is not stored anywhere in the Data Dictionary)
+    to disable establishing sessions in case the user is being dropped.
+  */
+  bool dont_accept_conn= false;
+
 public:
   ACL_USER() = default;
   ACL_USER(THD *, const LEX_USER &, const Account_options &, const privilege_t);
@@ -243,6 +249,7 @@ public:
     dst->host.hostname= safe_strdup_root(root, host.hostname);
     dst->default_rolename= safe_lexcstrdup_root(root, default_rolename);
     bzero(&dst->role_grants, sizeof(role_grants));
+    dst->dont_accept_conn= dont_accept_conn;
     return dst;
   }
 
@@ -274,6 +281,16 @@ public:
         DBUG_ASSERT(0);
         break;
     }
+  }
+
+  void disable_new_connections()
+  {
+    dont_accept_conn= true;
+  }
+
+  bool dont_accept_new_connections() const
+  {
+    return dont_accept_conn;
   }
 };
 
@@ -11331,6 +11348,85 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   DBUG_RETURN(result);
 }
 
+
+struct count_user_threads_callback_arg
+{
+  explicit count_user_threads_callback_arg(LEX_USER *user_arg)
+  : user(user_arg), counter(0)
+  {}
+
+  LEX_USER *user;
+  uint counter;
+};
+
+
+/**
+  Callback function invoked for every active THD to count a number of
+  sessions established by specified user
+
+  @param[in] thd   Thread context
+  @param arg       Account info for that a number of active connections
+                   should be countered
+*/
+
+static my_bool count_threads_callback(THD *thd,
+                                      count_user_threads_callback_arg *arg)
+{
+  if (thd->security_ctx->user)
+  {
+    /*
+      Check that hostname (if given) and user name matches.
+
+      host.str[0] == '%' means that host name was not given. See sql_yacc.yy
+    */
+    if (((arg->user->host.str[0] == '%' && !arg->user->host.str[1]) ||
+         !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
+        !strcmp(thd->security_ctx->user, arg->user->user.str))
+      arg->counter++;
+  }
+  return false;
+}
+
+
+/**
+  Get a number of connections currently established on behalf the user
+
+  @param[in] thd   Thread context
+  @param[in] user  User credential to count up a number of connections
+
+  @return  a number of connections established by the user at the moment of
+           the function call
+*/
+
+static int count_sessions_for_user(LEX_USER *user)
+{
+  count_user_threads_callback_arg arg(user);
+  bool ret __attribute__((unused));
+
+  ret= server_threads.iterate(count_threads_callback, &arg);
+  DBUG_ASSERT(ret == false);
+
+  return arg.counter;
+}
+
+
+/**
+  Find the specified user and mark it as not accepting incoming sessions
+
+  @param user_name  the user for that accept of incoming connections
+                    should be disabled
+*/
+
+static void disable_connections_for_user(LEX_USER *user)
+{
+  ACL_USER *found_user= find_user_or_anon(user->host.str, user->user.str,
+                                          nullptr);
+
+  if (found_user != nullptr)
+    found_user->disable_new_connections();
+}
+
+
 /*
   Drop a list of users and all their privileges.
 
@@ -11367,9 +11463,14 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
+  List<LEX_USER> correct_users_list;
+  /*
+    String for storing a comma separated list of users that specified
+    at the DROP USER statement being processed and have active connections
+  */
+  String connected_users;
   while ((tmp_user_name= user_list++))
   {
-    int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
     if (!user_name || (handle_as_role && is_public(user_name)))
     {
@@ -11388,6 +11489,39 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       result= TRUE;
       continue;
     }
+
+    if (count_sessions_for_user(user_name) != 0)
+      append_user(thd, &connected_users, user_name);
+
+    correct_users_list.push_back(user_name);
+    /*
+      Prevent new connections to be established on behalf the user
+      being dropped.
+    */
+    disable_connections_for_user(user_name);
+  }
+
+  if (!connected_users.is_empty() &&
+      (thd->variables.sql_mode & MODE_ORACLE))
+  {
+    /*
+      Throw error in case there are connections for the user being dropped AND
+      sql_mode = oracle
+    */
+    mysql_mutex_unlock(&acl_cache->lock);
+    mysql_rwlock_unlock(&LOCK_grant);
+
+    my_error(ER_CANNOT_USER, MYF(0),
+             (handle_as_role) ? "DROP ROLE" : "DROP USER",
+              connected_users.c_ptr_safe());
+
+    DBUG_RETURN(true);
+  }
+
+  user_list.init(correct_users_list);
+  while ((user_name= user_list++))
+  {
+    int rc;
 
     if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
     {
@@ -11416,6 +11550,12 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     append_user(thd, &wrong_users, user_name);
     result= TRUE;
   }
+
+  if (!connected_users.is_empty())
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP,
+                        ER_THD(thd, ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP),
+                        connected_users.c_ptr_safe());
 
   if (!handle_as_role)
   {
@@ -15120,6 +15260,18 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       }
     }
 #endif
+
+    /*
+      Attempt to establish a new connection on behalf the user that is
+      currently being dropped from a concurrent session.
+      Terminate the connection.
+    */
+    if (acl_user->dont_accept_new_connections())
+    {
+      my_error(ER_CONNECT_WHILE_DROP_USER_IN_PROGRESS, MYF(0),
+               acl_user->get_username());
+      DBUG_RETURN(1);
+    }
 
     if (set_privs_on_login(thd, acl_user))
       DBUG_RETURN(1);
