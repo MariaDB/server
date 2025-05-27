@@ -1,22 +1,93 @@
+# MDEV-18983: `@@rpl_semi_sync_master_wait_for_slave_count` Feature Test
 include/rpl_init.inc [topology=1->2, 1->3]
-# Case 1: immediately commits when the requirement is exact
-CREATE TABLE t (a INT);
+# Case 1.1: Semi-Sync commits when both slaves ACKs
+CALL mtr.add_suppression('Timeout waiting for reply of binlog');
 SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
 Variable_name	Value
 Rpl_semi_sync_master_no_tx	0
 Rpl_semi_sync_master_yes_tx	1
-# Cases 2.1: a high requirement triggers `rpl_semi_sync_master_wait_no_slave=0`
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_get\_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	2
+connection server_2;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_slave\_send\_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	1
+connection server_3;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_slave\_send\_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	1
+connection server_1;
+# Case 1.2: Lowering a high requirement unblocks waiting Semi-Sync
 SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
-INSERT INTO t VALUES (0);
+CREATE TABLE t (a INT);
+connection default;
 SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
 Variable_name	Value
-Rpl_semi_sync_master_no_tx	1
+Rpl_semi_sync_master_no_tx	0
 Rpl_semi_sync_master_yes_tx	1
-# Case 2.2: Semi-Sync turns back ON when the requirement is exact
 SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
-DROP TABLE t;
+connection server_1;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	2
+# Matrix: wait_no_slave
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+# Case 2.1: falls back to Async when the requirement is set too high
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+INSERT INTO t VALUES (10);
+# Case 2.1.1: ... even when one of the slaves reconnects up-to-date
+connection default;
+connection server_2;
+include/stop_slave.inc
+include/start_slave.inc
+connection server_1;
 SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
 Variable_name	Value
 Rpl_semi_sync_master_no_tx	1
 Rpl_semi_sync_master_yes_tx	2
+# Case 2.2: stays Async as long as the requirement is not met
+INSERT INTO t VALUES (20);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	2
+Rpl_semi_sync_master_yes_tx	2
+# Case 2.3: returns to Semi-Sync when the requirement is set just right
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+INSERT INTO t VALUES (30);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	2
+Rpl_semi_sync_master_yes_tx	3
+# Matrix: wait_no_slave
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 1;
+# Case 2.1: falls back to Async when the requirement is set too high
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+INSERT INTO t VALUES (11);
+# Case 2.1.1: ... even when one of the slaves reconnects up-to-date
+connection default;
+connection server_2;
+include/stop_slave.inc
+include/start_slave.inc
+connection server_1;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	3
+Rpl_semi_sync_master_yes_tx	3
+# Case 2.2: stays Async as long as the requirement is not met
+INSERT INTO t VALUES (21);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	4
+Rpl_semi_sync_master_yes_tx	3
+# Case 2.3: returns to Semi-Sync when the requirement is set just right
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+INSERT INTO t VALUES (31);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	4
+Rpl_semi_sync_master_yes_tx	4
+# Cleanup
+DROP TABLE t;
 include/rpl_end.inc

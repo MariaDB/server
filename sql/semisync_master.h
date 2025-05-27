@@ -351,7 +351,7 @@ public:
   ~Active_tranx();
 
   /** Find (if any) the active transaction node with the specified position */
-  const Tranx_node *get_tranx_node(const char *log_file_name, my_off_t log_file_pos);
+  Tranx_node *get_tranx_node(const char *log_file_name, my_off_t log_file_pos);
 
   /* Insert an active transaction node with the specified position.
    *
@@ -361,11 +361,12 @@ public:
   int insert_tranx_node(THD *thd_to_wait, const char *log_file_name,
                         my_off_t log_file_pos);
 
-  /** Clear the active transaction nodes until (exclusive) the specified node.
-   If it's not in the collection (e.g., is `nullptr`), everything will
-   be cleared: the sorted list and the hash table will be reset to empty.
+  /**
+    Flush and clear the active transaction nodes until (exclusive) the specified
+    node. If it's not in the collection (e.g., is `nullptr`), everything will
+    be cleared: the sorted list and the hash table will be reset to empty.
 
-   @pre Repl_semi_sync_binlog::LOCK_binlog should be held while calling this.
+    @pre Repl_semi_sync_binlog::LOCK_binlog should be held while calling this.
   */
   void clear_active_tranx_nodes(Tranx_node *node);
 

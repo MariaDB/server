@@ -77,19 +77,6 @@ static bool is_no_slave()
     !rpl_semi_sync_master_wait_no_slave;
 }
 
-int signal_waiting_transaction(THD *waiting_thd, const char *binlog_file,
-                                my_off_t binlog_pos)
-{
-  /*
-    It is possible that the connection thd waiting for an ACK was killed. In
-    such circumstance, the connection thread will nullify the thd member of its
-    Active_tranx node. So before we try to signal, ensure the THD exists.
-  */
-  if (waiting_thd)
-    mysql_cond_signal(&waiting_thd->COND_wakeup_ready);
-  return 0;
-}
-
 /*******************************************************************************
  *
  * <Active_tranx> class : manage all active transaction nodes
@@ -257,12 +244,17 @@ void Active_tranx::clear_active_tranx_nodes(Tranx_node *node)
 {
   Tranx_node *new_front;
 
-  DBUG_ENTER("Active_tranx::::clear_active_tranx_nodes");
+  DBUG_ENTER("Active_tranx::clear_active_tranx_nodes");
 
   for (new_front= m_trx_front; new_front && new_front != node;
        new_front= new_front->next)
-    signal_waiting_transaction(new_front->thd,
-                               new_front->log_name, new_front->log_pos);
+    /*
+      It is possible that the connection thd waiting for an ACK was killed.
+      In such circumstance, the connection thread will nullify the thd member of
+      its Active_tranx node. So before we try to signal, ensure the THD exists.
+    */
+    if (new_front->thd)
+      mysql_cond_signal(&new_front->thd->COND_wakeup_ready);
 
   if (new_front == NULL)
   {
