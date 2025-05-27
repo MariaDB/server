@@ -8,5 +8,7 @@ set names utf8;
 create user юзер_юзер@localhost;
 grant select on test.* to юзер_юзер@localhost;
 --exec $MYSQL --default-character-set=utf8 --user=юзер_юзер -e "select user()"
+--disable_warnings
 drop user юзер_юзер@localhost;
+--enable_warnings
 set names default;

@@ -94,5 +94,7 @@ connection default;
 exec $MYSQL_DUMP --no-autocommit=0 test v1 -uu1 --compact;
 drop view v1;
 drop table t1;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 --enable_service_connection

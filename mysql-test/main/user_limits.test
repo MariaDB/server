@@ -89,7 +89,9 @@ disconnect mcph2;
 connect (mcph3, localhost, mysqltest_1,,);
 # Cleanup
 connection default;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Test of MAX_USER_CONNECTIONS limit
 # We need this to reset internal mqh_used variable
@@ -135,7 +137,9 @@ connect (muc5, localhost, mysqltest_1,,);
 disconnect muc2;
 disconnect muc3;
 disconnect muc4;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Now let us test interaction between global and per-account
 # max_user_connections limits
@@ -201,7 +205,9 @@ connect (muca2, localhost, mysqltest_1,,);
 connect (muca3, localhost, mysqltest_1,,);
 disconnect muca2;
 connection default;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Final cleanup
 drop table t1;

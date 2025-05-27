@@ -25,7 +25,9 @@ drop table tt1;
 
 connection slave;
 drop database db1;
+disable_warnings;
 drop user my@localhost;
+enable_warnings;
 
 source include/federated_cleanup.inc;
 

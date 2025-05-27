@@ -792,7 +792,9 @@ create user ser@localhost identified by "ass";
 --echo MYSQL --ssl-verify-server-cert -e "\\s"
 --replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
 --exec $MYSQL -user -pass --ssl-verify-server-cert -e "\\s"
+--disable_warnings
 drop user ser@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-32473 --disable-ssl doesn't disable it

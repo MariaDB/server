@@ -1,5 +1,6 @@
 let $PAM_PLUGIN_VERSION= $AUTH_PAM_SO;
 --source pam_init.inc
+--source include/count_sessions.inc
 
 --write_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
 not very secret challenge
@@ -83,6 +84,7 @@ alter user test_pam password expire;
 --error 1
 --exec $MYSQL_TEST -u test_pam -pgoodpassword < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 
+--source include/wait_until_count_sessions.inc
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
@@ -104,6 +106,7 @@ set global pam_winbind_workaround=1;
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_bad.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_ugly.txt
+--source include/wait_until_count_sessions.inc
 drop user PAM_TEST;
 
 --echo #
@@ -121,6 +124,7 @@ show create user;
 EOF
 --exec $MYSQL_TEST -u pam_test < $MYSQLTEST_VARDIR/tmp/setpwd.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/setpwd.txt
+--source include/wait_until_count_sessions.inc
 drop user pam_test;
 
 let $count_sessions= 1;

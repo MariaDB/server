@@ -1617,8 +1617,10 @@ drop procedure sp1;
 
 connection default;
 disconnect user27293;
+--disable_warnings
 drop user user1;
 drop user user2;
+--enable_warnings
 
 drop database mysqldump_test_db;
 
@@ -2348,7 +2350,9 @@ connection conn_1;
 connection default;
 disconnect conn_1;
 
+--disable_warnings
 DROP USER user1;
+--enable_warnings
 DROP DATABASE BUG52792;
 --echo # UTF-8
 CREATE DATABASE BUG52792;

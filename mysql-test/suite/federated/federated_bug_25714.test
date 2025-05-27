@@ -57,7 +57,9 @@ SELECT LAST_INSERT_ID();
 SELECT * from federated.t1;
 
 DROP TABLE federated.t1;
+--disable_warnings
 drop user fed@127.0.0.1;
+--enable_warnings
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_MASTER_CONCURRENT_INSERT;
 connection slave;
 DROP TABLE federated.t1;
