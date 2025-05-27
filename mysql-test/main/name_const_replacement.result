@@ -21,7 +21,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "1",
+    "const_condition": true,
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
