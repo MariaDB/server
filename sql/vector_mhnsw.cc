@@ -32,6 +32,17 @@ static constexpr float alpha = 1.1f;
 static constexpr uint ef_construction= 10;
 static constexpr uint max_ef= 10000;
 
+/*
+  graph related statistical data. stored in MHNSW_Share.
+  copied from ctx to a local structure under a lock.
+*/
+struct Stats
+{
+  double ef_power= 0.6;         // for the bloom filter size heuristic
+  float diameter= 0;
+  size_t graph_size= 0;
+};
+
 static ulonglong mhnsw_max_cache_size;
 static MYSQL_SYSVAR_ULONGLONG(max_cache_size, mhnsw_max_cache_size,
        PLUGIN_VAR_RQCMDARG, "Upper limit for one MHNSW vector index cache",
@@ -389,7 +400,7 @@ public:
 */
 class MHNSW_Share : public Sql_alloc
 {
-  mysql_mutex_t cache_lock;
+  mysql_mutex_t cache_lock;     // for node_cache and stats
   mysql_mutex_t node_lock[8];
 
   void cache_internal(FVectorNode *node)
@@ -406,6 +417,7 @@ class MHNSW_Share : public Sql_alloc
 protected:
   std::atomic<uint> refcnt{0};
   MEM_ROOT root;
+  Stats stats;
   Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
 
 public:
@@ -413,8 +425,6 @@ public:
   mysql_rwlock_t commit_lock;
   size_t vec_len= 0;
   size_t byte_len= 0;
-  Atomic_relaxed<double> ef_power{0.6}; // for the bloom filter size heuristic
-  Atomic_relaxed<float>  diameter{0};   // for the generosity heuristic
   FVectorNode *start= 0;
   const uint tref_len;
   const uint gref_len;
@@ -550,6 +560,29 @@ public:
              sizeof(FVectorNode*)*(MY_ALIGN(M, 4)*2 + MY_ALIGN(M,8)*max_layer));
     mysql_mutex_unlock(&cache_lock);
     return p;
+  }
+
+  void read_stats(Stats *out)
+  {
+    mysql_mutex_lock(&cache_lock);
+    *out= stats;
+    mysql_mutex_unlock(&cache_lock);
+  }
+
+  void set_stats(size_t graph_size)
+  {
+    mysql_mutex_lock(&cache_lock);
+    stats.graph_size= graph_size;
+    mysql_mutex_unlock(&cache_lock);
+  }
+
+  void add_to_stats(const Stats &addend)
+  {
+    mysql_mutex_lock(&cache_lock);
+    stats.graph_size+= addend.graph_size;
+    stats.diameter= std::max(stats.diameter, addend.diameter);
+    stats.ef_power= std::max(stats.ef_power, addend.ef_power);
+    mysql_mutex_unlock(&cache_lock);
   }
 };
 
@@ -732,8 +765,6 @@ MHNSW_Share *MHNSW_Share::get_from_share(TABLE_SHARE *share, TABLE *table)
   }
   if (ctx)
     ctx->refcnt++;
-  if (table) // hijack TABLE::used_stat_records
-    table->hlindex->used_stat_records= ctx->node_cache.size();
   share->unlock_share();
   return ctx;
 }
@@ -762,6 +793,10 @@ int MHNSW_Share::acquire(MHNSW_Share **ctx, TABLE *table, bool for_update)
 
   graph->file->position(graph->record[0]);
   (*ctx)->set_lengths(FVector::data_to_value_size(graph->field[FIELD_VEC]->value_length()));
+
+  if (int err= graph->file->info(HA_STATUS_VARIABLE))
+    return err;
+  (*ctx)->set_stats(graph->file->stats.records);
 
   auto node= (*ctx)->get_node(graph->file->ref);
   if ((err= node->load_from_record(graph)))
@@ -928,9 +963,10 @@ struct MHNSW_param
   MHNSW_Share *ctx;
   TABLE *graph;
   int layer;
+  Stats stats;
   MHNSW_param(MHNSW_Share *ctx, TABLE *graph, int layer)
     : ctx(ctx), graph(graph), layer(layer)
-  { }
+  { ctx->read_stats(&stats); }
 };
 
 /* one visited node during the search. caches the distance to target */
@@ -1156,19 +1192,18 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
 
   // WARNING! heuristic here
   const double est_heuristic= 8 * std::sqrt(p->ctx->max_neighbors(p->layer));
-  double est_size= est_heuristic * std::pow(ef, p->ctx->ef_power);
-  set_if_smaller(est_size, p->graph->used_stat_records/1.3);
+  double est_size= est_heuristic * std::pow(ef, p->stats.ef_power);
+  set_if_smaller(est_size, p->stats.graph_size/1.3);
   VisitedSet visited(root, target, static_cast<uint>(est_size));
 
   candidates.init(max_ef, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
 
   DBUG_ASSERT(inout->num <= result_size);
-  float max_distance= p->ctx->diameter;
   for (size_t i=0; i < inout->num; i++)
   {
     Visited *v= visited.create(inout->links[i]);
-    max_distance= std::max(max_distance, v->distance_to_target);
+    p->stats.diameter= std::max(p->stats.diameter, v->distance_to_target);
     candidates.push(v);
     if ((skip_deleted && v->node->deleted) || threshold > NEAREST)
       continue;
@@ -1176,7 +1211,7 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
   }
 
   float furthest_best= best.is_empty() ? FLT_MAX
-                       : generous_furthest(best, max_distance, generosity);
+                       : generous_furthest(best, p->stats.diameter, generosity);
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
@@ -1204,12 +1239,12 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
           continue;
         if (!best.is_full())
         {
-          max_distance= std::max(max_distance, v->distance_to_target);
+          p->stats.diameter= std::max(p->stats.diameter, v->distance_to_target);
           candidates.safe_push(v);
           if (skip_deleted && v->node->deleted)
             continue;
           best.push(v);
-          furthest_best= generous_furthest(best, max_distance, generosity);
+          furthest_best= generous_furthest(best, p->stats.diameter, generosity);
         }
         else if (v->distance_to_target < furthest_best)
         {
@@ -1219,17 +1254,16 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
           if (v->distance_to_target < best.top()->distance_to_target)
           {
             best.replace_top(v);
-            furthest_best= generous_furthest(best, max_distance, generosity);
+            furthest_best= generous_furthest(best, p->stats.diameter, generosity);
           }
         }
       }
     }
   }
-  set_if_bigger(p->ctx->diameter, max_distance); // not atomic, but it's ok
   if (ef > 1 && visited.count > est_size)
   {
     double ef_power= std::log(visited.count/est_heuristic) / std::log(ef);
-    set_if_bigger(p->ctx->ef_power, ef_power); // not atomic, but it's ok
+    set_if_bigger(p->stats.ef_power, ef_power);
   }
 
   while (best.elements() > result_size)
@@ -1325,6 +1359,8 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   if (int err= target->save(graph))
     return err;
+  p.stats.graph_size= 1;
+  ctx->add_to_stats(p.stats);
 
   if (target_layer > max_layer)
     ctx->start= target;
