@@ -1614,6 +1614,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
   noexcept
 {
   mysql_mutex_assert_owner(&mutex);
+  DBUG_EXECUTE_IF("buf_shrink_fail", return SHRINK_ABORT;);
   buf_load_abort();
 
   if (!n_blocks_to_withdraw)
@@ -2014,25 +2015,12 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     if (ahi_disabled)
       btr_search.enable(true);
 #endif
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    bool resized= n_blocks_removed < 0;
-    if (n_blocks_removed > 0)
-    {
-      mysql_mutex_lock(&mutex);
-      resized= size_in_bytes == old_size;
-      if (resized)
-      {
-        size_in_bytes_requested= size;
-        size_in_bytes= size;
-      }
-      mysql_mutex_unlock(&mutex);
-    }
-
-    if (resized)
+    if (n_blocks_removed)
       sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
                             " resized from %zum (%zu pages)",
                             size >> 20, n_blocks_new, old_size >> 20,
                             old_blocks);
+    mysql_mutex_lock(&LOCK_global_system_variables);
   }
   else
   {
@@ -2095,6 +2083,10 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     mysql_mutex_unlock(&mutex);
     my_printf_error(ER_WRONG_USAGE, "innodb_buffer_pool_size change aborted",
                     MYF(ME_ERROR_LOG));
+#ifdef BTR_CUR_HASH_ADAPT
+    if (ahi_disabled)
+      btr_search.enable(true);
+#endif
     mysql_mutex_lock(&LOCK_global_system_variables);
   }
 
