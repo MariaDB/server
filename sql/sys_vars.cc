@@ -80,6 +80,8 @@
 */
 #define export /* not static */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 
 static Sys_var_mybool Sys_pfs_enabled(

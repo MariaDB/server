@@ -10414,6 +10414,8 @@ static uint64 get_start_alter_id(THD *thd)
   based on information about the table changes from fill_alter_inplace_info().
 */
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        Table_specification_st *create_info,
@@ -12028,6 +12030,7 @@ err_with_mdl:
   goto err_cleanup;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**

@@ -278,6 +278,9 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
   return lock_return_code::EXPIRED;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
+
 group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
   completion_callback callbacks[950];     // 1000 fails with framesize 16384
@@ -394,6 +397,8 @@ group_commit_lock::value_type group_commit_lock::release(value_type num)
   }
   return ret;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #ifndef DBUG_OFF
 bool group_commit_lock::is_owner()
