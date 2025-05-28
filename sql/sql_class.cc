@@ -5913,7 +5913,8 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   if (rpl_master_erroneous_autoinc(this))
   {
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
-    auto_inc_intervals_forced.swap(&backup->auto_inc_intervals_forced);
+    backup->auto_inc_intervals_forced.copy_shallow(&auto_inc_intervals_forced);
+    MEM_UNDEFINED(&auto_inc_intervals_forced, sizeof auto_inc_intervals_forced);
   }
 #endif
   
@@ -5961,7 +5962,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
    */
   if (rpl_master_erroneous_autoinc(this))
   {
-    backup->auto_inc_intervals_forced.swap(&auto_inc_intervals_forced);
+    auto_inc_intervals_forced.copy_shallow(&backup->auto_inc_intervals_forced);
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
   }
 #endif
