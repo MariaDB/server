@@ -116,7 +116,7 @@ public:
 	PBSON   MakeBinResult(UDF_ARGS* args, PBVAL top, ulong len, int n = 2);
 
 protected:
-	my_bool SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm);
+	my_bool SetArrayOptions(PGLOBAL g, char* p, int i);
 	PVAL    GetColumnValue(PGLOBAL g, PBVAL row, int i);
 	PVAL    ExpandArray(PGLOBAL g, PBVAL arp, int n);
 	PVAL    CalculateArray(PGLOBAL g, PBVAL arp, int n);

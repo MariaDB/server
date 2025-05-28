@@ -112,7 +112,7 @@ my_bool JSNX::SetJpath(PGLOBAL g, char *path, my_bool jb)
 /*********************************************************************************/
 /*  Analyse array processing options.                                            */
 /*********************************************************************************/
-my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
+my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i)
 {
 	int     n = (int)strlen(p);
 	my_bool dg = true, b = false;
@@ -262,7 +262,7 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 		// Jpath must be explicit
 		if (a || *p == 0 || *p == '[' || IsNum(p)) {
 			// Analyse intermediate array processing
-			if (SetArrayOptions(g, p, i, Nodes[i-1].Key))
+			if (SetArrayOptions(g, p, i))
 				return true;
 
 		} else if (*p == '*') {
