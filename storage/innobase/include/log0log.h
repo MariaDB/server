@@ -39,17 +39,11 @@ static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
 static const char LOG_FILE_NAME[] = "ib_logfile0";
 
 /** Composes full path for a redo log file
-@param[in]	filename	name of the redo log file
+@param filename   name of the redo log file
+@param directory  name of the directory; nullptr=innodb_log_group_home_dir
 @return path with log file name*/
-std::string get_log_file_path(const char *filename= LOG_FILE_NAME);
-
-/** Delete log file.
-@param[in]	suffix	suffix of the file name */
-static inline void delete_log_file(const char* suffix)
-{
-  auto path = get_log_file_path(LOG_FILE_NAME_PREFIX).append(suffix);
-  os_file_delete_if_exists_func(path.c_str(), nullptr);
-}
+std::string get_log_file_path(const char *filename= LOG_FILE_NAME,
+                              const char *directory= nullptr);
 
 struct completion_callback;
 
@@ -130,7 +124,7 @@ public:
 /** Redo log buffer */
 struct log_t
 {
-  /** The maximum buf_size */
+  /** The maximum buf_size_requested */
   static constexpr unsigned buf_size_max= os_file_request_size_max;
 
   /** The original (not version-tagged) InnoDB redo log format */
@@ -182,7 +176,7 @@ private:
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
 public:
-  /** innodb_log_buffer_size (usable append_prepare() size in bytes) */
+  /** innodb_log_buffer_size or the PMEM file_size */
   unsigned buf_size;
   /** log file size in bytes, including the header */
   lsn_t file_size;
@@ -255,7 +249,11 @@ private:
   lsn_t resize_target;
   /** Buffer for writing to resize_log; @see buf */
   byte *resize_buf;
-  /** Buffer for writing to resize_log; @see flush_buf */
+  /** Buffer for writing to resize_log; @see flush_buf.
+  When a PMEM based ib_logfile101 is being created during
+  SET GLOBAL innodb_log_file_disabled=OFF, this will store
+  the original value of a dummy log_sys.flush_buf that was being used by
+  skip_write_buf(). */
   byte *resize_flush_buf;
 
   /** log sequence number when log resizing was initiated;
@@ -264,10 +262,14 @@ private:
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
 public:
+  /** innodb_log_buffer_size (usable append_prepare() size in bytes) */
+  unsigned buf_size_requested;
   /** current innodb_log_write_ahead_size */
   uint write_size;
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
+  /** whether the log is disabled */
+  my_bool disabled;
   /** whether the memory-mapped interface is enabled for the log */
   my_bool log_mmap;
   /** the default value of log_mmap */
@@ -314,8 +316,10 @@ public:
 	/* @} */
 
 private:
-  /** the thread that initiated resize_lsn() */
-  Atomic_relaxed<void*> resize_initiator;
+  /** the desired value of innodb_log_group_home_dir */
+  const char *resize_dir;
+  /** the thread that initiated resize_lsn(); protected by latch */
+  void *resize_initiator;
 #ifdef HAVE_PMEM
   /** mutex protecting wrap-around in resize_write() */
   srw_mutex resize_wrap_mutex;
@@ -334,6 +338,13 @@ public:
   is_mmap() && !is_opened() holds for PMEM */
   bool is_opened() const noexcept { return log.is_opened(); }
 
+  /** Try to disable the redo log.
+  @param file_size   the desired log_sys.file_size
+  @param dir         the desired innodb_log_group_home_dir
+  @retval false if the log is or was disabled
+  @retval true  if resize_in_progress() */
+  bool disable(lsn_t file_size, const char *dir) noexcept;
+
   /** @return LSN at which log resizing was started and is still in progress
       @retval 0 if no log resizing is in progress
       @retval 1 if resize_start() is in progress */
@@ -347,9 +358,11 @@ public:
 
   /** Start resizing the log and release the exclusive latch.
   @param size  requested new file_size
+  @param dir   the desired innodb_log_group_home_dir
   @param thd   the current thread identifier
   @return whether the resizing was started successfully */
-  resize_start_status resize_start(os_offset_t size, void *thd) noexcept;
+  resize_start_status resize_start(os_offset_t size, const char *dir,
+                                   void *thd) noexcept;
 
   /** Abort a resize_start() that we started.
   @param thd  thread identifier that had been passed to resize_start() */
@@ -357,7 +370,7 @@ public:
 
   /** @return whether a particular resize_start() is in progress */
   bool resize_running(void *thd) const noexcept
-  { return thd == resize_initiator; }
+  { ut_ad(latch_have_any()); return thd == resize_initiator; }
 
   /** Replicate a write to the log.
   @param lsn  start LSN
@@ -434,6 +447,7 @@ public:
   lsn_t get_flushed_lsn(std::memory_order order= std::memory_order_acquire)
     const noexcept
   { return flushed_to_disk_lsn.load(order); }
+  inline void set_flushed_lsn(lsn_t lsn) noexcept;
 
   /** Initialize the LSN on initial log file creation. */
   inline lsn_t init_lsn() noexcept;
@@ -547,6 +561,10 @@ public:
     /** invoke latch.wr_unlock(); resize_in_progress() > 1 */
     RESIZING
   };
+
+  /** Pretend to write to (non-existing) ib_logfile0 while disabled==true
+  @return the current log sequence number */
+  static lsn_t skip_write_buf() noexcept;
 
   /** Write buf to ib_logfile0 and possibly ib_logfile101.
   @tparam resizing whether to release latch and whether resize_in_progress()>1

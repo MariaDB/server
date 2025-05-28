@@ -1,5 +1,4 @@
 
-
 ################## mysql-test\t\innodb_log_group_home_dir_basic.test ##########
 #                                                                             #
 # Variable Name: innodb_log_group_home_dir                                    #
@@ -22,6 +21,7 @@
 #                                                                             #
 ###############################################################################
 
+--source include/not_embedded.inc
 --source include/have_innodb.inc
 
 --echo '#---------------------BS_STVARS_036_01----------------------#'
@@ -37,13 +37,15 @@ SELECT COUNT(@@GLOBAL.innodb_log_group_home_dir);
 #   Check if Value can set                                         #
 ####################################################################
 
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
+--error ER_WRONG_TYPE_FOR_VAR
 SET @@GLOBAL.innodb_log_group_home_dir=1;
 --echo Expected error 'Read only variable'
 
 SELECT COUNT(@@GLOBAL.innodb_log_group_home_dir);
 --echo 1 Expected
-
+SELECT @@GLOBAL.innodb_log_group_home_dir;
+SET @@GLOBAL.innodb_log_group_home_dir=DEFAULT;
+SELECT @@GLOBAL.innodb_log_group_home_dir;
 
 
 

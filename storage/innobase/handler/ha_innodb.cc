@@ -222,6 +222,24 @@ enum default_row_format_enum {
 
 static my_bool innodb_truncate_temporary_tablespace_now;
 
+/** Group checking of system variables */
+namespace group
+{
+  /** the specified parameters */
+  enum spec
+  {
+    NONE= 0,
+    /** innodb_log_file_disabled is specified */
+    LOG_DISABLED= 1<<0,
+    /** innodb_log_file_size is specified */
+    LOG_SIZE= 1<<1,
+    /** innodb_log_checkpoint_now is specified */
+    LOG_CHECKPOINT= 1<<2,
+    /** innodb_log_group_home_dir is specified */
+    LOG_DIR= 1<<3
+  };
+}
+
 /** Whether ROW_FORMAT=COMPRESSED tables are read-only */
 static my_bool innodb_read_only_compressed;
 
@@ -3679,6 +3697,7 @@ static int innodb_init_abort()
 		srv_tmp_space.delete_files();
 	}
 	srv_tmp_space.shutdown();
+	my_free(srv_log_group_home_dir);
 
 	DBUG_RETURN(1);
 }
@@ -3803,6 +3822,8 @@ static int innodb_init_params()
   if (!srv_page_size_shift)
   {
     sql_print_error("InnoDB: Invalid page size=%lu.\n", srv_page_size);
+  err:
+    srv_log_group_home_dir= nullptr;
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
 
@@ -3832,7 +3853,7 @@ static int innodb_init_params()
      sql_print_error("InnoDB: innodb_page_size=%lu requires "
                      "innodb_buffer_pool_size >= %zu MiB current %zu MiB",
                      srv_page_size, min >> 20, innodb_buffer_pool_size >> 20);
-     DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
   if (!ut_is_2pow(log_sys.write_size))
@@ -3840,12 +3861,12 @@ static int innodb_init_params()
     sql_print_error("InnoDB: innodb_log_write_ahead_size=%u"
                     " is not a power of two",
                     log_sys.write_size);
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
 
   if ((srv_encrypt_tables || srv_encrypt_log ||
        innodb_encrypt_temporary_tables) &&
@@ -3853,7 +3874,7 @@ static int innodb_init_params()
   {
     sql_print_error("InnoDB: cannot enable encryption, "
                     "encryption plugin is not available");
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
 #ifdef _WIN32
@@ -3862,7 +3883,7 @@ static int innodb_init_params()
   {
     sql_print_error("InnoDB: innodb_buffer_pool_filename"
                     " cannot have colon (:) in the file name.");
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 #endif
 
@@ -3919,7 +3940,7 @@ static int innodb_init_params()
   {
     sql_print_error("InnoDB: Unable to parse innodb_data_file_path=%s",
                     innobase_data_file_path);
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
   srv_tmp_space.set_path(srv_data_home);
@@ -3928,7 +3949,7 @@ static int innodb_init_params()
   {
     sql_print_error("InnoDB: Unable to parse innodb_temp_data_file_path=%s",
                     innobase_temp_data_file_path);
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
   /* Perform all sanity check before we take action of deleting files*/
@@ -3936,7 +3957,7 @@ static int innodb_init_params()
   {
     sql_print_error("innodb_temporary and innodb_system"
                     " file names seem to be the same.");
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
   srv_sys_space.normalize_size();
@@ -3949,17 +3970,14 @@ static int innodb_init_params()
   if (strchr(srv_undo_dir, ';'))
   {
     sql_print_error("syntax error in innodb_undo_directory");
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
+    goto err;
   }
 
   if (!srv_log_group_home_dir)
     srv_log_group_home_dir= const_cast<char*>(fil_path_to_mysql_datadir);
 
-  if (strchr(srv_log_group_home_dir, ';'))
-  {
-    sql_print_error("syntax error in innodb_log_group_home_dir");
-    DBUG_RETURN(HA_ERR_INITIALIZATION);
-  }
+  srv_log_group_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
+                                    srv_log_group_home_dir, MYF(MY_FAE));
 
   /* Check that interdependent parameters have sane values. */
   if (srv_max_buf_pool_modified_pct < srv_max_dirty_pages_pct_lwm)
@@ -4331,6 +4349,7 @@ innobase_end(handlerton*, ha_panic_function)
 
 		innodb_shutdown();
 		mysql_mutex_destroy(&log_requests.mutex);
+		my_free(srv_log_group_home_dir);
 	}
 
 	DBUG_RETURN(0);
@@ -18406,44 +18425,6 @@ static uint	innodb_merge_threshold_set_all_debug
 	= DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
 #endif
 
-/** Force an InnoDB log checkpoint. */
-static
-void
-checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
-{
-  if (!*static_cast<const my_bool*>(save))
-    return;
-
-  if (srv_read_only_mode)
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        HA_ERR_UNSUPPORTED,
-                        "InnoDB doesn't force checkpoint "
-                        "when %s",
-                        (srv_force_recovery
-                         == SRV_FORCE_NO_LOG_REDO)
-                        ? "innodb-force-recovery=6."
-                        : "innodb-read-only=1.");
-    return;
-  }
-
-  const auto size= log_sys.is_encrypted()
-    ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  while (!thd_kill_level(thd))
-  {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
-      lsn= log_sys.get_lsn();
-    log_sys.latch.wr_unlock();
-    if (cp + size >= lsn)
-      break;
-    log_make_checkpoint();
-  }
-
-  mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
 #ifdef UNIV_DEBUG
 /****************************************************************//**
 Force a dirty pages flush now. */
@@ -18639,72 +18620,165 @@ static void innodb_doublewrite_update(THD *, st_mysql_sys_var*,
     fil_system.set_use_doublewrite(*static_cast<const ulong*>(save));
 }
 
-static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
-                                        void *var, const void *save)
+/** Update innodb_log_file_size, innodb_log_file_disabled,
+innodb_log_checkpoint_now=ON, innodb_log_group_home_dir.
+@param thd      execution context
+@param spec     the specified parameters
+@param size     innodb_log_file_size (if spec & group::LOG_SIZE)
+@param disabled innodb_log_file_disabled (if spec & group::LOG_DISABLED)
+@param checkpt  innodb_log_checkpoint_now (if spec & group::LOG_CHECKPOINT)
+@param dir      innodb_log_group_home_dir (if spec & group::LOG_DIR) */
+static void innodb_log_update(THD *thd, unsigned spec,
+                              ulonglong size, bool disabled, bool checkpt,
+                              const char *dir)
 {
-  ut_ad(var == &srv_log_file_size);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-
-  if (high_level_read_only)
-    ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
+  switch (spec) {
+  case group::LOG_CHECKPOINT:
+    if (checkpt)
+    {
+      const auto size= log_sys.is_encrypted()
+        ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
+      mysql_mutex_unlock(&LOCK_global_system_variables);
+      while (!thd_kill_level(thd))
+      {
+        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
+          lsn= log_sys.get_lsn();
+        log_sys.latch.wr_unlock();
+        if (cp + size >= lsn)
+          break;
+        log_make_checkpoint();
+      }
+      mysql_mutex_lock(&LOCK_global_system_variables);
+    }
+    /* fall through */
+  case group::NONE:
+    return;
+  }
+  log_sys.latch.rd_lock(SRW_LOCK_CALL);
+  if (!(spec & group::LOG_SIZE))
+    size= log_sys.file_size;
   else if (
 #ifdef HAVE_PMEM
-          !log_sys.is_mmap() &&
+           !log_sys.is_mmap() &&
 #endif
-           *static_cast<const ulonglong*>(save) < log_sys.buf_size)
+           size < log_sys.buf_size_requested)
+  {
+    log_sys.latch.rd_unlock();
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
-                    " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
-  else
-  {
-    switch (log_sys.resize_start(*static_cast<const ulonglong*>(save), thd)) {
-    case log_t::RESIZE_NO_CHANGE:
-      break;
-    case log_t::RESIZE_IN_PROGRESS:
-      my_printf_error(ER_WRONG_USAGE,
-                      "innodb_log_file_size change is already in progress",
-                      MYF(0));
-      break;
-    case log_t::RESIZE_FAILED:
-      ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
-      break;
-    case log_t::RESIZE_STARTED:
-      for (timespec abstime;;)
-      {
-        if (thd_kill_level(thd))
-        {
-          log_sys.resize_abort(thd);
-          break;
-        }
+                    " innodb_log_buffer_size=%u", MYF(0),
+                    log_sys.buf_size_requested);
+    return;
+  }
+  if (!(spec & group::LOG_DISABLED))
+    disabled= log_sys.disabled;
+  if (!(spec & group::LOG_DIR))
+    dir= srv_log_group_home_dir;
+  else if (!dir)
+    /* SET GLOBAL innodb_log_group_home_dir=DEFAULT */
+    dir= const_cast<char*>(fil_path_to_mysql_datadir);
 
-        set_timespec(abstime, 5);
-        mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        lsn_t resizing= log_sys.resize_in_progress();
-        if (resizing > buf_pool.get_oldest_modification(0))
-        {
-          buf_pool.page_cleaner_wakeup(true);
-          my_cond_timedwait(&buf_pool.done_flush_list,
-                            &buf_pool.flush_list_mutex.m_mutex, &abstime);
-          resizing= log_sys.resize_in_progress();
-        }
-        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (!resizing || !log_sys.resize_running(thd))
-          break;
-        log_sys.latch.wr_lock(SRW_LOCK_CALL);
-        while (resizing > log_sys.get_lsn())
-        {
-          ut_ad(!log_sys.is_mmap());
-          /* The server is almost idle. Write dummy FILE_CHECKPOINT records
-          to ensure that the log resizing will complete. */
-          mtr_t mtr;
-          mtr.start();
-          mtr.commit_files(log_sys.last_checkpoint_lsn);
-        }
-        log_sys.latch.wr_unlock();
+  log_sys.latch.rd_unlock();
+
+  if (disabled)
+  {
+    if (log_sys.disable(size, dir))
+      my_printf_error(ER_WRONG_USAGE,
+                      "innodb_log_file_* change is in progress", MYF(0));
+    return;
+  }
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  switch (log_sys.resize_start(size, dir, thd)) {
+  case log_t::RESIZE_NO_CHANGE:
+    break;
+  case log_t::RESIZE_IN_PROGRESS:
+    my_printf_error(ER_WRONG_USAGE,
+                    "innodb_log_file_* change is already in progress",
+                    MYF(0));
+    break;
+  case log_t::RESIZE_FAILED:
+    ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
+    break;
+  case log_t::RESIZE_STARTED:
+    for (timespec abstime;;)
+    {
+      if (thd_kill_level(thd))
+      {
+        log_sys.resize_abort(thd);
+        break;
       }
+
+      set_timespec(abstime, 5);
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
+      lsn_t resizing= log_sys.resize_in_progress();
+      if (resizing > buf_pool.get_oldest_modification(0))
+      {
+        buf_pool.page_cleaner_wakeup(true);
+        my_cond_timedwait(&buf_pool.done_flush_list,
+                          &buf_pool.flush_list_mutex.m_mutex, &abstime);
+        resizing= log_sys.resize_in_progress();
+      }
+      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+      log_sys.latch.wr_lock(SRW_LOCK_CALL);
+      if (!resizing || !log_sys.resize_running(thd))
+      {
+        const bool fail{log_sys.disabled || log_sys.file_size != size ||
+                        strcmp(srv_log_group_home_dir, dir)};
+        log_sys.latch.wr_unlock();
+        if (fail)
+          my_printf_error(ER_WRONG_USAGE,
+                          "innodb_log_file_* change was aborted", MYF(0));
+        break;
+      }
+      while (resizing > log_sys.get_lsn())
+      {
+#ifdef HAVE_PMEM
+        ut_ad(!log_sys.is_mmap());
+#endif
+        /* The server is almost idle. Write dummy FILE_CHECKPOINT records
+        to ensure that the log resizing will complete. */
+        mtr_t mtr;
+        mtr.start();
+        mtr.commit_files(log_sys.last_checkpoint_lsn);
+      }
+      log_sys.latch.wr_unlock();
     }
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
+static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
+                                        void *ut_d(var), const void *save)
+{
+  ut_ad(var == &srv_log_file_size);
+  innodb_log_update(thd, group::LOG_SIZE,
+                    *static_cast<const ulonglong*>(save), false, false,
+                    nullptr);
+}
+
+static void innodb_log_file_disabled_update(THD *thd, st_mysql_sys_var*,
+                                            void *ut_d(var), const void *save)
+{
+  ut_ad(var == &log_sys.disabled);
+  innodb_log_update(thd, group::LOG_DISABLED,
+                    0, *static_cast<const my_bool*>(save), false, nullptr);
+}
+
+static void innodb_log_checkpoint_now_update(THD *thd, st_mysql_sys_var*,
+                                             void *, const void *save)
+{
+  innodb_log_update(thd, group::LOG_CHECKPOINT,
+                    0, false, *static_cast<const my_bool*>(save), nullptr);
+}
+
+static void innodb_log_group_home_dir_update(THD *thd, st_mysql_sys_var*,
+                                             void *ut_d(var), const void *save)
+{
+  ut_ad(var == &srv_log_group_home_dir);
+  innodb_log_update(thd, group::LOG_DIR,
+                    0, false, false, *static_cast<const char*const*>(save));
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,
@@ -19056,7 +19130,7 @@ static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
 static MYSQL_SYSVAR_BOOL(log_checkpoint_now, innodb_log_checkpoint_now,
   PLUGIN_VAR_OPCMDARG,
   "Write back dirty pages from the buffer pool and update the log checkpoint",
-  NULL, checkpoint_now_set, FALSE);
+  nullptr, innodb_log_checkpoint_now_update, FALSE);
 
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(buf_flush_list_now, innodb_buf_flush_list_now,
@@ -19142,8 +19216,9 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   NULL, NULL, innodb_flush_method_default, &innodb_flush_method_typelib);
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to ib_logfile0", NULL, NULL, NULL);
+  PLUGIN_VAR_RQCMDARG,
+  "Path to ib_logfile0",
+  nullptr, innodb_log_group_home_dir_update, NULL);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19195,7 +19270,8 @@ static MYSQL_SYSVAR_ULONG(max_purge_lag_delay, srv_max_purge_lag_delay,
 static MYSQL_SYSVAR_UINT(max_purge_lag_wait, innodb_max_purge_lag_wait,
   PLUGIN_VAR_RQCMDARG,
   "Wait until History list length is below the specified limit",
-  NULL, innodb_max_purge_lag_wait_update, UINT_MAX, 0, UINT_MAX, 0);
+  nullptr, innodb_max_purge_lag_wait_update,
+  UINT_MAX, 0, UINT_MAX, 0);
 
 static MYSQL_SYSVAR_BOOL(rollback_on_timeout, innobase_rollback_on_timeout,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -19498,10 +19574,15 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   NULL, NULL, UNIV_PAGE_SIZE_DEF,
   UNIV_PAGE_SIZE_MIN, UNIV_PAGE_SIZE_MAX, 0);
 
-static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
+static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size_requested,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Redo log buffer size in bytes",
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
+
+static MYSQL_SYSVAR_BOOL(log_file_disabled, log_sys.disabled,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether the ib_logfile0 is disabled (and InnoDB is crash-unsafe)",
+  nullptr, innodb_log_file_disabled_update, FALSE);
 
   static constexpr const char *innodb_log_file_mmap_description=
     "Whether ib_logfile0"
@@ -19983,6 +20064,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
+  MYSQL_SYSVAR(log_file_disabled),
   MYSQL_SYSVAR(log_file_mmap),
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
