@@ -61,16 +61,38 @@ SELECT COUNT(*),LENGTH(b) FROM t GROUP BY b;
 COUNT(*)	LENGTH(b)
 9	0
 19991	255
+SELECT @@innodb_log_group_home_dir;
+@@innodb_log_group_home_dir
+./
+ib_logfile0
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880
-SET GLOBAL innodb_log_file_size=6291456;
+SET GLOBAL innodb_log_file_disabled=ON;
+SET GLOBAL innodb_log_group_home_dir='log';
+SELECT @@innodb_log_group_home_dir;
+@@innodb_log_group_home_dir
+log
+SET GLOBAL innodb_log_file_size=6291456,innodb_log_file_disabled=OFF,
+innodb_log_group_home_dir='log/';
+ib_logfile0
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	6291456
-SET GLOBAL innodb_log_file_size=5242880;
+SELECT @@innodb_log_group_home_dir;
+@@innodb_log_group_home_dir
+log/
+SET GLOBAL innodb_log_group_home_dir='log';
+ib_logfile0
+SELECT @@innodb_log_group_home_dir;
+@@innodb_log_group_home_dir
+log
+SET GLOBAL innodb_log_file_size=5242880,innodb_log_group_home_dir=default;
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	5242880
-FOUND 1 /InnoDB: Resized log to 6\.000MiB/ in mysqld.1.err
+SHOW VARIABLES LIKE 'innodb_group_home_dir';
+Variable_name	Value
+ib_logfile0
+FOUND 3 /InnoDB: Resized log to 6\.000MiB/ in mysqld.1.err
 DROP TABLE t;

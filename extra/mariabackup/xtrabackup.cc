@@ -1895,8 +1895,8 @@ struct my_option xb_server_options[] =
 
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "Redo log buffer size in bytes.",
-   (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
-   GET_UINT, REQUIRED_ARG, 2U << 20,
+   (G_PTR*) &log_sys.buf_size_requested, (G_PTR*) &log_sys.buf_size_requested,
+   0, GET_UINT, REQUIRED_ARG, 2U << 20,
    2U << 20, log_sys.buf_size_max, 0, 4096, 0},
   {"innodb_log_file_mmap", OPT_INNODB_LOG_FILE_SIZE,
    "Whether ib_logfile0 should be memory-mapped",
@@ -2672,7 +2672,7 @@ static bool innodb_init()
   }
 
   recv_sys.lsn= log_sys.next_checkpoint_lsn=
-    log_sys.get_lsn() - SIZE_OF_FILE_CHECKPOINT;
+    log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
   byte *b= &log_hdr_buf[log_t::START_OFFSET];
