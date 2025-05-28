@@ -128,6 +128,20 @@ void wsrep_store_error(const THD* const thd,
               dst.size(), dst.size() ? dst.data() : "(null)");
 }
 
+static void cleanup_after_event(THD *thd, Log_event *ev)
+{
+  if (LOG_EVENT_IS_WRITE_ROW(ev->get_type_code()) ||
+      LOG_EVENT_IS_UPDATE_ROW(ev->get_type_code()) ||
+      LOG_EVENT_IS_DELETE_ROW(ev->get_type_code()))
+  {
+    if (((Rows_log_event*)ev)->get_flags(Rows_log_event::STMT_END_F))
+    {
+      free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+    }
+  }
+  delete_or_keep_event_post_apply(thd->wsrep_rgi, ev->get_type_code(), ev);
+}
+
 int wsrep_apply_events(THD*        thd,
                        Relay_log_info* rli,
                        const void* events_buf,
@@ -255,8 +269,7 @@ int wsrep_apply_events(THD*        thd,
       goto error;
     }
     event++;
-
-    delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
+    cleanup_after_event(thd, ev);
   }
 
 error:
