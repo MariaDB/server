@@ -211,6 +211,19 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
     ctx->subst_count= 0;
     if ((vcol_field= is_vcol_expr(ctx, item)))
       subst_vcol_if_compatible(ctx, NULL, order->item, vcol_field);
+    if (ctx->subst_count)
+    {
+      /*
+        SELECT_LEX::update_used_tables() recomputes covering_keys:
+        it will call tab->covering_keys.intersect($FIELD->part_of_key)
+        for every field reference $FIELD in the query.
+        
+        Set covering_keys to be all usable keys.
+      */
+      TABLE *tab= vcol_field->table;
+      tab->covering_keys= tab->s->keys_for_keyread;
+      tab->covering_keys.intersect(tab->keys_in_use_for_query);
+    }
     if (ctx->subst_count && unlikely(ctx->thd->trace_started()))
     {
       Json_writer_object trace_wrapper(ctx->thd);

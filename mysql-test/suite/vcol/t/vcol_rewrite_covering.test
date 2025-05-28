@@ -1,0 +1,15 @@
+
+--source include/have_sequence.inc
+
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+
+alter table t
+  add column vc int as (c + 1),
+  add index(vc);
+
+explain select vc from t order by c + 1;
+explain select vc from t order by c + 1 limit 10;
+
+drop table t;
+
