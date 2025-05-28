@@ -1964,12 +1964,12 @@ public:
     DBUG_ASSERT(fields_nullable);
     DBUG_ASSERT(field < n_fields);
     size_t bit= size_t{field} + referenced * n_fields;
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 8
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wconversion"
 #endif
     fields_nullable[bit / 8]|= static_cast<unsigned char>(1 << (bit % 8));
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 8
 # pragma GCC diagnostic pop
 #endif
   }
