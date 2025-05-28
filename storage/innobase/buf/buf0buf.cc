@@ -2078,6 +2078,19 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       ut_d(b->in_free_list= true);
       ut_ad(b->state() == buf_page_t::NOT_USED);
       b->lock.init();
+#ifdef BTR_CUR_HASH_ADAPT
+      /* Clear the AHI fields, because buf_block_init_low() expects
+      these to be zeroed. These were not cleared when we relocated
+      the block to withdrawn. Had we successfully shrunk the buffer pool,
+      all this virtual memory would have been zeroed or made unaccessible,
+      and on a subsequent buffer pool extension it would be zero again. */
+      buf_block_t *block= reinterpret_cast<buf_block_t*>(b);
+      block->n_hash_helps= 0;
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+      block->n_pointers= 0;
+# endif
+      block->index= nullptr;
+#endif
     }
 
     mysql_mutex_unlock(&mutex);
