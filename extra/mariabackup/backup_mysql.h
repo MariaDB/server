@@ -98,4 +98,5 @@ write_slave_info(ds_ctxt *datasink, MYSQL *connection);
 
 ulonglong get_current_lsn(MYSQL *connection);
 
+void free_mariadb_variables();
 #endif
