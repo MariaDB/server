@@ -3335,6 +3335,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   /* record_offset will be increased with 'length-of-null-bits' later */
   record_offset= 0;
   null_fields+= total_uneven_bit_length;
+  Create_field *identity_column= 0;
 
   it.rewind();
   while ((sql_field=it++))
@@ -3347,6 +3348,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
       auto_increment++;
+    if (sql_field->identity_field)
+      identity_column= sql_field;
     extend_option_list(thd, create_info->db_type, !sql_field->field,
                        &sql_field->option_list,
                        create_info->db_type->field_options);
@@ -3411,6 +3414,29 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   bool primary_key=0,unique_key=0;
   Key *key, *key2;
   uint tmp, key_number;
+  bool found_identity_key= false;
+
+  for (Key &key_it: alter_info->key_list)
+  {
+    if (identity_column &&
+        key_it.columns.elem(0)->field_name.streq(identity_column->field_name))
+    {
+      found_identity_key= true;
+      break;
+    }
+  }
+
+  if (identity_column && !found_identity_key)
+  {
+    // Implicitly create a key suitable for identity.
+    Key *new_key= new(thd) Key(Key::MULTIPLE, &null_clex_str, HA_KEY_ALG_BTREE,
+                               true, {});
+    Key_part_spec *kp= new(thd) Key_part_spec(&identity_column->field_name, 0);
+    new_key->columns.push_back(kp);
+    alter_info->key_list.push_back(new_key);
+    ++*key_count;
+    key_parts++;
+  }
 
   if (init_key_info(thd, alter_info, create_info, file))
     DBUG_RETURN(TRUE);
