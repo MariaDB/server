@@ -217,15 +217,23 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
     ctx->subst_count= 0;
     if ((vcol_field= is_vcol_expr(ctx, item)))
       subst_vcol_if_compatible(ctx, NULL, order->item, vcol_field);
-    if (ctx->subst_count && is_group_by)
+    if (ctx->subst_count)
     {
+      List_iterator<Item> it(join->all_fields);
+      while (Item *item_in_all_fields= it++)
+      {
+        if (item_in_all_fields == item)
+          it.replace(*order->item);
+      }
       /*
-        TODO: consider doing the following instead: if
-        order->in_field_list is true then push and flip to false,
-        otherwise replace
-      */
-      join->all_fields.push_front(*order->item);
-      join->tmp_table_param.field_count++;
+        /\*
+          TODO: consider doing the following instead: if
+          order->in_field_list is true then push and flip to false,
+          otherwise replace
+        *\/
+        join->all_fields.push_front(*order->item);
+        join->tmp_table_param.field_count++;
+       */
     }
     if (ctx->subst_count && unlikely(ctx->thd->trace_started()))
     {
