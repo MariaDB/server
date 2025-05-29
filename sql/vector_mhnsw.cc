@@ -921,6 +921,18 @@ const uchar *FVectorNode::get_key(const void *elem, size_t *key_len, my_bool)
   return static_cast<const FVectorNode*>(elem)->gref();
 }
 
+
+/* common set of params for many search/select functions */
+struct MHNSW_param
+{
+  MHNSW_Share *ctx;
+  TABLE *graph;
+  int layer;
+  MHNSW_param(MHNSW_Share *ctx, TABLE *graph, int layer)
+    : ctx(ctx), graph(graph), layer(layer)
+  { }
+};
+
 /* one visited node during the search. caches the distance to target */
 struct Visited : public Sql_alloc
 {
@@ -981,8 +993,8 @@ class VisitedSet
   one extra candidate is specified separately to avoid appending it to
   the Neighborhood candidates, which might be already at its max size.
 */
-static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
-                            FVectorNode *target, const Neighborhood &candidates,
+static int select_neighbors(MHNSW_param *p, FVectorNode *target,
+                            const Neighborhood &candidates,
                             FVectorNode *extra_candidate,
                             size_t max_neighbor_connections)
 {
@@ -991,15 +1003,15 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
   if (pq.init(max_ef, false, Visited::cmp))
     return my_errno= HA_ERR_OUT_OF_MEM;
 
-  MEM_ROOT * const root= graph->in_use->mem_root;
+  MEM_ROOT * const root= p->graph->in_use->mem_root;
   auto discarded= (Visited**)my_safe_alloca(sizeof(Visited**)*max_neighbor_connections);
   size_t discarded_num= 0;
-  Neighborhood &neighbors= target->neighbors[layer];
+  Neighborhood &neighbors= target->neighbors[p->layer];
 
   for (size_t i=0; i < candidates.num; i++)
   {
     FVectorNode *node= candidates.links[i];
-    if (int err= node->load(graph))
+    if (int err= node->load(p->graph))
       return err;
     pq.push(new (root) Visited(node, node->distance_to(target->vec)));
   }
@@ -1019,13 +1031,13 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
       if ((discard= node->distance_to(neighbors.links[i]->vec) <= target_dista))
         break;
     if (!discard)
-      target->push_neighbor(layer, node);
+      target->push_neighbor(p->layer, node);
     else if (discarded_num + neighbors.num < max_neighbor_connections)
       discarded[discarded_num++]= vec;
   }
 
   for (size_t i=0; i < discarded_num && neighbors.num < max_neighbor_connections; i++)
-    target->push_neighbor(layer, discarded[i]->node);
+    target->push_neighbor(p->layer, discarded[i]->node);
 
   my_safe_afree(discarded, sizeof(Visited**)*max_neighbor_connections);
   return 0;
@@ -1084,28 +1096,26 @@ int FVectorNode::save(TABLE *graph)
   return err;
 }
 
-static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
-                                          size_t layer, FVectorNode *node)
+static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
 {
-  const uint max_neighbors= ctx->max_neighbors(layer);
+  const uint max_neighbors= p->ctx->max_neighbors(p->layer);
   // it seems that one could update nodes in the gref order
   // to avoid InnoDB deadlocks, but it produces no noticeable effect
-  for (size_t i=0; i < node->neighbors[layer].num; i++)
+  for (size_t i=0; i < node->neighbors[p->layer].num; i++)
   {
-    FVectorNode *neigh= node->neighbors[layer].links[i];
-    Neighborhood &neighneighbors= neigh->neighbors[layer];
+    FVectorNode *neigh= node->neighbors[p->layer].links[i];
+    Neighborhood &neighneighbors= neigh->neighbors[p->layer];
     if (neighneighbors.num < max_neighbors)
-      neigh->push_neighbor(layer, node);
+      neigh->push_neighbor(p->layer, node);
     else
-      if (int err= select_neighbors(ctx, graph, layer, neigh, neighneighbors,
-                                    node, max_neighbors))
+      if (int err= select_neighbors(p, neigh, neighneighbors, node,
+                                    max_neighbors))
         return err;
-    if (int err= neigh->save(graph))
+    if (int err= neigh->save(p->graph))
       return err;
   }
   return 0;
 }
-
 
 static inline float generous_furthest(const Queue<Visited> &q, float maxd, float g)
 {
@@ -1120,17 +1130,16 @@ static inline float generous_furthest(const Queue<Visited> &q, float maxd, float
 /*
   @param[in/out] inout    in: start nodes, out: result nodes
 */
-static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
-                        float threshold, uint result_size,
-                        size_t layer, Neighborhood *inout, bool construction)
+static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
+                        uint result_size, Neighborhood *inout, bool construction)
 {
   DBUG_ASSERT(inout->num > 0);
 
-  MEM_ROOT * const root= graph->in_use->mem_root;
+  MEM_ROOT * const root= p->graph->in_use->mem_root;
   Queue<Visited> candidates, best;
   bool skip_deleted;
   uint ef= result_size;
-  const float generosity= 1.1f + ctx->M/500.0f;
+  const float generosity= 1.1f + p->ctx->M/500.0f;
 
   if (construction)
   {
@@ -1140,22 +1149,22 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   }
   else
   {
-    skip_deleted= layer == 0;
-    if (ef > 1 || layer == 0)
-      ef= std::max(THDVAR(graph->in_use, ef_search), ef);
+    skip_deleted= p->layer == 0;
+    if (ef > 1 || p->layer == 0)
+      ef= std::max(THDVAR(p->graph->in_use, ef_search), ef);
   }
 
   // WARNING! heuristic here
-  const double est_heuristic= 8 * std::sqrt(ctx->max_neighbors(layer));
-  double est_size= est_heuristic * std::pow(ef, ctx->ef_power);
-  set_if_smaller(est_size, graph->used_stat_records/1.3);
+  const double est_heuristic= 8 * std::sqrt(p->ctx->max_neighbors(p->layer));
+  double est_size= est_heuristic * std::pow(ef, p->ctx->ef_power);
+  set_if_smaller(est_size, p->graph->used_stat_records/1.3);
   VisitedSet visited(root, target, static_cast<uint>(est_size));
 
   candidates.init(max_ef, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
 
   DBUG_ASSERT(inout->num <= result_size);
-  float max_distance= ctx->diameter;
+  float max_distance= p->ctx->diameter;
   for (size_t i=0; i < inout->num; i++)
   {
     Visited *v= visited.create(inout->links[i]);
@@ -1176,7 +1185,7 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
 
     visited.flush();
 
-    Neighborhood &neighbors= cur.node->neighbors[layer];
+    Neighborhood &neighbors= cur.node->neighbors[p->layer];
     FVectorNode **links= neighbors.links, **end= links + neighbors.num;
     for (; links < end; links+= 8)
     {
@@ -1188,7 +1197,7 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
       {
         if (res & (1 << i))
           continue;
-        if (int err= links[i]->load(graph))
+        if (int err= links[i]->load(p->graph))
           return err;
         Visited *v= visited.create(links[i]);
         if (v->distance_to_target <= threshold)
@@ -1216,11 +1225,11 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
       }
     }
   }
-  set_if_bigger(ctx->diameter, max_distance); // not atomic, but it's ok
+  set_if_bigger(p->ctx->diameter, max_distance); // not atomic, but it's ok
   if (ef > 1 && visited.count > est_size)
   {
     double ef_power= std::log(visited.count/est_heuristic) / std::log(ef);
-    set_if_bigger(ctx->ef_power, ef_power); // not atomic, but it's ok
+    set_if_bigger(p->ctx->ef_power, ef_power); // not atomic, but it's ok
   }
 
   while (best.elements() > result_size)
@@ -1287,7 +1296,6 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   double log= -std::log(my_rnd(&thd->rand)) * NORMALIZATION_FACTOR;
   const uint8_t max_layer= candidates.links[0]->max_layer;
   uint8_t target_layer= std::min<uint8_t>(static_cast<uint8_t>(std::floor(log)), max_layer + 1);
-  int cur_layer;
 
   FVectorNode *target= new (ctx->alloc_node())
                  FVectorNode(ctx, table->file->ref, target_layer, res->ptr());
@@ -1296,22 +1304,22 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
     return err;
   SCOPE_EXIT([graph](){ graph->file->ha_rnd_end(); });
 
-  for (cur_layer= max_layer; cur_layer > target_layer; cur_layer--)
+  MHNSW_param p(ctx, graph, max_layer);
+
+  for (; p.layer > target_layer; p.layer--)
   {
-    if (int err= search_layer(ctx, graph, target->vec, NEAREST,
-                              1, cur_layer, &candidates, false))
+    if (int err= search_layer(&p, target->vec, NEAREST, 1, &candidates, false))
       return err;
   }
 
-  for (; cur_layer >= 0; cur_layer--)
+  for (; p.layer >= 0; p.layer--)
   {
-    uint max_neighbors= ctx->max_neighbors(cur_layer);
-    if (int err= search_layer(ctx, graph, target->vec, NEAREST,
-                              max_neighbors, cur_layer, &candidates, true))
+    uint max_neighbors= ctx->max_neighbors(p.layer);
+    if (int err= search_layer(&p, target->vec, NEAREST, max_neighbors,
+                              &candidates, true))
       return err;
 
-    if (int err= select_neighbors(ctx, graph, cur_layer, target, candidates,
-                                  0, max_neighbors))
+    if (int err= select_neighbors(&p, target, candidates, 0, max_neighbors))
       return err;
   }
 
@@ -1321,9 +1329,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   if (target_layer > max_layer)
     ctx->start= target;
 
-  for (cur_layer= target_layer; cur_layer >= 0; cur_layer--)
+  for (p.layer= target_layer; p.layer >= 0; p.layer--)
   {
-    if (int err= update_second_degree_neighbors(ctx, graph, cur_layer, target))
+    if (int err= update_second_degree_neighbors(&p, target))
       return err;
   }
 
@@ -1387,25 +1395,25 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
       ((float*)buf.ptr())[i]= i == 0;
   }
 
-  const longlong max_layer= candidates.links[0]->max_layer;
   auto target= FVector::create(ctx->metric, thd->alloc(FVector::alloc_size(ctx->vec_len)),
                                res->ptr(), res->length());
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;
 
-  for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
+  MHNSW_param p(ctx, graph, candidates.links[0]->max_layer);
+
+  for (; p.layer > 0; p.layer--)
   {
-    if (int err= search_layer(ctx, graph, target, NEAREST,
-                              1, cur_layer, &candidates, false))
+    if (int err= search_layer(&p, target, NEAREST, 1, &candidates, false))
     {
       graph->file->ha_rnd_end();
       return err;
     }
   }
 
-  if (int err= search_layer(ctx, graph, target, NEAREST,
-                            static_cast<uint>(limit), 0, &candidates, false))
+  if (int err= search_layer(&p, target, NEAREST, static_cast<uint>(limit),
+                            &candidates, false))
   {
     graph->file->ha_rnd_end();
     return err;
@@ -1459,9 +1467,9 @@ int mhnsw_read_next(TABLE *table)
   }
 
   float new_threshold= result->found.links[result->found.num-1]->distance_to(result->target);
-
-  if (int err= search_layer(ctx, graph, result->target, result->threshold,
-                   static_cast<uint>(result->pos), 0, &result->found, false))
+  MHNSW_param p(ctx, graph, 0);
+  if (int err= search_layer(&p, result->target, result->threshold,
+                            static_cast<uint>(result->pos), &result->found, false))
     return err;
   result->pos= 0;
   result->threshold= new_threshold + FLT_EPSILON;
