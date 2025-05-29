@@ -5428,7 +5428,7 @@ public:
   List<String> interval_list;
   engine_option_value *option_list;
   bool explicitly_nullable;
-  bool identity_field;
+  bool identity_field= false;
 
   /*
     This is additinal data provided for any computed(virtual) field.
