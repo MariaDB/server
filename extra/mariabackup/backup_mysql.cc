@@ -77,6 +77,7 @@ bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
 bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
+bool innobase_data_file_path_allocated= false;
 
 /* Kill long selects */
 static mysql_mutex_t kill_query_thread_mutex;
@@ -498,21 +499,19 @@ bool get_mysql_vars(MYSQL *connection)
   }
 
   if (innodb_data_file_path_var && *innodb_data_file_path_var)
-    innobase_data_file_path= my_strdup(PSI_NOT_INSTRUMENTED,
-                                       innodb_data_file_path_var, MYF(MY_FAE));
+    innobase_data_file_path= my_once_strdup(innodb_data_file_path_var,
+                                            MYF(MY_FAE));
 
   if (innodb_data_home_dir_var)
-    innobase_data_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
-                                      innodb_data_home_dir_var, MYF(MY_FAE));
+    innobase_data_home_dir= my_once_strdup(innodb_data_home_dir_var,
+                                           MYF(MY_FAE));
 
   if (innodb_log_group_home_dir_var && *innodb_log_group_home_dir_var)
-    srv_log_group_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
-                                      innodb_log_group_home_dir_var,
-                                      MYF(MY_FAE));
+    srv_log_group_home_dir= my_once_strdup(innodb_log_group_home_dir_var,
+                                           MYF(MY_FAE));
 
   if (innodb_undo_directory_var && *innodb_undo_directory_var)
-    srv_undo_dir= my_strdup(PSI_NOT_INSTRUMENTED, innodb_undo_directory_var,
-                            MYF(MY_FAE));
+    srv_undo_dir= my_once_strdup(innodb_undo_directory_var, MYF(MY_FAE));
 
   if (innodb_log_file_size_var)
   {
@@ -534,10 +533,7 @@ bool get_mysql_vars(MYSQL *connection)
   }
 
   if (aria_log_dir_path_var)
-  {
-    aria_log_dir_path= my_strdup(PSI_NOT_INSTRUMENTED,
-                                 aria_log_dir_path_var, MYF(MY_FAE));
-  }
+    aria_log_dir_path= my_once_strdup(aria_log_dir_path_var, MYF(MY_FAE));
 
   if (page_zip_level_var != NULL)
   {
@@ -550,10 +546,10 @@ bool get_mysql_vars(MYSQL *connection)
     xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
 
 out:
-  free_mysql_variables(mysql_vars);
 
   return (ret);
 }
+
 
 static
 bool
@@ -930,7 +926,7 @@ lock_for_backup_stage_flush(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
-	xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
+	xb_mysql_query(connection, "BACKUP STAGE FLUSH", false);
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
 	}
@@ -942,7 +938,7 @@ lock_for_backup_stage_block_ddl(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
-	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", false);
 	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_ddl", {});
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
@@ -955,7 +951,7 @@ lock_for_backup_stage_commit(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
-	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", false);
 	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
@@ -966,12 +962,12 @@ lock_for_backup_stage_commit(MYSQL *connection) {
 bool backup_lock(MYSQL *con, const char *table_name) {
 	static const std::string backup_lock_prefix("BACKUP LOCK ");
 	std::string backup_lock_query = backup_lock_prefix + table_name;
-	xb_mysql_query(con, backup_lock_query.c_str(), true);
+	xb_mysql_query(con, backup_lock_query.c_str(), false);
 	return true;
 }
 
 bool backup_unlock(MYSQL *con) {
-	xb_mysql_query(con, "BACKUP UNLOCK", true);
+	xb_mysql_query(con, "BACKUP UNLOCK", false);
 	return true;
 }
 
@@ -985,6 +981,8 @@ get_tables_in_use(MYSQL *con) {
 		msg("Table %s is in use", tk.c_str());
 		result.insert(std::move(tk));
 	}
+        if (q_res)
+          mysql_free_result(q_res);
 	return result;
 }
 
