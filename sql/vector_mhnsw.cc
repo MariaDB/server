@@ -90,27 +90,7 @@ struct FVector
   static size_t data_to_value_size(size_t data_size)
   { return (data_size - data_header)*2; }
 
-  static const FVector *create(metric_type metric, void *mem, const void *src, size_t src_len)
-  {
-    float scale=0, *v= (float *)src;
-    size_t vec_len= src_len / sizeof(float);
-    for (size_t i= 0; i < vec_len; i++)
-      if (std::abs(scale) < std::abs(get_float(v + i)))
-        scale= get_float(v + i);
-
-    FVector *vec= align_ptr(mem);
-    vec->scale= scale ? scale/32767 : 1;
-    for (size_t i= 0; i < vec_len; i++)
-      vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
-    vec->postprocess(vec_len);
-    if (metric == COSINE)
-    {
-      if (vec->abs2 > 0.0f)
-        vec->scale/= std::sqrt(2*vec->abs2);
-      vec->abs2= 0.5f;
-    }
-    return vec;
-  }
+  static const FVector *create(metric_type metric, void *mem, const void *src, size_t src_len);
 
   void postprocess(size_t vec_len)
   {
@@ -299,7 +279,7 @@ struct FVector
   static FVector *align_ptr(void *ptr) { return (FVector*)ptr; }
 
   DEFAULT_IMPLEMENTATION
-  void fix_tail(size_t) {  }
+  void fix_tail(size_t) { }
 #endif
 
   float distance_to(const FVector *other, size_t vec_len) const
@@ -442,8 +422,7 @@ public:
   metric_type metric;
 
   MHNSW_Share(TABLE *t)
-    : tref_len(t->file->ref_length),
-      gref_len(t->hlindex->file->ref_length),
+    : tref_len(t->file->ref_length), gref_len(t->hlindex->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
       metric(t->s->key_info[t->s->keys].option_struct->metric)
   {
@@ -596,7 +575,7 @@ public:
   {
     node_cache.clear();
     free_root(&root, MYF(0));
-    start= 0;
+    start= nullptr;
     list_of_nodes_is_lost= true;
   }
   void release(bool, TABLE_SHARE *) override
@@ -792,6 +771,28 @@ int MHNSW_Share::acquire(MHNSW_Share **ctx, TABLE *table, bool for_update)
   return 0;
 }
 
+const FVector *FVector::create(metric_type metric, void *mem, const void *src, size_t src_len)
+{
+  float scale=0, *v= (float *)src;
+  size_t vec_len= src_len / sizeof(float);
+  for (size_t i= 0; i < vec_len; i++)
+    if (std::abs(scale) < std::abs(get_float(v + i)))
+      scale= get_float(v + i);
+
+  FVector *vec= align_ptr(mem);
+  vec->scale= scale ? scale/32767 : 1;
+  for (size_t i= 0; i < vec_len; i++)
+    vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
+  vec->postprocess(vec_len);
+  if (metric == COSINE)
+  {
+    if (vec->abs2 > 0.0f)
+      vec->scale/= std::sqrt(2*vec->abs2);
+    vec->abs2= 0.5f;
+  }
+  return vec;
+}
+
 /* copy the vector, preprocessed as needed */
 const FVector *FVectorNode::make_vec(const void *v)
 {
@@ -981,7 +982,7 @@ class VisitedSet
   the Neighborhood candidates, which might be already at its max size.
 */
 static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
-                            FVectorNode &target, const Neighborhood &candidates,
+                            FVectorNode *target, const Neighborhood &candidates,
                             FVectorNode *extra_candidate,
                             size_t max_neighbor_connections)
 {
@@ -993,17 +994,17 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
   MEM_ROOT * const root= graph->in_use->mem_root;
   auto discarded= (Visited**)my_safe_alloca(sizeof(Visited**)*max_neighbor_connections);
   size_t discarded_num= 0;
-  Neighborhood &neighbors= target.neighbors[layer];
+  Neighborhood &neighbors= target->neighbors[layer];
 
   for (size_t i=0; i < candidates.num; i++)
   {
     FVectorNode *node= candidates.links[i];
     if (int err= node->load(graph))
       return err;
-    pq.push(new (root) Visited(node, node->distance_to(target.vec)));
+    pq.push(new (root) Visited(node, node->distance_to(target->vec)));
   }
   if (extra_candidate)
-    pq.push(new (root) Visited(extra_candidate, extra_candidate->distance_to(target.vec)));
+    pq.push(new (root) Visited(extra_candidate, extra_candidate->distance_to(target->vec)));
 
   DBUG_ASSERT(pq.elements());
   neighbors.num= 0;
@@ -1018,13 +1019,13 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
       if ((discard= node->distance_to(neighbors.links[i]->vec) <= target_dista))
         break;
     if (!discard)
-      target.push_neighbor(layer, node);
+      target->push_neighbor(layer, node);
     else if (discarded_num + neighbors.num < max_neighbor_connections)
       discarded[discarded_num++]= vec;
   }
 
   for (size_t i=0; i < discarded_num && neighbors.num < max_neighbor_connections; i++)
-    target.push_neighbor(layer, discarded[i]->node);
+    target->push_neighbor(layer, discarded[i]->node);
 
   my_safe_afree(discarded, sizeof(Visited**)*max_neighbor_connections);
   return 0;
@@ -1096,7 +1097,7 @@ static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
     if (neighneighbors.num < max_neighbors)
       neigh->push_neighbor(layer, node);
     else
-      if (int err= select_neighbors(ctx, graph, layer, *neigh, neighneighbors,
+      if (int err= select_neighbors(ctx, graph, layer, neigh, neighneighbors,
                                     node, max_neighbors))
         return err;
     if (int err= neigh->save(graph))
@@ -1129,7 +1130,7 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   Queue<Visited> candidates, best;
   bool skip_deleted;
   uint ef= result_size;
-  float generosity= 1.1f + ctx->M/500.0f;
+  const float generosity= 1.1f + ctx->M/500.0f;
 
   if (construction)
   {
@@ -1309,7 +1310,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
                               max_neighbors, cur_layer, &candidates, true))
       return err;
 
-    if (int err= select_neighbors(ctx, graph, cur_layer, *target, candidates,
+    if (int err= select_neighbors(ctx, graph, cur_layer, target, candidates,
                                   0, max_neighbors))
       return err;
   }
@@ -1439,7 +1440,7 @@ int mhnsw_read_next(TABLE *table)
     int err= MHNSW_Share::acquire(&trx, table, true);
     SCOPE_EXIT([&trx, table](){ trx->release(table); });
     if (int err2= graph->file->ha_rnd_init(0))
-      err= err ?  err :  err2;
+      err= err ? err : err2;
     if (err)
       return err;
     for (size_t i=0; i < result->found.num; i++)
