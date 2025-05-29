@@ -201,6 +201,7 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 /* Substitute vcol expressions with vcol fields in ORDER BY */
 static
 void subst_vcols_in_order(Vcol_subst_context *ctx,
+                          JOIN *join,
                           ORDER *order,
                           const char *location)
 {
@@ -223,6 +224,7 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
       TABLE *tab= vcol_field->table;
       tab->covering_keys= tab->s->keys_for_keyread;
       tab->covering_keys.intersect(tab->keys_in_use_for_query);
+      join->select_lex->update_used_tables();
     }
     if (ctx->subst_count && unlikely(ctx->thd->trace_started()))
     {
@@ -256,7 +258,7 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     subst_vcols_in_join_list(&ctx, join->join_list);
   /* TODO: third arg is dummy for now. Also add GROUP BY. */
   if (join->order)
-    subst_vcols_in_order(&ctx, join->order, "ORDER BY");
+    subst_vcols_in_order(&ctx, join, join->order, "ORDER BY");
 
   if (join->thd->is_error())
     return true; // Out of memory
