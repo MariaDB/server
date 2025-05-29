@@ -1287,21 +1287,8 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (os_aio_init()) {
-		ib::error() << "Cannot initialize AIO sub-system";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-#ifdef LINUX_NATIVE_AIO
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
-	}
-#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 

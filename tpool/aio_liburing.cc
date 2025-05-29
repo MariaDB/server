@@ -79,8 +79,9 @@ public:
 
     thread_= std::thread(thread_routine, this);
   }
+  const char *get_implementation() const override { return "io_uring"; };
 
-  ~aio_uring() noexcept
+  ~aio_uring() noexcept override
   {
     {
       std::lock_guard<std::mutex> _(mutex_);
@@ -103,8 +104,8 @@ public:
 
   int submit_io(tpool::aiocb *cb) final
   {
-    cb->iov_base= cb->m_buffer;
-    cb->iov_len= cb->m_len;
+    cb->m_iovec.iov_base= cb->m_buffer;
+    cb->m_iovec.iov_len= cb->m_len;
 
     // The whole operation since io_uring_get_sqe() and till io_uring_submit()
     // must be atomical. This is because liburing provides thread-unsafe calls.
@@ -112,11 +113,9 @@ public:
 
     io_uring_sqe *sqe= io_uring_get_sqe(&uring_);
     if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
-      io_uring_prep_readv(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
-                          cb->m_offset);
+      io_uring_prep_readv(sqe, cb->m_fh, &cb->m_iovec, 1, cb->m_offset);
     else
-      io_uring_prep_writev(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
-                           cb->m_offset);
+      io_uring_prep_writev(sqe, cb->m_fh, &cb->m_iovec, 1, cb->m_offset);
     io_uring_sqe_set_data(sqe, cb);
 
     return io_uring_submit(&uring_) == 1 ? 0 : -1;
@@ -203,11 +202,27 @@ private:
 namespace tpool
 {
 
-aio *create_linux_aio(thread_pool *pool, int max_aio)
+#ifdef LINUX_NATIVE_AIO
+aio *create_libaio(thread_pool* tp, int max_io);
+#endif
+
+aio *create_linux_aio(thread_pool *pool, int max_aio,
+                      aio_implementation implementation)
 {
-  try {
-    return new aio_uring(pool, max_aio);
-  } catch (std::runtime_error& error) {
+  switch (implementation) {
+  case OS_DEFAULT:
+  case OS_IO_URING:
+    try {
+      return new aio_uring(pool, max_aio);
+    } catch (std::runtime_error&) {
+      return nullptr;
+    }
+    break;
+#ifdef LINUX_NATIVE_AIO
+  case OS_AIO:
+    return create_libaio(pool, max_aio);
+#endif
+  default:
     return nullptr;
   }
 }
