@@ -3978,7 +3978,7 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
   case WSREP_FRAG_ROWS: return wsrep::streaming_context::row;
   case WSREP_FRAG_STATEMENTS: return wsrep::streaming_context::statement;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return wsrep::streaming_context::bytes;
   }
 }

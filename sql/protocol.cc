@@ -637,7 +637,7 @@ void Protocol::end_statement()
   case Diagnostics_area::DA_EMPTY:
   default:
     thd->stop_collecting_unit_results();
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     error= send_ok(thd->server_status, 0, 0, 0, NULL);
     break;
   }
@@ -1571,7 +1571,7 @@ bool Protocol_text::store_longlong(longlong from, bool unsigned_flag)
 bool Protocol_text::store_decimal(const my_decimal *d)
 {
 #ifndef DBUG_OFF
-  DBUG_ASSERT(0); // This method is not used yet
+  DBUG_ASSERT_NO_ASSUME(0); // This method is not used yet
   field_pos++;
 #endif
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
@@ -1690,7 +1690,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
 
     if (!(sparam= param->get_settable_routine_parameter()))
     {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       continue;
     }
 

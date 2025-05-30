@@ -107,7 +107,7 @@ const char* Alter_info::algorithm_clause(THD *thd) const
   case ALTER_TABLE_ALGORITHM_COPY:
     return "ALGORITHM=COPY";
   case ALTER_TABLE_ALGORITHM_NONE:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     /* Fall through */
   case ALTER_TABLE_ALGORITHM_DEFAULT:
     return "ALGORITHM=DEFAULT";
@@ -175,7 +175,7 @@ bool Alter_info::supports_algorithm(THD *thd,
     return true;
   }
   /* purecov: begin deadcode */
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -221,7 +221,7 @@ bool Alter_info::supports_lock(THD *thd, bool online,
     return true;
   }
   /* purecov: begin deadcode */
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 

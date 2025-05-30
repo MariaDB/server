@@ -768,7 +768,7 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
 
   if (!thd->net.vio)
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return ABORT;
   }
 
