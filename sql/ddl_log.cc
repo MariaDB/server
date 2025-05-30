@@ -555,7 +555,7 @@ static uchar *store_string(uchar *pos, uchar *end, const LEX_CSTRING *str)
   uint32 length= (uint32) str->length;
   if (unlikely(pos + 2 + length + 1 > end))
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return end;                                 // Overflow
   }
 
@@ -587,7 +587,7 @@ static LEX_CSTRING get_string(uchar **pos, const uchar *end)
     Overflow on read, should never happen
     Set *pos to end to ensure any future calls also returns empty string
   */
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   *pos= (uchar*) end;
   tmp.str= "";
   tmp.length= 0;
@@ -2771,7 +2771,7 @@ int ddl_log_execute_recovery()
   */
   if (!(thd=new THD(0)))
   {
-    DBUG_ASSERT(0);                             // Fatal error
+    DBUG_ASSERT_NO_ASSUME(0);                             // Fatal error
     DBUG_RETURN(1);
   }
   original_thd= current_thd;                    // Probably NULL

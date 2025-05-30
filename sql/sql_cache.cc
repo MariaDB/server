@@ -1219,7 +1219,7 @@ void Query_cache::end_of_result(THD *thd)
         to this function. In the release version that query should be ignored
         and removed from QC.
       */
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       free_query(query_block);
       unlock();
       DBUG_VOID_RETURN;

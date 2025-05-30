@@ -5013,7 +5013,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     }
     default:
 #ifdef EXTRA_DEBUG
-      DBUG_ASSERT(0);                           /* purecov: deadcode */
+      DBUG_ASSERT_NO_ASSUME(0);                           /* purecov: deadcode */
 #endif
       goto err;
     }

@@ -154,7 +154,7 @@ public:
     case GT_FUNC:    return SCALAR_CMP_GT;
     default: break;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return SCALAR_CMP_EQ;
   }
   enum Type type() const override { return FUNC_ITEM; }
@@ -559,7 +559,7 @@ public:
     virtual bool get_date(THD *thd, Item_handled_func *, MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
     virtual bool val_native(THD *thd, Item_handled_func *, Native *to) const
     {
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       to->length(0);
       return true;
     }
