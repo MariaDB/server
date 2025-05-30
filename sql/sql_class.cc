@@ -8509,16 +8509,19 @@ void mariadb_sleep_for_space(unsigned int seconds)
 {
   THD *thd= current_thd;
   PSI_stage_info old_stage;
+  struct timespec abstime;
   if (!thd)
   {
     sleep(seconds);
     return;
   }
- mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  set_timespec(abstime, seconds);
+  mysql_mutex_lock(&thd->LOCK_wakeup_ready);
   thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
                   &stage_waiting_for_disk_space, &old_stage);
   if (!thd->killed)
-    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+    mysql_cond_timedwait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                         &abstime);
   thd->EXIT_COND(&old_stage);
   return;
 }
