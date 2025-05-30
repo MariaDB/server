@@ -1624,6 +1624,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
   noexcept
 {
   mysql_mutex_assert_owner(&mutex);
+  DBUG_EXECUTE_IF("buf_shrink_fail", return SHRINK_ABORT;);
   buf_load_abort();
 
   if (!n_blocks_to_withdraw)
@@ -2026,25 +2027,12 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
     if (ahi_disabled)
       btr_search.enable(true);
 #endif
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    bool resized= n_blocks_removed < 0;
-    if (n_blocks_removed > 0)
-    {
-      mysql_mutex_lock(&mutex);
-      resized= size_in_bytes == old_size;
-      if (resized)
-      {
-        size_in_bytes_requested= size;
-        size_in_bytes= size;
-      }
-      mysql_mutex_unlock(&mutex);
-    }
-
-    if (resized)
+    if (n_blocks_removed)
       sql_print_information("InnoDB: innodb_buffer_pool_size=%zum (%zu pages)"
                             " resized from %zum (%zu pages)",
                             size >> 20, n_blocks_new, old_size >> 20,
                             old_blocks);
+    mysql_mutex_lock(&LOCK_global_system_variables);
   }
   else
   {
@@ -2102,11 +2090,28 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       ut_d(b->in_free_list= true);
       ut_ad(b->state() == buf_page_t::NOT_USED);
       b->lock.init();
+#ifdef BTR_CUR_HASH_ADAPT
+      /* Clear the AHI fields, because buf_block_init_low() expects
+      these to be zeroed. These were not cleared when we relocated
+      the block to withdrawn. Had we successfully shrunk the buffer pool,
+      all this virtual memory would have been zeroed or made unaccessible,
+      and on a subsequent buffer pool extension it would be zero again. */
+      buf_block_t *block= reinterpret_cast<buf_block_t*>(b);
+      block->n_hash_helps= 0;
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+      block->n_pointers= 0;
+# endif
+      block->index= nullptr;
+#endif
     }
 
     mysql_mutex_unlock(&mutex);
     my_printf_error(ER_WRONG_USAGE, "innodb_buffer_pool_size change aborted",
                     MYF(ME_ERROR_LOG));
+#ifdef BTR_CUR_HASH_ADAPT
+    if (ahi_disabled)
+      btr_search.enable(true);
+#endif
     mysql_mutex_lock(&LOCK_global_system_variables);
   }
 

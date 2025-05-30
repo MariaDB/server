@@ -8,6 +8,16 @@ SET @save_size=@@GLOBAL.innodb_buffer_pool_size;
 SET GLOBAL innodb_limit_optimistic_insert_debug=2;
 SET GLOBAL innodb_buffer_pool_size=16777216;
 
+call mtr.add_suppression("innodb_buffer_pool_size change aborted");
+
+SET @old_innodb_adaptive_hash_index = @@innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index = ON;
+--error ER_WRONG_USAGE
+SET STATEMENT debug_dbug='+d,buf_shrink_fail' FOR
+SET GLOBAL innodb_buffer_pool_size=8388608;
+SELECT @@GLOBAL.innodb_adaptive_hash_index,@@GLOBAL.innodb_buffer_pool_size;
+SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
+
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq FROM seq_1_to_200;
 
