@@ -85,6 +85,8 @@ protected:
     return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
   }
 
+  void update_nullability_post_fix_fields();
+
 public:
 
   // Print an error message for a builtin-schema qualified function call

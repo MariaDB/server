@@ -291,6 +291,37 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
 }
 
 
+/**
+  @brief
+  Update function's nullability based on nullness of its arguments
+
+  @details
+  Functions like `IFNULL` and `COALESCE` decide nullability of their
+  result after checking all the arguments. If any of the argument
+  is NOT NULL, function's result is also set to NOT NULL.
+  Note: Nullability determined here may be reset by type handlers in
+  `Item_hybrid_func_fix_attributes()`, if the first non-null argument
+  cannot be safely converted to target data type.
+  E.g. Type_handler_inet6 does:
+    IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
+    IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
+*/
+void Item_func::update_nullability_post_fix_fields()
+{
+  if (!maybe_null())
+    return;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!args[i]->maybe_null())
+    {
+      base_flags &= ~item_base_t::MAYBE_NULL;
+      break;
+    }
+  }
+}
+
+
 /*
   Resolve references to table column for a function and its argument
 
