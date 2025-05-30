@@ -198,26 +198,60 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 }
 
 
-/* Substitute vcol expressions with vcol fields in ORDER BY */
+/*
+  Substitute vcol expressions with vcol fields in ORDER BY or GROUP
+  BY.
+*/
 static
 void subst_vcols_in_order(Vcol_subst_context *ctx,
                           ORDER *order,
-                          const char *location)
+                          JOIN *join,
+                          bool is_group_by)
 {
   Field *vcol_field;
+  const char *location= is_group_by ? "GROUP BY" : "ORDER BY";
   for (; order; order= order->next)
   {
     Item *item= *order->item;
-    ctx->subst_count= 0;
+    uint old_count= ctx->subst_count;
     if ((vcol_field= is_vcol_expr(ctx, item)))
       subst_vcol_if_compatible(ctx, NULL, order->item, vcol_field);
-    if (ctx->subst_count && unlikely(ctx->thd->trace_started()))
+    if (ctx->subst_count > old_count)
     {
-      Json_writer_object trace_wrapper(ctx->thd);
-      Json_writer_object trace_order_by(ctx->thd, "virtual_column_substitution");
-      trace_order_by.add("location", location);
-      trace_order_by.add("from", item);
-      trace_order_by.add("to", *order->item);
+      Item *new_item= *order->item;
+      if (order->in_field_list)
+      {
+        uint el= join->all_fields.elements;
+        join->all_fields.push_front(new_item);
+        join->select_lex->ref_pointer_array[el]= new_item;
+        order->item= &join->select_lex->ref_pointer_array[el];
+        order->in_field_list= false;
+      }
+      /*
+        TODO: should we deduplicate by calling find_item_in_list on
+        new_item like in find_order_in_list, and remove item instead
+        of replacing it if new_item is already in all_fields?
+      */
+      else
+      {
+        List_iterator<Item> it(join->all_fields);
+        while (Item *item_in_all_fields= it++)
+        {
+          if (item_in_all_fields == item)
+            it.replace(new_item);
+        }
+      }
+      TABLE *tab= vcol_field->table;
+      tab->covering_keys= tab->s->keys_for_keyread;
+      tab->covering_keys.intersect(tab->keys_in_use_for_query);
+      if (unlikely(ctx->thd->trace_started()))
+      {
+        Json_writer_object trace_wrapper(ctx->thd);
+        Json_writer_object trace_order_by(ctx->thd, "virtual_column_substitution");
+        trace_order_by.add("location", location);
+        trace_order_by.add("from", item);
+        trace_order_by.add("to", new_item);
+      }
     }
   }
 }
@@ -241,9 +275,17 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     subst_vcols_in_item(&ctx, join->conds, "WHERE");
   if (join->join_list)
     subst_vcols_in_join_list(&ctx, join->join_list);
-  /* TODO: third arg is dummy for now. Also add GROUP BY. */
+  ctx.subst_count= 0;
   if (join->order)
-    subst_vcols_in_order(&ctx, join->order, "ORDER BY");
+    subst_vcols_in_order(&ctx, join->order, join, false);
+  if (join->group_list)
+    subst_vcols_in_order(&ctx, join->group_list, join, true);
+  if (ctx.subst_count)
+  {
+    count_field_types(join->select_lex, &join->tmp_table_param,
+                      join->all_fields, 0);
+    join->select_lex->update_used_tables();
+  }
 
   if (join->thd->is_error())
     return true; // Out of memory
