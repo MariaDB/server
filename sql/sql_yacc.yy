@@ -6361,17 +6361,17 @@ identity_props:
     }
   | identity_props START_SYM WITH simple_expr
     {
-      $1->start = MY_MAX($4->val_int(), 1);
+      $1->start = MY_MAX(Lex->eval_ulonglong_truncated($4), 1);
       $$ = $1;
     }
   | identity_props INCREMENT_SYM BY simple_expr
     {
-      $1->step = MY_MAX($4->val_int(), 1);
+      $1->step = MY_MAX(Lex->eval_ulonglong_truncated($4), 1);
       $$ = $1;
     }
   | identity_props MINVALUE_SYM simple_expr
     {
-      $1->minvalue = MY_MAX($3->val_int(), 1);
+      $1->minvalue = MY_MAX(Lex->eval_ulonglong_truncated($3), 1);
       $1->has_minvalue = true;
       $$ = $1;
     }
@@ -6382,7 +6382,7 @@ identity_props:
     }
   | identity_props MAXVALUE_SYM simple_expr
     {
-      $1->maxvalue = MY_MAX($3->val_int(), 0);
+      $1->maxvalue = Lex->eval_ulonglong_truncated($3);
       $1->has_maxvalue = true;
       $$ = $1;
     }
@@ -6413,7 +6413,7 @@ identity_props:
     }
   | identity_props CACHE_SYM simple_expr opt_double
     {
-      $1->cache = (unsigned int)MY_MAX($3->val_int(), 1);
+      $1->cache = (unsigned int)MY_MAX(Lex->eval_ulonglong_truncated($3), 1);
       $1->double_cache= $4;
       $$ = $1;
     }
