@@ -279,7 +279,7 @@ public:
   recv_dblwr_t dblwr;
 
   /** Data directory has been recognized as cloned data directory. */
-  bool is_cloned_db;
+  bool is_cloned_db= false;
 
   __attribute__((warn_unused_result)) 
   inline dberr_t read(os_offset_t offset, span<byte> buf);

@@ -802,7 +802,7 @@ int Exec_State::end_worker(Sub_Command state)
   std::unique_lock lock(m_mutex);
   auto cur_index= static_cast<size_t>(state);
 
-  assert(state == m_cur_state);
+  assert(state == m_cur_state || m_cur_state == SUBCOM_MAX);
   assert(m_count_workers[cur_index] > 0);
 
   if (!(--m_count_workers[cur_index]))
@@ -825,7 +825,7 @@ int Exec_State::switch_state(THD *thd, Sub_Command next_state)
   bool result= false;
   Time_Sec m_interval{1};
 
-  while (!result)
+  while (!result && next_state != SUBCOM_MAX)
   {
     result= m_wait_count.wait_for(lock, m_interval, cond_fn);
     if (thd_killed(thd))
@@ -1986,6 +1986,7 @@ int Client::set_descriptor(const uchar *buffer, size_t length)
   clone_callback->set_data_desc(buffer, length);
   clone_callback->clear_flags();
   clone_callback->set_hton(loc->m_hton);
+  clone_callback->set_loc_index(loc_index);
 
   /* Apply using descriptor */
   assert(loc_index < m_tasks.size());

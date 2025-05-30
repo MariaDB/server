@@ -306,13 +306,14 @@ int Arch_Log_Sys::start(Arch_Group *&group, lsn_t &start_lsn, byte *header,
   start_lsn= log_sys.last_checkpoint_lsn;
   lsn_t checkpoint_end_lsn= log_sys.last_checkpoint_end_lsn;
 
+  auto aligned_lsn= ut_uint64_align_down(start_lsn, OS_FILE_LOG_BLOCK_SIZE);
   const auto start_index= 0;
-  const auto start_offset= log_sys.calc_lsn_offset(start_lsn);
+  const auto start_offset= log_sys.calc_lsn_offset(aligned_lsn);
 
   /* Need to create a new group if archiving is not in progress. */
   if (m_state == ARCH_STATE_IDLE || m_state == ARCH_STATE_INIT)
   {
-    m_archived_lsn.store(start_lsn);
+    m_archived_lsn.store(aligned_lsn);
     create_new_group= true;
   }
 
@@ -684,8 +685,8 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
   if (file_ctx->is_closed())
   {
     /* Open system redo log file context */
-    err=
-        file_ctx->open(true, LSN_MAX, m_start_log_index, m_start_log_offset, 0);
+    err= file_ctx->open(true, LSN_MAX, m_start_log_index, m_start_log_offset,
+                        get_recommended_file_size());
     if (err != DB_SUCCESS)
       return err;
   }
@@ -707,7 +708,6 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
         return (err);
 
       len_left= file_ctx->bytes_left();
-
       ut_ad(len_left > 0);
     }
 
@@ -717,16 +717,7 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
     /* Write as much as possible from current file. */
     write_size= len_left < len_copy ? static_cast<uint>(len_left) : length;
 
-    auto get_header_cbk= [start_lsn, this](uint64_t, byte *header,
-                                           uint64_t header_len)
-    {
-      memset(header, 0, header_len);
-      return DB_SUCCESS;
-    };
-
-    err = curr_group->write_to_file(file_ctx, nullptr, write_size, false, false,
-                                    get_header_cbk);
-
+    err = curr_group->write_to_file(file_ctx, nullptr, write_size, false, false);
     if (err != DB_SUCCESS)
       return (err);
 
@@ -889,8 +880,8 @@ bool Arch_Log_Sys::archive(bool init, Arch_File_Ctx *curr_ctx, lsn_t *arch_lsn,
   if (init)
   {
     /* We will use curr_ctx to read data from existing log file.*/
-    err= curr_ctx->init(get_log_file_path().c_str(), nullptr,
-                        LOG_FILE_NAME, 1);
+    err= curr_ctx->init(srv_log_group_home_dir, nullptr,
+                        LOG_FILE_NAME_PREFIX, 1);
     if (err != DB_SUCCESS)
       is_abort= true;
   }

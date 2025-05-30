@@ -418,9 +418,10 @@ void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted, bool is_clone)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wstringop-truncation"
 #endif
+  std::string clone_header(log_t::CREATOR_CLONE);
+  clone_header.append(PACKAGE_VERSION);
   strncpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
-          is_clone ? "MariaDB Clone" PACKAGE_VERSION :
-                     "MariaDB " PACKAGE_VERSION,
+          is_clone ? clone_header.c_str() : "MariaDB " PACKAGE_VERSION,
           LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR);
 #if defined __GNUC__ && __GNUC__ > 7
 # pragma GCC diagnostic pop

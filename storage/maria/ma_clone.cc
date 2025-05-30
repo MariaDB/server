@@ -635,7 +635,7 @@ int Job_Repository::wait_pending(THD *thd)
     return (n_pending == 0);
   };
   std::unique_lock<std::mutex> lock(m_mutex);
-  /* We try consuming first an then come here. No more jobs can be added at
+  /* We try consuming first and then come here. No more jobs can be added at
   this point. */
   DBUG_ASSERT(m_jobs.empty());
   uint32_t count= 0;
@@ -710,14 +710,16 @@ int Job_Repository::consume(THD *thd, uint32_t thread_id, Ha_clone_cbk *cbk,
       my_error(ER_INTERNAL_ERROR, MYF(ME_ERROR_LOG),
                "ARIA SE: Clone error in concurrent task");
       err= m_error;
+      break;
     }
     else if (err && !m_error)
     {
       m_error= err;
+      break;
     }
-    m_cv.wait(lock, [&]
+    m_cv.wait_for(lock, std::chrono::seconds(1), [&]
     {
-      return m_finished[stage] || !m_jobs.empty();
+      return (m_finished[stage] || !m_jobs.empty() || m_error);
     });
   }
   return err;
@@ -1385,12 +1387,16 @@ int Clone_Handle::check_error(THD *thd)
 
 void Clone_Handle::set_error(int err)
 {
-  if (err == 0) return;
+  if (err == 0)
+    return;
   std::unique_lock<std::mutex> lock(Clone_Sys::mutex_);
-  if (m_error) return;
+  if (m_error)
+    return;
   m_error= err;
   lock.unlock();
-  m_jobs.finish(err, HA_CLONE_STAGE_MAX);
+
+  if (m_is_copy)
+    m_jobs.finish(err, HA_CLONE_STAGE_MAX);
 }
 
 int Clone_Handle::apply(THD *thd, uint32_t task_id, Ha_clone_cbk *cbk)
@@ -1562,14 +1568,21 @@ static int clone_copy(THD *thd, const uchar *loc, uint loc_len, uint task_id,
   return clone_hdl->clone(thd, task_id, stage, cbk);
 }
 
-static int clone_ack(THD *, const uchar *, uint ,
-                     uint , int , Ha_clone_cbk *)
+static int clone_ack(THD *, const uchar *loc, uint loc_len,
+                     uint, int in_err, Ha_clone_cbk *)
 {
-  DBUG_ASSERT(false);
+  DBUG_ASSERT(loc);
+  std::unique_ptr<aria_engine::Locator>
+    in_loc(new(std::nothrow) aria_engine::Locator(loc, loc_len));
+  auto clone_hdl= aria_engine::clone_sys->get(in_loc->index(), true);
+  DBUG_ASSERT(clone_hdl);
+  if (!clone_hdl)
+    return 0;
+  clone_hdl->set_error(in_err);
   return 0;
 }
 
-static int clone_end(THD *thd, const uchar *loc, uint loc_len, uint task_id,
+static int clone_end(THD *, const uchar *loc, uint loc_len, uint task_id,
                      int in_err)
 {
   DBUG_ASSERT(loc);
@@ -1578,6 +1591,8 @@ static int clone_end(THD *thd, const uchar *loc, uint loc_len, uint task_id,
   auto clone_hdl= aria_engine::clone_sys->get(in_loc->index(), true);
 
   DBUG_ASSERT(clone_hdl);
+  if (!clone_hdl)
+    return 0;
   clone_hdl->set_error(in_err);
 
   const std::lock_guard<std::mutex> lock(aria_engine::Clone_Sys::mutex_);
