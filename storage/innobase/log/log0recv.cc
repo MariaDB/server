@@ -1755,6 +1755,9 @@ dberr_t recv_sys_t::find_checkpoint()
       goto got_no_checkpoint;
     if (!memcmp(creator, "Backup ", 7))
       srv_start_after_restore= true;
+    else if (!memcmp(creator, log_t::CREATOR_CLONE,
+                     sizeof(log_t::CREATOR_CLONE) - 1))
+      is_cloned_db= true;
     return DB_SUCCESS;
   case log_t::FORMAT_10_5:
   case log_t::FORMAT_10_5 | log_t::FORMAT_ENCRYPTED:
@@ -2452,7 +2455,11 @@ restart:
   return PREMATURE_EOF;
 
  eom_found:
-  if (*l != log_sys.get_sequence_bit((l - begin) + lsn))
+  /* Cloned redo log file is not overwritten and we don't need sequence bit
+  check to detect the end. Also, the redo log could be cloned from a wrapped
+  around redo and the sequence BIT may not match. This is not an issue as the
+  sequence BIT doesn't have anything to do with the logged information. */
+  if (!is_cloned_db && *l != log_sys.get_sequence_bit((l - begin) + lsn))
     return GOT_EOF;
 
   if (l.is_eof(4))

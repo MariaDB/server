@@ -1365,18 +1365,11 @@ dberr_t Arch_Block::flush(Arch_Group *file_group, Arch_Blk_Flush_Type type)
     {
       bool is_partial_flush= (type == ARCH_FLUSH_PARTIAL);
 
-      /* Callback responsible for setting up file's header starting at offset 0.
-      This header is left empty within this flush operation. */
-      auto get_empty_file_header_cbk= [](uint64_t, byte *, uint64_t)
-      {
-        return DB_SUCCESS;
-      };
-
       /* We allow partial flush to happen even if there were no pages added
       since the last partial flush as the block's header might contain some
       useful info required during recovery. */
       err= file_group->write_to_file(nullptr, m_data, m_size, is_partial_flush,
-                                     true, get_empty_file_header_cbk);
+                                     true);
       break;
     }
 

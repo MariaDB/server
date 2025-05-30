@@ -831,15 +831,6 @@ group is created. */
 class Arch_Group
 {
  public:
-  /** Function responsible to format the header of a new file which is
-  created, when the stream of data is written to a sequence of new files.
-  @param[in]  start_offset    offset at which a new file starts, expressed
-                              in bytes from the beginning of the stream
-  @param[in]  header          header to format
-  @paran[in]  header_len      length of header */
-  typedef std::function<dberr_t(uint64_t start_offset, byte *header,
-      uint64_t header_len)> Get_file_header_callback;
-
   /** Constructor: Initialize members
   @param[in]    start_lsn       start LSN for the group
   @param[in]    header_len      length of header for archived files
@@ -1037,11 +1028,9 @@ class Arch_Group
   @param[in]    length          size of data to copy in bytes
   @param[in]    partial_write   true if the operation is part of partial flush
   @param[in]    do_persist      doublewrite to ensure persistence
-  @param[in]    new_file        callback called for each new file being created
   @return error code */
   dberr_t write_to_file(Arch_File_Ctx *from_file, byte *from_buffer,
-                        uint length, bool partial_write, bool do_persist,
-                        Get_file_header_callback new_file);
+                        uint length, bool partial_write, bool do_persist);
 
   /** Find the appropriate reset LSN that is less than or equal to the
   given lsn and fetch the reset point.
@@ -1226,12 +1215,6 @@ class Arch_Group
   {
     m_file_ctx.build_dir_name(m_begin_lsn, name_buf, buf_len);
   }
-
-  /** Create a new file and write the header.
-  @param[in]  start_offset  start offste
-  @param[in]  get_header    callback which prepares a header */
-  dberr_t prepare_file_with_header(uint64_t start_offset,
-                                   Get_file_header_callback &get_header);
 
  private:
   /** If the group is active */

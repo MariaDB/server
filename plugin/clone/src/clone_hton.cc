@@ -92,34 +92,38 @@ size_t Locator::deserialize(THD *thd, const uchar *buffer)
 }
 }  // namespace myclone
 
+static my_bool run_clone_begin(THD *thd, handlerton *hton,
+                               myclone::Hton *clone_arg)
+{
+  if (!hton->clone_interface.clone_begin)
+    return FALSE;
+
+  myclone::Locator loc = {hton, nullptr, 0};
+  uint32_t task_id = 0;
+
+  assert(clone_arg->m_mode == HA_CLONE_MODE_START);
+
+  clone_arg->m_err= hton->clone_interface.clone_begin(
+      thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_type,
+      clone_arg->m_mode);
+
+  clone_arg->m_loc_vec->push_back(loc);
+  clone_arg->m_task_vec->push_back(task_id);
+
+  return (clone_arg->m_err != 0);
+}
+
 /** Begin clone operation for current storage engine plugin
 @param[in,out]	thd	server thread handle
 @param[in]	plugin	storage plugin
 @param[in]	arg	clone parameters
 @return true if failure */
-static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
+static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg)
+{
   auto clone_arg= static_cast<myclone::Hton *>(arg);
-
-  auto hton= plugin ? plugin_data(plugin, handlerton*) : &clone_storage_engine;
-
-  if (hton->clone_interface.clone_begin != nullptr) {
-    myclone::Locator loc = {hton, nullptr, 0};
-    uint32_t task_id = 0;
-
-    assert(clone_arg->m_mode == HA_CLONE_MODE_START);
-
-    clone_arg->m_err= hton->clone_interface.clone_begin(
-        thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_type,
-        clone_arg->m_mode);
-
-    clone_arg->m_loc_vec->push_back(loc);
-    clone_arg->m_task_vec->push_back(task_id);
-
-    if (clone_arg->m_err != 0) {
-      return TRUE;
-    }
-  }
-  return FALSE;
+  auto hton= plugin_data(plugin, handlerton*);
+  return (hton->db_type == DB_TYPE_INNODB) ?
+         false : run_clone_begin(thd, hton, clone_arg);
 }
 
 int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
@@ -138,12 +142,18 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
     clone_args.m_mode = clone_mode;
     clone_args.m_data_dir = nullptr;
 
-    plugin_foreach(thd, run_hton_clone_begin, MYSQL_STORAGE_ENGINE_PLUGIN,
-                   &clone_args);
+    /* Make sure to start with Innodb SE. Changing the order doesn't have
+    functional impact but it could affect concurrency. */
+    auto innodb_hton= ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
+    run_clone_begin(thd, innodb_hton, &clone_args);
+
+    if (!clone_args.m_err)
+      plugin_foreach(thd, run_hton_clone_begin, MYSQL_STORAGE_ENGINE_PLUGIN,
+                     &clone_args);
 
     /* Begin Clone SE handlerton. */
     if (!clone_args.m_err)
-      run_hton_clone_begin(thd, nullptr, &clone_args);
+      run_clone_begin(thd, &clone_storage_engine, &clone_args);
 
     return (clone_args.m_err);
   }
@@ -157,14 +167,12 @@ int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
     loc_iter.m_hton->clone_interface.clone_capability(flags);
 
     /* TODO: Skip adding task if SE doesn't support */
-    if (clone_mode == HA_CLONE_MODE_ADD_TASK) {
+    if (clone_mode == HA_CLONE_MODE_ADD_TASK)
       assert(flags[HA_CLONE_MULTI_TASK]);
-    }
 
     /* TODO: Stop and start if restart not supported */
-    if (clone_mode == HA_CLONE_MODE_RESTART) {
+    if (clone_mode == HA_CLONE_MODE_RESTART)
       assert(flags[HA_CLONE_RESTART]);
-    }
 #endif
     auto err = loc_iter.m_hton->clone_interface.clone_begin(
         thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
@@ -227,34 +235,35 @@ int hton_clone_end(THD *thd, Storage_Vector &clone_loc_vec,
   return err;
 }
 
+static my_bool run_clone_apply_begin(THD *thd, handlerton *hton,
+                                     myclone::Hton *clone_arg)
+{
+  if (!hton->clone_interface.clone_apply_begin)
+    return FALSE;
+
+  myclone::Locator loc = {hton, nullptr, 0};
+  uint32_t task_id = 0;
+  assert(clone_arg->m_mode == HA_CLONE_MODE_VERSION);
+
+  clone_arg->m_err = hton->clone_interface.clone_apply_begin(
+      thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_mode,
+      clone_arg->m_data_dir);
+
+  clone_arg->m_loc_vec->push_back(loc);
+  return (clone_arg->m_err != 0);
+}
+
 /** Begin clone apply for current storage engine plugin
 @param[in,out]	thd	server thread handle
 @param[in]	plugin	storage plugin
 @param[in]	arg	clone parameters
 @return true if failure */
-static my_bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg) {
-  auto clone_arg = static_cast<myclone::Hton *>(arg);
-
-  auto hton= plugin ? plugin_data(plugin, handlerton*) : &clone_storage_engine;
-
-  if (hton->clone_interface.clone_apply_begin != nullptr) {
-    myclone::Locator loc = {hton, nullptr, 0};
-    uint32_t task_id = 0;
-
-    assert(clone_arg->m_mode == HA_CLONE_MODE_VERSION);
-
-    clone_arg->m_err = hton->clone_interface.clone_apply_begin(
-        thd, loc.m_loc, loc.m_loc_len, task_id, clone_arg->m_mode,
-        clone_arg->m_data_dir);
-
-    clone_arg->m_loc_vec->push_back(loc);
-
-    if (clone_arg->m_err != 0) {
-      return TRUE;
-    }
-  }
-
-  return FALSE;
+static my_bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg)
+{
+  auto clone_arg= static_cast<myclone::Hton *>(arg);
+  auto hton= plugin_data(plugin, handlerton*);
+  return (hton->db_type == DB_TYPE_INNODB) ?
+         FALSE : run_clone_apply_begin(thd, hton, clone_arg);
 }
 
 int hton_clone_apply_begin(THD *thd, const char *clone_data_dir,
@@ -276,53 +285,51 @@ int hton_clone_apply_begin(THD *thd, const char *clone_data_dir,
     clone_args.m_mode = clone_mode;
     clone_args.m_data_dir = clone_data_dir;
 
-    plugin_foreach(thd, run_hton_clone_apply_begin, MYSQL_STORAGE_ENGINE_PLUGIN,
-                   &clone_args);
+    auto innodb_hton= ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
+    run_clone_apply_begin(thd, innodb_hton, &clone_args);
 
+    if (!clone_args.m_err)
+      plugin_foreach(thd, run_hton_clone_apply_begin,
+                     MYSQL_STORAGE_ENGINE_PLUGIN, &clone_args);
     /* Begin Clone SE handlerton. */
     if (!clone_args.m_err)
-      run_hton_clone_apply_begin(thd, nullptr, &clone_args);
+      run_clone_apply_begin(thd, &clone_storage_engine, &clone_args);
 
     return (clone_args.m_err);
   }
 
-  uint32_t loop_index [[maybe_unused]] = 0;
+  uint32_t loop_index [[maybe_unused]]= 0;
 
-  for (auto &loc_iter : clone_loc_vec) {
-    uint32_t task_id = 0;
+  for (auto &loc_iter : clone_loc_vec)
+  {
+    uint32_t task_id= 0;
 
 #if !defined(NDEBUG)
     Ha_clone_flagset flags;
-
     loc_iter.m_hton->clone_interface.clone_capability(flags);
 
     /* TODO: Skip adding task if SE doesn't support */
-    if (clone_mode == HA_CLONE_MODE_ADD_TASK) {
+    if (clone_mode == HA_CLONE_MODE_ADD_TASK)
       assert(flags[HA_CLONE_MULTI_TASK]);
-    }
 
     /* TODO: Stop and start if restart no supported */
-    if (clone_mode == HA_CLONE_MODE_RESTART) {
+    if (clone_mode == HA_CLONE_MODE_RESTART)
       assert(flags[HA_CLONE_RESTART]);
-    }
 #endif
-    auto err = loc_iter.m_hton->clone_interface.clone_apply_begin(
+    auto err= loc_iter.m_hton->clone_interface.clone_apply_begin(
         thd, loc_iter.m_loc, loc_iter.m_loc_len, task_id,
         clone_mode, clone_data_dir);
 
-    if (err != 0) {
-      return (err);
-    }
+    if (err != 0)
+      return err;
 
-    if (add_task) {
+    if (add_task)
       task_vec.push_back(task_id);
-    }
 
     assert(task_vec[loop_index] == task_id);
     ++loop_index;
   }
-
-  return (0);
+  return 0;
 }
 
 int hton_clone_apply_error(THD *thd, Storage_Vector &clone_loc_vec,

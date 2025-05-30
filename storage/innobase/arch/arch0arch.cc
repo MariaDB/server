@@ -227,31 +227,9 @@ Arch_Sys::~Arch_Sys()
   mysql_mutex_destroy(&m_mutex);
 }
 
-dberr_t Arch_Group::prepare_file_with_header(
-    uint64_t start_offset, Get_file_header_callback &get_header)
-{
-  auto header= static_cast<byte*>(
-      aligned_malloc(m_header_len, OS_FILE_LOG_BLOCK_SIZE));
-
-  dberr_t err= get_header(start_offset, header, m_file_size);
-  if (err != DB_SUCCESS)
-    goto end;
-
-  err= m_file_ctx.open_new(m_begin_lsn, m_file_size, 0);
-  if (err != DB_SUCCESS)
-    goto end;
-
-  err= m_file_ctx.write(nullptr, header, m_header_len);
-
-end:
-  aligned_free(header);
-  return err;
-}
-
 dberr_t Arch_Group::write_to_file(Arch_File_Ctx *from_file, byte *from_buffer,
                                   uint length, bool partial_write,
-                                  bool do_persist,
-                                  Get_file_header_callback get_header)
+                                  bool do_persist)
 {
   dberr_t err= DB_SUCCESS;
   uint write_size;
@@ -262,14 +240,12 @@ dberr_t Arch_Group::write_to_file(Arch_File_Ctx *from_file, byte *from_buffer,
     ut_ad(m_file_ctx.get_count() == 0);
     DBUG_EXECUTE_IF("crash_before_archive_file_creation", DBUG_SUICIDE(););
 
-    err= prepare_file_with_header(0, get_header);
-
+    err= m_file_ctx.open_new(m_begin_lsn, m_file_size, m_header_len);
     if (err != DB_SUCCESS)
       return err;
   }
 
   auto len_left= m_file_ctx.bytes_left();
-  uint64_t start_offset= 0;
 
   /* New file is immediately opened when current file is over. */
   ut_ad(len_left != 0);
@@ -319,7 +295,6 @@ dberr_t Arch_Group::write_to_file(Arch_File_Ctx *from_file, byte *from_buffer,
 
     ut_ad(length >= write_size);
     length-= write_size;
-    start_offset+= write_size;
 
     len_left= m_file_ctx.bytes_left();
 
@@ -328,7 +303,7 @@ dberr_t Arch_Group::write_to_file(Arch_File_Ctx *from_file, byte *from_buffer,
     {
       m_file_ctx.close();
 
-      err = prepare_file_with_header(start_offset, get_header);
+      err= m_file_ctx.open_new(m_begin_lsn, m_file_size, m_header_len);
       if (err != DB_SUCCESS)
         return (err);
 
@@ -467,29 +442,17 @@ dberr_t Arch_File_Ctx::open(bool read_only, lsn_t start_lsn, uint file_index,
   if (!success)
     return DB_CANNOT_OPEN_FILE;
 
-  /* For newly created file, zero fill the header section. This is required
-  for archived redo files that are just created. Clone expects the header
-  length to be written. */
-  if (!exists && file_offset != 0 && !read_only)
-  {
-    /* This call would extend the length by multiple of UNIV_PAGE_SIZE. This is
-    not an issue but we need to lseek to keep the current position at offset. */
-    success= os_file_set_size(m_name_buf, m_file, file_offset);
-    exists= success;
-  }
-
   if (success)
     success= os_file_seek(m_name_buf, m_file.m_file, file_offset);
 
-  m_size= file_size == 0
-               ? (exists ? os_file_get_size(m_name_buf).m_total_size : 0)
-               : file_size;
+  m_size= file_size;
   ut_ad(m_offset <= m_size);
 
-  if (!success)
-    close();
+  if (success)
+    return DB_SUCCESS;
 
-  return success ? DB_SUCCESS : DB_IO_ERROR;
+  close();
+  return DB_IO_ERROR;
 }
 
 dberr_t Arch_File_Ctx::open_new(lsn_t start_lsn, uint64_t new_file_size,

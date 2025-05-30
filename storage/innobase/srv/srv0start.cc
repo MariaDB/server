@@ -1324,6 +1324,14 @@ dberr_t srv_start(bool create_new_db)
 
 	srv_boot();
 
+	ib::info() << my_crc32c_implementation();
+
+	if (!srv_read_only_mode) {
+		mysql_mutex_init(srv_monitor_file_mutex_key,
+				 &srv_monitor_file_mutex, nullptr);
+		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
+				 &srv_misc_tmpfile_mutex, nullptr);
+	}
 	/* Must replace clone files before opening any files. When clone
         replaces current database, cloned files are moved to data files
 	at this stage. */
@@ -1332,14 +1340,6 @@ dberr_t srv_start(bool create_new_db)
 
 	if (err != DB_SUCCESS) {
 		return (srv_init_abort(err));
-	}
-	ib::info() << my_crc32c_implementation();
-
-	if (!srv_read_only_mode) {
-		mysql_mutex_init(srv_monitor_file_mutex_key,
-				 &srv_monitor_file_mutex, nullptr);
-		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
-				 &srv_misc_tmpfile_mutex, nullptr);
 	}
 
 	if (!srv_read_only_mode) {

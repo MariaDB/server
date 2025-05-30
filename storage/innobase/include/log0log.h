@@ -165,6 +165,9 @@ struct log_t
   (used to be 2048 before FORMAT_10_8). */
   static constexpr lsn_t FIRST_LSN= START_OFFSET;
 
+  /** Clone header string in redo log header creator field. */
+  static constexpr const char CREATOR_CLONE[]= "MariaDB Clone ";
+
 private:
   /** the least significant bit of the write_to_buf buffer */
   static constexpr size_t WRITE_TO_BUF_SHIFT{34};
