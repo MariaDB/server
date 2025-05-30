@@ -1630,7 +1630,7 @@ static char* fmt_usec(uint val, char *out, uint digits)
   case 6:
     return fmt_number6(val, out);
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return out;
 }
 

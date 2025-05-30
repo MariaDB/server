@@ -2438,7 +2438,7 @@ bool spider_db_mbase::inserted_info(
       copy_info->updated+= duplicates;
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_RETURN(FALSE);
   }
   DBUG_RETURN(TRUE);
@@ -2565,7 +2565,7 @@ int spider_db_mbase::xa_start(
 ) {
   DBUG_ENTER("spider_db_mbase::xa_start");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   DBUG_RETURN(0);
 }
 
@@ -9810,7 +9810,7 @@ int spider_mbase_handler::append_match_where_part(
       str = &sql;
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_RETURN(0);
   }
   error_num = append_match_where(str);
@@ -12840,7 +12840,7 @@ int spider_mbase_handler::simple_action(
       }
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_RETURN(0);
     }
   spider_lock_before_query(conn, &spider->need_mons[link_idx]);

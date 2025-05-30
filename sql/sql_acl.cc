@@ -6474,7 +6474,7 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
   case SP_TYPE_TRIGGER:
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return PRIVS_TO_MERGE::PROC;
 }
 
@@ -10773,7 +10773,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= roles_mappings_hash->records;
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(-1);
   }
 

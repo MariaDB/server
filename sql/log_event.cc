@@ -913,7 +913,7 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
       goto err;
     case LOG_READ_CHECKSUM_FAILURE:
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       error= "internal error";
       goto err;
   }

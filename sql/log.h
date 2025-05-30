@@ -113,7 +113,7 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered) override
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 1;
   }
   int unlog(ulong cookie, my_xid xid) override  { return 0; }

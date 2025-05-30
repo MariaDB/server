@@ -4720,7 +4720,7 @@ bool JOIN::shrink_join_buffers(JOIN_TAB *jt,
           Safety: fail if we've exhausted available buffer space with
           reduced join buffers.
         */
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         return TRUE;
       }
       needed_space-= buff_size;
@@ -21649,7 +21649,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
     break;
   case ROW_RESULT:
     // This case should never be chosen
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     new_field= 0;
     break;
   }
@@ -24978,7 +24978,7 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
   if (tab->table->pos_in_table_list->is_materialized_derived() &&
       !tab->table->pos_in_table_list->fill_me)
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     //TODO: don't get here at all
     /*
       Skip materialized derived tables/views as they temporary table is not
@@ -29355,7 +29355,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       }
       default:
         /* This case should never be chosen */
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       }
     }
@@ -31787,7 +31787,7 @@ static void print_table_array(THD *thd,
                                 ~eliminated_tables))))
     {
       /* as of 5.5, print_join doesnt put eliminated elements into array */
-      DBUG_ASSERT(0); 
+      DBUG_ASSERT_NO_ASSUME(0); 
       continue;
     }
 

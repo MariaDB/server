@@ -2825,7 +2825,7 @@ Rotate_log_event::do_shall_skip(rpl_group_info *rgi)
   case Log_event::EVENT_SKIP_IGNORE:
     return Log_event::EVENT_SKIP_IGNORE;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return Log_event::EVENT_SKIP_NOT;             // To keep compiler happy
 }
 
@@ -4132,7 +4132,7 @@ bool User_var_log_event::write(Log_event_writer *writer)
       break;
     case ROW_RESULT:
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return 0;
     }
     int4store(buf1 + 2 + UV_CHARSET_NUMBER_SIZE, val_len);
@@ -4252,7 +4252,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
       break;
     case ROW_RESULT:
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_RETURN(0);
     }
   }

@@ -935,7 +935,7 @@ void translog_stop_writing()
                     TRANSLOG_READONLY);
   log_descriptor.is_everything_flushed= 1;
   log_descriptor.open_flags= O_BINARY | O_RDONLY;
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   DBUG_VOID_RETURN;
 }
 
@@ -2559,7 +2559,7 @@ static uint16 translog_get_total_chunk_length(uchar *page, uint16 offset)
     DBUG_PRINT("info", ("length: %u", uint2korr(page + offset + 1) + 3));
     DBUG_RETURN(uint2korr(page + offset + 1) + 3);
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(0);
   }
 }
@@ -3189,7 +3189,7 @@ restart:
             args.data= (uchar*) &file_copy;
             if (translog_page_validator(0, &args))
             {
-              DBUG_ASSERT(0);
+              DBUG_ASSERT_NO_ASSUME(0);
               buffer= NULL;
             }
           }
@@ -3382,7 +3382,7 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
         calculation (we skip to the first group to read the header) so if we
         stuck here something is wrong.
       */
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_RETURN(0);                               /* Keep compiler happy */
     }
     DBUG_RETURN(header_len);
@@ -3404,7 +3404,7 @@ static uint16 translog_get_chunk_header_length(uchar *chunk)
     DBUG_RETURN(3);
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   DBUG_RETURN(0);                               /* Keep compiler happy */
 }
 
@@ -5497,7 +5497,7 @@ static uchar *translog_get_LSN_from_diff(LSN base_lsn, uchar *src, uchar *dst)
     break;
   }
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(NULL);
   }
   lsn= MAKE_LSN(file_no, rec_offset);
@@ -6535,7 +6535,7 @@ my_bool translog_write_record(LSN *lsn,
       break;
     case LOGRECTYPE_NOT_ALLOWED:
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       rc= 1;
     }
   }
@@ -7206,7 +7206,7 @@ int translog_read_record_header_from_buffer(uchar *page,
     res= translog_fixed_length_header(page, page_offset, buff);
     break;
   default:
-    DBUG_ASSERT(0); /* we read some junk (got no LSN) */
+    DBUG_ASSERT_NO_ASSUME(0); /* we read some junk (got no LSN) */
     res= RECHEADER_READ_ERROR;
   }
   DBUG_RETURN(res);

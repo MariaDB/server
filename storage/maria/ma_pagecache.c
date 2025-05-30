@@ -3884,7 +3884,7 @@ restart:
                             unlock_pin, FALSE))
       {
         pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         DBUG_RETURN((uchar*) 0);
       }
     }
@@ -5008,7 +5008,7 @@ static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
         table to be marked as corrupted (cf maria_chk_size(), maria_close())
         and thus require a table check.
       */
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
       if (my_thread_var->abort)
         DBUG_RETURN(1);		/* End if aborted by user */
@@ -5462,7 +5462,7 @@ void pagecache_file_no_dirty_page(PAGECACHE *pagecache, PAGECACHE_FILE *file)
     {
       DBUG_PRINT("info", ("pagecache_file_not_in error"));
       PCBLOCK_INFO(block);
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
     }
 }
 

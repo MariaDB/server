@@ -122,7 +122,7 @@ void Explain_query::add_node(Explain_node *node)
     Explain_select *sel= (Explain_select*)node;
     if (sel->select_id == FAKE_SELECT_LEX_ID)
     {
-      DBUG_ASSERT(0); // this is a "fake select" from a UNION.
+      DBUG_ASSERT_NO_ASSUME(0); // this is a "fake select" from a UNION.
     }
     else
     {
@@ -552,7 +552,7 @@ uint Explain_union::make_union_table_name(char *buf)
       type= { STRING_WITH_LEN("<except") };
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       type= { NULL, 0 };
   }
   memcpy(buf, type.str, (len= (uint)type.length));
@@ -2570,7 +2570,7 @@ const char * Explain_quick_select::get_name_by_type()
     case QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT:
       return "sort_intersect";
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return "unknown quick select type";
   }
 }

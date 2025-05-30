@@ -5904,7 +5904,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   case MDL_wait::KILLED:
     return TRUE;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return TRUE;
   }
 }
@@ -10963,7 +10963,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
   case SYSTEM_TIME_BETWEEN:
     return start.eq(conds.start) && end.eq(conds.end);
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 

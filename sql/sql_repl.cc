@@ -1516,7 +1516,7 @@ gtid_find_binlog_pos(slave_connection_state *state, char *out_name,
               domain in earlier binlogs, and then we can not encounter it in any
               further GTIDs in the Gtid_list.
             */
-            DBUG_ASSERT(0);
+            DBUG_ASSERT_NO_ASSUME(0);
           } else if (gtid->server_id == gtids[i].server_id &&
                      gtid->seq_no == gtids[i].seq_no)
           {

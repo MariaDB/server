@@ -122,7 +122,7 @@ static uint32 read_keypart_length(const uchar *from, uint bytes)
   case 2: return uint2korr(from);
   case 3: return uint3korr(from);
   case 4: return uint4korr(from);
-  default: DBUG_ASSERT(0); return 0;
+  default: DBUG_ASSERT_NO_ASSUME(0); return 0;
   }
 }
 
@@ -1249,7 +1249,7 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
         of memory or have an item marked not null when it can be null.
         This code is here mainly to avoid a hard crash in this case.
       */
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_PRINT("warning",
                  ("Got null on something that shouldn't be null"));
       memset(to, 0, sort_field->length);	// Avoid crash
@@ -2581,7 +2581,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
         of memory or have an item marked not null when it can be null.
         This code is here mainly to avoid a hard crash in this case.
       */
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       DBUG_PRINT("warning",
                  ("Got null on something that shouldn't be null"));
       memset(to, 0, sort_field->length);  // Avoid crash

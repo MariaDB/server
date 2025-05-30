@@ -3676,7 +3676,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
       DBUG_ASSERT(0);                           /* Impossible */
       break;
   }
-  DBUG_ASSERT(0);                               /* Impossible */
+  DBUG_ASSERT_NO_ASSUME(0);                               /* Impossible */
   DBUG_RETURN(1);                               /* Impossible */
 finish:
   if (sort_param->calc_checksum)

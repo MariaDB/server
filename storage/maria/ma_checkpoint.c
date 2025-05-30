@@ -901,7 +901,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     filter= NULL;
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     goto err;
   }
 

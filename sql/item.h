@@ -4420,7 +4420,7 @@ public:
     case DEFAULT_VALUE:    return PARAM_ITEM;
     case IGNORE_VALUE:     return PARAM_ITEM;
     }
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return PARAM_ITEM;
   }
 
@@ -7264,7 +7264,7 @@ public:
   bool save_in_param(THD *, Item_param *param) override
   {
     // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     param->set_default(true);
     return false;
   }

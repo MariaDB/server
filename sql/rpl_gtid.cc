@@ -3682,7 +3682,7 @@ Id_delegating_gtid_event_filter<T>::Id_delegating_gtid_event_filter()
   if (std::is_same<T,uint32>::value)
     free_func= free_u32_gtid_filter_element;
   else
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
 
   my_hash_init(PSI_INSTRUMENT_ME, &m_filters_by_id_hash, &my_charset_bin, 32,
                offsetof(gtid_filter_element<T>, identifier),

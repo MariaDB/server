@@ -5321,7 +5321,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   if (tmp_table->s->keys == 0)
   {
     //fprintf(stderr, "Q: %s\n", current_thd->query());
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_ASSERT(
       (tmp_table->key_info->flags & HA_UNIQUE_HASH) ||
       tmp_table->key_info->key_length >= tmp_table->file->max_key_length() ||

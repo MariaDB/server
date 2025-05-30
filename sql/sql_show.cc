@@ -6327,7 +6327,7 @@ static bool print_anchor_data_type(const Spvar_definition *def,
     "ROW TYPE OF cursor" is not possible yet.
     May become possible when we add package-wide cursors.
   */
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -6356,7 +6356,7 @@ static bool print_anchor_dtd_identifier(THD *thd, const Spvar_definition *def,
            dtd_identifier->append(STRING_WITH_LEN("%ROWTYPE")) :
            dtd_identifier->append(STRING_WITH_LEN("ROW TYPE OF ")) ||
            def->table_rowtype_ref()->append_to(thd, dtd_identifier);
-  DBUG_ASSERT(0); // See comments in print_anchor_data_type()
+  DBUG_ASSERT_NO_ASSUME(0); // See comments in print_anchor_data_type()
   return false;
 }
 
@@ -8303,7 +8303,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       table->field[7]->store(STRING_WITH_LEN("SYSTEM_TIME"), cs);
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       DBUG_RETURN(1);
     }

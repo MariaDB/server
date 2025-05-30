@@ -731,7 +731,7 @@ String *Item_func_decode_histogram::val_str(String *str)
       break;
     default:
       val= 0;
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
     }
     /* show delta with previous value */
     size_t size= my_snprintf(numbuf, sizeof(numbuf),
@@ -1609,7 +1609,7 @@ String *Item_func_sformat::val_str(String *res)
     case TIME_RESULT: // TODO
     case ROW_RESULT: // TODO
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return NULL;
     }
   }
@@ -2343,7 +2343,7 @@ String *Item_func_substr_index::val_str(String *str)
       }
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }
 
@@ -5090,7 +5090,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
       args[valpos]->get_time(thd, &vals[i].x.time_value);
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       vals[i].type= DYN_COL_NULL;
     }
     if (vals[i].type != DYN_COL_NULL && args[valpos]->null_value)

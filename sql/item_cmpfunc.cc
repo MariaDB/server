@@ -7764,7 +7764,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
     return equal_items.head();
   }
   // Shouldn't get here.
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }
 

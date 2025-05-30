@@ -1176,7 +1176,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_NONE:
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       result= mark_crashed= 1;
       goto err;
     }

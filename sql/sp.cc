@@ -1337,7 +1337,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           break;
         case SP_TYPE_TRIGGER:
         case SP_TYPE_EVENT:
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
           ret= SP_OK;
         }
       }

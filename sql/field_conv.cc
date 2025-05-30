@@ -129,7 +129,7 @@ static int set_bad_null_error(Field *field, int err)
       my_error(err, MYF(0), field->field_name.str);
     return -1;
   }
-  DBUG_ASSERT(0); // impossible
+  DBUG_ASSERT_NO_ASSUME(0); // impossible
   return -1;
 }
 

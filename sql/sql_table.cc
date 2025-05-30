@@ -7157,7 +7157,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
               it should have ealier called Column_definition_implicit_upgrade(),
               which replaces old data types to up-to-date data types.
           */
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
           is_equal= false;
         }
       }
@@ -8526,7 +8526,7 @@ blob_length_by_type(enum_field_types type)
   case MYSQL_TYPE_LONG_BLOB:
     return (uint) UINT_MAX32;
   default:
-    DBUG_ASSERT(0); // we should never go here
+    DBUG_ASSERT_NO_ASSUME(0); // we should never go here
     return 0;
   }
 }

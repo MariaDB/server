@@ -1542,7 +1542,7 @@ static UINT get_codepage(const char *s)
   UINT cp;
   if (s[0] != 'c' || s[1] != 'p')
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   }
   cp= strtoul(s + 2, NULL, 10);

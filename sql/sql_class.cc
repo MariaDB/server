@@ -3950,7 +3950,7 @@ void select_max_min_finder_subselect::set_op(const Type_handler *th)
     break;
   case ROW_RESULT:
     // This case should never be chosen
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     op= 0;
   }
 }

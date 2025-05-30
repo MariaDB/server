@@ -2560,7 +2560,7 @@ my_bool _ma_bitmap_set_full_page_bits(MARIA_HA *info,
   if (page == bitmap_page ||
       page + page_count > bitmap_page + bitmap->pages_covered)
   {
-    DBUG_ASSERT(0);                             /* Wrong in data */
+    DBUG_ASSERT_NO_ASSUME(0);                             /* Wrong in data */
     DBUG_RETURN(1);
   }
 
@@ -3067,7 +3067,7 @@ my_bool _ma_check_if_right_bitmap_type(MARIA_HA *info,
   default:
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return 1;
 }
 

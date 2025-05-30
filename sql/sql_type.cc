@@ -404,7 +404,7 @@ uint Timestamp::binary_length_to_precision(uint length)
   case 6: return 4;
   case 7: return 6;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return 0;
 }
 
@@ -667,7 +667,7 @@ Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, Status *st,
 {
   switch (item->cmp_type()) {
   case ROW_RESULT:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     time_type= MYSQL_TIMESTAMP_NONE;
     break;
   case TIME_RESULT:
@@ -756,7 +756,7 @@ decimal_digits_t Interval_DDhhmmssff::fsp(THD *thd, Item *item)
   case DECIMAL_RESULT:
     return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
   case ROW_RESULT:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   case STRING_RESULT:
     break;
@@ -856,7 +856,7 @@ bool Temporal::add_nanoseconds_with_round(THD *thd, int *warn,
   case MYSQL_TIMESTAMP_ERROR:
     break;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -980,7 +980,7 @@ uint Time::binary_length_to_precision(uint length)
   case 5: return 4;
   case 6: return 6;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return 0;
 }
 
@@ -1867,7 +1867,7 @@ aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
   bool bit_and_non_bit_mixture_found= false;
   if (!nitems)
   {
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     set_handler(&type_handler_null);
     return true;
   }
@@ -2227,7 +2227,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_BLOB_COMPRESSED:
     break;
   };
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return &type_handler_string;
 }
 
