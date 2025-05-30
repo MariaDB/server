@@ -447,7 +447,7 @@ void wsrep_init_sidno(const wsrep::id& uuid)
 
 void wsrep_init_schema()
 {
-  DBUG_ASSERT(!wsrep_schema);
+  DBUG_ASSERT_NO_ASSUME(!wsrep_schema);
 
   WSREP_INFO("wsrep_init_schema_and_SR %p", wsrep_schema);
   if (!wsrep_schema)

@@ -3028,7 +3028,7 @@ static my_bool write_block_record(MARIA_HA *info,
           cur_block++;
         }
 #ifdef SANITY_CHECKS
-        DBUG_ASSERT(!(cur_block >= end_block));
+        DBUG_ASSERT_NO_ASSUME(!(cur_block >= end_block));
         if ((cur_block >= end_block))
           goto crashed;
 #endif
