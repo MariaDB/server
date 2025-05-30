@@ -2945,7 +2945,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
   /* if either is set, total_ha_2pc must be set too */
-  DBUG_ASSERT(info.dry_run ||
+  DBUG_ASSERT_NO_ASSUME(info.dry_run ||
               (failed_ha_2pc + total_ha_2pc) > (ulong)opt_bin_log);
 
   if (total_ha_2pc <= (ulong)opt_bin_log)

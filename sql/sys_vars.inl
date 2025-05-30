@@ -695,7 +695,7 @@ public:
          sysvartrack_validate_value(thd,
                                     var->save_result.string_value.str,
                                     var->save_result.string_value.length);
-       DBUG_ASSERT(res == 0);
+       DBUG_ASSERT_NO_ASSUME(res == 0);
      }
   }
 };

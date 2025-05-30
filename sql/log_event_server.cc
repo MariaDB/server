@@ -3798,7 +3798,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
   {
     DBUG_ASSERT(!thd->transaction->xid_state.is_explicit_XA());
 
-    DBUG_ASSERT(record_gtid_delayed_for_xa);
+    DBUG_ASSERT_NO_ASSUME(record_gtid_delayed_for_xa);
     if (thd->rgi_slave->is_parallel_exec)
     {
       /*

@@ -335,7 +335,7 @@ rpl_slave_state::update_nolock(uint32 domain_id, uint32 server_id, uint64 sub_id
 #endif
       uint32 count= elem->owner_count;
       DBUG_ASSERT(count > 0);
-      DBUG_ASSERT(elem->owner_rli == rli);
+      DBUG_ASSERT_NO_ASSUME(elem->owner_rli == rli);
       --count;
       elem->owner_count= count;
       if (count == 0)
@@ -2632,7 +2632,7 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
   err= 
 #endif
     my_hash_delete(&hash, rec);
-  DBUG_ASSERT(!err);
+  DBUG_ASSERT_NO_ASSUME(!err);
 }
 
 

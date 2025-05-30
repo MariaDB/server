@@ -4113,14 +4113,15 @@ static bool add_role_user_mapping(const LEX_CSTRING &uname,
 */
 static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
 {
-  bool found __attribute__((unused))= false;
+  bool found= false;
   for (size_t i= 0; i < array->elements; i++)
   {
     if (ptr == *dynamic_element(array, i, void**))
     {
       DBUG_ASSERT(!found);
       delete_dynamic_element(array, i);
-      IF_DBUG_ASSERT(found= true, break);
+      found= true;
+      IF_DBUG_ASSERT(, break);
     }
   }
   DBUG_ASSERT(found);

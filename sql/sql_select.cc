@@ -3950,7 +3950,7 @@ bool JOIN::make_aggr_tables_info()
   {
     aggr_tables++;
     curr_tab= join_tab + exec_join_tab_cnt();
-    DBUG_ASSERT(curr_tab - join_tab < dbug_join_tab_array_size);
+    DBUG_ASSERT_NO_ASSUME(curr_tab - join_tab < dbug_join_tab_array_size);
     bzero((void*)curr_tab, sizeof(JOIN_TAB));
     curr_tab->ref.key= -1;
     if (only_const_tables())
@@ -4090,7 +4090,7 @@ bool JOIN::make_aggr_tables_info()
 
       curr_tab++;
       aggr_tables++;
-      DBUG_ASSERT(curr_tab - join_tab < dbug_join_tab_array_size);
+      DBUG_ASSERT_NO_ASSUME(curr_tab - join_tab < dbug_join_tab_array_size);
       bzero((void*)curr_tab, sizeof(JOIN_TAB));
       curr_tab->ref.key= -1;
 
@@ -4857,7 +4857,7 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     If there is SELECT in this statement with the same number it must be the
     same SELECT
   */
-  DBUG_ASSERT(select_lex->select_number == FAKE_SELECT_LEX_ID || !output ||
+  DBUG_ASSERT_NO_ASSUME(select_lex->select_number == FAKE_SELECT_LEX_ID || !output ||
               !output->get_select(select_lex->select_number) ||
               output->get_select(select_lex->select_number)->select_lex ==
                 select_lex);

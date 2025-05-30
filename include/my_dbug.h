@@ -17,6 +17,8 @@
 #ifndef _my_dbug_h
 #define _my_dbug_h
 
+#include "my_compiler.h"
+
 #ifndef _WIN32
 #include <signal.h>
 #endif
@@ -118,6 +120,7 @@ extern int (*dbug_sanity)(void);
 #define DBUG_ASSERT(A) do { \
   if (unlikely(!(A)) && _db_my_assert(__FILE__, __LINE__, #A)) assert(A); \
 } while (0)
+#define DBUG_ASSERT_NO_ASSUME(A) DBUG_ASSERT(A)
 #define DBUG_SLOW_ASSERT(A) DBUG_ASSERT(A)
 #define DBUG_ASSERT_EXISTS
 #define DBUG_EXPLAIN(buf,len) _db_explain_(0, (buf),(len))
@@ -200,10 +203,16 @@ extern void _db_suicide_(void);
 #ifdef DBUG_ASSERT_AS_PRINTF
 extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, unsigned long line);
 #define DBUG_ASSERT(assert_expr) do { if (!(assert_expr)) { my_dbug_assert_failed(#assert_expr, __FILE__, __LINE__); }} while (0)
+#define DBUG_ASSERT_NO_ASSUME(assert_expr) DBUG_ASSERT(assert_expr)
 #define DBUG_ASSERT_EXISTS
 #define IF_DBUG_ASSERT(A,B)             A
 #else
-#define DBUG_ASSERT(A)                  do { } while(0)
+#ifdef __cplusplus
+#define DBUG_ASSERT(A)                  MY_ASSUME(A)
+#else
+#define DBUG_ASSERT(A)                  do { } while (0)
+#endif 
+#define DBUG_ASSERT_NO_ASSUME(A)        do { } while (0)
 #define IF_DBUG_ASSERT(A,B)             B
 #endif /* DBUG_ASSERT_AS_PRINTF */
 #endif /* !defined(DBUG_OFF) */

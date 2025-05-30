@@ -9193,7 +9193,7 @@ static struct blob_storage_check
 #endif
 Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
 {
-  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
+  DBUG_ASSERT_NO_ASSUME((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
   if (newt->group_concat)
     return new (root) Field_blob(field_length, maybe_null(), &field_name,
                                  charset());

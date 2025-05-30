@@ -322,7 +322,7 @@ bool event_checksum_test(uchar *event_buf, ulong event_len,
          The only algorithm currently is CRC32. Zero indicates 
          the binlog file is checksum-free *except* the FD-event.
       */
-      DBUG_ASSERT(fd_alg == BINLOG_CHECKSUM_ALG_CRC32 || fd_alg == 0);
+      DBUG_ASSERT_NO_ASSUME(fd_alg == BINLOG_CHECKSUM_ALG_CRC32 || fd_alg == 0);
       DBUG_ASSERT(alg == BINLOG_CHECKSUM_ALG_CRC32);
       /*
         Complile time guard to watch over  the max number of alg

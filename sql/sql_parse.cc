@@ -3076,7 +3076,7 @@ mysql_create_routine(THD *thd, LEX *lex)
 {
   DBUG_ASSERT(lex->sphead != 0);
   DBUG_ASSERT(lex->sphead->m_db.str); /* Must be initialized in the parser */
-  DBUG_ASSERT(lower_case_table_names != 1 ||
+  DBUG_ASSERT_NO_ASSUME(lower_case_table_names != 1 ||
               Lex_ident_fs(lex->sphead->m_db).is_in_lower_case());
 
   if (Lex_ident_db::check_name_with_error(lex->sphead->m_db))

@@ -269,6 +269,9 @@ ENDIF()
 # Be nice to profilers etc
 MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 
+# Assert-as-assume makes arbitrary exprs appear in assumptions, causing warnings
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-assume")
+
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)

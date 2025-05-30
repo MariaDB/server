@@ -9055,9 +9055,9 @@ int ha_rocksdb::get_row_by_rowid(uchar *const buf, const char *const rowid,
     s = tx->get(m_pk_descr->get_cf(), key_slice, &m_retrieved_record);
   } else if (m_insert_with_update && m_dup_pk_found) {
     DBUG_ASSERT(m_pk_descr->get_keyno() == m_dupp_errkey);
-    DBUG_ASSERT(m_dup_pk_retrieved_record.length() ==
+    DBUG_ASSERT_NO_ASSUME(m_dup_pk_retrieved_record.length() ==
                 m_retrieved_record.size());
-    DBUG_ASSERT(memcmp(m_dup_pk_retrieved_record.ptr(),
+    DBUG_ASSERT_NO_ASSUME(memcmp(m_dup_pk_retrieved_record.ptr(),
                        m_retrieved_record.data(),
                        m_retrieved_record.size()) == 0);
 
