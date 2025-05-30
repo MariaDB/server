@@ -10566,6 +10566,20 @@ bool LEX::last_field_identity(Autoinc_spec *spec)
   return v != NULL;
 }
 
+ulonglong LEX::eval_ulonglong_truncated(Item *item)
+{
+  if (item->fix_fields(thd, &item) || !item->const_item())
+  {
+    my_error(ER_WRONG_FIELD_SPEC, MYF(0), last_field->field_name.str);
+    return 0;
+  }
+  my_decimal buff;
+  my_decimal *value= item->val_decimal(&buff);
+  if (value->sign())
+    return 0;
+  return value->to_longlong(true);
+}
+
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;

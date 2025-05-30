@@ -3793,6 +3793,7 @@ public:
   bool last_field_generated_always_as_row_end();
 
   bool last_field_identity(Autoinc_spec *spec);
+  ulonglong eval_ulonglong_truncated(Item *item);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
