@@ -1162,6 +1162,21 @@ public:
   bool native_op(THD *thd, Native *to) override;
   bool fix_length_and_dec(THD *thd) override
   {
+    /*
+    Result of COALESCE is nullable iff all arguments
+    are NULL, otherwise NOT NULL.
+    */
+    bool all_args_maybe_null= true;
+    for(uint i= 0; i < arg_count; i++)
+    {
+      if (!(bool) (args[i]->base_flags & item_base_t::MAYBE_NULL))
+      {
+        all_args_maybe_null= false;
+        break;
+      }
+    }
+    if (!all_args_maybe_null)
+      base_flags &= ~item_base_t::MAYBE_NULL;
     if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
       return TRUE;
     fix_attributes(args, arg_count);
