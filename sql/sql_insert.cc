@@ -3967,6 +3967,10 @@ int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   */
   if (sel_res)
     sel_res->prepare(lex->returning()->item_list, NULL);
+  /* prepared statement with returning? */
+  else if (lex->has_returning() &&
+           (res= setup_returning_fields(thd, lex->query_tables)))
+    DBUG_RETURN(res);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
   List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
