@@ -2982,6 +2982,18 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 }
 
 
+uint32_t
+Gtid_log_event::get_size() const noexcept
+{
+  return get_gtid_event_size(flags2 & FL_GROUP_COMMIT_ID,
+                             flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA),
+                             flags_extra > 0,
+                             flags_extra & FL_EXTRA_MULTI_ENGINE_E1,
+                             flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1),
+                             xid.bqual_length, xid.gtrid_length);
+}
+
+
 bool
 Gtid_log_event::write(Log_event_writer *writer)
 {
@@ -3051,6 +3063,17 @@ Gtid_log_event::write(Log_event_writer *writer)
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
+  /*
+    Whenever updating this function, make sure that Gtid_log_event::get_size()
+    still computes the same consistent event length! Do not just rely on this
+    assertion, in case test coverage is not 100%.
+  */
+  DBUG_ASSERT(DBUG_IF("negate_xid_from_gtid") ||
+              DBUG_IF("negate_xid_data_from_gtid") ||
+              DBUG_IF("negate_alter_fl_from_gtid") ||
+              DBUG_IF("inject_fl_extra_multi_engine_into_gtid") ||
+              write_len + LOG_EVENT_HEADER_LEN == get_size());
+
   return write_header(writer, write_len) ||
          write_data(writer, buf, write_len) ||
          write_footer(writer);

@@ -15,5 +15,6 @@ SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
 COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
 2552	33150	128776	5000383
 connection master;
+connection master;
 DROP TABLE t1;
 include/rpl_end.inc
