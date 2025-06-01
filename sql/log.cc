@@ -7352,6 +7352,22 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, IO_CACHE *dest, bool standalone,
     gtid_event.cache_type= is_transactional ?
       Log_event::EVENT_TRANSACTIONAL_CACHE : Log_event::EVENT_STMT_CACHE;
 
+  if (opt_binlog_engine_hton)
+  {
+    DBUG_ASSERT(!direct_write);
+    uint32_t avail= (uint32_t)(dest->write_end - dest->write_pos);
+    if (unlikely(avail < Gtid_log_event::max_size) &&
+        avail < gtid_event.get_size())
+    {
+      /*
+        The GTID event doesn't fit in the cache, so we have to spill the
+        contents as oob event data.
+      */
+      if (my_b_flush_io_cache(dest, 0))
+        DBUG_RETURN(true);
+    }
+  }
+
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
 
