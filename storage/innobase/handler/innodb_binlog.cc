@@ -302,22 +302,7 @@ struct chunk_data_cache : public chunk_data_base {
     header_remain= (uint32_t)(p - header_buf);
     ut_ad((size_t)(p - header_buf) <= sizeof(header_buf));
 
-    if (cache->pos_in_file > binlog_info->out_of_band_offset) {
-      /*
-        ToDo: A limitation in mysys IO_CACHE. If I change (reinit_io_cache())
-        the cache from WRITE_CACHE to READ_CACHE without seeking out of the
-        current buffer, then the cache will not be flushed to disk (which is
-        good for small cache that fits completely in buffer). But then if I
-        later my_b_seek() or reinit_io_cache() it again and seek out of the
-        current buffer, the buffered data will not be flushed to the file
-        because the cache is now a READ_CACHE! The result is that the end of the
-        cache will be lost if the cache doesn't fit in memory.
-
-        So for now, have to do this somewhat in-elegant conditional flush
-        myself.
-      */
-      flush_io_cache(cache);
-    }
+    ut_ad (cache->pos_in_file <= binlog_info->out_of_band_offset);
 
     /* Start with the GTID event, which is put at the end of the IO_CACHE. */
     my_bool res= reinit_io_cache(cache, READ_CACHE, binlog_info->gtid_offset, 0, 0);
