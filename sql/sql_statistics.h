@@ -152,6 +152,19 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
 bool is_eits_usable(Field* field);
 
 class Histogram_builder;
+struct Histogram_bucket
+{
+  // The left endpoint in KeyTupleFormat. The endpoint is inclusive, this
+  // value is in this bucket.
+  std::string start_value;
+
+  // Cumulative fraction: The fraction of table rows that fall into this
+  //  and preceding buckets.
+  double cum_fract;
+
+  // Number of distinct values in the bucket.
+  longlong ndv;
+};
 
 /*
   Common base for all histograms
@@ -199,6 +212,8 @@ public:
                                    double avg_sel)=0;
   virtual double range_selectivity(Field *field, key_range *min_endp,
                                    key_range *max_endp, double avg_sel)=0;
+  virtual std::vector<Histogram_bucket> get_histogram()=0;
+
   /*
     Legacy: return the size of the histogram on disk.
 
@@ -355,6 +370,11 @@ public:
   */
   double point_selectivity(Field *field, key_range *endpoint,
                            double avg_sel) override;
+
+  std::vector<Histogram_bucket> get_histogram() override
+  {
+    return {};
+  }
 };
 
 
