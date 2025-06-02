@@ -424,6 +424,8 @@ public:
   double selectivity;
   /* The type of the container of the range filter */
   Rowid_filter_container_type container_type;
+  /* OLEGS: comment */
+  bool forced_by_hint;
 
   Range_rowid_filter_cost_info() : table(0), key_no(0) {}
 

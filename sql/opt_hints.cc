@@ -50,7 +50,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_INDEX")},            false,     true,         false},
   {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
-  {{STRING_WITH_LEN("ROWID_FILTER")},          false,     false,        false}, // OLEGS: check_upper, has_args ?
+  {{STRING_WITH_LEN("ROWID_FILTER")},          true,      false,        false}, // OLEGS: check_upper, has_args ?
   {null_clex_str, 0, 0, 0}
 };
 
@@ -769,17 +769,8 @@ static bool get_hint_state(Opt_hints *hint,
 }
 
 
-/* 
-  @brief
-    Check whether a given optimization is enabled for table.keyno.
-  
-  @detail
-    First check if a hint is present, then check optimizer_switch
-*/
-
-bool hint_key_state(const THD *thd, const TABLE *table,
-                    uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch)
+bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
+                    opt_hints_enum type_arg, bool fallback_value)
 {
   Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
 
@@ -792,8 +783,7 @@ bool hint_key_state(const THD *thd, const TABLE *table,
     if (get_hint_state(key_hints, table_hints, type_arg, &ret_val))
       return ret_val;
   }
-
-  return optimizer_flag(thd, optimizer_switch);
+  return fallback_value;
 }
 
 

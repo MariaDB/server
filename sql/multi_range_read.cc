@@ -1150,7 +1150,7 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   buf_manager.redistribute_buffer_space= do_nothing;
 
   if (!hint_key_state(thd, table, h_arg->active_index,
-                      MRR_HINT_ENUM, OPTIMIZER_SWITCH_MRR) ||
+                MRR_HINT_ENUM, optimizer_flag(thd, OPTIMIZER_SWITCH_MRR)) ||
       mode & (HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED))
     goto use_default_impl;
   
@@ -1905,9 +1905,9 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   TABLE_SHARE *share= primary_file->get_table_share();
 
   const bool mrr_on= hint_key_state(thd, table, keyno, MRR_HINT_ENUM,
-                                    OPTIMIZER_SWITCH_MRR);
+                                    optimizer_flag(thd, OPTIMIZER_SWITCH_MRR));
   const bool force_dsmrr_by_hints=
-    hint_key_state(thd, table, keyno, MRR_HINT_ENUM, 0) ||
+    hint_key_state(thd, table, keyno, MRR_HINT_ENUM, false) ||
     hint_table_state(thd, table, BKA_HINT_ENUM, false);
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
