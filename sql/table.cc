@@ -9307,18 +9307,24 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      /*
-        Compute the vf value if doing keyread on one of its "extra"
-        covering keys, OR if not doing keyread and vf is not stored
-        and marked in the read_set.
-      */
-      if (h->keyread_enabled() &&
-          !vf->vcol_part_of_key.is_set(h->keyread) &&
-          vf->part_of_key.is_set(h->keyread))
-        update= true;
+      if (h->keyread_enabled())
+      {
+        /*
+          Compute vcol if it is not directly present in the index
+          but can be computed from index columns.
+          (TODO: should we also check if it is in the read_set?)
+        */
+        update= (!vf->vcol_part_of_key.is_set(h->keyread) &&
+                 vf->part_of_key.is_set(h->keyread));
+      }
       else
-        update= (!h->keyread_enabled() && !vcol_info->is_stored() &&
+      {
+        /*
+          Compute vcol if it is not stored and marked in the read set.
+        */
+        update= (!vcol_info->is_stored() &&
                  bitmap_is_set(read_set, vf->field_index));
+      }
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
