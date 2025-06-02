@@ -816,21 +816,20 @@ enum class hint_state
 
 
 /**
-  Returns key hint value if hint is specified, returns
-  optimizer switch value if hint is not specified.
+  Returns key hint value if the hint is specified,
+  returns `fallback_value` if the hint is not specified.
 
   @param thd               Pointer to THD object
   @param tab               Pointer to TABLE object
   @param keyno             Key number
   @param type_arg          Hint type
-  @param optimizer_switch  Optimizer switch flag
+  @param fallback_value    Value to be returned if the hint is not specified
 
   @return key hint value if hint is specified,
           otherwise optimizer switch value.
 */
-bool hint_key_state(const THD *thd, const TABLE *table,
-                    uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch);
+bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
+                    opt_hints_enum type_arg, bool fallback_value);
 
 /**
   Returns table hint value if hint is specified, returns
@@ -848,13 +847,13 @@ bool hint_table_state(const THD *thd, const TABLE_LIST *table_list,
                       opt_hints_enum type_arg, bool fallback_value);
 
 /**
-  Returns table hint value if hint is specified, returns
-  fallback value if hint is not specified.
+  Returns table hint value if the hint is specified,
+  returns `fallback_value` if the hint is not specified.
 
   @param thd                Pointer to THD object
   @param tab                Pointer to TABLE object
   @param type_arg           Hint type
-  @param fallback_value     Value to be returned if the hint is not set
+  @param fallback_value     Value to be returned if the hint is not specified
 
   @return table hint value if hint is specified,
           otherwise fallback value.

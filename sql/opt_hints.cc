@@ -53,7 +53,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_INDEX")},            false,     true,         false},
   {{STRING_WITH_LEN("GROUP_INDEX")},           false,     true,         false},
   {{STRING_WITH_LEN("ORDER_INDEX")},           false,     true,         false},
-  {{STRING_WITH_LEN("ROWID_FILTER")},          false,     false,        false}, // OLEGS: check_upper, has_args ?
+  {{STRING_WITH_LEN("ROWID_FILTER")},          true,      false,        false}, // OLEGS: check_upper, has_args ?
   {null_clex_str, 0, 0, 0}
 };
 
@@ -907,17 +907,64 @@ hint_state hint_table_state(const THD *thd,
 }
 
 
+/*
+  In addition to indicating the state of a hint, also indicates
+  if the hint is present or not.  Serves to disambiguate cases
+  that the other version of hint_table_state cannot, such as
+  when a hint is forcing a behavior in the optimizer that it
+  would not normally do and the corresponding optimizer switch
+  is enabled.
+
+  @param thd        Current thread connection state
+  @param table_list Table having the hint
+  @param type_arg   The hint kind in question
+
+  @return appropriate value from hint_state enumeration
+          indicating hint enabled/disabled (if present) or
+          if the hint was not present.
+ */
+
+hint_state hint_table_state(const THD *thd,
+                            const TABLE_LIST *table_list,
+                            opt_hints_enum type_arg)
+{
+  if (!table_list->opt_hints_qb)
+    return hint_state::NOT_PRESENT;
+
+  DBUG_ASSERT(!opt_hint_info[type_arg].has_arguments);
+
+  Opt_hints *hint= table_list->opt_hints_table;
+  Opt_hints *parent_hint= table_list->opt_hints_qb;
+
+  if (hint && hint->is_specified(type_arg))
+  {
+    const bool hint_value= hint->get_switch(type_arg);
+    return hint_value ? hint_state::ENABLED :
+                        hint_state::DISABLED;
+  }
+
+  if (opt_hint_info[type_arg].check_upper_lvl &&
+      parent_hint->is_specified(type_arg))
+  {
+    const bool hint_value= parent_hint->get_switch(type_arg);
+    return hint_value ? hint_state::ENABLED :
+                        hint_state::DISABLED;
+  }
+
+  return hint_state::NOT_PRESENT;
+}
+
+
 /* 
   @brief
     Check whether a given optimization is enabled for table.keyno.
   
   @detail
-    First check if a hint is present, then check optimizer_switch
+    First check if a hint is present, if not then return fallback_value
 */
 
-bool hint_key_state(const THD *thd, const TABLE *table,
-                    uint keyno, opt_hints_enum type_arg,
-                    uint optimizer_switch)
+bool hint_key_state(const THD *thd, const TABLE *table, uint keyno,
+                    opt_hints_enum type_arg, bool fallback_value)
 {
   Opt_hints_table *table_hints= table->pos_in_table_list->opt_hints_table;
 
@@ -930,8 +977,7 @@ bool hint_key_state(const THD *thd, const TABLE *table,
     if (get_hint_state(key_hints, table_hints, type_arg, &ret_val))
       return ret_val;
   }
-
-  return optimizer_flag(thd, optimizer_switch);
+  return fallback_value;
 }
 
 

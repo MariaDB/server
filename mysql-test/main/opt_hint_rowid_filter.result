@@ -1,0 +1,128 @@
+CREATE TABLE t1 (a INT, b VARCHAR(10), c VARCHAR(1024), KEY key_a(a), KEY key_b(b), KEY key_c(c));
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+INSERT INTO t1 VALUES
+(1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
+(2,'Q','s'), (9,'e','J'), (2,'p','W'), (9,'o','F'), (2,'g','S'),
+(1,'Y','a'), (NULL,'Y','p'), (NULL,'s','x'), (NULL,'i','S'),
+(1,'l','q'), (7,'r','e'), (4,'b','h'), (NULL,'E','c'),
+(NULL,'M','a'), (3,'e','X'), (NULL,'p','r'), (9,'e','i'),
+(3,'g','x'), (2,'h','y');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set optimizer_switch='rowid_filter=on';
+# Rowid filter is applied when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Sample result set to compare against later
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+a
+1
+5
+# Disable rowid filter for t1
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Disable rowid filter for a particular index (or two) of t1
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_b`) NO_ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Validate the result set
+SELECT /*+ no_rowid_filter(t1 key_b, key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+a
+1
+5
+# Disable rowid filter for indexes which would not be used anyway
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_b)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`) NO_ROWID_FILTER(`t1`@`select#1` `key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Turn rowid filtering off and enable it selectively
+set optimizer_switch='rowid_filter=off';
+# Make sure rowid filter is not applied when there are no hints:
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Enable rowid filter for t1
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Enable rowid filter only for some indexes of t1
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_a, key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_a`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_c)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Enable rowid filter for the same index that is used to access data (impossible)
+EXPLAIN EXTENDED
+SELECT /*+ rowid_filter(t1 key_b)*/ a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Note	1003	select /*+ ROWID_FILTER(`t1`@`select#1` `key_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# Conflicting hints
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1) ROWID_FILTER(t1 key_a)*/a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Warning	4217	Hint ROWID_FILTER(`t1` `key_a`) is ignored as conflicting/duplicated
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a, key_b) no_rowid_filter(t1 key_c, key_b)*/a FROM t1
+WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	key_b,key_c	key_b	43	NULL	5	25.00	Using index condition; Using where; Using filesort
+Warnings:
+Warning	4217	Hint NO_ROWID_FILTER(`t1` `key_b`) is ignored as conflicting/duplicated
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`) NO_ROWID_FILTER(`t1`@`select#1` `key_b`) NO_ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+EXPLAIN EXTENDED
+SELECT /*+ no_rowid_filter(t1 key_a,key_b) rowid_filter(t1 key_c)*/a FROM t1
+WHERE c < 'e' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	key_b,key_c	key_b|key_c	43|1003	NULL	5 (25%)	25.00	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select /*+ NO_ROWID_FILTER(`t1`@`select#1` `key_a`) NO_ROWID_FILTER(`t1`@`select#1` `key_b`) ROWID_FILTER(`t1`@`select#1` `key_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+# OLEGS: Add wrong names
+#  Add test cases mixing with index hints (probably old-style ones as well)
+# Test interaction with FORCE_INDEX, USE_INDEX hints
+DROP TABLE t1;

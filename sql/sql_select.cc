@@ -6217,8 +6217,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           select->quick=0;
           s->needed_reg=select->needed_reg;
           impossible_range= records == 0 && s->table->reginfo.impossible_range;
-          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
-            s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
+          s->table->init_cost_info_for_usable_range_rowid_filters(join->thd);
         }
         if (!impossible_range)
         {
@@ -9347,7 +9346,7 @@ best_access_path(JOIN      *join,
         Records can be 0 in case of empty tables.
       */
       if ((found_part & 1) && records &&
-          table->can_use_rowid_filter(start_key->key))
+          table->rowid_filter_can_be_applied_to_key(start_key->key))
       {
         /*
           If we use filter F with selectivity s the the cost of fetching data
@@ -9740,7 +9739,7 @@ best_access_path(JOIN      *join,
                                  range->cost.setup_cost,
                                  s->quick->read_time));
 
-        if (table->can_use_rowid_filter(key_no))
+        if (table->rowid_filter_can_be_applied_to_key(key_no))
         {
           filter= table->best_range_rowid_filter(key_no,
                                                  rows2double(range->rows),
