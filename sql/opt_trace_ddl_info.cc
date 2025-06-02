@@ -163,7 +163,11 @@ void store_table_definitions_in_trace(THD *thd)
       Create a list in the reverse order.
     */
     for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+    {
+      if (!tbl->is_view() && !is_base_table(tbl))
+        continue;
       tables_list.push_front(tbl);
+    }
 
     if (tables_list.is_empty() || tables_list.elements == 0)
       return;
@@ -177,9 +181,6 @@ void store_table_definitions_in_trace(THD *thd)
       String name;
       DDL_Key *ddl_key;
       char *name_copy;
-
-      if (!tbl->is_view() && !is_base_table(tbl))
-        continue;
 
       /*
         A query can use the same table multiple times. Do not dump the DDL
