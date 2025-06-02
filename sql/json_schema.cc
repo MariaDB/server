@@ -490,7 +490,7 @@ bool Json_schema_const::handle_keyword(THD *thd,
   mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
                                 &temp_je.stack,
                                  sizeof(int), NULL,
-                                 32, 32, MYF(0));
+                                 JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
   mem_root_dynamic_array_init(current_mem_root, PSI_INSTRUMENT_MEM,
                               &temp_je_arg.stack, sizeof(int), NULL,
                               JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));

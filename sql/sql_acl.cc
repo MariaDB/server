@@ -1805,7 +1805,7 @@ class User_table_json: public User_table
     json_engine_t temp_je;
     MEM_ROOT current_mem_root;
 
-    init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+    init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                     BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
     mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
