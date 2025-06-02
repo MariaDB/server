@@ -61,27 +61,33 @@ static void free_rec(void *entry_)
   my_free(entry);
 }
 
+
 /*
-  Determines whether the tbl is a USER Defined table or not.
-  returns true if tbl is of type json, or schema or system table,
-  or any other type other than belonging to the user category.
+  @brief
+    Check whether a table is a regular base table (for which we should
+    dump the ddl) or not.
+
+  @detail
+    Besides base tables, the query may have:
+     - Table functions (Currently it's only JSON_TABLE)
+     - INFORMATION_SCHEMA tables
+     - Tables in PERFORMANCE_SCHEMA and mysql database
+     - Internal temporary ("work") tables
 */
-static bool is_json_schema_nonuser_table(TABLE_LIST *tbl)
-{
-  if (tbl->table_function || tbl->schema_table)
-    return true;
 
-  return get_table_category(tbl->get_db_name(), tbl->get_table_name()) !=
-             TABLE_CATEGORY_USER ||
-         tbl->table->s->tmp_table == INTERNAL_TMP_TABLE ||
-         tbl->table->s->tmp_table == SYSTEM_TMP_TABLE;
+static bool is_base_table(TABLE_LIST *tbl)
+{
+  return
+    (tbl->table &&
+     tbl->table->s &&
+     !tbl->table_function &&
+     !tbl->schema_table &&
+     get_table_category(tbl->get_db_name(), tbl->get_table_name()) ==
+       TABLE_CATEGORY_USER &&
+     tbl->table->s->tmp_table != INTERNAL_TMP_TABLE &&
+     tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
 
-static bool is_dumpable_tmp_table(TABLE_LIST *tbl)
-{
-  return tbl->table->s->tmp_table == TRANSACTIONAL_TMP_TABLE ||
-         tbl->table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE;
-}
 
 static void dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)
 {
@@ -103,27 +109,36 @@ static void dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)
   my_free(escaped_stmt);
 }
 
-static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
-                            String *view_def)
+
+static void create_view_def(THD *thd, TABLE_LIST *view, String *name,
+                            String *buf)
 {
-  view_def->append(STRING_WITH_LEN("CREATE "));
-  view_store_options(thd, table, view_def);
-  view_def->append(STRING_WITH_LEN("VIEW "));
-  view_def->append(*name);
-  view_def->append(STRING_WITH_LEN(" AS "));
-  view_def->append(table->select_stmt.str, table->select_stmt.length);
+  buf->append(STRING_WITH_LEN("CREATE "));
+  view_store_options(thd, view, buf);
+  buf->append(STRING_WITH_LEN("VIEW "));
+  buf->append(*name);
+  buf->append(STRING_WITH_LEN(" AS "));
+  buf->append(view->select_stmt.str, view->select_stmt.length);
 }
 
+
 /*
-  Stores the ddls of the tables, and views that are used
-  in either SELECT, INSERT, DELETE, and UPDATE queries,
-  into the optimizer trace.
-  Global query_tables are read in reverse order from the thd->lex,
-  and a record with table_name, and ddl of the table are created.
-  Hash is used to store the records, where in no duplicates
-  are stored. dbName_plus_tableName is used as a key to discard any
-  duplicates. If a new record that is created is not in the hash,
-  then that is dumped into the trace.
+  @brief
+    Dump definitions of all tables and view used by the statement into
+    the optimizer trace. The goal is to eventually save everything that
+    is needed to reproduce the query execution
+
+  @detail
+    Stores the ddls of the tables, and views that are used
+    in either SELECT, INSERT, DELETE, and UPDATE queries,
+    into the optimizer trace.
+    Global query_tables are read in reverse order from the thd->lex,
+    and a record with table_name, and ddl of the table are created.
+    Hash is used to store the records, where in no duplicates
+    are stored. db_name.table_name is used as a key to discard any
+    duplicates. If a new record that is created is not in the hash,
+    then that is dumped into the trace.
+
 */
 void store_table_definitions_in_trace(THD *thd)
 {
@@ -143,6 +158,10 @@ void store_table_definitions_in_trace(THD *thd)
     HASH hash;
     List<TABLE_LIST> tables_list;
 
+    /*
+      lex->query_tables lists the VIEWs before their underlying tables.
+      Create a list in the reverse order.
+    */
     for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
       tables_list.push_front(tbl);
 
@@ -159,11 +178,13 @@ void store_table_definitions_in_trace(THD *thd)
       DDL_Key *ddl_key;
       char *name_copy;
 
-      if (!(tbl->is_view() || (tbl->table && tbl->table->s &&
-                               (!is_json_schema_nonuser_table(tbl) ||
-                                is_dumpable_tmp_table(tbl)))))
+      if (!tbl->is_view() && !is_base_table(tbl))
         continue;
 
+      /*
+        A query can use the same table multiple times. Do not dump the DDL
+        multiple times.
+      */
       name.append(tbl->get_db_name().str, tbl->get_db_name().length);
       name.append(STRING_WITH_LEN("."));
       name.append(tbl->get_table_name().str, tbl->get_table_name().length);
