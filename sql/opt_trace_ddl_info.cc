@@ -172,7 +172,7 @@ void store_table_definitions_in_trace(THD *thd)
       tables_list.push_front(tbl);
     }
 
-    if (tables_list.is_empty() || tables_list.elements == 0)
+    if (tables_list.is_empty())
       return;
 
     List_iterator li(tables_list);
@@ -180,8 +180,8 @@ void store_table_definitions_in_trace(THD *thd)
                  0, get_rec_key, free_rec, HASH_UNIQUE);
     for (TABLE_LIST *tbl= li++; tbl; li.remove(), tbl= li++)
     {
-      String ddl;
-      String name;
+      StringBuffer<128> ddl;
+      StringBuffer<64> name;
       DDL_Key *ddl_key;
       char *name_copy;
 
