@@ -47,6 +47,7 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
   {{STRING_WITH_LEN("MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -605,6 +606,54 @@ static bool get_hint_state(Opt_hints *hint,
     DBUG_ASSERT(0);
   }
   return false;
+}
+
+
+/*
+  In addition to indicating the state of a hint, also indicates
+  if the hint is present or not.  Serves to disambiguate cases
+  that the other version of hint_table_state cannot, such as
+  when a hint is forcing a behavior in the optimizer that it
+  would not normally do and the corresponding optimizer switch
+  is enabled.
+
+  @param thd        Current thread connection state
+  @param table_list Table having the hint
+  @param type_arg   The hint kind in question
+
+  @return appropriate value from hint_state enumeration
+          indicating hint enabled/disabled (if present) or
+          if the hint was not present.
+ */
+
+hint_state hint_table_state(const THD *thd,
+                            const TABLE_LIST *table_list,
+                            opt_hints_enum type_arg)
+{
+  if (!table_list->opt_hints_qb)
+    return hint_state::NOT_PRESENT;
+
+  DBUG_ASSERT(!opt_hint_info[type_arg].has_arguments);
+
+  Opt_hints *hint= table_list->opt_hints_table;
+  Opt_hints *parent_hint= table_list->opt_hints_qb;
+
+  if (hint && hint->is_specified(type_arg))
+  {
+    const bool hint_value= hint->get_switch(type_arg);
+    return hint_value ? hint_state::ENABLED :
+                        hint_state::DISABLED;
+  }
+
+  if (opt_hint_info[type_arg].check_upper_lvl &&
+      parent_hint->is_specified(type_arg))
+  {
+    const bool hint_value= parent_hint->get_switch(type_arg);
+    return hint_value ? hint_state::ENABLED :
+                        hint_state::DISABLED;
+  }
+
+  return hint_state::NOT_PRESENT;
 }
 
 

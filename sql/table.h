@@ -2971,6 +2971,11 @@ struct TABLE_LIST
   /* I_S: Flags to open_table (e.g. OPEN_TABLE_ONLY or OPEN_VIEW_ONLY) */
   uint i_s_requested_object;
 
+  /*
+    The [NO_]SPLIT_MATERIALIZED hint will not override this because
+    this is in place for correctness (see Item_func_set_user_var::fix_fields
+    for the rationale).
+  */
   bool prohibit_cond_pushdown;
 
   /*
