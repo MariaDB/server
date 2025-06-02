@@ -71,7 +71,7 @@ select * from t1 where t1.a = 3;
 a	b
 # 
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db1
@@ -224,7 +224,7 @@ FROM t1 AS db1_t1, db2.t1 AS db2_t1
 WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 b
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db1
@@ -254,7 +254,7 @@ FROM db1.t1 AS db1_t1, db2.t1 AS db2_t1
 WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
 b
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db2
@@ -284,7 +284,7 @@ FROM db1.t1 AS t1, mysql.db AS t2
 WHERE t1.a >= 3;
 b
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db2
@@ -316,7 +316,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db1
@@ -351,7 +351,7 @@ insert into t11 values (1, 'one'),(2, 'two');
 select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
 ERROR 42S22: Unknown column 't11.c' in 'WHERE'
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
@@ -383,7 +383,7 @@ select * from t1 partition (p1) where a=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a	a	5	const	49	
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db1
@@ -421,7 +421,7 @@ insert into t1 (a,b,c) values (100,200,400);
 truncate table t1;
 insert delayed into t1 values ();
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db1
@@ -453,7 +453,7 @@ name	address
 abc	address1
 xyz	address2
 set @trace= (select trace from information_schema.optimizer_trace);
-set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.database_used')));
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
 select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
 db_used
 db1

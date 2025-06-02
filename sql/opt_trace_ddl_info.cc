@@ -153,8 +153,11 @@ void store_table_definitions_in_trace(THD *thd)
        lex->sql_command == SQLCOM_UPDATE_MULTI))
   {
     Json_writer_object ddls_wrapper(thd);
-    ddls_wrapper.add("database_used", thd->get_db());
-    Json_writer_array ddl_list(thd, "list_ddls");
+    Json_writer_array ddl_list(thd, "query_tables");
+    {
+      Json_writer_object wrap(thd);
+      ddls_wrapper.add("current_database", thd->get_db());
+    }
     HASH hash;
     List<TABLE_LIST> tables_list;
 
