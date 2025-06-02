@@ -1138,15 +1138,8 @@ static void update_vcol_key_covering(Field *vcol_field)
 {
   Item *item= vcol_field->vcol_info->expr;
   key_map part_of_key;
-  part_of_key.set_all();
+  part_of_key= vcol_field->table->s->keys_for_keyread;
   item->walk(&Item::intersect_field_part_of_key, 1, &part_of_key);
-  /*
-    If no intersection has happened it suggests that the vcol is not
-    dependent on any other field, and there is no need to update its
-    index covering.
-  */
-  if (part_of_key.is_set(MAX_INDEXES - 1))
-    return;
   /*
     Make a "backup" of the "conventional" index covering, which will
     be used to determine whether the vcol value needs to be computed
