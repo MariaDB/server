@@ -1560,7 +1560,7 @@ int Item_func_json_contains::check_contains(json_engine_t *js,
   bool set_js;
   json_engine_t loc_js;
   MEM_ROOT tmp_mem_root;
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &tmp_mem_root, 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &tmp_mem_root, BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
   mem_root_dynamic_array_init(&tmp_mem_root, PSI_INSTRUMENT_MEM,
                               &loc_js.stack, sizeof(int), NULL,
                               JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));

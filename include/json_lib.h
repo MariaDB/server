@@ -8,8 +8,9 @@ extern "C" {
 #endif
 
 #define JSON_DEPTH_DEFAULT 32
-#define JSON_DEPTH_LIMIT JSON_DEPTH_DEFAULT /* Still used in column store. */
+#define JSON_DEPTH_LIMIT 32 /* Still used in columnstore. */
 #define JSON_DEPTH_INC JSON_DEPTH_DEFAULT*100
+
 /*
  Because this array will store approximate two arrays of
  type json_path_step_t and one or two integer arrays,

@@ -2062,12 +2062,12 @@ enum json_types json_type(const char *js, const char *js_end,
   enum json_types return_value;
   MEM_ROOT current_mem_root;
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                   BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
   mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
                               &je.stack, sizeof(int), NULL,
-                              JSON_DEPTH_DEFAULT, 0, MYF(0));
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
   return_value= json_type_int(&je, js, js_end, value, value_len);
 
   free_root(&current_mem_root, MYF(0));
@@ -2120,12 +2120,12 @@ enum json_types json_get_array_item(const char *js, const char *js_end, int n_it
   enum json_types return_value;
   MEM_ROOT current_mem_root;
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                   BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
   mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
                               &je.stack, sizeof(int), NULL,
-                              JSON_DEPTH_DEFAULT, 0, MYF(0));
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
   return_value= json_get_array_item_int(&je, js, js_end, n_item, value, value_len);
 
   free_root(&current_mem_root, MYF(0));
@@ -2204,12 +2204,12 @@ enum json_types json_get_object_key(const char *js, const char *js_end,
   enum json_types return_value;
   MEM_ROOT current_mem_root;
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                   BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
   mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
                               &je.stack, sizeof(int), NULL,
-                              JSON_DEPTH_DEFAULT, 0, MYF(0));
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
   return_value= json_get_object_key_int(&je, js, js_end, key, value, value_len);
 
   free_root(&current_mem_root, MYF(0));
@@ -2232,12 +2232,12 @@ enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
   MEM_ROOT current_mem_root;
   enum json_types return_value;
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                   BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
   mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
                               &je.stack, sizeof(int), NULL,
-                              JSON_DEPTH_DEFAULT, 0, MYF(0));
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
                   (const uchar *) js_end);

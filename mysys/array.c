@@ -440,7 +440,7 @@ int mem_root_dynamic_array_init(MEM_ROOT *current_mem_root,
     DBUG_RETURN(FALSE);
   }
 
-  if (!alloc_increment)
+  if (!alloc_increment && !(my_flags & MY_BUFFER_NO_RESIZE))
   {
     alloc_increment=MY_MAX((8192-MALLOC_OVERHEAD)/element_size,16);
     if (init_alloc > 8 && alloc_increment > init_alloc * 2)
