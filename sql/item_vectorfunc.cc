@@ -184,7 +184,7 @@ bool Item_func_vec_fromtext::fix_length_and_dec(THD *thd)
 {
   mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
                               &je.stack, sizeof(int), NULL,
-                              JSON_DEPTH_DEFAULT, 0, MYF(0));
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   decimals= 0;
   /* Worst case scenario, for a valid input we have a string of the form:

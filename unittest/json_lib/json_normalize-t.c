@@ -51,7 +51,7 @@ test_json_normalize_invalid(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
 
   CHARSET_INFO *cs= &my_charset_utf8mb4_general_ci;
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                   BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
 
   init_dynamic_string(&result, NULL, 0, 0);
@@ -210,7 +210,7 @@ test_json_normalize_non_utf8(json_engine_t *je, MEM_ROOT_DYNAMIC_ARRAY *stack)
   CHARSET_INFO *cs_latin= &my_charset_latin1;
 
   init_dynamic_string(&result, NULL, 0, 0);
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                   BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
   err= json_normalize(&result, utf8, strlen(utf8), cs_utf8, &current_mem_root, je, stack);
   ok(err == 0, "normalize err?");
@@ -255,7 +255,7 @@ main(int argc, char** argv)
   MEM_ROOT_DYNAMIC_ARRAY stack;
   json_engine_t je;
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &current_mem_root,
+  init_alloc_root(PSI_INSTRUMENT_MEM, &current_mem_root,
                     BLOCK_SIZE_JSON_DYN_ARRAY, 0, MYF(0));
   mem_root_dynamic_array_init(&current_mem_root, PSI_INSTRUMENT_MEM,
                               &je.stack,
