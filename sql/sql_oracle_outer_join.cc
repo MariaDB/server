@@ -362,7 +362,8 @@ static void insert_element_after(table_pos *end, table_pos *t,
   DBUG_ASSERT(t->prev == NULL);
   if (end)
   {
-    t->next= end->next;
+    if ((t->next= end->next))
+      end->next->prev= t;
     end->next= t;
     t->prev= end;
   }
@@ -683,32 +684,21 @@ static void dbug_trace_table_list(TABLE_LIST *t)
 
 /**
   @brief
-    Convert Oracle's outer join (+) operators into regular outer join
-    structures
-
-  @param conds             INOUT  The WHERE condition
-  @param select_join_list  INOUT  Top-level join list
+    Init array of graph vertexes
 
   @return
     TRUE   Error
     FALSE  Ok, conversion is either done or not needed.
 */
 
-bool setup_oracle_join(THD *thd, Item **conds,
-                       TABLE_LIST *tables,
-                       SQL_I_List<TABLE_LIST> &select_table_list,
-                       List<TABLE_LIST> *select_join_list)
+static bool init_tables_array(TABLE_LIST *tables,
+                              uint n_tables,
+                              table_pos *tab)
 {
-  DBUG_ENTER("setup_oracle_join");
-  uint n_tables= select_table_list.elements;
-
-  if (!(*conds)->with_ora_join() || n_tables == 0)
-    DBUG_RETURN(FALSE); // no oracle joins
-
-  table_pos *tab= (table_pos *) new(thd->mem_root) table_pos[n_tables];
   table_pos *t= tab;
   TABLE_LIST *table= tables;
   uint i= 0;
+  DBUG_ENTER("init_tables_array");
 
   /*
     Create a graph vertex for each table.
@@ -734,6 +724,39 @@ bool setup_oracle_join(THD *thd, Item **conds,
     t->processed= t->outer_processed= FALSE;
   }
   DBUG_ASSERT(i == n_tables);
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+  @brief
+    Convert Oracle's outer join (+) operators into regular outer join
+    structures
+
+  @param conds             INOUT  The WHERE condition
+  @param select_join_list  INOUT  Top-level join list
+
+  @return
+    TRUE   Error
+    FALSE  Ok, conversion is either done or not needed.
+*/
+
+bool setup_oracle_join(THD *thd, Item **conds,
+                       TABLE_LIST *tables,
+                       SQL_I_List<TABLE_LIST> &select_table_list,
+                       List<TABLE_LIST> *select_join_list)
+{
+  DBUG_ENTER("setup_oracle_join");
+  uint n_tables= select_table_list.elements;
+  uint i= 0;
+
+  if (!(*conds)->with_ora_join() || n_tables == 0)
+    DBUG_RETURN(FALSE); // no oracle joins
+
+  table_pos *tab= (table_pos *) new(thd->mem_root) table_pos[n_tables];
+  if (init_tables_array(tables, n_tables, tab))
+    DBUG_RETURN(TRUE); // mixed with other joins
+
 
   /*
     Process the WHERE clause:
