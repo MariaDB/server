@@ -29,6 +29,7 @@ Clone Plugin: Server implementation
 
 #include "clone_server.h"
 #include "clone_status.h"
+#include "log.h"
 
 #include "my_byteorder.h"
 
@@ -190,11 +191,26 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
       return (err);
     }
   }
-
   /* Send locators back to client */
   err = send_locators();
-
   return (err);
+}
+
+int Server::send_replication_state()
+{
+  /* 1. Get binary log position: Following SQLCOM_SHOW_BINLOG_STAT */
+  if (!mysql_bin_log.is_open())
+    return 0;
+
+  LOG_INFO log_info;
+  mysql_bin_log.get_current_log(&log_info);
+
+  /* 2. Get last executed GTID: Read gtid_current_pos */
+  Key_Values gtid_configs= {{"gtid_current_pos", ""}};
+  auto err= clone_get_configs(get_thd(), static_cast<void *>(&gtid_configs));
+
+  /* 3. TODO: Serialize and send binary log information. */
+  return err;
 }
 
 int Server::get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
@@ -251,6 +267,11 @@ int Server::execute_phase(Sub_Command sub_cmd)
     Server_Cbk clone_callback(this);
     err= hton_clone_copy(get_thd(), get_storage_vector(), m_tasks, exec_stage,
                          &clone_callback);
+  }
+  if (!err && sub_cmd == SUBCOM_EXEC_SNAPSHOT)
+  {
+    assert(m_is_master);
+    err= send_replication_state();
   }
   log_error(get_thd(), false, err, sub_command_str(sub_cmd));
   return err;

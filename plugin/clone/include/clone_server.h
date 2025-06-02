@@ -102,6 +102,10 @@ class Server {
   int get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
                          bool lock);
 
+  /** Send Binary log position and GTID if replication is enabled.
+  @return error code */
+  int send_replication_state();
+
   /** Send descriptor data to remote client
   @param[in,out]	hton		SE handlerton
   @param[in]	secure		validate secure connection
