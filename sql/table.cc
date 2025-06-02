@@ -1137,15 +1137,15 @@ Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
 static void update_vcol_key_covering(Field *vcol_field)
 {
   Item *item= vcol_field->vcol_info->expr;
-  key_map part_of_key;
-  part_of_key= vcol_field->table->s->keys_for_keyread;
+  /* Collect indexes that cover vcol's expression */
+  key_map part_of_key= vcol_field->table->s->keys_for_keyread;
   item->walk(&Item::intersect_field_part_of_key, 1, &part_of_key);
+
+  vcol_field->vcol_direct_part_of_key= vcol_field->part_of_key;
   /*
-    Make a "backup" of the "conventional" index covering, which will
-    be used to determine whether the vcol value needs to be computed
-    in keyread
+    part_of_key includes indexes that cover vcol and also indexes that cover
+    vcol's expression
   */
-  vcol_field->vcol_part_of_key= vcol_field->part_of_key;
   vcol_field->part_of_key.merge(part_of_key);
 }
 
@@ -9307,7 +9307,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
           but can be computed from index columns.
           (TODO: should we also check if it is in the read_set?)
         */
-        update= (!vf->vcol_part_of_key.is_set(h->keyread) &&
+        update= (!vf->vcol_direct_part_of_key.is_set(h->keyread) &&
                  vf->part_of_key.is_set(h->keyread));
       }
       else
