@@ -119,6 +119,13 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_JOIN_PREFIX;
     else if ("JOIN_SUFFIX"_Lex_ident_column.streq(str))
       return TokenID::keyword_JOIN_SUFFIX;
+    else if ("INDEX_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_INDEX_MERGE;
+    break;
+
+  case 14:
+    if ("NO_INDEX_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_INDEX_MERGE;
     break;
 
   case 15:
@@ -466,6 +473,22 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   opt_hints_enum hint_type;
   bool hint_state; // ON or OFF
 
+  /*
+    Intended for the [NO_]INDEX_MERGE hints originally, this is set
+    true when the hint should be set also on the table as well as
+    the index.  However, for such a hint set on the table, the check_parent flag
+    is inverted from this value; that is, if set_also_on_table is
+    true, then check_parent will be false (see below).  This is
+    because the presence of the hint on the table is treated differently
+    than the hint applying to all keys on the table.  For example,
+    INDEX_MERGE(table) means that the hint applies to all keys while
+    INDEX_MERGE(table, k1) means that the hint applies to key k1.  In
+    both cases, however, we set the hint both as an index-level hint and
+    as a table-level hint, but when inspecting it during index_merge_hint,
+    it is given special treatment (see that function for details).
+  */
+  bool set_also_on_table= false;
+
   switch (index_level_hint_type.id())
   {
   case TokenID::keyword_NO_ICP:
@@ -483,6 +506,16 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   case TokenID::keyword_NO_RANGE_OPTIMIZATION:
     hint_type= NO_RANGE_HINT_ENUM;
     hint_state= true;
+    break;
+  case TokenID::keyword_INDEX_MERGE:
+    hint_type= INDEX_MERGE_HINT_ENUM;
+    hint_state= true;
+    set_also_on_table= true;
+    break;
+  case TokenID::keyword_NO_INDEX_MERGE:
+    hint_type= INDEX_MERGE_HINT_ENUM;
+    hint_state= false;
+    set_also_on_table= true;
     break;
   default:
     DBUG_ASSERT(0);
@@ -502,14 +535,16 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (!tab)
     return false;
 
-  if (is_empty())  // Table level hint
+  if (is_empty() || set_also_on_table)  // Table level hint
   {
     if (tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                  &qb_name_sys, &table_name_sys, nullptr, nullptr);
     }
-    return false;
+
+    if (is_empty())
+      return false;
   }
 
   for (const Hint_param_index &index_name : *this)
@@ -523,7 +558,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
       tab->register_child(idx);
     }
 
-    if (idx->set_switch(hint_state, hint_type, true))
+    if (idx->set_switch(hint_state, hint_type, !set_also_on_table))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                  &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
