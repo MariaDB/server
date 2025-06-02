@@ -7,12 +7,6 @@ insert into t3 values (3,2),(10,3),(2,20);
 create table t4 (d int);
 insert into t4 values (3),(1),(20);
 
-#select t1.a, t4.d, t2.b, t3.c from t1 join t4 left join t3 on (t1.a = t3.c and t4.d = t3.c) left join t2 on (t1.a = t2.b and t4.d = t2.b) ;
-#select t1.a, t4.d, t2.b, t3.c
-#  from t1 left join t2 on (t1.a = t2.b)
-#          left join t3 on (t2.b = t3.c)
-#          join t4;
-
 set SQL_MODE= oracle;
 
 select t1.a, t4.d, t2.b, t3.c
