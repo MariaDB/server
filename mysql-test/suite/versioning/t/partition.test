@@ -2767,6 +2767,20 @@ drop table t;
 drop function f;
 
 --echo #
+--echo # MDEV-33370 Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo #            is_bulk_op())' failed after ALTER TABLE of versioned table
+--echo #
+create table t1 (i int) with system versioning
+partition by system_time interval 1 month (
+    partition ver_p1 history,
+    partition ver_p2 history,
+    partition ver_pn current);
+
+--error ER_DATA_OUT_OF_RANGE
+alter table `t1` partition by system_time interval 7 year ;
+drop table t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
 
