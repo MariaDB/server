@@ -98,20 +98,34 @@ append_simple(String *s, const uchar *a, size_t a_len)
   Appends JSON string to the String object taking charsets in
   consideration.
 */
-int st_append_json(String *s,
+bool st_append_json(String *s,
              CHARSET_INFO *json_cs, const uchar *js, uint js_len)
 {
   int str_len= js_len * s->charset()->mbmaxlen;
 
-  if (!s->reserve(str_len, 1024) &&
-      (str_len= json_unescape(json_cs, js, js + js_len,
+  if (s->reserve(str_len, 1024))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), str_len);
+    return false;
+  }
+
+  if ((str_len= json_unescape(json_cs, js, js + js_len,
          s->charset(), (uchar *) s->end(), (uchar *) s->end() + str_len)) > 0)
   {
     s->length(s->length() + str_len);
-    return 0;
+    return false;
+  }
+  if (current_thd)
+  {
+    if (str_len == JSON_ERROR_OUT_OF_SPACE)
+      my_error(ER_OUTOFMEMORY, MYF(0), str_len);
+    else if (str_len == JSON_ERROR_ILLEGAL_SYMBOL)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                          0, "st_append_json", 0);
   }
 
-  return str_len;
+  return true;
 }
 
 
@@ -791,8 +805,12 @@ bool Json_engine_scan::check_and_get_value_scalar(String *res, int *error)
     js_len= value_len;
   }
 
-
-  return st_append_json(res, json_cs, js, js_len);
+  if (st_append_json(res, json_cs, js, js_len))
+  {
+    *error= 1;
+    return true;
+  }
+  return false;
 }
 
 
