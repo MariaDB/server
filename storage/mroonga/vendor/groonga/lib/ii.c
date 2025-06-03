@@ -300,6 +300,8 @@ buffer_segment_new(grn_ctx *ctx, grn_ii *ii, uint32_t *segno)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 buffer_segment_reserve(grn_ctx *ctx, grn_ii *ii,
                        uint32_t *lseg0, uint32_t *pseg0,
@@ -385,6 +387,8 @@ buffer_segment_reserve(grn_ctx *ctx, grn_ii *ii,
   */
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define BGQENQUE(lseg) do {\
   if (ii->header->binfo[lseg] != GRN_II_PSEG_NOT_ASSIGNED) {\
@@ -4529,8 +4533,6 @@ grn_ii_get_disk_usage(grn_ctx *ctx, grn_ii *ii)
 }
 
 
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 #define BIT11_01(x) ((x >> 1) & 0x7ff)
 #define BIT31_12(x) (x >> 12)
 
@@ -4808,7 +4810,6 @@ exit :
   return ctx->rc;
 }
 
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 grn_rc
 grn_ii_delete_one(grn_ctx *ctx, grn_ii *ii, grn_id tid, grn_ii_updspec *u, grn_hash *h)
