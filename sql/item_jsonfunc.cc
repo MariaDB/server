@@ -907,7 +907,7 @@ error:
 String *Item_func_json_unquote::val_str(String *str)
 {
   json_engine_t je;
-  int c_len;
+  int c_len= JSON_ERROR_OUT_OF_SPACE;
   String *js;
 
   if (!(js= read_json(&je)))
@@ -930,7 +930,15 @@ String *Item_func_json_unquote::val_str(String *str)
   return str;
 
 error:
-  report_json_error(js, &je, 0);
+  if (current_thd)
+  {
+    if (c_len == JSON_ERROR_OUT_OF_SPACE)
+      my_error(ER_OUTOFMEMORY, MYF(0), je.value_len);
+    else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                          0, "unquote", 0);
+  }
   return js;
 }
 
@@ -4195,9 +4203,14 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
        {
          if (current_thd)
-           push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                               ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
-                               0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
+         {
+           if (c_len == JSON_ERROR_OUT_OF_SPACE)
+             my_error(ER_OUTOFMEMORY, MYF(0), je.value_len);
+           else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+             push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                                 0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
+         }
          goto error;
        }
 
@@ -4254,10 +4267,15 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
                               (uchar *) (value1.ptr() + value_len))) < 0)
     {
       if (current_thd)
-        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
-                            0, "equality comparison", 0);
-      return 1;
+      {
+        if (c_len == JSON_ERROR_OUT_OF_SPACE)
+          my_error(ER_OUTOFMEMORY, MYF(0), value_len);
+        else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                              0, "equality comparison", 0);
+       }
+       return 1;
     }
     value1.length(c_len);
     res1= &value1;
