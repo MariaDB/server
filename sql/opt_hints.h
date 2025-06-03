@@ -630,6 +630,7 @@ public:
 
 /**
   Auxiliary class for JOIN_INDEX, GROUP_INDEX, ORDER_INDEX hints.
+  See description of `Compound_key_hint` class for more information
 */
 
 class Index_key_hint : public Compound_key_hint
@@ -642,6 +643,7 @@ public:
 
 /**
   Auxiliary class for INDEX hint.
+  See description of `Compound_key_hint` class for more information
 */
 
 class Global_index_key_hint : public Compound_key_hint

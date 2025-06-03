@@ -69,9 +69,9 @@ EXPLAIN EXTENDED SELECT /*+ NO_JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 WHERE b 
 EXPLAIN EXTENDED SELECT /*+ GROUP_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
 --echo # Force i_ab index for JOIN, i_ab loose index scan is used.
 EXPLAIN EXTENDED SELECT /*+ JOIN_INDEX(t1 i_ab) */ a, max(b) FROM t1 GROUP BY a;
---echo # Ignore i_ab for for sorting rows. i_a index is used for sorting.
+--echo # Ignore i_ab for sorting rows. i_a index is used for sorting.
 EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
---echo # Ignore i_a for for sorting rows. i_ab is used for sorting.
+--echo # Ignore i_a for sorting rows. i_ab is used for sorting.
 EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
 --echo # Force i_ab index for sorting rows.
 EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;

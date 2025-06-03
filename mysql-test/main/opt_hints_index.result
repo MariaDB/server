@@ -169,13 +169,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_ab	10	NULL	256	100.00	Using index; Using temporary; Using filesort
 Warnings:
 Note	1003	select /*+ JOIN_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a`,max(`test`.`t1`.`b`) AS `max(b)` from `test`.`t1` group by `test`.`t1`.`a`
-# Ignore i_ab for for sorting rows. i_a index is used for sorting.
+# Ignore i_ab for sorting rows. i_a index is used for sorting.
 EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_ab) */ a FROM t1 ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
 Note	1003	select /*+ NO_ORDER_INDEX(`t1`@`select#1` `i_ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` order by `test`.`t1`.`a`
-# Ignore i_a for for sorting rows. i_ab is used for sorting.
+# Ignore i_a for sorting rows. i_ab is used for sorting.
 EXPLAIN EXTENDED SELECT /*+ NO_ORDER_INDEX(t1 i_a) */ a FROM t1 ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_ab	10	NULL	256	100.00	Using index
