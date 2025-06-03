@@ -3679,7 +3679,7 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           select_n_reserved +
           select_n_having_items +
           select_n_where_fields +
-          order_group_num * 2 +
+          order_group_num +
           hidden_bit_fields +
           fields_in_window_functions + 1;
   return n;
