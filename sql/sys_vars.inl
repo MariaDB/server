@@ -805,6 +805,14 @@ protected:
   bool set_filter_value(const char *value, Master_info *mi);
 };
 
+// No additional functionality all behavior is inherited from Sys_var_rpl_filter to
+// avoid code duplication. This class inherits Sys_var_rpl_filter since setting the
+// global variable should also be dynamic unlike Sys_var_binlog_filter.
+class Sys_var_binlog_dump_filter: public Sys_var_rpl_filter
+{
+  using Sys_var_rpl_filter::Sys_var_rpl_filter;
+};
+
 class Sys_var_binlog_filter: public sys_var
 {
 private:

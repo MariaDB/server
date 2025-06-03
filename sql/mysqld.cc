@@ -666,6 +666,9 @@ THD_list server_threads;
 Rpl_filter* cur_rpl_filter;
 Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
+// Used for writing to the binlog only and filter what is sent to the relay log
+// Unlike binlog_filter which prevents writing to the binlog entirely
+Rpl_filter* binlog_dump_thread_filter;
 
 struct system_variables global_system_variables;
 /**
@@ -2045,6 +2048,7 @@ static void clean_up(bool print_message)
   delete type_handler_data;
   delete binlog_filter;
   delete global_rpl_filter;
+  delete binlog_dump_thread_filter;
   end_ssl();
 #ifndef EMBEDDED_LIBRARY
   vio_end();
@@ -3961,7 +3965,8 @@ static int init_common_variables()
 
   global_rpl_filter= new Rpl_filter;
   binlog_filter= new Rpl_filter;
-  if (!global_rpl_filter || !binlog_filter)
+  binlog_dump_thread_filter = new Rpl_filter;
+  if (!global_rpl_filter || !binlog_filter || !binlog_dump_thread_filter)
   {
     sql_perror("Could not allocate replication and binlog filters");
     exit(1);
@@ -8376,6 +8381,60 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int)OPT_BINLOG_DO_DB:
   {
     binlog_filter->add_do_db(argument);
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_DO_DB:
+  {
+    if (binlog_dump_thread_filter->add_do_db(argument))
+    {
+      sql_print_error("Could not add do db rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_IGNORE_DB:
+  {
+    if (binlog_dump_thread_filter->add_ignore_db(argument))
+    {
+      sql_print_error("Could not add ignore db rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_DO_TABLE:
+  {
+    if (binlog_dump_thread_filter->add_do_table(argument))
+    {
+      sql_print_error("Could not add do table rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_IGNORE_TABLE:
+  {
+    if (binlog_dump_thread_filter->add_ignore_table(argument))
+    {
+      sql_print_error("Could not add ignore table rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_WILD_DO_TABLE:
+  {
+    if (binlog_dump_thread_filter->add_wild_do_table(argument))
+    {
+      sql_print_error("Could not add wild do table rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_WILD_IGNORE_TABLE:
+  {
+    if (binlog_dump_thread_filter->add_wild_ignore_table(argument))
+    {
+      sql_print_error("Could not add wild ignore table rule '%s'", argument);
+      return 1;
+    }
     break;
   }
   case (int)OPT_REPLICATE_DO_TABLE:

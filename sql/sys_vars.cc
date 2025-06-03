@@ -5942,6 +5942,47 @@ static Sys_var_rpl_filter Sys_replicate_rewrite_db(
        "Example: replicate-rewrite-db=master_db_name->slave_db_name",
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_REWRITE_DB);
 
+static Sys_var_binlog_dump_filter Sys_binlog_dump_do_db(
+  "binlog_dump_do_db", OPT_BINLOG_DUMP_DO_DB,
+  "Tells the primary to restrict binlog dump to updates of tables "
+  "whose names appear in the comma-separated list. "
+  "This filtering is applied only at the binlog and is not replicated to the relay log",
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_DO_DB);
+
+static Sys_var_binlog_dump_filter Sys_binlog_dump_ignore_db(
+  "binlog_dump_ignore_db", OPT_BINLOG_DUMP_IGNORE_DB,
+  "Tells the primary to restrict binlog dump to updates of tables "
+  "whose names do not appear in the comma-separated list. "
+  "This filtering is applied only at the binlog and is not replicated to the relay log",
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_IGNORE_DB);
+
+static Sys_var_binlog_dump_filter Sys_binlog_dump_do_table(
+  "binlog_dump_do_table", OPT_BINLOG_DUMP_DO_TABLE,
+  "Tells the primary to restrict binlog dump to tables in the "
+  "comma-separated list. "
+  "This filtering is applied only at the binlog and is not replicated to the relay log",
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_DO_TABLE);
+
+static Sys_var_binlog_dump_filter Sys_binlog_dump_ignore_table(
+  "binlog_dump_ignore_table", OPT_BINLOG_DUMP_IGNORE_TABLE,
+  "Tells the primary not to dump any statement that updates the specified table, "
+  "even if other tables might be updated by the same statement. "
+  "This filtering is applied only at the binlog and is not replicated to the relay log",
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_IGNORE_TABLE);
+
+static Sys_var_binlog_dump_filter Sys_binlog_dump_wild_do_table(
+  "binlog_dump_wild_do_table", OPT_BINLOG_DUMP_WILD_DO_TABLE,
+  "Tells the primary to restrict binlog dump to statements where any of the "
+  "updated tables match the specified database and table name patterns. "
+  "This filtering is applied only at the binlog and is not replicated to the relay log",
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_WILD_DO_TABLE);
+
+static Sys_var_binlog_dump_filter Sys_binlog_dump_wild_ignore_table(
+  "binlog_dump_wild_ignore_table", OPT_BINLOG_DUMP_WILD_IGNORE_TABLE,
+  "Tells the primary not to dump to the tables that match the given wildcard pattern. "
+  "This filtering is applied only at the binlog and is not replicated to the relay log",
+  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_WILD_IGNORE_TABLE);
+
 static Sys_var_rpl_filter Sys_replicate_do_table(
        "replicate_do_table", OPT_REPLICATE_DO_TABLE,
        "Tells the slave to restrict replication to tables in the "
