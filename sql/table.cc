@@ -9300,12 +9300,13 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      if (h->keyread_enabled())
+      if (!bitmap_is_set(read_set, vf->field_index))
+        update= false;
+      else if (h->keyread_enabled())
       {
         /*
           Compute vcol if it is not directly present in the index
           but can be computed from index columns.
-          (TODO: should we also check if it is in the read_set?)
         */
         update= (!vf->vcol_direct_part_of_key.is_set(h->keyread) &&
                  vf->part_of_key.is_set(h->keyread));
@@ -9315,8 +9316,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
         /*
           Compute vcol if it is not stored and marked in the read set.
         */
-        update= (!vcol_info->is_stored() &&
-                 bitmap_is_set(read_set, vf->field_index));
+        update= !vcol_info->is_stored();
       }
       swap_values= 1;
       break;

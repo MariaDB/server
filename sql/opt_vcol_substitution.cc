@@ -200,7 +200,7 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 
 /*
   Substitute vcol expressions with vcol fields in ORDER BY or GROUP
-  BY.
+  BY, and re-initialise affected tables on substitution.
 */
 static
 void subst_vcols_in_order(Vcol_subst_context *ctx,
@@ -219,6 +219,12 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
     if (ctx->subst_count > old_count)
     {
       Item *new_item= *order->item;
+      /*
+        If the old ORDER BY item is a SELECT item, then insert the new
+        item to all_fields and keep it in sync with ref_pointer_array.
+        Otherwise it is safe to replace the old item with the new item
+        in all_fields.
+      */
       if (order->in_field_list)
       {
         uint el= join->all_fields.elements;
@@ -241,6 +247,10 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
             it.replace(new_item);
         }
       }
+      /*
+        Re-initialise index covering of affected tables, which will
+        be re-computed to account for the substitution.
+      */
       TABLE *tab= vcol_field->table;
       tab->covering_keys= tab->s->keys_for_keyread;
       tab->covering_keys.intersect(tab->keys_in_use_for_query);
@@ -258,8 +268,10 @@ void subst_vcols_in_order(Vcol_subst_context *ctx,
 
 /*
   @brief
-    Do substitution for all condition in a JOIN. This is the primary entry
-    point.
+    Do substitution for all condition in a JOIN, and all ORDER BY and
+    GROUP BY items. This is the primary entry point. Recount field
+    types and re-compute index coverings when any substitution has
+    happened in ORDER BY or GROUP BY.
 */
 
 bool substitute_indexed_vcols_for_join(JOIN *join)
