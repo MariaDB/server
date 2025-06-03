@@ -1037,7 +1037,7 @@ inline void buf_pool_t::garbage_collect() noexcept
     mysql_mutex_unlock(&mutex);
     sql_print_information("InnoDB: Memory pressure event disregarded;"
                           " innodb_buffer_pool_size=%zum,"
-                          " innodb_buffer_pool_size_min=%zum",
+                          " innodb_buffer_pool_size_auto_min=%zum",
                           old_size >> 20, min_size >> 20);
     return;
   }
