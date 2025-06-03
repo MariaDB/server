@@ -1067,25 +1067,31 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "temporary_table": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 4,
-        "filtered": 100,
-        "attached_condition": "t1.`id` = 3"
-      },
-      "block-nl-join": {
-        "table": {
-          "table_name": "t",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t.`id` = 3"
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 4,
+            "filtered": 100,
+            "attached_condition": "t1.`id` = 3"
+          }
         },
-        "buffer_type": "flat",
-        "buffer_size": "65",
-        "join_type": "BNL"
-      }
+        {
+          "block-nl-join": {
+            "table": {
+              "table_name": "t",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t.`id` = 3"
+            },
+            "buffer_type": "flat",
+            "buffer_size": "65",
+            "join_type": "BNL"
+          }
+        }
+      ]
     }
   }
 }

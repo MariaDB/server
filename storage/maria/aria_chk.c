@@ -145,7 +145,8 @@ int main(int argc, char **argv)
   {
     if ((ma_control_file_open(FALSE, opt_require_control_file ||
                               !(check_param.testflag & T_SILENT),
-                              TRUE)))
+                              TRUE,
+                              control_file_open_flags)))
     {
       if (opt_require_control_file ||
           (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))
@@ -1593,7 +1594,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     }
     compile_time_assert((MY_UUID_STRING_LENGTH + 1) <= sizeof(buff));
     buff[MY_UUID_STRING_LENGTH]= 0;
-    my_uuid2str(share->base.uuid, buff);
+    my_uuid2str(share->base.uuid, buff, 1);
     printf("UUID:                %s\n", buff);
     if (ma_control_file_inited() &&
         memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))

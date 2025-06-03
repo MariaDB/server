@@ -558,6 +558,9 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_END_ALTER_COPY:
     inspected = "HA_EXTRA_END_ALTER_COPY";
     break;
+  case HA_EXTRA_ABORT_ALTER_COPY:
+    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
+    break;
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";
@@ -591,6 +594,11 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
 #ifdef MRN_HAVE_HA_EXTRA_END_ALTER_COPY
   case HA_EXTRA_END_ALTER_COPY:
     inspected = "HA_EXTRA_END_ALTER_COPY";
+    break;
+#endif
+#ifdef MRN_HAVE_HA_EXTRA_ABORT_ALTER_COPY
+  case HA_EXTRA_ABORT_ALTER_COPY:
+    inspected = "HA_EXTRA_ABORT_ALTER_COPY";
     break;
 #endif
 #ifdef MRN_HAVE_HA_EXTRA_NO_AUTOINC_LOCKING
@@ -3843,6 +3851,14 @@ int ha_mroonga::storage_create_validate_index(TABLE *table)
     KEY *key_info = &(table->s->key_info[i]);
     // must be single column key
     int key_parts = KEY_N_KEY_PARTS(key_info);
+    for (int j = 0; j < key_parts; j++) {
+      if (key_info->key_part[j].key_part_flag & HA_REVERSE_SORT) {
+        GRN_LOG(ctx, GRN_LOG_ERROR, "DESC indexes are not supported");
+        error = ER_CANT_CREATE_TABLE;
+        my_message(error, "DESC indexes are not supported", MYF(0));
+        DBUG_RETURN(error);
+      }
+    }
     if (key_parts != 1) {
       continue;
     }
@@ -4925,8 +4941,7 @@ int ha_mroonga::open(const char *name,
     DBUG_RETURN(error);
   thr_lock_data_init(&share->lock,&thr_lock_data,NULL);
 
-  if (my_bitmap_init(&multiple_column_key_bitmap, NULL, table->s->fields,
-                     false))
+  if (my_bitmap_init(&multiple_column_key_bitmap, NULL, table->s->fields))
   {
     mrn_free_share(share);
     share = NULL;

@@ -15,7 +15,7 @@ DROP TABLE IF EXISTS table_11733 ;
 # so we use a non-SUPER one:
 
 create user test@localhost;
-grant CREATE, SELECT, DROP on *.* to test@localhost;
+grant CREATE, SELECT, DROP, INSERT on *.* to test@localhost;
 
 connect (con1,localhost,test,,test);
 
@@ -50,7 +50,7 @@ disconnect con1;
 #
 # Test 1: read only mode
 create user test@localhost;
-GRANT CREATE, SELECT, DROP ON *.* TO test@localhost;
+GRANT CREATE, SELECT, DROP, LOCK TABLES ON *.* TO test@localhost;
 connect(con1, localhost, test, , test);
 
 connection default;

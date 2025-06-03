@@ -62,7 +62,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("period_add") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
     return FALSE;
@@ -84,7 +84,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("period_diff") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
@@ -105,7 +105,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("to_days") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0; 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
@@ -137,7 +137,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("to_seconds") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0; 
     fix_char_length(12);
@@ -168,7 +168,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("dayofmonth") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0; 
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -197,7 +197,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("month") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
     fix_char_length(2);
@@ -226,7 +226,7 @@ public:
     return name;
   }
   String *val_str(String *str) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool check_partition_func_processor(void *int_arg) override {return TRUE;}
   bool check_valid_arguments_processor(void *int_arg) override
   {
@@ -251,7 +251,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("dayofyear") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
     fix_char_length(3);
@@ -279,7 +279,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("hour") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -307,7 +307,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("minute") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -335,7 +335,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("quarter") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
      decimals=0;
      max_length=1*MY_CHARSET_BIN_MB_MAXLEN;
@@ -363,7 +363,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("second") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -397,7 +397,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("week") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
@@ -434,7 +434,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("yearweek") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
@@ -464,7 +464,7 @@ public:
   }
   enum_monotonicity_info get_monotonicity_info() const override;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     max_length=4*MY_CHARSET_BIN_MB_MAXLEN;
@@ -499,7 +499,7 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
     fix_char_length(1);
@@ -529,7 +529,7 @@ class Item_func_dayname :public Item_str_func
   String *val_str(String *str) override;
   const Type_handler *type_handler() const override
   { return &type_handler_varchar; }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool check_partition_func_processor(void *int_arg) override {return TRUE;}
   bool check_vcol_func_processor(void *arg) override
   {
@@ -600,10 +600,10 @@ public:
       return FALSE;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     fix_length_and_dec_generic(arg_count ?
-                               args[0]->datetime_precision(current_thd) : 0);
+                               args[0]->datetime_precision(thd) : 0);
     return FALSE;
   }
   longlong int_op() override;
@@ -629,9 +629,9 @@ public:
   {
     return !has_time_args();
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    fix_length_and_dec_generic(args[0]->time_precision(current_thd));
+    fix_length_and_dec_generic(args[0]->time_precision(thd));
     return FALSE;
   }
   longlong int_op() override;
@@ -660,7 +660,7 @@ public:
   { return Date(this).to_string(to); }
   my_decimal *val_decimal(my_decimal *to) override
   { return Date(this).to_decimal(to); }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     fix_attributes_date();
     set_maybe_null(arg_count > 0);
@@ -727,7 +727,7 @@ public:
   Item_func_curtime(THD *thd, uint dec): Item_timefunc(thd), last_query_id(0)
   { decimals= dec; }
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { fix_attributes_time(decimals); return FALSE; }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
   /* 
@@ -831,7 +831,7 @@ public:
   Item_func_now(THD *thd, uint dec): Item_datetimefunc(thd), last_query_id(0)
   { decimals= dec; }
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { fix_attributes_datetime(decimals); return FALSE;}
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)=0;
@@ -959,7 +959,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("date_format") };
     return name;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   uint format_length(const String *format);
   bool eq(const Item *item, bool binary_cmp) const override;
   bool check_vcol_func_processor(void *arg) override
@@ -1027,7 +1027,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("to_char") };
     return name;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool parse_format_string(const String *format, uint *fmt_len);
 
   bool check_vcol_func_processor(void *arg) override
@@ -1054,7 +1054,7 @@ class Item_func_from_unixtime :public Item_datetimefunc
     static LEX_CSTRING name= {STRING_WITH_LEN("from_unixtime") };
     return name;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
   bool check_vcol_func_processor(void *arg) override
   {
@@ -1102,9 +1102,9 @@ class Item_func_convert_tz :public Item_datetimefunc
     static LEX_CSTRING name= {STRING_WITH_LEN("convert_tz") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    fix_attributes_datetime(args[0]->datetime_precision(current_thd));
+    fix_attributes_datetime(args[0]->datetime_precision(thd));
     set_maybe_null();
     return FALSE;
   }
@@ -1122,7 +1122,7 @@ class Item_func_sec_to_time :public Item_timefunc
 public:
   Item_func_sec_to_time(THD *thd, Item *item): Item_timefunc(thd, item) {}
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     fix_attributes_time(args[0]->decimals);
     set_maybe_null();
@@ -1152,7 +1152,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("date_add_interval") };
     return name;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool eq(const Item *item, bool binary_cmp) const override;
   void print(String *str, enum_query_type query_type) override;
   enum precedence precedence() const override { return INTERVAL_PRECEDENCE; }
@@ -1223,7 +1223,7 @@ class Item_extract :public Item_int_func,
     return name;
   }
   bool check_arguments() const override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   bool eq(const Item *item, bool binary_cmp) const override;
   void print(String *str, enum_query_type query_type) override;
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -1310,7 +1310,7 @@ public:
   void fix_length_and_dec_numeric();
   void fix_length_and_dec_str();
   void fix_length_and_dec_native_to_binary(uint32 octet_length);
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     return args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);
   }
@@ -1353,7 +1353,7 @@ public:
     print_cast_temporal(str, query_type);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     return args[0]->type_handler()->Item_date_typecast_fix_length_and_dec(this);
   }
@@ -1377,7 +1377,7 @@ public:
     print_cast_temporal(str, query_type);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     return args[0]->type_handler()->
            Item_time_typecast_fix_length_and_dec(this);
@@ -1403,7 +1403,7 @@ public:
     print_cast_temporal(str, query_type);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     return args[0]->type_handler()->
            Item_datetime_typecast_fix_length_and_dec(this);
@@ -1448,9 +1448,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("timestamp") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    THD *thd= current_thd;
     uint dec0= args[0]->datetime_precision(thd);
     uint dec1= Interval_DDhhmmssff::fsp(thd, args[1]);
     fix_attributes_datetime(MY_MAX(dec0, dec1));
@@ -1494,7 +1493,7 @@ public:
   Item_func_add_time(THD *thd, Item *a, Item *b, bool neg_arg)
    :Item_handled_func(thd, a, b), sign(neg_arg ? -1 : 1)
   { }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING addtime= { STRING_WITH_LEN("addtime") };
@@ -1517,9 +1516,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("timediff") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    THD *thd= current_thd;
     uint dec= MY_MAX(args[0]->time_precision(thd),
                      args[1]->time_precision(thd));
     fix_attributes_time(dec);
@@ -1542,7 +1540,7 @@ public:
   Item_func_maketime(THD *thd, Item *a, Item *b, Item *c):
     Item_timefunc(thd, a, b, c)
   {}
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     fix_attributes_time(args[2]->decimals);
     set_maybe_null();
@@ -1569,7 +1567,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("microsecond") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     set_maybe_null();
@@ -1604,7 +1602,7 @@ public:
     return name;
   }
   longlong val_int() override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals=0;
     set_maybe_null();
@@ -1634,7 +1632,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("get_format") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     set_maybe_null();
     decimals=0;
@@ -1665,7 +1663,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("str_to_date") };
     return name;
   }
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_str_to_date>(thd, this); }
 };

@@ -205,7 +205,7 @@ let $message= Testcase 3.5.3.7b:;
 	grant UPDATE on priv_db.* to test_yesprivs@localhost;
 	show grants for test_yesprivs@localhost;
 
-	connect (no_privs_424b,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+	connect (no_privs_424b,localhost,test_noprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK);
 	connect (yes_privs_424b,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 	connection default;
 

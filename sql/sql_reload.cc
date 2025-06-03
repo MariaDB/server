@@ -426,7 +426,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
        /* If not default connection and 'all' is used */
        mi->release();
        mysql_mutex_lock(&LOCK_active_mi);
-       if (master_info_index->remove_master_info(mi))
+       if (master_info_index->remove_master_info(mi, 0))
          result= 1;
        mysql_mutex_unlock(&LOCK_active_mi);
      }

@@ -473,6 +473,7 @@ static int get_options(int *argc, char ***argv)
     printf("Unsupported character set: %s\n", default_charset);
     DBUG_RETURN(1);
   }
+  my_set_console_cp(default_charset);
   if (*argc > 0 && opt_alldbs)
   {
     printf("You should give only options, no arguments at all, with option\n");

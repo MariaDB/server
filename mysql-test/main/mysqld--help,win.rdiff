@@ -1,6 +1,6 @@
---- a/mysql-test/main/mysqld--help.result
-+++ b/mysql-test/main/mysqld--help.result
-@@ -180,6 +180,7 @@ The following specify which files/extra groups are read (specified before remain
+--- main/mysqld--help.result
++++ main/mysqld--help,win.reject
+@@ -191,6 +191,7 @@
   --console           Write error output on screen; don't remove the console
   window on windows.
   --core-file         Write core on crashes
@@ -8,7 +8,7 @@
   -h, --datadir=name  Path to the database root directory
   --date-format=name  The DATE format (ignored)
   --datetime-format=name 
-@@ -649,6 +650,7 @@ The following specify which files/extra groups are read (specified before remain
+@@ -695,6 +696,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
@@ -16,10 +16,10 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -1280,6 +1282,10 @@ The following specify which files/extra groups are read (specified before remain
-  Log slow queries to given log file. Defaults logging to
-  'hostname'-slow.log. Must be enabled to activate other
-  slow log options
+@@ -1375,6 +1377,10 @@
+  Alias for log_slow_query_file. Log slow queries to given
+  log file. Defaults logging to 'hostname'-slow.log. Must
+  be enabled to activate other slow log options
 + --slow-start-timeout=# 
 + Maximum number of milliseconds that the service control
 + manager should wait before trying to kill the windows
@@ -27,7 +27,7 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1304,6 +1310,7 @@ The following specify which files/extra groups are read (specified before remain
+@@ -1400,6 +1406,7 @@
   deleting or updating every row in a table.
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
@@ -35,7 +35,7 @@
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1379,6 +1386,12 @@ The following specify which files/extra groups are read (specified before remain
+@@ -1478,6 +1485,12 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
@@ -48,7 +48,7 @@
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
   allowed.
-@@ -1417,8 +1430,8 @@ The following specify which files/extra groups are read (specified before remain
+@@ -1517,8 +1530,8 @@
   automatically convert it to an on-disk MyISAM or Aria
   table.
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -59,7 +59,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1633,6 +1646,7 @@ myisam-sort-buffer-size 134216704
+@@ -1740,6 +1753,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -67,7 +67,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1787,6 +1801,7 @@ slave-transaction-retry-interval 0
+@@ -1900,6 +1914,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -75,7 +75,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  sql-safe-updates FALSE
-@@ -1813,6 +1828,8 @@ thread-pool-dedicated-listener FALSE
+@@ -1927,6 +1942,8 @@
  thread-pool-exact-stats FALSE
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536

@@ -251,4 +251,8 @@ connection master;
 -- SET GLOBAL gtid_slave_pos='0-1-1005';
 connection slave;
 include/start_slave.inc
+connection master;
+connection slave;
+connection master;
+FOUND 1 matches in MDEV-33212.sql
 include/rpl_end.inc

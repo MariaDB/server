@@ -8,11 +8,38 @@
 --let $node_2=node_2
 --source include/auto_increment_offset_save.inc
 
+--connection node_1
+select @@innodb_undo_tablespaces;
+
+--connection node_2
+select @@innodb_undo_tablespaces;
+
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
 
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+--connection node_2
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+select @@innodb_undo_tablespaces;
+
+call mtr.add_suppression("InnoDB: Cannot change innodb_undo_tablespaces=3 because previous shutdown was not with innodb_fast_shutdown=0");
 
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc

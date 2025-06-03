@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-INSTALL-DB\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-INSTALL-DB\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -335,6 +335,21 @@ root
 to use this option\&. By default,
 \fBmysqld\fR
 runs using your current login name and files and directories that it creates will be owned by you\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_install_db: extra-file option
+.\" extra-file option: mysql_install_db
+\fB\-\-extra-file=\fR\fB\fIfile_path\fR\fR
+.sp
+Add user defined SQL file, to be executed following regular database initialization.
 .RE
 .sp
 .RS 4

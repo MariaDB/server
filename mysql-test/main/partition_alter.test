@@ -126,7 +126,7 @@ alter table t1 drop primary key, drop column x, add primary key (pk);
 select * from t1 partition (p0);
 drop table t1;
 
-create or replace table t1 (pk int not null, x timestamp(6), unique u(pk, x)) engine innodb
+create or replace table t1 (pk int not null, x timestamp(6) not null, unique u(pk, x)) engine innodb
 partition by key() partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 --echo # Same for NOT NULL UNIQUE KEY as this is actually primary key
@@ -136,7 +136,7 @@ alter table t1 drop key u, drop column x, add unique (pk);
 select * from t1 partition (p0);
 drop table t1;
 
-create or replace table t1 (pk int, x timestamp(6), primary key (pk)) engine innodb
+create or replace table t1 (pk int, x timestamp(6) not null, primary key (pk)) engine innodb
 partition by key(pk) partitions 2;
 insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
 --echo # Inplace for DROP PRIMARY KEY when partitioned by explicit field list is allowed
@@ -274,3 +274,52 @@ delete from t order by b limit 1;
 drop table t;
 
 --echo # End of 10.5 tests
+
+create or replace table t1 (x int primary key)
+partition by range(x) (
+  p1 values less than (10),
+  partition p2 values less than (20),
+  p3 values less than (30),
+  partition p4 values less than (40),
+  p5 values less than (50),
+  pn values less than maxvalue);
+
+show create table t1;
+
+create or replace table t1 (x int)
+partition by list(x) (
+  partition p1 values in (2, 3, 4),
+  partition p2 values in (12, 13, 14),
+  partition p3 values in (22, 23, 24),
+  p4 values in (32, 33, 34),
+  p5 values in (42, 43, 44),
+  pn values in (52, 53, 54));
+
+show create table t1;
+
+--error ER_PARSE_ERROR
+create or replace table t1 (x int)
+partition by list(x) (
+  partition partition p1 values in (2, 3, 4),
+  pn values in (52, 53, 54));
+
+--error ER_PARSE_ERROR
+create or replace table t1 (x int)
+partition by list(x) (
+  partition partition values in (2, 3, 4),
+  pn values in (52, 53, 54));
+
+--error ER_PARSE_ERROR
+create or replace table t1 (x int)
+partition by list(x) (
+  partition values in (2, 3, 4),
+  pn values in (52, 53, 54));
+
+create or replace table t1 (x int)
+partition by list(x) (
+  partitio values in (2, 3, 4),
+  pn values in (52, 53, 54));
+
+drop table t1;
+
+--echo # End of 10.7 tests

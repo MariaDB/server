@@ -1434,12 +1434,16 @@ int main(int argc, char **argv)
     tests_to_run[i]= NULL;
   }
 
-#ifdef _WIN32
-  /* must be the same in C/C and embedded, 1208 on 64bit, 968 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 60*sizeof(void*)+728);
-#else
-  /* must be the same in C/C and embedded, 1272 on 64bit, 964 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 77*sizeof(void*)+656);
+/*
+  this limited check is enough, if sizeof(MYSQL) changes, it changes
+  everywhere
+*/
+#if defined _M_AMD64
+  compile_time_assert(sizeof(MYSQL) == 1208);
+#elif defined __x86_64__
+  compile_time_assert(sizeof(MYSQL) == 1272);
+#elif defined __i386__
+  compile_time_assert(sizeof(MYSQL) == 964);
 #endif
 
   if (mysql_server_init(embedded_server_arg_count,

@@ -1,5 +1,5 @@
 /* Copyright (c) 2013, Kristian Nielsen and MariaDB Services Ab.
-   Copyright (c) 2020, MariaDB Corporation.
+   Copyright (c) 2020, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,9 @@
 
 
 /* Definitions for MariaDB global transaction ID (GTID). */
+#include <type_traits>
 
+#ifndef MYSQL_CLIENT
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
@@ -24,7 +26,6 @@
 #include "sql_base.h"
 #include "sql_parse.h"
 #include "key.h"
-#include "rpl_gtid.h"
 #include "rpl_rli.h"
 #include "slave.h"
 #include "log_event.h"
@@ -247,8 +248,9 @@ rpl_slave_state::rpl_slave_state()
 {
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);
-  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE);
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(element, domain_id), sizeof(element::domain_id),
+               NULL, rpl_slave_state_free_element, HASH_UNIQUE);
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid),
                         8, 8, MYF(0));
 }
@@ -376,7 +378,8 @@ rpl_slave_state::get_element(uint32 domain_id)
 {
   struct element *elem;
 
-  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                  sizeof(domain_id));
   if (elem)
     return elem;
 
@@ -412,7 +415,8 @@ rpl_slave_state::put_back_list(list_element *list)
     list_element *next= list->next;
 
     if ((!e || e->domain_id != list->domain_id) &&
-        !(e= (element *)my_hash_search(&hash, (const uchar *)&list->domain_id, 0)))
+        !(e= (element *)my_hash_search(&hash, (const uchar *)&list->domain_id,
+                                       sizeof(list->domain_id))))
     {
       err= 1;
       goto end;
@@ -614,6 +618,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   wait_for_commit* suspended_wfc;
   void *hton= NULL;
   LEX_CSTRING gtid_pos_table_name;
+  TABLE *tbl= nullptr;
+  MDL_savepoint m_start_of_statement_svp(thd->mdl_context.mdl_savepoint());
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -632,6 +638,18 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if (!in_statement)
     thd->reset_for_next_command();
 
+  if (thd->rgi_slave && (thd->rgi_slave->gtid_ev_flags_extra &
+                         Gtid_log_event::FL_START_ALTER_E1))
+  {
+    /*
+     store the open table table list in ptr, so that is close_thread_tables
+     is called start alter tables are not closed
+    */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    tbl= thd->open_tables;
+    thd->open_tables= nullptr;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   /*
     Only the SQL thread can call select_gtid_pos_table without a mutex
     Other threads needs to use a mutex and take into account that the
@@ -733,12 +751,23 @@ end:
   {
     if (err || (err= ha_commit_trans(thd, FALSE)))
       ha_rollback_trans(thd, FALSE);
-
     close_thread_tables(thd);
-    if (in_transaction)
-      thd->mdl_context.release_statement_locks();
-    else
-      thd->release_transactional_locks();
+    if (!thd->rgi_slave || !(thd->rgi_slave->gtid_ev_flags_extra &
+                             Gtid_log_event::FL_START_ALTER_E1))
+    {
+      if (in_transaction)
+        thd->mdl_context.release_statement_locks();
+      else
+        thd->release_transactional_locks();
+    }
+  }
+  if (thd->rgi_slave &&
+      thd->rgi_slave->gtid_ev_flags_extra & Gtid_log_event::FL_START_ALTER_E1)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    thd->open_tables= tbl;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    thd->mdl_context.rollback_to_savepoint(m_start_of_statement_svp);
   }
 
 #ifdef WITH_WSREP
@@ -1109,8 +1138,8 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
   bool locked= false;
 
   my_hash_init(PSI_INSTRUMENT_ME, &gtid_hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, NULL,
-               HASH_UNIQUE);
+               offsetof(rpl_gtid, domain_id), sizeof(rpl_gtid::domain_id),
+               NULL, NULL, HASH_UNIQUE);
   for (i= 0; i < num_extra; ++i)
     if (extra_gtids[i].server_id == global_system_variables.server_id &&
         my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
@@ -1145,7 +1174,8 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
     }
 
     /* Check if we have something newer in the extra list. */
-    rec= my_hash_search(&gtid_hash, (const uchar *)&best_gtid.domain_id, 0);
+    rec= my_hash_search(&gtid_hash, (const uchar *)&best_gtid.domain_id,
+                        sizeof(best_gtid.domain_id));
     if (rec)
     {
       gtid= (rpl_gtid *)rec;
@@ -1245,7 +1275,8 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
   uint64 best_sub_id;
 
   mysql_mutex_lock(&LOCK_slave_state);
-  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                  sizeof(domain_id));
   if (!elem || !(list= elem->list))
   {
     mysql_mutex_unlock(&LOCK_slave_state);
@@ -1270,6 +1301,7 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
   return true;
 }
 
+#endif
 
 /*
   Parse a GTID at the start of a string, and update the pointer to point
@@ -1306,7 +1338,6 @@ gtid_parser_helper(const char **ptr, const char *end, rpl_gtid *out_gtid)
   *ptr= q;
   return 0;
 }
-
 
 rpl_gtid *
 gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
@@ -1346,6 +1377,7 @@ gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
   return list;
 }
 
+#ifndef MYSQL_CLIENT
 
 /*
   Update the slave replication state with the GTID position obtained from
@@ -1480,8 +1512,9 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
 
 void rpl_binlog_state::init()
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(element, domain_id), sizeof(element::domain_id),
+               NULL, my_free, HASH_UNIQUE);
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
@@ -1583,7 +1616,8 @@ rpl_binlog_state::update_nolock(const struct rpl_gtid *gtid, bool strict)
   element *elem;
 
   if ((elem= (element *)my_hash_search(&hash,
-                                       (const uchar *)(&gtid->domain_id), 0)))
+                                       (const uchar *)(&gtid->domain_id),
+                                       sizeof(gtid->domain_id))))
   {
     if (strict && elem->last_gtid && elem->last_gtid->seq_no >= gtid->seq_no)
     {
@@ -1631,7 +1665,8 @@ rpl_binlog_state::update_with_next_gtid(uint32 domain_id, uint32 server_id,
   gtid->server_id= server_id;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
+  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id),
+                                       sizeof(domain_id))))
   {
     gtid->seq_no= ++elem->seq_no_counter;
     if (!elem->update_element(gtid))
@@ -1670,7 +1705,8 @@ rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
   }
 
   lookup_gtid= (rpl_gtid *)
-    my_hash_search(&hash, (const uchar *)&gtid->server_id, 0);
+    my_hash_search(&hash, (const uchar *)&gtid->server_id,
+                           sizeof(gtid->server_id));
   if (lookup_gtid)
   {
     lookup_gtid->seq_no= gtid->seq_no;
@@ -1708,8 +1744,8 @@ rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
   {
     elem->domain_id= gtid->domain_id;
     my_hash_init(PSI_INSTRUMENT_ME, &elem->hash, &my_charset_bin, 32,
-                 offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-                 HASH_UNIQUE);
+                 offsetof(rpl_gtid, server_id), sizeof(rpl_gtid::domain_id),
+                 NULL, my_free, HASH_UNIQUE);
     elem->last_gtid= lookup_gtid;
     elem->seq_no_counter= gtid->seq_no;
     memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
@@ -1744,7 +1780,8 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
 
   mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash,
-                                       (const uchar *)(&domain_id), 0)) &&
+                                       (const uchar *)(&domain_id),
+                                       sizeof(domain_id))) &&
       elem->last_gtid && elem->last_gtid->seq_no >= seq_no)
   {
     if (!no_error)
@@ -1772,7 +1809,8 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   int res;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
+  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id),
+                                       sizeof(domain_id))))
   {
     if (elem->seq_no_counter < seq_no)
       elem->seq_no_counter= seq_no;
@@ -1790,8 +1828,8 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
 
   elem->domain_id= domain_id;
   my_hash_init(PSI_INSTRUMENT_ME, &elem->hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
+               offsetof(rpl_gtid, server_id), sizeof(rpl_gtid::server_id),
+               NULL, my_free, HASH_UNIQUE);
   elem->last_gtid= NULL;
   elem->seq_no_counter= seq_no;
   if (0 == my_hash_insert(&hash, (const uchar *)elem))
@@ -1895,9 +1933,11 @@ rpl_gtid *
 rpl_binlog_state::find_nolock(uint32 domain_id, uint32 server_id)
 {
   element *elem;
-  if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+  if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                        sizeof(domain_id))))
     return NULL;
-  return (rpl_gtid *)my_hash_search(&elem->hash, (const uchar *)&server_id, 0);
+  return (rpl_gtid *)my_hash_search(&elem->hash, (const uchar *)&server_id,
+                                    sizeof(server_id));
 }
 
 rpl_gtid *
@@ -1917,7 +1957,8 @@ rpl_binlog_state::find_most_recent(uint32 domain_id)
   rpl_gtid *gtid= NULL;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                  sizeof(domain_id));
   if (elem && elem->last_gtid)
     gtid= elem->last_gtid;
   mysql_mutex_unlock(&LOCK_binlog_state);
@@ -2171,22 +2212,21 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
   /*
     For each domain_id from ids
-      when no such domain in binlog state
-        warn && continue
-      For each domain.server's last gtid
-        when not locate the last gtid in glev.list
-          error out binlog state can't change
-        otherwise continue
+      If the domain is already absent from the binlog state
+        Warn && continue
+      If any GTID with that domain in binlog state is missing from glev.list
+        Error out binlog state can't change
   */
   for (ulong i= 0; i < ids->elements; i++)
   {
     rpl_binlog_state::element *elem= NULL;
     uint32 *ptr_domain_id;
-    bool not_match;
+    bool all_found;
 
     ptr_domain_id= (uint32*) dynamic_array_ptr(ids, i);
     elem= (rpl_binlog_state::element *)
-      my_hash_search(&hash, (const uchar *) ptr_domain_id, 0);
+      my_hash_search(&hash, (const uchar *) ptr_domain_id,
+                     sizeof(ptr_domain_id[0]));
     if (!elem)
     {
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -2196,14 +2236,18 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
       continue;
     }
 
-    for (not_match= true, k= 0; k < elem->hash.records; k++)
+    all_found= true;
+    for (k= 0; k < elem->hash.records && all_found; k++)
     {
       rpl_gtid *d_gtid= (rpl_gtid *)my_hash_element(&elem->hash, k);
-      for (ulong l= 0; l < glev->count && not_match; l++)
-        not_match= !(*d_gtid == glev->list[l]);
+      bool match_found= false;
+      for (ulong l= 0; l < glev->count && !match_found; l++)
+        match_found= match_found || (*d_gtid == glev->list[l]);
+      if (!match_found)
+        all_found= false;
     }
 
-    if (not_match)
+    if (!all_found)
     {
       sprintf(errbuf, "binlog files may contain gtids from the domain ('%u') "
               "being deleted. Make sure to first purge those files",
@@ -2247,7 +2291,7 @@ slave_connection_state::slave_connection_state()
 {
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+               sizeof(rpl_gtid::domain_id), NULL, my_free, HASH_UNIQUE);
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
 }
 
@@ -2302,7 +2346,8 @@ slave_connection_state::load(const char *slave_request, size_t len)
       return 1;
     }
     if ((e= (const entry *)
-         my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0)))
+         my_hash_search(&hash, (const uchar *)(&gtid->domain_id),
+                        sizeof(gtid->domain_id))))
     {
       my_error(ER_DUPLICATE_GTID_DOMAIN, MYF(0), gtid->domain_id,
                gtid->server_id, (ulonglong)gtid->seq_no, e->gtid.domain_id,
@@ -2369,7 +2414,8 @@ slave_connection_state::load(rpl_slave_state *state,
 slave_connection_state::entry *
 slave_connection_state::find_entry(uint32 domain_id)
 {
-  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id), 0);
+  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id),
+                                  sizeof(domain_id));
 }
 
 
@@ -2387,7 +2433,8 @@ int
 slave_connection_state::update(const rpl_gtid *in_gtid)
 {
   entry *e;
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
   if (rec)
   {
     e= (entry *)rec;
@@ -2412,7 +2459,8 @@ slave_connection_state::update(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove(const rpl_gtid *in_gtid)
 {
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
 #ifdef DBUG_ASSERT_EXISTS
   bool err;
   rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
@@ -2429,7 +2477,8 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
 {
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
   if (rec)
     my_hash_delete(&hash, rec);
 }
@@ -2873,7 +2922,8 @@ void
 gtid_waiting::init()
 {
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
-               offsetof(hash_element, domain_id), sizeof(uint32), NULL,
+               offsetof(hash_element, domain_id),
+               sizeof(hash_element::domain_id), NULL,
                free_hash_element, HASH_UNIQUE);
   mysql_mutex_init(key_LOCK_gtid_waiting, &LOCK_gtid_waiting, 0);
 }
@@ -2906,7 +2956,8 @@ gtid_waiting::get_entry(uint32 domain_id)
 {
   hash_element *e;
 
-  if ((e= (hash_element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+  if ((e= (hash_element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                         sizeof(domain_id))))
     return e;
 
   if (!(e= (hash_element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*e), MYF(MY_WME))))
@@ -2955,4 +3006,1026 @@ gtid_waiting::remove_from_wait_queue(gtid_waiting::hash_element *he,
   mysql_mutex_assert_owner(&LOCK_gtid_waiting);
 
   queue_remove(&he->queue, elem->queue_idx);
+}
+
+#endif
+
+void free_domain_lookup_element(void *p)
+{
+  struct Binlog_gtid_state_validator::audit_elem *audit_elem=
+      (struct Binlog_gtid_state_validator::audit_elem *) p;
+  delete_dynamic(&audit_elem->late_gtids_previous);
+  delete_dynamic(&audit_elem->late_gtids_real);
+  my_free(audit_elem);
+}
+
+Binlog_gtid_state_validator::Binlog_gtid_state_validator()
+{
+  my_hash_init(PSI_INSTRUMENT_ME, &m_audit_elem_domain_lookup, &my_charset_bin, 32,
+               offsetof(struct audit_elem, domain_id), sizeof(uint32),
+               NULL, free_domain_lookup_element, HASH_UNIQUE);
+}
+
+Binlog_gtid_state_validator::~Binlog_gtid_state_validator()
+{
+  my_hash_free(&m_audit_elem_domain_lookup);
+}
+
+void Binlog_gtid_state_validator::initialize_start_gtids(rpl_gtid *start_gtids,
+                                                         size_t n_gtids)
+{
+  size_t i;
+  for(i= 0; i < n_gtids; i++)
+  {
+    rpl_gtid *domain_state_gtid= &start_gtids[i];
+
+    /*
+      If we are initializing from a GLLE, we can have repeat domain ids from
+      differing servers, so we want to ensure our start gtid matches the last
+      known position
+    */
+    struct audit_elem *audit_elem= (struct audit_elem *) my_hash_search(
+        &m_audit_elem_domain_lookup,
+        (const uchar *) &(domain_state_gtid->domain_id), 0);
+    if (audit_elem)
+    {
+      /*
+        We have this domain already specified, so try to overwrite with the
+        more recent GTID
+      */
+      if (domain_state_gtid->seq_no > audit_elem->start_gtid.seq_no)
+        audit_elem->start_gtid = *domain_state_gtid;
+      continue;
+    }
+
+    /* Initialize a new domain */
+    audit_elem= (struct audit_elem *) my_malloc(
+        PSI_NOT_INSTRUMENTED, sizeof(struct audit_elem), MYF(MY_WME));
+    if (!audit_elem)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return;
+    }
+
+    audit_elem->domain_id= start_gtids[i].domain_id;
+    audit_elem->start_gtid= start_gtids[i];
+    audit_elem->last_gtid= {audit_elem->domain_id, 0, 0};
+
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &audit_elem->late_gtids_real,
+                          sizeof(rpl_gtid), 8, 8, MYF(0));
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &audit_elem->late_gtids_previous,
+                          sizeof(rpl_gtid), 8, 8, MYF(0));
+
+    if (my_hash_insert(&m_audit_elem_domain_lookup, (uchar *) audit_elem))
+    {
+      my_free(audit_elem);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return;
+    }
+  }
+}
+
+my_bool Binlog_gtid_state_validator::initialize_gtid_state(FILE *out,
+                                                           rpl_gtid *gtids,
+                                                           size_t n_gtids)
+{
+  size_t i;
+  my_bool err= FALSE;
+
+  /*
+    We weren't initialized with starting positions explicitly, so assume the
+    starting positions of the current gtid state
+  */
+  if (!m_audit_elem_domain_lookup.records)
+    initialize_start_gtids(gtids, n_gtids);
+
+  for(i= 0; i < n_gtids; i++)
+  {
+    rpl_gtid *domain_state_gtid= &gtids[i];
+
+    struct audit_elem *audit_elem= (struct audit_elem *) my_hash_search(
+        &m_audit_elem_domain_lookup,
+        (const uchar *) &(domain_state_gtid->domain_id), 0);
+
+    if (!audit_elem)
+    {
+      Binlog_gtid_state_validator::error(
+          out,
+          "Starting GTID position list does not specify an initial value "
+          "for domain %u, whose events may be present in the requested binlog "
+          "file(s). The last known position for this domain was %u-%u-%llu.",
+          domain_state_gtid->domain_id, PARAM_GTID((*domain_state_gtid)));
+      err= TRUE;
+      continue;
+    }
+
+    if (audit_elem->start_gtid.seq_no < domain_state_gtid->seq_no)
+    {
+      Binlog_gtid_state_validator::error(
+          out,
+          "Binary logs are missing data for domain %u. Expected data to "
+          "start from state %u-%u-%llu; however, the initial GTID state of "
+          "the logs was %u-%u-%llu.",
+          domain_state_gtid->domain_id, PARAM_GTID(audit_elem->start_gtid),
+          PARAM_GTID((*domain_state_gtid)));
+      err= TRUE;
+      continue;
+    }
+
+    if (domain_state_gtid->seq_no > audit_elem->last_gtid.seq_no)
+      audit_elem->last_gtid= *domain_state_gtid;
+  }
+  return err;
+}
+
+my_bool Binlog_gtid_state_validator::verify_stop_state(FILE *out,
+                                                       rpl_gtid *stop_gtids,
+                                                       size_t n_stop_gtids)
+{
+  size_t i;
+  for(i= 0; i < n_stop_gtids; i++)
+  {
+    rpl_gtid *stop_gtid= &stop_gtids[i];
+
+    struct audit_elem *audit_elem= (struct audit_elem *) my_hash_search(
+        &m_audit_elem_domain_lookup,
+        (const uchar *) &(stop_gtid->domain_id), 0);
+
+    /*
+      It is okay if stop gtid doesn't exist in current state because it will be treated
+      as a new domain
+    */
+    if (audit_elem && stop_gtid->seq_no <= audit_elem->start_gtid.seq_no)
+    {
+      Binlog_gtid_state_validator::error(
+          out,
+          "--stop-position GTID %u-%u-%llu does not exist in the "
+          "specified binlog files. The current GTID state of domain %u in the "
+          "specified binary logs is %u-%u-%llu",
+          PARAM_GTID((*stop_gtid)), stop_gtid->domain_id,
+          PARAM_GTID(audit_elem->start_gtid));
+      return TRUE;
+    }
+  }
+
+  /* No issues with any GTIDs */
+  return FALSE;
+}
+
+my_bool
+Binlog_gtid_state_validator::verify_gtid_state(FILE *out,
+                                               rpl_gtid *domain_state_gtid)
+{
+  struct audit_elem *audit_elem= (struct audit_elem *) my_hash_search(
+      &m_audit_elem_domain_lookup,
+      (const uchar *) &(domain_state_gtid->domain_id), 0);
+
+  if (!audit_elem)
+  {
+    Binlog_gtid_state_validator::warn(
+        out,
+        "Binary logs are missing data for domain %u. The current binary log "
+        "specified its "
+        "current state for this domain as %u-%u-%llu, but neither the "
+        "starting GTID position list nor any processed events have "
+        "mentioned "
+        "this domain.",
+        domain_state_gtid->domain_id, PARAM_GTID((*domain_state_gtid)));
+    return TRUE;
+  }
+
+  if (audit_elem->last_gtid.seq_no < domain_state_gtid->seq_no)
+  {
+    Binlog_gtid_state_validator::warn(
+        out,
+        "Binary logs are missing data for domain %u. The current binary log "
+        "state is %u-%u-%llu, but the last seen event was %u-%u-%llu.",
+        domain_state_gtid->domain_id, PARAM_GTID((*domain_state_gtid)),
+        PARAM_GTID(audit_elem->last_gtid));
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+my_bool Binlog_gtid_state_validator::record(rpl_gtid *gtid)
+{
+  struct audit_elem *audit_elem= (struct audit_elem *) my_hash_search(
+      &m_audit_elem_domain_lookup, (const uchar *) &(gtid->domain_id), 0);
+
+  if (!audit_elem)
+  {
+    /*
+      We haven't seen any GTIDs in this domian yet. Perform initial set up for
+      this domain so we can monitor its events.
+    */
+    audit_elem= (struct audit_elem *) my_malloc(
+        PSI_NOT_INSTRUMENTED, sizeof(struct audit_elem), MYF(MY_WME));
+    if (!audit_elem)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return TRUE;
+    }
+
+    audit_elem->domain_id= gtid->domain_id;
+    audit_elem->last_gtid= *gtid;
+    audit_elem->start_gtid= {gtid->domain_id, 0, 0};
+
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &audit_elem->late_gtids_real,
+                          sizeof(rpl_gtid), 8, 8, MYF(0));
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &audit_elem->late_gtids_previous,
+                          sizeof(rpl_gtid), 8, 8, MYF(0));
+
+    if (my_hash_insert(&m_audit_elem_domain_lookup, (uchar *) audit_elem))
+    {
+      my_free(audit_elem);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return TRUE;
+    }
+  }
+  else
+  {
+    /* Out of order check */
+    if (gtid->seq_no <= audit_elem->last_gtid.seq_no &&
+        gtid->seq_no >= audit_elem->start_gtid.seq_no)
+    {
+      /* GTID is out of order */
+      insert_dynamic(&audit_elem->late_gtids_real, (const void *) gtid);
+      insert_dynamic(&audit_elem->late_gtids_previous,
+                     (const void *) &(audit_elem->last_gtid));
+
+      return TRUE;
+    }
+    else
+    {
+      /* GTID is valid */
+      audit_elem->last_gtid= *gtid;
+    }
+  }
+
+  return FALSE;
+}
+
+/*
+  Data structure used to help pass data into report_audit_findings because
+  my_hash_iterate only passes one parameter
+*/
+struct gtid_report_ctx
+{
+  FILE *out_file;
+  my_bool is_strict_mode;
+  my_bool contains_err;
+};
+
+static my_bool report_audit_findings(void *entry, void *report_ctx_arg)
+{
+  struct Binlog_gtid_state_validator::audit_elem *audit_el=
+      (struct Binlog_gtid_state_validator::audit_elem *) entry;
+
+  struct gtid_report_ctx *report_ctx=
+      (struct gtid_report_ctx *) report_ctx_arg;
+  FILE *out= report_ctx->out_file;
+  my_bool is_strict_mode= report_ctx->is_strict_mode;
+  size_t i;
+  void (*report_f)(FILE*, const char*, ...);
+
+  if (is_strict_mode)
+    report_f= Binlog_gtid_state_validator::error;
+  else
+    report_f= Binlog_gtid_state_validator::warn;
+
+  if (audit_el)
+  {
+    if (audit_el->last_gtid.seq_no < audit_el->start_gtid.seq_no)
+    {
+      report_f(out,
+             "Binary logs never reached expected GTID state of %u-%u-%llu",
+             PARAM_GTID(audit_el->start_gtid));
+      report_ctx->contains_err= TRUE;
+    }
+
+    /* Report any out of order GTIDs */
+    for(i= 0; i < audit_el->late_gtids_real.elements; i++)
+    {
+      rpl_gtid *real_gtid=
+          (rpl_gtid *) dynamic_array_ptr(&(audit_el->late_gtids_real), i);
+      rpl_gtid *last_gtid= (rpl_gtid *) dynamic_array_ptr(
+          &(audit_el->late_gtids_previous), i);
+      DBUG_ASSERT(real_gtid && last_gtid);
+
+      report_f(out,
+               "Found out of order GTID. Got %u-%u-%llu after %u-%u-%llu",
+               PARAM_GTID((*real_gtid)), PARAM_GTID((*last_gtid)));
+      report_ctx->contains_err= TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+my_bool Binlog_gtid_state_validator::report(FILE *out, my_bool is_strict_mode)
+{
+  struct gtid_report_ctx report_ctx;
+  report_ctx.out_file= out;
+  report_ctx.is_strict_mode= is_strict_mode;
+  report_ctx.contains_err= FALSE;
+  my_hash_iterate(&m_audit_elem_domain_lookup, report_audit_findings, &report_ctx);
+  fflush(out);
+  return is_strict_mode ? report_ctx.contains_err : FALSE;
+}
+
+Window_gtid_event_filter::Window_gtid_event_filter()
+    : m_has_start(FALSE), m_has_stop(FALSE), m_is_active(FALSE),
+      m_has_passed(FALSE)
+{
+  // m_start and m_stop do not need initial values if unused
+}
+
+int Window_gtid_event_filter::set_start_gtid(rpl_gtid *start)
+{
+  if (m_has_start)
+  {
+    sql_print_error(
+        "Start position cannot have repeated domain "
+        "ids (found %u-%u-%llu when %u-%u-%llu was previously specified)",
+        PARAM_GTID((*start)), PARAM_GTID(m_start));
+    return 1;
+  }
+
+  m_has_start= TRUE;
+  m_start= *start;
+  return 0;
+}
+
+int Window_gtid_event_filter::set_stop_gtid(rpl_gtid *stop)
+{
+  if (m_has_stop)
+  {
+    sql_print_error(
+        "Stop position cannot have repeated domain "
+        "ids (found %u-%u-%llu when %u-%u-%llu was previously specified)",
+        PARAM_GTID((*stop)), PARAM_GTID(m_stop));
+    return 1;
+  }
+
+  m_has_stop= TRUE;
+  m_stop= *stop;
+  return 0;
+}
+
+my_bool Window_gtid_event_filter::is_range_invalid()
+{
+  if (m_has_start && m_has_stop && m_start.seq_no > m_stop.seq_no)
+  {
+    sql_print_error(
+        "Queried GTID range is invalid in strict mode. Stop position "
+        "%u-%u-%llu is not greater than or equal to start %u-%u-%llu.",
+        PARAM_GTID(m_stop), PARAM_GTID(m_start));
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static inline my_bool is_gtid_at_or_after(rpl_gtid *boundary,
+                                          rpl_gtid *test_gtid)
+{
+  return test_gtid->domain_id == boundary->domain_id &&
+         test_gtid->seq_no >= boundary->seq_no;
+}
+
+static inline my_bool is_gtid_at_or_before(rpl_gtid *boundary,
+                                     rpl_gtid *test_gtid)
+{
+  return test_gtid->domain_id == boundary->domain_id &&
+         test_gtid->seq_no <= boundary->seq_no;
+}
+
+my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
+{
+  /* Assume result should be excluded to start */
+  my_bool should_exclude= TRUE;
+
+  DBUG_ASSERT((m_has_start && gtid->domain_id == m_start.domain_id) ||
+              (m_has_stop && gtid->domain_id == m_stop.domain_id));
+
+  if (!m_is_active && !m_has_passed)
+  {
+    /*
+      This filter has not yet been activated. Check if the gtid is within the
+      bounds of this window.
+    */
+
+    if (!m_has_start && is_gtid_at_or_before(&m_stop, gtid))
+    {
+      /*
+        Start GTID was not provided, so we want to include everything from here
+        up to m_stop
+      */
+      m_is_active= TRUE;
+      should_exclude= FALSE;
+    }
+    else if ((m_has_start && is_gtid_at_or_after(&m_start, gtid)) &&
+             (!m_has_stop || is_gtid_at_or_before(&m_stop, gtid)))
+    {
+      m_is_active= TRUE;
+
+      DBUG_PRINT("gtid-event-filter",
+                 ("Window: Begin (%d-%d-%llu, %d-%d-%llu]",
+                  PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+
+      /*
+        As the start of the range is exclusive, if this gtid is the start of
+        the range, exclude it
+      */
+      if (gtid->seq_no == m_start.seq_no)
+        should_exclude= TRUE;
+      else
+        should_exclude= FALSE;
+
+      if (m_has_stop && gtid->seq_no == m_stop.seq_no)
+      {
+        m_has_passed= TRUE;
+        DBUG_PRINT("gtid-event-filter",
+                   ("Window: End (%d-%d-%llu, %d-%d-%llu]",
+                    PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+      }
+    }
+  } /* if (!m_is_active && !m_has_passed) */
+  else if (m_is_active && !m_has_passed)
+  {
+    /*
+      This window is currently active so we want the event group to be included
+      in the results. Additionally check if we are at the end of the window.
+      If no end of the window is provided, go indefinitely
+    */
+    should_exclude= FALSE;
+
+    if (m_has_stop && is_gtid_at_or_after(&m_stop, gtid))
+    {
+      DBUG_PRINT("gtid-event-filter",
+                 ("Window: End (%d-%d-%llu, %d-%d-%llu]",
+                  PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+      m_is_active= FALSE;
+      m_has_passed= TRUE;
+
+      if (!is_gtid_at_or_before(&m_stop, gtid))
+      {
+        /*
+          The GTID is after the finite stop of the window, don't let it pass
+          through
+        */
+        should_exclude= TRUE;
+      }
+    }
+  }
+
+  return should_exclude;
+}
+
+my_bool Window_gtid_event_filter::has_finished()
+{
+  return m_has_stop ? m_has_passed : FALSE;
+}
+
+void free_u32_gtid_filter_element(void *p)
+{
+  gtid_filter_element<uint32> *gfe= (gtid_filter_element<uint32> *) p;
+  if (gfe->filter)
+    delete gfe->filter;
+  my_free(gfe);
+}
+
+template <typename T>
+Id_delegating_gtid_event_filter<T>::Id_delegating_gtid_event_filter()
+    : m_num_stateful_filters(0), m_num_completed_filters(0),
+      m_id_restriction_mode(id_restriction_mode::MODE_NOT_SET)
+{
+  void (*free_func)(void *);
+  if (std::is_same<T,uint32>::value)
+    free_func= free_u32_gtid_filter_element;
+  else
+    DBUG_ASSERT(0);
+
+  my_hash_init(PSI_INSTRUMENT_ME, &m_filters_by_id_hash, &my_charset_bin, 32,
+               offsetof(gtid_filter_element<T>, identifier),
+               sizeof(T), NULL, free_func,
+               HASH_UNIQUE);
+
+  m_default_filter= new Accept_all_gtid_filter();
+}
+
+template <typename T>
+Id_delegating_gtid_event_filter<T>::~Id_delegating_gtid_event_filter()
+{
+  my_hash_free(&m_filters_by_id_hash);
+  delete m_default_filter;
+}
+
+template <typename T>
+void Id_delegating_gtid_event_filter<T>::set_default_filter(
+    Gtid_event_filter *filter)
+{
+  if (m_default_filter)
+    delete m_default_filter;
+
+  m_default_filter= filter;
+}
+
+template <typename T>
+gtid_filter_element<T> *
+Id_delegating_gtid_event_filter<T>::find_or_create_filter_element_for_id(
+    T filter_id)
+{
+  gtid_filter_element<T> *fe=
+      (gtid_filter_element<T> *) my_hash_search(
+          &m_filters_by_id_hash, (const uchar *) &filter_id, 0);
+
+  if (!fe)
+  {
+    gtid_filter_element<T> *new_fe= (gtid_filter_element<T> *) my_malloc(
+        PSI_NOT_INSTRUMENTED, sizeof(gtid_filter_element<T>), MYF(MY_WME));
+    new_fe->filter= NULL;
+    new_fe->identifier= filter_id;
+    if (my_hash_insert(&m_filters_by_id_hash, (uchar*) new_fe))
+    {
+      my_free(new_fe);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return NULL;
+    }
+    fe= new_fe;
+  }
+
+  return fe;
+}
+
+template <typename T>
+my_bool Id_delegating_gtid_event_filter<T>::has_finished()
+{
+  /*
+    If all user-defined filters have deactivated, we are effectively
+    deactivated
+  */
+  return m_num_stateful_filters &&
+         m_num_completed_filters == m_num_stateful_filters;
+}
+
+template <typename T>
+my_bool Id_delegating_gtid_event_filter<T>::exclude(rpl_gtid *gtid)
+{
+  T filter_id= get_id_from_gtid(gtid);
+  gtid_filter_element<T> *filter_element=
+      (gtid_filter_element<T> *) my_hash_search(&m_filters_by_id_hash,
+                                                (const uchar *) &filter_id, 0);
+  Gtid_event_filter *filter=
+      (filter_element ? filter_element->filter : m_default_filter);
+  my_bool ret= TRUE;
+
+  if(!filter_element || !filter->has_finished())
+  {
+    ret= filter->exclude(gtid);
+
+    /*
+      If this is an explicitly defined filter, e.g. Window-based filter, check
+      if it has completed, and update the counter accordingly if so.
+    */
+    if (filter_element && filter->has_finished())
+      m_num_completed_filters++;
+  }
+
+  return ret;
+}
+
+
+template <typename F> Gtid_event_filter* create_event_filter()
+{
+  return new F();
+}
+
+template <typename T>
+int Id_delegating_gtid_event_filter<T>::set_id_restrictions(
+    T *id_list, size_t n_ids, id_restriction_mode mode)
+{
+  static const char *WHITELIST_NAME= "do", *BLACKLIST_NAME= "ignore";
+
+  size_t id_ctr;
+  int err;
+  const char *filter_name, *opposite_filter_name;
+  Gtid_event_filter *(*construct_filter)(void);
+  Gtid_event_filter *(*construct_default_filter)(void);
+
+  /*
+    Set up variables which help this filter either be in whitelist or blacklist
+    mode
+  */
+  if (mode == Gtid_event_filter::id_restriction_mode::WHITELIST_MODE)
+  {
+    filter_name= WHITELIST_NAME;
+    opposite_filter_name= BLACKLIST_NAME;
+    construct_filter=
+        create_event_filter<Accept_all_gtid_filter>;
+    construct_default_filter=
+        create_event_filter<Reject_all_gtid_filter>;
+  }
+  else
+  {
+    DBUG_ASSERT(mode ==
+                Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE);
+    filter_name= BLACKLIST_NAME;
+    opposite_filter_name= WHITELIST_NAME;
+    construct_filter=
+        create_event_filter<Reject_all_gtid_filter>;
+    construct_default_filter=
+        create_event_filter<Accept_all_gtid_filter>;
+  }
+
+  if (m_id_restriction_mode !=
+      Gtid_event_filter::id_restriction_mode::MODE_NOT_SET)
+  {
+    if (mode != m_id_restriction_mode)
+    {
+      /*
+        If a rule specifying the opposite version of this has already been set,
+        error.
+      */
+      sql_print_error("Cannot create %s filtering rule for %s id because "
+                      "%s rule already exists",
+                      filter_name, get_id_type_name(),
+                      opposite_filter_name);
+      err= 1;
+      goto err;
+    }
+
+    /* This filter is specified more than once, only use the latest values */
+    my_hash_reset(&m_filters_by_id_hash);
+  }
+
+  for (id_ctr= 0; id_ctr < n_ids; id_ctr++)
+  {
+    T filter_id= id_list[id_ctr];
+    gtid_filter_element<T> *map_element=
+        find_or_create_filter_element_for_id(filter_id);
+
+    if(map_element == NULL)
+    {
+      /*
+        If map_element is NULL, find_or_create_filter_element_for_id failed and
+        has already written the error message
+      */
+      err= 1;
+      goto err;
+    }
+    else if (map_element->filter == NULL)
+    {
+      map_element->filter= construct_filter();
+      m_num_stateful_filters++;
+    }
+    else
+    {
+      DBUG_ASSERT(map_element->filter->get_filter_type() ==
+                  (mode ==
+                   Gtid_event_filter::id_restriction_mode::WHITELIST_MODE
+                   ? Gtid_event_filter::ACCEPT_ALL_GTID_FILTER_TYPE
+                   : Gtid_event_filter::REJECT_ALL_GTID_FILTER_TYPE));
+    }
+  }
+
+  /*
+    With a whitelist, we by only want to accept the ids which are specified.
+    Everything else should be denied.
+
+    With a blacklist, we by default want to accept everything that is not
+    specified in the list
+  */
+  set_default_filter(construct_default_filter());
+  m_id_restriction_mode= mode;
+  err= 0;
+
+err:
+  return err;
+}
+
+Window_gtid_event_filter *
+Domain_gtid_event_filter::find_or_create_window_filter_for_id(
+    decltype(rpl_gtid::domain_id) domain_id)
+{
+  gtid_filter_element<decltype(rpl_gtid::domain_id)> *filter_element=
+      find_or_create_filter_element_for_id(domain_id);
+  Window_gtid_event_filter *wgef= NULL;
+
+  if (filter_element->filter == NULL)
+  {
+    /* New filter */
+    wgef= new Window_gtid_event_filter();
+    filter_element->filter= wgef;
+  }
+  else if (filter_element->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE)
+  {
+    /* We have an existing window filter here */
+    wgef= (Window_gtid_event_filter *) filter_element->filter;
+  }
+  else
+  {
+    /*
+      We have an existing filter but it is not of window type so propogate NULL
+      filter
+    */
+    sql_print_error("cannot subset domain id %d by position, another rule "
+                    "exists on that domain",
+                    domain_id);
+  }
+
+  return wgef;
+}
+
+static my_bool check_filter_entry_validity(void *entry,
+                                           void *are_filters_invalid_arg)
+{
+  gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+      (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) entry;
+
+  if (fe)
+  {
+    Gtid_event_filter *gef= fe->filter;
+    if (gef->get_filter_type() == Gtid_event_filter::WINDOW_GTID_FILTER_TYPE)
+    {
+      Window_gtid_event_filter *wgef= (Window_gtid_event_filter *) gef;
+      if (wgef->is_range_invalid())
+      {
+        *((int *) are_filters_invalid_arg)= 1;
+        return TRUE;
+      }
+    }
+  }
+  return FALSE;
+}
+
+int Domain_gtid_event_filter::validate_window_filters()
+{
+  int are_filters_invalid= 0;
+  my_hash_iterate(&m_filters_by_id_hash, check_filter_entry_validity,
+                  &are_filters_invalid);
+  return are_filters_invalid;
+}
+
+int Domain_gtid_event_filter::add_start_gtid(rpl_gtid *gtid)
+{
+  int err= 0;
+  Window_gtid_event_filter *filter_to_update=
+      find_or_create_window_filter_for_id(gtid->domain_id);
+
+  if (filter_to_update == NULL)
+  {
+    err= 1;
+  }
+  else if (!(err= filter_to_update->set_start_gtid(gtid)))
+  {
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) my_hash_search(
+            &m_filters_by_id_hash, (const uchar *) &(gtid->domain_id), 0);
+    insert_dynamic(&m_start_filters, (const void *) &fe);
+  }
+
+  return err;
+}
+
+int Domain_gtid_event_filter::add_stop_gtid(rpl_gtid *gtid)
+{
+  int err= 0;
+  Window_gtid_event_filter *filter_to_update=
+      find_or_create_window_filter_for_id(gtid->domain_id);
+
+  if (filter_to_update == NULL)
+  {
+    err= 1;
+  }
+  else if (!(err= filter_to_update->set_stop_gtid(gtid)))
+  {
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) my_hash_search(
+            &m_filters_by_id_hash, (const uchar *) &(gtid->domain_id), 0);
+    insert_dynamic(&m_stop_filters, (const void *) &fe);
+
+    /*
+      A window with a stop position can be disabled, and is therefore stateful.
+    */
+    m_num_stateful_filters++;
+
+    /*
+      Default filtering behavior changes with GTID stop positions, where we
+      exclude all domains not present in the stop list
+    */
+    if (m_default_filter->get_filter_type() == ACCEPT_ALL_GTID_FILTER_TYPE)
+    {
+      delete m_default_filter;
+      m_default_filter= new Reject_all_gtid_filter();
+    }
+  }
+
+  return err;
+}
+
+rpl_gtid *Domain_gtid_event_filter::get_start_gtids()
+{
+  rpl_gtid *gtid_list;
+  uint32 i;
+  size_t n_start_gtids= get_num_start_gtids();
+
+  gtid_list= (rpl_gtid *) my_malloc(
+      PSI_INSTRUMENT_ME, n_start_gtids * sizeof(rpl_gtid), MYF(MY_WME));
+
+  for (i = 0; i < n_start_gtids; i++)
+  {
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_start_filters, i);
+    DBUG_ASSERT(fe->filter &&
+                fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
+    Window_gtid_event_filter *wgef=
+        (Window_gtid_event_filter *) fe->filter;
+
+    rpl_gtid win_start_gtid= wgef->get_start_gtid();
+    gtid_list[i]= win_start_gtid;
+  }
+
+  return gtid_list;
+}
+
+rpl_gtid *Domain_gtid_event_filter::get_stop_gtids()
+{
+  rpl_gtid *gtid_list;
+  uint32 i;
+  size_t n_stop_gtids= get_num_stop_gtids();
+
+  gtid_list= (rpl_gtid *) my_malloc(
+      PSI_INSTRUMENT_ME, n_stop_gtids * sizeof(rpl_gtid), MYF(MY_WME));
+
+  for (i = 0; i < n_stop_gtids; i++)
+  {
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_stop_filters, i);
+    DBUG_ASSERT(fe->filter &&
+                fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
+    Window_gtid_event_filter *wgef=
+        (Window_gtid_event_filter *) fe->filter;
+
+    rpl_gtid win_stop_gtid= wgef->get_stop_gtid();
+    gtid_list[i]= win_stop_gtid;
+  }
+
+  return gtid_list;
+}
+
+void Domain_gtid_event_filter::clear_start_gtids()
+{
+  uint32 i;
+  for (i = 0; i < get_num_start_gtids(); i++)
+  {
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_start_filters, i);
+    DBUG_ASSERT(fe->filter &&
+                fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
+    Window_gtid_event_filter *wgef=
+        (Window_gtid_event_filter *) fe->filter;
+
+    if (wgef->has_stop())
+    {
+      /*
+        Don't delete the whole filter if it already has a stop position attached
+      */
+      wgef->clear_start_pos();
+    }
+    else
+    {
+      /*
+        This domain only has a stop, so delete the whole filter
+      */
+      my_hash_delete(&m_filters_by_id_hash, (uchar *) fe);
+    }
+  }
+
+  reset_dynamic(&m_start_filters);
+}
+
+void Domain_gtid_event_filter::clear_stop_gtids()
+{
+  uint32 i;
+
+  for (i = 0; i < get_num_stop_gtids(); i++)
+  {
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *fe=
+        *(gtid_filter_element<decltype(rpl_gtid::domain_id)> **)
+            dynamic_array_ptr(&m_stop_filters, i);
+    DBUG_ASSERT(fe->filter &&
+                fe->filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE);
+    Window_gtid_event_filter *wgef=
+        (Window_gtid_event_filter *) fe->filter;
+
+    if (wgef->has_start())
+    {
+      /*
+        Don't delete the whole filter if it already has a start position
+        attached
+      */
+      wgef->clear_stop_pos();
+    }
+    else
+    {
+      /*
+        This domain only has a start, so delete the whole filter
+      */
+      my_hash_delete(&m_filters_by_id_hash, (uchar *) fe);
+    }
+    m_num_stateful_filters--;
+  }
+
+  /*
+    Stop positions were cleared and we want to be inclusive again of other
+    domains again
+  */
+  if (m_default_filter->get_filter_type() == REJECT_ALL_GTID_FILTER_TYPE)
+  {
+    delete m_default_filter;
+    m_default_filter= new Accept_all_gtid_filter();
+  }
+
+  reset_dynamic(&m_stop_filters);
+}
+
+my_bool Domain_gtid_event_filter::exclude(rpl_gtid *gtid)
+{
+  my_bool include_domain= TRUE;
+  /*
+    If GTID stop positions are provided, we limit the domains which are output
+    to only be those specified with stop positions
+  */
+  if (get_num_stop_gtids())
+  {
+    decltype(rpl_gtid::domain_id) filter_id= get_id_from_gtid(gtid);
+    gtid_filter_element<decltype(rpl_gtid::domain_id)> *filter_element=
+        (gtid_filter_element<decltype(rpl_gtid::domain_id)> *) my_hash_search(
+            &m_filters_by_id_hash, (const uchar *) &filter_id, 0);
+    if (filter_element)
+    {
+      Gtid_event_filter *filter= filter_element->filter;
+      if (filter->get_filter_type() == WINDOW_GTID_FILTER_TYPE)
+      {
+        Window_gtid_event_filter *wgef= (Window_gtid_event_filter *) filter;
+        include_domain= wgef->has_stop();
+      }
+    }
+  }
+
+  return include_domain ? Id_delegating_gtid_event_filter::exclude(gtid)
+                        : TRUE;
+}
+
+Intersecting_gtid_event_filter::Intersecting_gtid_event_filter(
+    Gtid_event_filter *filter1, Gtid_event_filter *filter2)
+{
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &m_filters,
+                        sizeof(Gtid_event_filter *), 3, 3, MYF(0));
+  insert_dynamic(&m_filters, (void *) &filter1);
+  insert_dynamic(&m_filters, (void *) &filter2);
+}
+
+Intersecting_gtid_event_filter::~Intersecting_gtid_event_filter()
+{
+  Gtid_event_filter *tmp_filter= NULL;
+  ulong i;
+  for (i= 0; i < m_filters.elements; i++)
+  {
+    tmp_filter= *(Gtid_event_filter **) dynamic_array_ptr(&m_filters, i);
+    delete tmp_filter;
+  }
+  delete_dynamic(&m_filters);
+}
+
+my_bool Intersecting_gtid_event_filter::exclude(rpl_gtid *gtid)
+{
+  Gtid_event_filter *tmp_filter= NULL;
+  ulong i;
+  for (i= 0; i < m_filters.elements; i++)
+  {
+    tmp_filter= *(Gtid_event_filter **) dynamic_array_ptr(&m_filters, i);
+    DBUG_ASSERT(tmp_filter);
+    if (tmp_filter->exclude(gtid))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+my_bool Intersecting_gtid_event_filter::has_finished()
+{
+  Gtid_event_filter *tmp_filter= NULL;
+  ulong i;
+  for (i= 0; i < m_filters.elements; i++)
+  {
+    tmp_filter= *(Gtid_event_filter **) dynamic_array_ptr(&m_filters, i);
+    DBUG_ASSERT(tmp_filter);
+    if (tmp_filter->has_finished())
+      return TRUE;
+  }
+  return FALSE;
 }

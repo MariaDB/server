@@ -1099,10 +1099,6 @@ static TRANSLOG_FILE *get_current_logfile()
 uchar	maria_trans_file_magic[]=
 { (uchar) 254, (uchar) 254, (uchar) 11, '\001', 'M', 'A', 'R', 'I', 'A',
  'L', 'O', 'G' };
-#define LOG_HEADER_DATA_SIZE (sizeof(maria_trans_file_magic) + \
-                              8 + 4 + 4 + 4 + 2 + 3 + \
-                              LSN_STORE_SIZE)
-
 
 /*
   Write log file page header in the just opened new log file
@@ -1342,7 +1338,7 @@ struct st_file_counter
 
 static void translog_mark_file_unfinished(uint32 file)
 {
-  int place, i;
+  ssize_t place, i;
   struct st_file_counter fc, *fc_ptr;
 
   DBUG_ENTER("translog_mark_file_unfinished");
@@ -1375,7 +1371,7 @@ static void translog_mark_file_unfinished(uint32 file)
      goto end;
   }
 
-  if (place == (int)log_descriptor.unfinished_files.elements)
+  if (place == (ssize_t)log_descriptor.unfinished_files.elements)
   {
     insert_dynamic(&log_descriptor.unfinished_files, (uchar*) &fc);
     DBUG_PRINT("info", ("The last element inserted"));
@@ -3502,7 +3498,7 @@ my_bool translog_walk_filenames(const char *directory,
                                                     const char *))
 {
   MY_DIR *dirp;
-  uint i;
+  size_t i;
   my_bool rc= FALSE;
 
   /* Finds and removes transaction log files */
@@ -5624,8 +5620,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
   TRANSLOG_ADDRESS horizon;
   struct st_buffer_cursor cursor;
   int rc= 0;
-  uint i, chunk2_page, full_pages;
-  uint curr_group= 0;
+  size_t i, curr_group= 0;
+  uint chunk2_page, full_pages;
   translog_size_t record_rest, first_page, chunk3_pages, chunk0_pages= 1;
   translog_size_t done= 0;
   struct st_translog_group_descriptor group;
@@ -5706,7 +5702,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
       goto err_unlock;
     }
 
-    DBUG_PRINT("info", ("chunk: #%u  first_page: %u (%u)  "
+    DBUG_PRINT("info", ("chunk: #%zu  first_page: %u (%u)  "
                         "full_pages: %lu (%lu)  "
                         "Left %lu",
                         groups.elements,
@@ -5874,8 +5870,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
          record_rest + header_fixed_part +
          (groups.elements - groups_per_page * (chunk0_pages - 1)) * (7 + 1))
     chunk0_pages++;
-  DBUG_PRINT("info", ("chunk0_pages: %u  groups %u  groups per full page: %u  "
-                      "Group on last page: %u",
+  DBUG_PRINT("info", ("chunk0_pages: %u  groups %zu  groups per full page: %u  "
+                      "Group on last page: %zu",
                       chunk0_pages, groups.elements,
                       groups_per_page,
                       (groups.elements -
@@ -5891,11 +5887,11 @@ translog_write_variable_record_mgroup(LSN *lsn,
 
   DBUG_ASSERT(cursor.buffs.unlck_ptr == cursor.buffs.wrt_ptr);
   rc= translog_advance_pointer(pages_to_skip + (int)(chunk0_pages - 1),
-                               record_rest + header_fixed_part +
-                               (groups.elements -
+                               (uint16)(record_rest + header_fixed_part +
+                               ((uint)groups.elements -
                                 ((page_capacity -
                                   header_fixed_part) / (7 + 1)) *
-                                (chunk0_pages - 1)) * (7 + 1),
+                                (chunk0_pages - 1)) * (7 + 1)),
                                 &cursor.buffs);
   buffer_of_last_lsn= log_descriptor.bc.buffer;
   translog_unlock();
@@ -5983,7 +5979,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
                                                  header_length);
   do
   {
-    int limit;
+    size_t limit;
     if (new_page_before_chunk0 &&
         translog_chaser_page_next(&horizon, &cursor))
     {
@@ -6025,9 +6021,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
     */
     limit= (groups_per_page < groups.elements - curr_group ?
             groups_per_page : groups.elements - curr_group);
-    DBUG_PRINT("info", ("Groups: %u  curr: %u  limit: %u",
-                        (uint) groups.elements, (uint) curr_group,
-                        (uint) limit));
+    DBUG_PRINT("info", ("Groups: %zu  curr: %zu  limit: %zu",
+                        groups.elements, curr_group, limit));
 
     if (chunk0_pages == 1)
     {

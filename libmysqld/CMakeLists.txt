@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2011, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2020, MariaDB Corporation
+# Copyright (c) 2009, 2022, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ ${CMAKE_SOURCE_DIR}/sql
 ${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
 ${PCRE_INCLUDE_DIRS}
+${LIBFMT_INCLUDE_DIR}
 ${ZLIB_INCLUDE_DIRS}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
@@ -95,7 +96,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/select_handler.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
-           ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
+           ../sql/sql_table.cc ../sql/sql_test.cc
            ../sql/ddl_log.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
@@ -126,6 +127,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
            ../sql/sql_schema.cc
+           ../sql/lex_charset.cc
            ../sql/sql_type.cc ../sql/sql_type.h
            ../sql/sql_mode.cc
            ../sql/sql_type_string.cc
@@ -146,6 +148,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_trace.cc
            ../sql/xa.cc
            ../sql/json_table.cc
+           ../sql/opt_histogram_json.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
@@ -156,6 +159,9 @@ DTRACE_INSTRUMENT(sql_embedded)
 ADD_DEPENDENCIES(sql_embedded GenError GenServerSource)
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(sql_embedded pcre2)
+ENDIF()
+IF(TARGET libfmt)
+  ADD_DEPENDENCIES(sql_embedded libfmt)
 ENDIF()
 TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY})
 

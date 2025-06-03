@@ -3023,12 +3023,16 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "pseudo_bits_condition": "if(uuid_short(),NULL,1)",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 DROP TABLE t1;
@@ -3045,18 +3049,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "pseudo_bits_condition": "10 = rand()",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 DROP TABLE t1,t2;

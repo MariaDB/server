@@ -108,7 +108,7 @@ def	foo	t3	b	Column	`b` > 0
 def	foo	t3	b	Table	`b` > 10
 def	foo	t3	b1	Table	`b` < 123456789012345678901234567890123456789012345678901234567890123456789
 disconnect con1;
-CONNECT con2, localhost, boo2,, test;
+CONNECT con2, localhost, boo2,,"*NO-ONE*";
 SELECT * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 disconnect con2;

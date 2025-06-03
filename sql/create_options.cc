@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, 2020, MariaDB Corporation.
+/* Copyright (C) 2010, 2020, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #include "mariadb.h"
 #include "create_options.h"
+#include "partition_info.h"
 #include <my_getopt.h>
 #include "set_var.h"
 
@@ -289,8 +290,12 @@ bool extend_option_list(THD* thd, handlerton *hton, bool create,
                 thd->register_item_tree_change((Item**)&(last->next));
               extended= true;
             }
-            new (root) engine_option_value(name, value,
-                         opt->type != HA_OPTION_TYPE_ULL, option_list, &last);
+            engine_option_value *val=
+               new (root) engine_option_value(name, value,
+                                              opt->type != HA_OPTION_TYPE_ULL);
+            if (val == NULL)
+              DBUG_RETURN(TRUE);
+            val->link(option_list, &last);
           }
         }
       }
@@ -511,6 +516,61 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
   DBUG_RETURN(FALSE);
 }
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+/**
+  Parses engine-defined partition options
+
+  @param [in] thd   thread handler
+  @parem [in] table table with part_info
+
+  @retval TRUE  Error
+  @retval FALSE OK
+
+  In the case of ALTER TABLE statements, table->part_info is set up
+  by mysql_unpack_partition(). So, one should not call the present
+  function before the call of mysql_unpack_partition().
+*/
+bool parse_engine_part_options(THD *thd, TABLE *table)
+{
+  MEM_ROOT *root= &table->mem_root;
+  TABLE_SHARE *share= table->s;
+  partition_info *part_info= table->part_info;
+  engine_option_value *tmp_option_list;
+  handlerton *ht;
+  DBUG_ENTER("parse_engine_part_options");
+
+  if (!part_info)
+    DBUG_RETURN(FALSE);
+
+  List_iterator<partition_element> it(part_info->partitions);
+  while (partition_element *part_elem= it++)
+  {
+    if (merge_engine_options(share->option_list, part_elem->option_list,
+                             &tmp_option_list, root))
+      DBUG_RETURN(TRUE);
+
+    if (!part_info->is_sub_partitioned())
+    {
+      ht= part_elem->engine_type;
+      if (parse_option_list(thd, &part_elem->option_struct,
+                            &tmp_option_list, ht->table_options, TRUE, root))
+        DBUG_RETURN(TRUE);
+    }
+    else
+    {
+      List_iterator<partition_element> sub_it(part_elem->subpartitions);
+      while (partition_element *sub_part_elem= sub_it++)
+      {
+        ht= sub_part_elem->engine_type;
+        if (parse_option_list(thd, &sub_part_elem->option_struct,
+                              &tmp_option_list, ht->table_options, TRUE, root))
+          DBUG_RETURN(TRUE);
+      }
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+#endif
 
 bool engine_options_differ(void *old_struct, void *new_struct,
                            ha_create_table_option *rules)
@@ -708,10 +768,11 @@ uchar *engine_option_value::frm_read(const uchar *buff, const uchar *buff_end,
     return NULL;
   buff+= value.length;
 
-  engine_option_value *ptr=new (root)
-    engine_option_value(name, value, len & FRM_QUOTED_VALUE, start, end);
+  engine_option_value *ptr=
+      new (root) engine_option_value(name, value, len & FRM_QUOTED_VALUE);
   if (!ptr)
     return NULL;
+  ptr->link(start, end);
 
   return (uchar *)buff;
 }
@@ -780,23 +841,40 @@ bool engine_table_options_frm_read(const uchar *buff, size_t length,
 
 /**
   Merges two lists of engine_option_value's with duplicate removal.
+
+  @param [in] source  option list
+  @param [in] changes option list whose options overwrite source's
+  @param [out] out    new option list created by merging given two
+  @param [in] root    MEM_ROOT for allocating memory
+
+  @retval TRUE  Error
+  @retval FALSE OK
 */
-
-engine_option_value *merge_engine_table_options(engine_option_value *first,
-                                                engine_option_value *second,
-                                                MEM_ROOT *root)
+bool merge_engine_options(engine_option_value *source,
+                          engine_option_value *changes,
+                          engine_option_value **out, MEM_ROOT *root)
 {
-  engine_option_value *UNINIT_VAR(end), *opt;
-  DBUG_ENTER("merge_engine_table_options");
+  engine_option_value *UNINIT_VAR(end), *opt, *opt_copy;
+  *out= 0;
+  DBUG_ENTER("merge_engine_options");
 
-  /* Create copy of first list */
-  for (opt= first, first= 0; opt; opt= opt->next)
-    new (root) engine_option_value(opt, &first, &end);
+  /* Create copy of source list */
+  for (opt= source; opt; opt= opt->next)
+  {
+    opt_copy= new (root) engine_option_value(opt);
+    if (!opt_copy)
+      DBUG_RETURN(TRUE);
+    opt_copy->link(out, &end);
+  }
 
-  for (opt= second; opt; opt= opt->next)
-    new (root) engine_option_value(opt->name, opt->value, opt->quoted_value,
-                                   &first, &end);
-  DBUG_RETURN(first);
+  for (opt= changes; opt; opt= opt->next)
+  {
+    opt_copy= new (root) engine_option_value(opt);
+    if (!opt_copy)
+      DBUG_RETURN(TRUE);
+    opt_copy->link(out, &end);
+  }
+  DBUG_RETURN(FALSE);
 }
 
 bool is_engine_option_known(engine_option_value *opt,

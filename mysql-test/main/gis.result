@@ -688,9 +688,9 @@ object_id	geometrytype(geo)	ISSIMPLE(GEO)	ASTEXT(centroid(geo))
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 values (1.11);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'decimal' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 values ("qwerty");
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (pointfromtext('point(1,1)'));

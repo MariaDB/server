@@ -35,7 +35,7 @@
 
 #define HA_OPEN_ABORT_IF_LOCKED		0U	/* default */
 #define HA_OPEN_WAIT_IF_LOCKED		1U
-#define HA_OPEN_IGNORE_IF_LOCKED	2U
+#define HA_OPEN_IGNORE_IF_LOCKED	2U      /* Ignore lock error */
 #define HA_OPEN_TMP_TABLE		4U	/* Table is a temp table */
 #define HA_OPEN_DELAY_KEY_WRITE		8U	/* Don't update index  */
 #define HA_OPEN_ABORT_IF_CRASHED	16U
@@ -219,7 +219,10 @@ enum ha_extra_function {
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY
+  HA_EXTRA_END_ALTER_COPY,
+  /** Abort of writing rows during ALTER TABLE..ALGORITHM=COPY or
+  CREATE..SELCT */
+  HA_EXTRA_ABORT_ALTER_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */

@@ -1,13 +1,13 @@
 # Dutch mariadb-10 po-debconf translation,
 # Copyright (C) 2006 THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the mariadb-10.6 package.
+# This file is distributed under the same license as the mariadb package.
 # Vincent Zweije <zweije@xs4all.nl>, 2006.
 # Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2014, 2016, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: mariadb-10.2.7-1\n"
-"Report-Msgid-Bugs-To: mariadb-10.6@packages.debian.org\n"
+"Report-Msgid-Bugs-To: mariadb@packages.debian.org\n"
 "POT-Creation-Date: 2019-07-23 19:16-0300\n"
 "PO-Revision-Date: 2018-03-29 21:25+0200\n"
 "Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
@@ -21,13 +21,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid "The old data directory will be saved at new location"
 msgstr "De oude data-map zal op een nieuwe locatie bewaard worden"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid ""
 "A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
 "indicates a database binary format version that cannot automatically be "
@@ -39,7 +39,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
@@ -49,7 +49,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
@@ -58,13 +58,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:3001
+#: ../mariadb-server.templates:3001
 msgid "Important note for NIS/YP users"
 msgstr "Belangrijke opmerking voor gebruikers van NIS/YP"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:3001
+#: ../mariadb-server.templates:3001
 msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
@@ -74,7 +74,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:3001
+#: ../mariadb-server.templates:3001
 msgid ""
 "You should also check the permissions and ownership of the /var/lib/mysql "
 "directory:"
@@ -84,13 +84,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.6.templates:4001
+#: ../mariadb-server.templates:4001
 msgid "Remove all MariaDB databases?"
 msgstr "Wilt u alle MariaDB-databases verwijderen?"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.6.templates:4001
+#: ../mariadb-server.templates:4001
 msgid ""
 "The /var/lib/mysql directory which contains the MariaDB databases is about "
 "to be removed."
@@ -100,7 +100,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.6.templates:4001
+#: ../mariadb-server.templates:4001
 msgid ""
 "If you're removing the MariaDB package in order to later install a more "
 "recent version or if a different mariadb-server package is already using it, "

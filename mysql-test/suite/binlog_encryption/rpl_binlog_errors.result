@@ -223,6 +223,9 @@ connection master;
 #######################################################################
 include/rpl_reset.inc
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master.*");
 call mtr.add_suppression("Error writing file .*");
 call mtr.add_suppression("Could not use .*");
@@ -268,5 +271,7 @@ include/stop_slave_sql.inc
 Warnings:
 Note	1255	Slave already has been stopped
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 RESET MASTER;
 include/rpl_end.inc

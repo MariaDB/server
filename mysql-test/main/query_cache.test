@@ -1901,6 +1901,37 @@ DROP TABLE t;
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
---enable_ps2_protocol
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-29028: Queries using RANDOM_BYTES get stored in query cache
+--echo #
+
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+
+create table t1 (a int);
+insert into t1 values (1000);
+
+flush status;
+--let $v1 = `select hex(random_bytes(a)) from t1`
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+
+--let $v2 = `select hex(random_bytes(a)) from t1`
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+
+if ($v1 == $v2) {
+--echo highly improbable $v1 = $v2
+}
+
+select random_bytes(1024) = random_bytes(1024) as improbable;
+
+# Cleanup
+drop table t1;
+set global query_cache_type= @qcache;
+
+--echo # End of 10.10 tests
+
+--enable_ps2_protocol

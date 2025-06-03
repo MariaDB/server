@@ -1,0 +1,15 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+--echo # --order-by-size:
+CREATE TABLE t1 (a MEDIUMBLOB) ENGINE=InnoDB;
+CREATE TABLE t2 (a MEDIUMBLOB) ENGINE=InnoDB;
+CREATE TABLE t3 (a MEDIUMBLOB) ENGINE=InnoDB;
+CREATE TABLE t4 (a MEDIUMBLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (REPEAT('E',65536*4));
+INSERT INTO t2 VALUES (REPEAT('E',65536*3));
+INSERT INTO t3 VALUES (REPEAT('E',65536*2));
+INSERT INTO t4 VALUES (REPEAT('E',65536*1));
+ANALYZE TABLE t1, t2, t3, t4;
+--exec $MYSQL_DUMP --compact --skip-opt --skip-comments --no-data --order-by-size test
+DROP TABLE t4, t3, t2, t1;

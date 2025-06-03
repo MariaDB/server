@@ -19,6 +19,7 @@ insert t1 values (1,10,100),(2,20,200);
 create role role1;
 grant select (a) on mysqltest1.t1 to role1;
 grant event,execute,trigger on mysqltest1.* to role1;
+grant select on test.* to role1;
 
 grant role1 to current_user;
 
@@ -26,13 +27,16 @@ grant role1 to current_user;
 create role role2;
 grant insert,select on mysqltest1.t1 to role2;
 grant event,execute,trigger on mysqltest1.* to role2;
+grant select on test.* to role2;
 
 # create a non-priv user and a priv role granted to him
 create user foo@localhost;
 grant create view on mysqltest1.* to foo@localhost;
+grant select, create view on test.* to foo@localhost;
 create role role4;
 grant select on mysqltest1.t1 to role4;
 grant role4 to foo@localhost;
+grant select on test.* to role4;
 
 ##################################################
 # views
@@ -355,7 +359,7 @@ grant r1 to r2;
 grant r2 to user1;
 grant r3 to user1;
 
-connect (user1, localhost,user1,,,,,);
+connect (user1, localhost,user1,,"*NO-ONE*",,,);
 set role r2;
 use rtest;
 
@@ -433,11 +437,11 @@ CREATE DEFINER=`user_like_role`@`%` PROCEDURE sensitive_proc() SQL SECURITY INVO
     END;//
 DELIMITER ;//
 
-connect (user_like_role, localhost, user_like_role,,,,,);
+connect (user_like_role, localhost, user_like_role,,"*NO-ONE*",,,);
 use rtest;
 show create procedure sensitive_proc;
 
-connect (foo, localhost, foo,,,,,);
+connect (foo, localhost, foo,,"*NO-ONE*",,,);
 set role user_like_role;
 use rtest;
 

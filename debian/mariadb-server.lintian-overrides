@@ -1,0 +1,40 @@
+# Used to check if running in Bash
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/wsrep_notify:86]
+bash-term-in-posix-shell '[ "$url" ==' [usr/bin/mariadbd-safe:216]
+# In comment so false-positive
+bash-term-in-posix-shell 'let' [usr/bin/mariadbd-safe:41]
+# Supported in Zsh and Bash (also Dash)
+bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:712]
+bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:832]
+
+# These are from stop word list
+spelling-error-in-binary noone no one [usr/bin/aria_chk]
+spelling-error-in-binary noone no one [usr/bin/aria_dump_log]
+spelling-error-in-binary noone no one [usr/bin/aria_ftdump]
+spelling-error-in-binary noone no one [usr/bin/aria_pack]
+spelling-error-in-binary noone no one [usr/bin/aria_read_log]
+spelling-error-in-binary noone no one [usr/bin/myisam_ftdump]
+spelling-error-in-binary noone no one [usr/bin/myisamchk]
+spelling-error-in-binary noone no one [usr/bin/myisamlog]
+spelling-error-in-binary noone no one [usr/bin/myisampack]
+spelling-error-in-binary thats that's [usr/bin/aria_chk]
+spelling-error-in-binary thats that's [usr/bin/aria_dump_log]
+spelling-error-in-binary thats that's [usr/bin/aria_ftdump]
+spelling-error-in-binary thats that's [usr/bin/aria_pack]
+spelling-error-in-binary thats that's [usr/bin/aria_read_log]
+spelling-error-in-binary thats that's [usr/bin/myisam_ftdump]
+spelling-error-in-binary thats that's [usr/bin/myisamchk]
+spelling-error-in-binary thats that's [usr/bin/myisamlog]
+spelling-error-in-binary thats that's [usr/bin/myisampack]
+spelling-error-in-binary theres there's [usr/bin/aria_chk]
+spelling-error-in-binary theres there's [usr/bin/aria_dump_log]
+spelling-error-in-binary theres there's [usr/bin/aria_ftdump]
+spelling-error-in-binary theres there's [usr/bin/aria_pack]
+spelling-error-in-binary theres there's [usr/bin/aria_read_log]
+spelling-error-in-binary theres there's [usr/bin/myisam_ftdump]
+spelling-error-in-binary theres there's [usr/bin/myisamchk]
+spelling-error-in-binary theres there's [usr/bin/myisamlog]
+spelling-error-in-binary theres there's [usr/bin/myisampack]
+
+# This is not documentation
+package-contains-documentation-outside-usr-share-doc [usr/share/mysql/errmsg-utf8.txt]

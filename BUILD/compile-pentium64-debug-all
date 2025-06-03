@@ -6,7 +6,5 @@ set -- "$@" --with-debug=full
 
 extra_flags="$pentium64_cflags $debug_cflags"
 extra_configs="$pentium_configs $debug_configs $all_configs"
-
-extra_configs="$extra_configs "
 CC="$CC --pipe"
 . "$path/FINISH.sh"

@@ -1184,22 +1184,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "partitions": ["Current"],
-      "access_type": "system",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "partitions": ["Current"],
-      "access_type": "system",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "partitions": ["Current"],
+          "access_type": "system",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["Current"],
+          "access_type": "system",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 # Expecting partition "Relevant"
@@ -1208,22 +1214,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "partitions": ["Relevant"],
-      "access_type": "system",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "partitions": ["Relevant"],
-      "access_type": "system",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "partitions": ["Relevant"],
+          "access_type": "system",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["Relevant"],
+          "access_type": "system",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 # Expecting partition "Archive"
@@ -1232,22 +1244,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "partitions": ["Archive"],
-      "access_type": "system",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "t1",
-      "partitions": ["Archive"],
-      "access_type": "system",
-      "possible_keys": ["PRIMARY"],
-      "rows": 1,
-      "filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "partitions": ["Archive"],
+          "access_type": "system",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["Archive"],
+          "access_type": "system",
+          "possible_keys": ["PRIMARY"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
   }
 }
 DROP TABLES t1, t2;

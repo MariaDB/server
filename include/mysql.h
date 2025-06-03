@@ -141,7 +141,8 @@ typedef unsigned long long my_ulonglong;
 #define ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
 #define ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 #define ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
-#define ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT ER_QUERY_RESULT_INCOMPLETE
+#define ER_KEY_COLUMN_DOES_NOT_EXITS ER_KEY_COLUMN_DOES_NOT_EXIST
+#define ER_DROP_PARTITION_NON_EXISTENT ER_PARTITION_DOES_NOT_EXIST
 
 typedef struct st_mysql_rows {
   struct st_mysql_rows *next;		/* list of rows */
@@ -323,6 +324,14 @@ typedef struct st_mysql_res {
   void *extension;
 } MYSQL_RES;
 
+
+/*
+  We should not define MYSQL_CLIENT when the mysql.h is included
+  by the server or server plugins.
+  Now it is important only for the SQL service to work so we rely on
+  the MYSQL_SERVICE_SQL to check we're compiling the server/plugin
+  related file.
+*/
 
 #if !defined(MYSQL_SERVICE_SQL) && !defined(MYSQL_CLIENT)
 #define MYSQL_CLIENT

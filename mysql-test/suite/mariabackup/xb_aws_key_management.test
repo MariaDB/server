@@ -10,7 +10,7 @@ INSERT INTO t VALUES('foobar1');
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 -- source include/restart_and_restore.inc
 --enable_result_log

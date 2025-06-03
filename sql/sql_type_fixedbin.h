@@ -179,6 +179,10 @@ public:
                                              FbtImpl::max_char_length()+1));
       return false;
     }
+    bool to_bool() const
+    {
+      return !this->only_zero_bytes(m_buffer, FbtImpl::binary_length());
+    }
     int cmp(const Binary_string &other) const
     {
       return FbtImpl::cmp(FbtImpl::to_lex_cstring(), other.to_lex_cstring());
@@ -652,7 +656,8 @@ public:
       */
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
-                  item->type_handler() == type_handler());
+                  item->type_handler()->type_collection() ==
+                  type_handler()->type_collection());
       return Data_type_compatibility::OK;
     }
     /**
@@ -667,7 +672,8 @@ public:
       // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
       DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
                   is_traditional_scalar_type() ||
-                  item->type_handler() == type_handler());
+                  item->type_handler()->type_collection() ==
+                  type_handler()->type_collection());
       return Data_type_compatibility::OK;
     }
     void hash_not_null(Hasher *hasher) override
@@ -939,7 +945,7 @@ public:
       str->append(singleton()->name().lex_cstring());
       str->append(')');
     }
-    bool fix_length_and_dec() override
+    bool fix_length_and_dec(THD *thd) override
     {
       Type_std_attributes::operator=(Type_std_attributes_fbt());
       if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(args[0]))
@@ -1130,6 +1136,11 @@ public:
     return FbtImpl::max_char_length();
   }
 
+  const Type_handler *type_handler_for_implicit_upgrade() const override
+  {
+    return TypeCollectionImpl::singleton()->
+             type_handler_for_implicit_upgrade(this);
+  }
   const Type_handler *type_handler_for_comparison() const override
   {
     return this;
@@ -1213,10 +1224,10 @@ public:
     return false;
   }
 
-  bool Column_definition_prepare_stage1(THD *thd, MEM_ROOT *mem_root,
+  bool Column_definition_prepare_stage1(THD *, MEM_ROOT *,
                                         Column_definition *def,
-                                        handler *file, ulonglong table_flags,
-                                        const Column_derived_attributes *derived_attr)
+                                        column_definition_type_t,
+                                        const Column_derived_attributes *)
                                         const override
   {
     def->prepare_stage1_simple(&my_charset_numeric);
@@ -1946,6 +1957,12 @@ public:
                                            const override
   {
     return NULL;
+  }
+
+  const Type_handler *type_handler_for_implicit_upgrade(
+                                               const Type_handler *from) const
+  {
+    return from;
   }
 
   static Type_collection_fbt *singleton()

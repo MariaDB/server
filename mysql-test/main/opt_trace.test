@@ -1,7 +1,5 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
-# View protocol changes some plans
---source include/no_view_protocol.inc
 
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 set optimizer_trace="enabled=on";
@@ -1066,10 +1064,13 @@ where a=3
 group by b,b
 having a+b < 10;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # Check ON expression
 explain 
@@ -1079,10 +1080,13 @@ from t1 left join t2 on t2.a=t1.a and t2.a<3
 where 
   t1.b > 5555;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # Check nested ON expression
 explain 
@@ -1092,6 +1096,7 @@ from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
 where 
   t1.b > 5555;
 
+#Check after fix MDEV-32034
 --disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
@@ -1101,10 +1106,13 @@ from
 
 --echo # The next query is test for:
 --echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.condition_processing'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 drop table t1,t2,t3;
 
@@ -1144,6 +1152,7 @@ where t1.b < 3;
 # Just show that choose_best_splitting function has coverage in the 
 # optimizer trace and re-optmization of child select inside it is distinct 
 # from the rest of join optimization.
+#Check after fix MDEV-32034
 --disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
@@ -1167,8 +1176,12 @@ SELECT * FROM t1 WHERE id IN
          JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
 --enable_view_protocol
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;
+--enable_view_protocol
+
 DROP TABLE t1;
 
 --echo #
@@ -1178,6 +1191,63 @@ set optimizer_trace=0;
 set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
 --echo # The trace must not be empty:
 select left(trace, 100) from information_schema.optimizer_trace;
+set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-36461: Remove join_execution nodes and add range_check_for_each_record when appropriate
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1, 999),(999, 1),(987,987);
+create table t2 (a int, b int, index(a),index(b));
+insert into t2 select seq, seq from seq_1_to_1000;
+create table t3 (a int);
+insert into t3 select seq from seq_1_to_2;
+
+set optimizer_trace='enabled=on';
+
+analyze
+select 
+(
+  select count(*) 
+  from t1, t2 
+  where t2.a<t1.a and t2.b<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a 
+from t3;
+
+--echo # The trace must contain 6 objects with select_id 2 and
+--echo # loop varying from 1..2 for each of the 3 ranges from t1:
+set @trace=(select trace from information_schema.optimizer_trace);
+set @trace=(select json_extract(@trace, '$**.range-checked-for-each-record'));
+set @trace=json_replace(@trace, '$[0].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[1].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[2].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[3].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[4].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[5].rows_estimation[0].range_analysis','REPLACED');
+select json_detailed(@trace) as TRACE;
+
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+    from information_schema.optimizer_trace;
+
+select
+(
+  select count(*)
+  from t1, t2
+  where t2.a+1<t1.a and t2.b+1<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a
+from t3;
+
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+    from information_schema.optimizer_trace;
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+    from information_schema.optimizer_trace;
 set optimizer_trace='enabled=off';
+
+drop table t1,t2,t3;
+--echo # End of 10.11 tests

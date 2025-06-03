@@ -47,8 +47,8 @@ connection master2;
 INSERT INTO t2 VALUES (2, "switch1");
 INSERT INTO t3 VALUES (202, "switch1 b");
 connection slave2;
-CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
-CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
+CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
 SET default_master_connection = 'slave1';
 START SLAVE;
 include/wait_for_slave_to_start.inc
@@ -75,7 +75,7 @@ INSERT INTO t3 VALUES (204, "switch 3 b");
 connection slave2;
 include/sync_with_master_gtid.inc
 connection slave1;
-CHANGE MASTER TO master_port=MYPORT_4, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+CHANGE MASTER TO master_port=MYPORT_4, master_host='127.0.0.1', master_user='root';
 START SLAVE;
 SELECT * FROM t1 ORDER BY a;
 a	b

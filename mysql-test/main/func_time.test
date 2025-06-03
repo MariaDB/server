@@ -1719,7 +1719,7 @@ SET sql_mode=DEFAULT;
 
 # The below query can return warning sporadically
 --disable_warnings
-DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
+DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(SYS_GUID()))));
 --enable_warnings
 
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));

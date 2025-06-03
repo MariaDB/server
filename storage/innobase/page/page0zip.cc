@@ -29,7 +29,6 @@ Created June 2005 by Marko Makela
 #include "fsp0types.h"
 #include "page0page.h"
 #include "buf0checksum.h"
-#include "ut0crc32.h"
 #include "zlib.h"
 #include "span.h"
 
@@ -4598,11 +4597,11 @@ uint32_t page_zip_calc_checksum(const void *data, size_t size, bool use_adler)
 	ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
 	if (!use_adler) {
-		return ut_crc32(s + FIL_PAGE_OFFSET,
-				FIL_PAGE_LSN - FIL_PAGE_OFFSET)
-			^ ut_crc32(s + FIL_PAGE_TYPE, 2)
-			^ ut_crc32(s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-				   size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+		return my_crc32c(0, s + FIL_PAGE_OFFSET,
+				 FIL_PAGE_LSN - FIL_PAGE_OFFSET)
+			^ my_crc32c(0, s + FIL_PAGE_TYPE, 2)
+			^ my_crc32c(0, s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				    size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	} else {
 		adler = adler32(0L, s + FIL_PAGE_OFFSET,
 				FIL_PAGE_LSN - FIL_PAGE_OFFSET);

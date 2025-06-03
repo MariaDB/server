@@ -257,7 +257,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   if (trx->mysql_log_file_name && *trx->mysql_log_file_name)
     /* Update the latest binlog name and offset if log_bin=ON or this
     is a replica. */
-    trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
+    trx_rseg_update_binlog_offset(rseg_header, trx->mysql_log_file_name,
+                                  trx->mysql_log_offset, mtr);
 
   /* Add the log as the first in the history list */
 
@@ -580,7 +581,7 @@ inline void trx_sys_t::undo_truncate_start(fil_space_t &space)
     }
 }
 
-inline fil_space_t *purge_sys_t::undo_truncate_try(ulint id, ulint size)
+inline fil_space_t *purge_sys_t::undo_truncate_try(uint32_t id, uint32_t size)
 {
   ut_ad(srv_is_undo_tablespace(id));
   fil_space_t *space= fil_space_get(id);
@@ -604,7 +605,7 @@ fil_space_t *purge_sys_t::truncating_tablespace()
   const uint32_t size=
     uint32_t(std::min(ulonglong{std::numeric_limits<uint32_t>::max()},
                       srv_max_undo_log_size >> srv_page_size_shift));
-  for (ulint i= truncate_undo_space.last, j= i;; )
+  for (uint32_t i= truncate_undo_space.last, j= i;; )
   {
     if (fil_space_t *s= undo_truncate_try(srv_undo_space_id_start + i, size))
       return s;
@@ -1057,7 +1058,7 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
   {
     dict_table_t *table= t.second.first;
     if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
-      dict_table_close(table);
+      table->release();
   }
 
   MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
@@ -1204,7 +1205,7 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
         if (t.second.first == reinterpret_cast<dict_table_t*>(-1))
         {
           if (table)
-            dict_table_close(table, false, thd, *mdl);
+            dict_table_close(table, thd, *mdl);
           goto retry;
         }
       }
@@ -1236,9 +1237,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
   MDL_context *const mdl_context=
     static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
-
-  const size_t max_pages=
-    std::min(buf_pool.curr_size * 3 / 4, size_t{srv_purge_batch_size});
 
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
@@ -1289,7 +1287,9 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
       ut_ad(!table_node->in_progress);
     }
 
-    if (purge_sys.n_pages_handled() >= max_pages)
+    const size_t size{purge_sys.n_pages_handled()};
+    if (size >= size_t{srv_purge_batch_size} ||
+        size >= buf_pool.usable_size() * 3 / 4)
       break;
   }
 

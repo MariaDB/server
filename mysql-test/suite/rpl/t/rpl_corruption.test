@@ -24,6 +24,12 @@
 --source include/have_debug.inc
 --source include/master-slave.inc
 
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+--connection master
+
 # Block legal errors for MTR 
 call mtr.add_suppression('Found invalid event in binary log');
 call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master');

@@ -287,7 +287,7 @@ drop table t1;
 
 create table t1 (a int);
 insert into t1 values(-1);
-alter table t1 add b int default 1, add c int default -1, add d int default (1+1), add e timestamp;
+alter table t1 add b int default 1, add c int default -1, add d int default (1+1), add e timestamp not null default now();
 select a,b,c,d,e from t1;
 insert into t1 values(10,10,10,10,0);
 alter table t1 add f int default (1+1+1) null, add g int default (1+1+1+1) not null,add h int default (2+2+2+2);

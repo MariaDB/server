@@ -1,0 +1,2 @@
+--loose-aria-log-file-size=8388608
+--loose-restart-for-aria_log_rotate_during_backup="This is needed to recreate datadir, to have Aria start logs from aria_log.00000001"

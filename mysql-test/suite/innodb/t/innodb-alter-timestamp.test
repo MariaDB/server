@@ -48,10 +48,7 @@ SELECT DISTINCT d1 FROM t1;
 --enable_info
 ALTER TABLE t1 CHANGE d1 d1 TIMESTAMP DEFAULT '2017-05-08 16:32:54';
 --disable_info
---echo # Note: NULL was changed to CURRENT_TIMESTAMP(),
---echo # not the specified constant DEFAULT value!
 SELECT COUNT(DISTINCT d1),COUNT(d1),COUNT(*) FROM t1;
-SELECT DISTINCT (CURRENT_TIMESTAMP()-d1) <= 60 FROM t1;
 drop table t1;
 
 CREATE TABLE t1 (

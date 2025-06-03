@@ -1,4 +1,6 @@
-drop table if exists t1, t2;
+#
+# Testing of NULL in a lot of different places
+#
 select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
 NULL	NULL	isnull(null)	isnull(1/0)	isnull(1/0 = null)	ifnull(null,1)	ifnull(null,"TRUE")	ifnull("TRUE","ERROR")	1/0 is null	1 is not null
 NULL	NULL	1	1	1	1	TRUE	TRUE	1	1
@@ -62,6 +64,9 @@ insert into t1 values (null);
 select * from t1 where x != 0;
 x
 drop table t1;
+#
+# Test problem med index on NULL columns and testing with =NULL;
+#
 CREATE TABLE t1 (
 indexed_field int default NULL,
 KEY indexed_field (indexed_field)
@@ -78,6 +83,9 @@ indexed_field
 NULL
 NULL
 DROP TABLE t1;
+#
+# Testing of IFNULL
+#
 create table t1 (a int, b int) engine=myisam;
 insert into t1 values(20,null);
 select t2.b, ifnull(t2.b,"this is null") from t1 as t2 left join t1 as t3 on
@@ -95,6 +103,9 @@ b	ifnull(t2.b,"this is null")
 NULL	this is null
 NULL	this is null
 drop table t1;
+#
+# Test inserting and updating with NULL
+#
 CREATE TABLE t1 (a varchar(16) NOT NULL default '', b smallint(6) NOT NULL default 0, c datetime NOT NULL default '0000-00-00 00:00:00', d smallint(6) NOT NULL default 0);
 INSERT IGNORE INTO t1 SET a = "", d= "2003-01-14 03:54:55";
 Warnings:
@@ -149,6 +160,10 @@ a	b	c	d
 	0	0000-00-00 00:00:00	0
 	0	0000-00-00 00:00:00	0
 drop table t1;
+#
+# Test to check elimination of IS NULL predicate for a non-nullable attribute
+# (bug #1990)  
+#
 create table t1 (a int not null, b int not null, index idx(a));
 insert into t1 values
 (1,1), (2,2), (3,3), (4,4), (5,5), (6,6),
@@ -163,6 +178,10 @@ drop table t1;
 select cast(NULL as signed);
 cast(NULL as signed)
 NULL
+#
+# IS NULL is unable to use index in range if column is declared not null
+# (Bug #4256)
+#
 create table t1(i int, key(i));
 insert into t1 values(1);
 insert into t1 select i*2 from t1;
@@ -192,6 +211,11 @@ select count(*) from t1 where i=2 or i is null;
 count(*)
 9
 drop table t1;
+#
+# NULL has its own type BINARY(0) by default.
+# But NULL should be weaker than a constant
+# when mixing charsets/collations
+#
 set names latin2;
 create table t1 select
 null as c00,
@@ -275,6 +299,11 @@ t1	CREATE TABLE `t1` (
   `c38` varchar(10) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+#
+# Check that comparison is done according to
+# non-null string collation, i.e. case insensitively,
+# rather than according to NULL's collation, i.e. case sensitively
+#
 select 
 case 'str' when 'STR' then 'str' when null then 'null' end as c01,
 case 'str' when null then 'null' when 'STR' then 'str' end as c02,
@@ -286,10 +315,13 @@ field('str1', null, 'STR1') as c05,
 c01	c02	c03	c04	c05	c08	c09
 str	str	0	1	2	1	1
 set names latin1;
-create table bug19145a (e enum('a','b','c')          default 'b' , s set('x', 'y', 'z')          default 'y' ) engine=MyISAM;
-create table bug19145b (e enum('a','b','c')          default null, s set('x', 'y', 'z')          default null) engine=MyISAM;
+#
+# Bug#19145: mysqld crashes if you set the default value of an enum field to NULL
+#
+create table bug19145a (e enum('a','b','c') default 'b' , s set('x', 'y', 'z') default 'y' ) engine=MyISAM;
+create table bug19145b (e enum('a','b','c') default null, s set('x', 'y', 'z') default null) engine=MyISAM;
 create table bug19145c (e enum('a','b','c') not null default 'b' , s set('x', 'y', 'z') not null default 'y' ) engine=MyISAM;
-create table bug19145setnotnulldefaultnull (e enum('a','b','c')          default null, s set('x', 'y', 'z') not null default null) engine=MyISAM;
+create table bug19145setnotnulldefaultnull (e enum('a','b','c') default null, s set('x', 'y', 'z') not null default null) engine=MyISAM;
 ERROR 42000: Invalid default value for 's'
 create table bug19145enumnotnulldefaultnull (e enum('a','b','c') not null default null, s set('x', 'y', 'z')          default null) engine=MyISAM;
 ERROR 42000: Invalid default value for 'e'
@@ -328,7 +360,9 @@ bug19145c	CREATE TABLE `bug19145c` (
 drop table bug19145a;
 drop table bug19145b;
 drop table bug19145c;
+#
 # End of 4.1 tests
+#
 #
 # Bug #31471: decimal_bin_size: Assertion `scale >= 0 &&
 #             precision > 0 && scale <= precision'
@@ -350,7 +384,9 @@ DESCRIBE t2;
 Field	Type	Null	Key	Default	Extra
 IFNULL(NULL, b)	decimal(1,0)	YES		NULL	
 DROP TABLE t1, t2;
+#
 # End of 5.0 tests
+#
 #
 # MDEV-4895 Valgrind warnings (Conditional jump or move depends on uninitialised value) in Field_datetime::get_date on GREATEST(..) IS NULL
 #
@@ -382,17 +418,13 @@ SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 dt
 DROP TABLE t1;
 #
-# Bug mdev-5132: crash when exeicuting a join query
-#                with IS NULL and IS NOT NULL in where
+# MDEV-5132 crash when exeicuting a join query with IS NULL and IS NOT NULL in where
 #
 CREATE TABLE t1 (a DATE, b INT, c INT, KEY(a), KEY(b), KEY(c)) ENGINE=MyISAM;
 CREATE TABLE t2 (d DATE) ENGINE=MyISAM;
 SELECT  * FROM t1,t2 WHERE  1 IS NOT NULL AND t1.b IS NULL;
 a	b	c	d
 DROP TABLE t1,t2;
-#
-# Start of 10.0 tests
-#
 #
 # MDEV-7001 Bad result for NOT NOT STRCMP('a','b') and NOT NOT NULLIF(2,3) 
 #

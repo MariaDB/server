@@ -1,6 +1,8 @@
 install plugin pam soname 'auth_pam.so';
 create user test_pam identified via pam using 'mariadb_mtr';
+grant all on test.* to test_pam;
 create user pam_test;
+grant all on test.* to pam_test;
 grant proxy on pam_test to test_pam;
 #
 # athentication is successful, challenge/pin are ok
@@ -72,6 +74,7 @@ select user(), current_user(), database();
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
+grant all on test.* to PAM_TEST;
 #
 # athentication is unsuccessful
 #
@@ -95,6 +98,7 @@ drop user PAM_TEST;
 # MDEV-27341 Use SET PASSWORD to change PAM service
 #
 create user pam_test identified via pam using 'mariadb_mtr';
+grant all on test.* to pam_test;
 Challenge input first.
 Enter: *************************
 Now, the magic number!

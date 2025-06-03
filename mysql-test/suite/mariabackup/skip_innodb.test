@@ -1,3 +1,4 @@
+--source include/innodb_undo_tablespaces.inc
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 CREATE TABLE t(i int);
 INSERT INTO t VALUES(1);

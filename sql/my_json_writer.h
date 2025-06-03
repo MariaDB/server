@@ -17,6 +17,7 @@
 #define JSON_WRITER_INCLUDED
 
 #include "my_base.h"
+#include "sql_string.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST) || defined ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
 #include <set>
@@ -26,12 +27,11 @@
 #endif
 
 #ifdef JSON_WRITER_UNIT_TEST
-#include "sql_string.h"
-constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
 // Also, mock objects are defined in my_json_writer-t.cc
 #define VALIDITY_ASSERT(x) if (!(x)) this->invalid_json= true;
 #else
-#include "sql_select.h"
+#include "sql_class.h"  // For class THD
+#include "log.h" // for sql_print_error
 #define VALIDITY_ASSERT(x) DBUG_ASSERT(x)
 #endif
 
@@ -40,8 +40,10 @@ constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
 class Opt_trace_stmt;
 class Opt_trace_context;
 class Json_writer;
-struct TABLE_LIST;
 
+struct TABLE;
+struct st_join_table;
+using JOIN_TAB= struct st_join_table;
 
 /*
   Single_line_formatting_helper is used by Json_writer to do better formatting
@@ -216,6 +218,7 @@ class Json_writer
     produce an invalid JSON document (e.g. JSON array having named elements).
   */
   std::vector<bool> named_items_expectation;
+  std::stack<std::set<std::string> > named_items;
 
   bool named_item_expected() const;
 
@@ -235,6 +238,8 @@ public:
   Json_writer& add_member(const char *name, size_t len);
   
   /* Add atomic values */
+
+  /* Note: the add_str methods do not do escapes. Should this change? */
   void add_str(const char* val);
   void add_str(const char* val, size_t num_bytes);
   void add_str(const String &str);

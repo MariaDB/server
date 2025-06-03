@@ -336,13 +336,15 @@ public:
                   const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
 
   /**
-     @return true if the table is moved to another database, false otherwise.
+     @return true if the table is moved to another database or a new table
+     created by ALTER_PARTITION_CONVERT_OUT, false otherwise.
   */
   bool is_database_changed() const
   { return (new_db.str != db.str); };
 
   /**
-     @return true if the table is renamed, false otherwise.
+     @return true if the table is renamed or a new table created by
+     ALTER_PARTITION_CONVERT_OUT, false otherwise.
   */
   bool is_table_renamed() const
   { return (is_database_changed() || new_name.str != table_name.str); };

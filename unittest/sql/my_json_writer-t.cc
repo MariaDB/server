@@ -26,7 +26,6 @@
 */
 
 struct TABLE;
-struct JOIN_TAB;
 class Json_writer;
 
 
@@ -44,6 +43,10 @@ class THD
 public:
   Opt_trace opt_trace;
 };
+
+constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
+
+#define sql_print_error printf
 
 #define JSON_WRITER_UNIT_TEST
 #include "../sql/my_json_writer.h"
@@ -121,7 +124,22 @@ int main(int args, char **argv)
     ok(w.invalid_json, "JSON array end of object");
   }
 
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("name").add_ll(1);
+    w.add_member("name").add_ll(2);
+    w.end_object();
+    ok(w.invalid_json, "JSON object member name collision");
+  }
 
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("name").start_object();
+    w.add_member("name").add_ll(2);
+    ok(!w.invalid_json, "Valid JSON: nested object member name is the same");
+  }
 
   diag("Done");
 

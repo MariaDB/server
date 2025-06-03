@@ -247,3 +247,70 @@ SELECT id FROM t1 WHERE id IS NULL OR id NOT BETWEEN 1 AND 4;
 id
 5
 DROP TABLE t1;
+#
+# MDEV-34620: Many index_merge variants made and discarded for a big OR
+#
+CREATE TABLE t1 (
+a1 int NOT NULL,
+a2 int NOT NULL,
+filler char(100),
+KEY key1 (a1,a2),
+KEY key2 (a2,a1)
+);
+insert into t1 (a1,a2) values (1,1),(2,2),(3,3);
+set @query= concat(
+"explain select * from t1 where\n",
+(select
+group_concat(concat("a1=", seq, " and a2=", seq, " ") separator "\nor " )
+from seq_1_to_30)
+);
+set optimizer_trace=1;
+prepare s from @query;
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	key1,key2	NULL	NULL	NULL	3	Using where
+set @trace=json_extract((select trace from information_schema.optimizer_trace), '$**.range_analysis');
+# Observe that "key1" is a a part of several index_merge_union:
+select json_pretty(json_search(@trace, 'all', 'key1'));
+json_pretty(json_search(@trace, 'all', 'key1'))
+[
+    "$[0].potential_range_indexes[0].index",
+    "$[0].analyzing_range_alternatives.range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[0].indexes_to_merge[0].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[0].indexes_to_merge[0].index_to_merge",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[0].indexes_to_merge[1].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[0].indexes_to_merge[1].index_to_merge",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[0].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[0].index_to_merge",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[1].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[1].index_to_merge",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[2].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[1].indexes_to_merge[2].index_to_merge",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[2].indexes_to_merge[0].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[2].indexes_to_merge[0].index_to_merge",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[2].indexes_to_merge[1].range_scan_alternatives[0].index",
+    "$[0].analyzing_range_alternatives.analyzing_index_merge_union[2].indexes_to_merge[1].index_to_merge"
+]
+#
+# Now, same as above but for a long IN-list
+#
+set @query= concat(
+"explain select * from t1 where\n",
+(select
+group_concat(concat("a1=", seq, " and a2=", seq, " ") separator "\nor " )
+from seq_1_to_120)
+);
+set optimizer_trace=1;
+prepare s from @query;
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	key1,key2	NULL	NULL	NULL	3	Using where
+set @trace=json_extract((select trace from information_schema.optimizer_trace), '$**.range_analysis');
+# Observe that there are NO index_merge_union candidates. Only one potential range scan:
+select json_pretty(json_search(@trace, 'all', 'key1'));
+json_pretty(json_search(@trace, 'all', 'key1'))
+[
+    "$[0].potential_range_indexes[0].index",
+    "$[0].analyzing_range_alternatives.range_scan_alternatives[0].index"
+]
+drop table t1;

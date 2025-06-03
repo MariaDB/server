@@ -1609,14 +1609,14 @@ def					ifnull___a_a	253	10	1	Y	0	39	8
 def					least____a_a	253	10	1	Y	0	39	8
 def					greatest_a_a	253	10	1	Y	0	39	8
 def	test	t1	t1	b	___________b	254	1	1	Y	256	0	8
-def					case_______b	254	1	1	Y	0	39	8
-def					case_____b_b	254	1	1	Y	0	39	8
-def					coalesce___b	254	1	1	Y	0	39	8
-def					coalesce_b_b	254	1	1	Y	0	39	8
-def					if_______b_b	254	1	1	Y	0	39	8
-def					ifnull___b_b	254	1	1	Y	0	39	8
-def					least____b_b	254	1	1	Y	0	39	8
-def					greatest_b_b	254	1	1	Y	0	39	8
+def					case_______b	253	1	1	Y	0	39	8
+def					case_____b_b	253	1	1	Y	0	39	8
+def					coalesce___b	253	1	1	Y	0	39	8
+def					coalesce_b_b	253	1	1	Y	0	39	8
+def					if_______b_b	253	1	1	Y	0	39	8
+def					ifnull___b_b	253	1	1	Y	0	39	8
+def					least____b_b	253	1	1	Y	0	39	8
+def					greatest_b_b	253	1	1	Y	0	39	8
 ___________a	a
 case_______a	a
 case_____a_a	a
@@ -2310,15 +2310,15 @@ LEAST(b, b)                               AS least____b_b,
 GREATEST(b, b)                            AS greatest_b_b
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	a	___________a	7	19	19	N	9377	0	63
+def	test	t1	t1	a	___________a	7	19	19	Y	160	0	63
 def					case_______a	7	19	19	Y	128	0	63
-def					case_____a_a	7	19	19	N	129	0	63
-def					coalesce___a	7	19	19	N	129	0	63
-def					coalesce_a_a	7	19	19	N	129	0	63
-def					if_______a_a	7	19	19	N	129	0	63
-def					ifnull___a_a	7	19	19	N	129	0	63
-def					least____a_a	7	19	19	N	129	0	63
-def					greatest_a_a	7	19	19	N	129	0	63
+def					case_____a_a	7	19	19	Y	128	0	63
+def					coalesce___a	7	19	19	Y	128	0	63
+def					coalesce_a_a	7	19	19	Y	128	0	63
+def					if_______a_a	7	19	19	Y	128	0	63
+def					ifnull___a_a	7	19	19	Y	128	0	63
+def					least____a_a	7	19	19	Y	128	0	63
+def					greatest_a_a	7	19	19	Y	128	0	63
 def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
 def					case_______b	11	10	8	Y	128	0	63
 def					case_____b_b	11	10	8	Y	128	0	63
@@ -2368,7 +2368,7 @@ def					coalesce_b_a	12	19	19	Y	128	0	63
 def					if_______a_b	12	19	19	Y	128	0	63
 def					if_______b_a	12	19	19	Y	128	0	63
 def					ifnull___a_b	12	19	19	Y	128	0	63
-def					ifnull___b_a	12	19	19	N	129	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
 def					least____a_b	12	19	19	Y	128	0	63
 def					least____b_a	12	19	19	Y	128	0	63
 def					greatest_a_b	12	19	19	Y	128	0	63
@@ -2409,15 +2409,15 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `___________a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `___________a` timestamp NULL DEFAULT NULL,
   `case_______a` timestamp NULL DEFAULT NULL,
-  `case_____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `coalesce___a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `coalesce_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `if_______a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `ifnull___a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `least____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `greatest_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `case_____a_a` timestamp NULL DEFAULT NULL,
+  `coalesce___a` timestamp NULL DEFAULT NULL,
+  `coalesce_a_a` timestamp NULL DEFAULT NULL,
+  `if_______a_a` timestamp NULL DEFAULT NULL,
+  `ifnull___a_a` timestamp NULL DEFAULT NULL,
+  `least____a_a` timestamp NULL DEFAULT NULL,
+  `greatest_a_a` timestamp NULL DEFAULT NULL,
   `___________b` time DEFAULT NULL,
   `case_______b` time DEFAULT NULL,
   `case_____b_b` time DEFAULT NULL,
@@ -2455,7 +2455,7 @@ t2	CREATE TABLE `t2` (
   `if_______a_b` datetime DEFAULT NULL,
   `if_______b_a` datetime DEFAULT NULL,
   `ifnull___a_b` datetime DEFAULT NULL,
-  `ifnull___b_a` datetime NOT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
   `least____a_b` datetime DEFAULT NULL,
   `least____b_a` datetime DEFAULT NULL,
   `greatest_a_b` datetime DEFAULT NULL,
@@ -3058,12 +3058,12 @@ CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
 SELECT GREATEST(a,a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					GREATEST(a,a)	7	19	19	N	129	0	63
+def					GREATEST(a,a)	7	19	19	Y	128	0	63
 GREATEST(a,a)
 2010-01-01 10:20:30
 SELECT COALESCE(a,a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,a)	7	19	19	N	129	0	63
+def					COALESCE(a,a)	7	19	19	Y	128	0	63
 COALESCE(a,a)
 2010-01-01 10:20:30
 DROP TABLE t1;
@@ -3072,7 +3072,7 @@ CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `LEAST(a,a)` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `LEAST(a,a)` timestamp NULL DEFAULT NULL,
   `LEAST(b,b)` datetime DEFAULT NULL,
   `LEAST(a,b)` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci

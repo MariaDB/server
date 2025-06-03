@@ -726,7 +726,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
-      (void)subquery_types_allow_materialization(thd, in_subs);
+      //(void)subquery_types_allow_materialization(thd, in_subs);
 
       in_subs->is_flattenable_semijoin= TRUE;
 
@@ -1294,6 +1294,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   while ((in_subq= li++))
   {
     bool remove_item= TRUE;
+    subquery_types_allow_materialization(thd, in_subq);
 
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
     if (in_subq->do_not_convert_to_sj)
@@ -2918,7 +2919,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
        pos[-1].inner_tables_handled_with_other_sjs;
   }
 
-  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_cost= *current_read_time;
   pos->prefix_record_count= *current_record_count;
 
   {
@@ -3040,7 +3041,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
 
   update_sj_state(join, new_join_tab, idx, remaining_tables);
 
-  pos->prefix_cost.convert_from_cost(*current_read_time);
+  pos->prefix_cost= *current_read_time;
   pos->prefix_record_count= *current_record_count;
   pos->dups_producing_tables= dups_producing_tables;
 }
@@ -3131,15 +3132,15 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     else
     {
       /* This is SJ-Materialization with lookups */
-      Cost_estimate prefix_cost; 
+      double prefix_cost;
       signed int first_tab= (int)idx - mat_info->tables;
-      double prefix_rec_count;
+      double prefix_rec_count, mat_read_time;
       Json_writer_object trace(join->thd);
       trace.add("strategy", "SJ-Materialization");
 
       if (first_tab < (int)join->const_tables)
       {
-        prefix_cost.reset();
+        prefix_cost= 0;
         prefix_rec_count= 1.0;
       }
       else
@@ -3148,9 +3149,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
         prefix_rec_count= join->positions[first_tab].prefix_record_count;
       }
 
-      double mat_read_time= prefix_cost.total_cost();
       mat_read_time=
-        COST_ADD(mat_read_time,
+        COST_ADD(prefix_cost,
                  COST_ADD(mat_info->materialization_cost.total_cost(),
                           COST_MULT(prefix_rec_count,
                                     mat_info->lookup_cost.total_cost())));
@@ -3195,7 +3195,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     }
     else
     {
-      prefix_cost= join->positions[first_tab - 1].prefix_cost.total_cost();
+      prefix_cost= join->positions[first_tab - 1].prefix_cost;
       prefix_rec_count= join->positions[first_tab - 1].prefix_record_count;
     }
 
@@ -3559,7 +3559,7 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     }
     else
     {
-      dups_cost= join->positions[first_tab - 1].prefix_cost.total_cost();
+      dups_cost= join->positions[first_tab - 1].prefix_cost;
       prefix_rec_count= join->positions[first_tab - 1].prefix_record_count;
       temptable_rec_size= 8; /* This is not true but we'll make it so */
     }
@@ -4593,7 +4593,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     STEP 1: Get temporary table name
   */
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
-    temp_pool_slot = bitmap_lock_set_next(&temp_pool);
+    temp_pool_slot = temp_pool_set_next();
 
   if (temp_pool_slot != MY_BIT_NONE) // we got a slot
     sprintf(path, "%s-subquery-%lx-%i", tmp_file_prefix,
@@ -4630,7 +4630,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
                         NullS))
   {
     if (temp_pool_slot != MY_BIT_NONE)
-      bitmap_lock_clear_bit(&temp_pool, temp_pool_slot);
+      temp_pool_clear_bit(temp_pool_slot);
     DBUG_RETURN(TRUE);
   }
   strmov(tmpname,path);
@@ -4840,7 +4840,7 @@ err:
   thd->mem_root= mem_root_save;
   free_tmp_table(thd,table);                    /* purecov: inspected */
   if (temp_pool_slot != MY_BIT_NONE)
-    bitmap_lock_clear_bit(&temp_pool, temp_pool_slot);
+    temp_pool_clear_bit(temp_pool_slot);
   DBUG_RETURN(TRUE);				/* purecov: inspected */
 }
 

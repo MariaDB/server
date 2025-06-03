@@ -317,7 +317,7 @@ class Item_sum_hybrid_simple : public Item_sum_hybrid
 
   bool add() override;
   bool fix_fields(THD *, Item **) override;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec(THD *thd) override;
   void setup_hybrid(THD *thd, Item *item);
   double val_real() override;
   longlong val_int() override;
@@ -554,7 +554,7 @@ class Item_sum_percent_rank: public Item_sum_double,
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -644,7 +644,7 @@ class Item_sum_cume_dist: public Item_sum_double,
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -885,7 +885,7 @@ public:
   const Type_handler *type_handler() const override
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -1022,7 +1022,7 @@ public:
   }
   void update_field() override {}
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
@@ -1373,7 +1373,7 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags) override;
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     Type_std_attributes::set(window_func());
     return FALSE;

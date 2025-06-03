@@ -215,7 +215,7 @@ drop table t1;
 --echo # MDEV-26061 MariaDB server crash at Field::set_default
 --echo #
 
-create table t1 (d timestamp check (default (d) is true)) as select 1;
+create table t1 (d timestamp not null default now() check (default (d) is true)) as select 1;
 show create table t1;
 drop table t1;
 

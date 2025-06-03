@@ -1,4 +1,5 @@
 --source include/have_debug.inc
+--source include/have_partition.inc
 
 --let $datadir=`select @@datadir`
 
@@ -33,7 +34,8 @@ show create table t3;
 create table t4 (a int);
 show create table t4;
 drop table t1, t2, t3, t4;
-
+set debug_dbug= @old_dbug;
+set global debug_dbug= @old_dbug;
 
 --echo #
 --echo # MDEV-19525 remove ER_VERS_FIELD_WRONG_TYPE from init_from_binary_frm_image()
@@ -46,4 +48,61 @@ show create table t1;
 --replace_result $datadir ./
 show warnings;
 drop table t1;
-set global debug_dbug=@old_dbug;
+set debug_dbug= @old_dbug;
+
+
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables
+--echo #            with history partitioned by INTERVAL/LIMIT
+--echo #
+call mtr.add_suppression("need more HISTORY partitions");
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 1 auto partitions 2;
+insert into t1 values (1);
+update t1 set x= x + 1;
+
+--connect con2, localhost, root
+--connect con1, localhost, root
+
+--disable_warnings
+--echo # Both threads create partition simultaneously
+--connection con1
+set debug_sync= 'add_history_partition signal s1 wait_for s2';
+send update t1 set x= x + 10;
+--connection con2
+set debug_sync= 'now wait_for s1';
+flush tables t1;
+set debug_sync= 'add_history_partition signal s2';
+update t1 set x= x + 20;
+--connection con1
+reap;
+--connection default
+# 1 or 2 history rows may be created depending on which UPDATE finishes first (MDEV-28459)
+# select partition_name, table_rows from information_schema.partitions
+# where table_name = 't1';
+
+# Fill empty partition for next UPDATE to trigger auto-create
+update t1 set x= x + 2;
+
+--echo # Second thread skips to reopen 3 times until first thread creates partition
+--connection con1
+set debug_sync= 'add_history_partition SIGNAL s1 WAIT_FOR s2';
+send update t1 set x= x + 30;
+--connection con2
+set debug_sync= 'now WAIT_FOR s1';
+set debug_sync= 'reopen_history_partition SIGNAL s2 EXECUTE 3';
+update t1 set x= x + 40;
+--connection con1
+reap;
+--connection default
+# Same here (MDEV-28459)
+# select partition_name, table_rows from information_schema.partitions
+# where table_name = 't1';
+--enable_warnings
+
+--disconnect con1
+--disconnect con2
+set @@timestamp= default;
+
+drop tables t1;
+set debug_sync= 'reset';

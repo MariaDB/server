@@ -942,6 +942,7 @@ rocksdb_keep_log_file_num	1000
 rocksdb_large_prefix	OFF
 rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
+rocksdb_log_dir	
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
 rocksdb_manual_compaction_threads	0
@@ -981,7 +982,7 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
-rocksdb_stats_level	0
+rocksdb_stats_level	1
 rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF

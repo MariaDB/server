@@ -2901,24 +2901,31 @@ SELECT DISTINCT
 FROM t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "duplicate_removal": {
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 2,
-          "r_rows": 2,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 2,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ],
         "subqueries": [
           {
             "expression_cache": {
@@ -2928,37 +2935,45 @@ ANALYZE
                 "select_id": 2,
                 "r_loops": 1,
                 "r_total_time_ms": "REPLACED",
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ALL",
-                  "r_loops": 1,
-                  "rows": 2,
-                  "r_rows": 2,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
-                  "r_engine_stats": REPLACED,
-                  "filtered": 100,
-                  "r_filtered": 50,
-                  "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
-                },
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "r_loops": 1,
+                      "rows": 2,
+                      "r_rows": 2,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_filtered": 50,
+                      "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
+                    }
+                  }
+                ],
                 "subqueries": [
                   {
                     "query_block": {
                       "select_id": 3,
                       "r_loops": 1,
                       "r_total_time_ms": "REPLACED",
-                      "table": {
-                        "table_name": "t1",
-                        "access_type": "ALL",
-                        "r_loops": 1,
-                        "rows": 2,
-                        "r_rows": 2,
-                        "r_table_time_ms": "REPLACED",
-                        "r_other_time_ms": "REPLACED",
-                        "r_engine_stats": REPLACED,
-                        "filtered": 100,
-                        "r_filtered": 100
-                      }
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
+                            "filtered": 100,
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
                     }
                   }
                 ]
@@ -3263,37 +3278,49 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 3,
           "having_condition": "trigcond(t3.c is null)",
-          "table": {
-            "table_name": "t3",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100,
+                "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
+              }
+            }
+          ]
         }
       },
       {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t2",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "t2.b = 1"
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100,
+                "attached_condition": "t2.b = 1"
+              }
+            }
+          ]
         }
       }
     ]

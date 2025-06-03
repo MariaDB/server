@@ -192,9 +192,9 @@ CREATE TABLE t1 (a INET6);
 INSERT INTO t1 VALUES ('x');
 ERROR 22007: Incorrect inet6 value: 'x' for column `test`.`t1`.`a` at row 1
 INSERT INTO t1 VALUES (1);
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (TIME'10:20:30');
-ERROR 22007: Incorrect inet6 value: '10:20:30' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `test`.`t1`.`a`
 INSERT INTO t1 VALUES (0x00);
 ERROR 22007: Incorrect inet6 value: '\x00' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
@@ -820,15 +820,15 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR 22007: Incorrect integer value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR 22007: Incorrect double value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'double' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
-ERROR 22007: Incorrect decimal value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'decimal' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64));
 INSERT INTO t1 VALUES (CAST('::' AS INET6));
@@ -1606,7 +1606,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1614,7 +1614,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DOUBLE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect double value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'double' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1622,7 +1622,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DECIMAL(32,0));
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect decimal value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'decimal' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1630,7 +1630,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b YEAR);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'year' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1641,7 +1641,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1649,7 +1649,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'double' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1657,7 +1657,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(32,0), b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '1' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'decimal' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1665,7 +1665,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a YEAR, b INET6);
 INSERT INTO t1 VALUES (1, NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'year' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1676,7 +1676,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect time value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'time' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1684,7 +1684,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATE);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect date value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'date' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1692,7 +1692,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b DATETIME);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'datetime' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1700,7 +1700,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b TIMESTAMP NULL DEFAULT NULL);
 INSERT INTO t1 VALUES ('ffff::ffff', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: 'ffff::ffff' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1711,7 +1711,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIME, b INET6);
 INSERT INTO t1 VALUES ('00:00:00', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '00:00:00' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'time' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1719,7 +1719,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE, b INET6);
 INSERT INTO t1 VALUES ('2001-01:01', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001-01-01' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'date' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1727,7 +1727,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001-01-01 10:20:30' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'datetime' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1735,7 +1735,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP, b INET6);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30', NULL);
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect inet6 value: '2001-01-01 10:20:30' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'timestamp' as 'inet6' in assignment of `test`.`t1`.`b`
 SELECT b FROM t1;
 b
 NULL
@@ -1922,16 +1922,16 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INET6, b INT);
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect integer value: '::' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'int' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 ::	NULL
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
-CREATE TABLE t1 (a INET6, b TIMESTAMP);
+CREATE TABLE t1 (a INET6, b TIMESTAMP NOT NULL DEFAULT NOW() ON UPDATE NOW());
 INSERT INTO t1 (a) VALUES ('::');
 UPDATE t1 SET b=a;
-ERROR 22007: Incorrect datetime value: '::' for column `test`.`t1`.`b` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'timestamp' in assignment of `test`.`t1`.`b`
 SELECT * FROM t1;
 a	b
 ::	2001-01-01 10:20:30
@@ -1940,7 +1940,7 @@ SET timestamp=DEFAULT;
 CREATE OR REPLACE TABLE t1 (a INET6);
 INSERT INTO t1 (a) VALUES ('::');
 ALTER TABLE t1 MODIFY a DATE;
-ERROR 22007: Incorrect date value: '::' for column `test`.`t1`.`a` at row 1
+ERROR HY000: Cannot cast 'inet6' as 'date' in assignment of `test`.`t1`.`a`
 DROP TABLE t1;
 #
 # MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table
@@ -2368,4 +2368,65 @@ c
 Warnings:
 Warning	1292	Incorrect inet6 value: '1:0'
 Warning	1292	Incorrect inet6 value: '00:'
+DROP TABLE t1;
+# End of 10.6 tests
+#
+# MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
+#
+SET sql_mode='';
+SET @@SESSION.max_sort_length=4;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '4'
+CREATE TEMPORARY TABLE t1(c INET6,d DATE);
+INSERT INTO t1 VALUES(0,0);
+Warnings:
+Warning	4078	Cannot cast 'int' as 'inet6' in assignment of `test`.`t1`.`c`
+Warning	1292	Incorrect inet6 value: '0' for column `test`.`t1`.`c` at row 1
+INSERT INTO t1 VALUES('::',0);
+SELECT c FROM t1 ORDER BY c;
+c
+::
+::
+DROP TABLE t1;
+SET max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::'),('f::f');
+SET SESSION max_sort_length= 8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
+SELECT CASE 1 WHEN 0 THEN 'foo' ELSE a END AS f FROM t1 GROUP BY f WITH ROLLUP;
+f
+::
+f::f
+NULL
+SELECT CASE 1 WHEN 0 THEN 'foo' ELSE a END AS f FROM t1 GROUP BY f;
+f
+::
+f::f
+DROP TABLE t1;
+SET max_sort_length=DEFAULT;
+# End of 10.8 tests
+#
+# MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+#
+CREATE OR REPLACE TABLE t1 (c1 BINARY(16), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000001);
+INSERT INTO t1 (c1) VALUES (0x00000000000000000000000000000002);
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+CAST(c1 AS INET6)
+::1
+::2
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::1' BETWEEN CAST('::1' AS INET6) AND c1;
+CAST(c1 AS INET6)
+::1
+::2
+SELECT CAST(c1 AS INET6) FROM t1 WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+CAST(c1 AS INET6)
+::1
+::2
+SELECT CAST(c1 AS INET6) FROM t1 IGNORE KEY(c1) WHERE '::2' BETWEEN c1 AND CAST('::2' AS INET6);
+CAST(c1 AS INET6)
+::1
+::2
 DROP TABLE t1;

@@ -182,7 +182,7 @@ id	id
 1	NULL
 2	1
 3	3
-create index for_latest_sort on t2 (d1 desc, d2 desc, id desc);
+create index for_latest_sort on t2 (d1, d2, id);
 analyze table t2 persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -194,6 +194,36 @@ t1 left join
 t2 on t2.id2 = t1.id and
 t2.id = (select dd.id
 from t2 dd
+where
+dd.id2 = t1.id and
+d1 > '2019-02-06 00:00:00'
+                 order by
+dd.d1 desc, dd.d2 desc, dd.id desc limit 1
+);
+id	id
+1	NULL
+2	1
+3	3
+# Now, same as above but use a DESC index
+CREATE TABLE t3 (
+id int NOT NULL PRIMARY KEY,
+id2 int NOT NULL,
+d1 datetime,
+d2 timestamp NOT NULL,
+KEY id2 (id2)
+) engine=innodb;
+insert into t3 values
+(1,2,'2019-03-05 00:00:00','2019-03-06 00:00:00'),
+(2,3,'2019-03-05 00:00:00','2019-03-06 00:00:00'),
+(3,3,'2019-03-06 00:00:00','2019-03-05 00:00:00');
+create index for_latest_sort on t3 (d1 desc, d2 desc, id desc);
+select
+t1.id,t3.id
+from
+t1 left join
+t3 on t3.id2 = t1.id and
+t3.id = (select dd.id
+from t3 dd
 where
 dd.id2 = t1.id and
 d1 > '2019-02-06 00:00:00'
@@ -227,5 +257,40 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index
 1	PRIMARY	t2	eq_ref	PRIMARY,id2	PRIMARY	4	func	#	Using where
 2	DEPENDENT SUBQUERY	dd	range	id2,for_latest_sort	for_latest_sort	6	NULL	#	Using where
-drop table t1,t2;
+drop table t1,t2,t3;
 # End of 10.2 tests
+#
+# MDEV-26938 Support descending indexes internally in InnoDB
+#
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	57	Using filesort
+explain select * from t1 force index(r) order by a desc,b limit 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	r	10	NULL	20	
+select * from t1 force index(r) order by a desc,b limit 20;
+a	b	c
+9	NULL	NULL
+9	0	9
+9	1	19
+9	2	29
+9	3	39
+9	4	49
+8	0	8
+8	1	18
+8	2	28
+8	3	38
+8	4	48
+7	0	7
+7	1	17
+7	2	27
+7	3	37
+7	4	47
+6	0	6
+6	1	16
+6	2	26
+6	3	36
+drop table t1;

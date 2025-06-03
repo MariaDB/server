@@ -217,58 +217,51 @@ create table test.t1 (i int) engine=myisam;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --source ../suite/innodb/include/wait_all_purged.inc
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table test.t1;
 show tables;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table mysqltest2.t2;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
 
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_DUP_FIELDNAME
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 show tables;
---replace_column 1 #
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_DUP_FIELDNAME
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
 
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 unlock tables;
 drop table test.t1,mysqltest2.t2;
 
 create table test.t1 (i int) engine=aria transactional=1 checksum=1;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 unlock tables;
 drop table t1;
 
@@ -282,15 +275,13 @@ drop table test.t1;
 --echo #
 create table t1 (i int);
 lock table t1 write;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --error ER_DATA_TOO_LONG
 create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 show tables;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
 --enable_view_protocol
@@ -366,22 +357,18 @@ drop view t1;
 
 create table t1 (a int);
 lock table t1 write, t2 read;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 
 create or replace table t1 (i int);
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 create or replace table t1 like t2;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 create or replace table t1 select 1 as f1;
---replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 drop table t1;
 unlock tables;
 
@@ -528,7 +515,5 @@ DROP TABLE IF EXISTS tm, t;
 --echo #
 --echo # End of 10.3 tests
 --echo #
-
---echo # End of 10.4 tests
 
 SET GLOBAL innodb_stats_persistent=@save_persistent;

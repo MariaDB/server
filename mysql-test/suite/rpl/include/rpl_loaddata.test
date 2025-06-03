@@ -109,7 +109,7 @@ connection slave;
 
 # RESET SLAVE and see if error is cleared in SHOW SLAVE STATUS.
 stop slave;
-reset slave;
+--source include/reset_slave.inc
 --source include/check_slave_no_error.inc
 
 # Finally, see if logging is done ok on master for a failing LOAD DATA INFILE

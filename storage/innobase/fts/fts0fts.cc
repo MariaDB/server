@@ -4074,7 +4074,7 @@ fts_sync_begin(
 		ib::info() << "FTS SYNC for table " << sync->table->name
 			<< ", deleted count: "
 			<< ib_vector_size(cache->deleted_doc_ids)
-			<< " size: " << cache->total_size << " bytes";
+			<< " size: " << ib::bytes_iec{cache->total_size};
 	}
 }
 
@@ -4464,7 +4464,7 @@ fts_add_token(
 
 		t_str.f_n_char = str.f_n_char;
 
-		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply + 1;
+		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply() + 1;
 
 		t_str.f_str = static_cast<byte*>(
 			mem_heap_alloc(heap, t_str.f_len));

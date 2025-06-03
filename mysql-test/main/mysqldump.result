@@ -38,7 +38,9 @@ CREATE TABLE `t1` (
   `a` decimal(64,20) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1234567890123456789012345678901234567890.00000000000000000000),(987654321098765432109876543210987654321.00000000000000000000);
+INSERT INTO `t1` VALUES
+(1234567890123456789012345678901234567890.00000000000000000000),
+(987654321098765432109876543210987654321.00000000000000000000);
 DROP TABLE t1;
 #
 # Bug#2055 mysqldump should replace "-inf" numeric field values with "NULL"
@@ -54,7 +56,8 @@ CREATE TABLE `t1` (
   `a` double DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (-1.7976931348623157e308);
+INSERT INTO `t1` VALUES
+(-1.7976931348623157e308);
 DROP TABLE t1;
 #
 # Bug#3361 mysqldump quotes DECIMAL values inconsistently
@@ -77,7 +80,12 @@ CREATE TABLE `t1` (
   `b` float DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456);
+INSERT INTO `t1` VALUES
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456);
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -86,7 +94,12 @@ CREATE TABLE `t1` (
   `b` float DEFAULT NULL
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456);
+INSERT INTO `t1` VALUES
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456);
 /*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -110,7 +123,12 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456);
+INSERT INTO `t1` VALUES
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -138,7 +156,12 @@ CREATE TABLE `t1` (
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO `t1` VALUES (1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456),(1.23450,2.3456);
+INSERT INTO `t1` VALUES
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456),
+(1.23450,2.3456);
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -256,7 +279,9 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1),(2);
+INSERT INTO `t1` VALUES
+(1),
+(2);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -280,7 +305,9 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1),(2);
+INSERT INTO `t1` VALUES
+(1),
+(2);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -552,7 +579,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('√Ñ√ñ√ú√ü');
+INSERT INTO `t1` VALUES
+('√Ñ√ñ√ú√ü');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -586,7 +614,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('éôö·');
+INSERT INTO `t1` VALUES
+('éôö·');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -610,7 +639,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('éôö·');
+INSERT INTO `t1` VALUES
+('éôö·');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -634,7 +664,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('√Ñ√ñ√ú√ü');
+INSERT INTO `t1` VALUES
+('√Ñ√ñ√ú√ü');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -674,7 +705,10 @@ CREATE TABLE `t2` (
 
 LOCK TABLES `t2` WRITE;
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT INTO `t2` VALUES (4),(5),(6);
+INSERT INTO `t2` VALUES
+(4),
+(5),
+(6);
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -758,7 +792,13 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT IGNORE INTO `t1` VALUES (1),(2),(3),(4),(5),(6);
+INSERT IGNORE INTO `t1` VALUES
+(1),
+(2),
+(3),
+(4),
+(5),
+(6);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -792,7 +832,13 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT DELAYED IGNORE INTO `t1` VALUES (1),(2),(3),(4),(5),(6);
+INSERT DELAYED IGNORE INTO `t1` VALUES
+(1),
+(2),
+(3),
+(4),
+(5),
+(6);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -1539,7 +1585,10 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1),(2),(3);
+INSERT INTO `t1` VALUES
+(1),
+(2),
+(3);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1775,13 +1824,20 @@ insert into t2 (a, b) values (NULL, NULL),(10, NULL),(NULL, "twenty"),(30, "thir
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (NULL),(10),(20);
+INSERT INTO `t1` VALUES
+(NULL),
+(10),
+(20);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `t2` WRITE;
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT INTO `t2` VALUES (1,NULL,NULL,NULL,NULL,NULL),(2,10,NULL,NULL,NULL,NULL),(3,NULL,'twenty',NULL,NULL,NULL),(4,30,'thirty',NULL,NULL,NULL);
+INSERT INTO `t2` VALUES
+(1,NULL,NULL,NULL,NULL,NULL),
+(2,10,NULL,NULL,NULL,NULL),
+(3,NULL,'twenty',NULL,NULL,NULL),
+(4,30,'thirty',NULL,NULL,NULL);
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1815,7 +1871,10 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (NULL),(10),(20);
+INSERT INTO `t1` VALUES
+(NULL),
+(10),
+(20);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `t2`;
@@ -1834,7 +1893,11 @@ CREATE TABLE `t2` (
 
 LOCK TABLES `t2` WRITE;
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT INTO `t2` VALUES (1,NULL,NULL,NULL,NULL,NULL),(2,10,NULL,NULL,NULL,NULL),(3,NULL,'twenty',NULL,NULL,NULL),(4,30,'thirty',NULL,NULL,NULL);
+INSERT INTO `t2` VALUES
+(1,NULL,NULL,NULL,NULL,NULL),
+(2,10,NULL,NULL,NULL,NULL),
+(3,NULL,'twenty',NULL,NULL,NULL),
+(4,30,'thirty',NULL,NULL,NULL);
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -2024,7 +2087,8 @@ CREATE TABLE "t1" (
 
 LOCK TABLES "t1" WRITE;
 /*!40000 ALTER TABLE "t1" DISABLE KEYS */;
-INSERT INTO "t1" VALUES (815,4711,2006);
+INSERT INTO "t1" VALUES
+(815,4711,2006);
 /*!40000 ALTER TABLE "t1" ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -2059,7 +2123,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (815,4711,2006);
+INSERT INTO `t1` VALUES
+(815,4711,2006);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -2112,7 +2177,12 @@ CREATE TABLE `t2` (
 
 LOCK TABLES `t2` WRITE;
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT INTO `t2` VALUES ('alfred'),('angie'),('bingo'),('waffle'),('lemon');
+INSERT INTO `t2` VALUES
+('alfred'),
+('angie'),
+('bingo'),
+('waffle'),
+('lemon');
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `v2`;
@@ -2278,7 +2348,12 @@ CREATE TABLE `t2` (
 
 LOCK TABLES `t2` WRITE;
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT INTO `t2` VALUES ('alfred'),('angie'),('bingo'),('waffle'),('lemon');
+INSERT INTO `t2` VALUES
+('alfred'),
+('angie'),
+('bingo'),
+('waffle'),
+('lemon');
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `v2`;
@@ -2343,7 +2418,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('\'');
+INSERT INTO `t1` VALUES
+('\'');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -2392,7 +2468,10 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1,2,'one'),(2,4,'two'),(3,6,'three');
+INSERT INTO `t1` VALUES
+(1,2,'one'),
+(2,4,'two'),
+(3,6,'three');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `v1`;
@@ -2545,7 +2624,11 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1,NULL),(2,NULL),(4,NULL),(11,NULL);
+INSERT INTO `t1` VALUES
+(1,NULL),
+(2,NULL),
+(4,NULL),
+(11,NULL);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -2675,7 +2758,11 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1,NULL),(2,NULL),(4,NULL),(11,NULL);
+INSERT INTO `t1` VALUES
+(1,NULL),
+(2,NULL),
+(4,NULL),
+(11,NULL);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `t2`;
@@ -2822,7 +2909,12 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1),(2),(3),(4),(5);
+INSERT INTO `t1` VALUES
+(1),
+(2),
+(3),
+(4),
+(5);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
@@ -2975,7 +3067,9 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('2003-10-25 22:00:00'),('2003-10-25 23:00:00');
+INSERT INTO `t1` VALUES
+('2003-10-25 22:00:00'),
+('2003-10-25 23:00:00');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -3013,7 +3107,9 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('2003-10-26 02:00:00'),('2003-10-26 02:00:00');
+INSERT INTO `t1` VALUES
+('2003-10-26 02:00:00'),
+('2003-10-26 02:00:00');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -3066,7 +3162,10 @@ CREATE TABLE "t1 test" (
 
 LOCK TABLES "t1 test" WRITE;
 /*!40000 ALTER TABLE "t1 test" DISABLE KEYS */;
-INSERT INTO "t1 test" VALUES (1),(2),(3);
+INSERT INTO "t1 test" VALUES
+(1),
+(2),
+(3);
 /*!40000 ALTER TABLE "t1 test" ENABLE KEYS */;
 UNLOCK TABLES;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -3095,7 +3194,10 @@ CREATE TABLE "t2 test" (
 
 LOCK TABLES "t2 test" WRITE;
 /*!40000 ALTER TABLE "t2 test" DISABLE KEYS */;
-INSERT INTO "t2 test" VALUES (1),(2),(3);
+INSERT INTO "t2 test" VALUES
+(1),
+(2),
+(3);
 /*!40000 ALTER TABLE "t2 test" ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -3152,7 +3254,10 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1,'first value','xxxx'),(2,'second value','tttt'),(3,'third value','vvv vvv');
+INSERT INTO `t1` VALUES
+(1,'first value','xxxx'),
+(2,'second value','tttt'),
+(3,'third value','vvv vvv');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `v0`;
@@ -3373,7 +3478,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (0x00,'');
+INSERT INTO `t1` VALUES
+(0x00,'');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -3557,7 +3663,11 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1232131),(4711),(3231),(815);
+INSERT INTO `t1` VALUES
+(1232131),
+(4711),
+(3231),
+(815);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `v1`;
@@ -3686,6 +3796,7 @@ use test;
 # Bug#21215 mysqldump creating incomplete backups without warning
 #
 create user mysqltest_1@localhost;
+grant all on test.* to  mysqltest_1@localhost;
 create table t1(a int, b varchar(34));
 reset master;
 mariadb-dump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
@@ -3777,7 +3888,7 @@ CREATE TEMPORARY TABLE `TABLES` (
   `CREATE_TIME` datetime,
   `UPDATE_TIME` datetime,
   `CHECK_TIME` datetime,
-  `TABLE_COLLATION` varchar(32),
+  `TABLE_COLLATION` varchar(64),
   `CHECKSUM` bigint(21) unsigned,
   `CREATE_OPTIONS` varchar(2048),
   `TABLE_COMMENT` varchar(2048) NOT NULL,
@@ -3952,7 +4063,8 @@ CREATE TABLE `t1` (
   `c2` longblob DEFAULT NULL
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (11,0x7171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171);
+INSERT INTO `t1` VALUES
+(11,0x7171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171);
 DROP TABLE t1;
 #
 # Bug#28524 mysqldump --skip-add-drop-table is not
@@ -4193,7 +4305,11 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-REPLACE INTO `t1` VALUES (1,1),(2,3),(3,4),(4,5);
+REPLACE INTO `t1` VALUES
+(1,1),
+(2,3),
+(3,4),
+(4,5);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -4469,7 +4585,11 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES (1232131),(4711),(3231),(815);
+INSERT INTO `t1` VALUES
+(1232131),
+(4711),
+(3231),
+(815);
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `v1`;
@@ -5570,7 +5690,9 @@ CREATE TABLE `basetable` (
   `id` smallint(6) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `basetable` VALUES (5),(6);
+INSERT INTO `basetable` VALUES
+(5),
+(6);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nonunique_table_name` (
@@ -5593,14 +5715,18 @@ CREATE TABLE `nonunique_table_name` (
   UNIQUE KEY `i1` (`i1`)
 ) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `nonunique_table_name` VALUES (1),(2);
+INSERT INTO `nonunique_table_name` VALUES
+(1),
+(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
+INSERT INTO `nonunique_table_view_name` VALUES
+(3),
+(4);
 
 USE `db1`;
 /*!50001 DROP VIEW IF EXISTS `nonunique_table_view_name`*/;
@@ -5630,14 +5756,18 @@ CREATE TABLE `nonunique_table_name` (
   UNIQUE KEY `i1` (`i1`)
 ) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `nonunique_table_name` VALUES (1),(2);
+INSERT INTO `nonunique_table_name` VALUES
+(1),
+(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
+INSERT INTO `nonunique_table_view_name` VALUES
+(3),
+(4);
 
 ##################################################
 # --compact --delayed-insert --no-data-med=0 --databases db2 db1
@@ -5653,14 +5783,18 @@ CREATE TABLE `nonunique_table_name` (
   UNIQUE KEY `i1` (`i1`)
 ) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT DELAYED INTO `nonunique_table_name` VALUES (1),(2);
+INSERT DELAYED INTO `nonunique_table_name` VALUES
+(1),
+(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
+INSERT INTO `nonunique_table_view_name` VALUES
+(3),
+(4);
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */;
 
@@ -5671,14 +5805,18 @@ CREATE TABLE `basetable` (
   `id` smallint(6) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT DELAYED INTO `basetable` VALUES (5),(6);
+INSERT DELAYED INTO `basetable` VALUES
+(5),
+(6);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nonunique_table_name` (
   `i3` smallint(6) DEFAULT NULL
 ) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci INSERT_METHOD=LAST UNION=(`basetable`);
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `nonunique_table_name` VALUES (5),(6);
+INSERT INTO `nonunique_table_name` VALUES
+(5),
+(6);
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
 /*!50001 CREATE VIEW `nonunique_table_view_name` AS SELECT
@@ -5743,6 +5881,8 @@ drop tables t2, t1;
 # MDEV-22037: Add ability to skip content of some tables
 # (work around for MDEV-20939)
 #
+create user a;
+grant SELECT on test.* to  a;
 use mysql;
 # check that all tables we need are not empty
 select count(*) >=  1 from  mysql.proc;
@@ -5756,6 +5896,7 @@ FOUND 1 /INSERT INTO `proc`/ in MDEV-20939.sql
 NOT FOUND /INSERT INTO `db`/ in MDEV-20939.sql
 FOUND 1 /CREATE TABLE `db`/ in MDEV-20939.sql
 FOUND 1 /CREATE TABLE `proc`/ in MDEV-20939.sql
+drop user a;
 use test;
 # End of 10.1 tests
 #
@@ -6149,7 +6290,8 @@ CREATE TABLE `t1` (
   `b` int(11) INVISIBLE DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),(1,2);
+INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),
+(1,2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t2` (
@@ -6157,7 +6299,9 @@ CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t2` VALUES (1,2),(1,2);
+INSERT INTO `t2` VALUES
+(1,2),
+(1,2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t3` (
@@ -6166,14 +6310,18 @@ CREATE TABLE `t3` (
   `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) INVISIBLE DEFAULT 5
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),(5,4,5),(2,4,5),(1,2,3);
+INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),
+(5,4,5),
+(2,4,5),
+(1,2,3);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t4` (
   `√ã√è√å√è√é√ã√Å1` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t4` VALUES (1);
+INSERT INTO `t4` VALUES
+(1);
 #Check side effect on --complete insert
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -6183,7 +6331,8 @@ CREATE TABLE `t1` (
   `b` int(11) INVISIBLE DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),(1,2);
+INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),
+(1,2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t2` (
@@ -6191,7 +6340,8 @@ CREATE TABLE `t2` (
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t2` (`a`, `b`) VALUES (1,2),(1,2);
+INSERT INTO `t2` (`a`, `b`) VALUES (1,2),
+(1,2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t3` (
@@ -6200,7 +6350,10 @@ CREATE TABLE `t3` (
   `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) INVISIBLE DEFAULT 5
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),(5,4,5),(2,4,5),(1,2,3);
+INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),
+(5,4,5),
+(2,4,5),
+(1,2,3);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t4` (
@@ -6393,7 +6546,11 @@ INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
 # Dump database 1
 # Restore from database 1 to database 2
 --------------
-INSERT INTO `t` VALUES (1,1),(2,2),(3,3),(4,4)
+INSERT INTO `t` VALUES
+(1,1),
+(2,2),
+(3,3),
+(4,4)
 --------------
 
 ERROR 1100 (HY000) at line 46: Table 'seq_t_i' was not locked with LOCK TABLES
@@ -6624,3 +6781,8 @@ SET character_set_client = @saved_cs_client;
 drop view `v'1"2`;
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-16733 mysqldump --tab and --xml options are conflicting
+#
+mariadb-dump: --xml can't be used with --tab.
+# End of 10.11 tests

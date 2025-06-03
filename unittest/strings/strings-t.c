@@ -1379,7 +1379,7 @@ strnncollsp_char_one(CHARSET_INFO *cs, const STRNNCOLLSP_CHAR_PARAM *p)
   str2hex(ahex, sizeof(ahex), p->a.str, p->a.length);
   str2hex(bhex, sizeof(bhex), p->b.str, p->b.length);
   diag("%-25s %-12s %-12s %3d %7d %7d%s",
-       cs->cs_name.str, ahex, bhex, (int) p->nchars, p->res, res,
+       cs->coll_name.str, ahex, bhex, (int) p->nchars, p->res, res,
        eqres(res, p->res) ? "" : " FAILED");
   if (!eqres(res, p->res))
   {

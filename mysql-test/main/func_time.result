@@ -1990,7 +1990,7 @@ select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010')
 microsecond('12:00:00.123456')	microsecond('2009-12-31 23:59:59.000010')
 123456	10
 select now(258);
-ERROR 42000: Too big precision 258 specified for 'current_timestamp'. Maximum is 6
+ERROR 42000: Too big precision specified for 'current_timestamp'. Maximum is 6
 SELECT 1 FROM DUAL WHERE YEAR(TIMEDIFF(NULL, '12:12:12'));
 1
 SELECT 1 FROM DUAL WHERE MONTH(TIMEDIFF(NULL, '12:12:12'));
@@ -2799,7 +2799,7 @@ SET sql_mode=DEFAULT;
 #
 # MDEV-13972 crash in Item_func_sec_to_time::get_date
 #
-DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
+DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(SYS_GUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: ''

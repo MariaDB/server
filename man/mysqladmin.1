@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-ADMIN\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-ADMIN\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -22,7 +22,7 @@ mariadb-admin \- client for administering a MariaDB server (mysqladmin is now a 
 .SH "DESCRIPTION"
 .PP
 \fBmysqladmin\fR
-is a client for performing administrative operations\&. You can use it to check the server\'s configuration and current status, to create and drop databases, and more\&.
+is a client for performing administrative operations\&. You can use it to check the server's configuration and current status, to create and drop databases, and more\&.
 .PP
 Invoke
 \fBmysqladmin\fR
@@ -676,7 +676,7 @@ The number of questions (queries) from clients since the server was started\&.
 Slow queries
 .sp
 The number of queries that have taken more than
-long_query_time
+log_slow_query_time
 seconds\&.
 .RE
 .sp
@@ -763,7 +763,7 @@ If you execute
 \fBmysqladmin shutdown\fR
 when connecting to a local server using a Unix socket file,
 \fBmysqladmin\fR
-waits until the server\'s process ID file has been removed, to ensure that the server has stopped properly\&.
+waits until the server's process ID file has been removed, to ensure that the server has stopped properly\&.
 .\" mysqladmin command options
 .\" command options: mysqladmin
 .\" options: command-line: mysqladmin
@@ -871,9 +871,7 @@ option is given\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/mysqladmin\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqladmin.trace'.
 .RE
 .sp
 .RS 4
@@ -1103,7 +1101,7 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for the connection or 0 for default to, 
+The TCP/IP port number to use for the connection or 0 for default to,
 in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
 Forces --protocol=tcp when specified on the command line without other connection properties\&.
 .RE
@@ -1243,7 +1241,7 @@ Forces --protocol=socket when specified on the command line without other connec
 .\" SSL options: mysqladmin
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp
@@ -1386,7 +1384,7 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .\" TLS Version option: mysqladmin
 \fB\-\-tls\-version=\fR\fB\fIname\fR\fR,
 .sp
-Accepts a comma-separated list of TLS protocol versions\&. A TLS protocol version will only be enabled if it 
+Accepts a comma-separated list of TLS protocol versions\&. A TLS protocol version will only be enabled if it
 is present in this list\&. All other TLS protocol versions will not be permitted\&.
 .RE
 .sp
@@ -1485,7 +1483,7 @@ value is given, it indicates the number of times to retry\&. The default is one 
 .\" --wait-for-all-slaves option: mysqladmin
 \fB\-\-wait\-for\-all\-slaves\fR
 .sp
-Wait for the last binlog event to be sent to all connected slaves before shutting down\&. 
+Wait for the last binlog event to be sent to all connected slaves before shutting down\&.
 This option is off by default\&.
 .RE
 .PP

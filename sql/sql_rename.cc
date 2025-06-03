@@ -376,7 +376,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
     thd->replication_flags= 0;
 
-    if (ddl_log_rename_table(thd, ddl_log_state, hton,
+    if (ddl_log_rename_table(ddl_log_state, hton,
                              &ren_table->db, old_alias, new_db, new_alias))
       DBUG_RETURN(1);
 
@@ -440,7 +440,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
       DBUG_RETURN(1);
     }
 
-    ddl_log_rename_view(thd, ddl_log_state, &ren_table->db,
+    ddl_log_rename_view(ddl_log_state, &ren_table->db,
                         &ren_table->table_name, new_db, new_alias);
     debug_crash_here("ddl_log_rename_before_rename_view");
     rc= mysql_rename_view(thd, new_db, new_alias, &ren_table->db,

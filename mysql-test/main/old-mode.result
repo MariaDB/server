@@ -129,7 +129,7 @@ DROP TABLE t1;
 SET @@global.mysql56_temporal_format=DEFAULT;
 set time_zone='Europe/Moscow';
 set global mysql56_temporal_format=false;
-create table t1 (a timestamp);
+create table t1 (a timestamp not null default now());
 set timestamp=1288477526;
 insert t1 values (null);
 insert t1 values ();
@@ -158,7 +158,7 @@ a	unix_timestamp(a)
 2010-10-31 02:25:26	1288481126
 drop table t1;
 set global mysql56_temporal_format=false;
-create table t1 (a timestamp);
+create table t1 (a timestamp not null default now());
 set timestamp=1288477526;
 insert t1 values (null);
 set timestamp=1288481126;
@@ -257,3 +257,13 @@ Warning	1264	Out of range value for column 'a' at row 2
 DROP TABLE t1;
 SET @@time_zone=DEFAULT;
 SET TIMESTAMP=DEFAULT;
+#
+# MDEV-31608 - Connector/NET fails to connect since 10.10
+#
+select count(*) > 0 from information_schema.collations where id IS NULL;
+count(*) > 0
+1
+SET old_mode=no_null_collation_ids;
+select count(*) > 0 from information_schema.collations where id IS NULL;
+count(*) > 0
+0

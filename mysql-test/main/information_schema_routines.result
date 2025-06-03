@@ -34,8 +34,8 @@ ROUTINES	CREATE TEMPORARY TABLE `ROUTINES` (
   `ROUTINE_COMMENT` longtext NOT NULL,
   `DEFINER` varchar(384) NOT NULL,
   `CHARACTER_SET_CLIENT` varchar(32) NOT NULL,
-  `COLLATION_CONNECTION` varchar(32) NOT NULL,
-  `DATABASE_COLLATION` varchar(32) NOT NULL
+  `COLLATION_CONNECTION` varchar(64) NOT NULL,
+  `DATABASE_COLLATION` varchar(64) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SELECT * FROM information_schema.columns
 WHERE table_schema = 'information_schema'
@@ -687,14 +687,14 @@ ORDINAL_POSITION	30
 COLUMN_DEFAULT	NULL
 IS_NULLABLE	NO
 DATA_TYPE	varchar
-CHARACTER_MAXIMUM_LENGTH	32
-CHARACTER_OCTET_LENGTH	96
+CHARACTER_MAXIMUM_LENGTH	64
+CHARACTER_OCTET_LENGTH	192
 NUMERIC_PRECISION	NULL
 NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	utf8mb3
 COLLATION_NAME	utf8mb3_general_ci
-COLUMN_TYPE	varchar(32)
+COLUMN_TYPE	varchar(64)
 COLUMN_KEY	
 EXTRA	
 PRIVILEGES	#
@@ -709,14 +709,14 @@ ORDINAL_POSITION	31
 COLUMN_DEFAULT	NULL
 IS_NULLABLE	NO
 DATA_TYPE	varchar
-CHARACTER_MAXIMUM_LENGTH	32
-CHARACTER_OCTET_LENGTH	96
+CHARACTER_MAXIMUM_LENGTH	64
+CHARACTER_OCTET_LENGTH	192
 NUMERIC_PRECISION	NULL
 NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	utf8mb3
 COLLATION_NAME	utf8mb3_general_ci
-COLUMN_TYPE	varchar(32)
+COLUMN_TYPE	varchar(64)
 COLUMN_KEY	
 EXTRA	
 PRIVILEGES	#
@@ -754,8 +754,8 @@ SQL_MODE	varchar(8192)	NO		NULL
 ROUTINE_COMMENT	longtext	NO		NULL	
 DEFINER	varchar(384)	NO		NULL	
 CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
-COLLATION_CONNECTION	varchar(32)	NO		NULL	
-DATABASE_COLLATION	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(64)	NO		NULL	
+DATABASE_COLLATION	varchar(64)	NO		NULL	
 # ========== routines.2 ==========
 DROP DATABASE IF EXISTS i_s_routines_test;
 CREATE DATABASE i_s_routines_test;
@@ -851,3 +851,269 @@ WHERE ROUTINE_SCHEMA = 'i_s_routines_test' AND ROUTINE_NAME = 'test_func5';
 SPECIFIC_NAME	ROUTINE_CATALOG	ROUTINE_SCHEMA	ROUTINE_NAME	ROUTINE_TYPE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	DTD_IDENTIFIER	ROUTINE_BODY	ROUTINE_DEFINITION	EXTERNAL_NAME	EXTERNAL_LANGUAGE	PARAMETER_STYLE	IS_DETERMINISTIC	SQL_DATA_ACCESS	SQL_PATH	SECURITY_TYPE	CREATED	LAST_ALTERED	SQL_MODE	ROUTINE_COMMENT	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 test_func5	def	i_s_routines_test	test_func5	FUNCTION	varchar	30	90	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(30)	SQL	RETURN CONCAT('XYZ, ' ,s)	NULL	NULL	SQL	NO	CONTAINS SQL	NULL	DEFINER	<created>	<modified>			root@localhost	latin1	latin1_swedish_ci	utf8mb3_general_ci
 DROP DATABASE i_s_routines_test;
+#
+# MDEV-20609 Full table scan in INFORMATION_SCHEMA.PARAMETERS/ROUTINES
+#
+DROP DATABASE IF EXISTS i_s_routines_test;
+CREATE DATABASE i_s_routines_test;
+USE i_s_routines_test;
+CREATE FUNCTION test_func5 (s CHAR(20)) RETURNS VARCHAR(30)
+RETURN CONCAT('XYZ, ' ,s);
+#
+# We cannot use the index due to missing condition on SPECIFIC_SCHEMA,
+# but we will use ROUTINE_NAME for filtering records from mysql.proc
+FLUSH STATUS;
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_NAME = 'test_func5';
+SPECIFIC_NAME	test_func5
+ROUTINE_CATALOG	def
+ROUTINE_SCHEMA	i_s_routines_test
+ROUTINE_NAME	test_func5
+ROUTINE_TYPE	FUNCTION
+DATA_TYPE	varchar
+CHARACTER_MAXIMUM_LENGTH	30
+CHARACTER_OCTET_LENGTH	30
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	latin1
+COLLATION_NAME	latin1_swedish_ci
+DTD_IDENTIFIER	varchar(30)
+ROUTINE_BODY	SQL
+ROUTINE_DEFINITION	RETURN CONCAT('XYZ, ' ,s)
+EXTERNAL_NAME	NULL
+EXTERNAL_LANGUAGE	NULL
+PARAMETER_STYLE	SQL
+IS_DETERMINISTIC	NO
+SQL_DATA_ACCESS	CONTAINS SQL
+SQL_PATH	NULL
+SECURITY_TYPE	DEFINER
+CREATED	<created>
+LAST_ALTERED	<modified>
+SQL_MODE	
+ROUTINE_COMMENT	
+DEFINER	root@localhost
+CHARACTER_SET_CLIENT	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SHOW STATUS LIKE 'handler_read%next';
+Variable_name	Value
+Handler_read_next	count_routines
+Handler_read_rnd_next	2
+#
+# We cannot use the index due to CONCAT(), and filtering by ROUTINE_NAME
+# does not work either since ROUTINE_NAME = 'not_existing_proc'. See
+# the difference in counters in comparison to the previous test
+FLUSH STATUS;
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+WHERE CONCAT(ROUTINE_SCHEMA) = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'not_existing_proc';
+SHOW STATUS LIKE 'handler_read%next';
+Variable_name	Value
+Handler_read_next	count_routines
+Handler_read_rnd_next	1
+#
+# Now the index must be used
+FLUSH STATUS;
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'test_func5';
+SPECIFIC_NAME	test_func5
+ROUTINE_CATALOG	def
+ROUTINE_SCHEMA	i_s_routines_test
+ROUTINE_NAME	test_func5
+ROUTINE_TYPE	FUNCTION
+DATA_TYPE	varchar
+CHARACTER_MAXIMUM_LENGTH	30
+CHARACTER_OCTET_LENGTH	30
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	latin1
+COLLATION_NAME	latin1_swedish_ci
+DTD_IDENTIFIER	varchar(30)
+ROUTINE_BODY	SQL
+ROUTINE_DEFINITION	RETURN CONCAT('XYZ, ' ,s)
+EXTERNAL_NAME	NULL
+EXTERNAL_LANGUAGE	NULL
+PARAMETER_STYLE	SQL
+IS_DETERMINISTIC	NO
+SQL_DATA_ACCESS	CONTAINS SQL
+SQL_PATH	NULL
+SECURITY_TYPE	DEFINER
+CREATED	<created>
+LAST_ALTERED	<modified>
+SQL_MODE	
+ROUTINE_COMMENT	
+DEFINER	root@localhost
+CHARACTER_SET_CLIENT	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SHOW STATUS LIKE 'handler_read%next';
+Variable_name	Value
+Handler_read_next	1
+Handler_read_rnd_next	2
+#
+# Using the first key part of the index
+FLUSH STATUS;
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA = 'i_s_routines_test';
+SPECIFIC_NAME	test_func5
+ROUTINE_CATALOG	def
+ROUTINE_SCHEMA	i_s_routines_test
+ROUTINE_NAME	test_func5
+ROUTINE_TYPE	FUNCTION
+DATA_TYPE	varchar
+CHARACTER_MAXIMUM_LENGTH	30
+CHARACTER_OCTET_LENGTH	30
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	latin1
+COLLATION_NAME	latin1_swedish_ci
+DTD_IDENTIFIER	varchar(30)
+ROUTINE_BODY	SQL
+ROUTINE_DEFINITION	RETURN CONCAT('XYZ, ' ,s)
+EXTERNAL_NAME	NULL
+EXTERNAL_LANGUAGE	NULL
+PARAMETER_STYLE	SQL
+IS_DETERMINISTIC	NO
+SQL_DATA_ACCESS	CONTAINS SQL
+SQL_PATH	NULL
+SECURITY_TYPE	DEFINER
+CREATED	<created>
+LAST_ALTERED	<modified>
+SQL_MODE	
+ROUTINE_COMMENT	
+DEFINER	root@localhost
+CHARACTER_SET_CLIENT	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SHOW STATUS LIKE 'handler_read%next';
+Variable_name	Value
+Handler_read_next	1
+Handler_read_rnd_next	2
+#
+# Test non-latin letters in procedure name
+SET NAMES koi8r;
+CREATE PROCEDURE `процедурка`(a INT) SELECT a;
+#
+# The index must be used
+FLUSH STATUS;
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_SCHEMA = 'i_s_routines_test'
+  AND ROUTINE_NAME = 'процедурка';
+SPECIFIC_NAME	процедурка
+ROUTINE_CATALOG	def
+ROUTINE_SCHEMA	i_s_routines_test
+ROUTINE_NAME	процедурка
+ROUTINE_TYPE	PROCEDURE
+DATA_TYPE	
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+DTD_IDENTIFIER	NULL
+ROUTINE_BODY	SQL
+ROUTINE_DEFINITION	SELECT a
+EXTERNAL_NAME	NULL
+EXTERNAL_LANGUAGE	NULL
+PARAMETER_STYLE	SQL
+IS_DETERMINISTIC	NO
+SQL_DATA_ACCESS	CONTAINS SQL
+SQL_PATH	NULL
+SECURITY_TYPE	DEFINER
+CREATED	<created>
+LAST_ALTERED	<modified>
+SQL_MODE	
+ROUTINE_COMMENT	
+DEFINER	root@localhost
+CHARACTER_SET_CLIENT	koi8r
+COLLATION_CONNECTION	koi8r_general_ci
+DATABASE_COLLATION	latin1_swedish_ci
+SHOW STATUS LIKE 'handler_read%next';
+Variable_name	Value
+Handler_read_next	1
+Handler_read_rnd_next	2
+#
+# Test SHOW PROCEDURE STATUS. It's impossible to use the index here
+# so don't check Handler_read counters, only the results correctness
+SHOW FUNCTION STATUS LIKE 'test_func5';
+Db	i_s_routines_test
+Name	test_func5
+Type	FUNCTION
+Definer	root@localhost
+Modified	<modified>
+Created	<created>
+Security_type	DEFINER
+Comment	
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+SHOW FUNCTION STATUS LIKE 'test_%';
+Db	i_s_routines_test
+Name	test_func5
+Type	FUNCTION
+Definer	root@localhost
+Modified	<modified>
+Created	<created>
+Security_type	DEFINER
+Comment	
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+SHOW FUNCTION STATUS LIKE '%func%';
+Db	i_s_routines_test
+Name	test_func5
+Type	FUNCTION
+Definer	root@localhost
+Modified	<modified>
+Created	<created>
+Security_type	DEFINER
+Comment	
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+SHOW FUNCTION STATUS LIKE 'test';
+SHOW PROCEDURE STATUS LIKE 'процедурка';
+Db	i_s_routines_test
+Name	процедурка
+Type	PROCEDURE
+Definer	root@localhost
+Modified	<modified>
+Created	<created>
+Security_type	DEFINER
+Comment	
+character_set_client	koi8r
+collation_connection	koi8r_general_ci
+Database Collation	latin1_swedish_ci
+SHOW PROCEDURE STATUS LIKE '%оцедурка';
+Db	i_s_routines_test
+Name	процедурка
+Type	PROCEDURE
+Definer	root@localhost
+Modified	<modified>
+Created	<created>
+Security_type	DEFINER
+Comment	
+character_set_client	koi8r
+collation_connection	koi8r_general_ci
+Database Collation	latin1_swedish_ci
+SHOW PROCEDURE STATUS LIKE '%оцедур%';
+Db	i_s_routines_test
+Name	процедурка
+Type	PROCEDURE
+Definer	root@localhost
+Modified	<modified>
+Created	<created>
+Security_type	DEFINER
+Comment	
+character_set_client	koi8r
+collation_connection	koi8r_general_ci
+Database Collation	latin1_swedish_ci
+SHOW PROCEDURE STATUS LIKE 'такой_нет';
+DROP DATABASE i_s_routines_test;
+USE test;

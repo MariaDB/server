@@ -321,6 +321,46 @@ SET GLOBAL general_log_file = @old_general_log_file;
 
 --enable_ps_protocol
 
+--echo #
+--echo # MDEV-35720 Add query_time to statistics
+--echo #
+
+connect (con2,localhost,root,,);
+set @s1=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+--disable_cursor_protocol
+select sleep(3) into @a;
+--enable_cursor_protocol
+set @s2=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+set @s3=(select variable_value from information_schema.global_status where
+variable_name='query_time');
+
+select @s1 >= 0.00 and @s1 <= 2.00 as "should be true";
+select @s2 >= 2.00 and @s2 < 10.00 as "should be true";
+select @s3 >= 3.00 as "should be true";
+
+# select @s1,@s2,@s3;
+disconnect con2;
+connection default;
+
+delimiter |;
+create procedure p1()
+begin
+select sleep(1) into @a;
+select sleep(2) into @a;
+end|
+delimiter ;|
+
+connect (con2,localhost,root,,);
+call p1();
+set @s1=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+select @s1 > 2.00 and @s1 < 10.00 as "should be true";
+
+# select @s1;
+disconnect con2;
+
 #
 # Cleanup
 #
@@ -328,6 +368,7 @@ SET GLOBAL general_log_file = @old_general_log_file;
 disconnect con1;
 # set back the saved default values
 connection default;
+drop procedure p1;
 
 # Reset global system variables to initial values if forgotten somewhere above.
 SET GLOBAL long_query_time = @save_long_query_time;

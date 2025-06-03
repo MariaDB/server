@@ -1,0 +1,134 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-5215 Granted to PUBLIC
+--echo #
+
+SHOW GRANTS FOR PUBLIC;
+
+--echo # it is not PUBLIC but an user
+--echo # (this should work as it allowed for roles for example)
+create user PUBLIC;
+create user PUBLIC@localhost;
+GRANT SELECT on test.* to PUBLIC@localhost;
+drop user PUBLIC@localhost;
+drop user PUBLIC;
+
+select * from mysql.global_priv where user="PUBLIC" ;
+GRANT SELECT on test.* to PUBLIC;
+GRANT SELECT on mysql.db to PUBLIC;
+--replace_regex /"version_id"\:[0-9]+/"version_id":VERSION/
+select * from mysql.global_priv where user="PUBLIC" ;
+
+SHOW GRANTS FOR PUBLIC;
+
+GRANT UPDATE on test.* to PUBLIC;
+grant update on mysql.db to public;
+
+show grants for public;
+
+revoke select on test.* from public;
+REVOKE SELECT on mysql.db from PUBLIC;
+
+SHOW GRANTS FOR PUBLIC;
+
+REVOKE UPDATE on test.* from PUBLIC;
+REVOKE UPDATE on mysql.db from PUBLIC;
+
+SHOW GRANTS FOR PUBLIC;
+
+--error ER_INVALID_ROLE
+GRANT XXXXXX TO CURRENT_USER;
+--echo # following should fail with the same error as above
+--error ER_INVALID_ROLE
+GRANT PUBLIC TO CURRENT_USER;
+
+--error ER_INVALID_ROLE
+revoke xxxxxx from current_user;
+--echo # following should fail with the same error as above
+--error ER_INVALID_ROLE
+revoke public from current_user;
+
+--error ER_CANNOT_USER
+drop role XXXXXX;
+--echo # following should fail with the same error as above
+--error ER_CANNOT_USER
+drop role public;
+
+--error ER_INVALID_ROLE
+SET ROLE XXXXXX;
+--echo # following should fail with the same error as above
+--error ER_INVALID_ROLE
+SET ROLE PUBLIC;
+
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE XXXXXX;
+--echo # following should fail with the same error as above
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE PUBLIC;
+--error ER_INVALID_ROLE
+set default role public;
+
+--echo #
+--echo # check prohibition of change security context to PUBLIC
+--echo #
+--echo # be sure that we have PUBLIC
+GRANT SELECT on test.* to PUBLIC;
+--echo # try with a view
+create table t1( a int);
+--error ER_INVALID_ROLE
+create definer = PUBLIC view v1 as select * from t1;
+drop table t1;
+--echo # try with a stored procedure
+--error ER_INVALID_ROLE
+create definer='PUBLIC' PROCEDURE p1() SELECT 1;
+--echo # this test cleanup
+revoke select on test.* from public;
+
+--echo #
+--echo # check autocreation of PUBLIC on GRANT role TO PUBLIC
+--echo #
+--echo # make sure that the privilege will be added automatically
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+create role roletest;
+grant roletest to public;
+drop role roletest;
+
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant select on mysql.global_priv to public;
+revoke select on mysql.global_priv from public;
+
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant select (user) on mysql.global_priv to public;
+revoke select (user) on mysql.global_priv from public;
+
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+grant execute on procedure mtr.add_suppression to public;
+revoke execute on procedure mtr.add_suppression from public;
+
+--echo #
+--echo # MDEV-30154: Assertion `strcasecmp(rolename, public_name.str) ||
+--echo # acl_public == role' failed in acl_update_role on GRANT ... TO PUBLIC
+--echo #
+call mtr.add_suppression("Can't open and lock privilege tables");
+USE test;
+GRANT SELECT ON *.* TO PUBLIC;
+LOCK TABLES mysql.time_zone WRITE,mysql.proc WRITE;
+--error 1100
+FLUSH PRIVILEGES;
+--error 1146
+LOCK TABLE nonexisting WRITE;
+GRANT SELECT ON *.* TO PUBLIC;
+
+REVOKE SELECT ON *.* FROM PUBLIC;
+
+--echo #
+--echo # End of 10.11 test
+--echo #
+
+-- echo # clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;

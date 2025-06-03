@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADBD-MULTI\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADBD-MULTI\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -368,8 +368,8 @@ Silent mode; disable warnings\&.
 .\" tcp-ip option: mysqld_multi
 \fB\-\-tcp\-ip\fR
 .sp
-Connect to the MariaDB server(s) via the TCP/IP port instead of the UNIX socket\&. This affects stopping 
-and reporting. If a socket file is missing, the server may still be running, but can be accessed only 
+Connect to the MariaDB server(s) via the TCP/IP port instead of the UNIX socket\&. This affects stopping
+and reporting. If a socket file is missing, the server may still be running, but can be accessed only
 via the TCP/IP port\&. By default connecting is done via the UNIX socket\&. This option affects
 stop and report operations\&.
 .RE
@@ -511,7 +511,7 @@ account by executing the following commands for each server:
 shell> \fBmysql \-u root \-S /tmp/mysql\&.sock \-p\fR
 Enter password:
 mysql> \fBGRANT SHUTDOWN ON *\&.*\fR
-    \-> \fBTO \'multi_admin\'@\'localhost\' IDENTIFIED BY \'multipass\';\fR
+    \-> \fBTO 'multi_admin'@'localhost' IDENTIFIED BY 'multipass';\fR
 .fi
 .if n \{\
 .RE
@@ -606,7 +606,7 @@ option for
 \fBmysqld_multi\fR
 script as the Unix
 root
-user\&. Having the option in the option file doesn\'t matter; you just get a warning if you are not the superuser and the
+user\&. Having the option in the option file doesn't matter; you just get a warning if you are not the superuser and the
 \fBmysqld\fR
 processes are started under your own Unix account\&.
 .RE

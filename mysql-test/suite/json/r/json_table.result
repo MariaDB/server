@@ -211,13 +211,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "tt",
-      "access_type": "ALL",
-      "rows": 40,
-      "filtered": 100,
-      "table_function": "json_table"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt",
+          "access_type": "ALL",
+          "rows": 40,
+          "filtered": 100,
+          "table_function": "json_table"
+        }
+      }
+    ]
   }
 }
 explain select * from
@@ -1082,4 +1086,130 @@ v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIE
 drop view v;
 #
 # End of 10.6 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+#  MDEV-27743 Remove Lex::charset
+#
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_general_ci
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_general_ci
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_bin
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_general_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_general_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb4 COLLATE utf8mb4_bin PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_bin
+DROP VIEW v1;
+#
+# MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+#
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+c1	c2
+NULL	NULL
+#
+# MDEV-29446 Change SHOW CREATE TABLE to display default collations
+#
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET latin1 COLLATE latin1_swedish_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varbinary(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt' at line 6
+#
+# End of 10.9 tests
 #

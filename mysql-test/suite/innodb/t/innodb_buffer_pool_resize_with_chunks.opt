@@ -1,3 +1,0 @@
---innodb-buffer-pool-size=16M
---innodb-buffer-pool-chunk-size=4M
---innodb-page-size=4k

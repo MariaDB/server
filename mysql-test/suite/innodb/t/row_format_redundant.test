@@ -16,11 +16,14 @@ let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/row_format_redundant;
 --mkdir $bugdir
+let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
+--mkdir $undodir
+
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
---let $d=$d --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
+--let $d=$d --innodb_undo_directory=$undodir --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
 --let $restart_parameters= $d
 # Ensure that any DDL records from previous tests have been purged.
 SET GLOBAL innodb_fast_shutdown=0;
@@ -159,6 +162,7 @@ DROP TABLE t2,t3;
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir
+--rmdir $undodir
 
 # Remove the data file, because DROP TABLE skipped it for the "corrupted" table
 --let MYSQLD_DATADIR=`select @@datadir`

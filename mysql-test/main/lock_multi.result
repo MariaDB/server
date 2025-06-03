@@ -128,7 +128,6 @@ mysql.global_priv	optimize	status	OK
 UNLOCK TABLES;
 connection reader;
 host
-localhost
 USE test;
 connection locker;
 use test;

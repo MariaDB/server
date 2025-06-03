@@ -1,6 +1,6 @@
 --source suite/versioning/engines.inc
---source suite/versioning/common.inc
 --source include/have_partition.inc
+--source suite/versioning/common.inc
 --source include/master-slave.inc
 
 #BUG#12662190 - COM_COMMIT IS NOT INCREMENTED FROM THE BINARY LOGS ON SLAVE, COM_BEGIN IS
@@ -12,6 +12,7 @@ let $slave_com_commit_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_commi
 let $slave_com_insert_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_insert', Value, 1);
 let $slave_com_delete_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_delete', Value, 1);
 let $slave_com_update_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_update', Value, 1);
+set @@session.time_zone='+00:00';
 
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -218,6 +219,230 @@ drop table parent;
 
 sync_slave_with_master;
 connection master;
+
+--source suite/versioning/common_finish.inc
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables
+--echo #            with history partitioned by INTERVAL/LIMIT
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+insert t1 values ();
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+delete from t1;
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t1;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t1;
+--connection master
+drop table t1;
+set timestamp= default;
+
+--echo #
+--echo # MDEV-25477 Auto-create breaks replication when triggering event was not replicated
+--echo #
+
+set timestamp= unix_timestamp('2001-01-01 01:00:00');
+--echo # ROLLBACK
+create table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+set @@timestamp= @@timestamp + 3601;
+
+start transaction;
+delete from t;
+--disable_warnings
+rollback;
+# Warning: Some non-transactional changed tables couldn't be rolled back
+--enable_warnings
+
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--echo # INSERT .. ODKU
+--connection master
+create or replace table t (a int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+
+set @@timestamp= @@timestamp + 3601;
+insert into t values (1) on duplicate key update a= a;
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--echo # INSERT .. SELECT .. ODKU
+--connection master
+create or replace table t (a int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+
+set @@timestamp= @@timestamp + 3601;
+--disable_warnings
+call mtr.add_suppression("Unsafe statement written to the binary log");
+insert t select a from t where a = 1 limit 0 on duplicate key update a= 1;
+--enable_warnings
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--echo # UPDATE
+--connection master
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+
+set @@timestamp= @@timestamp + 3601;
+update t set a= 3 limit 0;
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--echo # DELETE
+--connection master
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+
+set @@timestamp= @@timestamp + 3601;
+delete from t limit 0;
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--echo # Multi-update
+--connection master
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+create or replace table t2 (b int);
+
+insert into t values (0), (1);
+insert into t2 values (10), (20);
+set @@timestamp= @@timestamp + 3601;
+# Note: limit 0 is not important for multi-update/delete because they work
+# via mysql_select(). OTOH limit 0 makes unwanted "unsafe" warning.
+update t left join t2 on a > b set a= 4;
+
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--echo # Multi-delete
+--connection master
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+create or replace table t2 (b int);
+
+insert into t values (0), (1);
+insert into t2 values (10), (20);
+set @@timestamp= @@timestamp + 3601;
+delete t, t2 from t join t2 where a > b;
+
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--sync_slave_with_master
+--replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+show create table t;
+--connection master
+alter table t drop partition p0;
+--sync_slave_with_master
+
+--connection master
+drop tables t, t2;
+set timestamp= default;
+
+
+--source suite/versioning/common.inc
+--echo #
+--echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
+create table t1(x int) with system versioning;
+insert into t1(x) values (1);
+--error ER_BAD_FIELD_ERROR
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+set @@system_versioning_insert_history= 1;
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+update t1 set x= x + 1;
+sync_slave_with_master;
+set @@session.time_zone='+00:00';
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t1 for system_time all where x = 3;
+
+--echo ## INSERT..SELECT
+connection master;
+create or replace table t2 like t1;
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+sync_slave_with_master;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+
+--echo # LOAD DATA
+connection master;
+--let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
+--replace_result $DATAFILE DATAFILE
+--disable_cursor_protocol
+--disable_ps2_protocol
+eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
+--enable_ps2_protocol
+--enable_cursor_protocol
+create or replace table t3 like t1;
+set @@system_versioning_insert_history= 1;
+--replace_result $DATAFILE DATAFILE
+eval load data infile '$DATAFILE' into table t3 (x, row_start, row_end);
+sync_slave_with_master;
+select x, check_row_ts(row_start, row_end) from t3 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t3 for system_time all where x = 3;
+--remove_file $DATAFILE
+
+--echo # why a slave cannot have system_versioning_insert_history always on
+connection master;
+set @@system_versioning_insert_history= 0;
+set sql_mode='';
+create or replace table t1 (a int,
+  rs timestamp(6) as row start, re timestamp(6) as row end,
+  period for system_time (rs,re)) with system versioning;
+insert t1 values (1, '2000-01-01 02:03:04', '2001-01-01 02:03.04');
+select a,check_row_ts(rs,re) from t1 for system_time all;
+sync_slave_with_master;
+select a,check_row_ts(rs,re) from t1 for system_time all;
+set sql_mode=default;
+
+connection master;
+drop tables t1, t2, t3;
 
 --source suite/versioning/common_finish.inc
 --source include/rpl_end.inc

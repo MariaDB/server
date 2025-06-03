@@ -2171,6 +2171,7 @@ eval $q;
 
 set optimizer_switch='materialization=on';
 eval explain $q;
+eval set statement optimizer_prune_level=1 for explain $q;
 eval $q;
 
 DROP TABLE t1,t2,t3;

@@ -37,13 +37,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -59,13 +63,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -97,13 +105,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b)
@@ -114,13 +126,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2"
+        }
+      }
+    ]
   }
 }
 # extracted AND formula
@@ -155,13 +171,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.a < 4"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.a < 4"
+            }
+          }
+        ]
       }
     }
   }
@@ -177,13 +197,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.a < 4"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.a < 4"
+            }
+          }
+        ]
       }
     }
   }
@@ -222,13 +246,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 or t1.a = 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 or t1.a = 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -246,13 +274,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 or t1.a = 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 or t1.a = 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -291,13 +323,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 2 or t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 2 or t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -315,13 +351,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 2 or t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 2 or t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -357,13 +397,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -381,13 +425,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -422,13 +470,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -446,13 +498,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -484,13 +540,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.a) = 3",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b)
@@ -503,13 +563,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.a) = 3",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t1.a,MAX(t1.b)
@@ -539,13 +603,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b) > 12",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b)
@@ -558,13 +626,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b) > 12",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t1.a,MAX(t1.b)
@@ -597,13 +669,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -621,13 +697,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -664,13 +744,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -688,13 +772,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -726,13 +814,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b) = 13 and min(t1.c) = 2",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MIN(t1.c)
@@ -745,13 +837,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b) = 13 and min(t1.c) = 2",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2"
+        }
+      }
+    ]
   }
 }
 # conjunctive subformula : no stored function pushdown
@@ -785,13 +881,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -809,13 +909,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -858,41 +962,51 @@ EXPLAIN
     "filesort": {
       "sort_key": "v1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t2.x > 1 and t2.x is not null"
-        },
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t2.x"],
-          "rows": 2,
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "filesort": {
-                "sort_key": "t1.a",
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "rows": 5,
-                    "filtered": 100,
-                    "attached_condition": "t1.a > 1"
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t2.x > 1 and t2.x is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<derived2>",
+              "access_type": "ref",
+              "possible_keys": ["key0"],
+              "key": "key0",
+              "key_length": "5",
+              "used_key_parts": ["a"],
+              "ref": ["test.t2.x"],
+              "rows": 2,
+              "filtered": 100,
+              "materialized": {
+                "query_block": {
+                  "select_id": 2,
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "rows": 5,
+                            "filtered": 100,
+                            "attached_condition": "t1.a > 1"
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -908,41 +1022,51 @@ EXPLAIN
     "filesort": {
       "sort_key": "v1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t2.x > 1 and t2.x is not null"
-        },
-        "table": {
-          "table_name": "<derived3>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t2.x"],
-          "rows": 2,
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 3,
-              "filesort": {
-                "sort_key": "t1.a",
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "rows": 5,
-                    "filtered": 100,
-                    "attached_condition": "t1.a > 1"
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t2.x > 1 and t2.x is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ref",
+              "possible_keys": ["key0"],
+              "key": "key0",
+              "key_length": "5",
+              "used_key_parts": ["a"],
+              "ref": ["test.t2.x"],
+              "rows": 2,
+              "filtered": 100,
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "rows": 5,
+                            "filtered": 100,
+                            "attached_condition": "t1.a > 1"
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -985,42 +1109,52 @@ EXPLAIN
     "filesort": {
       "sort_key": "v1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t2.x is not null"
-        },
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t2.x"],
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "v1.c > 2",
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "having_condition": "t1.c > 2",
-              "filesort": {
-                "sort_key": "t1.a",
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "rows": 5,
-                    "filtered": 100
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t2.x is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<derived2>",
+              "access_type": "ref",
+              "possible_keys": ["key0"],
+              "key": "key0",
+              "key_length": "5",
+              "used_key_parts": ["a"],
+              "ref": ["test.t2.x"],
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "v1.c > 2",
+              "materialized": {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "t1.c > 2",
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "rows": 5,
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -1036,42 +1170,52 @@ EXPLAIN
     "filesort": {
       "sort_key": "v1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t2.x is not null"
-        },
-        "table": {
-          "table_name": "<derived3>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t2.x"],
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "v1.c > 2",
-          "materialized": {
-            "query_block": {
-              "select_id": 3,
-              "having_condition": "t1.c > 2",
-              "filesort": {
-                "sort_key": "t1.a",
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "rows": 5,
-                    "filtered": 100
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t2.x is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ref",
+              "possible_keys": ["key0"],
+              "key": "key0",
+              "key_length": "5",
+              "used_key_parts": ["a"],
+              "ref": ["test.t2.x"],
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "v1.c > 2",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "t1.c > 2",
+                  "filesort": {
+                    "sort_key": "t1.a",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "rows": 5,
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -1115,41 +1259,51 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null"
-        },
-        "table": {
-          "table_name": "<subquery2>",
-          "access_type": "eq_ref",
-          "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "8",
-          "used_key_parts": ["x", "MAX(t2.y)"],
-          "ref": ["test.t1.a", "test.t1.b"],
-          "rows": 1,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "materialization": {
-              "query_block": {
-                "select_id": 2,
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "rows": 4,
-                    "filtered": 100,
-                    "attached_condition": "t2.x < 5 and t2.x > 1"
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "eq_ref",
+              "possible_keys": ["distinct_key"],
+              "key": "distinct_key",
+              "key_length": "8",
+              "used_key_parts": ["x", "MAX(t2.y)"],
+              "ref": ["test.t1.a", "test.t1.b"],
+              "rows": 1,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "materialization": {
+                  "query_block": {
+                    "select_id": 2,
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "rows": 4,
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5 and t2.x > 1"
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -1166,41 +1320,51 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null"
-        },
-        "table": {
-          "table_name": "<subquery3>",
-          "access_type": "eq_ref",
-          "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "8",
-          "used_key_parts": ["x", "MAX(t2.y)"],
-          "ref": ["test.t1.a", "test.t1.b"],
-          "rows": 1,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "materialization": {
-              "query_block": {
-                "select_id": 3,
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "rows": 4,
-                    "filtered": 100,
-                    "attached_condition": "t2.x < 5 and t2.x > 1"
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<subquery3>",
+              "access_type": "eq_ref",
+              "possible_keys": ["distinct_key"],
+              "key": "distinct_key",
+              "key_length": "8",
+              "used_key_parts": ["x", "MAX(t2.y)"],
+              "ref": ["test.t1.a", "test.t1.b"],
+              "rows": 1,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "materialization": {
+                  "query_block": {
+                    "select_id": 3,
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "rows": 4,
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5 and t2.x > 1"
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -1242,42 +1406,52 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b < 14 and t1.a is not null and t1.b is not null"
-        },
-        "table": {
-          "table_name": "<subquery2>",
-          "access_type": "eq_ref",
-          "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "8",
-          "used_key_parts": ["x", "MAX(t2.y)"],
-          "ref": ["test.t1.a", "test.t1.b"],
-          "rows": 1,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "materialization": {
-              "query_block": {
-                "select_id": 2,
-                "having_condition": "`MAX(t2.y)` < 14",
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "rows": 4,
-                    "filtered": 100,
-                    "attached_condition": "t2.x < 5"
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b < 14 and t1.a is not null and t1.b is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "eq_ref",
+              "possible_keys": ["distinct_key"],
+              "key": "distinct_key",
+              "key_length": "8",
+              "used_key_parts": ["x", "MAX(t2.y)"],
+              "ref": ["test.t1.a", "test.t1.b"],
+              "rows": 1,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "materialization": {
+                  "query_block": {
+                    "select_id": 2,
+                    "having_condition": "`MAX(t2.y)` < 14",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "rows": 4,
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5"
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -1294,42 +1468,52 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b < 14 and t1.a is not null and t1.b is not null"
-        },
-        "table": {
-          "table_name": "<subquery3>",
-          "access_type": "eq_ref",
-          "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "8",
-          "used_key_parts": ["x", "MAX(t2.y)"],
-          "ref": ["test.t1.a", "test.t1.b"],
-          "rows": 1,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "materialization": {
-              "query_block": {
-                "select_id": 3,
-                "having_condition": "`MAX(t2.y)` < 14",
-                "temporary_table": {
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "rows": 4,
-                    "filtered": 100,
-                    "attached_condition": "t2.x < 5"
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b < 14 and t1.a is not null and t1.b is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "<subquery3>",
+              "access_type": "eq_ref",
+              "possible_keys": ["distinct_key"],
+              "key": "distinct_key",
+              "key_length": "8",
+              "used_key_parts": ["x", "MAX(t2.y)"],
+              "ref": ["test.t1.a", "test.t1.b"],
+              "rows": 1,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "materialization": {
+                  "query_block": {
+                    "select_id": 3,
+                    "having_condition": "`MAX(t2.y)` < 14",
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "rows": 4,
+                            "filtered": 100,
+                            "attached_condition": "t2.x < 5"
+                          }
+                        }
+                      ]
+                    }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }
@@ -1366,13 +1550,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -1389,13 +1577,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -1427,13 +1619,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "t1.a = 2 and t1.c = 2",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.b = 13"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.b = 13"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT MAX(t1.a),t1.a,t1.b,t1.c
@@ -1446,13 +1642,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "t1.a = 2 and t1.c = 2",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.b = 13"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.b = 13"
+        }
+      }
+    ]
   }
 }
 # extracted AND formula : using equalities
@@ -1485,13 +1685,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -1506,13 +1710,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -1543,13 +1751,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2 and t1.c = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2 and t1.c = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -1560,13 +1772,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 2 and t1.c = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 2 and t1.c = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t1.a,MAX(t1.b),t1.c
@@ -1599,13 +1815,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a > 1 or t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a > 1 or t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -1623,13 +1843,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a > 1 or t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a > 1 or t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -1670,13 +1894,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -1692,13 +1920,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -1737,13 +1969,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a > 1 and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a > 1 and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -1759,13 +1995,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and t1.a > 1 and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and t1.a > 1 and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -1804,13 +2044,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4) and t1.a < 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4) and t1.a < 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -1828,13 +2072,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4) and t1.a < 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4) and t1.a < 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -1876,13 +2124,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4)"
+            }
+          }
+        ]
       }
     }
   }
@@ -1900,13 +2152,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c = t1.a and (t1.a > 1 or t1.a < 4)"
+            }
+          }
+        ]
       }
     }
   }
@@ -1964,12 +2220,16 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1986,12 +2246,16 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -2028,13 +2292,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.b > 10) and t1.b < 14"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.b > 10) and t1.b < 14"
+            }
+          }
+        ]
       }
     }
   }
@@ -2050,13 +2318,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.b > 10) and t1.b < 14"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.b > 10) and t1.b < 14"
+            }
+          }
+        ]
       }
     }
   }
@@ -2094,13 +2366,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.b > 15)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.b > 15)"
+            }
+          }
+        ]
       }
     }
   }
@@ -2116,13 +2392,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.b > 15)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.b > 15)"
+            }
+          }
+        ]
       }
     }
   }
@@ -2159,13 +2439,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.a = 2 and t1.b > 15)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.a = 2 and t1.b > 15)"
+            }
+          }
+        ]
       }
     }
   }
@@ -2181,13 +2465,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.a = 2 and t1.b > 15)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.b > 10) and (t1.b < 14 or t1.a = 2 and t1.b > 15)"
+            }
+          }
+        ]
       }
     }
   }
@@ -2226,13 +2514,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a < 2 or t1.b = 13 and t1.a > 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a < 2 or t1.b = 13 and t1.a > 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2248,13 +2540,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a < 2 or t1.b = 13 and t1.a > 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a < 2 or t1.b = 13 and t1.a > 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2290,13 +2586,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b = 14 and t1.a < 2 or t1.b = 13 and t1.a > 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b = 14 and t1.a < 2 or t1.b = 13 and t1.a > 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2312,13 +2612,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b = 14 and t1.a < 2 or t1.b = 13 and t1.a > 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b = 14 and t1.a < 2 or t1.b = 13 and t1.a > 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2356,13 +2660,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b = 14 and t1.a < 2 or t1.a > 2 and (t1.b = 13 or t1.b = 14)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b = 14 and t1.a < 2 or t1.a > 2 and (t1.b = 13 or t1.b = 14)"
+            }
+          }
+        ]
       }
     }
   }
@@ -2378,13 +2686,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b = 14 and t1.a < 2 or t1.a > 2 and (t1.b = 13 or t1.b = 14)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b = 14 and t1.a < 2 or t1.a > 2 and (t1.b = 13 or t1.b = 14)"
+            }
+          }
+        ]
       }
     }
   }
@@ -2419,13 +2731,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a < 2 or t1.a = 1 or t1.a = 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a < 2 or t1.a = 1 or t1.a = 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2443,13 +2759,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a < 2 or t1.a = 1 or t1.a = 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a < 2 or t1.a = 1 or t1.a = 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2486,13 +2806,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a = 2 or t1.a = 1 or t1.a = 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a = 2 or t1.a = 1 or t1.a = 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2510,13 +2834,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a = 2 or t1.a = 1 or t1.a = 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a = 2 or t1.a = 1 or t1.a = 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -2549,13 +2877,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.c) = 3",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,t1.b,MAX(t1.c)
@@ -2568,13 +2900,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.c) = 3",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 # conjunctive subformula : equalities pushdown
@@ -2605,13 +2941,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b = 14)",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,t1.b,MAX(t1.c)
@@ -2624,13 +2964,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b) = 14",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 3"
+        }
+      }
+    ]
   }
 }
 # conjunctive subformula : multiple equality consists of
@@ -2660,13 +3004,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b = 14)",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,t1.b,MAX(t1.c)
@@ -2679,13 +3027,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "max(t1.b) = 14",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 #
@@ -2727,13 +3079,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b > 2 and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b > 2 and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -2749,13 +3105,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b > 2 and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b > 2 and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -2791,13 +3151,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 3 and t1.b > 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 3 and t1.b > 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,t1.b,MAX(t1.c)
@@ -2808,13 +3172,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 3 and t1.b > 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 3 and t1.b > 2"
+        }
+      }
+    ]
   }
 }
 # inequality : equality in WHERE
@@ -2851,13 +3219,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b = 14 and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b = 14 and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -2873,13 +3245,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.b = 14 and t1.a < 3"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.b = 14 and t1.a < 3"
+            }
+          }
+        ]
       }
     }
   }
@@ -2915,13 +3291,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.b = 14"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.b = 14"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,t1.b,MAX(t1.c)
@@ -2932,13 +3312,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.b = 14 and t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.b = 14 and t1.a = 1"
+        }
+      }
+    ]
   }
 }
 # equality : equality in WHERE, impossible WHERE
@@ -3019,13 +3403,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -3036,13 +3424,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.c = 1 and t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.c = 1 and t1.a = 1"
+        }
+      }
+    ]
   }
 }
 # inequality : AND formula in WHERE
@@ -3081,13 +3473,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c > 0 and t1.c < 3 and t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c > 0 and t1.c < 3 and t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -3103,13 +3499,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.c > 0 and t1.c < 3 and t1.a > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.c > 0 and t1.c < 3 and t1.a > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -3145,13 +3545,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c > 0 and t1.c < 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c > 0 and t1.c < 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -3162,13 +3566,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c > 0 and t1.c < 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c > 0 and t1.c < 3"
+        }
+      }
+    ]
   }
 }
 # equality : AND formula in WHERE, impossible WHERE
@@ -3203,13 +3611,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c < 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c < 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -3220,13 +3632,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c < 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c < 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t1.a,MAX(t1.b)
@@ -3305,13 +3721,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t3.b = 2 and t3.d = 1 and t3.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t3.b = 2 and t3.d = 1 and t3.a = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t3.a,t3.b,MAX(t3.c),t3.d
@@ -3322,13 +3742,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t3.b = 2 and t3.d = 1 and t3.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t3.b = 2 and t3.d = 1 and t3.a = 1"
+        }
+      }
+    ]
   }
 }
 # inequality : OR formula in WHERE
@@ -3365,13 +3789,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -3387,13 +3815,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 2"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 2"
+            }
+          }
+        ]
       }
     }
   }
@@ -3480,13 +3912,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.a < 4 and t1.a > 0"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.a < 4 and t1.a > 0"
+            }
+          }
+        ]
       }
     }
   }
@@ -3502,13 +3938,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.a < 4 and t1.a > 0"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.a < 4 and t1.a > 0"
+            }
+          }
+        ]
       }
     }
   }
@@ -3545,13 +3985,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1 and 1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -3562,13 +4006,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 # OR formula : inequality in WHERE
@@ -3607,13 +4055,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and (t1.a < 4 or t1.a > 0)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and (t1.a < 4 or t1.a > 0)"
+            }
+          }
+        ]
       }
     }
   }
@@ -3629,13 +4081,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and (t1.a < 4 or t1.a > 0)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and (t1.a < 4 or t1.a > 0)"
+            }
+          }
+        ]
       }
     }
   }
@@ -3672,13 +4128,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -3689,13 +4149,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 # AND formula : AND formula in WHERE
@@ -3735,13 +4199,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.c < 3 and t1.a < 4"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.c < 3 and t1.a < 4"
+            }
+          }
+        ]
       }
     }
   }
@@ -3760,13 +4228,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a > 1 and t1.c < 3 and t1.a < 4"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a > 1 and t1.c < 3 and t1.a < 4"
+            }
+          }
+        ]
       }
     }
   }
@@ -3803,13 +4275,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a = 1 and t1.c < 3 and t1.c > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a = 1 and t1.c < 3 and t1.c > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -3826,13 +4302,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "t1.a = 1 and t1.c < 3 and t1.c > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t1.a = 1 and t1.c < 3 and t1.c > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -3868,13 +4348,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1 and 1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -3886,13 +4370,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 3"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t3.a,t3.b,MAX(t3.c),t3.d
@@ -3926,13 +4414,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "t3.d > 0",
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t3.a,t3.b,MAX(t3.c),t3.d
@@ -3946,13 +4438,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "having_condition": "t3.d > 0",
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for SELECT t3.a,t3.b,MAX(t3.c),t3.d
@@ -3986,13 +4482,17 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "1",
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t3.a,t3.b,MAX(t3.c),t3.d
@@ -4004,13 +4504,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100,
+          "attached_condition": "t3.a = 1 and t3.d = 1 and t3.b = 2"
+        }
+      }
+    ]
   }
 }
 # AND formula : OR formula in WHERE
@@ -4050,13 +4554,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4"
+            }
+          }
+        ]
       }
     }
   }
@@ -4075,13 +4583,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4"
+            }
+          }
+        ]
       }
     }
   }
@@ -4123,13 +4635,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4 and t1.c > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4 and t1.c > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -4146,13 +4662,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4 and t1.c > 1"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a > 1 or t1.c < 3) and t1.a < 4 and t1.c > 1"
+            }
+          }
+        ]
       }
     }
   }
@@ -4194,13 +4714,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.a = 3) and (t1.a = 4 or t1.c > 1)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.a = 3) and (t1.a = 4 or t1.c > 1)"
+            }
+          }
+        ]
       }
     }
   }
@@ -4217,13 +4741,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 1 or t1.a = 3) and (t1.a = 4 or t1.c > 1)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 1 or t1.a = 3) and (t1.a = 4 or t1.c > 1)"
+            }
+          }
+        ]
       }
     }
   }
@@ -4259,13 +4787,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -4276,13 +4808,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 # OR formula : pushdown through equality
@@ -4316,13 +4852,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 set statement optimizer_switch='condition_pushdown_from_having=off' for explain format=json SELECT t1.a,MAX(t1.b),t1.c
@@ -4334,13 +4874,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1 and t1.c = 1"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 5,
+          "filtered": 100,
+          "attached_condition": "t1.a = 1 and t1.c = 1"
+        }
+      }
+    ]
   }
 }
 # OR formula : pushdown through equality, impossible WHERE
@@ -4518,13 +5062,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t3.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
-          "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.a = 1 or t3.a > 1)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100,
+              "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.a = 1 or t3.a > 1)"
+            }
+          }
+        ]
       }
     }
   }
@@ -4541,13 +5089,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t3.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
-          "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.a = 1 or t3.a > 1)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100,
+              "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.a = 1 or t3.a > 1)"
+            }
+          }
+        ]
       }
     }
   }
@@ -4584,13 +5136,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t3.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
-          "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.c = t3.a and t3.c < 15 or t3.a > 1)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100,
+              "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.c = t3.a and t3.c < 15 or t3.a > 1)"
+            }
+          }
+        ]
       }
     }
   }
@@ -4607,13 +5163,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t3.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100,
-          "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.c = t3.a and t3.a < 15 or t3.a > 1)"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100,
+              "attached_condition": "t3.d = t3.a and t3.a > 1 and (t3.c = 3 or t3.c < 2) and (t3.c = t3.a and t3.a < 15 or t3.a > 1)"
+            }
+          }
+        ]
       }
     }
   }
@@ -4691,13 +5251,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.d1",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t1.d1 between <cache>(inet_aton('1978-04-27')) and <cache>('2018-08-26')"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 4,
+              "filtered": 100,
+              "attached_condition": "t1.d1 between <cache>(inet_aton('1978-04-27')) and <cache>('2018-08-26')"
+            }
+          }
+        ]
       }
     }
   }
@@ -4729,13 +5293,17 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.d1",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "t1.d1 not between <cache>(0) and <cache>(exp(0))"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "t1.d1 not between <cache>(0) and <cache>(exp(0))"
+            }
+          }
+        ]
       }
     }
   }
@@ -4800,23 +5368,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 7,
-          "filtered": 100,
-          "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 7,
+              "filtered": 100,
+              "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]
@@ -4836,23 +5412,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a, t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 7,
-          "filtered": 100,
-          "attached_condition": "(t1.a = 8 or t1.a = (subquery#2)) and t1.b < 20"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 7,
+              "filtered": 100,
+              "attached_condition": "(t1.a = 8 or t1.a = (subquery#2)) and t1.b < 20"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]
@@ -4873,23 +5457,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 7,
-          "filtered": 100,
-          "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 7,
+              "filtered": 100,
+              "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]
@@ -4906,23 +5498,31 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 7,
-      "filtered": 100,
-      "attached_condition": "t1.a = (subquery#2)"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 7,
+          "filtered": 100,
+          "attached_condition": "t1.a = (subquery#2)"
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t2",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     ]
@@ -5000,23 +5600,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b, t1.c",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "t1.a = (subquery#2) and (t1.b = (subquery#2) or t1.c = (subquery#2))"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "t1.a = (subquery#2) and (t1.b = (subquery#2) or t1.c = (subquery#2))"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]
@@ -5037,23 +5645,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "t1.a = (subquery#2) and (1 or (subquery#2) > t1.b)"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "t1.a = (subquery#2) and (1 or (subquery#2) > t1.b)"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]
@@ -5113,23 +5729,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "(subquery#2) + t1.b = 3"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "(subquery#2) + t1.b = 3"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]
@@ -5153,23 +5777,31 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 2,
-          "filtered": 100,
-          "attached_condition": "(subquery#2) > t1.b"
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 2,
+              "filtered": 100,
+              "attached_condition": "(subquery#2) > t1.b"
+            }
+          }
+        ],
         "subqueries": [
           {
             "query_block": {
               "select_id": 2,
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 2,
-                "filtered": 100
-              }
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 2,
+                    "filtered": 100
+                  }
+                }
+              ]
             }
           }
         ]

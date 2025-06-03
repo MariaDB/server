@@ -712,7 +712,7 @@ SET foreign_key_checks=1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NULL DEFAULT NULL,
   `c2` year(4) DEFAULT NULL,
   `c3` time DEFAULT NULL,
   `c4` char(10) DEFAULT NULL,
@@ -729,7 +729,7 @@ ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint 
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `c1` timestamp NULL DEFAULT NULL,
   `c2` year(4) DEFAULT NULL,
   `c3` time DEFAULT NULL,
   `c4` char(10) DEFAULT NULL,

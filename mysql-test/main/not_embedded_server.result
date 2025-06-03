@@ -31,6 +31,7 @@ CREATE TABLE t2 (key2 INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE FUNCTION f() RETURNS INT RETURN 1;
 GRANT FILE ON *.* TO 'nopriv_user'@'localhost';
+GRANT SELECT,INSERT,CREATE ON test.* TO 'nopriv_user'@'localhost';
 FLUSH PRIVILEGES;
 connect  con1,localhost,nopriv_user,,;
 connection con1;

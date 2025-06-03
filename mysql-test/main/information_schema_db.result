@@ -40,7 +40,7 @@ create table t1
 (f1 int(10) unsigned not null,
 f2 varchar(100) not null,
 primary key (f1), unique key (f2));
-connect  user1,localhost,mysqltest_1,,;
+connect  user1,localhost,mysqltest_1,,"*NO-ONE*";
 connection user1;
 select * from information_schema.tables;
 call mbase.p1();
@@ -100,8 +100,7 @@ create user testdb_1@localhost;
 grant all on testdb_1.* to testdb_1@localhost with grant option;
 create user testdb_2@localhost;
 grant all on test.* to testdb_2@localhost with grant option;
-connect  testdb_1,localhost,testdb_1,,test;
-use testdb_1;
+connect  testdb_1,localhost,testdb_1,,testdb_1;
 create table t1 (f1 char(4));
 create view v1 as select f1 from t1;
 grant insert on v1 to testdb_2@localhost;
@@ -231,7 +230,7 @@ create table testdb_1.t1 (a int);
 create view testdb_1.v1 as select * from testdb_1.t1;
 grant show view on testdb_1.* to mysqltest_1@localhost;
 grant select on testdb_1.v1 to mysqltest_1@localhost;
-connect  user1,localhost,mysqltest_1,,test;
+connect  user1,localhost,mysqltest_1,,"*NO-ONE*";
 connection user1;
 select table_schema, table_name, view_definition from information_schema.views
 where table_name='v1';

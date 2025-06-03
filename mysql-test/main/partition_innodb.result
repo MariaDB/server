@@ -571,7 +571,7 @@ test.t1	optimize	note	Table does not support optimize, doing recreate + analyze 
 test.t1	optimize	error	Invalid default value for 'b'
 test.t1	optimize	status	Operation failed
 Warnings:
-Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 0
 Error	1067	Invalid default value for 'b'
 SET SESSION sql_mode = @old_mode;
 DROP TABLE t1;

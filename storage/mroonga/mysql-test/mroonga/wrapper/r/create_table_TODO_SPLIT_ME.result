@@ -63,7 +63,7 @@ drop table t1;
 create table t1 (c1 timestamp primary key) COMMENT = 'engine "innodb"';
 desc t1;
 Field	Type	Null	Key	Default	Extra
-c1	timestamp	NO	PRI	CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+c1	timestamp	NO	PRI	NULL	
 drop table t1;
 create table t1 (c1 datetime primary key) COMMENT = 'engine "innodb"';
 desc t1;

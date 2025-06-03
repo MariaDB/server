@@ -965,8 +965,8 @@ DROP TABLE t1, t2;
 [mysqltest1]
 port=1234
 EOF
---exec $MYSQL_MY_PRINT_DEFAULTS -c $MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1
---exec $MYSQL_MY_PRINT_DEFAULTS -e $MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1 mysqltest1
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-extra-file=$MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1 mysqltest1
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp.cnf
 
 --echo #
@@ -1381,6 +1381,7 @@ use test;
 
 # Create user without sufficient privs to perform the requested operation
 create user mysqltest_1@localhost;
+grant all on test.* to  mysqltest_1@localhost;
 create table t1(a int, b varchar(34));
 
 # To get consistent output, reset the master, starts over from first log
@@ -2699,6 +2700,8 @@ drop tables t2, t1;
 --echo # (work around for MDEV-20939)
 --echo #
 
+create user a;
+grant SELECT on test.* to  a;
 use mysql;
 
 --echo # check that all tables we need are not empty
@@ -2724,6 +2727,7 @@ let SEARCH_PATTERN=CREATE TABLE `proc`;
 source include/search_pattern_in_file.inc;
 
 --remove_file $MYSQLTEST_VARDIR/tmp/MDEV-20939.sql
+drop user a;
 use test;
 
 --echo # End of 10.1 tests
@@ -3035,3 +3039,12 @@ drop view `v'1"2`; # "'
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-16733 mysqldump --tab and --xml options are conflicting
+--echo #
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp 2>&1
+
+--echo # End of 10.11 tests

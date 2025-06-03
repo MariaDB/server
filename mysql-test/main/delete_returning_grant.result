@@ -10,6 +10,7 @@ CREATE DATABASE mysqltest;
 CREATE TABLE mysqltest.t1 SELECT * FROM t1;
 GRANT DELETE ON mysqltest.* TO mysqltest_1@localhost;
 GRANT SELECT(b) ON mysqltest.t1 TO mysqltest_1@localhost;
+GRANT SELECT ON test.* TO mysqltest_1@localhost;
 connect  user1,localhost,mysqltest_1,,test;
 connection user1;
 DELETE FROM mysqltest.t1 WHERE a=2 RETURNING b;

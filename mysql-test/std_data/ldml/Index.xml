@@ -9,6 +9,9 @@
           <i>\u0029</i> <!-- right parenthesis -->
           <i>\u002B</i> <!-- plus -->
           <i>\u002D</i> <!-- hyphen -->
+          <i>tel.</i>
+          <i>tél.</i>
+          <i>ťel.</i>
       </rules>
     </collation>
     <collation name="utf8mb3_test_ci" id="353">
@@ -171,6 +174,9 @@
       </rules>
     </collation>
     <collation name="utf8mb4_test_520_nopad_ci" id="329" version="5.2.0" flag="nopad">
+    </collation>
+    <collation name="utf8mb4_uca1400_test01_as_ci" id="330" version="14.0.0">
+      <settings strength="2"/>
     </collation>
   </charset>
 

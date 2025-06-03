@@ -1,0 +1,14 @@
+[bzip2]
+innodb
+
+[lz4]
+innodb
+
+[lzma]
+innodb
+
+[lzo]
+innodb
+
+[snappy]
+innodb

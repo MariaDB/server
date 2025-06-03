@@ -260,19 +260,6 @@ SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Hello, world!';
 --error ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER
 RESIGNAL SET MESSAGE_TEXT = 'New error message';
 
---echo # Test Test case 29: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
---echo # can be executed as a prepared statement
-
-# Since MariaDB supports for tablespaces only on syntax level disable warnings
-# before run CREATE/ALTER/DROP TABLESPACE statements in order to exclude
-# the following in result output
-#   Warning 1478 Table storage engine 'InnoDB' does not support the create option 'TABLESPACE
---disable_warnings
-
-CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB;
-ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB;
-DROP TABLESPACE ts1 ENGINE=InnoDB;
-
 --enable_warnings
 
 SET default_storage_engine= @save_storage_engine;

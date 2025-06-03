@@ -1,0 +1,13 @@
+--source include/not_embedded.inc
+--source include/check_utf8_cli.inc
+
+#
+# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
+#
+set names utf8;
+create user юзер_юзер@localhost;
+grant select on test.* to юзер_юзер@localhost;
+--exec $MYSQL --default-character-set=utf8 --user=юзер_юзер -e "select user()"
+revoke all on test.* from юзер_юзер@localhost;
+drop user юзер_юзер@localhost;
+set names default;

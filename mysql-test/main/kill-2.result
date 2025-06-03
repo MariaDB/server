@@ -31,7 +31,7 @@ connection a;
 show processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 #	root	#	test	#	#	#	#	#
-#	a	#	test	#	#	#	#	#
+#	a	#	NULL	#	#	#	#	#
 #	b	#	test	#	#	#	#	#
 kill user b;
 ERROR HY000: Operation KILL USER failed for b@%

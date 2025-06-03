@@ -1163,8 +1163,7 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                              m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                             m_width,
-                             false)))
+                             m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
@@ -1231,8 +1230,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                              m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                             m_width,
-                             false)))
+                             m_width)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
     bitmap_import(&m_cols, ptr_after_width);

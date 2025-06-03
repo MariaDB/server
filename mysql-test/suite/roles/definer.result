@@ -5,15 +5,19 @@ insert t1 values (1,10,100),(2,20,200);
 create role role1;
 grant select (a) on mysqltest1.t1 to role1;
 grant event,execute,trigger on mysqltest1.* to role1;
+grant select on test.* to role1;
 grant role1 to current_user;
 create role role2;
 grant insert,select on mysqltest1.t1 to role2;
 grant event,execute,trigger on mysqltest1.* to role2;
+grant select on test.* to role2;
 create user foo@localhost;
 grant create view on mysqltest1.* to foo@localhost;
+grant select, create view on test.* to foo@localhost;
 create role role4;
 grant select on mysqltest1.t1 to role4;
 grant role4 to foo@localhost;
+grant select on test.* to role4;
 create definer=current_role view test.v1 as select a+b,c from t1;
 ERROR 0L000: Invalid definer
 set role role1;
@@ -41,6 +45,7 @@ Grants for foo@localhost
 GRANT `role4` TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT CREATE VIEW ON `mysqltest1`.* TO `foo`@`localhost`
+GRANT SELECT, CREATE VIEW ON `test`.* TO `foo`@`localhost`
 select * from test.v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 select * from test.v2;
@@ -322,7 +327,9 @@ CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1,10,100),(2,20,200);
+INSERT INTO `t1` VALUES
+(1,10,100),
+(2,20,200);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t2` (
@@ -331,7 +338,8 @@ CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t2` VALUES (2,20,200);
+INSERT INTO `t2` VALUES
+(2,20,200);
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
@@ -640,7 +648,7 @@ grant r1 to user1;
 grant r1 to r2;
 grant r2 to user1;
 grant r3 to user1;
-connect  user1, localhost,user1,,,,,;
+connect  user1, localhost,user1,,"*NO-ONE*",,,;
 set role r2;
 use rtest;
 CREATE DEFINER=current_role() PROCEDURE user1_proc() SQL SECURITY INVOKER
@@ -715,7 +723,7 @@ CREATE DEFINER=`user_like_role`@`%` PROCEDURE sensitive_proc() SQL SECURITY INVO
 BEGIN
 SELECT NOW(), VERSION();
 END;//
-connect  user_like_role, localhost, user_like_role,,,,,;
+connect  user_like_role, localhost, user_like_role,,"*NO-ONE*",,,;
 use rtest;
 show create procedure sensitive_proc;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
@@ -724,7 +732,7 @@ sensitive_proc	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USE
 BEGIN
 SELECT NOW(), VERSION();
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
-connect  foo, localhost, foo,,,,,;
+connect  foo, localhost, foo,,"*NO-ONE*",,,;
 set role user_like_role;
 use rtest;
 #

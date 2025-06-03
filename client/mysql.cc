@@ -88,9 +88,7 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if defined(_WIN32)
-#include <conio.h>
-#else
+#if !defined(_WIN32)
 # ifdef __APPLE__
 #  include <editline/readline.h>
 # else
@@ -103,6 +101,98 @@ extern "C" {
 #endif
 #define USE_POPEN
 }
+
+static CHARSET_INFO *charset_info= &my_charset_latin1;
+
+#if defined(_WIN32)
+/*
+  Set console mode for the whole duration of the client session.
+
+  We need for input
+    - line input (i.e read lines from console)
+    - echo typed characters
+    - "cooked" mode, i.e we do not want to handle all keystrokes,
+      like DEL etc ourselves, yet. We might want handle keystrokes
+      in the future, to implement tab completion, and better
+      (multiline) history.
+
+ Disable VT escapes for the output.We do not know what kind of escapes SELECT would return.
+*/
+struct Console_mode
+{
+  HANDLE in= GetStdHandle(STD_INPUT_HANDLE);
+  HANDLE out= GetStdHandle(STD_OUTPUT_HANDLE);
+  DWORD mode_in=0;
+  DWORD mode_out=0;
+
+  enum {STDIN_CHANGED = 1, STDOUT_CHANGED = 2};
+  int changes=0;
+
+  Console_mode()
+  {
+    if (in && in != INVALID_HANDLE_VALUE && GetConsoleMode(in, &mode_in))
+    {
+      SetConsoleMode(in, ENABLE_ECHO_INPUT|ENABLE_LINE_INPUT|ENABLE_PROCESSED_INPUT);
+      changes |= STDIN_CHANGED;
+    }
+
+    if (out && out != INVALID_HANDLE_VALUE && GetConsoleMode(out, &mode_out))
+    {
+#ifdef ENABLE_VIRTUAL_TERMINAL_INPUT
+      SetConsoleMode(out, mode_out & ~ENABLE_VIRTUAL_TERMINAL_INPUT);
+      changes |= STDOUT_CHANGED;
+#endif
+    }
+  }
+
+  ~Console_mode()
+  {
+    if (changes & STDIN_CHANGED)
+      SetConsoleMode(in, mode_in);
+
+    if(changes & STDOUT_CHANGED)
+      SetConsoleMode(out, mode_out);
+  }
+};
+
+static Console_mode my_conmode;
+
+#define MAX_CGETS_LINE_LEN 65535
+/** Read line from console, chomp EOL*/
+static char *win_readline()
+{
+  static wchar_t wstrbuf[MAX_CGETS_LINE_LEN];
+  static char strbuf[MAX_CGETS_LINE_LEN * 4];
+
+  DWORD nchars= 0;
+  uint len= 0;
+  SetLastError(0);
+  if (!ReadConsoleW(GetStdHandle(STD_INPUT_HANDLE), wstrbuf, MAX_CGETS_LINE_LEN-1,
+                    &nchars, NULL))
+    goto err;
+  if (nchars == 0 && GetLastError() == ERROR_OPERATION_ABORTED)
+    goto err;
+
+  for (;nchars > 0; nchars--)
+  {
+    if (wstrbuf[nchars - 1] != '\n' && wstrbuf[nchars - 1] != '\r')
+      break;
+  }
+
+  if (nchars > 0)
+  {
+    uint errors;
+    len= my_convert(strbuf, sizeof(strbuf), charset_info,
+                    (const char *) wstrbuf, nchars * sizeof(wchar_t),
+                    &my_charset_utf16le_bin, &errors);
+  }
+  strbuf[len]= 0;
+  return strbuf;
+err:
+  return NULL;
+}
+#endif
+
 
 #ifdef HAVE_VIDATTR
 static int have_curses= 0;
@@ -213,7 +303,6 @@ unsigned short terminal_width= 80;
 
 static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
-static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 #include "sslopt-vars.h"
 
@@ -1356,6 +1445,46 @@ sig_handler mysql_end(int sig)
   exit(status.exit_status);
 }
 
+#ifdef _WIN32
+#define CNV_BUFSIZE 1024
+
+/**
+ Convert user,database,and password to requested charset.
+
+ This is done in the single case when user connects with non-UTF8
+ default-character-set, on UTF8 capable Windows.
+
+ User, password, and database are UTF8 encoded, prior to the function,
+ this needs to be fixed, in case they contain non-ASCIIs.
+
+ Mostly a workaround, to allow existng users with non-ASCII password
+ to survive upgrade without losing connectivity.
+*/
+static void maybe_convert_charset(const char **user, const char **password,
+                                  const char **database, const char *csname)
+{
+  if (GetACP() != CP_UTF8 || !strncmp(csname, "utf8", 4))
+    return;
+  static char bufs[3][CNV_BUFSIZE];
+  const char **from[]= {user, password, database};
+  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_PRIMARY,
+                                         MYF(MY_UTF8_IS_UTF8MB3 | MY_WME));
+  if (!cs)
+    return;
+  for (int i= 0; i < 3; i++)
+  {
+    const char *str= *from[i];
+    if (!str)
+      continue;
+    uint errors;
+    uint len= my_convert(bufs[i], CNV_BUFSIZE, cs, str, (uint32) strlen(str),
+                         &my_charset_utf8mb4_bin, &errors);
+    bufs[i][len]= 0;
+    *from[i]= bufs[i];
+  }
+}
+#endif
+
 /*
   set connection-specific options and call mysql_real_connect
 */
@@ -1365,7 +1494,7 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (opt_use_ssl)
+  if (opt_use_ssl && opt_protocol <= MYSQL_PROTOCOL_SOCKET)
   {
     mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
 		  opt_ssl_capath, opt_ssl_cipher);
@@ -1387,6 +1516,10 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysql");
+#ifdef _WIN32
+  maybe_convert_charset(&user, &password, &database,default_charset);
+#endif
+
   return mysql_real_connect(mysql, host, user, password, database,
                             opt_mysql_port, opt_mysql_unix_port, flags);
 }
@@ -2059,11 +2192,6 @@ static inline void reset_prompt(char *in_string, bool *ml_comment) {
 
 static int read_and_execute(bool interactive)
 {
-#if defined(_WIN32)
-  String tmpbuf;
-  String buffer;
-#endif
-
   char	*line= NULL;
   char	in_string=0;
   ulong line_number=0;
@@ -2141,26 +2269,7 @@ static int read_and_execute(bool interactive)
 
 #if defined(_WIN32)
       tee_fputs(prompt, stdout);
-      if (!tmpbuf.is_alloced())
-        tmpbuf.alloc(65535);
-      tmpbuf.length(0);
-      buffer.length(0);
-      size_t clen;
-      do
-      {
-        line= my_cgets((char*)tmpbuf.ptr(), tmpbuf.alloced_length()-1, &clen);
-        buffer.append(line, clen);
-        /* 
-           if we got buffer fully filled than there is a chance that
-           something else is still in console input buffer
-        */
-      } while (tmpbuf.alloced_length() <= clen);
-      /* 
-        An empty line is returned from my_cgets when there's error reading :
-        Ctrl-c for example
-      */
-      if (line)
-        line= buffer.c_ptr();
+      line= win_readline();
 #else
       if (opt_outfile)
 	fputs(prompt, OUTFILE);
@@ -2250,10 +2359,7 @@ static int read_and_execute(bool interactive)
     }
   }
 
-#if defined(_WIN32)
-  buffer.free();
-  tmpbuf.free();
-#else
+#if !defined(_WIN32)
   if (interactive)
     /*
       free the last entered line.
@@ -3306,6 +3412,21 @@ static int com_clear(String *buffer,char *)
   return 0;
 }
 
+static void adjust_console_codepage(const char *name __attribute__((unused)))
+{
+#ifdef _WIN32
+  if (my_set_console_cp(name) < 0)
+  {
+    char buf[128];
+    snprintf(buf, sizeof(buf),
+      "WARNING: Could not determine Windows codepage for charset '%s',"
+      "continue using codepage %u", name, GetConsoleOutputCP());
+    put_info(buf, INFO_INFO);
+  }
+#endif
+}
+
+
 static int com_charset(String *, char *line)
 {
   char buff[256], *param;
@@ -3328,6 +3449,7 @@ static int com_charset(String *, char *line)
     mysql_set_character_set(&mysql, charset_info->cs_name.str);
     default_charset= (char *)charset_info->cs_name.str;
     put_info("Charset changed", INFO_INFO);
+    adjust_console_codepage(charset_info->cs_name.str);
   }
   else put_info("Charset is not found", INFO_INFO);
   return 0;
@@ -3648,7 +3770,10 @@ static char *fieldflags2str(uint f) {
   ff2s_check_flag(NUM);
   ff2s_check_flag(PART_KEY);
   ff2s_check_flag(GROUP);
-  ff2s_check_flag(BINCMP);
+  /*
+    CONTEXT_COLLATION_FLAG (former BINCMP_FLAG) is used at parse
+    time only and should never show up on the client side. Don't test it.
+  */
   ff2s_check_flag(ON_UPDATE_NOW);
 #undef ff2s_check_flag
   if (f)
@@ -4899,6 +5024,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     put_info(buff, INFO_ERROR);
     return 1;
   }
+  adjust_console_codepage(charset_info->cs_name.str);
   connected=1;
 #ifndef EMBEDDED_LIBRARY
   mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);

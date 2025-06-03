@@ -1,7 +1,7 @@
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a datetime(7));
-ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 create table t1 (a datetime(3), key(a));
 insert t1 values ('2010-12-11 00:20:03.1234');
 insert t1 values ('2010-12-11 15:47:11.1234');

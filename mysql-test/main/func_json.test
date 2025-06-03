@@ -1194,6 +1194,7 @@ SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
 
 SET @@collation_connection= @save_collation_connection;
 
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
@@ -1231,6 +1232,716 @@ SELECT
   data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 
+
+--echo #
+--echo # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+--echo #
+
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+select json_valid(@v) as valid;
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+show warnings;
+
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-31147 json_normalize does not work correctly with MSAN build
+--echo #
+CREATE TABLE t1 (val JSON);
+ALTER TABLE t1 ADD COLUMN normalized_json JSON AS (JSON_NORMALIZE(val));
+INSERT INTO t1 (val) VALUES ('15');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-27677: Implement JSON_OVERLAPS()
+--echo #
+
+
+--echo # Testing scalar json datatypes
+
+--echo # Comparing scalar json datatypes with itself
+SELECT JSON_OVERLAPS('true', 'true');
+SELECT JSON_OVERLAPS('false', 'false');
+SELECT JSON_OVERLAPS('1', '1');
+SELECT JSON_OVERLAPS('"string1"', '"string1"');
+SELECT JSON_OVERLAPS('null', 'null');
+
+--echo # Comparing scalar json datatypes with other scalar datatype
+SELECT JSON_OVERLAPS('true', 'false');
+SELECT JSON_OVERLAPS('1', '"1"');
+SELECT JSON_OVERLAPS('1', '0');
+SELECT JSON_OVERLAPS('null', '0');
+SELECT JSON_OVERLAPS('"string1"', '"string2"');
+
+SELECT JSON_OVERLAPS('true','["abc", 1, 2, true, false]');
+SELECT JSON_OVERLAPS('true','["abc", 1, 2, [true]]');
+SELECT JSON_OVERLAPS('true','{"A":true}');
+
+
+--echo # Testing non-scalar json data types
+
+--echo # Comparing object with object (non-nested)
+SELECT JSON_OVERLAPS('{"A":[1, 2, 3]}','{}');
+SELECT JSON_OVERLAPS('{"A": 1}',
+                     '{"A": 1}');
+SELECT JSON_OVERLAPS('{"A": 1}',
+                     '{"B": 1}');
+SELECT JSON_OVERLAPS('{
+                       "A": 1,
+                       "B": "string1"
+                      }',
+                     '{
+                        "A": 2,
+                        "B": "string1"
+                      }') as exp;
+SELECT JSON_OVERLAPS('{
+                       "A": 1,
+                       "B": "string1"
+                      }',
+                     '{
+                       "A": 2,
+                       "B": "string2"
+                      }') as exp;
+
+--echo # Comparing nested object with other nested object
+SELECT JSON_OVERLAPS('{
+                        "A": 1,
+                        "B": {"C":2}
+                      }',
+                     '{
+                        "A": 2,
+                        "B": {"C":1}
+                      }') as exp;
+SELECT JSON_OVERLAPS('{
+                       "A": 1,
+                       "B": {"C":2}
+                      }',
+                     '{
+                        "A": 2,
+                        "B": {"C":2}
+                      }') as exp;
+SELECT JSON_OVERLAPS('{
+                       "A": {
+                             "B": true
+                            }
+                      }',
+                     '{
+                       "A": {
+                             "B": true,
+                             "C": false
+                            }
+                      }') as exp;
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":5}}',
+                     '{"C":3, "B":{"E":5, "D":4}}') as exp;
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "B":{"E":5, "D":4}}') as exp;
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "B":{"E":[5, 6, 7], "D":4}}') as exp;
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "B":{"E":[7, 6 ,5], "D":4}}') as exp;
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "F":{"E":[5, 6, 7], "D":4}}') as exp;
+
+
+--echo # Comparing array with array (non-nested)
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '[3, 4, 1]') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '[3, 4, 5]');
+SELECT JSON_OVERLAPS('[1,2,3]','[]') as exp;
+
+--echo # Comparing nested arrays
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '[3, 4, [1]]') as exp;
+SELECT JSON_OVERLAPS('[1, 2, [true, false], null]',
+                     '[[1], [true, false]]') as exp;
+SELECT JSON_OVERLAPS('[1, 2, 3, [4, 5, 6]]','[7, 8, 9, [6, 5, 4]]') as exp;
+
+
+--echo # Comparing one non-scalar json datatypes with another non-scalar
+--echo # json datatype
+
+--echo # Comparing array with object
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '{"A": 1}') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, null, {"A":2}]',
+                     '{"A": 1}') as exp;
+SELECT JSON_OVERLAPS('[1, {"A": 2}, {"A": 1}]',
+                     '{"A": 1}') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
+                     '{"A": 1, "B": 2}') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
+                     '{"A": 1, "B": 3}') as exp;
+
+-- echo # Comparing nested array with object
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
+                     '{"A": 1, "B": 2}') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
+                     '{"A": 1, "B": 3}') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
+                     '{"A": 1}') as exp;
+
+--echo # Comparing array with nested object
+SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": {"C": 12}}]',
+                     '{"A": 1, "B": {"C": 12}}') as exp;
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
+                      '{"A": 1, "B": {"C": 12}}') as exp;
+
+--echo # Comparing nested array with nested objects
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
+                     '{"A": 1, "B":{"C": 12}}') as exp;
+SELECT JSON_OVERLAPS('[[1, 2, true, false, {"A": 1, "B": {"C": 12}}]]',
+                     '{"A": 1, "B": {"C": 12}}') as exp;
+
+--echo # Comparing object with array
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}]') as exp;
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
+                     '[1, 2, true, false, {"A": 1, "B": 3}]') as exp;
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": 3}]') as exp;
+SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, 3]}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": [1, 2, 3]}]') as exp;
+SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}, {"A":1, "B":[1, 2, {"C": 3, "D": 5}]}]') as exp;
+SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
+                     '[1, 2, true, false, {"A": 1, "B": 2},{"A": 1, "B": [1, 2, {"C": 3, "D": 4}]}]') as exp;
+
+--echo # Comparing object with nested array
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}','[1, 2, true, false, [{"A": 1, "B": 2}, {"A": 1, "B": 3}]]') as exp;
+
+--echo # Checking errors and warnings
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_OVERLAPS('[1,2,{"A":B}]', '{"A":B}', '{"C":"string1"}');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_OVERLAPS('[1,2,{"A":B}]');
+
+--echo #
+--echo # MDEV-27990: Incorrect behavior of JSON_OVERLAPS() on warning
+--echo #
+SELECT JSON_OVERLAPS('','');
+SELECT JSON_OVERLAPS('true','tr');
+
+--echo #
+--echo # MDEV-22224: Support JSON Path negative index
+--echo #
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[-2][-1]', 5);
+SELECT JSON_ARRAY_APPEND(@json, '$.A[last-1][last]', 5);
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[-2][-2]', 5);
+SELECT JSON_ARRAY_INSERT(@json, '$.A[last-1][last-1]', 5);
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS(@json, '15', '$.A[-2][-1]');
+SELECT JSON_CONTAINS(@json, '15', '$.A[last-1][last]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[-2]');
+SELECT JSON_CONTAINS_PATH(@json, 'one', '$.A[last-1]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXISTS(@json, '$.A[-2][-1]');
+SELECT JSON_EXISTS(@json, '$.A[last-1][last]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_EXTRACT(@json, '$.A[-8][1]');
+SELECT JSON_EXTRACT(@json, '$.A[last-7][1]');
+
+SET @json= '[{"A": 1, "B": 2, "C": {"D": 3}},{"A": 1, "B": 2, "C": {"D": 3}}]';
+SELECT JSON_KEYS(@json, '$[-1].C');
+SELECT JSON_KEYS(@json, '$[last].C');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_LENGTH(@json, '$.A[-2][-3]');
+SELECT JSON_LENGTH(@json, '$.A[last-1][last-2]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-8]');
+SELECT JSON_QUERY(@json, '$.A[last-7]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REMOVE(@json, '$.A[-10]');
+SELECT JSON_REMOVE(@json, '$.A[last-9]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_REPLACE(@json, '$.A[-1]', 4);
+SELECT JSON_REPLACE(@json, '$.A[last]', 4);
+
+SET @json = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[-2]');
+SELECT JSON_SEARCH(@json, 'all', 'abc', NULL, '$[last-1]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_SET(@json, '$.A[-4]', 100);
+SELECT JSON_SET(@json, '$.A[last-3]', 100);
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":123},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_VALUE(@json, '$.A[-2][-2].key1');
+SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
+
+--echo #
+--echo # MDEV-27972: Unexpected behavior with negative zero (-0) in JSON Path
+--echo #
+
+SET @json='{ "x": [0,1]}';
+SELECT JSON_VALUE(@json,'$.x[last]');
+SELECT JSON_VALUE(@json,'$.x[last-0]');
+SELECT JSON_VALUE(@json,'$.x[-0]');
+SELECT JSON_VALUE(@json,'$.x[0]');
+
+
+--echo #
+--echo # MDEV-27911: Implement range notation for json path
+--echo #
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_EXISTS(@json, '$[3][3][-2 to last]');
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_SEARCH(@json, 'one', '12', NULL, '$[3][0 to 3]');
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [12, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_VALUE(@json, '$[0][1 to 2].key1');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-2][-3 to -1]');
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_EXTRACT(@json, '$[0 to 3][2]');
+SELECT JSON_EXTRACT(@json, '$[3][3][last-1 to last]');
+SELECT JSON_EXTRACT(@json, '$[3][3][-2 to -1]');
+
+--echo # Checking errors
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_CONTAINS_PATH(@json,'one', '$[3][0 to 3]');
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_CONTAINS(@json, '$[3][0 to 3]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[0 to last-1]', 5);
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[*]', 7);
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [12, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_SET(@json, '$[0][1 to 2].key1', 1);
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_REPLACE(@json, '$[1][last-2 to last]', 4);
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_REMOVE(@json, '$[1][-6 to last-2]');
+
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_KEYS(@json, '$.A[8][1 to 3]');
+
+--echo #
+--echo # MDEV-28075: JSON_VALUE returns first value from array not from range
+--echo #
+
+SET @json1= '[
+             [{"key1": "value1"}, {"key2": "value2"}],
+             [{"key3": "value3"}, {"key1": "value4"}],
+             [{"key1": "value5"}, {"key4": "value6"}, {"key1": "value7"}]
+            ]';
+SELECT JSON_VALUE(@json1, '$[2][1 to 2].key1');
+
+
+SET @json= '[
+             [1.1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [11, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_VALUE(@json, '$[*][0]');
+SELECT JSON_VALUE(@json, '$[2 to 3][0]');
+
+--echo #
+--echo # MDEV-28072: JSON_EXTRACT has inconsistent behavior with '0' value in
+--echo # json path (when range is used)
+--echo #
+
+SET @json= '[ 11, 22 , 33]';
+SELECT JSON_EXTRACT(@json, '$[0 to 0]');
+SELECT JSON_EXTRACT(@json, '$[0 to -0]');
+SELECT JSON_EXTRACT(@json, '$[-0 to 0]');
+SELECT JSON_EXTRACT(@json, '$[-0 to -0]');
+
+--echo #
+--echo # MDEV-28071: JSON_EXISTS returns always 1 if it is used range notation
+--echo # for json path
+--echo #
+
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_EXISTS(@json, '$[2][2][1 to 2]');
+SELECT JSON_EXISTS(@json, '$[2][2][4 to 6]');
+SELECT JSON_EXISTS(@json, '$[2][2][1 to 4]');
+
+
+--echo #
+--echo # MDEV-28326: Server crashes in json_path_parts_compare
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":["bar","qux"]}','$**.*[0]' COLUMNS(col1 CHAR(8) PATH '$[0]')) AS jt;
+
+--echo #
+--echo # MDEV-29212: json_overlaps() does not check nested key-value pair correctly
+--echo #
+
+SET @json1 = '{"kk":{"k1":"v1","k2":"v2"}}';
+SET @json2 = '{"kk":{"k1":"v1","k2":"v2","k3":"v3"}}';
+SELECT JSON_OVERLAPS(@json2, @json1);
+SELECT JSON_OVERLAPS(@json1, @json2);
+
+--echo #
+--echo # MDEV-30304: Json Range only affects first row of the result set
+--echo #
+
+CREATE TABLE t1 ( j JSON );
+ 
+INSERT INTO t1 (j) VALUES ('[{"key1": 1, "key2": 1}, {"key3": 1, "key4": 1}]');
+INSERT INTO t1 (j) VALUES ('[{"key1": 2, "key2": 2}, {"key3": 2, "key4": 2}, {"key5": 2, "key6": 2}]');
+INSERT INTO t1 (j) VALUES ('[{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}, {"key5": 3}]');
+
+SELECT JSON_EXTRACT(j, '$[0 to 1]')  FROM t1 ;
+SELECT JSON_EXTRACT(j, '$[*]')  FROM t1 ;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29381: JSON paths containing dashes are reported as syntax errors in procedures
+--echo #
+
+SELECT JSON_EXTRACT('{ "my-key": 1 }', '$."my-key"');
+SELECT JSON_EXTRACT('{ "my-key": 1 }', '$.my-key');
+
+--echo #
+--echo # MDEV-23187: Assorted assertion failures in json_find_path with certain collations
+--echo #
+
+
+SET @save_collation_connection= @@collation_connection;
+
+SET @json='{ "A": [ [{"k":"v"},[1]],true],"B": {"C": 1} }';
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+
+SET @json='{ "A": [ [{"k":"v"},[1]],true],"B": {"C": 1} }';
+SET collation_connection='ucs2_bin';
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+
+SET @json='{ "A": [ [{"k":"v"},[15]],true],"B": {"C": 1} }';
+SET sql_mode=0,character_set_connection=utf32;
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+
+
+SET @json='{ "A": [ [{"k":"v"},[15]],true],"B": {"C": 1} }';
+SET sql_mode=0,character_set_connection=utf32;
+SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
+
+SET @@collation_connection= @save_collation_connection;
+
+
+--echo #
+--echo # End of 10.9 Test
 --echo #

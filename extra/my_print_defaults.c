@@ -48,20 +48,6 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log", (char**) &default_dbug_option,
    (char**) &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"defaults-file", 'c',
-   "Read this file only, do not read global or per-user config "
-   "files; should be the first option",
-   (char**) &config_file, (char*) &config_file, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-  {"defaults-extra-file", 'e',
-   "Read this file after the global config file and before the config "
-   "file in the users home directory; should be the first option",
-   (void *)&my_defaults_extra_file, (void *)&my_defaults_extra_file, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"defaults-group-suffix", 'g',
-   "In addition to the given groups, read also groups with this suffix",
-   (char**) &my_defaults_group_suffix, (char**) &my_defaults_group_suffix,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"mysqld", 0, "Read the same set of groups that the mariadbd (previously known as mysqld) binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"mariadbd", 0, "Read the same set of groups that the mariadbd binary does.",
@@ -111,9 +97,6 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
                const char *filename __attribute__((unused)))
 {
   switch (opt->id) {
-    case 'c':
-      opt_defaults_file_used= 1;
-      break;
     case 'n':
       cleanup_and_exit(0);
     case 'I':
@@ -143,49 +126,34 @@ static int get_options(int *argc,char ***argv)
   return 0;
 }
 
-static char *make_args(const char *s1, const char *s2)
-{
-  char *s= malloc(strlen(s1) + strlen(s2) + 1);
-  strmov(strmov(s, s1), s2);
-  return s;
-}
-
 int main(int argc, char **argv)
 {
-  int count= 0, error, no_defaults= 0;
+  int count, error, args_used;
   char **load_default_groups= 0, *tmp_arguments[6];
   char **argument, **arguments, **org_argv;
   int nargs, i= 0;
   MY_INIT(argv[0]);
 
   org_argv= argv;
-  if (*argv && !strcmp(*argv, "--no-defaults"))
-  {
-    argv++;
-    ++count;
-    no_defaults= 1;
-  }
-  /* Copy program name and --no-defaults if present*/
+  args_used= get_defaults_options(argv);
+
+  /* Copy defaults-xxx arguments & program name */
+  count= args_used;
   arguments= tmp_arguments;
-  memcpy((char*) arguments, (char*) org_argv, (++count)*sizeof(*org_argv));
+  memcpy((char*) arguments, (char*) org_argv, count*sizeof(*org_argv));
   arguments[count]= 0;
 
-  /* Check out the args */
-  if (get_options(&argc,&argv))
-    cleanup_and_exit(1);
+  /*
+     We already process --defaults* options at the beginning in
+     get_defaults_options(). So skip --defaults* options and
+     pass remaining options to handle_options().
+  */
+  org_argv+=args_used-1;
+  argc-=args_used-1;
 
-  if (!no_defaults)
-  {
-    if (opt_defaults_file_used)
-     arguments[count++]= make_args("--defaults-file=", config_file);
-    if (my_defaults_extra_file)
-      arguments[count++]= make_args("--defaults-extra-file=",
-                                  my_defaults_extra_file);
-    if (my_defaults_group_suffix)
-      arguments[count++]= make_args("--defaults-group-suffix=",
-                                  my_defaults_group_suffix);
-    arguments[count]= 0;
-  }
+  /* Check out the args */
+  if (get_options(&argc,&org_argv))
+    cleanup_and_exit(1);
 
   nargs= argc + 1;
   if (opt_mysqld)
@@ -204,7 +172,7 @@ int main(int argc, char **argv)
     for (; mysqld_groups[i]; i++)
       load_default_groups[i]= (char*) mysqld_groups[i];
   }
-  memcpy(load_default_groups + i, argv, (argc + 1) * sizeof(*argv));
+  memcpy(load_default_groups + i, org_argv, (argc + 1) * sizeof(*org_argv));
   if ((error= load_defaults(config_file, (const char **) load_default_groups,
 			   &count, &arguments)))
   {

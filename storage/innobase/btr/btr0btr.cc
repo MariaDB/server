@@ -419,8 +419,8 @@ btr_root_adjust_on_import(
 		} else {
 			/* Check that the table flags and the tablespace
 			flags match. */
-			ulint tf = dict_tf_to_fsp_flags(table->flags);
-			ulint sf = table->space->flags;
+			uint32_t tf = dict_tf_to_fsp_flags(table->flags);
+			uint32_t sf = table->space->flags;
 			sf &= ~FSP_FLAGS_MEM_MASK;
 			tf &= ~FSP_FLAGS_MEM_MASK;
 			if (fil_space_t::is_flags_equal(tf, sf)
@@ -2444,7 +2444,8 @@ btr_page_insert_fits(
 
 	if (!(end_rec = split_rec)) {
 		end_rec = page_rec_get_next(btr_cur_get_rec(cursor));
-	} else if (cmp_dtuple_rec(tuple, split_rec, *offsets) < 0) {
+	} else if (cmp_dtuple_rec(tuple, split_rec, cursor->index(),
+				  *offsets) < 0) {
 		rec = split_rec;
 		end_rec = page_get_supremum_rec(page);
 		goto got_rec;
@@ -2770,7 +2771,7 @@ btr_page_tuple_smaller(
 				   ? cursor->index()->n_core_fields : 0,
 				   n_uniq, heap);
 
-	return(cmp_dtuple_rec(tuple, first_rec, *offsets) < 0);
+	return cmp_dtuple_rec(tuple, first_rec, cursor->index(), *offsets) < 0;
 }
 
 /** Insert the tuple into the right sibling page, if the cursor is at the end
@@ -3166,7 +3167,8 @@ got_split_rec:
 					   : 0,
 					   n_uniq, heap);
 
-		insert_left = cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
+		insert_left = cmp_dtuple_rec(tuple, split_rec, cursor->index(),
+					     *offsets) < 0;
 
 		if (!insert_left && new_page_zip && n_iterations > 0) {
 			/* If a compressed page has already been split,
@@ -4701,7 +4703,8 @@ btr_check_node_ptr(
 			tuple, btr_cur_get_rec(&cursor),
 			PAGE_CUR_WITHIN));
 	} else {
-		ut_a(!cmp_dtuple_rec(tuple, btr_cur_get_rec(&cursor), offsets));
+		ut_a(!cmp_dtuple_rec(tuple, btr_cur_get_rec(&cursor), index,
+				     offsets));
 	}
 func_exit:
 	mem_heap_free(heap);
@@ -5196,7 +5199,7 @@ broken_links:
 		/* For spatial index, we cannot guarantee the key ordering
 		across pages, so skip the record compare verification for
 		now. Will enhanced in special R-Tree index validation scheme */
-		if (!index->is_spatial()
+		if (index->is_btree()
 		    && cmp_rec_rec(rec, right_rec,
 				   offsets, offsets2, index) >= 0) {
 
@@ -5242,8 +5245,7 @@ broken_links:
 	in parent level and linked pages in the child level.
 	2) Search parent from root is very costly for R-tree.
 	We will add special validation mechanism for R-tree later (WL #7520) */
-	if (!index->is_spatial()
-	    && block->page.id().page_no() != index->page) {
+	if (index->is_btree() && block->page.id().page_no() != index->page) {
 		/* Check father node pointers */
 		rec_t*	node_ptr
 			= page_rec_get_next(page_get_infimum_rec(page));
@@ -5303,7 +5305,7 @@ broken_links:
 				index, first_rec,
 				0, heap, btr_page_get_level(page));
 
-			if (cmp_dtuple_rec(node_ptr_tuple, node_ptr,
+			if (cmp_dtuple_rec(node_ptr_tuple, node_ptr, index,
 					   offsets)) {
 				btr_validate_report1(index, level, block);
 

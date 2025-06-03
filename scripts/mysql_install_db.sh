@@ -17,14 +17,13 @@
 
 # This scripts creates the MariaDB Server system tables
 #
-# All unrecognized arguments to this script are passed to mysqld.
+# All unrecognized arguments to this script are passed to mariadbd.
 
 basedir=""
 builddir=""
 ldata="@localstatedir@"
 langdir=""
 srcdir=""
-log_error=""
 
 args=""
 defaults=""
@@ -33,14 +32,17 @@ mysqld_opt=""
 user=""
 group=""
 silent_startup="--silent-startup"
+log_error=""
 
 force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
+do_resolve=0
 auth_root_authentication_method=socket
 auth_root_socket_user=""
 skip_test_db=0
+extra_file=""
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -91,18 +93,20 @@ Usage: $0 [OPTIONS]
                        uses the compiled binaries and support files within the
                        source tree, useful for if you don't want to install
                        MariaDB yet and just want to create the system tables.
-  --user=user_name     The login username to use for running mysqld.  Files
-                       and directories created by mysqld will be owned by this
+  --user=user_name     The login username to use for running mariadbd.  Files
+                       and directories created by mariadbd will be owned by this
                        user.  You must be root to use this option.  By default
-                       mysqld runs using your current login name and files and
+                       mariadbd runs using your current login name and files and
                        directories that it creates will be owned by you.
-  --group=group_name   The login group to use for running mysqld.  Files and
-                       directories created by mysqld will be owned by this
+  --group=group_name   The login group to use for running mariadbd.  Files and
+                       directories created by mariadbd will be owned by this
                        group. You must be root to use this option.  By default
-                       mysqld runs using your current group and files and
+                       mariadbd runs using your current group and files and
                        directories that it creates will be owned by you.
+  --extra-file=file    Add user defined SQL file, to be executed following
+                       regular database initialization.
 
-All other options are passed to the mysqld program
+All other options are passed to the mariadbd program
 
 EOF
   exit 1
@@ -152,7 +156,7 @@ parse_arguments()
        # Keep in the arguments passed to the server
        args="$args $arg"
        log_error=`parse_arg "$arg"` ;;
-        # Note that the user will be passed to mysqld so that it runs
+        # Note that the user will be passed to mariadbd so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
         # where a chown of datadir won't help)
       --user=*) user=`parse_arg "$arg"` ;;
@@ -186,6 +190,8 @@ parse_arguments()
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
       --skip-test-db) skip_test_db=1 ;;
+      --extra-file=*)
+        extra_file="$(parse_arg "$arg")" ;;
 
       *)
         if test -n "$pick_args"
@@ -317,13 +323,18 @@ then
   exit 1
 fi
 
-# Now we can get arguments from the groups [mysqld] and [mysql_install_db]
+# Now we can get arguments from the groups [mariadbd] and [mysql_install_db]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db mariadb-install-db`
+parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mariadbd mysql_install_db mariadb-install-db`
 
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mariadbd"
+
+if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
+then
+  do_resolve=1
+fi
 
 # Configure paths to support files
 if test -n "$srcdir"
@@ -331,7 +342,7 @@ then
   basedir="$builddir"
   bindir="$basedir/client"
   resolveip="$basedir/extra/resolveip"
-  mysqld="$basedir/sql/mysqld"
+  mysqld="$basedir/sql/mariadbd"
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
@@ -339,33 +350,13 @@ then
   pamtooldir="$builddir/plugin/auth_pam"
 elif test -n "$basedir"
 then
-  bindir="$basedir/bin" # only used in the help text
-  resolveip=`find_in_dirs resolveip @resolveip_locations@`
-  if test -z "$resolveip"
-  then
-    cannot_find_file resolveip @resolveip_locations@
-    exit 1
-  fi
-  mysqld=`find_in_dirs mariadbd @mysqld_locations@`
-  if test -z "$mysqld"
-  then
-      cannot_find_file mariadbd @mysqld_locations@
-      exit 1
-  fi
-  langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
-  if test -z "$langdir"
-  then
-    cannot_find_file errmsg.sys @errmsg_locations@
-    exit 1
-  fi
-  srcpkgdatadir=`find_in_dirs --dir fill_help_tables.sql @pkgdata_locations@`
-  buildpkgdatadir=$srcpkgdatadir
-  if test -z "$srcpkgdatadir"
-  then
-    cannot_find_file fill_help_tables.sql @pkgdata_locations@
-    exit 1
-  fi
-  plugindir=`find_in_dirs --dir auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin $basedir/lib/*/mariadb19/plugin`
+  bindir="$basedir/@INSTALL_BINDIR@"
+  resolveip="$bindir/resolveip"
+  mysqld="$basedir/@INSTALL_SBINDIR@/mariadbd"
+  langdir="$basedir/@INSTALL_MYSQLSHAREDIR@/english"
+  srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  plugindir="$basedir/@INSTALL_PLUGINDIR@"
   pamtooldir=$plugindir
 # relative from where the script was run for a relocatable install
 elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mariadbd"
@@ -407,6 +398,13 @@ do
   fi
 done
 
+# Verify extra file exists if it's not null
+if test ! -z "$extra_file" -a ! -f "$extra_file"
+then
+  cannot_find_file "$extra_file"
+  exit 1
+fi
+
 if test ! -x "$mysqld"
 then
   cannot_find_file "$mysqld"
@@ -430,7 +428,7 @@ fi
 hostname=`@HOSTNAME@`
 
 # Check if hostname is valid
-if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
+if test "$do_resolve" -eq 1
 then
   resolved=`"$resolveip" $hostname 2>&1`
   if test $? -ne 0
@@ -449,14 +447,14 @@ then
     fi
     echo "WARNING: The host '$hostname' could not be looked up with $resolveip."
     echo "This probably means that your libc libraries are not 100 % compatible"
-    echo "with this binary MariaDB version. The MariaDB daemon, mysqld, should work"
+    echo "with this binary MariaDB version. The MariaDB daemon, mariadbd, should work"
     echo "normally with the exception that host name resolving will not work."
     echo "This means that you should use IP addresses instead of hostnames"
     echo "when specifying MariaDB privileges !"
   fi
 fi
 
-if test "$ip_only" -eq 1
+if test "$do_resolve" -eq 1 -a "$ip_only" -eq 1
 then
   hostname=`echo "$resolved" | awk '/ /{print $6}'`
 fi
@@ -515,7 +513,7 @@ then
   args="$args --user=$user"
 fi
 
-#To be enabled if/when we enable --group as an option to mysqld
+#To be enabled if/when we enable --group as an option to mariadbd
 #if test -n "$group"
 #then
 #  args="$args --group=$group"
@@ -557,7 +555,7 @@ then
     fi
 fi
 
-# Configure mysqld command line
+# Configure mariadbd command line
 mysqld_bootstrap="${MYSQLD_BOOTSTRAP-$mysqld}"
 mysqld_install_cmd_line()
 {
@@ -592,9 +590,15 @@ cat_sql()
   then
     cat "$mysql_test_db"
   fi
+
+  # cat extra file if it's not null
+  if test ! -z "$extra_file"
+  then
+    cat "$extra_file"
+  fi
 }
 
-# Create the system and help tables by passing them to "mysqld --bootstrap"
+# Create the system and help tables by passing them to "mariadbd --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then

@@ -1220,7 +1220,6 @@ bool ha_federatedx::create_where_from_key(String *to,
                                          KEY *key_info,
                                          const key_range *start_key,
                                          const key_range *end_key,
-                                         bool from_records_in_range,
                                          bool eq_range)
 {
   bool both_not_null=
@@ -1241,7 +1240,6 @@ bool ha_federatedx::create_where_from_key(String *to,
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
-    bool needs_quotes;
     KEY_PART_INFO *key_part;
     if (ranges[i] == NULL)
       continue;
@@ -1264,7 +1262,12 @@ bool ha_federatedx::create_where_from_key(String *to,
       Field *field= key_part->field;
       uint store_length= key_part->store_length;
       uint part_length= MY_MIN(store_length, length);
-      needs_quotes= field->str_needs_quotes();
+      bool needs_quotes= field->str_needs_quotes();
+      bool reverse= key_part->key_part_flag & HA_REVERSE_SORT;
+      static const LEX_CSTRING lt={STRING_WITH_LEN(" < ") };
+      static const LEX_CSTRING gt={STRING_WITH_LEN(" > ") };
+      static const LEX_CSTRING le={STRING_WITH_LEN(" <= ") };
+      static const LEX_CSTRING ge={STRING_WITH_LEN(" >= ") };
       DBUG_DUMP("key, start of loop", ptr, length);
 
       if (key_part->null_bit)
@@ -1306,16 +1309,8 @@ bool ha_federatedx::create_where_from_key(String *to,
           if (emit_key_part_name(&tmp, key_part))
             goto err;
 
-          if (from_records_in_range)
-          {
-            if (tmp.append(STRING_WITH_LEN(" >= ")))
-              goto err;
-          }
-          else
-          {
-            if (tmp.append(STRING_WITH_LEN(" = ")))
-              goto err;
-          }
+          if (tmp.append(STRING_WITH_LEN(" = ")))
+            goto err;
 
           if (emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                     part_length))
@@ -1346,12 +1341,12 @@ bool ha_federatedx::create_where_from_key(String *to,
 
           if (i > 0) /* end key */
           {
-            if (tmp.append(STRING_WITH_LEN(" <= ")))
+            if (tmp.append(reverse ? ge : le))
               goto err;
           }
           else /* start key */
           {
-            if (tmp.append(STRING_WITH_LEN(" > ")))
+            if (tmp.append(reverse ? lt : gt))
               goto err;
           }
 
@@ -1366,7 +1361,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_KEY_OR_NEXT:
         DBUG_PRINT("info", ("federatedx HA_READ_KEY_OR_NEXT %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
-            tmp.append(STRING_WITH_LEN(" >= ")) ||
+            tmp.append(reverse ? le : ge) ||
             emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
               part_length))
           goto err;
@@ -1376,7 +1371,7 @@ bool ha_federatedx::create_where_from_key(String *to,
         if (store_length >= length)
         {
           if (emit_key_part_name(&tmp, key_part) ||
-              tmp.append(STRING_WITH_LEN(" < ")) ||
+              tmp.append(reverse ? gt : lt) ||
               emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                     part_length))
             goto err;
@@ -1386,7 +1381,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_KEY_OR_PREV:
         DBUG_PRINT("info", ("federatedx HA_READ_KEY_OR_PREV %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
-            tmp.append(STRING_WITH_LEN(" <= ")) ||
+            tmp.append(reverse ? ge : le) ||
             emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                   part_length))
           goto err;
@@ -2640,10 +2635,7 @@ int ha_federatedx::index_read_idx_with_result_set(uchar *buf, uint index,
   range.key= key;
   range.length= key_len;
   range.flag= find_flag;
-  create_where_from_key(&index_string,
-                        &table->key_info[index],
-                        &range,
-                        NULL, 0, 0);
+  create_where_from_key(&index_string, &table->key_info[index], &range, 0, 0);
   sql_query.append(index_string);
 
   if ((retval= txn->acquire(share, ha_thd(), TRUE, &io)))
@@ -2722,9 +2714,8 @@ int ha_federatedx::read_range_first(const key_range *start_key,
 
   sql_query.length(0);
   sql_query.append(share->select_query);
-  create_where_from_key(&sql_query,
-                        &table->key_info[active_index],
-                        start_key, end_key, 0, eq_range_arg);
+  create_where_from_key(&sql_query, &table->key_info[active_index],
+                        start_key, end_key, eq_range_arg);
 
   if ((retval= txn->acquire(share, ha_thd(), TRUE, &io)))
     DBUG_RETURN(retval);

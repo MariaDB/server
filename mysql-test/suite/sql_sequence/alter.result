@@ -419,3 +419,73 @@ DROP SEQUENCE s2;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-36032 Check when doing ALTER TABLE table_name sequence=1 that table can be a sequence
+#
+create sequence s;
+alter table s sequence=0;
+insert into s values (3,1,9223372036854775806,1,1,1000,0,0);
+alter table s sequence=1;
+ERROR HY000: More than one row in the table
+drop table s;
+create sequence s;
+alter table s sequence=0;
+delete from s;
+insert into s values (2,500,200,1,1,1000,0,0);
+select * from s;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2	500	200	1	1	1000	0	0
+alter table s sequence=1;
+ERROR HY000: Sequence 'test.s' has out of range value for options
+check table s;
+Table	Op	Msg_type	Msg_text
+test.s	check	status	OK
+select * from s;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2	500	200	1	1	1000	0	0
+check table s;
+Table	Op	Msg_type	Msg_text
+test.s	check	status	OK
+drop table s;
+CREATE TABLE `s` (
+# `next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+`increment` bigint(21) NOT NULL COMMENT 'increment value',
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+`cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=innodb;
+alter table s sequence=1;
+ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of columns)
+drop table s;
+create sequence s;
+alter table s drop column next_not_cached_value;
+ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of columns)
+drop sequence s;
+CREATE TABLE `s1` (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+`increment` bigint(21) NOT NULL COMMENT 'increment value',
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+`cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=innodb;
+alter table s1 sequence=1;
+ERROR HY000: Fewer than one row in the table
+alter table s1 sequence=0;
+insert into s1 values (1,1,9223372036854775806,1,1,1000,0,0);
+alter table s1 sequence=1;
+alter table s1 sequence=0;
+insert into s1 values (2,1,9223372036854775806,1,1,1000,0,0);
+alter table s1 sequence=1;
+ERROR HY000: More than one row in the table
+alter table s1 sequence=0;
+insert into s1 values (3,1,9223372036854775806,1,1,1000,0,0);
+alter table s1 sequence=1;
+ERROR HY000: More than one row in the table
+drop table s1;
+# End of 10.11 tests

@@ -41,11 +41,13 @@
 #define WSREP_STREAMING_TABLE "wsrep_streaming_log"
 #define WSREP_CLUSTER_TABLE   "wsrep_cluster"
 #define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
 
 LEX_CSTRING WSREP_LEX_SCHEMA= {STRING_WITH_LEN(WSREP_SCHEMA)};
 LEX_CSTRING WSREP_LEX_STREAMING= {STRING_WITH_LEN(WSREP_STREAMING_TABLE)};
 LEX_CSTRING WSREP_LEX_CLUSTER= {STRING_WITH_LEN(WSREP_CLUSTER_TABLE)};
 LEX_CSTRING WSREP_LEX_MEMBERS= {STRING_WITH_LEN(WSREP_MEMBERS_TABLE)};
+LEX_CSTRING WSREP_LEX_ALLOWLIST= {STRING_WITH_LEN(WSREP_ALLOWLIST_TABLE)};
 
 const char* wsrep_sr_table_name_full= WSREP_SCHEMA "/" WSREP_STREAMING_TABLE;
 
@@ -53,6 +55,7 @@ static const std::string wsrep_schema_str= WSREP_SCHEMA;
 static const std::string sr_table_str= WSREP_STREAMING_TABLE;
 static const std::string cluster_table_str= WSREP_CLUSTER_TABLE;
 static const std::string members_table_str= WSREP_MEMBERS_TABLE;
+static const std::string allowlist_table_str= WSREP_ALLOWLIST_TABLE;
 
 static const std::string create_cluster_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + cluster_table_str +
@@ -97,6 +100,13 @@ static const std::string create_frag_table_str=
   "frag LONGBLOB NOT NULL, "
   "PRIMARY KEY (node_uuid, trx_id, seqno)"
   ") ENGINE=InnoDB STATS_PERSISTENT=0 CHARSET=latin1";
+
+static const std::string create_allowlist_table_str=
+  "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + allowlist_table_str +
+  "("
+  "ip CHAR(64) NOT NULL,"
+  "PRIMARY KEY (ip)"
+  ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
 static const std::string delete_from_cluster_table=
   "DELETE FROM " + wsrep_schema_str + "." + cluster_table_str;
@@ -478,11 +488,18 @@ static int insert(TABLE* table) {
   }
 
   if ((error= table->file->ha_write_row(table->record[0]))) {
-    WSREP_ERROR("Error writing into %s.%s: %d",
-                table->s->db.str,
-                table->s->table_name.str,
-                error);
-    ret= 1;
+   if (error == HA_ERR_FOUND_DUPP_KEY) {
+      WSREP_WARN("Duplicate key found when writing into %s.%s",
+                 table->s->db.str,
+                 table->s->table_name.str);
+      ret= HA_ERR_FOUND_DUPP_KEY;
+    } else  {
+      WSREP_ERROR("Error writing into %s.%s: %d",
+                  table->s->db.str,
+                  table->s->table_name.str,
+                  error);
+      ret= 1;
+    }
   }
 
   DBUG_RETURN(ret);
@@ -722,6 +739,8 @@ static void wsrep_init_thd_for_schema(THD *thd)
   wsrep_store_threadvars(thd);
 }
 
+static bool wsrep_schema_ready= false;
+
 int Wsrep_schema::init()
 {
   DBUG_ENTER("Wsrep_schema::init()");
@@ -756,12 +775,16 @@ int Wsrep_schema::init()
                                      alter_members_table.size()) ||
       Wsrep_schema_impl::execute_SQL(thd,
                                      alter_frag_table.c_str(),
-	                             alter_frag_table.size()))
+                                     alter_frag_table.size()) ||
+      Wsrep_schema_impl::execute_SQL(thd,
+                                     create_allowlist_table_str.c_str(),
+                                     create_allowlist_table_str.size()))
   {
     ret= 1;
   }
   else
   {
+    wsrep_schema_ready= true;
     ret= 0;
   }
 
@@ -1687,4 +1710,202 @@ out:
   }
 
   DBUG_RETURN(error);
+}
+
+void Wsrep_schema::clear_allowlist()
+{
+  THD* thd= new THD(next_thread_id());
+  if (!thd)
+  {
+    WSREP_ERROR("Unable to get thd");
+    return;
+  }
+
+  thd->thread_stack= (char*)&thd;
+  wsrep_init_thd_for_schema(thd);
+  TABLE* allowlist_table= 0;
+  TABLE_LIST allowlist_table_l;
+  int error= 0;
+
+  Wsrep_schema_impl::init_stmt(thd);
+
+  if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
+                                        &allowlist_table_l) ||
+      (allowlist_table= allowlist_table_l.table,
+       Wsrep_schema_impl::init_for_scan(allowlist_table)))
+  {
+    WSREP_ERROR("Failed to open mysql.wsrep_allowlist table");
+    goto out;
+  }
+
+  while (0 == error)
+  {
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
+    {
+      Wsrep_schema_impl::delete_row(allowlist_table);
+    }
+    else if (error == HA_ERR_END_OF_FILE)
+    {
+      continue;
+    }
+    else
+    {
+      WSREP_ERROR("Allowlist table scan returned error %d", error);
+    }
+  }
+
+  Wsrep_schema_impl::end_scan(allowlist_table);
+  Wsrep_schema_impl::finish_stmt(thd);
+out:
+  delete thd;
+}
+
+void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
+{
+  THD* thd= new THD(next_thread_id());
+  if (!thd)
+  {
+    WSREP_ERROR("Unable to get thd");
+    return;
+  }
+
+  thd->thread_stack= (char*)&thd;
+  wsrep_init_thd_for_schema(thd);
+  TABLE* allowlist_table= 0;
+  TABLE_LIST allowlist_table_l;
+  int error;
+  Wsrep_schema_impl::init_stmt(thd);
+  if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
+                                        &allowlist_table_l))
+  {
+    WSREP_ERROR("Failed to open mysql.wsrep_allowlist table");
+    goto out;
+  }
+  allowlist_table= allowlist_table_l.table;
+  for (size_t i= 0; i < ip_allowlist.size(); ++i)
+  {
+    Wsrep_schema_impl::store(allowlist_table, 0, ip_allowlist[i]);
+    if ((error= Wsrep_schema_impl::insert(allowlist_table)))
+    {
+      if (error == HA_ERR_FOUND_DUPP_KEY)
+      {
+        WSREP_WARN("Duplicate entry (%s) found in `wsrep_allowlist` list", ip_allowlist[i].c_str());
+      }
+      else
+      {
+        WSREP_ERROR("Failed to write mysql.wsrep_allowlist table: %d", error);
+        goto out;
+      }
+    }
+  }
+  Wsrep_schema_impl::finish_stmt(thd);
+out:
+  delete thd;
+}
+
+typedef struct Allowlist_check_arg
+{
+  Allowlist_check_arg(const std::string& value)
+      : value(value)
+      , response(false)
+  {
+  }
+  std::string value;
+  bool response;
+} Allowlist_check_arg;
+
+static void *allowlist_check_thread(void *param)
+{
+  Allowlist_check_arg *arg= (Allowlist_check_arg *) param;
+
+  my_thread_init();
+  THD *thd= new THD(0);
+  thd->thread_stack= (char *) thd;
+  wsrep_init_thd_for_schema(thd);
+
+  int error;
+  TABLE *allowlist_table= 0;
+  TABLE_LIST allowlist_table_l;
+  bool match_found_or_empty= false;
+  bool table_have_rows= false;
+  char row[64]= {
+      0,
+  };
+
+  /*
+   * Read allowlist table
+   */
+  Wsrep_schema_impl::init_stmt(thd);
+  if (Wsrep_schema_impl::open_for_read(thd, allowlist_table_str.c_str(),
+                                       &allowlist_table_l) ||
+      (allowlist_table= allowlist_table_l.table,
+       Wsrep_schema_impl::init_for_scan(allowlist_table)))
+  {
+    goto out;
+  }
+  while (true)
+  {
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
+    {
+      if (Wsrep_schema_impl::scan(allowlist_table, 0, row, sizeof(row)))
+      {
+        goto out;
+      }
+      table_have_rows= true;
+      if (!arg->value.compare(row))
+      {
+        match_found_or_empty= true;
+        break;
+      }
+    }
+    else if (error == HA_ERR_END_OF_FILE)
+    {
+      if (!table_have_rows)
+      {
+        WSREP_DEBUG("allowlist table empty, allowing all connections.");
+        // If table is empty we are allowing all connections
+        match_found_or_empty= true;
+      }
+      break;
+    }
+    else
+    {
+      goto out;
+    }
+  }
+  if (Wsrep_schema_impl::end_scan(allowlist_table))
+  {
+    goto out;
+  }
+  Wsrep_schema_impl::finish_stmt(thd);
+  (void) trans_commit(thd);
+out:
+  delete thd;
+  my_thread_end();
+  arg->response = match_found_or_empty;
+  return 0;
+}
+
+bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
+                                   const std::string &value)
+{
+  // We don't have wsrep schema initialized at this point
+  if (wsrep_schema_ready == false)
+  {
+    return true;
+  }
+  pthread_t allowlist_check_thd;
+  int ret;
+  Allowlist_check_arg arg(value);
+  ret= mysql_thread_create(0, /* Not instrumented */
+                           &allowlist_check_thd, NULL,
+                           allowlist_check_thread, &arg);
+  if (ret)                              
+  {
+    WSREP_ERROR("allowlist_check(): mysql_thread_create() failed: %d (%s)",
+                ret, strerror(ret));
+    return false;
+  }                              
+  pthread_join(allowlist_check_thd, NULL);
+  return arg.response;
 }

@@ -1,0 +1,91 @@
+#
+# MDEV-11675 Two phase ALTER binlogging 
+#
+#   Prove that FTWRL in the middle of START and "COMPLETE" parts of ALTER
+#   is safe.
+
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+--let $slave_parallel_threads= `select @@slave_parallel_threads`
+--let $slave_parallel_mode= `select @@slave_parallel_mode`
+--let $debug = `SELECT @@global.debug_dbug`
+
+--source include/stop_slave.inc
+
+SET @@global.slave_parallel_threads=4;
+SET @@global.slave_parallel_mode=optimistic;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+SET @@global.debug_dbug="+d,at_write_start_alter";
+--source include/start_slave.inc
+
+--connection master
+SET @@session.binlog_alter_two_phase=true;
+
+CREATE TABLE t1 (a INT) ENGINE=innodb;
+--source include/save_master_gtid.inc
+
+# Make sure the table exists on slave now.
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+SET @@session.alter_algorithm='INSTANT';
+SET @@session.gtid_domain_id=11;
+ALTER TABLE t1 ADD COLUMN b int;
+
+
+--echo # START Alter having exclusive lock is waiting for the signal
+--connection slave
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now'
+--source include/wait_condition.inc
+
+--echo # FTWRL is sent first to wait for SA
+--connection slave1
+--send FLUSH TABLES WITH READ LOCK
+
+--echo # SA completes
+# First wait for the FTWRL arrival.
+--connection slave
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'FLUSH TABLES WITH READ LOCK' and STATE = 'Waiting for worker threads to pause for global read lock'
+--source include/wait_condition.inc
+
+set DEBUG_SYNC= "now signal alter_cont";
+
+--connection slave1
+--reap
+
+# Commit ALTER is hanging now
+--connection slave
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE COMMAND = 'Slave_worker' AND STATE = 'Waiting for backup lock'
+--source include/wait_condition.inc
+
+--echo # Release CA
+--connection slave1
+UNLOCK TABLES;
+
+--connection master
+--sync_slave_with_master
+
+SHOW CREATE TABLE t1;
+--source include/show_binlog_events.inc
+
+--connection master
+DROP TABLE t1;
+
+--sync_slave_with_master
+
+--echo # cleanup
+--connection slave
+set DEBUG_SYNC = RESET;
+--source include/stop_slave.inc
+--eval set global slave_parallel_threads = $slave_parallel_threads
+--eval set global slave_parallel_mode = $slave_parallel_mode
+--eval set @@global.debug_dbug = "$debug"
+--source include/start_slave.inc
+
+
+--source include/rpl_end.inc

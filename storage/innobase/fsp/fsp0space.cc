@@ -59,7 +59,7 @@ Tablespace::shutdown()
 	m_files.clear();
 	ut_free(m_path);
 	m_path = NULL;
-	m_space_id = ULINT_UNDEFINED;
+	m_space_id = UINT32_MAX;
 }
 
 /** Note that the data file was found.
@@ -118,7 +118,7 @@ Tablespace::open_or_create(bool is_temp)
 
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
-			ulint fsp_flags = 0;
+			uint32_t fsp_flags;
 
 			switch (srv_checksum_algorithm) {
 			case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:

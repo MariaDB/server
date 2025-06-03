@@ -22,7 +22,7 @@ BEGIN;
 SELECT * FROM t1;
 
 connection default;
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 ALTER TABLE t1 DROP PARTITION p3;
 
 connection con1;

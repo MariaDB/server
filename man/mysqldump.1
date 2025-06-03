@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-DUMP\FR" "1" "24 October 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-DUMP\fR" "1" "24 October 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -63,7 +63,7 @@ option, entire databases are dumped\&.
 \fBmysqldump\fR
 does not dump the
 INFORMATION_SCHEMA or performance_schema
-databases by default\&. To dump these, 
+databases by default\&. To dump these,
 name them explicitly on the command line, although you must also use the
 \fB\-\-skip\-lock\-tables\fR
 option\&.
@@ -504,7 +504,7 @@ Compress all information sent between the client and the server if both support 
 .\" copy-s3-tables option: mysqldump
 \fB\-\-copy\-s3\-tables\fR
 .sp
-By default S3 tables are ignored\&. With this option set, the result file will contain a CREATE statement 
+By default S3 tables are ignored\&. With this option set, the result file will contain a CREATE statement
 for a similar Aria table, followed by the table data and ending with an ALTER TABLE xxx ENGINE=S3\&.
 .RE
 .sp
@@ -563,9 +563,7 @@ statements are included in the output before each new database\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default value is
-\'d:t:o,/tmp/mysqldump\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default value is 'd:t:o,/tmp/mysqldump.trace'.
 .RE
 .sp
 .RS 4
@@ -793,14 +791,14 @@ suppresses date printing\&
 .\" dump-slave option: mysqldump
 \fB\-\-dump\-slave[=\fR\fB\fIvalue\fR\fR\fB]\fR
 .sp
-Used for producing a dump file from a replication slave server that can be used to set up another slave server 
-with the same master\&. Causes the binary log position and filename of the master to be appended to the dumped 
-data output\&. Setting the value to 1 (the default) will print it as a CHANGE MASTER command in the dumped data 
-output; if set to 2, that command will be prefixed with a comment symbol\&. This option will turn 
-\-\-lock\-all\-tables on, unless \-\-single-transaction is specified too (in which case a global read lock is only 
-taken a short time at the beginning of the dump \- don't forget to read about \-\-single-transaction below)\&. In 
-all cases any action on logs will happen at the exact moment of the dump\&. Option automatically turns 
-\-\-lock\-tables off\&. Using this option causes mysqldump to stop the slave SQL thread before beginning the dump, 
+Used for producing a dump file from a replication slave server that can be used to set up another slave server
+with the same master\&. Causes the binary log position and filename of the master to be appended to the dumped
+data output\&. Setting the value to 1 (the default) will print it as a CHANGE MASTER command in the dumped data
+output; if set to 2, that command will be prefixed with a comment symbol\&. This option will turn
+\-\-lock\-all\-tables on, unless \-\-single-transaction is specified too (in which case a global read lock is only
+taken a short time at the beginning of the dump \- don't forget to read about \-\-single-transaction below)\&. In
+all cases any action on logs will happen at the exact moment of the dump\&. Option automatically turns
+\-\-lock\-tables off\&. Using this option causes mysqldump to stop the slave SQL thread before beginning the dump,
 and restart it again after completion\&.
 .RE
 .sp
@@ -987,13 +985,26 @@ Available from MariaDB 10.0.13, and is used together with \fB\-\-master\-data\fR
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqldump: header option
+.\" header option: mysqldump
+\fB\-\-header\fR
+.sp
+Used together with --tab. When enabled, adds header with column names to the top of output txt files.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqldump: hex-blob option
 .\" hex-blob option: mysqldump
 \fB\-\-hex\-blob\fR
 .sp
-Dump binary columns using hexadecimal notation (for example,
-\'abc\'
-becomes
+Dump binary columns using hexadecimal notation (for example, 'abc' becomes
 0x616263)\&. The affected data types are
 BINARY,
 VARBINARY, the
@@ -1046,7 +1057,7 @@ Do not dump the given table, which must be specified using both the database and
 .\" include-master-host-port option: mysqldump
 \fB\-\-include\-master\-host\-port\fR
 .sp
-Add the MASTER_HOST and MASTER_PORT options for the CHANGE MASTER TO statement when using 
+Add the MASTER_HOST and MASTER_PORT options for the CHANGE MASTER TO statement when using
 the \fB--dump-slave\fR option for a slave dump\&.
 .RE
 .sp
@@ -1166,7 +1177,7 @@ Log warnings and errors by appending them to the named file\&. The default is to
 .\" log-queries option: mysqldump
 \fB\-\-log\-queries\fR\fR
 .sp
-When restoring the dump, the server will, if logging is turned on, log the queries to the general and slow query log\&. 
+When restoring the dump, the server will, if logging is turned on, log the queries to the general and slow query log\&.
 Defaults to on; use \fB--skip-log-queries\fR to disable\&.
 .RE
 .sp
@@ -1212,7 +1223,7 @@ It is also possible to set up a slave by dumping an existing slave of the master
 .sp -1
 .IP "  1." 4.2
 .\}
-Stop the slave\'s SQL thread and get its current status:
+Stop the slave's SQL thread and get its current status:
 .sp
 .if n \{\
 .RS 4
@@ -1324,7 +1335,7 @@ On the new slave, set the replication coordinates to those of the master server 
 .\}
 .nf
 mysql> \fBCHANGE MASTER TO\fR
-    \-> \fBMASTER_LOG_FILE = \'\fR\fB\fIfile_name\fR\fR\fB\', MASTER_LOG_POS = \fR\fB\fIfile_pos\fR\fR\fB;\fR
+    \-> \fBMASTER_LOG_FILE = '\fR\fB\fIfile_name\fR\fR\fB', MASTER_LOG_POS = \fR\fB\fIfile_pos\fR\fR\fB;\fR
 .fi
 .if n \{\
 .RE
@@ -1533,7 +1544,7 @@ See the discussion at the beginning of this section for information about select
 .\" order-by-primary option: mysqldump
 \fB\-\-order\-by\-primary\fR
 .sp
-Dump each table\'s rows sorted by its primary key, or by its first unique index, if such an index exists\&. This is useful when dumping a
+Dump each table's rows sorted by its primary key, or by its first unique index, if such an index exists\&. This is useful when dumping a
 MyISAM
 table to be loaded into an
 InnoDB
@@ -1849,7 +1860,7 @@ option with
 .\" skip-add-drop-table option: mysqldump
 \fB\-\-skip\-add\-drop\-table\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-add\-drop\-table\fR
 option\&.
 .RE
@@ -1866,7 +1877,7 @@ option\&.
 .\" skip-add-locks option: mysqldump
 \fB\-\-skip\-add\-locks\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-add\-locks\fR
 option\&.
 .RE
@@ -1883,7 +1894,7 @@ option\&.
 .\" skip-comments option: mysqldump
 \fB\-\-skip\-comments\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-comments\fR
 option\&.
 .RE
@@ -1900,7 +1911,7 @@ option\&.
 .\" skip-compact option: mysqldump
 \fB\-\-skip\-compact\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-compact\fR
 option\&.
 .RE
@@ -1917,7 +1928,7 @@ option\&.
 .\" skip-disable-keys option: mysqldump
 \fB\-\-skip\-disable\-keys\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-disable\-keys\fR
 option\&.
 .RE
@@ -1934,7 +1945,7 @@ option\&.
 .\" skip-extended-insert option: mysqldump
 \fB\-\-skip\-extended\-insert\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-extended\-insert\fR
 option\&.
 .RE
@@ -1968,7 +1979,7 @@ option\&.
 .\" skip-quick option: mysqldump
 \fB\-\-skip\-quick\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-quick\fR
 option\&.
 .RE
@@ -1985,7 +1996,7 @@ option\&.
 .\" skip-quote-names option: mysqldump
 \fB\-\-skip\-quote\-names\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-quote\-names\fR
 option\&.
 .RE
@@ -2002,7 +2013,7 @@ option\&.
 .\" skip-set-charset option: mysqldump
 \fB\-\-skip\-set\-charset\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-set\-charset\fR
 option\&.
 .RE
@@ -2019,7 +2030,7 @@ option\&.
 .\" skip-triggers option: mysqldump
 \fB\-\-skip\-triggers\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-triggers\fR
 option\&.
 .RE
@@ -2036,7 +2047,7 @@ option\&.
 .\" skip-tz-utc option: mysqldump
 \fB\-\-skip\-tz\-utc\fR
 .sp
-Disable the 
+Disable the
 \fB\-\-tz\-utc\fR
 option\&.
 .RE
@@ -2071,7 +2082,7 @@ Forces --protocol=socket when specified on the command line without other connec
 .\" SSL options: mysqladmin
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp
@@ -2415,7 +2426,7 @@ TIMESTAMP
 columns to be dumped and reloaded between servers in different time zones\&.
 \fBmysqldump\fR
 sets its connection time zone to UTC and adds
-SET TIME_ZONE=\'+00:00\'
+SET TIME_ZONE='+00:00'
 to the dump file\&. Without this option,
 TIMESTAMP
 columns are dumped and reloaded in the time zones local to the source and destination servers, which can cause the values to change if the servers are in different time zones\&.
@@ -2484,8 +2495,8 @@ Display version information and exit\&.
 .\}
 .\" mysqldump: where option
 .\" where option: mysqldump
-\fB\-\-where=\'\fR\fB\fIwhere_condition\fR\fR\fB\'\fR,
-\fB\-w \'\fR\fB\fIwhere_condition\fR\fR\fB\'\fR
+\fB\-\-where='\fR\fB\fIwhere_condition\fR\fR\fB'\fR,
+\fB\-w '\fR\fB\fIwhere_condition\fR\fR\fB'\fR
 .sp
 Dump only rows selected by the given
 WHERE
@@ -2497,7 +2508,7 @@ Examples:
 .RS 4
 .\}
 .nf
-\-\-where="user=\'jimf\'"
+\-\-where="user='jimf'"
 \-w"userid>1"
 \-w"userid<1"
 .fi
@@ -2521,11 +2532,8 @@ Examples:
 .sp
 Write dump output as well\-formed XML\&.
 .sp
-\fBNULL\fR\fB, \fR\fB\'NULL\'\fR\fB, and Empty Values\fR: For a column named
-\fIcolumn_name\fR, the
-NULL
-value, an empty string, and the string value
-\'NULL\'
+\fBNULL\fR\fB, \fR\fB'NULL'\fR\fB, and Empty Values\fR: For a column named
+\fIcolumn_name\fR, the NULL value, an empty string, and the string value 'NULL'
 are distinguished from one another in the output generated by this option as follows\&.
 .TS
 allbox tab(:);
@@ -2541,12 +2549,12 @@ T}:T{
 <field name="\fIcolumn_name\fR" xsi:nil="true" />
 T}
 T{
-\'\' (\fIempty string\fR)
+\(aq\(aq (\fIempty string\fR)
 T}:T{
 <field name="\fIcolumn_name\fR"></field>
 T}
 T{
-\'NULL\' (\fIstring value\fR)
+\(aqNULL\(aq (\fIstring value\fR)
 T}:T{
 <field name="\fIcolumn_name\fR">NULL</field>
 T}

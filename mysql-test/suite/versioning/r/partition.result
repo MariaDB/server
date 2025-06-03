@@ -96,6 +96,16 @@ with system versioning
 partition by system_time (
 partition p0 history,
 partition pn current);
+create or replace table t1 (a int)
+partition by range (a) (
+partition p0 history,
+partition p1 current);
+ERROR HY000: Wrong partition type `SYSTEM_TIME` for partitioning by `RANGE`
+create or replace table t1 (b int)
+partition by range (a) (
+partition p0 current,
+partition p1 history);
+ERROR HY000: Wrong partition type `SYSTEM_TIME` for partitioning by `RANGE`
 ## ALTER TABLE
 alter table t1 add partition (
 partition p1 current);
@@ -150,7 +160,7 @@ partition by system_time limit 1;
 alter table t1 change x big int;
 create or replace table t1 (i int) engine myisam partition by hash(i) partitions 2;
 alter table t1 add partition (partition px history);
-ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+ERROR HY000: Wrong partition type `SYSTEM_TIME` for partitioning by `HASH`
 ## INSERT, UPDATE, DELETE
 create or replace table t1 (x int)
 with system versioning
@@ -237,7 +247,9 @@ select @ts0 = @ts1;
 select @ts2 = @ts3;
 @ts2 = @ts3
 1
-## rotation by LIMIT
+#
+# Rotation by LIMIT
+#
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 0 partitions 3;
@@ -253,7 +265,7 @@ t1	CREATE TABLE `t1` (
  PARTITION BY SYSTEM_TIME LIMIT 2
 PARTITIONS 3
 alter table t1 drop partition non_existent;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 insert into t1 values (1), (2), (3), (4), (5), (6);
 select * from t1 partition (pn);
 x
@@ -291,7 +303,9 @@ x
 6
 7
 8
-## rotation by INTERVAL
+#
+# Rotation by INTERVAL
+#
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second partitions 3;
@@ -351,19 +365,25 @@ delete from t1;
 set timestamp=unix_timestamp('2001-02-04 10:20:50');
 insert t1 values (2);
 delete from t1;
-select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
+select subpartition_name, partition_description, table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
 p1sp0	2001-02-04 00:00:00	1
 p1sp1	2001-02-04 00:00:00	1
 pnsp0	CURRENT	0
 pnsp1	CURRENT	0
+select * from t1 partition (p1);
+i
+1
+2
 set timestamp=unix_timestamp('2001-02-04 10:20:55');
 alter table t1 add partition (partition p0 history, partition p2 history);
 set timestamp=unix_timestamp('2001-02-04 10:30:00');
 insert t1 values (4),(5);
 set timestamp=unix_timestamp('2001-02-04 10:30:10');
 update t1 set i=6 where i=5;
-select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+select subpartition_name, partition_description, table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
 p1sp0	2001-02-04 00:00:00	1
 p1sp1	2001-02-04 00:00:00	0
@@ -373,6 +393,25 @@ p2sp0	2001-02-06 00:00:00	0
 p2sp1	2001-02-06 00:00:00	0
 pnsp0	CURRENT	0
 pnsp1	CURRENT	2
+select * from t1 partition (p1);
+i
+1
+select * from t1 partition (p0);
+i
+5
+2
+select * from t1 partition (p2);
+i
+alter table t1 rebuild partition p0, p1, p2;
+select * from t1 partition (p1);
+i
+1
+select * from t1 partition (p0);
+i
+5
+2
+select * from t1 partition (p2);
+i
 ## pruning check
 set @ts=(select partition_description from information_schema.partitions
 where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
@@ -556,12 +595,15 @@ set timestamp= unix_timestamp('2001-01-01 00:00:00');
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day starts '2000-01-01 00:00:00'
 partitions 3;
-# we are warned when we push to present:
 insert into t1 values (0);
 set timestamp= unix_timestamp('2001-01-01 00:00:01');
 update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 set timestamp= unix_timestamp('2001-01-01 00:00:02');
 update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 select *, row_end from t1 partition (p0);
 i	row_end
 select *, row_end from t1 partition (p1);
@@ -592,8 +634,8 @@ i	row_end
 select *, row_end from t1 partition (p1);
 i	row_end
 3	2000-01-04 00:00:01.000000
-set timestamp= unix_timestamp('2000-01-01 00:00:00');
 # and this is how it usually goes:
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day
 partitions 3;
@@ -604,8 +646,12 @@ set timestamp= unix_timestamp('2000-01-02 00:00:01');
 update t1 set i= i + 1;
 set timestamp= unix_timestamp('2000-01-03 00:00:01');
 update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 set timestamp= unix_timestamp('2000-01-04 00:00:01');
 update t1 set i= i + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 alter table t1 add partition (partition p2 history, partition p3 history);
 select *, row_end from t1 partition (p0);
 i	row_end
@@ -636,7 +682,6 @@ select * from t1 partition (pnsp1);
 x
 2
 4
-### warn about full partition
 delete from t1 where x < 3;
 delete from t1;
 Warnings:
@@ -1105,7 +1150,7 @@ drop table t1;
 create table t1 (a int) with system versioning partition by system_time
 (partition p1 history, partition pn current);
 alter table t1 add partition (partition p2);
-ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+ERROR HY000: Wrong partition type `HASH` for partitioning by `SYSTEM_TIME`
 # MDEV-17891 Assertion failures in select_insert::abort_result_set and
 #            mysql_load upon attempt to replace into a full table
 set @@max_heap_table_size= 1024*1024;
@@ -1134,11 +1179,11 @@ f varchar(45000)
 partition by system_time interval 1 year (partition p1 history,
 partition pn current);
 insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
-select * into outfile 'load.data' from t1;
-load data infile 'load.data' replace into table t1;
-load data infile 'load.data' replace into table t1;
+select * into outfile 'MDEV-17891.data' from t1;
+load data infile 'MDEV-17891.data' replace into table t1;
+load data infile 'MDEV-17891.data' replace into table t1;
 ERROR HY000: The table 't1' is full
-load data infile 'load.data' replace into table t1;
+load data infile 'MDEV-17891.data' replace into table t1;
 ERROR HY000: The table 't1' is full
 set @@max_heap_table_size= 1048576;
 drop table t1;
@@ -1160,6 +1205,8 @@ insert into t1 values (0);
 update t1 set x= x + 1;
 set timestamp= unix_timestamp('2000-01-01 02:00:01');
 update t1 set x= x + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of INTERVAL, need more HISTORY partitions
 select *, row_start, row_end from t1 for system_time as of '2000-01-01 02:00:00';
 x	row_start	row_end
 1	2000-01-01 00:00:00.000000	2000-01-01 02:00:01.000000
@@ -1209,6 +1256,11 @@ delete from t1 partition (p0, pn);
 ERROR HY000: Not allowed for system-versioned table `test`.`t1`
 delete from t1 partition (p0, p1, pn);
 ERROR HY000: Not allowed for system-versioned table `test`.`t1`
+lock tables t1 write;
+delete from t1 partition (p0, pn);
+ERROR HY000: Not allowed for system-versioned table `test`.`t1`
+delete from t1;
+unlock tables;
 drop table t1;
 set timestamp= default;
 #
@@ -1741,6 +1793,7 @@ drop tables t1;
 #
 # MDEV-22155 ALTER add default history partitions name clash on non-default partitions
 #
+set timestamp= default;
 create or replace table t1 (x int) with system versioning
 partition by system_time limit 1
 (partition p2 history, partition p8 history, partition pn current);
@@ -1781,6 +1834,1607 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 drop tables t1;
 #
+# MDEV-27328 Change of SYSTEM_TIME partitioning options is not possible without data copy
+#
+create or replace table t1 (f int) with system versioning
+partition by hash(f);
+alter table t1 partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 2
+create or replace table t1 (f int) with system versioning
+partition by system_time;
+alter table t1 partition by hash(f);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY HASH (`f`)
+create or replace table t1 (x int) with system versioning;
+alter table t1 partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 2
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 100 partitions 4;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 100
+PARTITIONS 4
+alter table t1 add partition partitions 2;
+alter table t1 partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 6
+alter table t1 partition by system_time limit 33;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 33
+PARTITIONS 6
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+alter table t1 partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00'
+PARTITIONS 6
+select * from t1 partition (p0);
+x
+0
+select * from t1 partition (p1);
+x
+1
+2
+select * from t1 partition (p2);
+x
+3
+select * from t1 partition (pn);
+x
+4
+set timestamp= default;
+alter table t1 partition by system_time limit 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+PARTITIONS 6
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p4`) is out of LIMIT, need more HISTORY partitions
+# You see warning above ^
+select * from t1 partition (p0);
+x
+0
+select * from t1 partition (p1);
+x
+1
+2
+select * from t1 partition (p2);
+x
+3
+select * from t1 partition (p3);
+x
+4
+select * from t1 partition (p4);
+x
+5
+select * from t1 partition (pn);
+x
+6
+drop table t1;
+# End of 10.6 tests
+#
+# MDEV-22166 MIGRATE PARTITION: move out partition into a table
+#
+create or replace table t1 (x int)
+with system versioning
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+update t1 set x= x + 1;
+alter table t1 convert partition p2 to table tp2;
+show create table tp2;
+Table	Create Table
+tp2	CREATE TABLE `tp2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from tp2;
+x
+13
+select * from tp2 for system_time all order by x;
+x
+12
+13
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+3
+23
+33
+43
+53
+select * from t1 for system_time all order by x;
+x
+2
+3
+22
+23
+32
+33
+42
+43
+52
+53
+# SP
+create or replace procedure sp()
+alter table t1 convert partition p3 to table tp3;
+call sp;
+show create table tp3;
+Table	Create Table
+tp3	CREATE TABLE `tp3` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from tp3;
+x
+23
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+3
+33
+43
+53
+drop table tp3;
+call sp;
+ERROR HY000: Wrong partition name or partition list
+call sp;
+ERROR HY000: Wrong partition name or partition list
+drop procedure sp;
+# LOCK TABLES, PS, SP
+create or replace procedure sp()
+alter table t1 convert partition p4 to table tp4;
+lock tables t1 write;
+prepare stmt from 'call sp';
+execute stmt;
+unlock tables;
+show create table tp4;
+Table	Create Table
+tp4	CREATE TABLE `tp4` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from tp4;
+x
+33
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+3
+43
+53
+drop table tp4;
+lock tables t1 write;
+execute stmt;
+ERROR HY000: Wrong partition name or partition list
+call sp;
+ERROR HY000: Wrong partition name or partition list
+drop prepare stmt;
+unlock tables;
+drop procedure sp;
+unlock tables;
+drop tables t1, tp2;
+# System-versioned tables (SYSTEM_TIME LIMIT)
+create or replace table t1 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time limit 1 partitions 4;
+insert into t1 values (2), (12), (22);
+update t1 set x= x + 1 where x = 2;
+update t1 set x= x + 1 where x = 12;
+update t1 set x= x + 1 where x = 22;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p2`) is out of LIMIT, need more HISTORY partitions
+select * from t1 partition (p1);
+x
+12
+alter table t1 convert partition pn to table tp1;
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+alter table t1 convert partition p1 to table tp1;
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from tp1;
+x
+select * from tp1 for system_time all;
+x
+12
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+(PARTITION `p0` HISTORY ENGINE = X,
+ PARTITION `p2` HISTORY ENGINE = X,
+ PARTITION `pn` CURRENT ENGINE = X)
+select * from t1 order by x;
+x
+3
+13
+23
+select * from t1 for system_time all order by x;
+x
+2
+3
+13
+22
+23
+drop tables t1, tp1;
+# System-versioned tables (SYSTEM_TIME INTERVAL)
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time interval 1 hour partitions 4;
+insert into t1 values (2), (12), (22);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set x= x + 1 where x = 2;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1 where x = 12;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1 where x = 22;
+select * from t1 partition (p0);
+x
+2
+select * from t1 partition (p1);
+x
+12
+select * from t1 partition (p2);
+x
+22
+alter table t1 convert partition p1 to table tp1;
+ERROR HY000: Can only drop oldest partitions when rotating by INTERVAL
+alter table t1 convert partition p0 to table tp0;
+alter table t1 convert partition p1 to table tp1;
+alter table t1 convert partition p2 to table tp2;
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+show create table tp0;
+Table	Create Table
+tp0	CREATE TABLE `tp0` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+select * from tp0;
+x
+select * from tp1;
+x
+select * from tp0 for system_time all;
+x
+2
+select * from tp1 for system_time all;
+x
+12
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 02:00:00'
+(PARTITION `p2` HISTORY ENGINE = X,
+ PARTITION `pn` CURRENT ENGINE = X)
+select * from t1;
+x
+3
+13
+23
+select * from t1 for system_time all order by x;
+x
+3
+13
+22
+23
+drop tables t1, tp0, tp1;
+# System-versioned tables (implicit)
+create or replace table t1(x int) with system versioning
+partition by system_time limit 1 partitions 3;
+alter table t1 convert partition p1 to table tp1;
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+(PARTITION `p0` HISTORY ENGINE = X,
+ PARTITION `pn` CURRENT ENGINE = X)
+drop tables t1, tp1;
+# Complex table
+create or replace table t1 (
+x int primary key auto_increment,
+t timestamp(6) default '2001-11-11 11:11:11',
+b blob(4096) compressed null,
+c varchar(1033) character set utf8 not null,
+u int,
+unique key (x, u),
+m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+i1 tinyint, i2 smallint, i3 bigint,
+index three(i1, i2, i3),
+v1 timestamp(6) generated always as (t + interval 1 day),
+v2 timestamp(6) generated always as (t + interval 1 month) stored,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+period for system_time (s, e),
+ps date, pe date,
+period for app_time (ps, pe),
+constraint check_constr check (u > -1))
+with system versioning default charset=ucs2
+partition by range(x) (
+partition p0 values less than (10),
+partition p1 values less than (20),
+partition pn values less than maxvalue);
+alter table t1 convert partition p1 to table tp1;
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `x` (`x`,`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `x` (`x`,`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+drop tables t1, tp1;
+#
+# MDEV-29841 Partition by system_time can be converted into table but not back
+#
+create or replace table t (a int) with system versioning
+partition by system_time limit 10 partitions 3;
+alter table t convert partition p0 to table tp;
+alter table t convert table tp to partition p0;
+ERROR HY000: CONVERT TABLE TO PARTITION can only be used on RANGE/LIST partitions
+drop tables t, tp;
+#
+# End of 10.7 tests
+#
+#
+# MDEV-17554 Auto-create new partition for system versioned tables
+#            with history partitioned by INTERVAL/LIMIT
+#
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 1 auto;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 2
+# Turn off AUTO
+alter table t1 partition by system_time limit 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+PARTITIONS 2
+# Get AUTO back
+alter table t1 partition by system_time limit 1 auto;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 2
+insert into t1 values (1);
+create or replace table t2 (y int);
+insert into t2 values (2);
+insert into t1 select * from t2;
+insert into t2 select * from t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 2
+# Too many partitions error
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+set timestamp= unix_timestamp('2001-01-01 00:01:00');
+update t1 set x= x + 1;
+ERROR HY000: Versioned table `test`.`t1`: adding HISTORY partition(s) failed
+show warnings;
+Level	Code	Message
+Warning	1499	Too many partitions (including subpartitions) were defined
+Error	4189	Versioned table `test`.`t1`: adding HISTORY partition(s) failed
+# Auto-create failed error
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+insert into t1 values (1);
+call mtr.add_suppression("rror number .*(File exists|file operation)");
+call mtr.add_suppression("InnoDB: Cannot create file");
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 2;
+ERROR HY000: Got error 184 "Tablespace already exists" from storage engine InnoDB
+show warnings;
+Level	Code	Message
+Error	1030	Got error 184 "Tablespace already exists" from storage engine InnoDB
+Warning	4189	Versioned table `test`.`t1`: adding HISTORY partition(s) failed
+# Partition overflow error and manual fix
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour;
+insert into t1 values (440);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= x + 1;
+# Check how pruning boundaries work
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:58';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,pn	#	NULL	NULL	NULL	NULL	#	#
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,pn	#	NULL	NULL	NULL	NULL	#	#
+explain partitions select * from t1 for system_time as of '2000-01-01 01:00:00';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,pn	#	NULL	NULL	NULL	NULL	#	#
+select * from t1 for system_time as of '2000-01-01 00:09:59';
+x
+440
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+select * from t1 for system_time as of '2000-01-01 01:00:00';
+x
+441
+select * from t1 partition (p0) order by x;
+x
+440
+441
+# Here is how manual fix works: just add new partitions there
+alter table t1 add partition partitions 3;
+select * from t1 for system_time as of '2000-01-01 01:00:00';
+x
+441
+select * from t1 partition (p0) order by x;
+x
+440
+# Check pruning after ALTER
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:58';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,p2,p3,pn	#	NULL	NULL	NULL	NULL	#	#
+explain partitions select * from t1 for system_time as of '2000-01-01 00:59:59';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p2,p3,pn	#	NULL	NULL	NULL	NULL	#	#
+explain partitions select * from t1 for system_time as of '2000-01-01 01:00:00';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p2,p3,pn	#	NULL	NULL	NULL	NULL	#	#
+drop table t1;
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 3600 second
+starts '2000-01-01 00:00:00' auto partitions 3;
+affected rows: 0
+insert into t1 values (1);
+affected rows: 1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 3600 SECOND STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+affected rows: 0
+update t1 set x= x + 1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 3600 SECOND STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+affected rows: 0
+update t1 set x= x + 2;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 3600 SECOND STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+affected rows: 0
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto (
+partition p1 history,
+partition p3 history,
+partition pn current);
+affected rows: 0
+insert into t1 values (1);
+affected rows: 1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+affected rows: 0
+update t1 set x= x + 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+affected rows: 0
+update t1 set x= x + 4;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p4` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 04:00:00');
+affected rows: 0
+lock tables t1 write;
+affected rows: 0
+update t1 set x= x + 5;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p4` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p5` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+unlock tables;
+affected rows: 0
+set timestamp= default;
+affected rows: 0
+# Couple of more LOCK TABLES cases
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 1 auto;
+affected rows: 0
+lock tables t1 write;
+affected rows: 0
+insert into t1 values (1);
+affected rows: 1
+update t1 set x= x + 1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+update t1 set x= x + 2;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+update t1 set x= x + 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 4
+affected rows: 1
+unlock tables;
+affected rows: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
+PARTITIONS 4
+affected rows: 1
+# Overflow prevention under LOCK TABLES
+create or replace table t1 (x int)
+with system versioning partition by system_time
+limit 10 auto;
+affected rows: 0
+insert into t1 values (1), (2), (3), (4), (5), (6), (7), (8), (9);
+affected rows: 9
+info: Records: 9  Duplicates: 0  Warnings: 0
+update t1 set x= x + 10;
+affected rows: 9
+info: Rows matched: 9  Changed: 9  Inserted: 9  Warnings: 0
+lock tables t1 write;
+affected rows: 0
+update t1 set x= 1 where x = 11;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+update t1 set x= 2 where x = 12;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+update t1 set x= 3 where x = 13;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+unlock tables;
+affected rows: 0
+select count(x) from t1 partition (p0);
+count(x)
+10
+affected rows: 1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 10 AUTO
+PARTITIONS 3
+affected rows: 1
+drop tables t1;
+affected rows: 0
+# Test VIEW, LOCK TABLES
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+affected rows: 0
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+affected rows: 0
+create or replace view v1 as select * from t1;
+affected rows: 0
+insert into t1 values (1);
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+affected rows: 0
+update v1 set x= x + 2;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+affected rows: 0
+lock tables v1 write;
+affected rows: 0
+update v1 set x= x + 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+affected rows: 1
+unlock tables;
+affected rows: 0
+drop view v1;
+affected rows: 0
+drop tables t1;
+affected rows: 0
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+affected rows: 0
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto partitions 3;
+affected rows: 0
+create or replace table t2 (y int) with system versioning
+partition by system_time interval 1 hour auto;
+affected rows: 0
+insert into t1 values (1);
+affected rows: 1
+insert into t2 values (2);
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+affected rows: 0
+update t1, t2 set x= x + 1, y= y + 1;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+affected rows: 1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+affected rows: 0
+update t1, t2 set x= x + 1, y= y + 1;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+affected rows: 1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+affected rows: 0
+update t1, t2 set t1.x= 0 where t1.x< t2.y;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+affected rows: 1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS ok
+affected rows: 1
+drop tables t1, t2;
+affected rows: 0
+# PS, SP, LOCK TABLES
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+affected rows: 0
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+affected rows: 0
+insert into t1 values (1);
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+affected rows: 0
+execute immediate 'update t1 set x= x + 5';
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+affected rows: 1
+prepare s from 'update t1 set x= x + 6';
+affected rows: 0
+info: Statement prepared
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+affected rows: 0
+execute s;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+execute s;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+affected rows: 0
+lock tables t1 write;
+affected rows: 0
+execute s;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+execute s;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+affected rows: 1
+unlock tables;
+affected rows: 0
+drop prepare s;
+affected rows: 0
+create procedure sp() update t1 set x= x + 7;
+affected rows: 0
+set timestamp= unix_timestamp('2000-01-01 04:00:00');
+affected rows: 0
+call sp;
+affected rows: 1
+call sp;
+affected rows: 1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 6
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 05:00:00');
+affected rows: 0
+lock tables t1 write;
+affected rows: 0
+call sp;
+affected rows: 1
+call sp;
+affected rows: 1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 7
+affected rows: 1
+unlock tables;
+affected rows: 0
+drop procedure sp;
+affected rows: 0
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+affected rows: 0
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2001-01-01 00:00:00';
+affected rows: 0
+insert into t1 values (0);
+affected rows: 1
+set timestamp= unix_timestamp('2001-01-01 00:00:01');
+affected rows: 0
+prepare s from 'update t1 set i= i + 1';
+affected rows: 0
+info: Statement prepared
+execute s;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+set timestamp= unix_timestamp('2001-01-02 00:00:01');
+affected rows: 0
+execute s;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 1
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+drop prepare s;
+affected rows: 0
+# Complex table
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+affected rows: 0
+create or replace table t1 (
+x int primary key auto_increment,
+t timestamp(6) default '2001-11-11 11:11:11',
+b blob(4096) compressed null,
+c varchar(1033) character set utf8 not null,
+u int unique,
+m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+i1 tinyint, i2 smallint, i3 bigint,
+index three(i1, i2, i3),
+v1 timestamp(6) generated always as (t + interval 1 day),
+v2 timestamp(6) generated always as (t + interval 1 month) stored,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+period for system_time (s, e),
+ps date, pe date,
+period for app_time (ps, pe),
+constraint check_constr check (u > -1))
+with system versioning default charset=ucs2
+partition by system_time interval 1 hour auto (
+partition p2 history,
+partition pn current);
+affected rows: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `u` (`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+insert into t1 (x, c, u, i1, i2, i3, ps, pe)
+values (1, 'cc', 0, 1, 2, 3, '1999-01-01', '2000-01-01');
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+affected rows: 0
+update t1 set x= x + 8;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `u` (`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+affected rows: 0
+update t1 set x= x - 8;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `u` (`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+affected rows: 1
+# INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+insert into t1 values (1) on duplicate key update x= x + 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+# LOAD DATA .. REPLACE
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert t1 values (1), (2), (3);
+select x into outfile 'MDEV-17554.data' from t1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+load data infile 'MDEV-17554.data' replace into table t1 (x);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL,
+  PRIMARY KEY (`x`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+# Concurrent DML
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto partitions 3;
+insert into t1 values (1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+connect con8, localhost, root;
+connect con7, localhost, root;
+connect con6, localhost, root;
+connect con5, localhost, root;
+connect con4, localhost, root;
+connect con3, localhost, root;
+connect con2, localhost, root;
+connect con1, localhost, root;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 10;
+connection con2;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 20;
+connection con3;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 30;
+connection con4;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 40;
+connection con5;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 50;
+connection con6;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 60;
+connection con7;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 70;
+connection con8;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 80;
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection con3;
+disconnect con3;
+connection con4;
+disconnect con4;
+connection con5;
+disconnect con5;
+connection con6;
+disconnect con6;
+connection con7;
+disconnect con7;
+disconnect con8;
+connection default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+drop tables t1;
+set timestamp= default;
+# Concurrent DML (LIMIT)
+create or replace table t1 (x int) with system versioning engine heap
+partition by system_time limit 1 auto partitions 3;
+insert into t1 values (1);
+update t1 set x= x + N; # (running multithreaded for 3 times)
+drop tables t1;
+# Transaction
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+start transaction;
+update t1 set x= 0;
+connect con1, localhost, root;
+select * from t1;
+x
+1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+connection default;
+commit;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+start transaction;
+update t1 set x= 1;
+connection con1;
+select * from t1;
+x
+0
+connection default;
+rollback;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+disconnect con1;
+connection default;
+drop table t1;
+#
+# MDEV-25479 Auto-create: 2nd and further executions of PS or SP fail to create partition
+#
+create table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t values (1), (2);
+prepare stmt from "update t set a= a + 1";
+set @@timestamp= @@timestamp + 3601;
+execute stmt;
+set @@timestamp= @@timestamp + 3601;
+execute stmt;
+drop prepare stmt;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 02:00:00' AUTO
+PARTITIONS 4
+create procedure sp() update t set a= a + 1;
+set @@timestamp= @@timestamp + 3601;
+call sp();
+set @@timestamp= @@timestamp + 3601;
+call sp();
+drop procedure sp;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 02:00:00' AUTO
+PARTITIONS 6
+drop table t;
+#
+# MDEV-23639 Auto-create does not work under LOCK TABLES or inside triggers
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto
+partitions 3;
+create table t2 (x int);
+create table t3 (x int);
+insert into t3 values (3);
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+create or replace procedure sp() update t1 set x= x + 5;
+create or replace procedure sp2() insert into t2 values (5);
+prepare ps from 'update t1 set x= x + 6';
+prepare ps2 from 'insert into t2 values (6)';
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+insert into t2 values (2);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+call sp;
+call sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+set timestamp= unix_timestamp('2000-01-01 04:00:00');
+call sp2;
+call sp2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 6
+set timestamp= unix_timestamp('2000-01-01 05:00:00');
+execute ps;
+execute ps;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 7
+set timestamp= unix_timestamp('2000-01-01 06:00:00');
+execute ps2;
+execute ps2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 8
+set timestamp= unix_timestamp('2000-01-01 08:00:00');
+lock tables t1 write, t2 write;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 10
+set timestamp= unix_timestamp('2000-01-01 09:00:00');
+update t1 set x= x + 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 11
+set timestamp= unix_timestamp('2000-01-01 10:00:00');
+update t1 set x= x + 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 12
+update t2 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 11:00:00');
+insert into t2 values (4);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 13
+update t3 set x= x + 1;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+set timestamp= unix_timestamp('2000-01-01 12:00:00');
+call sp;
+call sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 14
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+call sp2;
+call sp2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 15
+set timestamp= unix_timestamp('2000-01-01 14:00:00');
+execute ps;
+execute ps;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 16
+set timestamp= unix_timestamp('2000-01-01 15:00:00');
+execute ps2;
+execute ps2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 17
+unlock tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 17
+drop tables t1, t2, t3;
+drop procedure sp;
+drop procedure sp2;
+drop prepare ps;
+drop prepare ps2;
+#
+# MDEV-27456 Assertion `!thd->is_error()' fails in vers_create_partitions upon DML with ER_UNKNOWN_PARTITION
+#
+create table t (a int) with system versioning
+partition by system_time interval 1 minute auto;
+set @@timestamp= @@timestamp + 61;
+select * from t;
+a
+delete from t partition (px);
+ERROR HY000: Unknown partition 'px' in table 't'
+lock tables t write;
+delete from t partition (px);
+ERROR HY000: Unknown partition 'px' in table 't'
+unlock tables;
+drop table t;
+set timestamp= default;
+#
+# MDEV-28978 Assertion failure in THD::binlog_query or unexpected
+#            ER_ERROR_ON_WRITE with auto-partitioning
+#
+create table t (a int) with system versioning partition by system_time limit 6 auto;
+insert into t () values (),(),(),(),(),();
+update t set a = 1;
+update t set a = 2 limit 0;
+drop table t;
+#
+# MDEV-31244 Assertion "not SELECT" in vers_set_hist_part()
+#
+create table t (a int) with system versioning partition by system_time;
+create function f() returns int
+begin
+update t set a = 1;
+return 1;
+end $
+create procedure p() select f();
+call p();
+f()
+1
+call p();
+f()
+1
+drop procedure p;
+drop function f;
+drop table t;
+#
+# MDEV-29873 MSAN uninitialized value errors in bcmp /
+#            prep_alter_part_table upon re-partitioning by system time
+#
+create table t (a int) with system versioning partition by system_time interval 5 week;
+alter table t partition by system_time interval 10 week;
+drop table t;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+create table t1 (a varchar(100)) with system versioning
+partition by system_time interval 1 day
+starts '2021-09-30 00:00:00' partitions 3;
+set system_versioning_insert_history=1;
+insert into t1 (a,row_start,row_end) values
+('p0',                   '2021-09-30', '2021-09-30 10:00:00'),
+('p1',                   '2021-09-30', '2021-10-01 10:00:00'),
+('overflows, so also p1','2021-09-30', '2021-10-10 10:00:00'),
+('pn, current',          '2021-09-30', '2038-01-19 03:14:07.999999');
+select table_name,partition_name,partition_ordinal_position,partition_method,partition_description,table_rows
+from information_schema.partitions where table_schema='test';
+table_name	partition_name	partition_ordinal_position	partition_method	partition_description	table_rows
+t1	p0	1	SYSTEM_TIME	2021-10-01 00:00:00	1
+t1	p1	2	SYSTEM_TIME	2021-10-02 00:00:00	2
+t1	pn	3	SYSTEM_TIME	CURRENT	1
+drop table t1;
+set system_versioning_insert_history=0;
+#
 # MDEV-29727 ALTER and CREATE with default partitioning
 #            differently react to SQL_MODE => unusable SHOW CREATE
 #
@@ -1805,6 +3459,59 @@ insert into t values (1),(2);
 DELETE from t;
 drop table t;
 #
+# MDEV-36817 Server crashes in do_mark_index_columns instead of
+#            ER_DUP_ENTRY on partitioned table
+#
+create table t (f int, unique(f)) engine=innodb partition by key (f) partitions 2;
+insert into t (f) values (1), (3);
+update t set f = 0;
+ERROR 23000: Duplicate entry '0' for key 'f'
+drop table t;
+#
 # End of 10.5 tests
+#
+#
+# MDEV-31903 Server crashes in _ma_reset_history upon UNLOCK table with auto-create history partitions
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create table t1 (x int) engine=aria with system versioning partition by system_time interval 1 hour auto partitions 3;
+insert into t1 values (1);
+create table t2 (x int) engine=aria;
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+lock tables t1 write, t2 write;
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+insert into t2 values (5);
+unlock tables;
+drop table t1, t2;
+set timestamp= default;
+#
+# MDEV-29872 MSAN/Valgrind uninitialised value errors in TABLE::vers_switch_partition
+#
+create table t (a int) with system versioning partition by system_time limit 100 partitions 3;
+drop table t;
+#
+# End of 10.9 tests
+#
+#
+# MDEV-34775 Wrong reopen of already open routine due to auto-create in SP
+#
+create table t (a int) with system versioning
+partition by system_time
+interval 1 minute auto;
+create function f()
+returns int
+begin
+replace into t select * from t;
+return 0;
+end $
+set timestamp= @@timestamp + 61;
+select f();
+f()
+0
+drop table t;
+drop function f;
+#
+# End of 10.11 tests
 #
 set global innodb_stats_persistent= @save_persistent;

@@ -534,5 +534,13 @@ typedef enum
 } enum_maria_sync_log_dir;
 extern ulong sync_log_dir;
 
+/* sizeof(maria_trans_file_magic) */
+#define LOG_MAGIC_SIZE 12
+#define LOG_HEADER_DATA_SIZE (LOG_MAGIC_SIZE + \
+                              8 + 4 + 4 + 4 + 2 + 3 + \
+                              LSN_STORE_SIZE)
+/* Flags when creating aria_log_control */
+#define control_file_open_flags (O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC)
+
 C_MODE_END
 #endif

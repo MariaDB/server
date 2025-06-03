@@ -134,7 +134,7 @@
 #define OPTION_BEGIN            (1ULL << 20)    // THD, intern
 #define OPTION_TABLE_LOCK       (1ULL << 21)    // THD, intern
 #define OPTION_QUICK            (1ULL << 22)    // SELECT (for DELETE)
-#define OPTION_KEEP_LOG         (1ULL << 23)    // THD, user
+#define OPTION_BINLOG_THIS_TRX  (1ULL << 23)    // THD
 
 #define OPTION_EXPLICIT_DEF_TIMESTAMP   (1ULL << 24) // THD, user
 #define OPTION_GTID_BEGIN       (1ULL << 25)    // GTID BEGIN found in log
@@ -147,8 +147,7 @@
 #define OPTION_RELAXED_UNIQUE_CHECKS    (1ULL << 27) // THD, user, binlog
 #define OPTION_IF_EXISTS                (1ULL << 28) // binlog
 #define OPTION_SCHEMA_TABLE             (1ULL << 29) // SELECT, intern
-/** Flag set if setup_tables already done */
-#define OPTION_SETUP_TABLES_DONE        (1ULL << 30) // intern
+#define OPTION_INSERT_HISTORY           (1ULL << 30)
 /** If not set then the thread will ignore all warnings with level notes. */
 #define OPTION_SQL_NOTES                (1ULL << 31) // THD, user
 /**
@@ -174,6 +173,9 @@
 */
 #define OPTION_MASTER_SQL_ERROR         (1ULL << 35)
 
+#define OPTION_BINLOG_THIS_STMT         (1ULL << 36) // THD
+#define OPTION_BINLOG_THIS (OPTION_BINLOG_THIS_STMT | OPTION_BINLOG_THIS_TRX)
+
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 #define OPTION_NO_QUERY_CACHE           (1ULL << 39) // SELECT, user
@@ -184,6 +186,8 @@
 #define OPTION_BIN_COMMIT_OFF           (1ULL << 43)
 /* The following is used to detect a conflict with DISTINCT */
 #define SELECT_ALL              (1ULL << 44)    // SELECT, user, parser
+/** Flag set if setup_tables already done */
+#define OPTION_SETUP_TABLES_DONE        (1ULL << 45) // intern
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 
@@ -277,6 +281,7 @@
 #define OPTIMIZER_FIX_INNODB_CARDINALITY (8)
 #define OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF (16)
 #define OPTIMIZER_ADJ_FIX_CARD_MULT (32)
+#define OPTIMIZER_ADJ_FIX_DERIVED_TABLE_READ_COST (64)
 
 #define OPTIMIZER_ADJ_DEFAULT (OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF | \
                                OPTIMIZER_ADJ_FIX_CARD_MULT)
@@ -350,6 +355,8 @@
 /* This subquery has fields from outer query (any nature) */
 #define UNCACHEABLE_DEPENDENT (UNCACHEABLE_DEPENDENT_GENERATED | \
                                UNCACHEABLE_DEPENDENT_INJECTED)
+
+#define FAKE_SELECT_LEX_ID UINT_MAX
 
 /* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
 #define UNDEF_POS (-1)
@@ -433,16 +440,6 @@ inline int hexchar_to_int(char c)
 
 /* This must match the path length limit in the ER_NOT_RW_DIR error msg. */
 #define ER_NOT_RW_DIR_PATHSIZE 200
-
-#define IS_TABLESPACES_TABLESPACE_NAME    0
-#define IS_TABLESPACES_ENGINE             1
-#define IS_TABLESPACES_TABLESPACE_TYPE    2
-#define IS_TABLESPACES_LOGFILE_GROUP_NAME 3
-#define IS_TABLESPACES_EXTENT_SIZE        4
-#define IS_TABLESPACES_AUTOEXTEND_SIZE    5
-#define IS_TABLESPACES_MAXIMUM_SIZE       6
-#define IS_TABLESPACES_NODEGROUP_ID       7
-#define IS_TABLESPACES_TABLESPACE_COMMENT 8
 
 bool db_name_is_in_ignore_db_dirs_list(const char *dbase);
 

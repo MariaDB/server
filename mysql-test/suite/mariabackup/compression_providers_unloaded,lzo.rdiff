@@ -1,0 +1,22 @@
+--- suite/mariabackup/compression_providers_unloaded.result
++++ suite/mariabackup/compression_providers_unloaded.reject
+@@ -1,8 +1,8 @@
+ #
+-# Testing mariabackup with bzip2 compression
++# Testing mariabackup with lzo compression
+ #
+-# Create table with bzip2 compression
+-set global innodb_compression_algorithm = bzip2;
++# Create table with lzo compression
++set global innodb_compression_algorithm = lzo;
+ create table t1 (a int, b text ) engine = innodb page_compressed = 1;
+ insert t1 (a, b) values (0, repeat("abc", 100));
+ insert t1 (a, b) values (1, repeat("def", 1000));
+@@ -14,6 +14,6 @@
+ 2	ghighighi	30000
+ # Restart server without plugin
+ call mtr.add_suppression("mariadbd: MariaDB tried to use the \\w+ compression, but its provider plugin is not loaded");
+-# restart: --disable-provider-bzip2
++# restart: --disable-provider-lzo
+ # xtrabackup backup
+ drop table t1;

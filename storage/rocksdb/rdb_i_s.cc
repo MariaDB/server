@@ -154,9 +154,6 @@ static int rdb_i_s_cfstats_fill_table(
 static int rdb_i_s_cfstats_init(void *p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -249,9 +246,6 @@ static int rdb_i_s_dbstats_fill_table(
 
 static int rdb_i_s_dbstats_init(void *const p) {
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -353,8 +347,6 @@ static int rdb_i_s_perf_context_fill_table(
 static int rdb_i_s_perf_context_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -421,9 +413,6 @@ static int rdb_i_s_perf_context_global_fill_table(
 
 static int rdb_i_s_perf_context_global_init(void *const p) {
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -598,8 +587,7 @@ static int rdb_i_s_cfoptions_fill_table(
     cf_option_types.push_back(
         {"PREFIX_EXTRACTOR", opts.prefix_extractor == nullptr
                                  ? "NULL"
-                                 : std::string(opts.prefix_extractor->Name())});
-
+                                 : std::string(opts.prefix_extractor->AsString())});
     // get COMPACTION_STYLE option
     switch (opts.compaction_style) {
       case rocksdb::kCompactionStyleLevel:
@@ -657,7 +645,7 @@ static int rdb_i_s_cfoptions_fill_table(
 
     // get table related options
     std::vector<std::string> table_options =
-        split_into_vector(opts.table_factory->GetPrintableTableOptions(), '\n');
+        split_into_vector(opts.table_factory->GetPrintableOptions(), '\n');
 
     for (auto option : table_options) {
       option.erase(std::remove(option.begin(), option.end(), ' '),
@@ -1054,9 +1042,6 @@ static int rdb_i_s_ddl_fill_table(my_core::THD *const thd,
 static int rdb_i_s_ddl_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   my_core::ST_SCHEMA_TABLE *schema;
 
   DBUG_ASSERT(p != nullptr);
@@ -1072,9 +1057,6 @@ static int rdb_i_s_ddl_init(void *const p) {
 static int rdb_i_s_cfoptions_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -1089,9 +1071,6 @@ static int rdb_i_s_cfoptions_init(void *const p) {
 
 static int rdb_i_s_global_info_init(void *const p) {
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -1109,9 +1088,6 @@ static int rdb_i_s_compact_stats_init(void *p) {
   my_core::ST_SCHEMA_TABLE *schema;
 
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -1447,9 +1423,6 @@ static int rdb_i_s_index_file_map_fill_table(
 static int rdb_i_s_index_file_map_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -1531,9 +1504,6 @@ static int rdb_i_s_lock_info_fill_table(
 /* Initialize the information_schema.rocksdb_lock_info virtual table */
 static int rdb_i_s_lock_info_init(void *const p) {
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -1659,9 +1629,6 @@ static int rdb_i_s_trx_info_fill_table(
 /* Initialize the information_schema.rocksdb_trx_info virtual table */
 static int rdb_i_s_trx_info_init(void *const p) {
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -1790,7 +1757,8 @@ static int rdb_i_s_deadlock_info_init(void *const p) {
 
 static int rdb_i_s_deinit(void *p MY_ATTRIBUTE((__unused__))) {
   DBUG_ENTER_FUNC();
-  DBUG_RETURN(0);
+  /* see the comment at the end of rocksdb_done_func() */
+  DBUG_RETURN(1);
 }
 
 static struct st_mysql_information_schema rdb_i_s_info = {
@@ -1964,7 +1932,7 @@ struct st_maria_plugin rdb_i_s_lock_info = {
     "RocksDB lock information",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_lock_info_init,
-    nullptr,
+    rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */
     nullptr, /* system variables */
@@ -1980,7 +1948,7 @@ struct st_maria_plugin rdb_i_s_trx_info = {
     "RocksDB transaction information",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_trx_info_init,
-    nullptr,
+    rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */
     nullptr, /* system variables */
@@ -1996,7 +1964,7 @@ struct st_maria_plugin rdb_i_s_deadlock_info = {
     "RocksDB transaction information",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_deadlock_info_init,
-    nullptr,
+    rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */
     nullptr, /* system variables */

@@ -284,11 +284,11 @@ drop table t1;
 #
 # MDEV-26061 MariaDB server crash at Field::set_default
 #
-create table t1 (d timestamp check (default (d) is true)) as select 1;
+create table t1 (d timestamp not null default now() check (default (d) is true)) as select 1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() CHECK (default(`d`) is true),
+  `d` timestamp NOT NULL DEFAULT current_timestamp() CHECK (default(`d`) is true),
   `1` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;

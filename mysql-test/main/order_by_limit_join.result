@@ -98,6 +98,7 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
+                            "direction": 1,
                             "updated_limit": 10,
                             "index_scan_time": 10,
                             "records": 10000,
@@ -234,6 +235,7 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
+                            "direction": 1,
                             "updated_limit": 5000,
                             "index_scan_time": 5000,
                             "usable": false,
@@ -318,10 +320,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	a,b	col1	5	NULL	1	Using where
 1	PRIMARY	t10	ref	a	a	5	test.t1.a	1	
 1	PRIMARY	t11	ref	b	b	5	test.t1.b	1	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t11	index	b	b	5	NULL	100	Using index
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t10	index	a	a	5	NULL	100	Using index
+3	MATERIALIZED	t11	index	b	b	5	NULL	100	Using index
 set @trace=(select trace from information_schema.optimizer_trace);
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 JS
@@ -353,6 +355,7 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
+                            "direction": 1,
                             "updated_limit": 10,
                             "index_scan_time": 10,
                             "records": 10000,
@@ -438,6 +441,7 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
+                            "direction": 1,
                             "updated_limit": 10,
                             "index_scan_time": 10,
                             "records": 10000,

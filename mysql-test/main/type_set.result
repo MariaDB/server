@@ -672,3 +672,36 @@ INSERT INTO t VALUES ('',CURRENT_TIME,'');
 UPDATE t SET c2=c2+5 WHERE c BETWEEN '' AND '';
 DROP TABLE t;
 SET sql_mode=DEFAULT;
+# End of 10.6 tests
+#
+# MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+#
+CREATE TABLE t1
+(
+c_int INT,
+c_set SET('1')
+);
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c_int` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_set)  FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_int, c_set)` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c_int	c_int	253	33	0	Y	0	0	33
+c_int
+SELECT COALESCE(c_int, c_set)  FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c_int, c_set)	253	33	0	Y	0	39	33
+COALESCE(c_int, c_set)
+DROP TABLE t1;
+# End of 10.11 tests

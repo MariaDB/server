@@ -1,0 +1,1343 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET sql_log_bin=0;
+call mtr.add_suppression("Slave: An attempt was made.*");
+call mtr.add_suppression("Both DO_DOMAIN_IDS & IGNORE_DOMAIN_IDS lists can't be non-empty at the same time");
+SET sql_log_bin=1;
+include/stop_slave.inc
+connection master;
+RESET MASTER;
+connection slave;
+include/start_slave.inc
+#
+#
+#  Test Case 1: Base case to ensure that mariadb-binlog and replica
+#  are consistent without any filtering
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 5 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 2: Ensure filtering by a single id in --do-domain-ids is
+#  consistent between mariadb-binlog and replica
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 3: Ensure filtering by multiple ids in --do-domain-ids is
+#  consistent between mariadb-binlog and replica
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0,1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0,1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 4 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#  Test Case 4: Ensure filtering by a single id in --ignore-domain-ids
+#  is consistent between mariadb-binlog and replica
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 3 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 5: Ensure filtering by multiple ids in --ignore-domain-ids
+#  is consistent between mariadb-binlog and replica
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0,1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0,1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#  Test Case 6: Ensure filtering by a single id in --ignore-server-ids
+#  is consistent between mariadb-binlog and replica
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 7: Ensure filtering by multiple ids in --ignore-server-ids
+#  is consistent between mariadb-binlog and replica
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(0,1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=0,1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 8: Ensure stop position consistency
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE UNTIL master_gtid_pos="1-1-2";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --stop-position=1-1-2 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 9: Ensure start position consistency
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="1-4-2";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=1-4-2 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 4 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 10: Ensure consistency when filtering by both
+#  --do-domain-ids and --ignore-server-ids
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 11: Ensure consistency when filtering by both
+#  --ignore-domain-ids and --ignore-server-ids
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1,2), IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=1,2 --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 12: Ensure consistency when filtering by
+#  --do-domain-ids with a stop position
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --stop-position=0-1-4 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 13: Ensure consistency when filtering by
+#  --ignore-domain-ids with a stop position
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-domain-ids=0 --stop-position=0-1-4 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 0 tables
+# Verifying integrity of tables..
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 14: Ensure consistency when filtering by
+#  --ignore-server-ids with a stop position
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
+START SLAVE UNTIL master_gtid_pos="0-1-4";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=3 --stop-position=0-1-4 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 15: Ensure consistency when filtering by
+#  --do-domain-ids with a start position
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="1-1-2";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(2);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=1-1-2 --do-domain-ids=2 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 16: Ensure consistency when filtering by
+#  --ignore-domain-ids with a start position
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-domain-ids=0 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 3 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+connection master;
+connection slave;
+# t5 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 17: Ensure consistency when filtering by
+#  --ignore-server-ids with a start position
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-server-ids=1 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 2 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+connection master;
+connection slave;
+# t4 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 18: Ensure consistency when filtering by
+#  --do-domain-ids with both a start position and stop position that
+# all have the same domain id
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --do-domain-ids=0 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 19: Ensure consistency when filtering by
+#  --do-domain-ids with both a start position and stop position that
+#  have differing domain ids. Due to the implicit filtering in stop
+#  position, the result should be empty (no tables replicated).
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(1);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --do-domain-ids=1 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 0 tables
+# Verifying integrity of tables..
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 20: Ensure consistency when filtering by
+#  --ignore-domain-ids with both a start position and stop position that
+#  all have the same domain id. The result set should be empty due to
+#  implicit filtering from stop position and ignoring that same domain.
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(0);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-domain-ids=0 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 0 tables
+# Verifying integrity of tables..
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 21: Ensure consistency when filtering by
+#  --ignore-domain-ids with both a start position and stop position that
+#  have differing domain ids. The ignore domain ids should take no
+#  effect due to the implicit filtering by stop position, i.e. the
+#  specified domain to ignore is already being filtered.
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-1";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_DOMAIN_IDS=(1);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-1 --ignore-domain-ids=1 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 22: Ensure consistency when filtering by
+#  --ignore-server-ids with both a start position and stop position.
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+set global gtid_slave_pos="0-1-0";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(3);
+START SLAVE UNTIL master_gtid_pos="0-3-3";
+# No slave error expecting - waiting for slave to catch up to master
+# Because there is a stop position we wait for all events to process
+# and slave to automatically stop
+# Stop slave so it stops receiving master events.
+Warnings:
+Note	1255	Slave already has been stopped
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --start-position=0-1-0 --ignore-server-ids=3 --stop-position=0-3-3 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+connection master;
+#
+#
+#  Test Case 23: Out of order GTIDs from domains or servers which are
+#  filtered out should not error
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=1;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_SERVER_IDS=(3);
+START SLAVE ;
+# No slave error expecting - waiting for slave to catch up to master
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t4,test.t5'
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=0 --ignore-server-ids=3 --gtid-strict-mode 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t1 is equivalent on master and slave
+# All tables are consistent
+# Strict mode enabled - checking mysqlbinlog error output for out
+#                       of order GTIDs
+# Not expecting to find out of order GTID error..
+NOT FOUND /Found out of order GTID/ in mysqlbinlog_stderr.out
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t2,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection master;
+#
+#
+#  Test Case 24: Out of order GTIDs from included domains should error
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=1;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(1);
+START SLAVE ;
+# slave SQL Thread error expected - waiting for errno 1950
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t4,test.t5'
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --do-domain-ids=1 --gtid-strict-mode 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t3 is equivalent on master and slave
+# All tables are consistent
+# Strict mode enabled - checking mysqlbinlog error output for out
+#                       of order GTIDs
+# Expecting to find out of order GTID error..
+FOUND 1 /Found out of order GTID/ in mysqlbinlog_stderr.out
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection master;
+#
+#
+#  Test Case 25: Out of order GTIDs from included servers should error
+#
+include/mysqlbinlog_slave_consistency.inc
+connection slave;
+set @@global.gtid_strict_mode=1;
+connection slave;
+connection master;
+# Populating master data
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, IGNORE_SERVER_IDS=(1);
+START SLAVE ;
+# slave SQL Thread error expected - waiting for errno 1950
+# Stop slave so it stops receiving master events.
+connection master;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t4,test.t5'
+RESET MASTER;
+# MYSQL_BINLOG BINLOG_FILE_PARAM  --ignore-server-ids=1 --gtid-strict-mode 2> MYSQLBINLOG_STDERR | MYSQL
+connection slave;
+# Checking consistency of 'test' database tables between master and slave
+connection master;
+# Both servers have 1 tables
+# Verifying integrity of tables..
+connection master;
+connection slave;
+# t2 is equivalent on master and slave
+# All tables are consistent
+# Strict mode enabled - checking mysqlbinlog error output for out
+#                       of order GTIDs
+# Expecting to find out of order GTID error..
+FOUND 1 /Found out of order GTID/ in mysqlbinlog_stderr.out
+# Test finished - resetting master and slave..
+connection slave;
+RESET SLAVE;
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
+connection master;
+RESET MASTER;
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t3,test.t4,test.t5'
+connection slave;
+RESET SLAVE;
+set global gtid_slave_pos="";
+RESET MASTER;
+connection master;
+RESET MASTER;
+connection slave;
+set @@global.gtid_strict_mode=0;
+connection master;
+#
+#
+#  Test Case 26: Neither mysqlbinlog nor CHANGE MASTER TO should allow
+#  both do domain ids and ignore domain ids to be set together
+#
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_DOMAIN_IDS=(1);
+ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
+include/start_slave.inc
+connection master;
+RESET MASTER;
+include/rpl_end.inc
+# End of tests (rpl.rpl_mysqlbinlog_slave_consistency)

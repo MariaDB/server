@@ -100,7 +100,7 @@ RESET SLAVE;
 --let $_fake_old_master_host= query_get_value(SHOW SLAVE STATUS, Master_Host, 1)
 
 # Setup replication from existing relay log.
-eval CHANGE MASTER TO MASTER_HOST='dummy.localdomain', RELAY_LOG_FILE='$_fake_filename-fake.000001', RELAY_LOG_POS=4;
+eval CHANGE MASTER TO MASTER_HOST='dummy.localdomain', RELAY_LOG_FILE='$_fake_filename-fake.000001', RELAY_LOG_POS=4, MASTER_USE_GTID=NO;
 
 --let $include_filename= setup_fake_relay_log.inc
 --source include/end_include_file.inc

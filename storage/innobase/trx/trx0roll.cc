@@ -57,7 +57,6 @@ const trx_t*		trx_roll_crash_recv_trx;
 
 bool trx_t::rollback_finish() noexcept
 {
-  mod_tables.clear();
   apply_online_log= false;
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
@@ -139,9 +138,12 @@ dberr_t trx_t::rollback_low(const undo_no_t *savept) noexcept
       trx_mod_tables_t::iterator j= i++;
       ut_ad(j->second.valid());
       if (j->second.rollback(limit))
+      {
+        j->second.clear_bulk_buffer();
         mod_tables.erase(j);
+      }
       else if (!apply_online_log)
-        apply_online_log= j->first->is_active_ddl();
+        apply_online_log= j->first->is_native_online_ddl();
     }
     MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
   }

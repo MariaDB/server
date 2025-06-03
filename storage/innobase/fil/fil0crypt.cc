@@ -533,7 +533,7 @@ static byte* fil_encrypt_buf_for_full_crc32(
 	ut_a(dstlen == srclen);
 
 	const ulint payload = size - FIL_PAGE_FCRC32_CHECKSUM;
-	mach_write_to_4(dst_frame + payload, ut_crc32(dst_frame, payload));
+	mach_write_to_4(dst_frame + payload, my_crc32c(0, dst_frame, payload));
 	/* Clean the rest of the buffer. FIXME: Punch holes when writing! */
 	memset(dst_frame + (payload + 4), 0, srv_page_size - (payload + 4));
 
@@ -744,20 +744,20 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 
 /** Decrypt a page.
 @param[in]	space_id		tablespace id
+@param[in]	fsp_flags		Tablespace flags
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
-@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
 @retval DB_SUCCESS on success
 @retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
-	ulint			space_id,
+	uint32_t		space_id,
+	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	ulint			fsp_flags,
 	byte*			src_frame)
 {
 	if (!crypt_data || !crypt_data->is_encrypted()) {
@@ -792,9 +792,10 @@ fil_space_decrypt(
 
 	ut_ad(space->referenced());
 
-	if (DB_SUCCESS != fil_space_decrypt(space->id, space->crypt_data,
+	if (DB_SUCCESS != fil_space_decrypt(space->id, space->flags,
+					    space->crypt_data,
 					    tmp_frame, physical_size,
-					    space->flags, src_frame)) {
+					    src_frame)) {
 		return nullptr;
 	}
 
@@ -1369,7 +1370,7 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
   mysql_mutex_assert_owner(&mutex);
 
   auto it= space && space->is_in_default_encrypt
-    ? sized_ilist<fil_space_t, rotation_list_tag_t>::iterator(space)
+    ? sized_ilist<fil_space_t, default_encrypt_tag_t>::iterator(space)
     : default_encrypt_tables.begin();
   const auto end= default_encrypt_tables.end();
 
@@ -1859,7 +1860,7 @@ fil_crypt_rotate_pages(
 	const key_state_t*	key_state,
 	rotate_thread_t*	state)
 {
-	ulint space_id = state->space->id;
+	const uint32_t space_id = state->space->id;
 	uint32_t end = std::min(state->offset + uint32_t(state->batch),
 				state->space->free_limit);
 

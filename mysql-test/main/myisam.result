@@ -2701,3 +2701,108 @@ DROP TABLE t1;
 #
 # End of 5.5 tests
 #
+#
+# MDEV-27303 Table corruption after insert into a non-InnoDB table with DESC index
+#
+create table t1 (
+a bigint default 0,
+b bigint default 0,
+c binary(128) not null,
+d datetime default '0000-00-00 00:00:00',
+key (c desc,b,d,a)
+) engine=aria;
+insert into t1 (c) values
+('xx'),('bb'),('tt'),('pp'),('mm'),('yy'),('rr'),('bb'),('yy'),('gg'),
+('dd'),('fx'),('wi'),('ix'),('ox'),('mu'),('ux'),('pm'),('mx'),('xu'),
+('ul'),('lp'),('px'),('lp'),('xx'),('pq'),('qs'),('se'),('ee'),('xx'),
+('rv'),('ff'),('vj'),('jy'),('yn'),('nc'),('nx'),('hj'),('ji'),('ik'),
+('kk'),('ww'),('xx'),('yd'),('dw'),('wk'),('kr'),('dd'),('rj'),('jf'),
+('bx'),('fc'),('cp'),('pm'),('mw'),('wy'),('yl'),('li'),('ic'),('he'),
+('ci'),('il'),('lz'),('zd'),('gz'),('xd'),('ze'),('dm'),('ms'),('xd'),
+('sw'),('we'),('nb'),('tx'),('vr'),('xw'),('aa'),('ah'),('hd'),('jl'),
+('lf'),('fw'),('wx'),('xh'),('hr'),('zx'),('vw'),('rm'),('mx'),('xt'),
+('tp'),('ps'),('sh'),('ga'),('df'),('as'),('gz'),('xd'),('yy'),('xr');
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
+# MDEV-27309 Server crash or ASAN memcpy-param-overlap upon INSERT into Aria/MyISAM table with DESC key
+#
+CREATE TABLE t1 (id INT, c BINARY(80), PRIMARY KEY(id));
+ALTER  TABLE t1 ADD KEY(c DESC, id);
+INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
+DROP TABLE t1;
+#
+# MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
+#
+create table t (id int, c char(128) not null, key (c desc));
+insert into t values (1,''),(2,'foo'),(3,''),(4,'bar');
+select c from t order by c;
+c
+
+
+bar
+foo
+drop table t;
+#
+# MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+#
+create table t (c char(8), key(c desc)) character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select distinct c from t;
+c
+NULL
+
+bar
+foo
+select c from t;
+c
+foo
+bar
+
+
+NULL
+drop table t;
+#
+# MDEV-27434 DESC attribute does not work with auto-increment on secondary column of multi-part index
+#
+create table t (a int auto_increment, b int, unique(b,a desc)) engine=myisam;
+insert ignore into t (b) values (10),(10),(10);
+select * from t;
+a	b
+3	10
+2	10
+1	10
+drop table t;
+#
+# MDEV-27585 Auto-increment on secondary column increments unexpectedly with DESC key
+#
+create table t (c char(16), i int auto_increment, index (c,i desc)) engine=myisam collate latin1_swedish_ci;
+insert into t (c) values ('ä'),('a');
+select hex(c),c,i from t order by c, i;
+hex(c)	c	i
+61	a	1
+C3A4	ä	1
+drop table t;
+#
+# MDEV-27617 HANDLER KEY > (x) does not work with DESC keys, Spider is affected and returns wrong results
+#
+create table t (a int, b char(1), primary key(a desc)) engine=myisam;
+insert into t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
+handler t open;
+# MUST return 2,'g'. '>' always means READ_AFTER_KEY. desc or not.
+handler t read `primary` > (3);
+a	b
+2	g
+handler t close;
+drop table t;
+#
+# End of 10.8 tests
+#

@@ -20,19 +20,9 @@
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
-INCLUDE(lz4.cmake)
-INCLUDE(lzo.cmake)
-INCLUDE(lzma.cmake)
-INCLUDE(bzip2.cmake)
-INCLUDE(snappy.cmake)
 INCLUDE(numa)
 INCLUDE(TestBigEndian)
 
-MYSQL_CHECK_LZ4()
-MYSQL_CHECK_LZO()
-MYSQL_CHECK_LZMA()
-MYSQL_CHECK_BZIP2()
-MYSQL_CHECK_SNAPPY()
 MYSQL_CHECK_NUMA()
 
 INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
@@ -58,6 +48,13 @@ IF(UNIX)
     IF(HAVE_LIBNUMA)
       LINK_LIBRARIES(numa)
     ENDIF()
+    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch|AARCH|p(ower)?pc|x86_|amd|loongarch|riscv)64")
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" ON)
+      ELSE() # Disable by default on ISA that are not covered by our CI
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" OFF)
+      ENDIF()
+    ENDIF()
   ENDIF()
 ENDIF()
 
@@ -81,7 +78,7 @@ ADD_FEATURE_INFO(INNODB_ROOT_GUESS WITH_INNODB_ROOT_GUESS
 
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
-  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
+  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG -DLOG_LATCH_DEBUG)
 ENDIF()
 ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
 
@@ -229,7 +226,6 @@ SET(INNOBASE_SOURCES
 	include/dict0pagecompress.h
 	include/dict0pagecompress.inl
 	include/dict0stats.h
-	include/dict0stats.inl
 	include/dict0stats_bg.h
 	include/dict0types.h
 	include/dyn0buf.h
@@ -283,7 +279,6 @@ SET(INNOBASE_SOURCES
 	include/lock0types.h
 	include/log0crypt.h
 	include/log0log.h
-	include/log0log.inl
 	include/log0recv.h
 	include/log0types.h
 	include/mach0data.h
@@ -312,7 +307,6 @@ SET(INNOBASE_SOURCES
 	include/que0types.h
 	include/read0types.h
 	include/rem0cmp.h
-	include/rem0cmp.inl
 	include/rem0rec.h
 	include/rem0rec.inl
 	include/rem0types.h
@@ -438,6 +432,11 @@ SET(INNOBASE_SOURCES
 	ut/ut0ut.cc
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
+
+IF(WITH_INNODB_PMEM)
+  ADD_DEFINITIONS(-DHAVE_PMEM)
+  SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} include/cache.h sync/cache.cc)
+ENDIF()
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_OUTPUT_NAME ha_innodb

@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-CHECK\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-CHECK\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -79,7 +79,7 @@ table, an attempt to check it produces this result:
 .nf
 shell> \fBmysqlcheck test t\fR
 test\&.t
-note     : The storage engine for the table doesn\'t support check
+note     : The storage engine for the table doesn't support check
 .fi
 .if n \{\
 .RE
@@ -179,7 +179,7 @@ supports the following options, which can be specified on the command line or in
 and
 [client]
 option file groups\&.
-The \fB-c\fR, \fB-r\fR, \fB-a\fR and \fB-o\fR options are exclusive to each other\&. 
+The \fB-c\fR, \fB-r\fR, \fB-a\fR and \fB-o\fR options are exclusive to each other\&.
 .sp
 .RS 4
 .ie n \{\
@@ -381,9 +381,7 @@ treats the first name argument on the command line as a database name and follow
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o'.
 .RE
 .sp
 .RS 4
@@ -495,7 +493,7 @@ Must be given as first option\&.
 .sp
 If you are using this option to check tables, it ensures that they are 100% consistent but takes a long time\&.
 .sp
-If you are using this option to repair tables, it will force using the old, slow, repair with keycache method, 
+If you are using this option to repair tables, it will force using the old, slow, repair with keycache method,
 instead of the much faster repair by sorting.
 .RE
 .sp
@@ -890,7 +888,7 @@ Forces --protocol=socket when specified on the command line without other connec
 .\" SSL options: mysqladmin
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp
@@ -1091,7 +1089,7 @@ The MariaDB user name to use when connecting to the server\&.
 \fB\-v\fR
 .sp
 Verbose mode\&. Print information about the various stages of program operation\&.
-Using one \fB--verbose\fR option will give you more information about what mysqlcheck is 
+Using one \fB--verbose\fR option will give you more information about what mysqlcheck is
 doing\&.
 .sp
 Using two \fB--verbose\fR options will also give you connection information\&.

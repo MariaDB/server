@@ -42,7 +42,7 @@
 #include "item_create.h"
 
 
-bool Item_geometry_func::fix_length_and_dec()
+bool Item_geometry_func::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_bin);
   decimals=0;
@@ -223,7 +223,7 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 }
 
 
-bool Item_func_as_wkt::fix_length_and_dec()
+bool Item_func_as_wkt::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
@@ -250,7 +250,7 @@ String *Item_func_as_wkb::val_str(String *str)
 }
 
 
-bool Item_func_as_geojson::fix_length_and_dec()
+bool Item_func_as_geojson::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
@@ -1092,6 +1092,7 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
     DBUG_RETURN(0);                              // out of memory
   field->get_key_image(str, key_part->length, key_part->image_type);
   SEL_ARG *tree;
+
   if (!(tree= new (param->mem_root) SEL_ARG(field, str, str)))
     DBUG_RETURN(0);                              // out of memory
 

@@ -189,21 +189,38 @@ $opt{quiet} = 0 if $opt{debug};
 $opt{allowold} = 1 if $opt{keepold};
 
 # --- connect to the database ---
+## Socket takes precedence.
 my $dsn;
-$dsn  = ";host=" . (defined($opt{host}) ? $opt{host} : "localhost");
-$dsn .= ";port=$opt{port}" if $opt{port};
-$dsn .= ";mariadb_socket=$opt{socket}" if $opt{socket};
+my $prefix= 'mysql';
+
+if (eval {DBI->install_driver("MariaDB")}) {
+  $dsn ="DBI:MariaDB:;";
+  $prefix= 'mariadb';
+}
+else {
+  $dsn = "DBI:mysql:;";
+}
+
+if ($opt{socket} and -S $opt{socket})
+{
+  $dsn .= "${prefix}_socket=$opt{socket}";
+}
+else
+{
+  $dsn .= "host=" . $opt{host};
+  if ($opt{host} ne "localhost" and $opt{port})
+  {
+    $dsn .= ";port=". $opt{port};
+  }
+}
+
+$dsn .= ";mariadb_read_default_group=mysqlhotcopy";
 
 # use mariadb_read_default_group=mysqlhotcopy so that [client] and
 # [mysqlhotcopy] groups will be read from standard options files.
-
-my $dbh = DBI->connect("DBI:MariaDB:$dsn;mariadb_read_default_group=mysqlhotcopy",
-                        $opt{user}, $opt{password},
-{
-    RaiseError => 1,
-    PrintError => 0,
-    AutoCommit => 1,
-});
+# make the connection to MariaDB
+my $dbh= DBI->connect($dsn, $opt{user}, $opt{password}, { RaiseError => 1, PrintError => 0}) ||
+                      die("Can't make a connection to the MariaDB server.\n The error: $DBI::errstr");
 
 # --- check that checkpoint table exists if specified ---
 if ( $opt{checkpoint} ) {
@@ -271,6 +288,8 @@ if ( defined $opt{regexp} ) {
     $sth_dbs->execute;
     while ( my ($db_name) = $sth_dbs->fetchrow_array ) {
 	next if $db_name =~ m/^information_schema$/i;
+	next if $db_name =~ m/^performance_schema$/i;
+	next if $db_name =~ m/^sys$/i;
 	push @db_desc, { 'src' => $db_name, 't_regex' => $t_regex } if ( $db_name =~ m/$opt{regexp}/o );
     }
 }

@@ -23,13 +23,6 @@
 
 list_node end_of_list;
 
-void free_list(I_List <i_string_pair> *list)
-{
-  i_string_pair *tmp;
-  while ((tmp= list->get()))
-    delete tmp;
-}
-
 
 void free_list(I_List <i_string> *list)
 {

@@ -109,6 +109,8 @@ CREATE USER 'testuser1'@'localhost';
 --error 0,ER_CANNOT_USER
 DROP   USER 'testuser2'@'localhost';
 CREATE USER 'testuser2'@'localhost';
+GRANT ALL ON test.* TO 'testuser1'@'localhost';
+GRANT ALL ON test.* TO 'testuser2'@'localhost';
 
 --replace_result $engine_type <engine_type>
 eval

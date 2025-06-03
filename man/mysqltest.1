@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-TEST\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-TEST\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -218,9 +218,9 @@ This can be used to set the MYSQL_OPT_CONNECT_TIMEOUT parameter of mysql_options
 .\" continue-on-error option: mysqltest
 \fB\-\-continue\-on\-error\fR
 .sp
-Continue test even if we got an error\&. This is mostly 
-useful when testing a storage engine to see what from a 
-test file it can execute, or to find all syntax errors in 
+Continue test even if we got an error\&. This is mostly
+useful when testing a storage engine to see what from a
+test file it can execute, or to find all syntax errors in
 a newly created big test file\&.
 .RE
 .sp
@@ -270,8 +270,7 @@ The default database to use\&.
 .sp
 Write a debugging log if MariaDB is built with debugging support\&. The default
 \fIdebug_options\fR
-value is
-\'d:t:S:i:O,/tmp/mysqltest\&.trace\'\&.
+value is 'd:t:S:i:O,/tmp/mysqltest.trace'.
 .RE
 .sp
 .RS 4
@@ -478,7 +477,7 @@ Directory for client-side plugins\&.
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for the connection or 0 for default to, in order of preference, 
+The TCP/IP port number to use for the connection or 0 for default to, in order of preference,
 my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
 .RE
 .sp
@@ -792,7 +791,7 @@ creates and invokes a stored procedure that executes the statement rather than e
 .\" SSL options: mysqltest
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp

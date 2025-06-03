@@ -648,11 +648,11 @@ set sql_mode="no_zero_date";
 create table t1(f1 int);
 alter table t1 add column f2 datetime not null, add column f21 date not null;
 insert into t1 values(1,'2000-01-01','2000-01-01');
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 datetime not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 date not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f4 datetime not null default '2002-02-02',
   add column f41 date not null;
 alter table t1 add column f4 datetime not null default '2002-02-02',
@@ -1971,7 +1971,7 @@ show create table t1;
 drop table t1;
 
 create table t1 (a int, b int, c int, unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column a;
 alter table t1 drop column a, drop index a;
 show create table t1;
@@ -2419,4 +2419,22 @@ drop table t1, t2;
 
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-26767 Server crashes when rename table and alter storage engine
+--echo #
+--error ER_NO_SUCH_TABLE
+alter table txxx engine=innodb, rename to tyyy;
+
+--echo #
+--echo # MDEV-27048 UBSAN: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'
+--echo #
+CREATE TABLE t (a INT,b INT,c INT,x TEXT,y TEXT,z TEXT,id INT UNSIGNED AUTO_INCREMENT,i INT,KEY(id),UNIQUE KEY a (a,b,c));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t ADD CONSTRAINT test UNIQUE (id) USING HASH;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.7 tests
 --echo #

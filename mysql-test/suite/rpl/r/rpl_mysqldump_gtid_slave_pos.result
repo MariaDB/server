@@ -33,6 +33,7 @@ insert into t1 set a = 1;
 include/save_master_gtid.inc
 connection slave;
 SET @@global.gtid_cleanup_batch_size = $val;
+CHANGE MASTER TO master_use_gtid= no;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 select * from mysql.gtid_slave_pos;

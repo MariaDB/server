@@ -26,6 +26,8 @@
 #include "sql_expression_cache.h"
 #include "item_subselect.h"
 
+#include <stack>
+
 const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
 const char * STR_NO_ROWS_AFTER_PRUNING= "No matching rows after partition pruning";
@@ -42,10 +44,11 @@ static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
 Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
-  mem_root(root), upd_del_plan(NULL),  insert_plan(NULL),
-  unions(root), selects(root),  thd(thd_arg), apc_enabled(false),
+  mem_root(root), upd_del_plan(nullptr),  insert_plan(nullptr),
+  unions(root), selects(root), stmt_thd(thd_arg), apc_enabled(false),
   operations(0)
 {
+  optimization_time_tracker.start_tracking(stmt_thd);
 }
 
 static void print_json_array(Json_writer *writer,
@@ -64,7 +67,7 @@ static void print_json_array(Json_writer *writer,
 Explain_query::~Explain_query()
 {
   if (apc_enabled)
-    thd->apc_target.disable();
+    stmt_thd->apc_target.disable();
 
   delete upd_del_plan;
   delete insert_plan;
@@ -153,10 +156,34 @@ void Explain_query::add_upd_del_plan(Explain_update *upd_del_plan_arg)
 
 void Explain_query::query_plan_ready()
 {
+  optimization_time_tracker.stop_tracking(stmt_thd);
+
   if (!apc_enabled)
-    thd->apc_target.enable();
+    stmt_thd->apc_target.enable();
   apc_enabled= true;
+#ifndef DBUG_OFF
+  can_print_json= true;
+#endif
 }
+
+
+void Explain_query::notify_tables_are_closed()
+{
+  /*
+    Disable processing of SHOW EXPLAIN|ANALYZE. The query is about to close
+    the tables it is using, which will make it impossible to print Item*
+    values. See sql_explain.h:ExplainDataStructureLifetime for details.
+  */
+  if (apc_enabled)
+  {
+    stmt_thd->apc_target.disable();
+    apc_enabled= false;
+#ifndef DBUG_OFF
+    can_print_json= false;
+#endif
+  }
+}
+
 
 /*
   Send EXPLAIN output to the client.
@@ -232,36 +259,82 @@ int Explain_query::print_explain(select_result_sink *output,
 }
 
 
-void Explain_query::print_explain_json(select_result_sink *output,
-                                       bool is_analyze)
+int Explain_query::print_explain_json(select_result_sink *output,
+                                      bool is_analyze,
+                                      ulonglong query_time_in_progress_ms)
 {
   Json_writer writer;
+
+#ifndef DBUG_OFF
+  DBUG_ASSERT(can_print_json);
+#endif
+
   writer.start_object();
 
-  if (upd_del_plan)
-    upd_del_plan->print_explain_json(this, &writer, is_analyze);
-  else if (insert_plan)
-    insert_plan->print_explain_json(this, &writer, is_analyze);
-  else
+  if (is_analyze)
   {
-    /* Start printing from node with id=1 */
-    Explain_node *node= get_node(1);
-    if (!node)
-      return; /* No query plan */
-    node->print_explain_json(this, &writer, is_analyze);
+    if (query_time_in_progress_ms > 0){
+      writer.add_member("r_query_time_in_progress_ms").
+            add_ull(query_time_in_progress_ms);
+    }
+
+    print_query_optimization_json(&writer);
   }
 
+  bool plan_found = print_query_blocks_json(&writer, is_analyze);
   writer.end_object();
 
+  if( plan_found )
+  {
+    send_explain_json_to_output(&writer, output);
+  }
+  
+  return 0;
+}
+
+void Explain_query::print_query_optimization_json(Json_writer *writer)
+{
+  if (optimization_time_tracker.has_timed_statistics())
+  {
+    // if more timers are added, move the query_optimization member 
+    // outside the if statement
+    writer->add_member("query_optimization").start_object();
+    writer->add_member("r_total_time_ms").
+            add_double(optimization_time_tracker.get_time_ms());
+    writer->end_object(); 
+  }
+}
+
+bool Explain_query::print_query_blocks_json(Json_writer *writer, const bool is_analyze)
+{
+  if (upd_del_plan)
+    upd_del_plan->print_explain_json(this, writer, is_analyze);
+  else if (insert_plan)
+    insert_plan->print_explain_json(this, writer, is_analyze);
+  else
+  {
+    /* Start printing from root node with id=1 */
+    Explain_node *node= get_node(1);
+    if (!node)
+      return false; /* No query plan */
+    node->print_explain_json(this, writer, is_analyze);
+  }
+
+  return true;
+}
+
+void Explain_query::send_explain_json_to_output(Json_writer *writer, 
+                                                select_result_sink *output)
+{
   CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
-  const String *buf= writer.output.get_string();
+  const String *buf= writer->output.get_string();
+  THD *thd= output->thd;
   item_list.push_back(new (thd->mem_root)
                       Item_string(thd, buf->ptr(), buf->length(), cs),
                       thd->mem_root);
   output->send_data(item_list);
-}
-
+} 
 
 bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str)
 {
@@ -976,7 +1049,11 @@ void Explain_select::print_explain_json(Explain_query *query,
     if (is_analyze && time_tracker.get_loops())
     {
       writer->add_member("r_loops").add_ll(time_tracker.get_loops());
-      writer->add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
+      if (time_tracker.has_timed_statistics())
+      {
+        writer->add_member("r_total_time_ms").
+                add_double(time_tracker.get_time_ms());
+      }
     }
 
     if (exec_const_cond)
@@ -1023,7 +1100,8 @@ void Explain_select::print_explain_json(Explain_query *query,
         case AGGR_OP_FILESORT:
         {
           writer->add_member("filesort").start_object();
-          ((Explain_aggr_filesort*)node)->print_json_members(writer, is_analyze);
+          auto aggr_node= (Explain_aggr_filesort*)node;
+          aggr_node->print_json_members(writer, is_analyze);
           break;
         }
         case AGGR_OP_REMOVE_DUPLICATES:
@@ -1033,7 +1111,8 @@ void Explain_select::print_explain_json(Explain_query *query,
         {
           //TODO: make print_json_members virtual?
           writer->add_member("window_functions_computation").start_object();
-          ((Explain_aggr_window_funcs*)node)->print_json_members(writer, is_analyze);
+          auto aggr_node= (Explain_aggr_window_funcs*)node;
+          aggr_node->print_json_members(writer, is_analyze);
           break;
         }
         default:
@@ -1110,14 +1189,13 @@ void Explain_aggr_window_funcs::print_json_members(Json_writer *writer,
 {
   Explain_aggr_filesort *srt;
   List_iterator<Explain_aggr_filesort> it(sorts);
-  writer->add_member("sorts").start_object();
+  Json_writer_array sorts(writer, "sorts");
   while ((srt= it++))
   {
-    writer->add_member("filesort").start_object();
+    Json_writer_object sort(writer);
+    Json_writer_object filesort(writer, "filesort");
     srt->print_json_members(writer, is_analyze);
-    writer->end_object(); // filesort
   }
-  writer->end_object(); // sorts
 }
 
 
@@ -1139,17 +1217,26 @@ print_explain_json_interns(Explain_query *query,
                            Json_writer *writer, 
                            bool is_analyze)
 {
-  Json_writer_nesting_guard guard(writer);
-  for (uint i=0; i< n_join_tabs; i++)
   {
-    if (join_tabs[i]->start_dups_weedout)
-      writer->add_member("duplicates_removal").start_object();
+    Json_writer_array loop(writer, "nested_loop");
+    for (uint i=0; i< n_join_tabs; i++)
+    {
+      if (join_tabs[i]->start_dups_weedout)
+      {
+        writer->start_object();
+        writer->add_member("duplicates_removal");
+        writer->start_array();
+      }
 
-    join_tabs[i]->print_explain_json(query, writer, is_analyze);
+      join_tabs[i]->print_explain_json(query, writer, is_analyze);
 
-    if (join_tabs[i]->end_dups_weedout)
-      writer->end_object();
-  }
+      if (join_tabs[i]->end_dups_weedout)
+      {
+        writer->end_array();
+        writer->end_object();
+      }
+    }
+  } // "nested_loop"
   print_explain_json_for_children(query, writer, is_analyze);
 }
 
@@ -1309,7 +1396,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
                                         uint select_id, const char *select_type,
                                         bool using_temporary, bool using_filesort)
 {
-  THD *thd= output->thd;
+  THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
   MEM_ROOT *mem_root= thd->mem_root;
 
   List<Item> item_list;
@@ -1573,10 +1660,12 @@ static void append_item_to_str(String *out, Item *item)
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
 
   item->print(out, QT_EXPLAIN);
+
   thd->variables.option_bits= save_option_bits;
 }
 
-void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_tag tag)
+void Explain_table_access::tag_to_json(Json_writer *writer,
+                                       enum explain_extra_tag tag)
 {
   switch (tag)
   {
@@ -1756,7 +1845,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
 {
-  Json_writer_nesting_guard guard(writer);
+  Json_writer_object jsobj(writer);
   
   if (pre_join_sort)
   {
@@ -2181,14 +2270,15 @@ void Explain_quick_select::print_json(Json_writer *writer)
   }
   else
   {
-    writer->add_member(get_name_by_type()).start_object();
+    Json_writer_array ranges(writer, get_name_by_type());
 
     List_iterator_fast<Explain_quick_select> it (children);
     Explain_quick_select* child;
     while ((child = it++))
+    {
+      Json_writer_object obj(writer);
       child->print_json(writer);
-
-    writer->end_object();
+    }
   }
 }
 
@@ -2445,7 +2535,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   writer->add_member("select_id").add_ll(1);
  
   /* This is the total time it took to do the UPDATE/DELETE */
-  if (is_analyze && command_tracker.get_loops())
+  if (is_analyze && command_tracker.has_timed_statistics())
   {
     writer->add_member("r_total_time_ms").
             add_double(command_tracker.get_time_ms());
@@ -2592,7 +2682,7 @@ void Explain_update::print_explain_json(Explain_query *query,
       writer->add_member("r_filtered").add_double(r_filtered);
     }
 
-    if (table_tracker.get_loops())
+    if (table_tracker.has_timed_statistics())
     {
       writer->add_member("r_total_time_ms").
               add_double(table_tracker.get_time_ms());

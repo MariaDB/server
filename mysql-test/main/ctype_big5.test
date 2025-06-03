@@ -25,6 +25,7 @@ SET collation_connection='big5_bin';
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 -- source include/ctype_pad_space.inc
 
 #

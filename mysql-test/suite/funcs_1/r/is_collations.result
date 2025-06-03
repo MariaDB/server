@@ -28,28 +28,28 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.COLLATIONS;
 Field	Type	Null	Key	Default	Extra
-COLLATION_NAME	varchar(32)	NO		NULL	
-CHARACTER_SET_NAME	varchar(32)	NO		NULL	
-ID	bigint(11)	NO		NULL	
-IS_DEFAULT	varchar(3)	NO		NULL	
+COLLATION_NAME	varchar(64)	NO		NULL	
+CHARACTER_SET_NAME	varchar(32)	YES		NULL	
+ID	bigint(11)	YES		NULL	
+IS_DEFAULT	varchar(3)	YES		NULL	
 IS_COMPILED	varchar(3)	NO		NULL	
 SORTLEN	bigint(3)	NO		NULL	
 SHOW CREATE TABLE information_schema.COLLATIONS;
 Table	Create Table
 COLLATIONS	CREATE TEMPORARY TABLE `COLLATIONS` (
-  `COLLATION_NAME` varchar(32) NOT NULL,
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `ID` bigint(11) NOT NULL,
-  `IS_DEFAULT` varchar(3) NOT NULL,
+  `COLLATION_NAME` varchar(64) NOT NULL,
+  `CHARACTER_SET_NAME` varchar(32),
+  `ID` bigint(11),
+  `IS_DEFAULT` varchar(3),
   `IS_COMPILED` varchar(3) NOT NULL,
   `SORTLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.COLLATIONS;
 Field	Type	Null	Key	Default	Extra
-COLLATION_NAME	varchar(32)	NO		NULL	
-CHARACTER_SET_NAME	varchar(32)	NO		NULL	
-ID	bigint(11)	NO		NULL	
-IS_DEFAULT	varchar(3)	NO		NULL	
+COLLATION_NAME	varchar(64)	NO		NULL	
+CHARACTER_SET_NAME	varchar(32)	YES		NULL	
+ID	bigint(11)	YES		NULL	
+IS_DEFAULT	varchar(3)	YES		NULL	
 IS_COMPILED	varchar(3)	NO		NULL	
 SORTLEN	bigint(3)	NO		NULL	
 # Testcases 3.2.3.2 and 3.2.3.3 are checked in suite/funcs_1/t/charset_collation*.test

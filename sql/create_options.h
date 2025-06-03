@@ -1,4 +1,4 @@
-/* Copyright (C) 2010 Monty Program Ab
+/* Copyright (C) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,30 +35,23 @@ class engine_option_value: public Sql_alloc
   bool parsed;                  ///< to detect unrecognized options
   bool quoted_value;            ///< option=VAL vs. option='VAL'
 
-  engine_option_value(engine_option_value *src,
-                      engine_option_value **start, engine_option_value **end) :
+  engine_option_value(engine_option_value *src) :
     name(src->name), value(src->value),
     next(NULL), parsed(src->parsed), quoted_value(src->quoted_value)
   {
-    link(start, end);
   }
   engine_option_value(LEX_CSTRING &name_arg, LEX_CSTRING &value_arg,
-                      bool quoted,
-                      engine_option_value **start, engine_option_value **end) :
+                      bool quoted) :
     name(name_arg), value(value_arg),
     next(NULL), parsed(false), quoted_value(quoted)
   {
-    link(start, end);
   }
-  engine_option_value(LEX_CSTRING &name_arg,
-                      engine_option_value **start, engine_option_value **end) :
+  engine_option_value(LEX_CSTRING &name_arg):
     name(name_arg), value(null_clex_str),
     next(NULL), parsed(false), quoted_value(false)
   {
-    link(start, end);
   }
   engine_option_value(LEX_CSTRING &name_arg, ulonglong value_arg,
-                      engine_option_value **start, engine_option_value **end,
                       MEM_ROOT *root) :
     name(name_arg), next(NULL), parsed(false), quoted_value(false)
   {
@@ -66,7 +59,6 @@ class engine_option_value: public Sql_alloc
     if (likely((value.str= str= (char *)alloc_root(root, 22))))
     {
       value.length= longlong10_to_str(value_arg, str, 10) - str;
-      link(start, end);
     }
   }
   static uchar *frm_read(const uchar *buff, const uchar *buff_end,
@@ -83,6 +75,9 @@ class Create_field;
 bool resolve_sysvar_table_options(handlerton *hton);
 void free_sysvar_table_options(handlerton *hton);
 bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+bool parse_engine_part_options(THD *thd, TABLE *table);
+#endif
 bool parse_option_list(THD* thd, void *option_struct,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
@@ -93,9 +88,9 @@ bool extend_option_list(THD* thd, handlerton *hton, bool create,
 
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
                                    TABLE_SHARE *share);
-engine_option_value *merge_engine_table_options(engine_option_value *source,
-                                                engine_option_value *changes,
-                                                MEM_ROOT *root);
+bool merge_engine_options(engine_option_value *source,
+                          engine_option_value *changes,
+                          engine_option_value **out, MEM_ROOT *root);
 
 uint engine_table_options_frm_length(engine_option_value *table_option_list,
                                      List<Create_field> &create_fields,

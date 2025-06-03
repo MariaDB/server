@@ -387,7 +387,7 @@ create function sub3(i int) returns int deterministic
 
 call sub1("sub1a", (select 7))|
 call sub1("sub1b", (select max(i) from t2))|
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 call sub1("sub1c", (select i,d from t2 limit 1))|
 call sub1("sub1d", (select 1 from (select 1) a))|
 call sub2("sub2")|
@@ -10770,3 +10770,18 @@ DROP FUNCTION database;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
+--echo #
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SELECT 1 INTO @;
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SET @=1;
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SELECT @;
+
+--echo # End of 10.7 tests

@@ -34,7 +34,7 @@ public:
   }
 
   bool val_bool() override;
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     set_maybe_null();
     null_value= 0;
@@ -66,7 +66,7 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   { fix_attributes_datetime(decimals); return FALSE; }
 };
 
@@ -101,9 +101,9 @@ public:
     return NULL_clex_str;
   }
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
-    bool res= Item_int_func::fix_length_and_dec();
+    bool res= Item_int_func::fix_length_and_dec(thd);
     max_length= 20;
     return res;
   }

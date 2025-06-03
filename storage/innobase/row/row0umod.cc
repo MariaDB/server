@@ -471,6 +471,8 @@ func_exit:
 	return(err);
 }
 
+bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2);
+
 /** Find out if an accessible version of a clustered index record
 corresponds to a secondary index entry.
 @param rec    record in a latched clustered index page
@@ -591,7 +593,7 @@ nochange_index:
 			a char field, but the collation identifies the old
 			and new value anyway! */
 
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 				break;
 			}
 		}
@@ -1128,9 +1130,8 @@ row_undo_mod_upd_exist_sec(
 		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 		if (UNIV_UNLIKELY(!entry)) {
-			/* The server must have crashed in
-			row_upd_clust_rec_by_insert() before
-			the updated externally stored columns (BLOBs)
+			/* InnoDB must have run of space or been killed
+			before the updated externally stored columns (BLOBs)
 			of the new clustered index entry were written. */
 
 			/* The table must be in DYNAMIC or COMPRESSED
@@ -1138,19 +1139,6 @@ row_undo_mod_upd_exist_sec(
 			store a local 768-byte prefix of each
 			externally stored column. */
 			ut_a(dict_table_has_atomic_blobs(index->table));
-
-			/* This is only legitimate when
-			rolling back an incomplete transaction
-			after crash recovery. */
-			ut_a(thr_get_trx(thr)->is_recovered);
-
-			/* The server must have crashed before
-			completing the insert of the new
-			clustered index entry and before
-			inserting to the secondary indexes.
-			Because node->row was not yet written
-			to this index, we can ignore it.  But
-			we must restore node->undo_row. */
 		} else {
 			/* NOTE that if we updated the fields of a
 			delete-marked secondary index record so that
@@ -1257,7 +1245,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked);
+		node->table->release();
 		node->table = NULL;
 		return false;
 	}
@@ -1386,7 +1374,7 @@ rollback_clust:
 		bool update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			switch (node->rec_type) {
 			case TRX_UNDO_UPD_EXIST_REC:
 				break;
@@ -1416,8 +1404,7 @@ rollback_clust:
 		}
 	}
 
-	dict_table_close(node->table, dict_locked);
-
+	node->table->release();
 	node->table = NULL;
 
 	return(err);

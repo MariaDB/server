@@ -1930,7 +1930,7 @@ set @save_default_storage_engine=@@default_storage_engine;
 SET @@default_storage_engine=MEMORY;
 
 CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 ALTER TABLE t1 ADD INDEX (`PRIMARY`);
 
 CREATE TABLE t2 SELECT NULL;

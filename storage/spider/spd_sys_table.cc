@@ -241,6 +241,7 @@ TABLE *spider_open_sys_table(
   TABLE_LIST tables;
   DBUG_ENTER("spider_open_sys_table");
 
+
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
   LEX_CSTRING db_name =
   {
@@ -258,7 +259,6 @@ TABLE *spider_open_sys_table(
     "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
     (write ? TL_WRITE : TL_READ));
 #endif
-
     if (!(table = spider_sys_open_table(thd, &tables, open_tables_backup)))
     {
       my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
@@ -407,7 +407,6 @@ TABLE *spider_open_sys_table(
       break;
   }
   DBUG_RETURN(table);
-
 error_col_num_chk:
   DBUG_RETURN(NULL);
 }

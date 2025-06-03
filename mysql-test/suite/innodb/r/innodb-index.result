@@ -1947,3 +1947,51 @@ Warnings:
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 DROP TABLE t;
+#
+#  MDEV-27374  InnoDB table becomes corrupt after renaming DESC-indexed column
+#
+CREATE TABLE t1 (a VARCHAR(8), PRIMARY KEY(a DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN a TO b, ALGORITHM=INPLACE;
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+NAME
+b
+DROP TABLE t1;
+#
+#  MDEV-27432 ASC/DESC primary and unique keys cause index
+#	inconsistency between InnoDB and server
+#
+CREATE TABLE t1 (id INT NOT NULL, UNIQUE(id DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY (id), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+#  MDEV-27445 Index inconsistency and assertion failure after
+#	renaming virtual column with DESC key
+#
+CREATE TABLE t1(a INT, b INT AS (a), KEY(a, b DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN IF EXISTS b TO v;
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+#
+#  MDEV-27592 DESC primary index fails to set wide format
+#	while renaming the column
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(8), b INT, KEY(a DESC,b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'foo',10);
+ALTER TABLE t1 RENAME COLUMN b TO c, ALGORITHM=INPLACE;
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id ORDER BY INDEX_ID DESC LIMIT 1;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+NAME
+a
+c
+DROP TABLE t1;
+# End of 10.8 tests

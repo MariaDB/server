@@ -40,6 +40,7 @@ static unsigned int rate;
 static unsigned long long size_limit;
 static unsigned int rotations;
 static char rotate;
+static char warnings;
 static char with_db_and_thread_info;
 
 static unsigned int count;
@@ -69,6 +70,11 @@ static MYSQL_SYSVAR_STR(filename, filename,
        "The file to log sql errors to", NULL, NULL,
        "sql_errors.log");
 
+static MYSQL_SYSVAR_BOOL(warnings, warnings,
+                         PLUGIN_VAR_OPCMDARG,
+                         "Warnings. If set to 0, warnings are not logged.",
+                         NULL, NULL, 1);
+
 static MYSQL_SYSVAR_BOOL(with_db_and_thread_info, with_db_and_thread_info,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_OPCMDARG,
        "Show details about thread id and database name in the log",
@@ -81,6 +87,7 @@ static struct st_mysql_sys_var* vars[] = {
     MYSQL_SYSVAR(rotations),
     MYSQL_SYSVAR(rotate),
     MYSQL_SYSVAR(filename),
+    MYSQL_SYSVAR(warnings),
     MYSQL_SYSVAR(with_db_and_thread_info),
     NULL
 };
@@ -94,8 +101,11 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
          (const struct mysql_event_general*)ev;
 
   if (rate &&
-      event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR)
+      (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ||
+       (warnings && event->event_subclass == MYSQL_AUDIT_GENERAL_WARNING)))
   {
+    const char *type= (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ?
+                       "ERROR" : "WARNING");
     if (++count >= rate)
     {
       struct tm t;
@@ -108,27 +118,28 @@ static void log_sql_errors(MYSQL_THD thd __attribute__((unused)),
         if (event->database.str)
         {
           logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %lu "
-                      "%s %`s ERROR %d: %s : %s \n",
+                      "%s %`s %s %d: %s : %s \n",
               t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
-              t.tm_sec, event->general_thread_id, event->general_user, event->database.str,
+              t.tm_sec, event->general_thread_id, event->general_user,
+              event->database.str, type,
               event->general_error_code, event->general_command, event->general_query);
         }
         else
         {
           logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d %lu "
-                      "%s %s ERROR %d: %s : %s \n",
+                      "%s NULL %s %d: %s : %s \n",
               t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min,
-              t.tm_sec, event->general_thread_id, event->general_user, "NULL",
+              t.tm_sec, event->general_thread_id, event->general_user, type,
               event->general_error_code, event->general_command, event->general_query);
         }
       }
       else
       {
         logger_printf(logfile, "%04d-%02d-%02d %2d:%02d:%02d "
-                      "%s ERROR %d: %s : %s\n",
+                      "%s %s %d: %s : %s\n",
               t.tm_year + 1900, t.tm_mon + 1,
               t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
-              event->general_user, event->general_error_code,
+              event->general_user, type, event->general_error_code,
               event->general_command, event->general_query);
       }
     }

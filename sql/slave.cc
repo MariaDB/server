@@ -786,7 +786,7 @@ bool init_slave_skip_errors(const char* arg)
   if (!arg || !*arg)                            // No errors defined
     goto end;
 
-  if (unlikely(my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0)))
+  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR))
     DBUG_RETURN(1);
 
   use_slave_mask= 1;
@@ -1371,13 +1371,13 @@ static bool sql_slave_killed(rpl_group_info *rgi)
   if (rli->sql_driver_thd->killed || rli->abort_slave)
   {
     /*
-      The transaction should always be binlogged if OPTION_KEEP_LOG is
+      The transaction should always be binlogged if OPTION_BINLOG_THIS_TRX is
       set (it implies that something can not be rolled back). And such
       case should be regarded similarly as modifing a
       non-transactional table because retrying of the transaction will
       lead to an error or inconsistency as well.
 
-      Example: OPTION_KEEP_LOG is set if a temporary table is created
+      Example: OPTION_BINLOG_THIS_TRX is set if a temporary table is created
       or dropped.
 
       Note that transaction.all.modified_non_trans_table may be 1
@@ -1387,7 +1387,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
     */
 
     if ((thd->transaction->all.modified_non_trans_table ||
-         (thd->variables.option_bits & OPTION_KEEP_LOG)) &&
+         (thd->variables.option_bits & OPTION_BINLOG_THIS_TRX)) &&
         rli->is_in_group())
     {
       char msg_stopped[]=
@@ -1399,10 +1399,10 @@ static bool sql_slave_killed(rpl_group_info *rgi)
         "documentation for details).";
 
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
-                          "OPTION_KEEP_LOG: %d  is_in_group: %d",
+                          "OPTION_BINLOG_THIS_TRX: %d  is_in_group: %d",
                           thd->transaction->all.modified_non_trans_table,
                           MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
-                          MY_TEST(thd->variables.option_bits & OPTION_KEEP_LOG),
+                          MY_TEST(thd->variables.option_bits & OPTION_BINLOG_THIS_TRX),
                           rli->is_in_group()));
 
       if (rli->abort_slave)
@@ -1778,6 +1778,9 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   }
   else
   {
+    DBUG_EXECUTE_IF("mock_mariadb_primary_v5_in_get_master_version",
+                    version= 5;);
+
     /*
       Note the following switch will bug when we have MySQL branch 30 ;)
     */
@@ -1899,9 +1902,10 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
       (master_row= mysql_fetch_row(master_res)))
   {
     mysql_mutex_lock(&mi->data_lock);
-    mi->clock_diff_with_master= DBUG_EVALUATE_IF(
-        "negate_clock_diff_with_master", 0,
-        (long) (time((time_t *) 0) - strtoul(master_row[0], 0, 10)));
+    mi->clock_diff_with_master=
+      (DBUG_IF("negate_clock_diff_with_master") ?
+       0:
+       (long) (time((time_t *) 0) - strtoul(master_row[0], 0, 10)));
 
     mysql_mutex_unlock(&mi->data_lock);
   }
@@ -2337,11 +2341,11 @@ past_checksum:
   /* Announce MariaDB slave capabilities. */
   DBUG_EXECUTE_IF("simulate_slave_capability_none", goto after_set_capability;);
   {
-    int rc= DBUG_EVALUATE_IF("simulate_slave_capability_old_53",
+    int rc= DBUG_IF("simulate_slave_capability_old_53") ?
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
-                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))),
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))) :
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
-                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE))));
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE)));
     if (unlikely(rc))
     {
       if (check_io_slave_killed(mi, NULL))
@@ -2368,6 +2372,14 @@ past_checksum:
 #ifndef DBUG_OFF
 after_set_capability:
 #endif
+
+  if (!(mi->master_supports_gtid= version >= 10))
+  {
+    sql_print_information(
+        "Slave I/O thread: Falling back to Using_Gtid=No because "
+        "master does not support GTIDs");
+    mi->using_gtid= Master_info::USE_GTID_NO;
+  }
 
   if (mi->using_gtid != Master_info::USE_GTID_NO)
   {
@@ -3117,6 +3129,21 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                        Item_return_int(thd, "Slave_Transactional_Groups", 20,
                                        MYSQL_TYPE_LONGLONG),
                         mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Replicate_Rewrite_DB", 23),
+                        mem_root);
+
+  /*
+    Note, we must never, _ever_, add extra rows to this output of SHOW SLAVE
+    STATUS, except here at the end before the extra rows of SHOW ALL SLAVES
+    STATUS. Otherwise, we break backwards compatibility with applications or
+    scripts that parse the output!
+
+    This also means that we cannot add _any_ new rows in a GA version if a
+    different row was already added in a later MariaDB version, as this would
+    make it impossible to merge the change up while preserving the order of
+    rows.
+  */
 
   if (full)
   {
@@ -3389,6 +3416,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(mi->total_ddl_groups);
     protocol->store(mi->total_non_trans_groups);
     protocol->store(mi->total_trans_groups);
+    protocol->store(rpl_filter->get_rewrite_db());
 
     if (full)
     {
@@ -3828,8 +3856,8 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
                         rli->mi->clock_diff_with_master,
                         (long)now, (ulonglong)sql_delay_end, (long)nap_time));
     /* if using debug_sync for sql_delay, only delay once per event group */
-    if (DBUG_EVALUATE_IF("sql_delay_by_debug_sync", type == GTID_EVENT,
-                         sql_delay_end > now))
+    if (DBUG_IF("sql_delay_by_debug_sync")
+        ? type == GTID_EVENT : sql_delay_end > now)
     {
       DBUG_PRINT("info", ("delaying replication event %lu secs",
                           nap_time));
@@ -3999,6 +4027,10 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
   DBUG_PRINT("info", ("apply_event error = %d", exec_res));
   if (exec_res == 0)
   {
+    if (thd->rgi_slave && (thd->rgi_slave->gtid_ev_flags_extra &
+                           Gtid_log_event::FL_START_ALTER_E1) &&
+        thd->rgi_slave->get_finish_event_group_called())
+      DBUG_RETURN(exec_res ? 1 : 0);
     int error= ev->update_pos(rgi);
 #ifdef DBUG_TRACE
     DBUG_PRINT("info", ("update_pos error = %d", error));
@@ -4122,6 +4154,11 @@ int
 apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
                                         rpl_group_info *rgi)
 {
+  int rc= 0;
+  ulong retries= 0;
+  bool  is_sa= rgi->gtid_ev_flags_extra == Gtid_log_event::FL_START_ALTER_E1;
+  bool  is_sa_temp_err= false;
+
   mysql_mutex_assert_not_owner(&rgi->rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*
@@ -4133,7 +4170,51 @@ apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
     Calling sql_delay_event() was handled in the SQL driver thread when
     doing parallel replication.
   */
-  return apply_event_and_update_pos_apply(ev, thd, rgi, reason);
+  do
+  {
+    rc= apply_event_and_update_pos_apply(ev, thd, rgi, reason);
+    if (rc && is_sa)
+    {
+      is_sa_temp_err=
+        is_parallel_retry_error(rgi, thd->get_stmt_da()->sql_errno());
+    }
+  }
+  while(is_sa_temp_err && retries++ < slave_trans_retries);
+
+  if (is_sa_temp_err)
+  {
+    Master_info *mi= rgi->rli->mi;
+    mysql_mutex_lock(&mi->start_alter_lock);
+
+    DBUG_ASSERT(!rgi->sa_info->direct_commit_alter);
+    /*
+      Give up retrying to hand the whole ALTER execution over to
+      the "Complete" ALTER.
+    */
+    rgi->sa_info->direct_commit_alter= true;
+    rgi->sa_info->state= start_alter_state::COMPLETED;
+    mysql_cond_broadcast(&rgi->sa_info->start_alter_cond);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    if (global_system_variables.log_warnings > 2)
+    {
+      rpl_gtid *gtid= &rgi->current_gtid;
+      sql_print_information("Start Alter Query '%s' "
+                            "GTID %u-%u-%llu having a temporary error %d code "
+                            "has been unsuccessfully retried %lu times; its "
+                            "parallel optimistic execution now proceeds in "
+                            "legacy mode",
+                            static_cast<Query_log_event*>(ev)->query,
+                            gtid->domain_id, gtid->server_id, gtid->seq_no,
+                            thd->get_stmt_da()->sql_errno(), retries - 1);
+    }
+    thd->clear_error();
+    thd->reset_killed();
+    rgi->killed_for_retry = rpl_group_info::RETRY_KILL_NONE;
+
+    rc= false;
+  }
+
+  return rc;
 }
 
 
@@ -5122,7 +5203,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
           (!repl_semisync_slave.get_slave_enabled() ||
            (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
             (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
-          (DBUG_EVALUATE_IF("failed_flush_master_info", 1, 0) ||
+          (DBUG_IF("failed_flush_master_info") ||
            flush_master_info(mi, TRUE, TRUE)))
       {
         sql_print_error("Failed to flush master info file");
@@ -5773,8 +5854,10 @@ pthread_handler_t handle_slave_sql(void *arg)
 
  err:
   if (mi->using_parallel())
+  {
     rli->parallel.wait_for_done(thd, rli);
-  /* Gtid_list_log_event::do_apply_event has already reported the GTID until */
+  };
+ /* Gtid_list_log_event::do_apply_event has already reported the GTID until */
   if (rli->stop_for_until && rli->until_condition != Relay_log_info::UNTIL_GTID)
   {
     if (global_system_variables.log_warnings > 2)
@@ -6491,12 +6574,19 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     Rotate_log_event rev(buf, checksum_alg != BINLOG_CHECKSUM_ALG_OFF ?
                          event_len - BINLOG_CHECKSUM_LEN : event_len,
                          mi->rli.relay_log.description_event_for_queue);
+    bool master_changed= false;
+    bool maybe_crashed= false;
+    // Exclude server start scenario
+    if ((mi->prev_master_id && mi->master_id) &&
+        (mi->prev_master_id != mi->master_id))
+      master_changed= true;
+    if ((mi->master_log_name[0]!='\0') &&
+        (strcmp(rev.new_log_ident, mi->master_log_name) != 0))
+      maybe_crashed= true;
 
-    if (unlikely(mi->gtid_reconnect_event_skip_count) &&
-        unlikely(!mi->gtid_event_seen) &&
-        rev.is_artificial_event() &&
-        (mi->prev_master_id != mi->master_id ||
-         strcmp(rev.new_log_ident, mi->master_log_name) != 0))
+    if (unlikely((mi->gtid_reconnect_event_skip_count && master_changed) ||
+                 maybe_crashed) &&
+        unlikely(!mi->gtid_event_seen) && rev.is_artificial_event())
     {
       /*
         Artificial Rotate_log_event is the first event we receive at the start
@@ -6532,26 +6622,37 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         case likewise rollback the partially received event group.
       */
       Format_description_log_event fdle(4);
+      fdle.checksum_alg= checksum_alg;
 
-      if (mi->prev_master_id != mi->master_id)
-        sql_print_warning("The server_id of master server changed in the "
-                          "middle of GTID %u-%u-%llu. Assuming a change of "
-                          "master server, so rolling back the previously "
-                          "received partial transaction. Expected: %lu, "
-                          "received: %lu", mi->last_queued_gtid.domain_id,
-                          mi->last_queued_gtid.server_id,
-                          mi->last_queued_gtid.seq_no,
-                          mi->prev_master_id, mi->master_id);
-      else if (strcmp(rev.new_log_ident, mi->master_log_name) != 0)
-        sql_print_warning("Unexpected change of master binlog file name in the "
-                          "middle of GTID %u-%u-%llu, assuming that master has "
-                          "crashed and rolling back the transaction. Expected: "
-                          "'%s', received: '%s'",
-                          mi->last_queued_gtid.domain_id,
-                          mi->last_queued_gtid.server_id,
-                          mi->last_queued_gtid.seq_no,
-                          mi->master_log_name, rev.new_log_ident);
+      /*
+        Possible crash is flagged in being created FD' common header
+        to conduct any necessary cleanup by the slave applier.
+      */
+      if (maybe_crashed)
+        fdle.flags |= LOG_EVENT_BINLOG_IN_USE_F;
 
+
+      if (mi->gtid_reconnect_event_skip_count)
+      {
+        if (master_changed)
+          sql_print_warning("The server_id of master server changed in the "
+                            "middle of GTID %u-%u-%llu. Assuming a change of "
+                            "master server, so rolling back the previously "
+                            "received partial transaction. Expected: %lu, "
+                            "received: %lu", mi->last_queued_gtid.domain_id,
+                            mi->last_queued_gtid.server_id,
+                            mi->last_queued_gtid.seq_no,
+                            mi->prev_master_id, mi->master_id);
+        else
+          sql_print_warning("Unexpected change of master binlog file name in "
+                            "the middle of GTID %u-%u-%llu, assuming that "
+                            "master has crashed and rolling back the "
+                            "transaction. Expected: '%s', received: '%s'",
+                            mi->last_queued_gtid.domain_id,
+                            mi->last_queued_gtid.server_id,
+                            mi->last_queued_gtid.seq_no, mi->master_log_name,
+                            rev.new_log_ident);
+      }
       mysql_mutex_lock(log_lock);
       if (likely(!rli->relay_log.write_event(&fdle) &&
                  !rli->relay_log.flush_and_sync(NULL)))
@@ -7517,49 +7618,9 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   if (opt_slave_compressed_protocol)
     client_flag|= CLIENT_COMPRESS;                /* We will use compression */
 
-  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);
+  setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                 (char*) &my_true);
-
-#ifdef HAVE_OPENSSL
-  if (mi->ssl)
-  {
-    mysql_ssl_set(mysql,
-                  mi->ssl_key[0]?mi->ssl_key:0,
-                  mi->ssl_cert[0]?mi->ssl_cert:0,
-                  mi->ssl_ca[0]?mi->ssl_ca:0,
-                  mi->ssl_capath[0]?mi->ssl_capath:0,
-                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL,
-                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH,
-                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
-    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->ssl_verify_server_cert);
-  }
-#endif
-
-  /*
-    If server's default charset is not supported (like utf16, utf32) as client
-    charset, then set client charset to 'latin1' (default client charset).
-  */
-  if (is_supported_parser_charset(default_charset_info))
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
-  else
-  {
-    sql_print_information("'%s' can not be used as client character set. "
-                          "'%s' will be used as default client character set "
-                          "while connecting to master.",
-                          default_charset_info->cs_name.str,
-                          default_client_charset_info->cs_name.str);
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
-                  default_client_charset_info->cs_name.str);
-  }
-
-  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
-  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 
   /* we disallow empty users */
   if (mi->user[0] == 0)

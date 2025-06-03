@@ -559,7 +559,6 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
 --echo #
@@ -580,3 +579,32 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+--echo #
+
+CREATE TABLE t1
+(
+  c_int INT,
+  c_enum ENUM('1')
+);
+
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_enum)  FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+--disable_view_protocol
+--disable_ps_protocol
+--enable_metadata
+SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+SELECT COALESCE(c_int, c_enum)  FROM t1;
+--disable_metadata
+--enable_ps_protocol
+--enable_view_protocol
+
+DROP TABLE t1;

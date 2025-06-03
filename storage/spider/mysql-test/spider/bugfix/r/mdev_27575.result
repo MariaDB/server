@@ -5,6 +5,7 @@ for master_1
 for child2
 for child3
 SET GLOBAL default_tmp_storage_engine=spider;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'
 # restart
 SET GLOBAL default_storage_engine=Spider;
 # restart

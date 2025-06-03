@@ -184,6 +184,8 @@ connection server_3;
 RESET MASTER;
 connection server_4;
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/rpl_change_topology.inc [new topology=1->2->3->4->1]
 include/start_slave.inc
 connection server_3;

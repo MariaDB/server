@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYISAMCHK\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMYISAMCHK\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -189,7 +189,7 @@ Otherwise, when you run
 .RS 4
 .\}
 .nf
-warning: clients are using or haven\'t closed the table properly
+warning: clients are using or haven't closed the table properly
 .fi
 .if n \{\
 .RE
@@ -197,7 +197,7 @@ warning: clients are using or haven\'t closed the table properly
 .PP
 This means that you are trying to check a table that has been updated by another program (such as the
 \fBmysqld\fR
-server) that hasn\'t yet closed the file or that has died without closing the file properly, which can sometimes lead to the corruption of one or more
+server) that hasn't yet closed the file or that has died without closing the file properly, which can sometimes lead to the corruption of one or more
 MyISAM
 tables\&.
 .PP
@@ -273,9 +273,7 @@ Display a help message and exit\&. Options are presented in a single list\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/myisamchk\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/myisamchk.trace'.
 .RE
 .sp
 .RS 4
@@ -729,7 +727,7 @@ the section called \(lqMYISAMCHK TABLE INFORMATION\(rq\&.
 \fB\-\-fast\fR,
 \fB\-F\fR
 .sp
-Check only tables that haven\'t been closed properly\&.
+Check only tables that haven't been closed properly\&.
 .RE
 .sp
 .RS 4
@@ -751,7 +749,7 @@ finds any errors in the table\&. The repair type is the same as that specified w
 \fB\-\-recover\fR
 or
 \fB\-r\fR
-option\&. States will be updated as with 
+option\&. States will be updated as with
 \fB\-\-update\-state\fR\&.
 .RE
 .sp
@@ -826,7 +824,7 @@ Store information in the
 \&.MYI
 file to indicate when the table was checked and whether the table crashed\&. This should be used to get full benefit of the
 \fB\-\-check\-only\-changed\fR
-option, but you shouldn\'t use this option if the
+option, but you shouldn't use this option if the
 \fBmysqld\fR
 server is using the table and you are running it with external locking disabled\&.
 .RE
@@ -902,8 +900,8 @@ Correct the checksum information for the table\&.
 .\" create-missing-keys option: myisamchk
 \fB\-\-create\-missing\-keys\fR
 .sp
-Create missing keys. This assumes that the data file is correct and that the 
-number of rows stored in the index file is correct\&. Enables 
+Create missing keys. This assumes that the data file is correct and that the
+number of rows stored in the index file is correct\&. Enables
 \fB\-\-quick\fR\&.
 
 .RE
@@ -960,8 +958,8 @@ the section called \(lqMYISAMCHK TABLE INFORMATION\(rq\&.
 Overwrite old intermediate files (files with names like
 \fItbl_name\fR\&.TMD) instead of aborting\&. Add another
 \fB\-\-force\fR
-to avoid 'myisam_sort_buffer_size is too small' errors\&. In this case 
-we will attempt to do the repair with the given 
+to avoid 'myisam_sort_buffer_size is too small' errors\&. In this case
+we will attempt to do the repair with the given
 \fBmyisam_sort_buffer_size\fR
 and dynamically allocate as many management buffers as needed\&.
 .RE
@@ -1287,8 +1285,8 @@ Sort records according to a particular index\&. This makes your data much more l
 SELECT
 and
 ORDER BY
-operations that use this index\&. (The first time you use this option to sort a table, it may be very slow\&.) To determine a table\'s index numbers, use
-SHOW INDEX, which displays a table\'s indexes in the same order that
+operations that use this index\&. (The first time you use this option to sort a table, it may be very slow\&.) To determine a table's index numbers, use
+SHOW INDEX, which displays a table's indexes in the same order that
 \fBmyisamchk\fR
 sees them\&. Indexes are numbered beginning with 1\&.
 .sp
@@ -1311,7 +1309,7 @@ must unpack key blocks first, then re\-create indexes and pack the key blocks ag
 .\" stats_method option: myisamchk
 \fB\-\-stats\-method=name\fR
 .sp
-Specifies how index statistics collection code should treat NULLs\&. Possible values 
+Specifies how index statistics collection code should treat NULLs\&. Possible values
 of name are "nulls_unequal" (default), "nulls_equal" (emulate MySQL 4 behavior), and "nulls_ignored"\&.
 .RE
 .SH "MYISAMCHK TABLE INFORMATION"
@@ -1616,7 +1614,7 @@ sorted index pages\&.
 Auto increment key,
 Last value
 .sp
-The key number associated the table\'s
+The key number associated the table's
 AUTO_INCREMENT
 column, and the most recently generated value for this column\&. These fields do not appear if there is no such column\&.
 .RE
@@ -1757,7 +1755,7 @@ displays some low\-level information:
 .\}
 Key
 .sp
-This key\'s number\&. This value is shown only for the first column of the key\&. If this value is missing, the line corresponds to the second or later column of a multiple\-column key\&. For the table shown in the example, there are two
+This key's number\&. This value is shown only for the first column of the key\&. If this value is missing, the line corresponds to the second or later column of a multiple\-column key\&. For the table shown in the example, there are two
 table description
 lines for the second index\&. This indicates that it is a multiple\-part index with two parts\&.
 .RE

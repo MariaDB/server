@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-TZINFO-TO-S" "1" "22 April 2022" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-TZINFO-TO-SQL\fR" "1" "22 April 2022" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -64,7 +64,7 @@ shell> \fBmysql_tzinfo_to_sql /usr/share/zoneinfo | mysql \-u root mysql\fR
 .\}
 .PP
 \fBmysql_tzinfo_to_sql\fR
-reads your system\'s time zone files and generates SQL statements from them\&.
+reads your system's time zone files and generates SQL statements from them\&.
 \fBmysql\fR
 processes those statements to load the time zone tables\&.
 .PP

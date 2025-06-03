@@ -787,12 +787,12 @@ enum class item_base_t : item_flags_t
   FIXED=                 (1<<2),   // Was fixed with fix_fields().
   IS_EXPLICIT_NAME=      (1<<3),   // The name of this Item was set by the user
                                    // (or was auto generated otherwise)
-  IS_IN_WITH_CYCLE=      (1<<4),   // This item is in CYCLE clause
-                                   // of WITH.
-  IS_COND=               (1<<5)    // The item is used as <search condition>.
+  IS_IN_WITH_CYCLE=      (1<<4),   // This item is in CYCLE clause of WITH.
+  IS_COND=               (1<<5),   // The item is used as <search condition>.
                                    // Must be evaluated using val_bool().
                                    // Note, not all items used as a search
                                    // condition set this flag yet.
+  AT_TOP_LEVEL=          (1<<6)    // At top (AND) level of item tree
 };
 
 
@@ -1364,6 +1364,25 @@ public:
   {
     set_maybe_null(maybe_null_arg);
   }
+  /*
+    Mark the item that it is a top level item, or part of a top level AND item,
+    for WHERE and ON clauses:
+    Example:   ... WHERE a=5 AND b=6;   Both a=5 and b=6 are top level items
+
+    This is used to indicate that there is no distinction between if the
+    value of the item is FALSE or NULL..
+    This enables Item_cond_and and subquery related items to do special
+    "top level" optimizations.
+  */
+  virtual void top_level_item()
+  {
+    base_flags|= item_base_t::AT_TOP_LEVEL;
+  }
+  /*
+    Return TRUE if this item of top WHERE level (AND/OR)
+  */
+  bool is_top_level_item() const
+  { return (bool) (base_flags & item_base_t::AT_TOP_LEVEL); }
 
   void set_typelib(const TYPELIB *typelib) override
   {
@@ -1871,6 +1890,16 @@ public:
   */
   virtual bool is_evaluable_expression() const { return true; }
 
+  virtual bool check_assignability_to(const Field *to, bool ignore) const
+  {
+    /*
+      "this" must be neither DEFAULT/IGNORE,
+      nor Item_param bound to DEFAULT/IGNORE.
+    */
+    DBUG_ASSERT(is_evaluable_expression());
+    return to->check_assignability_from(type_handler(), ignore);
+  }
+
   /**
    * Check whether the item is a parameter  ('?') of stored routine.
    * Default implementation returns false. Method is overridden in the class
@@ -1936,6 +1965,19 @@ public:
   */
   virtual Item *clone_item(THD *thd) const { return nullptr; }
 
+  /*
+    @detail
+    The meaning of this function seems to be:
+      Check what the item would return if it was provided with two identical
+      non-NULL arguments.
+    It is not clear why it is defined for generic class Item or what its other
+    uses are.
+
+    @return
+       COND_TRUE   Would return true
+       COND_FALSE  Would return false
+       COND_OK     May return either, depending on the argument type.
+  */
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
@@ -2135,25 +2177,6 @@ public:
   {
     return type_handler()->Item_update_null_value(this);
   }
-
-  /*
-    Inform the item that there will be no distinction between its result
-    being FALSE or NULL.
-
-    NOTE
-      This function will be called for eg. Items that are top-level AND-parts
-      of the WHERE clause. Items implementing this function (currently
-      Item_cond_and and subquery-related item) enable special optimizations
-      when they are "top level".
-  */
-  virtual void top_level_item() {}
-  /*
-    Return TRUE if it is item of top WHERE level (AND/OR)  and it is
-    important, return FALSE if it not important (we can not use to simplify
-    calculations) or not top level
-  */
-  virtual bool is_top_level_item() const
-  { return FALSE; /* not important */}
   /*
     return IN/ALL/ANY subquery or NULL
   */
@@ -2743,18 +2766,27 @@ public:
   void register_in(THD *thd);	 
   
   bool depends_only_on(table_map view_map) 
-  { return marker & MARKER_FULL_EXTRACTION; }
-  int get_extraction_flag()
-  { return marker & MARKER_EXTRACTION_MASK; }
+  { return get_extraction_flag() & MARKER_FULL_EXTRACTION; }
+   int get_extraction_flag() const
+  {
+    if (basic_const_item())
+      return MARKER_FULL_EXTRACTION;
+    else
+      return marker & MARKER_EXTRACTION_MASK;
+  }
   void set_extraction_flag(int16 flags)
   {
-    marker &= ~MARKER_EXTRACTION_MASK;
-    marker|= flags;
+    if (!basic_const_item())
+    {
+      marker= marker & ~MARKER_EXTRACTION_MASK;
+      marker|= flags;
+    }
   }
   void clear_extraction_flag()
   {
-    marker &= ~MARKER_EXTRACTION_MASK;
-  }
+    if (!basic_const_item())
+      marker= marker & ~MARKER_EXTRACTION_MASK;
+   }
   void check_pushable_cond(Pushdown_checker excl_dep_func, uchar *arg);
   bool pushable_cond_checker_for_derived(uchar *arg)
   {
@@ -3668,6 +3700,23 @@ public:
   privilege_t have_privileges;
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
+
+private:
+  /*
+    Indicates whether this Item_field refers to a regular or some kind of
+    temporary table.
+    This is needed for print() to work: it may be called even after the table
+    referred by the Item_field has been dropped.
+
+    See ExplainDataStructureLifetime in sql_explain.h for details.
+  */
+  enum {
+    NO_TEMP_TABLE= 0,
+    REFERS_TO_DERIVED_TMP= 1,
+    REFERS_TO_OTHER_TMP=2
+  } refers_to_temp_table = NO_TEMP_TABLE;
+
+public:
   Item_field(THD *thd, Name_resolution_context *context_arg,
              const LEX_CSTRING &db_arg, const LEX_CSTRING &table_name_arg,
 	     const LEX_CSTRING &field_name_arg);
@@ -3887,6 +3936,7 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg) override;
+  void set_refers_to_temp_table();
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -3922,46 +3972,6 @@ public:
     return false;
   }
   bool row_create_items(THD *thd, List<Spvar_definition> *list);
-};
-
-
-/*
-  @brief 
-    Item_temptable_field is the same as Item_field, except that print() 
-    continues to work even if the table has been dropped.
-
-  @detail
-
-    We need this item for "ANALYZE statement" feature. Query execution has 
-    these steps:
-
-      1. Run the query.
-      2. Cleanup starts. Temporary tables are destroyed
-      3. print "ANALYZE statement" output, if needed
-      4. Call close_thread_table() for regular tables.
-
-    Step #4 is done after step #3, so "ANALYZE stmt" has no problem printing
-    Item_field objects that refer to regular tables.
-
-    However, Step #3 is done after Step #2. Attempt to print Item_field objects
-    that refer to temporary tables will cause access to freed memory. 
-    
-    To resolve this, we use Item_temptable_field to refer to items in temporary
-    (work) tables.
-*/
-
-class Item_temptable_field :public Item_field
-{
-public:
-  Item_temptable_field(THD *thd, Name_resolution_context *context_arg, Field *field)
-   : Item_field(thd, context_arg, field) {}
-
-  Item_temptable_field(THD *thd, Field *field)
-   : Item_field(thd, field) {}
-
-  Item_temptable_field(THD *thd, Item_field *item) : Item_field(thd, item) {};
-
-  void print(String *str, enum_query_type query_type) override;
 };
 
 
@@ -4221,6 +4231,7 @@ class Item_param :public Item_basic_value,
   const String *value_query_val_str(THD *thd, String* str) const;
   Item *value_clone_item(THD *thd) const;
   bool is_evaluable_expression() const override;
+  bool check_assignability_to(const Field *field, bool ignore) const override;
   bool can_return_value() const;
 
 public:
@@ -4336,7 +4347,32 @@ public:
 
   void set_default(bool set_type_handler_null);
   void set_ignore(bool set_type_handler_null);
-  void set_null();
+  void set_null(const DTCollation &c);
+  void set_null_string(const DTCollation &c)
+  {
+    /*
+      We need to distinguish explicit NULL (marked by DERIVATION_IGNORABLE)
+      from other item types:
+
+      - These statements should give an error, because
+        the character set of the bound parameter is not known:
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin" USING NULL;
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin" USING CONCAT(NULL);
+
+      - These statements should return a good result, because
+        the character set of the bound parameter is known:
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin"
+                      USING CONVERT(NULL USING utf8mb4);
+          EXECUTE IMMEDIATE "SELECT ? COLLATE utf8mb4_bin"
+                      USING CAST(NULL AS CHAR CHARACTER SET utf8mb4);
+    */
+    set_null(DTCollation(c.collation, MY_MAX(c.derivation,
+                                             DERIVATION_COERCIBLE)));
+  }
+  void set_null()
+  {
+    set_null(DTCollation(&my_charset_bin, DERIVATION_IGNORABLE));
+  }
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
   void set_decimal(const char *str, ulong length);
@@ -4601,13 +4637,19 @@ public:
   Item_bool_static(const char *str_arg, longlong i):
     Item_bool(str_arg, i) {};
 
+  /* Don't mark static items as top level item */
+  virtual void top_level_item() override {}
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
+
+  void cleanup() override {}
+
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_bool_static>(thd, this); }
 };
 
-extern const Item_bool_static Item_false, Item_true;
+/* The following variablese are stored in a read only segment */
+extern Item_bool_static *Item_false, *Item_true;
 
 class Item_uint :public Item_int
 {
@@ -5739,7 +5781,7 @@ public:
   inline const char *func_name() const
   { return (char*) func_name_cstring().str; }
   virtual LEX_CSTRING func_name_cstring() const= 0;
-  virtual bool fix_length_and_dec()= 0;
+  virtual bool fix_length_and_dec(THD *thd)= 0;
   bool const_item() const override { return const_item_cache; }
   table_map used_tables() const override { return used_tables_cache; }
   Item* do_build_clone(THD *thd) const override;
@@ -7106,6 +7148,10 @@ public:
   {
     str->append(STRING_WITH_LEN("default"));
   }
+  bool check_assignability_to(const Field *to, bool ignore) const override
+  {
+    return false;
+  }
   int save_in_field(Field *field_arg, bool) override
   {
     return field_arg->save_in_field_default_value(false);
@@ -7139,6 +7185,10 @@ public:
   void print(String *str, enum_query_type) override
   {
     str->append(STRING_WITH_LEN("ignore"));
+  }
+  bool check_assignability_to(const Field *to, bool ignore) const override
+  {
+    return false;
   }
   int save_in_field(Field *field_arg, bool) override
   {

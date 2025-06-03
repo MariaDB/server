@@ -62,11 +62,11 @@ extern ulong		innodb_change_buffering;
 
 /** Insert buffer struct */
 struct ibuf_t{
-	Atomic_relaxed<ulint> size;	/*!< current size of the ibuf index
+	Atomic_relaxed<uint32_t> size;	/*!< current size of the ibuf index
 					tree, in pages */
-	Atomic_relaxed<ulint> max_size;	/*!< recommended maximum size of the
+	Atomic_relaxed<uint32_t> max_size;/*!< recommended maximum size of the
 					ibuf index tree, in pages */
-	ulint		seg_size;	/*!< allocated pages of the file
+	uint32_t	seg_size;	/*!< allocated pages of the file
 					segment containing ibuf header and
 					tree */
 	bool		empty;		/*!< Protected by the page
@@ -75,8 +75,8 @@ struct ibuf_t{
 					(FSP_IBUF_TREE_ROOT_PAGE_NO). true
 					if and only if the insert
 					buffer tree is empty. */
-	ulint		free_list_len;	/*!< length of the free list */
-	ulint		height;		/*!< tree height */
+	uint8_t		height;		/*!< tree height */
+	uint32_t	free_list_len;	/*!< length of the free list */
 	dict_index_t*	index;		/*!< insert buffer index */
 
 	/** number of pages merged */
@@ -365,7 +365,7 @@ dberr_t ibuf_merge_or_delete_for_page(buf_block_t *block,
 /** Delete all change buffer entries for a tablespace,
 in DISCARD TABLESPACE, IMPORT TABLESPACE, or read-ahead.
 @param[in]	space		missing or to-be-discarded tablespace */
-void ibuf_delete_for_discarded_space(ulint space);
+void ibuf_delete_for_discarded_space(uint32_t space);
 
 /** Contract the change buffer by reading pages to the buffer pool.
 @return a lower limit for the combined size in bytes of entries which

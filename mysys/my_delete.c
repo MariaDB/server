@@ -208,7 +208,7 @@ int my_rmtree(const char *dir, myf MyFlags)
   char path[FN_REFLEN];
   char sep[] = { FN_LIBCHAR, 0 };
   int err = 0;
-  uint i;
+  size_t i;
 
   MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
   if (!dir_info)

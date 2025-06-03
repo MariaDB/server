@@ -1,0 +1,40 @@
+--- insert_into_empty.result
++++ insert_into_empty,4k.result
+@@ -451,7 +451,7 @@
+ INSERT IGNORE INTO t1 VALUES
+ (1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
+ (2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));
+-ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
++ERROR 42000: Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ CHECK TABLE t1;
+ Table	Op	Msg_type	Msg_text
+ test.t1	check	status	OK
+@@ -542,28 +542,6 @@
+ commit;
+ DROP TABLE t1;
+ #
+-#  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
+-#               failed in cmp_rec_rec_simple_field
+-#
+-CREATE TABLE t1(a BLOB, b VARCHAR(2048), PRIMARY KEY (b)) ENGINE=InnoDB;
+-INSERT INTO t1 VALUES (REPEAT('x',4805),'a'), (REPEAT('x',16111),'b'),
+-(REPEAT('x',65535),'c'), (REPEAT('x',11312),'d'),
+-(REPEAT('x',35177),'e'), (REPEAT('x',65535),'f'),
+-(REPEAT('x',1988),'g'), (NULL,REPEAT('x',2048)),
+-(REPEAT('x',2503),'h'), (REPEAT('x',33152),'i'),
+-(REPEAT('x',65535),'j'), (REPEAT('x',1988),'k'),
+-(REPEAT('x',65535),'l'), (REPEAT('x',65535),'m'),
+-(REPEAT('x',65535),'n'), (REPEAT('x',65535),'o'),
+-(REPEAT('x',1988),'p'), (REPEAT('x',2503),'q'),
+-(REPEAT('x',65535),'r'), (REPEAT('x',65535),'s'),
+-(REPEAT('x',65535),'t'), (REPEAT('x',3169),'u'),
+-(REPEAT('x',7071),'v'), (REPEAT('x',16111),'w'),
+-(REPEAT('x',2325),'x'), (REPEAT('x',33152),'y'),
+-(REPEAT('x',65535),'z'), (REPEAT('x',65535),'aa'),
+-(REPEAT('x',16111),'bb'), (REPEAT('x',4805),'cc'),
+-(REPEAT('x',65535),'dd');
+-DROP TABLE t1;
+-#
+ #  Assertion `page_dir_get_n_heap(new_page) == 2U' failed
+ #                  in dberr_t PageBulk::init()
+ #

@@ -6841,3 +6841,56 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-29587: Allowing insert into a view with columns that
+--echo # are not part the table
+--echo #
+
+--echo # view with 2 the same fields
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and expression over the field
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and collation expression over the field
+CREATE TABLE table1 (x char(20));
+CREATE VIEW view1 AS SELECT x, x collate latin1_german1_ci as x1 FROM table1;
+INSERT INTO view1(x) VALUES ("ua");
+--echo # we can insert in the field with collation
+INSERT INTO view1(x1) VALUES ("ua");
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES ("ua","ua");
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and expression over other field
+CREATE TABLE table1 (x INT, y INT);
+CREATE VIEW view1 AS SELECT x, y + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo #
+--echo # End of 10.11 test
+--echo #

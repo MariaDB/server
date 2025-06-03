@@ -182,7 +182,7 @@ ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
 ALTER TABLE t1 ADD KEY idx2(f);
 DROP TABLE t1;
 CREATE TABLE t1(a blob , b blob , unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 insert into t1 values(1,1);
 --error ER_DUP_ENTRY
@@ -743,6 +743,32 @@ drop table a;
 --echo # veirfy that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
+drop table t1;
+
+--echo #
+--echo # MDEV-33675 assertion(reclength < vreclength) in setup_vcols_for_repair()
+--echo #
+create table t (c1 bit, unique key(c1) using hash) engine=myisam;
+insert into t values (0);
+check table t;
+insert into t values();
+select cast(c1 as unsigned) c1 from t;
+drop table t;
+
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+                 c4 long as (c1) stored) engine=myisam;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+drop table t1;
+
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+                 c4 long as (c1) stored) engine=aria;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
 drop table t1;
 
 --echo # End of 10.5 tests

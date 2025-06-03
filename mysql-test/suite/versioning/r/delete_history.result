@@ -232,3 +232,22 @@ delete from t;
 delete history from t;
 drop table t;
 # End of 10.5 tests
+#
+# MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+#
+# Don't auto-create new partition on DELETE HISTORY:
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+set timestamp= unix_timestamp('2000-01-01 10:00:00');
+delete history from t;
+set timestamp= default;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 2
+drop table t;
+# End of 10.9 tests

@@ -313,12 +313,9 @@ private:
 			pool = UT_NEW_NOKEY(PoolType(m_size));
 
 			if (pool != NULL) {
-
-				ut_ad(n_pools <= m_pools.size());
-
 				m_pools.push_back(pool);
 
-				ib::info() << "Number of pools: "
+				ib::info() << "Number of transaction pools: "
 					<< m_pools.size();
 
 				added = true;

@@ -437,7 +437,7 @@ connection master;
 ** Stop and Reset Slave **
 
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 
 ** create table slave side **
 CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
@@ -482,7 +482,7 @@ connection slave;
 
 *** Create t11 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t11 (a INT PRIMARY KEY, b BLOB, c VARCHAR(254)
 ) ENGINE='MyISAM';
 
@@ -524,7 +524,7 @@ connection slave;
 
 *** Create t12 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t12 (a INT PRIMARY KEY, b BLOB, c BLOB
 ) ENGINE='MyISAM';
 
@@ -573,7 +573,7 @@ connection slave;
 
 *** Create t14 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t14 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE='MyISAM';
 
@@ -638,7 +638,7 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1091]
 Last_SQL_Error = 'Error 'Can't DROP COLUMN `c7`; check that it exists' on query. Default database: 'test'. Query: 'ALTER TABLE t14 DROP COLUMN c7''
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 
 *** Drop t14  ***
 DROP TABLE t14;
@@ -655,7 +655,9 @@ START SLAVE;
 
 *** Create t15 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-104. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CREATE TABLE t15 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE='MyISAM';
 
@@ -693,7 +695,9 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1054]
 Last_SQL_Error = 'Error 'Unknown column 'c7' in 't15'' on query. Default database: 'test'. Query: 'ALTER TABLE t15 ADD COLUMN c2 DECIMAL(8,2) AFTER c7''
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-105. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 
 *** Drop t15  ***
 DROP TABLE t15;
@@ -710,7 +714,9 @@ START SLAVE;
 
 *** Create t16 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-106. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CREATE TABLE t16 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE='MyISAM';
 
@@ -748,7 +754,9 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1072]
 Last_SQL_Error = 'Error 'Key column 'c6' doesn't exist in table' on query. Default database: 'test'. Query: 'CREATE INDEX part_of_c6 ON t16 (c6)''
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-107. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 
 *** Drop t16  ***
 DROP TABLE t16;
@@ -765,7 +773,9 @@ START SLAVE;
 
 *** Create t17 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-108. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CREATE TABLE t17 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE='MyISAM';
 
@@ -831,7 +841,7 @@ connection slave;
 *** Create t18 on slave  ***
 
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t18 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE='MyISAM';
 
@@ -896,7 +906,7 @@ connection slave;
 
 *** Create t5 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t5 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
 ) ENGINE='MyISAM';
 

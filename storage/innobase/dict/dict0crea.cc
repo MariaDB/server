@@ -349,8 +349,8 @@ dict_build_table_def_step(
 	dict_table_t*	table = node->table;
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
-	ut_ad(table->space_id == ULINT_UNDEFINED);
-	dict_hdr_get_new_id(&table->id, NULL, NULL);
+	ut_ad(table->space_id == UINT32_MAX);
+	dict_hdr_get_new_id(&table->id, nullptr, nullptr);
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -365,10 +365,10 @@ dict_build_table_def_step(
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
-			table->space_id = ULINT_UNDEFINED;
+			table->space_id = UINT32_MAX;
 		);
 
-		if (table->space_id == ULINT_UNDEFINED) {
+		if (table->space_id == UINT32_MAX) {
 			return DB_ERROR;
 		}
 	} else {
@@ -534,15 +534,15 @@ dict_create_sys_fields_tuple(
 	dict_field_t*	field;
 	dfield_t*	dfield;
 	byte*		ptr;
-	ibool		index_contains_column_prefix_field	= FALSE;
-	ulint		j;
+	bool		wide_pos = false;
 
 	ut_ad(index);
 	ut_ad(heap);
 
-	for (j = 0; j < index->n_fields; j++) {
-		if (dict_index_get_nth_field(index, j)->prefix_len > 0) {
-			index_contains_column_prefix_field = TRUE;
+	for (unsigned j = 0; j < index->n_fields; j++) {
+		const dict_field_t* f = dict_index_get_nth_field(index, j);
+		if (f->prefix_len || f->descending) {
+			wide_pos = true;
 			break;
 		}
 	}
@@ -567,12 +567,15 @@ dict_create_sys_fields_tuple(
 
 	ptr = static_cast<byte*>(mem_heap_alloc(heap, 4));
 
-	if (index_contains_column_prefix_field) {
-		/* If there are column prefix fields in the index, then
-		we store the number of the field to the 2 HIGH bytes
-		and the prefix length to the 2 low bytes, */
-
-		mach_write_to_4(ptr, (fld_no << 16) + field->prefix_len);
+	if (wide_pos) {
+		/* If there are column prefixes or columns with
+		descending order in the index, then we write the
+		field number to the 16 most significant bits,
+		the DESC flag to bit 15, and the prefix length
+		in the 15 least significant bits. */
+		mach_write_to_4(ptr, (fld_no << 16)
+				| (!!field->descending) << 15
+				| field->prefix_len);
 	} else {
 		/* Else we store the number of the field to the 2 LOW bytes.
 		This is to keep the storage format compatible with
@@ -1107,8 +1110,6 @@ dict_create_table_step(
 	}
 
 	if (node->state == TABLE_ADD_TO_CACHE) {
-		DBUG_EXECUTE_IF("ib_ddl_crash_during_create", DBUG_SUICIDE(););
-
 		node->table->can_be_evicted = !node->table->fts;
 		node->table->add_to_cache();
 

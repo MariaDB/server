@@ -22,7 +22,7 @@
 #else
 #define SSL_STATIC static
 #endif
-SSL_STATIC my_bool opt_use_ssl   = 0;
+SSL_STATIC my_bool opt_use_ssl   = 1;
 SSL_STATIC char *opt_ssl_ca      = 0;
 SSL_STATIC char *opt_ssl_capath  = 0;
 SSL_STATIC char *opt_ssl_cert    = 0;

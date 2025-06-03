@@ -13,9 +13,9 @@ def	mysql	column_stats	avg_frequency	8	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL
 def	mysql	column_stats	avg_length	7	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)					NEVER	NULL
 def	mysql	column_stats	column_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(64)	PRI				NEVER	NULL
 def	mysql	column_stats	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(64)	PRI				NEVER	NULL
-def	mysql	column_stats	histogram	11	NULL	YES	varbinary	255	255	NULL	NULL	NULL	NULL	NULL	varbinary(255)					NEVER	NULL
+def	mysql	column_stats	histogram	11	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
 def	mysql	column_stats	hist_size	9	NULL	YES	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(3) unsigned					NEVER	NULL
-def	mysql	column_stats	hist_type	10	NULL	YES	enum	14	42	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')					NEVER	NULL
+def	mysql	column_stats	hist_type	10	NULL	YES	enum	14	42	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')					NEVER	NULL
 def	mysql	column_stats	max_value	5	NULL	YES	varbinary	255	255	NULL	NULL	NULL	NULL	NULL	varbinary(255)					NEVER	NULL
 def	mysql	column_stats	min_value	4	NULL	YES	varbinary	255	255	NULL	NULL	NULL	NULL	NULL	varbinary(255)					NEVER	NULL
 def	mysql	column_stats	nulls_ratio	6	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)					NEVER	NULL
@@ -46,11 +46,11 @@ def	mysql	db	User	3	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(1
 def	mysql	event	body	3	NULL	NO	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
 def	mysql	event	body_utf8	22	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
 def	mysql	event	character_set_client	19	NULL	YES	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)					NEVER	NULL
-def	mysql	event	collation_connection	20	NULL	YES	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)					NEVER	NULL
+def	mysql	event	collation_connection	20	NULL	YES	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)					NEVER	NULL
 def	mysql	event	comment	16	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)					NEVER	NULL
 def	mysql	event	created	8	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()			NEVER	NULL
 def	mysql	event	db	1	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)	PRI				NEVER	NULL
-def	mysql	event	db_collation	21	NULL	YES	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)					NEVER	NULL
+def	mysql	event	db_collation	21	NULL	YES	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)					NEVER	NULL
 def	mysql	event	definer	4	''	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(384)					NEVER	NULL
 def	mysql	event	ends	12	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime					NEVER	NULL
 def	mysql	event	execute_at	5	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime					NEVER	NULL
@@ -107,11 +107,11 @@ def	mysql	proc	aggregate	21	'NONE'	NO	enum	5	15	NULL	NULL	NULL	utf8mb3	utf8mb3_g
 def	mysql	proc	body	11	NULL	NO	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
 def	mysql	proc	body_utf8	20	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob					NEVER	NULL
 def	mysql	proc	character_set_client	17	NULL	YES	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)					NEVER	NULL
-def	mysql	proc	collation_connection	18	NULL	YES	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)					NEVER	NULL
+def	mysql	proc	collation_connection	18	NULL	YES	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)					NEVER	NULL
 def	mysql	proc	comment	16	NULL	NO	text	65535	65535	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	text					NEVER	NULL
 def	mysql	proc	created	13	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()			NEVER	NULL
 def	mysql	proc	db	1	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)	PRI				NEVER	NULL
-def	mysql	proc	db_collation	19	NULL	YES	char	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(32)					NEVER	NULL
+def	mysql	proc	db_collation	19	NULL	YES	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)					NEVER	NULL
 def	mysql	proc	definer	12	''	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(384)					NEVER	NULL
 def	mysql	proc	is_deterministic	7	'NO'	NO	enum	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('YES','NO')					NEVER	NULL
 def	mysql	proc	language	5	'SQL'	NO	enum	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('SQL')					NEVER	NULL
@@ -342,8 +342,8 @@ NULL	mysql	column_stats	nulls_ratio	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	avg_length	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	avg_frequency	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	hist_size	tinyint	NULL	NULL	NULL	NULL	tinyint(3) unsigned
-3.0000	mysql	column_stats	hist_type	enum	14	42	utf8mb3	utf8mb3_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')
-1.0000	mysql	column_stats	histogram	varbinary	255	255	NULL	NULL	varbinary(255)
+3.0000	mysql	column_stats	hist_type	enum	14	42	utf8mb3	utf8mb3_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')
+1.0000	mysql	column_stats	histogram	longblob	4294967295	4294967295	NULL	NULL	longblob
 3.0000	mysql	db	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	db	Db	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 3.0000	mysql	db	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)
@@ -386,8 +386,8 @@ NULL	mysql	event	ends	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	mysql	event	originator	int	NULL	NULL	NULL	NULL	int(10) unsigned
 1.0000	mysql	event	time_zone	char	64	64	latin1	latin1_swedish_ci	char(64)
 3.0000	mysql	event	character_set_client	char	32	96	utf8mb3	utf8mb3_bin	char(32)
-3.0000	mysql	event	collation_connection	char	32	96	utf8mb3	utf8mb3_bin	char(32)
-3.0000	mysql	event	db_collation	char	32	96	utf8mb3	utf8mb3_bin	char(32)
+3.0000	mysql	event	collation_connection	char	64	192	utf8mb3	utf8mb3_bin	char(64)
+3.0000	mysql	event	db_collation	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 1.0000	mysql	event	body_utf8	longblob	4294967295	4294967295	NULL	NULL	longblob
 3.0000	mysql	func	name	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 NULL	mysql	func	ret	tinyint	NULL	NULL	NULL	NULL	tinyint(1)
@@ -444,8 +444,8 @@ NULL	mysql	proc	modified	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	proc	sql_mode	set	561	1683	utf8mb3	utf8mb3_general_ci	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL')
 1.0000	mysql	proc	comment	text	65535	65535	utf8mb3	utf8mb3_bin	text
 3.0000	mysql	proc	character_set_client	char	32	96	utf8mb3	utf8mb3_bin	char(32)
-3.0000	mysql	proc	collation_connection	char	32	96	utf8mb3	utf8mb3_bin	char(32)
-3.0000	mysql	proc	db_collation	char	32	96	utf8mb3	utf8mb3_bin	char(32)
+3.0000	mysql	proc	collation_connection	char	64	192	utf8mb3	utf8mb3_bin	char(64)
+3.0000	mysql	proc	db_collation	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 1.0000	mysql	proc	body_utf8	longblob	4294967295	4294967295	NULL	NULL	longblob
 3.0000	mysql	proc	aggregate	enum	5	15	utf8mb3	utf8mb3_general_ci	enum('NONE','GROUP')
 3.0000	mysql	procs_priv	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)

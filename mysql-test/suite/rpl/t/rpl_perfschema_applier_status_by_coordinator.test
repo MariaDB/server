@@ -213,6 +213,7 @@ reset master;
 --source include/stop_slave.inc
 reset slave;
 reset master;
+set @@global.gtid_slave_pos= "";
 set @saved_slave_trans_retry_interval= @@GLOBAL.slave_transaction_retry_interval;
 set global slave_transaction_retry_interval=1;
 --source include/start_slave.inc

@@ -1,6 +1,7 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
 --source include/have_symlink.inc
+--source include/not_as_root.inc
 
 let datadir= `select @@datadir`;
 let page_size= `select @@innodb_page_size`;
@@ -90,31 +91,6 @@ SELECT * FROM tr;
 SELECT * FROM tc;
 SELECT * FROM td;
 DROP TABLE tr,tc,td;
-
---echo #
---echo # MDEV-27467 innodb to enfore the minimum innodb_buffer_pool_size in SET (resize) the same as startup
---echo #
-
-let $wait_timeout = 180;
-let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 34) = 'Completed resizing buffer pool at '
-  FROM information_schema.global_status
-  WHERE LOWER(variable_name) = 'innodb_buffer_pool_resize_status';
-
---disable_cursor_protocol
-SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
-SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
---enable_cursor_protocol
---error ER_WRONG_VALUE_FOR_VAR
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size -1);
-
-SHOW WARNINGS;
-
-EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size);
-
---source include/wait_condition.inc
-
-SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
 
 --echo #
 --echo # MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message

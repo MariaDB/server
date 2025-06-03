@@ -768,7 +768,7 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 void JOIN::add_keyuses_for_splitting()
 {
   uint i;
-  uint idx;
+  size_t idx;
   KEYUSE_EXT *keyuse_ext;
   KEYUSE_EXT keyuse_ext_end;
   double oper_cost;
@@ -830,7 +830,7 @@ void JOIN::add_keyuses_for_splitting()
     added_keyuse->validity_ref= &keyuse_ext->validity_var;
   }
 
-  if (sort_and_filter_keyuse(thd, &keyuse, true))
+  if (sort_and_filter_keyuse(this, &keyuse, true))
     goto err;
   optimize_keyuse(this, &keyuse);
 

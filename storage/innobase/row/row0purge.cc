@@ -460,6 +460,21 @@ func_exit:
 	return (true);
 }
 
+/** @return whether two data tuples are equal */
+bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2)
+{
+  ut_ad(tuple1.magic_n == DATA_TUPLE_MAGIC_N);
+  ut_ad(tuple2.magic_n == DATA_TUPLE_MAGIC_N);
+  ut_ad(dtuple_check_typed(&tuple1));
+  ut_ad(dtuple_check_typed(&tuple2));
+  ut_ad(tuple1.n_fields == tuple2.n_fields);
+
+  for (ulint i= 0; i < tuple1.n_fields; i++)
+    if (cmp_dfield_dfield(&tuple1.fields[i], &tuple2.fields[i]))
+      return false;
+  return true;
+}
+
 /** Finds out if a version of the record, where the version >= the current
 purge_sys.view, should have ientry as its secondary index entry. We check
 if there is any not delete marked version of the record where the trx
@@ -540,7 +555,7 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 
 				entry = row_build_index_entry(
 					row, ext, index, heap);
-				if (entry && !dtuple_coll_cmp(ientry, entry)) {
+				if (entry && dtuple_coll_eq(*ientry, *entry)) {
 					goto unsafe_to_purge;
 				}
 			} else {
@@ -595,7 +610,7 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 			the clustered index record has already been updated to
 			a different binary value in a char field, but the
 			collation identifies the old and new value anyway! */
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 unsafe_to_purge:
 				mem_heap_free(heap);
 
@@ -700,7 +715,7 @@ nochange_index:
 			a char field, but the collation identifies the old
 			and new value anyway! */
 
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 				goto unsafe_to_purge;
 			}
 		}
@@ -1549,7 +1564,7 @@ row_purge_record_func(
 	case TRX_UNDO_DEL_MARK_REC:
 		purged = row_purge_del_mark(node);
 		if (purged) {
-			if (node->table->stat_initialized
+			if (node->table->stat_initialized()
 			    && srv_stats_include_delete_marked) {
 				dict_stats_update_if_needed(
 					node->table, *thr->graph->trx);
@@ -1715,7 +1730,7 @@ purge_node_t::validate_pcur()
 	part in persistent cursor. Both cases we store n_uniq fields of the
 	cluster index and so it is fine to do the comparison. We note this
 	dependency here as pcur and ref belong to different modules. */
-	int st = cmp_dtuple_rec(ref, pcur.old_rec, offsets);
+	int st = cmp_dtuple_rec(ref, pcur.old_rec, clust_index, offsets);
 
 	if (st != 0) {
 		ib::error() << "Purge node pcur validation failed";

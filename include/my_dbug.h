@@ -104,10 +104,9 @@ extern int (*dbug_sanity)(void);
         do {if (_db_keyword_(0, (keyword), 0)) { a1 }} while(0)
 #define DBUG_EXECUTE_IF(keyword,a1) \
         do {if (_db_keyword_(0, (keyword), 1)) { a1 }} while(0)
-#define DBUG_EVALUATE(keyword,a1,a2) \
-        (_db_keyword_(0,(keyword), 0) ? (a1) : (a2))
-#define DBUG_EVALUATE_IF(keyword,a1,a2) \
-        (_db_keyword_(0,(keyword), 1) ? (a1) : (a2))
+
+#define DBUG_IF(keyword) _db_keyword_(0, (keyword), 1)
+
 #define DBUG_PUSH_EMPTY if (_dbug_on_) { DBUG_PUSH(""); }
 #define DBUG_POP_EMPTY  if (_dbug_on_) { DBUG_POP(); }
 #define DBUG_PUSH(a1) _db_push_ (a1)
@@ -174,8 +173,7 @@ extern void _db_suicide_(void);
 #define DBUG_PRINT(keyword, arglist)    do { } while(0)
 #define DBUG_EXECUTE(keyword,a1)        do { } while(0)
 #define DBUG_EXECUTE_IF(keyword,a1)     do { } while(0)
-#define DBUG_EVALUATE(keyword,a1,a2) (a2)
-#define DBUG_EVALUATE_IF(keyword,a1,a2) (a2)
+#define DBUG_IF(keyword) 0
 #define DBUG_PRINT(keyword,arglist)     do { } while(0)
 #define DBUG_PUSH_EMPTY                 do { } while(0)
 #define DBUG_POP_EMPTY                  do { } while(0)
@@ -201,7 +199,7 @@ extern void _db_suicide_(void);
 #define DBUG_CRASH_ENTER(func)
 #define DBUG_CRASH_RETURN(val)          do { return(val); } while(0)
 #define DBUG_CRASH_VOID_RETURN          do { return; } while(0)
-#define DBUG_SUICIDE()                  do { } while(0)
+#define DBUG_SUICIDE()                  ((void) 0)
 
 #ifdef DBUG_ASSERT_AS_PRINTF
 extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, unsigned long line);

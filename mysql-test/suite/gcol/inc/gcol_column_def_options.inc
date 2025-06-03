@@ -150,7 +150,7 @@ drop table t2;
 --echo FK options
 create table t1(a int,  b int as (a % 2), c int as (a) stored);
 create table t2 (a int);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add constraint foreign key fk(d) references t2(a);
 if ($support_virtual_foreign)
 {

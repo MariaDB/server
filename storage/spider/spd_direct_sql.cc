@@ -212,7 +212,6 @@ int spider_udf_direct_sql_create_conn_key(
         MYF(0), direct_sql->tgt_wrapper);
       DBUG_RETURN(ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM);
   }
-
     tables_on_different_db_are_joinable =
       spider_dbton[direct_sql->dbton_id].db_util->
         tables_on_different_db_are_joinable();
@@ -1145,7 +1144,6 @@ int spider_udf_set_direct_sql_param_default(
     }
   }
 
-
   if (port_has_default_value)
   {
       direct_sql->tgt_port = MYSQL_PORT;
@@ -1172,10 +1170,16 @@ int spider_udf_set_direct_sql_param_default(
     }
   }
 
+  if (direct_sql->table_loop_mode == -1)
+    direct_sql->table_loop_mode = 0;
   if (direct_sql->priority == -1)
     direct_sql->priority = 1000000;
+  if (direct_sql->bulk_insert_rows == -1)
+    direct_sql->bulk_insert_rows = 3000;
   if (direct_sql->connection_channel == -1)
     direct_sql->connection_channel = 0;
+  if (direct_sql->use_real_table == -1)
+    direct_sql->use_real_table = 0;
   if (direct_sql->error_rw_mode == -1)
     direct_sql->error_rw_mode = 0;
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
@@ -1192,7 +1196,6 @@ void spider_udf_free_direct_sql_alloc(
 ) {
   SPIDER_BG_DIRECT_SQL *bg_direct_sql;
   DBUG_ENTER("spider_udf_free_direct_sql_alloc");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     pthread_mutex_lock(direct_sql->bg_mutex);
@@ -1206,7 +1209,6 @@ void spider_udf_free_direct_sql_alloc(
     pthread_cond_signal(direct_sql->bg_cond);
     pthread_mutex_unlock(direct_sql->bg_mutex);
   }
-#endif
   if (direct_sql->real_table_used && direct_sql->open_tables_thd)
   {
     spider_sys_close_table(direct_sql->open_tables_thd,
@@ -1321,7 +1323,6 @@ long long spider_direct_sql_body(
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     bg_direct_sql = (SPIDER_BG_DIRECT_SQL *) initid->ptr;
@@ -1339,7 +1340,6 @@ long long spider_direct_sql_body(
     direct_sql->parent = bg_direct_sql;
     bg_direct_sql->called_cnt++;
   }
-#endif
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
     if (error_num == HA_ERR_OUT_OF_MEM)
@@ -1392,10 +1392,9 @@ long long spider_direct_sql_body(
   }
     trx->updated_in_this_trx = TRUE;
     DBUG_PRINT("info",("spider trx->updated_in_this_trx=TRUE"));
-  use_real_table = spider_param_udf_ds_use_real_table(thd,
-    direct_sql->use_real_table);
-  for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
-  {
+    use_real_table= direct_sql->use_real_table;
+    for (roop_count= 0; roop_count < direct_sql->table_count; roop_count++)
+    {
 #ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
     LEX_CSTRING db_name =
@@ -1477,7 +1476,6 @@ long long spider_direct_sql_body(
     direct_sql->sql_length = 0;
   direct_sql->sql = sql;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     if ((error_num = spider_udf_bg_direct_sql(direct_sql)))
@@ -1487,7 +1485,6 @@ long long spider_direct_sql_body(
       goto error;
     }
   } else {
-#endif
     if (conn->bg_init)
       pthread_mutex_lock(&conn->bg_conn_mutex);
     if ((error_num = spider_db_udf_direct_sql(direct_sql)))
@@ -1504,15 +1501,11 @@ long long spider_direct_sql_body(
       pthread_mutex_unlock(&conn->bg_conn_mutex);
     if (direct_sql->modified_non_trans_table)
       thd->transaction->stmt.modified_non_trans_table = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   }
   if (!bg)
   {
-#endif
     spider_udf_free_direct_sql_alloc(direct_sql, FALSE);
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   }
-#endif
   DBUG_RETURN(1);
 
 error:
@@ -1558,7 +1551,6 @@ my_bool spider_direct_sql_init_body(
     strcpy(message, "spider_(bg)_direct_sql() requires string arguments");
     goto error;
   }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     if (!(bg_direct_sql = (SPIDER_BG_DIRECT_SQL *)
@@ -1582,15 +1574,12 @@ my_bool spider_direct_sql_init_body(
     }
     initid->ptr = (char *) bg_direct_sql;
   }
-#endif
   DBUG_RETURN(FALSE);
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 error_cond_init:
   pthread_mutex_destroy(&bg_direct_sql->bg_mutex);
 error_mutex_init:
   spider_free(spider_current_trx, bg_direct_sql, MYF(0));
-#endif
 error:
   DBUG_RETURN(TRUE);
 }
@@ -1618,7 +1607,6 @@ void spider_direct_sql_deinit_body(
   DBUG_VOID_RETURN;
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 void spider_direct_sql_bg_start(
   UDF_INIT *initid
 ) {
@@ -1707,4 +1695,3 @@ int spider_udf_bg_direct_sql(
   }
   DBUG_RETURN(0);
 }
-#endif

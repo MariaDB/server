@@ -90,6 +90,7 @@ enum wsrep_consistency_check_mode {
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
+struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
@@ -200,6 +201,9 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
 #define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
+#define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
+#define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
+#define OLD_MODE_NO_NULL_COLLATION_IDS  (1 << 6)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -322,9 +326,9 @@ class Key_part_spec :public Sql_alloc {
 public:
   Lex_ident field_name;
   uint length;
-  bool generated;
+  bool generated, asc;
   Key_part_spec(const LEX_CSTRING *name, uint len, bool gen= false)
-    : field_name(*name), length(len), generated(gen)
+    : field_name(*name), length(len), generated(gen), asc(1)
   {}
   bool operator==(const Key_part_spec& other) const;
   /**
@@ -593,7 +597,8 @@ typedef enum enum_diag_condition_item_name
   DIAG_CURSOR_NAME= 9,
   DIAG_MESSAGE_TEXT= 10,
   DIAG_MYSQL_ERRNO= 11,
-  LAST_DIAG_SET_PROPERTY= DIAG_MYSQL_ERRNO
+  DIAG_ROW_NUMBER= 12,
+  LAST_DIAG_SET_PROPERTY= DIAG_ROW_NUMBER
 } Diag_condition_item_name;
 
 /**
@@ -764,6 +769,7 @@ typedef struct system_variables
   ulong net_retry_count;
   ulong net_wait_timeout;
   ulong net_write_timeout;
+  ulong optimizer_extra_pruning_depth;
   ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
@@ -905,6 +911,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
+  my_bool binlog_alter_two_phase;
 } SV;
 
 /**
@@ -987,6 +994,7 @@ typedef struct system_status_var
   ulong filesort_rows_;
   ulong filesort_scan_count_;
   ulong filesort_pq_sorts_;
+  ulong optimizer_join_prefixes_check_calls;
 
   /* Features used */
   ulong feature_custom_aggregate_functions; /* +1 when custom aggregate
@@ -1041,8 +1049,8 @@ typedef struct system_status_var
   ulonglong table_open_cache_hits;
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
+  ulonglong cpu_time, busy_time, query_time;
   double last_query_cost;
-  double cpu_time, busy_time;
   uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
@@ -1104,33 +1112,6 @@ static inline void update_global_memory_status(int64 size)
   my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
 }
 
-/**
-  Get collation by name, send error to client on failure.
-  @param name     Collation name
-  @param name_cs  Character set of the name string
-  @return
-  @retval         NULL on error
-  @retval         Pointter to CHARSET_INFO with the given name on success
-*/
-static inline CHARSET_INFO *
-mysqld_collation_get_by_name(const char *name, myf utf8_flag,
-                             CHARSET_INFO *name_cs= system_charset_info)
-{
-  CHARSET_INFO *cs;
-  MY_CHARSET_LOADER loader;
-  my_charset_loader_init_mysys(&loader);
-
-  if (!(cs= my_collation_get_by_name(&loader, name, MYF(utf8_flag))))
-  {
-    ErrConvString err(name, name_cs);
-    my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
-    if (loader.error[0])
-      push_warning_printf(current_thd,
-                          Sql_condition::WARN_LEVEL_WARN,
-                          ER_UNKNOWN_COLLATION, "%s", loader.error);
-  }
-  return cs;
-}
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
@@ -1660,6 +1641,10 @@ enum enum_locked_tables_mode
   LTM_NONE= 0,
   LTM_LOCK_TABLES,
   LTM_PRELOCKED,
+  /*
+     TODO: remove LTM_PRELOCKED_UNDER_LOCK_TABLES: it is never used apart from
+     LTM_LOCK_TABLES.
+  */
   LTM_PRELOCKED_UNDER_LOCK_TABLES,
   LTM_always_last
 };
@@ -1842,7 +1827,7 @@ public:
     *this= *state;
   }
 
-  void reset_open_tables_state(THD *thd)
+  void reset_open_tables_state()
   {
     open_tables= 0;
     temporary_tables= 0;
@@ -2214,7 +2199,7 @@ public:
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
-  void mark_table_for_reopen(THD *thd, TABLE *table);
+  void mark_table_for_reopen(TABLE *table);
 };
 
 
@@ -3049,6 +3034,12 @@ public:
   */
   uint32 binlog_unsafe_warning_flags;
 
+  typedef uint used_t;
+  enum { RAND_USED=1, TIME_ZONE_USED=2, QUERY_START_SEC_PART_USED=4,
+         THREAD_SPECIFIC_USED=8 };
+
+  used_t used;
+
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
   /*
@@ -3094,6 +3085,14 @@ public:
   }
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
   int binlog_remove_pending_rows_event(bool clear_maps, bool is_transactional);
+
+  bool binlog_need_stmt_format(bool is_transactional) const
+  {
+    return log_current_statement() &&
+           !binlog_get_pending_rows_event(is_transactional);
+  }
+
+  bool binlog_for_noop_dml(bool transactional_table);
 
   /**
     Determine the binlog format of the current statement.
@@ -3191,6 +3190,11 @@ public:
   }
   bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 
+  // Accessors and setters of two-phase loggable ALTER binlog properties
+  uchar get_binlog_flags_for_alter();
+  void   set_binlog_flags_for_alter(uchar);
+  uint64 get_binlog_start_alter_seq_no();
+  void   set_binlog_start_alter_seq_no(uint64);
 #endif /* MYSQL_CLIENT */
 
 public:
@@ -3745,15 +3749,11 @@ public:
     Reset to FALSE when we leave the sub-statement mode.
   */
   bool       is_fatal_sub_stmt_error;
-  bool	     rand_used, time_zone_used;
-  bool       query_start_sec_part_used;
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
 
-  /**  is set if some thread specific value(s) used in a statement. */
-  bool       thread_specific_used;
   /**  
     is set if a statement accesses a temporary table created through
     CREATE TEMPORARY TABLE. 
@@ -3768,8 +3768,10 @@ public:
   /* set during loop of derived table processing */
   bool       derived_tables_processing;
   bool       tablespace_op;	/* This is TRUE in DISCARD/IMPORT TABLESPACE */
-  /* True if we have to log the current statement */
-  bool	     log_current_statement;
+  bool       log_current_statement() const
+  {
+    return variables.option_bits & OPTION_BINLOG_THIS_STMT;
+  }
   /**
     True if a slave error. Causes the slave to stop. Not the same
     as the statement execution error (is_error()), since
@@ -4065,7 +4067,7 @@ public:
                          ulong sec_part, date_mode_t fuzzydate);
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
-  { query_start_sec_part_used=1; return start_time_sec_part; }
+  { used|= QUERY_START_SEC_PART_USED; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
   time_round_mode_t temporal_round_mode() const
   {
@@ -5047,45 +5049,17 @@ private:
     @param msg the condition message text
     @return The condition raised, or NULL
   */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const char* msg)
+  Sql_condition* raise_condition(uint sql_errno, const char* sqlstate,
+                  Sql_condition::enum_warning_level level, const char* msg)
   {
-    return raise_condition(sql_errno, sqlstate, level,
-                           Sql_user_condition_identity(), msg);
+    Sql_condition cond(NULL, // don't strdup the msg
+                       Sql_condition_identity(sql_errno, sqlstate, level,
+                                              Sql_user_condition_identity()),
+                       msg, get_stmt_da()->current_row_for_warning());
+    return raise_condition(&cond);
   }
 
-  /**
-    Raise a generic or a user defined SQL condition.
-    @param ucid      - the user condition identity
-                       (or an empty identity if not a user condition)
-    @param sql_errno - the condition error number
-    @param sqlstate  - the condition SQLSTATE
-    @param level     - the condition level
-    @param msg       - the condition message text
-    @return The condition raised, or NULL
-  */
-  Sql_condition*
-  raise_condition(uint sql_errno,
-                  const char* sqlstate,
-                  Sql_condition::enum_warning_level level,
-                  const Sql_user_condition_identity &ucid,
-                  const char* msg);
-
-  Sql_condition*
-  raise_condition(const Sql_condition *cond)
-  {
-    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
-                                           cond->get_sqlstate(),
-                                           cond->get_level(),
-                                           *cond/*Sql_user_condition_identity*/,
-                                           cond->get_message_text());
-    if (raised)
-      raised->copy_opt_attributes(cond);
-    return raised;
-  }
+  Sql_condition* raise_condition(const Sql_condition *cond);
 
 private:
   void push_warning_truncated_priv(Sql_condition::enum_warning_level level,
@@ -5690,23 +5664,28 @@ public:
   {
 #ifndef EMBEDDED_LIBRARY
     /*
+      Slave vs user threads have timeouts configured via different variables,
+      so pick the appropriate one to use.
+    */
+    ulonglong timeout_val=
+        slave_thread ? slave_max_statement_time : variables.max_statement_time;
+
+    /*
       Don't start a query timer if
       - If timeouts are not set
       - if we are in a stored procedure or sub statement
-      - If this is a slave thread
       - If we already have set a timeout (happens when running prepared
         statements that calls mysql_execute_command())
     */
-    if (!variables.max_statement_time || spcont  || in_sub_stmt ||
-        slave_thread || query_timer.expired == 0)
+    if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0)
       return;
-    thr_timer_settime(&query_timer, variables.max_statement_time);
+    thr_timer_settime(&query_timer, timeout_val);
 #endif
   }
   void reset_query_timer()
   {
 #ifndef EMBEDDED_LIBRARY
-    if (spcont || in_sub_stmt || slave_thread)
+    if (spcont || in_sub_stmt)
       return;
     if (!query_timer.expired)
       thr_timer_end(&query_timer);
@@ -5776,7 +5755,8 @@ public:
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
 
   Item *sp_fix_func_item(Item **it_addr);
-  Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
+  Item *sp_fix_func_item_for_assignment(const Field *to, Item **it_addr);
+  Item *sp_prepare_func_item(Item **it_addr, uint cols);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
   bool sql_parser(LEX *old_lex, LEX *lex,
@@ -5787,6 +5767,19 @@ public:
     return (variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3 ?
             MY_UTF8_IS_UTF8MB3 : 0);
   }
+
+  Charset_collation_context
+    charset_collation_context_create_db() const
+  {
+    return Charset_collation_context(variables.collation_server,
+                                     variables.collation_server);
+  }
+  Charset_collation_context
+    charset_collation_context_alter_db(const char *db);
+  Charset_collation_context
+    charset_collation_context_create_table_in_db(const char *db);
+  Charset_collation_context
+    charset_collation_context_alter_table(const TABLE_SHARE *s);
 
   /**
     Save current lex to the output parameter and reset it to point to
@@ -5835,6 +5828,27 @@ public:
     return ((variables.note_verbosity & (NOTE_VERBOSITY_UNUSABLE_KEYS)) ||
             (lex->describe && // Is EXPLAIN
              (variables.note_verbosity & NOTE_VERBOSITY_EXPLAIN)));
+  }
+
+  bool vers_insert_history_fast(const TABLE *table)
+  {
+    DBUG_ASSERT(table->versioned());
+    return table->versioned(VERS_TIMESTAMP) &&
+           (variables.option_bits & OPTION_INSERT_HISTORY) &&
+            lex->duplicates == DUP_ERROR;
+  }
+
+  bool vers_insert_history(const Field *field)
+  {
+    if (!field->vers_sys_field())
+      return false;
+    if (!vers_insert_history_fast(field->table))
+      return false;
+    if (lex->sql_command != SQLCOM_INSERT &&
+        lex->sql_command != SQLCOM_INSERT_SELECT &&
+        lex->sql_command != SQLCOM_LOAD)
+      return false;
+    return !is_set_timestamp_forbidden(this);
   }
 };
 
@@ -6400,7 +6414,6 @@ class select_insert :public select_result_interceptor {
 
 
 class select_create: public select_insert {
-  TABLE_LIST *create_table;
   Table_specification_st *create_info;
   TABLE_LIST *select_tables;
   Alter_info *alter_info;
@@ -6421,13 +6434,13 @@ public:
                 TABLE_LIST *select_tables_arg):
     select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
                   ignore, NULL),
-    create_table(table_arg),
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
     m_plock(NULL), exit_done(0),
     saved_tmp_table_share(0)
     {
+      DBUG_ASSERT(create_info->default_table_charset);
       bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
       bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
     }
@@ -6447,8 +6460,8 @@ public:
 private:
   TABLE *create_table_from_items(THD *thd,
                                   List<Item> *items,
-                                  MYSQL_LOCK **lock,
-                                  TABLEOP_HOOKS *hooks);
+                                  MYSQL_LOCK **lock);
+  int postlock(THD *thd, TABLE **tables);
 };
 
 #include <myisam.h>
@@ -8196,24 +8209,25 @@ public:
 void dbug_serve_apcs(THD *thd, int n_calls);
 #endif 
 
-class ScopedStatementReplication
+class StatementBinlog
 {
-public:
-  ScopedStatementReplication(THD *thd) :
-    saved_binlog_format(thd
-                        ? thd->set_current_stmt_binlog_format_stmt()
-                        : BINLOG_FORMAT_MIXED),
-    thd(thd)
-  {}
-  ~ScopedStatementReplication()
-  {
-    if (thd)
-      thd->restore_stmt_binlog_format(saved_binlog_format);
-  }
-
-private:
   const enum_binlog_format saved_binlog_format;
   THD *const thd;
+
+public:
+  StatementBinlog(THD *thd, bool need_stmt) :
+    saved_binlog_format(thd->get_current_stmt_binlog_format()),
+    thd(thd)
+  {
+    if (need_stmt && saved_binlog_format != BINLOG_FORMAT_STMT)
+    {
+      thd->set_current_stmt_binlog_format_stmt();
+    }
+  }
+  ~StatementBinlog()
+  {
+    thd->set_current_stmt_binlog_format(saved_binlog_format);
+  }
 };
 
 
@@ -8276,6 +8290,42 @@ void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
 C_MODE_START
 void mariadb_sleep_for_space(unsigned int seconds);
 C_MODE_END
+
+#ifdef WITH_WSREP
+extern void wsrep_to_isolation_end(THD*);
+#endif
+/*
+  RAII utility class to ease binlogging with temporary setting
+  THD etc context and restoring the original one upon logger execution.
+*/
+class Write_log_with_flags
+{
+  THD*   m_thd;
+#ifdef WITH_WSREP
+  bool wsrep_to_isolation;
+#endif
+
+public:
+~Write_log_with_flags()
+  {
+    m_thd->set_binlog_flags_for_alter(0);
+    m_thd->set_binlog_start_alter_seq_no(0);
+#ifdef WITH_WSREP
+    if (wsrep_to_isolation)
+      wsrep_to_isolation_end(m_thd);
+#endif
+  }
+
+  Write_log_with_flags(THD *thd, uchar flags,
+                       bool do_wsrep_iso __attribute__((unused))= false) :
+    m_thd(thd)
+  {
+    m_thd->set_binlog_flags_for_alter(flags);
+#ifdef WITH_WSREP
+    wsrep_to_isolation= do_wsrep_iso && WSREP(m_thd);
+#endif
+  }
+};
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

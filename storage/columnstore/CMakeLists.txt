@@ -1,6 +1,7 @@
 #set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
 
-if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
+if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}" OR
+   (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/columnstore/CMakeLists.txt))
   return()
 endif()
 
@@ -16,6 +17,11 @@ macro(APPEND_FOR_CPACK V)
   get_directory_property(var DIRECTORY columnstore DEFINITION ${V})
   set(${V} "${var}${ARGN}" PARENT_SCOPE)
 endmacro()
+
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
 
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
 CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" OR

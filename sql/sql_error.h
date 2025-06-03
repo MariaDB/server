@@ -313,6 +313,9 @@ protected:
   /** SQL CURSOR_NAME condition item. */
   String m_cursor_name;
 
+  /** SQL ROW_NUMBER condition item. */
+  ulong m_row_number;
+
   Sql_condition_items()
    :m_class_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_subclass_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
@@ -323,7 +326,8 @@ protected:
     m_schema_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_table_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_column_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin)
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_row_number(0)
   { }
 
   void clear()
@@ -338,6 +342,7 @@ protected:
     m_table_name.length(0);
     m_column_name.length(0);
     m_cursor_name.length(0);
+    m_row_number= 0;
   }
 };
 
@@ -441,16 +446,14 @@ private:
     @param level    - the error level for this condition
     @param msg      - the message text for this condition
   */
-  Sql_condition(MEM_ROOT *mem_root,
-                const Sql_condition_identity &value,
-                const char *msg)
-   :Sql_condition_identity(value),
-    m_mem_root(mem_root)
+  Sql_condition(MEM_ROOT *mem_root, const Sql_condition_identity &value,
+                const char *msg, ulong current_row_for_warning)
+   : Sql_condition_identity(value), m_mem_root(mem_root)
   {
-    DBUG_ASSERT(mem_root != NULL);
     DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
+    m_row_number= current_row_for_warning;
   }
 
   /** Destructor. */
@@ -736,7 +739,7 @@ private:
   void inc_current_row_for_warning() { m_current_row_for_warning++; }
 
   /** Reset the current row counter. Start counting from the first row. */
-  void reset_current_row_for_warning() { m_current_row_for_warning= 1; }
+  void reset_current_row_for_warning(int n) { m_current_row_for_warning= n; }
 
   ulong set_current_row_for_warning(ulong row)
   {
@@ -765,9 +768,8 @@ private:
 
     @return a pointer to the added SQL-condition.
   */
-  Sql_condition *push_warning(THD *thd,
-                              const Sql_condition_identity *identity,
-                              const char* msg);
+  Sql_condition *push_warning(THD *thd, const Sql_condition_identity *identity,
+                              const char* msg, ulong current_row_number);
 
   /**
     Add a new SQL-condition to the current list and increment the respective
@@ -1182,8 +1184,8 @@ public:
   void inc_current_row_for_warning()
   { get_warning_info()->inc_current_row_for_warning(); }
 
-  void reset_current_row_for_warning()
-  { get_warning_info()->reset_current_row_for_warning(); }
+  void reset_current_row_for_warning(int n)
+  { get_warning_info()->reset_current_row_for_warning(n); }
 
   bool is_warning_info_read_only() const
   { return get_warning_info()->is_read_only(); }
@@ -1214,10 +1216,12 @@ public:
                               const char* sqlstate,
                               Sql_condition::enum_warning_level level,
                               const Sql_user_condition_identity &ucid,
-                              const char* msg)
+                              const char* msg,
+                              ulong current_row_number)
   {
     Sql_condition_identity tmp(sql_errno_arg, sqlstate, level, ucid);
-    return get_warning_info()->push_warning(thd, &tmp, msg);
+    return get_warning_info()->push_warning(thd, &tmp, msg,
+                                            current_row_number);
   }
 
   Sql_condition *push_warning(THD *thd,
@@ -1227,7 +1231,7 @@ public:
                               const char* msg)
   {
     return push_warning(thd, sqlerrno, sqlstate, level,
-                        Sql_user_condition_identity(), msg);
+                        Sql_user_condition_identity(), msg, 0);
   }
   void mark_sql_conditions_for_removal()
   { get_warning_info()->mark_sql_conditions_for_removal(); }

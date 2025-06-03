@@ -341,7 +341,8 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   */
   DBUG_ASSERT(!tl->derived);
   DBUG_ASSERT(!tl->schema_table);
-  DBUG_ASSERT(has_temporary_tables());
+  DBUG_ASSERT(has_temporary_tables() ||
+              (rgi_slave && rgi_slave->is_parallel_exec));
 
   if (tl->open_type == OT_BASE_ONLY)
   {
@@ -427,7 +428,7 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 #endif
 
   table->query_id= query_id;
-  thread_specific_used= true;
+  used|= THREAD_SPECIFIC_USED;
 
   /* It is neither a derived table nor non-updatable view. */
   tl->updatable= true;
@@ -879,12 +880,20 @@ void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
 bool THD::has_temporary_tables()
 {
   DBUG_ENTER("THD::has_temporary_tables");
-  bool result=
+  bool result;
 #ifdef HAVE_REPLICATION
-    rgi_slave ? (rgi_slave->rli->save_temporary_tables &&
-                 !rgi_slave->rli->save_temporary_tables->is_empty()) :
+  if (rgi_slave)
+  {
+    mysql_mutex_lock(&rgi_slave->rli->data_lock);
+    result= rgi_slave->rli->save_temporary_tables &&
+      !rgi_slave->rli->save_temporary_tables->is_empty();
+    mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+  }
+  else
 #endif
-    has_thd_temporary_tables();
+  {
+    result= has_thd_temporary_tables();
+  }
   DBUG_RETURN(result);
 }
 
@@ -1350,7 +1359,7 @@ bool THD::log_events_and_free_tmp_shares()
   {
     if (IS_USER_TABLE(share))
     {
-      bool save_thread_specific_used= thread_specific_used;
+      used_t save_thread_specific_used= used & THREAD_SPECIFIC_USED;
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
       char db_buf[FN_REFLEN];
       String db(db_buf, sizeof(db_buf), system_charset_info);
@@ -1400,7 +1409,7 @@ bool THD::log_events_and_free_tmp_shares()
         clear_error();
         CHARSET_INFO *cs_save= variables.character_set_client;
         variables.character_set_client= system_charset_info;
-        thread_specific_used= true;
+        used|= THREAD_SPECIFIC_USED;
 
         Query_log_event qinfo(this, s_query.ptr(),
             s_query.length() - 1 /* to remove trailing ',' */,
@@ -1433,7 +1442,7 @@ bool THD::log_events_and_free_tmp_shares()
         get_stmt_da()->set_overwrite_status(false);
       }
       variables.pseudo_thread_id= save_pseudo_thread_id;
-      thread_specific_used= save_thread_specific_used;
+      used = (used & ~THREAD_SPECIFIC_USED) | save_thread_specific_used;
     }
     else
     {

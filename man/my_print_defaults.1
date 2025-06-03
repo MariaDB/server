@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMY_PRINT_DEFAULTS" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMY_PRINT_DEFAULTS\fR" "1" "18 December 2023" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -80,8 +80,8 @@ Display a help message and exit\&.
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-c \fR\fB\fIfile_name\fR\fR
 .sp
-Read only the given option file\&. If no extension is given, default extension(.ini or .cnf) will 
-be used\&. If \fB\-\-defaults\-file\fR is 
+Read only the given option file\&. If no extension is given, default extension(.ini or .cnf) will
+be used\&. If \fB\-\-defaults\-file\fR is
 the first option, then read this file only, do not read global or per\-user config files; should be the first option.
 .RE
 .sp
@@ -100,9 +100,7 @@ the first option, then read this file only, do not read global or per\-user conf
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/my_print_defaults\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/my_print_defaults.trace'.
 .RE
 .sp
 .RS 4
@@ -120,7 +118,7 @@ string is
 .\" extra-file option: my_print_defaults
 \fB\-e \fR\fB\fIfile_name\fR\fR
 .sp
-Read this option file after the global option file but (on Unix) before the user option 
+Read this option file after the global option file but (on Unix) before the user option
 file\&. Should be the first option\&.
 .RE
 .sp
@@ -148,6 +146,22 @@ In addition to the groups named on the command line, read groups that have the g
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" my_print_defaults: --mariadbd option
+.\" mariadbd option: my_print_defaults
+\fB\-\-mariadbd\fR
+.sp
+Read the same set of groups that the mariadbd binary does.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
 .\" my_print_defaults: --mysqld option
 .\" mysqld option: my_print_defaults
 \fB\-\-mysqld\fR

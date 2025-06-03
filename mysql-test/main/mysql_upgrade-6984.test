@@ -26,3 +26,7 @@ set global event_scheduler=OFF;
 
 let MYSQLD_DATADIR= `select @@datadir`;
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+# --skip-grant-tables state may changed during the test. Need to restart the server
+# to restore the --skip-grant-tables state. Otherwise MTR's internal check will fail
+--source include/restart_mysqld.inc

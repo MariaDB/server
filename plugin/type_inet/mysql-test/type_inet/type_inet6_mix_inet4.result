@@ -1,0 +1,19 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+#
+CREATE TABLE t1 (i4 INET4, i6 INET6);
+SELECT * FROM t1 WHERE i4=i6;
+ERROR HY000: Illegal parameter data types inet4 and inet6 for operation '='
+SELECT COALESCE(i4,i6) FROM t1 WHERE i4=i6;
+ERROR HY000: Illegal parameter data types inet4 and inet6 for operation 'coalesce'
+SELECT LEAST(i4,i6) FROM t1 WHERE i4=i6;
+ERROR HY000: Illegal parameter data types inet4 and inet6 for operation 'least'
+SELECT i4 FROM t1 UNION ALL SELECT i6 FROM t1;
+ERROR HY000: Illegal parameter data types inet4 and inet6 for operation 'UNION'
+DROP TABLE t1;
+#
+# End of 10.10 tests
+#

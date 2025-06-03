@@ -8,5 +8,10 @@
 --echo # MDEV-33342 Add a replication MTR test cloning the slave with mariadb-backup
 --echo #
 
+connection slave;
+stop slave;
+change master to master_use_gtid=no;
+start slave;
+
 --let cnf=mariadb_to_mariadb
 --source include/rpl_clone_slave_using_mariadb-backup.inc

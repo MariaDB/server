@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL\-TEST\-RUN\" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMYSQL\-TEST\-RUN\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -191,7 +191,7 @@ shell> \fBmake test force="\-\-skip\-test=init_file"\fR
 .PP
 To run
 \fBmysql\-test\-run\&.pl\fR
-on Windows, you\'ll need either Cygwin or ActiveState Perl to run it\&. You may also need to install the modules required by the script\&. To run the test script, change location into the
+on Windows, you'll need either Cygwin or ActiveState Perl to run it\&. You may also need to install the modules required by the script\&. To run the test script, change location into the
 mysql\-test
 directory, set the
 MTR_VS_CONFIG
@@ -829,7 +829,7 @@ Add setting from the named file to all generated configs\&.
 .sp
 Run all test cases having a name that begins with the given
 \fIprefix\fR
-value, or fulfils the 
+value, or fulfils the
 \fIregex\fR\&. This option provides a convenient way to run a family of similarly named tests\&.
 .sp
 The argument for the
@@ -1038,7 +1038,7 @@ file per source and header file\&.
 .\" gcov-src-dir option: mysql-test-run.pl
 \fB\-\-gcov\-src\-dir\fR
 .sp
-Colllect coverage only within the given subdirectory\&. For example, if you're only developing the SQL layer, 
+Colllect coverage only within the given subdirectory\&. For example, if you're only developing the SQL layer,
 it makes sense to use \fB--gcov-src-dir=sql\fR\&.
 .RE
 .sp
@@ -1513,7 +1513,7 @@ number of times\&.
 .\" report-features option: mysql-test-run.pl
 \fB\-\-report\-features\fR
 .sp
-First run a "test" that reports MariaDB features, displaying the output of SHOW ENGINES and SHOW VARIABLES\&. This can be 
+First run a "test" that reports MariaDB features, displaying the output of SHOW ENGINES and SHOW VARIABLES\&. This can be
 used to verify that binaries are built with all required features\&.
 .RE
 .sp
@@ -1546,7 +1546,7 @@ Report how much time has been spent on different phases of test execution\&.
 .sp
 If a test fails, it is retried up to a maximum of
 \fIN\fR
-runs (default 1)\&. Retries are also limited by the maximum number of failures before stopping, 
+runs (default 1)\&. Retries are also limited by the maximum number of failures before stopping,
 set with the \fB-\-retry\-failure\fR option\&. This option has no effect unless
 \fB\-\-force\fR
 is also used; without it, test execution will terminate after the first failure\&.
@@ -1572,7 +1572,7 @@ may fail in total, as each repetition is considered a new test case, which may i
 .\" retry-failure option: mysql-test-run.pl
 \fB\-\-retry\-failure=\fR\fB\fIN\fR\fR
 .sp
-When using the \fB-\-retry\fR option to retry failed tests, 
+When using the \fB-\-retry\fR option to retry failed tests,
 stop when N failures have occurred (default 2)\&. Setting it to 0 or 1 effectively turns off retries\&.
 .RE
 .sp
@@ -1744,7 +1744,7 @@ option, it sets up a secure connection for all test cases\&. In this case, if
 does not support SSL,
 \fBmysql\-test\-run\&.pl\fR
 exits with an error message:
-Couldn\'t find support for SSL
+Couldn't find support for SSL
 .RE
 .sp
 .RS 4
@@ -1810,7 +1810,7 @@ will stop once the server has been started, but will terminate if the server die
 .\" start-and-exit option: mysql-test-run.pl
 \fB\-\-start\-and\-exit\fR
 .sp
-Same 
+Same
 \fB\-\-start\fR, but mysql-test-run terminates and leaves just the server running\&.
 .RE
 .sp
@@ -1877,7 +1877,7 @@ Run the "mysqld" executables using strace. Default options are \fB-f -o var/log/
 Create
 \fBstrace\fR
 output for
-\fBmysqltest\fR, optionally specifying name and path 
+\fBmysqltest\fR, optionally specifying name and path
 to the trace program to use\&.
 .sp
 Example: \&./mysql\-test\-run\&.pl \-\-strace\-client=ktrace
@@ -1895,8 +1895,8 @@ Example: \&./mysql\-test\-run\&.pl \-\-strace\-client=ktrace
 .\" strace-option option: mysql-test-run.pl
 \fB\-\-strace\-option\fR=\fR\fB\fIARGS\fR\fR
 .sp
-Option to give 
-\fBstrace\fR, 
+Option to give
+\fBstrace\fR,
 replaces default option(s)\&.
 .RE
 .sp
@@ -2144,9 +2144,9 @@ server with
 .\" valgrind-mysqltest option: mysql-test-run.pl
 \fB\-\-valgrind\-mysqltest\fR
 .sp
-Run the 
+Run the
 \fBmysqltest\fR
-and 
+and
 \fBmysql_client_test\fR
 executables with
 \fBvalgrind\fR\&.

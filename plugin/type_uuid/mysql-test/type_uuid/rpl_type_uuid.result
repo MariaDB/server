@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-4958 Adding datatype UUID
+#
+connection master;
+CREATE TABLE t1 (a UUID);
+INSERT INTO t1 VALUES
+('00000000-0000-0000-0000-000000000000'),
+('ffffffff-ffff-ffff-ffff-ffffffffffff');
+connection slave;
+SELECT HEX(a), a FROM t1;
+HEX(a)	a
+00000000000000000000000000000000	00000000-0000-0000-0000-000000000000
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF	ffffffff-ffff-ffff-ffff-ffffffffffff
+connection master;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

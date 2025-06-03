@@ -1,7 +1,7 @@
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a timestamp(7));
-ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 create table t1 (a timestamp(3), key(a));
 insert t1 values ('2010-12-11 00:20:03.1234');
 insert t1 values ('2010-12-11 15:47:11.1234');
@@ -276,19 +276,19 @@ create or replace table t1 (a timestamp(5) default current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) default current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) default current_timestamp(2));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(2)
+  `a` timestamp(5) NULL DEFAULT current_timestamp(2)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert t1 () values ();
 select * from t1;
@@ -298,25 +298,25 @@ create or replace table t1 (a timestamp(5) default current_timestamp(5));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) default current_timestamp(6));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp(3));
 ERROR HY000: Invalid ON UPDATE clause for 'a' column
@@ -324,13 +324,13 @@ create or replace table t1 (a timestamp(5) on update current_timestamp(5));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp(6));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #

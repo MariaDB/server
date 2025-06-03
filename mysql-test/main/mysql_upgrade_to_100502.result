@@ -84,15 +84,15 @@ GRANT BINLOG MONITOR, SLAVE MONITOR ON *.* TO `user_replclient`@`localhost`
 SHOW GRANTS FOR user_replslave@localhost;
 Grants for user_replslave@localhost
 GRANT REPLICATION SLAVE, SLAVE MONITOR ON *.* TO `user_replslave`@`localhost`
-connect  con1,localhost,user_super_replslave,,test;
+connect  con1,localhost,user_super_replslave,,"*NO-ONE*";
 connection con1;
 SHOW SLAVE STATUS;
 disconnect con1;
-connect  con1,localhost,user_replclient,,test;
+connect  con1,localhost,user_replclient,,"*NO-ONE*";
 connection con1;
 SHOW SLAVE STATUS;
 disconnect con1;
-connect  con1,localhost,user_replslave,,test;
+connect  con1,localhost,user_replslave,,"*NO-ONE*";
 connection con1;
 SHOW RELAYLOG EVENTS;
 disconnect con1;

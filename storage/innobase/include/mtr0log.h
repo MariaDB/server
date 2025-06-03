@@ -53,7 +53,8 @@ inline uint8_t mlog_decode_varint_length(byte first)
 @param log    redo log record buffer
 @return the decoded integer
 @retval MLOG_DECODE_ERROR on error */
-inline uint32_t mlog_decode_varint(const byte* log)
+template<typename byte_pointer>
+inline uint32_t mlog_decode_varint(const byte_pointer log)
 {
   uint32_t i= *log;
   if (i < MIN_2BYTE)

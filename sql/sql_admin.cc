@@ -699,8 +699,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             protocol->store(operator_name, system_charset_info);
             protocol->store(&error_clex_str, system_charset_info);
             length= my_snprintf(buff, sizeof(buff),
-                                ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                                table_name.str);
+                                ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
               goto err;
@@ -864,11 +863,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         !(check_opt->sql_flags & TT_USEFRM))
     {
       handler *file= table->table->file;
-      int check_old_types=   file->check_old_types();
       int check_for_upgrade= file->ha_check_for_upgrade(check_opt);
 
-      if (check_old_types == HA_ADMIN_NEEDS_ALTER ||
-          check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
+      if (check_for_upgrade == HA_ADMIN_NEEDS_ALTER)
       {
         /* We use extra_open_options to be able to open crashed tables */
         thd->open_options|= extra_open_options;
@@ -877,7 +874,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         thd->open_options&= ~extra_open_options;
         goto send_result;
       }
-      if (check_old_types || check_for_upgrade)
+      if (check_for_upgrade)
       {
         /* If repair is not implemented for the engine, run ALTER TABLE */
         need_repair_or_alter= 1;
@@ -963,6 +960,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
+        USED_MEM *memroot_block;
+
         if (!lex->column_list)
         {
           /* Fields we have to read from the engine */
@@ -1049,7 +1048,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           int pos;
           LEX_STRING *index_name;
           List_iterator_fast<LEX_STRING> it(*lex->index_list);
-
           tab->keys_in_use_for_query.clear_all();
           while ((index_name= it++))
           {
@@ -1065,12 +1063,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         }
         /* Ensure that number of records are updated */
         tab->file->info(HA_STATUS_VARIABLE);
+        memroot_block= get_last_memroot_block(thd->mem_root);
         if (!(compl_result_code=
               alloc_statistics_for_table(thd, tab,
                                          &tab->has_value_set)) &&
             !(compl_result_code=
               collect_statistics_for_table(thd, tab)))
           compl_result_code= update_statistics_for_table(thd, tab);
+        free_statistics_for_table(tab);
+        free_all_new_blocks(thd->mem_root, memroot_block);
       }
       else
         compl_result_code= HA_ADMIN_FAILED;

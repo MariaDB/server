@@ -170,6 +170,7 @@ if ($USE_CHILD_GROUP2)
 --connection master_1
 --disable_ps2_protocol
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey+0 = b.pkey+0 ORDER BY a.pkey; # MDEV-29947
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)

@@ -50,6 +50,15 @@ let $coll_pad='cp932_bin';
 
 
 --echo #
+--echo # General tests
+--echo #
+SET NAMES cp932;
+-- source include/ctype_ascii_order.inc
+SET NAMES cp932 COLLATE cp932_bin;
+-- source include/ctype_ascii_order.inc
+
+
+--echo #
 --echo # Start of 10.5 tests
 --echo #
 

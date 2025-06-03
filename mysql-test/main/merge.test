@@ -13,12 +13,6 @@ set session default_storage_engine=myisam;
 # This test assumes a stable character set
 --source include/default_charset.inc
 
-# Clean up resources used in this test case.
---disable_warnings
-drop table if exists t1,t2,t3,t4,t5,t6;
-drop database if exists mysqltest;
---enable_warnings
-
 let $MYSQLD_DATADIR= `select @@datadir`;
 create table t1 (a int not null primary key auto_increment, message char(20));
 create table t2 (a int not null primary key auto_increment, message char(20));
@@ -1652,10 +1646,6 @@ DROP TABLE t1;
 --echo #          open merge table
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS m1,t1;
---enable_warnings
-
 CREATE TABLE t1(a int)engine=myisam;
 CREATE TABLE t2(a int)engine=myisam;
 CREATE TABLE t3(a int)engine=myisam;
@@ -1756,9 +1746,6 @@ DROP TABLE t2, t1;
 --echo #
 --echo # Bug#46339 - crash on REPAIR TABLE merge table USE_FRM
 --echo #
---disable_warnings
-DROP TABLE IF EXISTS m1, t1;
---enable_warnings
 #
 # Test derived from a proposal of Shane Bester.
 #
@@ -1893,9 +1880,6 @@ DROP TABLE t1;
 --echo #
 --echo # Test merge table with too many merge children.
 --echo #
---disable_warnings
-drop table if exists t_parent;
---enable_warnings
 set @save_table_open_cache=@@global.table_open_cache;
 --echo #
 --echo # Set @@global.table_open_cache to minimum
@@ -1910,9 +1894,6 @@ let $1 = `select @@table_open_cache;`;
 --disable_query_log
 while ($1)
 {
---disable_warnings
-  eval drop table if exists t$1;
---enable_warnings
   eval create table t$1 (a int) engine=myisam;
   eval set @a=ifnull(concat(@a, ", ", "t$1"), "t$1");
   dec $1;
@@ -1956,9 +1937,6 @@ set @@global.table_open_cache=@save_table_open_cache;
 #
 # Test DATA/INDEX DIRECTORY
 #
---disable_warnings
-DROP DATABASE IF EXISTS mysql_test1;
---enable_warnings
 CREATE DATABASE mysql_test1;
 --disable_query_log
 # data/index directory don't work in HAVE_purify builds. Disable
@@ -2271,9 +2249,6 @@ DROP TABLE t1;
 --echo # More tests with TEMPORARY MERGE table and permanent children.
 --echo # First without locked tables.
 --echo #
---disable_warnings
-DROP TABLE IF EXISTS t1, t2, t3, t4, m1, m2;
---enable_warnings
 #
 --echo #
 CREATE TABLE t1 (c1 INT, c2 INT) ENGINE=MyISAM;
@@ -2592,9 +2567,6 @@ DROP TABLE t1, t2, t3, t4, m1, m2;
 --echo # Test that merge tables are closed correctly when opened using 
 --echo # HANDLER ... OPEN.
 --echo # The general case.
---disable_warnings
-DROP TABLE IF EXISTS t1, t2, t3;
---enable_warnings
 connect (con1,localhost,root,,);
 CREATE TABLE t1 (c1 int);
 CREATE TABLE t2 (c1 int);
@@ -2650,10 +2622,6 @@ drop table t4, t3, t2, t1;
 --echo # Bug#51240 ALTER TABLE of a locked MERGE table fails
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS m1, t1;
---enable_warnings
-
 CREATE TABLE t1 (c1 INT);
 CREATE TABLE m1 (c1 INT) ENGINE=MRG_MyISAM UNION=(t1);
 LOCK TABLE m1 WRITE;
@@ -2679,9 +2647,6 @@ DROP TABLE m1, t1;
 --echo #
 --echo # Test for bug #37371 "CREATE TABLE LIKE merge loses UNION parameter"
 --echo #
---disable_warnings
-drop tables if exists t1, m1, m2;
---enable_warnings
 create table t1 (i int) engine=myisam;
 create table m1 (i int) engine=mrg_myisam union=(t1) insert_method=first;
 create table m2 like m1;
@@ -2694,9 +2659,6 @@ drop tables m1, m2, t1;
 --echo # Test case for Bug#54811 "Assert in mysql_lock_have_duplicate()"
 --echo # Check that unique_table() works correctly for merge tables.
 --echo #
---disable_warnings
-drop table if exists t1, t2, t3, m1, m2;
---enable_warnings
 create table t1 (a int);
 create table t2 (a int);
 create table t3 (b int);
@@ -2738,10 +2700,6 @@ drop table t1, t2, t3, m1, m2;
 --echo #           REPAIR of merge table
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2, t_not_exists;
---enable_warnings
-
 CREATE TABLE t1(a INT);
 ALTER TABLE t1 engine= MERGE UNION (t_not_exists);
 # This caused the segfault
@@ -2768,10 +2726,6 @@ DROP TABLE t1, t2;
 --echo #           for ALTER TABLE + MERGE tables
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, m1;
---enable_warnings
-
 CREATE TABLE t1(a INT) engine=myisam;
 CREATE TABLE m1(a INT) engine=merge UNION(t1);
 LOCK TABLES t1 READ, m1 WRITE;
@@ -2788,9 +2742,6 @@ DROP TABLE m1, t1;
 --echo # Test for bug #11754210 - "45777: CHECK TABLE DOESN'T SHOW ALL
 --echo #                           PROBLEMS FOR MERGE TABLE COMPLIANCE IN 5.1"
 --echo #
---disable_warnings
-drop tables if exists t1, t2, t3, t4, m1;
---enable_warnings
 create table t1(id int) engine=myisam;
 create view t3 as select 1 as id;
 create table t4(id int) engine=memory;
@@ -2810,8 +2761,7 @@ drop view t3;
 
 
 --echo #
---echo # MDEV-10424 - Assertion `ticket == __null' failed in
---echo #              MDL_request::set_type
+--echo # MDEV-10424 Assertion `ticket == __null' failed in MDL_request::set_type
 --echo #
 CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
 CREATE TABLE tmerge (f1 INT) ENGINE=MERGE UNION=(t1);
@@ -2821,9 +2771,9 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, tmerge;
 
-
---echo End of 5.5 tests
-
+--echo #
+--echo # End of 5.5 tests
+--echo #
 
 --echo #
 --echo # Additional coverage for refactoring which is made as part
@@ -2832,10 +2782,7 @@ DROP TABLE t1, tmerge;
 --echo # 
 --echo # Check that prelocking works correctly for various variants of
 --echo # merge tables.
---disable_warnings
-drop table if exists t1, t2, m1;
-drop function if exists f1;
---enable_warnings
+--echo # 
 create table t1 (j int);
 insert into t1 values (1);
 create function f1() returns int return (select count(*) from m1);
@@ -2881,14 +2828,6 @@ drop tables t1, m1;
 # Check effect of Bug#27480-preliminary patch:
 # a merge-table with non-existing children, opened from a prelocked list.
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS m1;
-DROP TRIGGER IF EXISTS trg1;
-DROP TABLE IF EXISTS q1;
-DROP TABLE IF EXISTS q2;
---enable_warnings
-
 CREATE TABLE t1(a INT);
 CREATE TABLE m1(a INT) ENGINE = MERGE UNION (q1, q2);
 
@@ -2903,11 +2842,7 @@ DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE m1;
 
---disable_result_log
---disable_query_log
 set global default_storage_engine=@save_default_storage_engine;
---enable_result_log
---enable_query_log
 
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
@@ -2924,3 +2859,31 @@ SELECT * FROM mrg;
 DROP TABLE mrg, t1;
 
 --echo End of 10.5 tests
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
+--echo #
+create table t (a int, key(a desc)) engine=myisam;
+create table tm (a int, key(a)) engine=merge union(t);
+--error ER_WRONG_MRG_TABLE
+select * from tm;
+drop table tm, t;
+
+--echo #
+--echo # MDEV-27586 Auto-increment does not work with DESC on MERGE table
+--echo #
+create table t (a int not null, primary key(a desc)) engine=myisam;
+create table tm (a int not null auto_increment, primary key(a desc)) engine=merge union=(t) insert_method=first;
+insert into tm () values ();
+insert into tm () values ();
+insert into tm () values ();
+select * from tm;
+drop table tm, t;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

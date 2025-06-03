@@ -397,6 +397,11 @@ RESET MASTER;
 --source include/rpl_reset.inc
 -- connection slave
 
+# Slave tests rely on logic of non-gtid mode
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
 # slave suppressions
 
 call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master.*");

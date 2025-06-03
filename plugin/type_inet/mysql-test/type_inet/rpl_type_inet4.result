@@ -1,0 +1,23 @@
+include/master-slave.inc
+[connection master]
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+#
+connection master;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('255.255.255.255');
+connection slave;
+SELECT HEX(a), a FROM t1;
+HEX(a)	a
+00000000	0.0.0.0
+FFFFFFFF	255.255.255.255
+connection master;
+DROP TABLE t1;
+connection slave;
+#
+# Start of 10.10 tests
+#
+include/rpl_end.inc

@@ -66,7 +66,11 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
 
   DBUG_ENTER("create_temp_file");
   DBUG_PRINT("enter", ("dir: %s, prefix: %s", dir ? dir : "(null)", prefix));
+#if !defined _WIN32 && defined O_DIRECT
+  DBUG_ASSERT((mode & (O_EXCL | O_TRUNC | O_CREAT | O_RDWR | O_DIRECT)) == 0);
+#else
   DBUG_ASSERT((mode & (O_EXCL | O_TRUNC | O_CREAT | O_RDWR)) == 0);
+#endif
 
   mode|= O_TRUNC | O_CREAT | O_RDWR; /* not O_EXCL, see Windows code below */
 
@@ -118,16 +122,41 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
 
     if ((MyFlags & MY_TEMPORARY) && O_TMPFILE_works)
     {
-      /* explictly don't use O_EXCL here has it has a different
-         meaning with O_TMPFILE
+      /*
+        explicitly don't use O_EXCL here has it has a different
+        meaning with O_TMPFILE
       */
-      if ((file= open(dir, (mode & ~O_CREAT) | O_TMPFILE | O_CLOEXEC,
-                      S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) >= 0)
+      const int flags= (mode & ~O_CREAT) | O_TMPFILE | O_CLOEXEC;
+      const mode_t open_mode= S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+# ifdef O_DIRECT
+      static int O_TMPFILE_works_with_O_DIRECT= O_DIRECT;
+      const int try_O_DIRECT= mode & O_TMPFILE_works_with_O_DIRECT;
+      if (try_O_DIRECT)
+        file= open(dir, flags | O_DIRECT, open_mode);
+      else
+# endif
+      file= open(dir, flags, open_mode);
+
+      if (file >= 0)
       {
+# ifdef O_DIRECT
+      O_TMPFILE_works:
+# endif
         my_snprintf(to, FN_REFLEN, "%s/#sql/fd=%d", dir, file);
         file=my_register_filename(file, to, FILE_BY_O_TMPFILE,
                                   EE_CANTCREATEFILE, MyFlags);
       }
+# ifdef O_DIRECT
+      else if (errno == EINVAL && try_O_DIRECT)
+      {
+        file= open(dir, flags, open_mode);
+        if (file >= 0)
+        {
+          O_TMPFILE_works_with_O_DIRECT= 0;
+          goto O_TMPFILE_works;
+        }
+      }
+# endif
       else if (errno == EOPNOTSUPP || errno == EINVAL)
       {
         my_printf_error(EE_CANTCREATEFILE, "O_TMPFILE is not supported on %s "

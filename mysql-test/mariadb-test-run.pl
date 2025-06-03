@@ -130,6 +130,8 @@ our $path_language;
 our $path_current_testlog;
 our $path_testlog;
 
+our $opt_open_files_limit;
+
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
@@ -268,6 +270,9 @@ our $opt_force= 0;
 our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_catalogs= 0;
+our $opt_catalog_name="";
+our $catalog_name="def";
 
 our $opt_gcov;
 our $opt_gprof;
@@ -1274,6 +1279,7 @@ sub command_line_setup {
 	     'list-options'             => \$opt_list_options,
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
+             'open-files-limit=i',      => \$opt_open_files_limit,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -1843,7 +1849,8 @@ sub collect_mysqld_features {
            and $1 ne "innodb-buffer-page"
            and $1 ne "innodb-lock-waits"
            and $1 ne "innodb-locks"
-           and $1 ne "innodb-trx";
+           and $1 ne "innodb-trx"
+           and $1 ne "gssapi";
       next;
     }
 
@@ -2222,6 +2229,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -3207,9 +3217,8 @@ sub mysql_install_db {
       # Append sys schema
       mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
            $bootstrap_sql_file);
-      # Create test database
-      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
-                            $bootstrap_sql_file);
+
+      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to Aria now
@@ -3945,6 +3954,23 @@ sub run_testcase ($$) {
       }
     }
 
+    # Set up things for catalogs
+    # The values of MARIADB_TOPDIR and MARIAD_DATADIR should
+    # be taken from the values used by the default (first)
+    # connection that is used by mariadb-test.
+    my ($mysqld, @servers);
+    @servers= all_servers();
+    $mysqld= $servers[0];
+    $ENV{'MARIADB_TOPDIR'}= $mysqld->value('datadir');
+    if (!$opt_catalogs)
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir');
+    }
+    else
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir') . "/" . $catalog_name;
+    }
+
     # Write start of testcase to log
     mark_log($path_current_testlog, $tinfo);
 
@@ -4561,9 +4587,6 @@ sub extract_warning_lines ($$) {
      qr/runtime error: member call.*object.*'Handler_share'/,
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
-
-  push @antipatterns, qr/though there are still open handles to table/
-    if $mysql_version_id < 100600;
 
   my $matched_lines= [];
   LINE: foreach my $line ( @lines )
@@ -5747,6 +5770,7 @@ sub start_mysqltest ($) {
      append        => 1,
      error         => $path_current_testlog,
      verbose       => $opt_verbose,
+     open_files_limit => $opt_open_files_limit,
     );
   mtr_verbose("Started $proc");
   return $proc;
@@ -6045,6 +6069,8 @@ Misc options
   timediff              With --timestamp, also print time passed since
                         *previous* test started
   max-connections=N     Max number of open connection to server in mysqltest
+  open-files-limit=N    Max number of open files allowed for any of the children
+                        of my_safe_process. Default is 1024.
   report-times          Report how much time has been spent on different
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to

@@ -1,5 +1,37 @@
-SELECT COUNT(*) FROM PERCONA_SCHEMA.xtrabackup_history;
+DROP TABLE IF EXISTS mysql.mariadb_backup_history;
+SHOW CREATE TABLE mysql.mariadb_backup_history;
+Table	Create Table
+mariadb_backup_history	CREATE TABLE `mariadb_backup_history` (
+  `uuid` varchar(40) NOT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `tool_name` varchar(255) DEFAULT NULL,
+  `tool_command` text DEFAULT NULL,
+  `tool_version` varchar(255) DEFAULT NULL,
+  `ibbackup_version` varchar(255) DEFAULT NULL,
+  `server_version` varchar(255) DEFAULT NULL,
+  `start_time` timestamp NULL DEFAULT NULL,
+  `end_time` timestamp NULL DEFAULT NULL,
+  `lock_time` bigint(20) unsigned DEFAULT NULL,
+  `binlog_pos` varchar(128) DEFAULT NULL,
+  `innodb_from_lsn` bigint(20) unsigned DEFAULT NULL,
+  `innodb_to_lsn` bigint(20) unsigned DEFAULT NULL,
+  `partial` enum('Y','N') DEFAULT NULL,
+  `incremental` enum('Y','N') DEFAULT NULL,
+  `format` enum('file','tar','xbstream') DEFAULT NULL,
+  `compressed` enum('Y','N') DEFAULT NULL,
+  PRIMARY KEY (`uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+SELECT COUNT(*) FROM mysql.mariadb_backup_history;
 COUNT(*)
 1
-DROP TABLE PERCONA_SCHEMA.xtrabackup_history;
-DROP DATABASE PERCONA_SCHEMA;
+SELECT name FROM mysql.mariadb_backup_history;
+name
+foo
+SELECT COUNT(*) FROM mysql.mariadb_backup_history;
+COUNT(*)
+2
+SELECT name FROM mysql.mariadb_backup_history;
+name
+
+foo
+DROP TABLE mysql.mariadb_backup_history;

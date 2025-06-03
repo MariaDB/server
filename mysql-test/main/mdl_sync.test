@@ -113,7 +113,7 @@ insert into t1 values (1), (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail during copying the table and thus obtaining SNW metadata
@@ -190,7 +190,7 @@ insert into t1 values (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail during copying the table and thus obtaining SNW metadata
@@ -309,7 +309,7 @@ insert into t1 values (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail during copying the table and thus obtaining SNW metadata
@@ -418,7 +418,7 @@ insert into t1 values (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is not compatible with SW lock.
 --echo # Again we use ALTER TABLE which fails during copying
@@ -3115,12 +3115,6 @@ create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
 
-connect (con1, localhost, root);
-# disable innodb purge thread, otherwise it might start purging t2,
-# and will take an mdl, affecting metadata_lock_info output.
-start transaction with consistent snapshot;
-connection default;
-
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 --send update t1,t2 set t1.a=2,t2.a=3
 
@@ -3156,6 +3150,7 @@ FLUSH TABLES WITH READ LOCK;
 
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info;
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 unlock tables;
@@ -3166,7 +3161,6 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
-disconnect con1;
 
 --echo #
 --echo # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 

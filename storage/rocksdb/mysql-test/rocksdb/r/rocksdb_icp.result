@@ -47,18 +47,22 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "range",
-      "possible_keys": ["kp1"],
-      "key": "kp1",
-      "key_length": "5",
-      "used_key_parts": ["kp1"],
-      "rows": 1000,
-      "filtered": 100,
-      "index_condition": "t3.kp1 between 2 and 4 and t3.kp1 MOD 3 = 0",
-      "attached_condition": "t3.kp2 like '%foo%'"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "range",
+          "possible_keys": ["kp1"],
+          "key": "kp1",
+          "key_length": "5",
+          "used_key_parts": ["kp1"],
+          "rows": 1000,
+          "filtered": 100,
+          "index_condition": "t3.kp1 between 2 and 4 and t3.kp1 MOD 3 = 0",
+          "attached_condition": "t3.kp2 like '%foo%'"
+        }
+      }
+    ]
   }
 }
 # Check that we handle the case where out-of-range is encountered sooner

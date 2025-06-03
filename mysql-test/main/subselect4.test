@@ -2686,3 +2686,4 @@ show status like 'Handler_read_rnd_next%';
 drop table t1,t2,t3;
 
 --echo # End of 10.4 tests
+

@@ -23,7 +23,7 @@ set log_slow_verbosity='engine';
 set long_query_time=0.0;
 set @js='$analyze_output';
 set @pages_read_time_ms=
-(select json_value(@js,'$.query_block.table.r_engine_stats.pages_read_time_ms'));
+(select json_value(@js,'$.query_block.nested_loop[0].table.r_engine_stats.pages_read_time_ms'));
 
 
   OK: pages_read_time is same in slow log and ANALYZE

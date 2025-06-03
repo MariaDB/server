@@ -71,4 +71,4 @@ select * from t;
 --connection master
 drop table t;
 
---source include/rpl_end.inc
+--source rpl_common.inc

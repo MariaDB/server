@@ -290,6 +290,7 @@ func_exit:
   init(TRX_SYS_DOUBLEWRITE + read_buf);
 
   const bool upgrade_to_innodb_file_per_table=
+    !srv_read_only_mode &&
     mach_read_from_4(TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED +
                      TRX_SYS_DOUBLEWRITE + read_buf) !=
     TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N;
@@ -361,16 +362,12 @@ func_exit:
 /** Process and remove the double write buffer pages for all tablespaces. */
 void buf_dblwr_t::recover() noexcept
 {
-  ut_ad(recv_sys.parse_start_lsn);
+  ut_ad(log_sys.last_checkpoint_lsn);
   if (!is_created())
     return;
-  const lsn_t max_lsn{log_sys.get_lsn()};
-  /* The recv_sys.scanned_lsn may include some "padding" after the
-  last log record, depending on the value of
-  innodb_log_write_ahead_size. After MDEV-14425 eliminated
-  OS_FILE_LOG_BLOCK_SIZE, these two LSN must be equal. */
-  ut_ad(recv_sys.scanned_lsn >= max_lsn);
-  ut_ad(recv_sys.scanned_lsn < max_lsn + RECV_PARSING_BUF_SIZE);
+  const lsn_t max_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
+  ut_ad(recv_sys.scanned_lsn == max_lsn);
+  ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
 
   uint32_t page_no_dblwr= 0;
   byte *read_buf= static_cast<byte*>(aligned_malloc(3 * srv_page_size,
@@ -384,7 +381,7 @@ void buf_dblwr_t::recover() noexcept
     const page_t *const page= *i;
     const uint32_t page_no= page_get_page_no(page);
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (recv_sys.parse_start_lsn > lsn || lsn > recv_sys.scanned_lsn)
+    if (log_sys.last_checkpoint_lsn > lsn || lsn > recv_sys.lsn)
       /* Pages written before or after the recovery range are not usable. */
       continue;
     const uint32_t space_id= page_get_space_id(page);
@@ -783,6 +780,9 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
     log_write_up_to(lsn, true);
+    ut_ad(!e.request.node->space->full_crc32() ||
+          !buf_page_is_corrupted(true, static_cast<const byte*>(frame),
+                                 e.request.node->space->flags));
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }

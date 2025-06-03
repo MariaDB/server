@@ -21,8 +21,8 @@ GRANT EXECUTE ON PROCEDURE test1.pr1 TO role1;
 GRANT SELECT ON test1.t1 TO role1;
 GRANT SELECT (a) ON test1.t2 TO role1;
 # Open connections to the 2 nodes using 'foo' user.
-connect foo_node_1,127.0.0.1,foo,,test,$port_1,;
-connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
+connect foo_node_1,127.0.0.1,foo,,"*NO-ONE*",$port_1,;
+connect foo_node_2,127.0.0.1,foo,,"*NO-ONE*",$port_2,;
 
 # Connect with foo_node_1
 connection foo_node_1;

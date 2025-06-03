@@ -239,7 +239,8 @@ int main(int argc, char **argv)
   if (!opt_ignore_control_file &&
       (no_control_file= ma_control_file_open(FALSE,
                                              (opt_require_control_file ||
-                                              !silent), FALSE)) &&
+                                              !silent), FALSE,
+                                             control_file_open_flags)) &&
        opt_require_control_file)
   {
     error= 1;

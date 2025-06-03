@@ -956,7 +956,7 @@ insert into v3 (col1) values ((select max(col1) from v1));
 insert into v3 (col1) values ((select max(col1) from t1));
 insert into v3 (col1) values ((select max(col1) from v2));
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2 LIMIT 1));
-ERROR 22003: Out of range value for column 'col1' at row 2
+ERROR 22003: Out of range value for column 'col1' at row 3
 insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
 ERROR 23000: Column 'col1' cannot be null
@@ -7077,4 +7077,50 @@ DROP VIEW v1;
 DROP TABLE t1, t2;
 #
 # End of 10.6 tests
+#
+#
+# MDEV-29587: Allowing insert into a view with columns that
+# are not part the table
+#
+# view with 2 the same fields
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and expression over the field
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and collation expression over the field
+CREATE TABLE table1 (x char(20));
+CREATE VIEW view1 AS SELECT x, x collate latin1_german1_ci as x1 FROM table1;
+INSERT INTO view1(x) VALUES ("ua");
+# we can insert in the field with collation
+INSERT INTO view1(x1) VALUES ("ua");
+INSERT INTO view1(x1,x) VALUES ("ua","ua");
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and expression over other field
+CREATE TABLE table1 (x INT, y INT);
+CREATE VIEW view1 AS SELECT x, y + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+#
+# End of 10.11 test
 #

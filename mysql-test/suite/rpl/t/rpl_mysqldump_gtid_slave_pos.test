@@ -53,6 +53,8 @@ while ($i)
 --let $val= 2147483647
 --evalp SET @@global.gtid_cleanup_batch_size = $val
 
+# due to MDEV-19801 on 10+.10+
+CHANGE MASTER TO master_use_gtid= no;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 # Prior tests in a mtr batch could leave the min value of sub_id column with

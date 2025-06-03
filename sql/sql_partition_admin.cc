@@ -193,12 +193,11 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   @param part_table Partitioned table.
   @param part_elem  Partition element to use for partition specific compare.
 */
-static bool compare_table_with_partition(THD *thd, TABLE *table,
-                                         TABLE *part_table,
-                                         partition_element *part_elem,
-                                         uint part_id)
+bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
+                                  partition_element *part_elem, uint part_id)
 {
-  HA_CREATE_INFO table_create_info, part_create_info;
+  HA_CREATE_INFO table_create_info;
+  Table_specification_st part_create_info;
   Alter_info part_alter_info;
   Alter_table_ctx part_alter_ctx; // Not used
   DBUG_ENTER("compare_table_with_partition");
@@ -300,7 +299,7 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
     The workaround is to use REORGANIZE PARTITION to rewrite
     the frm file and then use EXCHANGE PARTITION when they are the same.
   */
-  if (compare_partition_options(&table_create_info, part_elem))
+  if (part_elem && compare_partition_options(&table_create_info, part_elem))
     DBUG_RETURN(TRUE);
 
   DBUG_RETURN(FALSE);
@@ -1002,6 +1001,55 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   query_cache_invalidate3(thd, first_table, FALSE);
 
   DBUG_RETURN(error);
+}
+
+
+/**
+  Move a table specified in the CONVERT TABLE <table_name> TO PARTITION ...
+  to the new partition.
+
+  @param lpt  A structure containing parameters regarding to the statement
+              ALTER TABLE ... TO PARTITION ...
+  @param part_file_name  a file name of the partition being added
+
+  @return false on success, true on error
+*/
+
+bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  char part_file_name[2*FN_REFLEN+1];
+  THD *thd= lpt->thd;
+  const char *path= lpt->table_list->table->s->path.str;
+  TABLE_LIST *table_from= lpt->table_list->next_local;
+
+  const char *partition_name=
+    thd->lex->part_info->curr_part_elem->partition_name;
+
+  if (create_partition_name(part_file_name, sizeof(part_file_name), path,
+                            partition_name, NORMAL_PART_NAME, false))
+    return true;
+
+  char from_file_name[FN_REFLEN+1];
+
+  build_table_filename(from_file_name, sizeof(from_file_name),
+                       table_from->db.str, table_from->table_name.str, "", 0);
+
+  handler *file= get_new_handler(nullptr, thd->mem_root,
+                                 table_from->table->file->ht);
+  if (unlikely(!file))
+    return true;
+
+  close_all_tables_for_name(thd, table_from->table->s,
+                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
+
+  bool res= file->ha_rename_table(from_file_name, part_file_name);
+
+  if (res)
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
+             part_file_name, my_errno);
+
+  delete file;
+  return res;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */

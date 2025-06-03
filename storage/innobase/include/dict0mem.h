@@ -113,7 +113,7 @@ are described in fsp0fsp.h. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
-#define DICT_N_COLS_COMPACT	0x80000000UL
+constexpr uint32_t DICT_N_COLS_COMPACT= 1U << 31;
 
 /** Width of the COMPACT flag */
 #define DICT_TF_WIDTH_COMPACT		1
@@ -397,18 +397,7 @@ dict_mem_index_create(
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
-/**********************************************************************//**
-Adds a field definition to an index. NOTE: does not take a copy
-of the column name if the field is a column. The memory occupied
-by the column name may be released only after publishing the index. */
-void
-dict_mem_index_add_field(
-/*=====================*/
-	dict_index_t*	index,		/*!< in: index */
-	const char*	name,		/*!< in: column name */
-	ulint		prefix_len);	/*!< in: 0 or the column prefix length
-					in a MySQL index like
-					INDEX (textcol(25)) */
+
 /**********************************************************************//**
 Frees an index memory object. */
 void
@@ -887,9 +876,11 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+	/** 1=DESC, 0=ASC */
+	unsigned	descending:1;
 
 	/** Zero-initialize all fields */
-	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
+	dict_field_t() { memset((void*) this, 0, sizeof *this); }
 
 	/** Check whether two index fields are equivalent.
 	@param[in]	old	the other index field
@@ -1115,15 +1106,12 @@ struct dict_index_t {
 				is indexed from 0 to n_uniq-1); This
 				is used when innodb_stats_method is
 				"nulls_ignored". */
-	ulint		stat_index_size;
+	uint32_t	stat_index_size;
 				/*!< approximate index size in
 				database pages */
-	ulint		stat_n_leaf_pages;
+	uint32_t	stat_n_leaf_pages;
 				/*!< approximate number of leaf pages in the
 				index tree */
-	bool		stats_error_printed;
-				/*!< has persistent statistics error printed
-				for this index ? */
 	/* @} */
 	/** Statistics for defragmentation, these numbers are estimations and
 	could be very inaccurate at certain times, e.g. right after restart,
@@ -1481,6 +1469,21 @@ inline void dict_col_t::detach(const dict_index_t &index)
 {
   if (is_virtual())
     reinterpret_cast<dict_v_col_t*>(this)->detach(index);
+}
+
+/** Add a field definition to an index.
+@param index         index
+@param name          pointer to column name
+@param prefix_len    column prefix length, or 0
+@param descending    whether to use descending order */
+inline void dict_mem_index_add_field(dict_index_t *index, const char *name,
+                                     ulint prefix_len, bool descending= false)
+{
+  ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+  dict_field_t &field= index->fields[index->n_def++];
+  field.name= name;
+  field.prefix_len= prefix_len & ((1U << 12) - 1);
+  field.descending= descending;
 }
 
 /** The status of online index creation */
@@ -2191,7 +2194,7 @@ public:
 	/** The tablespace of the table */
 	fil_space_t*				space;
 	/** Tablespace ID */
-	ulint					space_id;
+	uint32_t				space_id;
 
 	/** Stores information about:
 	1 row format (redundant or compact),
@@ -2352,62 +2355,31 @@ public:
 	/** Statistics for query optimization. Mostly protected by
 	dict_sys.latch and stats_mutex_lock(). @{ */
 
-	/** TRUE if statistics have been calculated the first time after
-	database startup or table creation. */
-	unsigned				stat_initialized:1;
-
 	/** Timestamp of last recalc of the stats. */
 	time_t					stats_last_recalc;
 
-	/** The two bits below are set in the 'stat_persistent' member. They
-	have the following meaning:
-	1. _ON=0, _OFF=0, no explicit persistent stats setting for this table,
-	the value of the global srv_stats_persistent is used to determine
-	whether the table has persistent stats enabled or not
-	2. _ON=0, _OFF=1, persistent stats are explicitly disabled for this
-	table, regardless of the value of the global srv_stats_persistent
-	3. _ON=1, _OFF=0, persistent stats are explicitly enabled for this
-	table, regardless of the value of the global srv_stats_persistent
-	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
-	#define DICT_STATS_PERSISTENT_ON	(1 << 1)
-	#define DICT_STATS_PERSISTENT_OFF	(1 << 2)
+  static constexpr uint32_t STATS_INITIALIZED= 1U;
+  static constexpr uint32_t STATS_PERSISTENT_ON= 1U << 1;
+  static constexpr uint32_t STATS_PERSISTENT_OFF= 1U << 2;
+  static constexpr uint32_t STATS_AUTO_RECALC_ON= 1U << 3;
+  static constexpr uint32_t STATS_AUTO_RECALC_OFF= 1U << 4;
 
-	/** Indicates whether the table uses persistent stats or not. See
-	DICT_STATS_PERSISTENT_ON and DICT_STATS_PERSISTENT_OFF. */
-	ib_uint32_t				stat_persistent;
+  /** flags for index cardinality statistics */
+  Atomic_relaxed<uint32_t> stat;
+  /** Approximate clustered index size in database pages. */
+  uint32_t stat_clustered_index_size;
+  /** Approximate size of other indexes in database pages. */
+  uint32_t stat_sum_of_other_index_sizes;
 
-	/** The two bits below are set in the 'stats_auto_recalc' member. They
-	have the following meaning:
-	1. _ON=0, _OFF=0, no explicit auto recalc setting for this table, the
-	value of the global srv_stats_persistent_auto_recalc is used to
-	determine whether the table has auto recalc enabled or not
-	2. _ON=0, _OFF=1, auto recalc is explicitly disabled for this table,
-	regardless of the value of the global srv_stats_persistent_auto_recalc
-	3. _ON=1, _OFF=0, auto recalc is explicitly enabled for this table,
-	regardless of the value of the global srv_stats_persistent_auto_recalc
-	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
-	#define DICT_STATS_AUTO_RECALC_ON	(1 << 1)
-	#define DICT_STATS_AUTO_RECALC_OFF	(1 << 2)
 
-	/** Indicates whether the table uses automatic recalc for persistent
-	stats or not. See DICT_STATS_AUTO_RECALC_ON and
-	DICT_STATS_AUTO_RECALC_OFF. */
-	ib_uint32_t				stats_auto_recalc;
-
-	/** The number of pages to sample for this table during persistent
-	stats estimation. If this is 0, then the value of the global
-	srv_stats_persistent_sample_pages will be used instead. */
-	ulint					stats_sample_pages;
+  /** The number of pages to sample for this table during persistent
+  stats estimation. If this is 0, then the value of the global
+  srv_stats_persistent_sample_pages will be used instead. */
+  uint32_t stats_sample_pages;
 
 	/** Approximate number of rows in the table. We periodically calculate
 	new estimates. */
 	ib_uint64_t				stat_n_rows;
-
-	/** Approximate clustered index size in database pages. */
-	ulint					stat_clustered_index_size;
-
-	/** Approximate size of other indexes in database pages. */
-	ulint					stat_sum_of_other_index_sizes;
 
 	/** How many rows are modified since last stats recalc. When a row is
 	inserted, updated, or deleted, we add 1 to this number; we calculate
@@ -2418,7 +2390,7 @@ public:
 	ib_uint64_t				stat_modified_counter;
 
 	bool		stats_error_printed;
-				/*!< Has persistent stats error beein
+				/*!< Has persistent stats error been
 				already printed for this table ? */
 	/* @} */
 
@@ -2530,7 +2502,7 @@ public:
   }
 
   /** @return whether a DDL operation is in progress on this table */
-  bool is_active_ddl() const
+  bool is_native_online_ddl() const
   {
     return UT_LIST_GET_FIRST(indexes)->online_log;
   }
@@ -2545,6 +2517,35 @@ public:
   /** @return the index for that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;
 
+  /** @return whether the statistics are initialized */
+  static bool stat_initialized(uint32_t stat) noexcept
+  { return stat & STATS_INITIALIZED; }
+
+  /** @return whether STATS_PERSISTENT is enabled */
+  static bool stats_is_persistent(uint32_t stat) noexcept
+  {
+    ut_ad(~(stat & (STATS_PERSISTENT_ON | STATS_PERSISTENT_OFF)));
+    if (stat & STATS_PERSISTENT_ON) return true;
+    return !(stat & STATS_PERSISTENT_OFF) && srv_stats_persistent;
+  }
+  /** @return whether STATS_AUTO_RECALC is enabled */
+  static bool stats_is_auto_recalc(uint32_t stat) noexcept
+  {
+    ut_ad(stat_initialized(stat));
+    ut_ad(~(stat & (STATS_AUTO_RECALC_ON | STATS_AUTO_RECALC_OFF)));
+    if (stat & STATS_AUTO_RECALC_ON) return true;
+    return !(stat & STATS_AUTO_RECALC_OFF) && srv_stats_auto_recalc;
+  }
+
+  /** @return whether the statistics are initialized */
+  bool stat_initialized() const noexcept { return stat_initialized(stat); }
+  /** @return whether STATS_PERSISTENT is enabled */
+  bool stats_is_persistent() const noexcept
+  { return stats_is_persistent(stat); }
+  /** @return whether STATS_AUTO_RECALC is enabled */
+  bool stats_is_auto_recalc() const noexcept
+  { return stats_is_auto_recalc(stat); }
+
   /** Create metadata.
   @param name     table name
   @param space    tablespace
@@ -2556,6 +2557,16 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
+
+  /** Check whether the table has any spatial indexes */
+  bool has_spatial_index() const
+  {
+    for (auto i= UT_LIST_GET_FIRST(indexes);
+         (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+      if (i->is_spatial())
+        return true;
+    return false;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

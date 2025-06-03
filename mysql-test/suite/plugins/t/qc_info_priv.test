@@ -4,6 +4,7 @@ set @save_query_cache_size=@@global.query_cache_size;
 
 # try an unprivileged user
 create user mysqltest;
+grant select on test.* to mysqltest;
 connect (conn1,localhost,mysqltest,,);
 connection conn1;
 select a from t1;

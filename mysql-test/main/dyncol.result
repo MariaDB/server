@@ -1445,7 +1445,7 @@ Note	1105	Cast to signed converted positive out-of-range integer to it's negativ
 #             mysqld
 #
 SELECT COLUMN_GET(`x`, 'y' AS DECIMAL(5,50));
-ERROR 42000: Too big scale 50 specified for ''y''. Maximum is 38
+ERROR 42000: Too big scale specified for ''y''. Maximum is 38
 #
 # test of symbolic names
 #

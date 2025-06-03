@@ -63,11 +63,11 @@ size_t my_casedn_str_mb(CHARSET_INFO * cs, char *str)
 }
 
 
-static inline MY_UNICASE_CHARACTER*
+static inline const MY_CASEFOLD_CHARACTER*
 get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
 {
-  MY_UNICASE_CHARACTER *p;
-  return cs->caseinfo && (p= cs->caseinfo->page[page]) ? &p[offs] : NULL;
+  const MY_CASEFOLD_CHARACTER *p;
+  return cs->casefold && (p= cs->casefold->page[page]) ? &p[offs] : NULL;
 }
 
 
@@ -97,7 +97,7 @@ my_casefold_mb(CHARSET_INFO *cs,
     size_t mblen= my_ismbchar(cs, src, srcend);
     if (mblen)
     {
-      MY_UNICASE_CHARACTER *ch;
+      const MY_CASEFOLD_CHARACTER *ch;
       if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
       {
         int code= is_upper ? ch->toupper : ch->tolower;
@@ -125,8 +125,8 @@ size_t
 my_casedn_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
                     char *dst, size_t dstlen)
 {
-  DBUG_ASSERT(dstlen >= srclen * cs->casedn_multiply); 
-  DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
+  DBUG_ASSERT(dstlen >= srclen * cs->cset->casedn_multiply(cs));
+  DBUG_ASSERT(src != dst || cs->cset->casedn_multiply(cs) == 1);
   return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_lower, 0);
 }
 
@@ -135,8 +135,8 @@ size_t
 my_caseup_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
              char *dst, size_t dstlen)
 {
-  DBUG_ASSERT(dstlen >= srclen * cs->caseup_multiply);
-  DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
+  DBUG_ASSERT(dstlen >= srclen * cs->cset->caseup_multiply(cs));
+  DBUG_ASSERT(src != dst || cs->cset->caseup_multiply(cs) == 1);
   return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_upper, 1);
 }
 

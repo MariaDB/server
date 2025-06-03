@@ -460,7 +460,7 @@ static int item_val_real(struct st_mysql_value *value, double *buf)
 
 static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
 {
-  uint i;
+  size_t i;
   struct st_plugin_dl *tmp;
   DBUG_ENTER("plugin_dl_find");
   for (i= 0; i < plugin_dl_array.elements; i++)
@@ -477,7 +477,7 @@ static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
 
 static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
 {
-  uint i;
+  size_t i;
   struct st_plugin_dl *tmp;
   DBUG_ENTER("plugin_dl_insert_or_reuse");
   for (i= 0; i < plugin_dl_array.elements; i++)
@@ -1072,6 +1072,8 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
   plugin_ref rc= NULL;
   st_plugin_int *plugin;
   DBUG_ENTER("plugin_lock_by_name");
+  if (!name->length)
+    DBUG_RETURN(NULL);
   mysql_mutex_lock(&LOCK_plugin);
   if ((plugin= plugin_find_internal(name, type)))
     rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin));
@@ -1082,7 +1084,7 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
 
 static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
 {
-  uint i;
+  size_t i;
   struct st_plugin_int *tmp;
   DBUG_ENTER("plugin_insert_or_reuse");
   for (i= 0; i < plugin_array.elements; i++)
@@ -1265,24 +1267,18 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
     remove_status_vars(show_vars);
   }
 
-  if (plugin_type_deinitialize[plugin->plugin->type])
+  plugin_type_init deinit= plugin_type_deinitialize[plugin->plugin->type];
+  if (!deinit)
+    deinit= (plugin_type_init)(plugin->plugin->deinit);
+
+  if (deinit && deinit(plugin))
   {
-    if ((*plugin_type_deinitialize[plugin->plugin->type])(plugin))
-    {
-      sql_print_error("Plugin '%s' of type %s failed deinitialization",
-                      plugin->name.str, plugin_type_names[plugin->plugin->type].str);
-    }
+    if (THD *thd= current_thd)
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   WARN_PLUGIN_BUSY, ER_THD(thd, WARN_PLUGIN_BUSY));
   }
-  else if (plugin->plugin->deinit)
-  {
-    DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-    if (plugin->plugin->deinit(plugin))
-    {
-      DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                             plugin->name.str));
-    }
-  }
-  plugin->state= PLUGIN_IS_UNINITIALIZED;
+  else
+    plugin->state= PLUGIN_IS_UNINITIALIZED; // free to unload
 
   if (ref_check && plugin->ref_count)
     sql_print_error("Plugin '%s' has ref_count=%d after deinitialization.",
@@ -1290,10 +1286,13 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   plugin_variables_deinit(plugin);
 }
 
-static void plugin_del(struct st_plugin_int *plugin)
+static void plugin_del(struct st_plugin_int *plugin, uint del_mask)
 {
   DBUG_ENTER("plugin_del");
   mysql_mutex_assert_owner(&LOCK_plugin);
+  del_mask|= PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DISABLED; // always use these
+  if (!(plugin->state & del_mask))
+    DBUG_VOID_RETURN;
   /* Free allocated strings before deleting the plugin. */
   plugin_vars_free_values(plugin->plugin->system_vars);
   restore_ptr_backup(plugin->nbackups, plugin->ptr_backup);
@@ -1311,7 +1310,7 @@ static void plugin_del(struct st_plugin_int *plugin)
 
 static void reap_plugins(void)
 {
-  uint count;
+  size_t count;
   struct st_plugin_int *plugin, **reap, **list;
 
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -1343,19 +1342,19 @@ static void reap_plugins(void)
 
   list= reap;
   while ((plugin= *(--list)))
-      plugin_deinitialize(plugin, true);
+    plugin_deinitialize(plugin, true);
 
   mysql_mutex_lock(&LOCK_plugin);
 
   while ((plugin= *(--reap)))
-    plugin_del(plugin);
+    plugin_del(plugin, 0);
 
   my_afree(reap);
 }
 
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin)
 {
-  int i;
+  ssize_t i;
   st_plugin_int *pi;
   DBUG_ENTER("intern_plugin_unlock");
 
@@ -1421,7 +1420,7 @@ void plugin_unlock(THD *thd, plugin_ref plugin)
 }
 
 
-void plugin_unlock_list(THD *thd, plugin_ref *list, uint count)
+void plugin_unlock_list(THD *thd, plugin_ref *list, size_t count)
 {
   LEX *lex= thd ? thd->lex : 0;
   DBUG_ENTER("plugin_unlock_list");
@@ -1596,7 +1595,7 @@ static void init_plugin_psi_keys(void) {}
 */
 int plugin_init(int *argc, char **argv, int flags)
 {
-  uint i;
+  size_t i;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
   struct st_plugin_int tmp, *plugin_ptr, **reap, **retry_end, **retry_start;
@@ -1830,7 +1829,7 @@ int plugin_init(int *argc, char **argv, int flags)
       reaped_mandatory_plugin= TRUE;
     plugin_deinitialize(plugin_ptr, true);
     mysql_mutex_lock(&LOCK_plugin);
-    plugin_del(plugin_ptr);
+    plugin_del(plugin_ptr, 0);
   }
 
   mysql_mutex_unlock(&LOCK_plugin);
@@ -2070,7 +2069,7 @@ error:
 
 void plugin_shutdown(void)
 {
-  uint i, count= plugin_array.elements;
+  size_t i, count= plugin_array.elements;
   struct st_plugin_int **plugins, *plugin;
   struct st_plugin_dl **dl;
   DBUG_ENTER("plugin_shutdown");
@@ -2119,12 +2118,14 @@ void plugin_shutdown(void)
     plugins= (struct st_plugin_int **) my_alloca(sizeof(void*) * (count+1));
 
     /*
-      If we have any plugins which did not die cleanly, we force shutdown
+      If we have any plugins which did not die cleanly, we force shutdown.
+      Don't re-deinit() plugins that failed deinit() earlier (already dying)
     */
     for (i= 0; i < count; i++)
     {
       plugins[i]= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
-      /* change the state to ensure no reaping races */
+      if (plugins[i]->state == PLUGIN_IS_DYING)
+        plugins[i]->state= PLUGIN_IS_UNINITIALIZED;
       if (plugins[i]->state == PLUGIN_IS_DELETED)
         plugins[i]->state= PLUGIN_IS_DYING;
     }
@@ -2160,9 +2161,7 @@ void plugin_shutdown(void)
       if (plugins[i]->ref_count)
         sql_print_error("Plugin '%s' has ref_count=%d after shutdown.",
                         plugins[i]->name.str, plugins[i]->ref_count);
-      if (plugins[i]->state & PLUGIN_IS_UNINITIALIZED ||
-          plugins[i]->state & PLUGIN_IS_DISABLED)
-        plugin_del(plugins[i]);
+      plugin_del(plugins[i], PLUGIN_IS_DYING);
     }
 
     /*
@@ -2401,7 +2400,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       of the delete from the plugin table, so that it is not replicated in
       row based mode.
     */
-    table->file->row_logging= 0;                // No logging    
+    table->file->row_logging= 0;                // No logging
     error= table->file->ha_delete_row(table->record[0]);
     if (unlikely(error))
     {
@@ -2514,7 +2513,7 @@ wsrep_error_label:
 bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                        int type, uint state_mask, void *arg)
 {
-  uint idx, total= 0;
+  size_t idx, total= 0;
   struct st_plugin_int *plugin;
   plugin_ref *plugins;
   my_bool res= FALSE;
@@ -3370,7 +3369,7 @@ static void cleanup_variables(struct system_variables *vars)
 
 void plugin_thdvar_cleanup(THD *thd)
 {
-  uint idx;
+  size_t idx;
   plugin_ref *list;
   DBUG_ENTER("plugin_thdvar_cleanup");
 
@@ -3386,7 +3385,7 @@ void plugin_thdvar_cleanup(THD *thd)
   if ((idx= thd->lex->plugins.elements))
   {
     list= ((plugin_ref*) thd->lex->plugins.buffer) + idx - 1;
-    DBUG_PRINT("info",("unlocking %d plugins", idx));
+    DBUG_PRINT("info",("unlocking %zu plugins", idx));
     while ((uchar*) list >= thd->lex->plugins.buffer)
       intern_plugin_unlock(NULL, *list--);
   }
@@ -4375,7 +4374,7 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
   if (!initialized)
     return;
 
-  for (uint idx= 0; idx < plugin_array.elements; idx++)
+  for (size_t idx= 0; idx < plugin_array.elements; idx++)
   {
     p= *dynamic_element(&plugin_array, idx, struct st_plugin_int **);
 
@@ -4482,7 +4481,7 @@ int thd_setspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key, void *value)
   DBUG_ASSERT(key != INVALID_THD_KEY);
   if (key == INVALID_THD_KEY || (!thd && !(thd= current_thd)))
     return EINVAL;
-  
+
   memcpy(intern_sys_var_ptr(thd, key, true), &value, sizeof(void*));
   return 0;
 }

@@ -365,125 +365,144 @@ from t10 left join t11 on t11.col1=t10.col1
 group by grp_id) T on T.grp_id=t1.b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 5,
-      "r_rows": 5,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t1.b"],
-      "r_loops": 5,
-      "rows": 2,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(trigcond(t1.b is not null))"
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t1.b"],
-      "r_loops": 10,
-      "rows": 3,
-      "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(trigcond(t1.b is not null))"
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["grp_id"],
-      "ref": ["test.t1.b"],
-      "r_loops": 30,
-      "rows": 10,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(trigcond(t1.b is not null))",
-      "materialized": {
-        "lateral": 1,
-        "query_block": {
-          "select_id": 2,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 5,
+          "r_rows": 5,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.b"],
           "r_loops": 5,
-          "r_total_time_ms": "REPLACED",
-          "outer_ref_condition": "t1.b is not null",
-          "table": {
-            "table_name": "t10",
-            "access_type": "ref",
-            "possible_keys": ["grp_id"],
-            "key": "grp_id",
-            "key_length": "5",
-            "used_key_parts": ["grp_id"],
-            "ref": ["test.t1.b"],
-            "r_loops": 5,
-            "rows": 100,
-            "r_rows": 100,
-            "r_table_time_ms": "REPLACED",
-            "r_other_time_ms": "REPLACED",
-            "r_engine_stats": REPLACED,
-            "filtered": 100,
-            "r_filtered": 100
-          },
-          "block-nl-join": {
-            "table": {
-              "table_name": "t11",
-              "access_type": "ALL",
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.b is not null))"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.b"],
+          "r_loops": 10,
+          "rows": 3,
+          "r_rows": 3,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.b is not null))"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["grp_id"],
+          "ref": ["test.t1.b"],
+          "r_loops": 30,
+          "rows": 10,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.b is not null))",
+          "materialized": {
+            "lateral": 1,
+            "query_block": {
+              "select_id": 2,
               "r_loops": 5,
-              "rows": 10,
-              "r_rows": 10,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            },
-            "buffer_type": "flat",
-            "buffer_size": "1Kb",
-            "join_type": "BNL",
-            "attached_condition": "trigcond(t11.col1 = t10.col1)",
-            "r_loops": 500,
-            "r_filtered": 10,
-            "r_unpack_time_ms": "REPLACED",
-            "r_other_time_ms": "REPLACED",
-            "r_effective_rows": 10
+              "r_total_time_ms": "REPLACED",
+              "outer_ref_condition": "t1.b is not null",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t10",
+                    "access_type": "ref",
+                    "possible_keys": ["grp_id"],
+                    "key": "grp_id",
+                    "key_length": "5",
+                    "used_key_parts": ["grp_id"],
+                    "ref": ["test.t1.b"],
+                    "r_loops": 5,
+                    "rows": 100,
+                    "r_rows": 100,
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
+                    "filtered": 100,
+                    "r_filtered": 100
+                  }
+                },
+                {
+                  "block-nl-join": {
+                    "table": {
+                      "table_name": "t11",
+                      "access_type": "ALL",
+                      "r_loops": 5,
+                      "rows": 10,
+                      "r_rows": 10,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_filtered": 100
+                    },
+                    "buffer_type": "flat",
+                    "buffer_size": "1Kb",
+                    "join_type": "BNL",
+                    "attached_condition": "trigcond(t11.col1 = t10.col1)",
+                    "r_loops": 500,
+                    "r_filtered": 10,
+                    "r_unpack_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_effective_rows": 10
+                  }
+                }
+              ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 create table t21 (pk int primary key);

@@ -397,3 +397,61 @@ indexed_col	not_indexed_col
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+#
+CREATE TABLE t1 (c1 BINARY(16), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (-2),(-1),(1),(2);
+SELECT HEX(c1) FROM t1 WHERE 'a' BETWEEN 0 AND (c1);
+HEX(c1)
+31000000000000000000000000000000
+32000000000000000000000000000000
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '-2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+SELECT HEX(c1) FROM t1 IGNORE KEY(c1) WHERE 'a' BETWEEN 0 AND (c1);
+HEX(c1)
+31000000000000000000000000000000
+32000000000000000000000000000000
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '-2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: '2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+SELECT HEX(c1) FROM t1 WHERE '#' BETWEEN c1 AND 0;
+HEX(c1)
+2D310000000000000000000000000000
+2D320000000000000000000000000000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '-2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+SELECT HEX(c1) FROM t1 IGNORE KEY(c1) WHERE '#' BETWEEN c1 AND 0;
+HEX(c1)
+2D320000000000000000000000000000
+2D310000000000000000000000000000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '-2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+DROP TABLE t1;

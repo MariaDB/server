@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-# Copyright (c) 2012, 2021, MariaDB
+# Copyright (c) 2012, 2022, MariaDB
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,6 +32,19 @@ ELSE()
   SET(MYSQLD_GROUP "mysql")
   SET(ini_file_extension "cnf")
   SET(HOSTNAME "uname -n")
+
+  # Define directly here, as cmake/install_layout.cmake has no LOGDIR to be inherited
+  SET(su_user "su mysql mysql")
+  IF(RPM MATCHES "(suse|sles)")
+    SET(logdir "/var/log/mysql")
+  ELSEIF(RPM)
+    SET(logdir "/var/log/mariadb")
+  ELSE()
+    SET(logdir "/var/log/mysql")
+  ENDIF()
+  IF(DEB)
+    SET(su_user "#su mysql mysql")
+  ENDIF()
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise
@@ -51,12 +64,12 @@ ENDIF()
 
 IF(UNIX AND NOT WITHOUT_SERVER)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  SET(SCRIPTS mysqld_multi.server mysql-log-rotate binary-configure)
+  SET(SCRIPTS mysqld_multi.server mariadb.logrotate binary-configure mini-benchmark)
   IF(WITH_WSREP)
     SET(SCRIPTS ${SCRIPTS} wsrep_notify)
   ENDIF()
   FOREACH(script ${SCRIPTS})
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
       DESTINATION ${inst_location} COMPONENT Server_Scripts)
@@ -207,8 +220,9 @@ IF(UNIX AND NOT WITHOUT_SERVER)
   ENDIF()
 
   IF (INSTALL_SYSCONFDIR)
-    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
-            RENAME mysql COMPONENT SupportFiles)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.logrotate
+            DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
+            RENAME mariadb COMPONENT SupportFiles)
     IF(NOT HAVE_SYSTEMD)
       INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
               DESTINATION  ${INSTALL_SYSCONFDIR}/init.d

@@ -1632,7 +1632,8 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
       goto end;
     }
 
-    if ((rec= my_hash_search(hash, (const uchar *)&domain_id, 0)))
+    if ((rec= my_hash_search(hash, (const uchar *)&domain_id,
+                             sizeof(domain_id))))
     {
       entry= (struct gtid_pos_element *)rec;
       if (entry->sub_id >= sub_id)
@@ -2151,16 +2152,24 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  gtid_ev_flags_extra= 0;
+  gtid_ev_sa_seq_no= 0;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
+  rpt= NULL;
+  start_alter_ev= NULL;
+  direct_commit_alter= false;
   commit_orderer.reinit();
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
   : thd(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
+    gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
+    reserved_start_alter_thread(0), finish_event_group_called(0), rpt(NULL),
+    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));
@@ -2168,7 +2177,6 @@ rpl_group_info::rpl_group_info(Relay_log_info *rli)
                    MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_rpl_group_info_sleep_cond, &sleep_cond, NULL);
 }
-
 
 rpl_group_info::~rpl_group_info()
 {
@@ -2194,6 +2202,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   rgi->current_gtid.seq_no= gev->seq_no;
   rgi->commit_id= gev->commit_id;
   rgi->gtid_pending= true;
+  rgi->sa_info= NULL;
   return 0;
 }
 

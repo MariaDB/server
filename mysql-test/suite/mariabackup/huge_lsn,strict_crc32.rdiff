@@ -1,0 +1,13 @@
+--- suite/mariabackup/huge_lsn.result
++++ suite/mariabackup/huge_lsn.reject
+@@ -1,8 +1,8 @@
+ #
+ # MDEV-13416 mariabackup fails with EFAULT "Bad Address"
+ #
+-# restart: --innodb-log-file-size=4M --innodb-encrypt-log=0
+-FOUND 1 /InnoDB: log sequence number 17596481011216/ in mysqld.1.err
++# restart
++FOUND 1 /redo log: [0-9.]*[KMGT]iB; LSN=17596481010687\b/ in mysqld.1.err
+ CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
+ INSERT INTO t VALUES(1);
+ # xtrabackup backup

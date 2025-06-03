@@ -42,12 +42,8 @@ Created 2012-02-08 by Sunny Bains.
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
 #include "lock0lock.h"
-#ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
-#endif
-#ifdef HAVE_SNAPPY
 #include "snappy-c.h"
-#endif
 #include "log.h"
 #include "table.h"
 #include "ha_innodb.h"
@@ -87,9 +83,9 @@ struct row_index_t {
 						in the exporting server */
 	byte*		m_name;			/*!< Index name */
 
-	ulint		m_space;		/*!< Space where it is placed */
+	uint32_t	m_space;		/*!< Space where it is placed */
 
-	ulint		m_page_no;		/*!< Root page number */
+	uint32_t	m_page_no;		/*!< Root page number */
 
 	ulint		m_type;			/*!< Index type */
 
@@ -461,14 +457,14 @@ class AbstractCallback
 public:
 	/** Constructor
 	@param trx covering transaction */
-	AbstractCallback(trx_t* trx, ulint space_id)
+	AbstractCallback(trx_t* trx, uint32_t space_id)
 		:
 		m_zip_size(0),
 		m_trx(trx),
 		m_space(space_id),
 		m_xdes(),
-		m_xdes_page_no(ULINT_UNDEFINED),
-		m_space_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
+		m_xdes_page_no(UINT32_MAX),
+		m_space_flags(UINT32_MAX) UNIV_NOTHROW { }
 
 	/** Free any extent descriptor instance */
 	virtual ~AbstractCallback()
@@ -491,10 +487,7 @@ public:
 	}
 
 	/** @return the tablespace flags */
-	ulint get_space_flags() const
-	{
-		return(m_space_flags);
-	}
+	uint32_t get_space_flags() const { return m_space_flags; }
 
 	/**
 	Set the name of the physical file and the file handle that is used
@@ -525,7 +518,7 @@ public:
 	virtual dberr_t operator()(buf_block_t* block) UNIV_NOTHROW = 0;
 
 	/** @return the tablespace identifier */
-	ulint get_space_id() const { return m_space; }
+	uint32_t get_space_id() const { return m_space; }
 
 	bool is_interrupted() const { return trx_is_interrupted(m_trx); }
 
@@ -568,7 +561,7 @@ protected:
 	@param page page contents
 	@return DB_SUCCESS or error code. */
 	dberr_t	set_current_xdes(
-		ulint		page_no,
+		uint32_t	page_no,
 		const page_t*	page) UNIV_NOTHROW
 	{
 		m_xdes_page_no = page_no;
@@ -633,22 +626,19 @@ protected:
 	trx_t*			m_trx;
 
 	/** Space id of the file being iterated over. */
-	ulint			m_space;
-
-	/** Current size of the space in pages */
-	ulint			m_size;
+	uint32_t		m_space;
 
 	/** Current extent descriptor page */
 	xdes_t*			m_xdes;
 
 	/** Physical page offset in the file of the extent descriptor */
-	ulint			m_xdes_page_no;
+	uint32_t		m_xdes_page_no;
 
 	/** Flags value read from the header page */
-	ulint			m_space_flags;
+	uint32_t		m_space_flags;
 };
 
-ATTRIBUTE_COLD static dberr_t invalid_space_flags(ulint flags)
+ATTRIBUTE_COLD static dberr_t invalid_space_flags(uint32_t flags)
 {
   if (fsp_flags_is_incompatible_mysql(flags))
   {
@@ -656,7 +646,7 @@ ATTRIBUTE_COLD static dberr_t invalid_space_flags(ulint flags)
     return DB_UNSUPPORTED;
   }
 
-  sql_print_error("InnoDB: Invalid FSP_SPACE_FLAGS=0x%zx", flags);
+  sql_print_error("InnoDB: Invalid FSP_SPACE_FLAGS=0x%" PRIx32, flags);
   return DB_CORRUPTION;
 }
 
@@ -673,8 +663,8 @@ AbstractCallback::init(
 
 	m_space_flags = fsp_header_get_flags(page);
 	if (!fil_space_t::is_valid_flags(m_space_flags, true)) {
-		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
-		if (cflags == ULINT_UNDEFINED) {
+		uint32_t cflags = fsp_flags_convert_from_101(m_space_flags);
+		if (cflags == UINT32_MAX) {
 			return DB_CORRUPTION;
 		}
 		m_space_flags = cflags;
@@ -703,8 +693,7 @@ AbstractCallback::init(
 		return(DB_CORRUPTION);
 	}
 
-	m_size  = mach_read_from_4(page + FSP_SIZE);
-	if (m_space == ULINT_UNDEFINED) {
+	if (m_space == UINT32_MAX) {
 		m_space = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID
 					   + page);
 	}
@@ -738,13 +727,13 @@ struct FetchIndexRootPages : public AbstractCallback {
 	/** Index information gathered from the .ibd file. */
 	struct Index {
 
-		Index(index_id_t id, ulint page_no)
+		Index(index_id_t id, uint32_t page_no)
 			:
 			m_id(id),
 			m_page_no(page_no) { }
 
 		index_id_t	m_id;		/*!< Index id */
-		ulint		m_page_no;	/*!< Root page number */
+		uint32_t	m_page_no;	/*!< Root page number */
 	};
 
 	/** Constructor
@@ -752,7 +741,7 @@ struct FetchIndexRootPages : public AbstractCallback {
 	@param table table definition in server .*/
 	FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
 		:
-		AbstractCallback(trx, ULINT_UNDEFINED),
+		AbstractCallback(trx, UINT32_MAX),
 		m_table(table), m_index(0, 0) UNIV_NOTHROW { }
 
 	/** Destructor */
@@ -797,7 +786,7 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 	m_index.m_page_no = block->page.id().page_no();
 
 	/* Check that the tablespace flags match the table flags. */
-	ulint expected = dict_tf_to_fsp_flags(m_table->flags);
+	const uint32_t expected = dict_tf_to_fsp_flags(m_table->flags);
 	if (!fsp_flags_match(expected, m_space_flags)) {
 		ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLE_SCHEMA_MISMATCH,
@@ -914,7 +903,7 @@ public:
 	@param cfg config of table being imported.
 	@param space_id tablespace identifier
 	@param trx transaction covering the import */
-	PageConverter(row_import* cfg, ulint space_id, trx_t* trx)
+	PageConverter(row_import* cfg, uint32_t space_id, trx_t* trx)
 		:
 		AbstractCallback(trx, space_id),
 		m_cfg(cfg),
@@ -1224,6 +1213,16 @@ row_import::match_index_columns(
 
 			err = DB_ERROR;
 		}
+
+		if (cfg_field->descending != field->descending) {
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"Index %s field %s is %s which does "
+				"not match with .cfg file",
+				index->name(), field->name(),
+				field->descending ? "DESC" : "ASC");
+			err = DB_ERROR;
+		}
 	}
 
 	return(err);
@@ -1485,7 +1484,7 @@ row_import::set_root_by_name() UNIV_NOTHROW
 		/* We've already checked that it exists. */
 		ut_a(index != 0);
 
-		index->page = static_cast<uint32_t>(cfg_index->m_page_no);
+		index->page = cfg_index->m_page_no;
 	}
 }
 
@@ -1542,8 +1541,7 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 
 			cfg_index[i].m_srv_index = index;
 
-			index->page = static_cast<uint32_t>(
-				cfg_index[i++].m_page_no);
+			index->page = cfg_index[i++].m_page_no;
 		}
 	}
 
@@ -2569,7 +2567,11 @@ row_import_cfg_read_index_fields(
 		field->prefix_len = mach_read_from_4(ptr) & ((1U << 12) - 1);
 		ptr += sizeof(ib_uint32_t);
 
-		field->fixed_len = mach_read_from_4(ptr) & ((1U << 10) - 1);
+		uint32_t fixed_len = mach_read_from_4(ptr);
+
+		field->descending = bool(fixed_len >> 31);
+
+		field->fixed_len = fixed_len & ((1U << 10) - 1);
 		ptr += sizeof(ib_uint32_t);
 
 		/* Include the NUL byte in the length. */
@@ -3158,8 +3160,8 @@ row_import_read_meta_data(
 
 /* decrypt and decompress page if needed */
 static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
-                                  size_t space_flags, span<byte> page,
-                                  size_t space_id, byte *page_compress_buf)
+                                  uint32_t space_flags, span<byte> page,
+                                  uint32_t space_id, byte *page_compress_buf)
 {
   auto *data= page.data();
 
@@ -3168,8 +3170,8 @@ static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
     if (!buf_page_verify_crypt_checksum(data, space_flags))
       return DB_CORRUPTION;
 
-    if (dberr_t err= fil_space_decrypt(space_id, space_crypt, data,
-                                       page.size(), space_flags, data))
+    if (dberr_t err= fil_space_decrypt(space_id, space_flags, space_crypt,
+                                       data, page.size(), data))
       return err;
   }
 
@@ -3202,13 +3204,11 @@ static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
 
 static size_t get_buf_size()
 {
-  return srv_page_size
-#ifdef HAVE_LZO
-         + LZO1X_1_15_MEM_COMPRESS
-#elif defined HAVE_SNAPPY
-         + snappy_max_compressed_length(srv_page_size)
-#endif
-      ;
+  return srv_page_size + (
+           provider_service_lzo->is_loaded ? LZO1X_1_15_MEM_COMPRESS :
+           provider_service_snappy->is_loaded ? snappy_max_compressed_length(srv_page_size) :
+           0
+         );
 }
 
 /** Add fts index to the table
@@ -3394,7 +3394,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   if (!fil_space_t::is_valid_flags(space_flags, true))
   {
     auto cflags= fsp_flags_convert_from_101(space_flags);
-    if (cflags == ULINT_UNDEFINED)
+    if (cflags == UINT32_MAX)
       return invalid_space_flags(space_flags);
     space_flags= static_cast<decltype(space_flags)>(cflags);
   }
@@ -4009,12 +4009,8 @@ page_corrupted:
     if (!buf_page_verify_crypt_checksum(readptr, m_space_flags))
       goto page_corrupted;
 
-    if (ENCRYPTION_KEY_NOT_ENCRYPTED ==
-        buf_page_get_key_version(readptr, m_space_flags))
-      goto page_corrupted;
-
-    if ((err= fil_space_decrypt(get_space_id(), iter.crypt_data, readptr, size,
-                                m_space_flags, readptr)))
+    if ((err= fil_space_decrypt(get_space_id(), m_space_flags, iter.crypt_data,
+                                readptr, size, readptr)))
       goto func_exit;
   }
 
@@ -4057,7 +4053,7 @@ static dberr_t fil_iterate(
 		return DB_OUT_OF_MEMORY;
 	}
 
-	ulint actual_space_id = 0;
+	uint32_t actual_space_id = 0;
 	const bool full_crc32 = fil_space_t::full_crc32(
 		callback.get_space_flags());
 
@@ -4185,9 +4181,9 @@ page_corrupted:
 
 				if ((err = fil_space_decrypt(
 					actual_space_id,
+					callback.get_space_flags(),
 					iter.crypt_data, dst,
 					callback.physical_size(),
-					callback.get_space_flags(),
 					src))) {
 					goto func_exit;
 				}
@@ -4325,7 +4321,7 @@ page_corrupted:
 				ut_ad(!comp == (size == srv_page_size));
 				ut_ad(!corrupt);
 				mach_write_to_4(dest + (size - 4),
-						ut_crc32(dest, size - 4));
+						my_crc32c(0, dest, size - 4));
 			}
 		}
 

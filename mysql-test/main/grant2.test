@@ -33,7 +33,7 @@ flush privileges;
 grant all privileges on `my\_1`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
 create user mysqltest_2@localhost;
-connect (user_a,localhost,mysqltest_1,,);
+connect (user_a,localhost,mysqltest_1,,"*NO-ONE*");
 connection user_a;
 grant select on `my\_1`.* to mysqltest_2@localhost;
 --error ER_DBACCESS_DENIED_ERROR
@@ -41,14 +41,14 @@ grant select on `my\_1`.* to mysqltest_2@localhost identified by 'pass';
 disconnect user_a;
 connection default;
 grant update on mysql.* to mysqltest_1@localhost;
-connect (user_b,localhost,mysqltest_1,,);
+connect (user_b,localhost,mysqltest_1,,"*NO-ONE*");
 connection user_b;
 grant select on `my\_1`.* to mysqltest_2@localhost identified by 'pass';
 grant select on `my\_1`.* to mysqltest_3@localhost;
 disconnect user_b;
 connection default;
 grant insert on mysql.* to mysqltest_1@localhost;
-connect (user_c,localhost,mysqltest_1,,);
+connect (user_c,localhost,mysqltest_1,,"*NO-ONE*");
 connection user_c;
 grant select on `my\_1`.* to mysqltest_3@localhost;
 grant select on `my\_1`.* to mysqltest_4@localhost identified by 'pass';
@@ -66,7 +66,7 @@ flush privileges;
 
 grant all privileges on `my\_%`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
-connect (user1,localhost,mysqltest_1,,);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 select current_user();
 grant all privileges on `my\_1`.* to mysqltest_2@localhost with grant option;
@@ -100,7 +100,7 @@ flush privileges;
 #
 create database mysqltest_1;
 grant all privileges on `mysqltest\_1`.* to mysqltest_1@localhost with grant option;
-connect (user2,localhost,mysqltest_1,,);
+connect (user2,localhost,mysqltest_1,,"*NO-ONE*");
 connection user2;
 select current_user();
 show databases;
@@ -201,7 +201,7 @@ connection default;
 #
 create database mysqltest_1;
 grant select, insert, update on `mysqltest\_1`.* to mysqltest_1@localhost;
-connect (con10,localhost,mysqltest_1,,);
+connect (con10,localhost,mysqltest_1,,"*NO-ONE*");
 connection con10;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 set sql_log_off = 1;
@@ -345,7 +345,7 @@ drop user '%@a'@'a';
 #
 create user mysqltest_2@localhost;
 grant create user on *.* to mysqltest_2@localhost;
-connect (user3,localhost,mysqltest_2,,);
+connect (user3,localhost,mysqltest_2,,"*NO-ONE*");
 connection user3;
 --error ER_TABLEACCESS_DENIED_ERROR
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
@@ -359,7 +359,7 @@ drop user mysqltest_2@localhost;
 # INSERT/UPDATE/DELETE is ok too
 create user mysqltest_3@localhost;
 grant INSERT,DELETE,UPDATE on mysql.* to mysqltest_3@localhost;
-connect (user4,localhost,mysqltest_3,,);
+connect (user4,localhost,mysqltest_3,,"*NO-ONE*");
 connection user4;
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
@@ -423,7 +423,7 @@ drop database mysqltest_1;
 --source include/add_anonymous_users.inc
 
 # But anonymous users can't change their password
-connect (n5,localhost,test,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (n5,localhost,test,,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
 connection n5;
 --error ER_PASSWORD_ANONYMOUS_USER
 set password = password("changed");
@@ -592,7 +592,7 @@ drop user mysqltest_u1@localhost;
 #
 grant all on `mysqltest\_%`.* to mysqltest_1@localhost with grant option;
 grant usage on *.* to mysqltest_2@localhost;
-connect (con18600_1,localhost,mysqltest_1,,);
+connect (con18600_1,localhost,mysqltest_1,,"*NO-ONE*");
 
 create database mysqltest_1;
 use mysqltest_1;
@@ -600,7 +600,7 @@ create table t1 (f1 int);
 
 grant create on `mysqltest\_1`.* to mysqltest_2@localhost;
 grant select on mysqltest_1.t1 to mysqltest_2@localhost;
-connect (con3,localhost,mysqltest_2,,);
+connect (con3,localhost,mysqltest_2,,"*NO-ONE*");
 connection con3;
 --error ER_DBACCESS_DENIED_ERROR
 create database mysqltest_3;
@@ -634,7 +634,7 @@ INSERT INTO t2 VALUES (1,100),(2,200);
 GRANT SELECT ON t1 TO mysqltest1@localhost;
 GRANT SELECT (b) ON t2 TO mysqltest1@localhost;
 
-connect (conn1,localhost,mysqltest1,,);
+connect (conn1,localhost,mysqltest1,,"*NO-ONE*");
 connection conn1;
 USE db1;
 --error ER_COLUMNACCESS_DENIED_ERROR

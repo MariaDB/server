@@ -1,7 +1,12 @@
 --source include/long_test.inc
 --source include/have_debug.inc
 --source include/have_log_bin.inc
---source include/not_valgrind.inc
+
+if (!$BIG_TEST)
+{
+  --source include/not_valgrind.inc
+  --source include/not_msan.inc
+}
 
 #
 # Testing of atomic create table with crashes in a lot of different places

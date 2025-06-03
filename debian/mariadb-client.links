@@ -1,0 +1,17 @@
+usr/bin/mariadb-check usr/bin/mariadb-analyze
+usr/bin/mariadb-check usr/bin/mariadb-optimize
+usr/bin/mariadb-check usr/bin/mariadb-repair
+usr/bin/mariadb-check usr/bin/mariadbcheck
+usr/bin/mariadb-check usr/bin/mysqlanalyze
+usr/bin/mariadb-check usr/bin/mysqlcheck
+usr/bin/mariadb-check usr/bin/mysqloptimize
+usr/bin/mariadb-check usr/bin/mysqlrepair
+usr/bin/mariadb-report usr/bin/mysqlreport
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mariadb-analyze.1.gz
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mariadb-optimize.1.gz
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mariadb-repair.1.gz
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mariadbcheck.1.gz
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mysqlanalyze.1.gz
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mysqloptimize.1.gz
+usr/share/man/man1/mariadb-check.1.gz usr/share/man/man1/mysqlrepair.1.gz
+usr/share/man/man1/mariadb-report.1.gz usr/share/man/man1/mysqlreport.1.gz

@@ -1,5 +1,4 @@
 call mtr.add_suppression("Sort aborted.*");
-drop table if exists t1,t2,t3;
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
 CREATE TABLE t1 (
 id int(6) DEFAULT '0' NOT NULL,
@@ -3397,35 +3396,42 @@ INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
 ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 5,
-      "filesort": {
-        "sort_key": "t1.a",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_limit": 5,
-        "r_used_priority_queue": false,
-        "r_output_rows": 100,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 100,
-          "r_rows": 100,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 5,
+          "filesort": {
+            "sort_key": "t1.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_limit": 5,
+            "r_used_priority_queue": false,
+            "r_output_rows": 100,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 100,
+              "r_rows": 100,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 SELECT * FROM t1 ORDER BY a LIMIT 5;
@@ -3887,34 +3893,41 @@ insert into t1 select seq, seq, seq  from seq_1_to_100;
 ANALYZE FORMAT=JSON select * from t1 order by a,b,c;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 100,
-      "filesort": {
-        "sort_key": "t1.a, t1.b, t1.c",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 100,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 100,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 100,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a, t1.b, t1.c",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 100,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 100,
+              "r_rows": 100,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 select * from t1 order by a,b,c;
@@ -4047,34 +4060,41 @@ analyze format=json
 select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 5,
-      "filesort": {
-        "sort_key": "t1.b desc",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 5,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,rowid",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 5,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 5,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.b desc",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 5,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 5,
+              "r_rows": 5,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 drop table t1;
@@ -4090,34 +4110,41 @@ insert into t1 values ('def', 4, 4) , ('efg', 5, 5), ('fgh', 6, 6);
 ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 6,
-      "filesort": {
-        "sort_key": "t1.a, t1.b",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 6,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,rowid",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 6,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 6,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 6,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 6,
+              "r_rows": 6,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 select a, b, c from t1 order by a, b;
@@ -4139,34 +4166,41 @@ Warning	1292	Truncated incorrect max_sort_length value: '5'
 ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 6,
-      "filesort": {
-        "sort_key": "t1.a, t1.b",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 6,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 6,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 6,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 6,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 6,
+              "r_rows": 6,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 select a, b, c from t1 order by a, b;
@@ -4202,34 +4236,41 @@ a	b
 analyze format=json select * from t1 order by a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10,
-      "filesort": {
-        "sort_key": "t1.a",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t1.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 drop table t1;
@@ -4380,22 +4421,29 @@ ANALYZE FORMAT=JSON
 SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 50,
-      "r_rows": 50,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 50,
+          "r_rows": 50,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "expression_cache": {
@@ -4414,19 +4462,23 @@ ANALYZE
               "r_buffer_size": "REPLACED" across executions)",
               "r_sort_mode": "sort_key,rowid",
               "temporary_table": {
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "r_loops": 50,
-                  "rows": 50,
-                  "r_rows": 50,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
-                  "r_engine_stats": REPLACED,
-                  "filtered": 100,
-                  "r_filtered": 2,
-                  "attached_condition": "t1.b = t2.b"
-                }
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "r_loops": 50,
+                      "rows": 50,
+                      "r_rows": 50,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_filtered": 2,
+                      "attached_condition": "t1.b = t2.b"
+                    }
+                  }
+                ]
               }
             }
           }
@@ -4516,43 +4568,53 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc",
-        "table": {
-          "table_name": "<subquery2>",
-          "access_type": "ALL",
-          "possible_keys": ["distinct_key"],
-          "rows": 3,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 3,
-                "filtered": 100,
-                "attached_condition": "t2.b = 3 and t2.a is not null"
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "ALL",
+              "possible_keys": ["distinct_key"],
+              "rows": 3,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "query_block": {
+                  "select_id": 2,
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 3,
+                        "filtered": 100,
+                        "attached_condition": "t2.b = 3 and t2.a is not null"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["test.t2.a"],
+          "rows": 1,
+          "filtered": 100,
+          "using_index": true
+        }
       }
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.a"],
-      "rows": 1,
-      "filtered": 100,
-      "using_index": true
-    }
+    ]
   }
 }
 SELECT t1.a
@@ -4579,42 +4641,52 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t1.a desc",
-        "table": {
-          "table_name": "<subquery2>",
-          "access_type": "ALL",
-          "possible_keys": ["distinct_key"],
-          "rows": 3,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 3,
-                "filtered": 100,
-                "attached_condition": "t2.b = 3 and t2.a is not null"
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "<subquery2>",
+              "access_type": "ALL",
+              "possible_keys": ["distinct_key"],
+              "rows": 3,
+              "filtered": 100,
+              "materialized": {
+                "unique": 1,
+                "query_block": {
+                  "select_id": 2,
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 3,
+                        "filtered": 100,
+                        "attached_condition": "t2.b = 3 and t2.a is not null"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["test.t2.a"],
+          "rows": 1,
+          "filtered": 100
+        }
       }
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "eq_ref",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "ref": ["test.t2.a"],
-      "rows": 1,
-      "filtered": 100
-    }
+    ]
   }
 }
 SELECT t1.a, group_concat(t1.b)
@@ -4627,3 +4699,38 @@ a	group_concat(t1.b)
 58	1
 DROP TABLE t1, t2;
 # End of 10.6 tests
+#
+# MDEV-13756 Implement descending index: KEY (a DESC, b ASC)
+#
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	57	Using filesort
+explain select * from t1 force index(r) order by a desc,b limit 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	r	10	NULL	20	
+select * from t1 force index(r) order by a desc,b limit 20;
+a	b	c
+9	NULL	NULL
+9	0	9
+9	1	19
+9	2	29
+9	3	39
+9	4	49
+8	0	8
+8	1	18
+8	2	28
+8	3	38
+8	4	48
+7	0	7
+7	1	17
+7	2	27
+7	3	37
+7	4	47
+6	0	6
+6	1	16
+6	2	26
+6	3	36
+drop table t1;

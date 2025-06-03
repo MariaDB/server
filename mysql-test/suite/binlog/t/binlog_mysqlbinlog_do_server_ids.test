@@ -1,0 +1,477 @@
+#
+# Purpose:
+#
+# This test validates that the option --do-server-ids for the mariadb-binlog
+# command line tool correctly filters events by server id.
+#
+#
+# Methodology:
+#
+# This test invokes mariadb-binlog using combinations of --do-server-ids with
+# various combinations of other parameters to ensure it correctly filters by
+# server id. Specifically, the following test cases are validated:
+#   Test Case 1) --do-server-ids with a single server id limits output to that
+#                single server
+#   Test Case 2) --do-server-ids with multiple server ids limits output to the
+#                provided servers
+#   Test Case 3) --do-server-ids when combined with --do-domain-ids should
+#                intersect the results
+#   Test Case 4) --do-server-ids when combined with --ignore-domain-ids should
+#                intersect the results
+#   Test Case 5) --do-server-ids when combined with a GTID range should
+#                intersect the results
+#   Test Case 6) --do-server-ids when combined with both --ignore-domain-ids
+#                and a GTID range should intersect all results
+#   Test Case 7) --do-server-ids when combined with both --do-domain-ids and
+#                a GTID range should intersect all results
+#   Test Case 8) --do-server-ids and --offset=<n> skips n events after the
+#                first GTID is found
+#   Test Case 9) --do-server-ids with --start-datetime=<T> where T occurs
+#                after the first GTID is found results in no events before T
+#   Test Case 10) --do-server-ids works with --read-from-remote-server
+#   Test Case 11) --do-server-ids works over multiple binary log input files
+#   Test Case 12) --do-server-ids re-specifications should override previous
+#                 ones
+#   Test Case 13) --do-server-ids and --server-id should be aliases and a
+#                 re-specification of one should override the former
+#   Test Case 14) --ignore-server-ids re-specifications should override
+#                 previous ones
+#   Test Case 15) --do-domain-ids re-specifications should override previous
+#                 ones
+#   Test Case 16) --ignore-domain-ids re-specifications should override
+#                 previous ones
+#
+# Additionally, this test validates the following error scenarios:
+#   Error Case 1) --do-server-ids and --ignore-server-ids cannot be specified
+#                 together
+#   Error Case 2) Invalid server ID number provided
+#
+#
+# References:
+#
+#   MDEV-20119: Implement the --do-domain-ids, --ignore-domain-ids, and
+#               --ignore-server-ids options for mysqlbinlog
+#
+
+--source include/have_log_bin.inc
+
+--echo ###############################
+--echo #      Test Setup
+--echo ###############################
+
+
+# Save old state
+let $ORIG_GTID_DOMAIN_ID = `select @@session.gtid_domain_id`;
+let $ORIG_SERVER_ID = `select @@session.server_id`;
+
+# Configure test variables
+--let $MYSQLD_DATADIR=`select @@datadir`
+
+--let table_inconsistent_err= "table data is inconsistent after replaying binlog events";
+--let table_exists_error= "table exists but binlog playback should have excluded its creation";
+
+# Initialize test data
+set @a=UNIX_TIMESTAMP("1970-01-21 15:32:22");
+SET timestamp=@a;
+RESET MASTER;
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+INSERT INTO t2 values (3);
+--let t2_checksum= `CHECKSUM TABLE t2`
+
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 1;
+CREATE TABLE t3 (a int);
+INSERT INTO t3 values (4);
+--let t3_checksum= `CHECKSUM TABLE t3`
+
+SET @@session.server_id= 3;
+SET timestamp=@a+1;
+CREATE TABLE t4 (a int);
+SET timestamp=@a+2;
+INSERT INTO t4 values (5);
+--let t4_checksum= `CHECKSUM TABLE t4`
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+INSERT INTO t1 values (1);
+--let t1_partial_checksum= `CHECKSUM TABLE t1`
+
+SET @@session.gtid_domain_id= 2;
+SET @@session.server_id= 1;
+CREATE TABLE t5 (a int);
+INSERT INTO t5 values (6);
+--let t5_checksum= `CHECKSUM TABLE t5`
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+INSERT INTO t1 values (2);
+--let t1_checksum= `CHECKSUM TABLE t1`
+
+FLUSH LOGS;
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 2;
+CREATE TABLE t6 (a int);
+INSERT INTO t6 values (1);
+--let t6_checksum= `CHECKSUM TABLE t6`
+FLUSH LOGS;
+
+--let BINLOG_FILENAME= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+--let BINLOG_FILENAME2= query_get_value(SHOW BINARY LOGS, Log_name, 2)
+--let BINLOG_FILE_PARAM= $MYSQLD_DATADIR/$BINLOG_FILENAME.orig
+--let BINLOG_FILE_PARAM2= $MYSQLD_DATADIR/$BINLOG_FILENAME2.orig
+--copy_file $MYSQLD_DATADIR/$BINLOG_FILENAME $BINLOG_FILE_PARAM
+--copy_file $MYSQLD_DATADIR/$BINLOG_FILENAME2 $BINLOG_FILE_PARAM2
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP TABLE t5;
+DROP TABLE t6;
+RESET MASTER;
+
+--echo ###############################
+--echo #      Test Cases
+--echo ###############################
+
+--echo #
+--echo #   Test Case 1) --do-server-ids with a single server id limits output
+--echo # to that single server
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=2 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=2 | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+
+
+--echo #
+--echo #   Test Case 2) --do-server-ids with multiple server ids limits output
+--echo # to the provided servers
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=2,3 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=2,3 | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if ($t4_checksum != `CHECKSUM TABLE t4`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+DROP TABLE t4;
+
+
+--echo #
+--echo #   Test Case 3) --do-server-ids when combined with --do-domain-ids should
+--echo # intersect the results
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --do-domain-ids=0 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --do-domain-ids=0 | $MYSQL
+if ($t1_checksum != `CHECKSUM TABLE t1`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t2','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t1;
+
+
+--echo #
+--echo #   Test Case 4) --do-server-ids when combined with --ignore-domain-ids should
+--echo # intersect the results
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --ignore-domain-ids=0 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --ignore-domain-ids=0 | $MYSQL
+if ($t3_checksum != `CHECKSUM TABLE t3`)
+{
+    die $table_inconsistent_err;
+}
+if ($t5_checksum != `CHECKSUM TABLE t5`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t4','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t3;
+DROP TABLE t5;
+
+
+--echo #
+--echo #   Test Case 5) --do-server-ids when combined with a GTID range should
+--echo #  intersect the results
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --stop-position=0-1-4 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --stop-position=0-1-4 | $MYSQL
+if ($t1_partial_checksum != `CHECKSUM TABLE t1`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t2','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t1;
+
+
+--echo #
+--echo #   Test Case 6) --do-server-ids when combined with both --ignore-domain-ids
+--echo # and a GTID range should intersect all results
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --ignore-domain-ids=0 --start-position=1-1-0 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --ignore-domain-ids=0 --start-position=1-1-0 | $MYSQL
+if ($t3_checksum != `CHECKSUM TABLE t3`)
+{
+    die $table_inconsistent_err;
+}
+if ($t5_checksum != `CHECKSUM TABLE t5`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t4','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t3;
+DROP TABLE t5;
+
+
+--echo #
+--echo #   Test Case 7) --do-server-ids when combined with both --do-domain-ids and
+--echo # a GTID range should intersect all results
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=2 --do-domain-ids=0 --start-position=0-1-0 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=2 --do-domain-ids=0 --start-position=0-1-0 | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+
+
+
+--echo #
+--echo #   Test Case 8) --do-server-ids and --offset=<n> skips n events after the
+--echo # first GTID is found
+
+# t4 needs to be specified because its creation should be skipped from
+# --offset specification
+CREATE TABLE t4 (a int);
+
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --offset=5 --do-server-ids=3 --do-domain-ids=1 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --offset=5 --do-server-ids=3 --do-domain-ids=1 | $MYSQL
+if ($t4_checksum != `CHECKSUM TABLE t4`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t3','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t4;
+
+
+--echo #
+--echo #   Test Case 9) --do-server-ids with --start-datetime=<T> where T occurs
+--echo # after the first GTID is found results in no events before T
+
+# t4 needs to be specified because its creation should be skipped from
+# --start-datetime specification
+CREATE TABLE t4 (a int);
+
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --start-datetime="1970-01-21 15:32:24" --do-server-ids=3 --do-domain-ids=1 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --start-datetime="1970-01-21 15:32:24" --do-server-ids=3 --do-domain-ids=1 | $MYSQL
+if ($t4_checksum != `CHECKSUM TABLE t4`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t2','t3','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t4;
+
+
+--echo #
+--echo #   Test Case 10) --do-server-ids works with --read-from-remote-server
+
+--echo # Setup test specific data
+RESET MASTER;
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1);
+
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+INSERT INTO t2 VALUES (1);
+--let t11_t2_checksum= `CHECKSUM TABLE t2`
+
+SET @@session.server_id= 1;
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo # MYSQL_BINLOG BINLOG_FILENAME --read-from-remote-server --do-server-ids=2  | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILENAME --read-from-remote-server --do-server-ids=2  | $MYSQL
+if ($t11_t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+
+
+--echo #
+--echo #   Test Case 11) --do-server-ids works over multiple binary log input
+--echo # files
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM BINLOG_FILE_PARAM2 --do-server-ids=2  | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM $BINLOG_FILE_PARAM2 --do-server-ids=2  | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if ($t6_checksum != `CHECKSUM TABLE t6`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+DROP TABLE t6;
+
+--echo #
+--echo #   Test Case 12) --do-server-ids re-specifications should override
+--echo #                 previous ones
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --do-server-ids=2 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --do-server-ids=2 | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+
+--echo #
+--echo #   Test Case 13) --do-server-ids and --server-id should be aliases and
+--echo #                 a re-specification of one should override the former
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --server-id=2 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --server-id=2 | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+
+--echo #
+--echo #   Test Case 14) --ignore-server-ids re-specifications should override
+--echo #                 previous ones
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --ignore-server-ids=2 --ignore-server-ids=1,3 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --ignore-server-ids=2 --ignore-server-ids=1,3 | $MYSQL
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t1','t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t2;
+
+--echo #
+--echo #   Test Case 15) --do-domain-ids re-specifications should override
+--echo #                 previous ones
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-domain-ids=1 --do-domain-ids=0 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-domain-ids=1 --do-domain-ids=0 | $MYSQL
+if ($t1_checksum != `CHECKSUM TABLE t1`)
+{
+    die $table_inconsistent_err;
+}
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t1,t2;
+
+--echo #
+--echo #   Test Case 16) --ignore-domain-ids re-specifications should override
+--echo #                 previous ones
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --ignore-domain-ids=0 --ignore-domain-ids=1,2 | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --ignore-domain-ids=0 --ignore-domain-ids=1,2 | $MYSQL
+if ($t1_checksum != `CHECKSUM TABLE t1`)
+{
+    die $table_inconsistent_err;
+}
+if ($t2_checksum != `CHECKSUM TABLE t2`)
+{
+    die $table_inconsistent_err;
+}
+if (`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'test' AND table_name IN ('t3','t4','t5','t6')`)
+{
+    die $table_exists_error;
+}
+DROP TABLE t1,t2;
+
+--echo ##############################
+--echo #      Error Cases
+--echo ##############################
+
+--echo #
+--echo #   Error Case 1:
+--echo #   --ignore-server-ids and --do-server-ids both specified
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=1 --ignore-server-ids=2
+--error 1
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=1 --ignore-server-ids=2
+
+--echo #
+--echo #   Error Case 2:
+--echo #   Invalid server ID number provided
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --do-server-ids=-1
+--error 1
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --do-server-ids=-1
+
+--echo ##############################
+--echo #      Cleanup
+--echo ##############################
+--eval SET @@global.gtid_domain_id= $ORIG_GTID_DOMAIN_ID
+--eval SET @@global.server_id= $ORIG_SERVER_ID
+
+--remove_file $BINLOG_FILE_PARAM
+--remove_file $BINLOG_FILE_PARAM2
+
+--echo # End of tests

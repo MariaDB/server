@@ -2137,7 +2137,14 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
   }
   DBUG_ASSERT(m_new_file == 0);
   m_new_file= new_file_array;
-  if (unlikely((error= copy_partitions(copied, deleted))))
+  for (i= 0; i < part_count; i++)
+    m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  error= copy_partitions(copied, deleted);
+  for (i= 0; i < part_count; i++)
+    m_added_file[i]->extra(error
+                           ? HA_EXTRA_ABORT_ALTER_COPY
+                           : HA_EXTRA_END_ALTER_COPY);
+  if (unlikely(error))
   {
     /*
       Close and unlock the new temporary partitions.
@@ -2727,6 +2734,7 @@ register_query_cache_dependant_tables(THD *thd,
     2) MAX_ROWS, MIN_ROWS on partition
     3) Index file name on partition
     4) Data file name on partition
+    5) Engine-defined attributes on partition
 */
 
 int ha_partition::set_up_table_before_create(TABLE *tbl,
@@ -2764,6 +2772,10 @@ int ha_partition::set_up_table_before_create(TABLE *tbl,
   if (info->connect_string.length)
     info->used_fields|= HA_CREATE_USED_CONNECTION;
   tbl->s->connect_string= part_elem->connect_string;
+  if (part_elem->option_list)
+    tbl->s->option_list= part_elem->option_list;
+  if (part_elem->option_struct)
+    tbl->s->option_struct= part_elem->option_struct;
   DBUG_RETURN(0);
 }
 
@@ -3721,31 +3733,31 @@ bool ha_partition::init_partition_bitmaps()
   DBUG_ENTER("ha_partition::init_partition_bitmaps");
 
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
+  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1))
     DBUG_RETURN(true);
 
   /* Initialize the bitmap we use to keep track of locked partitions */
-  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   /*
     Initialize the bitmap we use to keep track of partitions which may have
     something to reset in ha_reset().
   */
-  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   /*
     Initialize the bitmap we use to keep track of partitions which returned
     HA_ERR_KEY_NOT_FOUND from index_read_map.
   */
-  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
-  if (my_bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts, TRUE))
+  if (my_bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
-  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   m_file_sample= NULL;
@@ -4323,8 +4335,6 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    if ((error= m_part_info->vers_set_hist_part(thd)))
-      goto err_handler;
     need_info_for_auto_inc();
   }
   DBUG_RETURN(0);
@@ -4458,7 +4468,6 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   {
     if (m_part_info->part_expr)
       m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
-    error= m_part_info->vers_set_hist_part(thd);
   }
   DBUG_RETURN(error);
 }
@@ -9460,6 +9469,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_ABORT_ALTER_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
@@ -10368,7 +10378,7 @@ void ha_partition::print_error(int error, myf errflag)
   /*
     We choose a main handler's print_error if:
     * m_file has not been initialized, like in bug#42438
-    * lookup_errkey is set, which means that an error has occured in the
+    * lookup_errkey is set, which means that an error has occurred in the
       main handler, not in individual partitions
   */
   if (m_file && lookup_errkey == (uint)-1)

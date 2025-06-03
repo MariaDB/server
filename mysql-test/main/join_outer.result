@@ -2010,10 +2010,10 @@ EXPLAIN EXTENDED
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.b = t2.b) JOIN t3 ON t1.b = t3.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t3	hash_ALL	PRIMARY	#hash#PRIMARY	4	test.t1.b	10	10.00	Using join buffer (flat, BNLH join)
-1	SIMPLE	t2	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t1.b	27	3.70	Using index; Using join buffer (incremental, BNLH join)
+1	SIMPLE	t2	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t1.b	27	3.70	Using index; Using join buffer (flat, BNLH join)
+1	SIMPLE	t3	hash_ALL	PRIMARY	#hash#PRIMARY	4	test.t1.b	10	10.00	Using join buffer (incremental, BNLH join)
 Warnings:
-Note	1003	select `test`.`t2`.`b` AS `b`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t2` join `test`.`t1` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`b` and `test`.`t2`.`b` = `test`.`t1`.`b`
+Note	1003	select `test`.`t2`.`b` AS `b`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t2` join `test`.`t1` join `test`.`t3` where `test`.`t2`.`b` = `test`.`t1`.`b` and `test`.`t3`.`b` = `test`.`t1`.`b`
 PREPARE stmt FROM
 'SELECT * FROM (t2 LEFT JOIN t1 ON t1.b = t2.b) JOIN t3 ON t1.b = t3.b';
 EXECUTE stmt;
@@ -2645,9 +2645,9 @@ WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416  AND
 t2.REVTYPE=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
 1	SIMPLE	t3	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where
 1	SIMPLE	t4	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`timestamp` AS `timestamp`,`test`.`t1`.`modifiedBy` AS `modifiedBy`,`test`.`t2`.`id` AS `id`,`test`.`t2`.`REV` AS `REV`,`test`.`t2`.`REVTYPE` AS `REVTYPE`,`test`.`t2`.`profile_id` AS `profile_id`,`test`.`t3`.`id` AS `id`,`test`.`t3`.`REV` AS `REV`,`test`.`t3`.`person_id` AS `person_id`,`test`.`t4`.`id` AS `id`,`test`.`t4`.`REV` AS `REV` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t2`.`REVTYPE` = 2 and `test`.`t4`.`id` = `test`.`t3`.`person_id` and `test`.`t3`.`id` = `test`.`t2`.`profile_id` and `test`.`t1`.`id` = `test`.`t2`.`REV` and `test`.`t1`.`timestamp` < 1294664900039 and `test`.`t1`.`timestamp` > 1294644616416
 SELECT *
@@ -2670,9 +2670,9 @@ WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416
 AND t2.REVTYPE=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
 1	SIMPLE	t3	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where
 1	SIMPLE	t4	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`timestamp` AS `timestamp`,`test`.`t1`.`modifiedBy` AS `modifiedBy`,`test`.`t2`.`id` AS `id`,`test`.`t2`.`REV` AS `REV`,`test`.`t2`.`REVTYPE` AS `REVTYPE`,`test`.`t2`.`profile_id` AS `profile_id`,`test`.`t3`.`id` AS `id`,`test`.`t3`.`REV` AS `REV`,`test`.`t3`.`person_id` AS `person_id`,`test`.`t4`.`id` AS `id`,`test`.`t4`.`REV` AS `REV` from `test`.`t4` join `test`.`t3` join `test`.`t2` join `test`.`t1` where `test`.`t2`.`REVTYPE` = 2 and `test`.`t1`.`id` = `test`.`t2`.`REV` and `test`.`t3`.`id` = `test`.`t2`.`profile_id` and `test`.`t4`.`id` = `test`.`t3`.`person_id` and `test`.`t1`.`timestamp` < 1294664900039 and `test`.`t1`.`timestamp` > 1294644616416
 SELECT *
@@ -2796,7 +2796,7 @@ test.t3	analyze	status	OK
 explain extended select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	0.50	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5) where 1
 # t3.filtered must less than 100%, too:
@@ -2804,7 +2804,7 @@ explain extended select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	0.50	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t3` join `test`.`t2`) on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5) where 1
 drop table t1,t2,t3;

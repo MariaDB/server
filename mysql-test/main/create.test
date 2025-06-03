@@ -748,7 +748,7 @@ create table t1 select * from t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 # Error during table creation
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (primary key(a)) select "b" as b;
 # Error in select_create::prepare() which is not related to table creation
 create table t1 (a int);
@@ -1062,9 +1062,9 @@ SET sql_mode = NO_ZERO_DATE;
 --error ER_INVALID_DEFAULT
 CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP DEFAULT 0);
 
---echo
---error ER_INVALID_DEFAULT
-CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
+#--echo
+#--error ER_INVALID_DEFAULT
+#CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
 
 --echo
 --echo # -- Check that NULL column still can be created.

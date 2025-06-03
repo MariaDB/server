@@ -266,7 +266,7 @@ maria_declare_plugin(test_sql_service)
   test_sql_status,
   test_sql_vars,
   NULL,
-  MariaDB_PLUGIN_MATURITY_STABLE
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
 }
 maria_declare_plugin_end;
 

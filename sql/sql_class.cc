@@ -56,6 +56,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_show.h"                           // append_identifier
+#include "sql_db.h"                             // get_default_db_collation
 #include "transaction.h"
 #include "sql_select.h" /* declares create_tmp_table() */
 #include "debug_sync.h"
@@ -304,7 +305,7 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
                           &sql_field->field_name)) {}
     if (!sql_field)
     {
-      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+      my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
       DBUG_RETURN(TRUE);
     }
     if (type == Key::FOREIGN_KEY && sql_field->vcol_info)
@@ -701,7 +702,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0),
    in_sub_stmt(0), log_all_errors(0),
-   binlog_unsafe_warning_flags(0),
+   binlog_unsafe_warning_flags(0), used(0),
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),
@@ -721,8 +722,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    is_fatal_error(0),
    transaction_rollback_request(0),
    is_fatal_sub_stmt_error(false),
-   rand_used(0),
-   time_zone_used(0),
    in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
@@ -836,11 +835,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   security_ctx= &main_security_ctx;
   no_errors= 0;
   password= 0;
-  query_start_sec_part_used= 0;
   count_cuted_fields= CHECK_FIELD_IGNORE;
   killed= NOT_KILLED;
   killed_err= 0;
-  is_slave_error= thread_specific_used= FALSE;
+  is_slave_error= FALSE;
   my_hash_clear(&handler_tables_hash);
   my_hash_clear(&ull_hash);
   tmp_table=0;
@@ -919,7 +917,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
-  reset_open_tables_state(this);
+  reset_open_tables_state();
 
   init();
   debug_sync_init_thread(this);
@@ -1027,10 +1025,8 @@ Internal_error_handler *THD::pop_internal_handler()
 void THD::raise_error(uint sql_errno)
 {
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_ERROR,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_ERROR, msg);
 }
 
 void THD::raise_error_printf(uint sql_errno, ...)
@@ -1043,20 +1039,16 @@ void THD::raise_error_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_ERROR,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_ERROR, ebuff);
   DBUG_VOID_RETURN;
 }
 
 void THD::raise_warning(uint sql_errno)
 {
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_WARN,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_WARN, msg);
 }
 
 void THD::raise_warning_printf(uint sql_errno, ...)
@@ -1069,10 +1061,8 @@ void THD::raise_warning_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_WARN,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_WARN, ebuff);
   DBUG_VOID_RETURN;
 }
 
@@ -1084,10 +1074,8 @@ void THD::raise_note(uint sql_errno)
       (variables.note_verbosity == 0))
     DBUG_VOID_RETURN;
   const char* msg= ER_THD(this, sql_errno);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_NOTE,
-                         msg);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_NOTE, msg);
   DBUG_VOID_RETURN;
 }
 
@@ -1104,21 +1092,20 @@ void THD::raise_note_printf(uint sql_errno, ...)
   va_start(args, sql_errno);
   my_vsnprintf(ebuff, sizeof(ebuff), format, args);
   va_end(args);
-  (void) raise_condition(sql_errno,
-                         NULL,
-                         Sql_condition::WARN_LEVEL_NOTE,
-                         ebuff);
+  (void) raise_condition(sql_errno, "\0\0\0\0\0",
+                         Sql_condition::WARN_LEVEL_NOTE, ebuff);
   DBUG_VOID_RETURN;
 }
 
-Sql_condition* THD::raise_condition(uint sql_errno,
-                                    const char* sqlstate,
-                                    Sql_condition::enum_warning_level level,
-                                    const Sql_user_condition_identity &ucid,
-                                    const char* msg)
+Sql_condition* THD::raise_condition(const Sql_condition *cond)
 {
+  uint sql_errno= cond->get_sql_errno();
+  const char *sqlstate= cond->get_sqlstate();
+  Sql_condition::enum_warning_level level= cond->get_level();
+  const char *msg= cond->get_message_text();
+
   Diagnostics_area *da= get_stmt_da();
-  Sql_condition *cond= NULL;
+  Sql_condition *raised= NULL;
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
@@ -1147,37 +1134,27 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     sql_errno= ER_UNKNOWN_ERROR;
   if (msg == NULL)
     msg= ER_THD(this, sql_errno);
-  if (sqlstate == NULL)
+  if (!*sqlstate)
    sqlstate= mysql_errno_to_sqlstate(sql_errno);
 
-  if ((level == Sql_condition::WARN_LEVEL_WARN) &&
-      really_abort_on_warning())
+  if ((level == Sql_condition::WARN_LEVEL_WARN) && really_abort_on_warning())
   {
-    /*
-      FIXME:
-      push_warning and strict SQL_MODE case.
-    */
+    /* FIXME: push_warning and strict SQL_MODE case. */
     level= Sql_condition::WARN_LEVEL_ERROR;
   }
 
   if (!is_fatal_error &&
-      handle_condition(sql_errno, sqlstate, &level, msg, &cond))
-    DBUG_RETURN(cond);
+      handle_condition(sql_errno, sqlstate, &level, msg, &raised))
+    goto ret;
 
   switch (level) {
-  case Sql_condition::WARN_LEVEL_NOTE:
   case Sql_condition::WARN_LEVEL_WARN:
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_WARNING, sql_errno, msg);
+    /* fall through */
+  case Sql_condition::WARN_LEVEL_NOTE:
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
-    break;
-  case Sql_condition::WARN_LEVEL_END:
-    /* Impossible */
-    break;
-  }
-
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
-  {
     mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
 
     is_slave_error=  1; // needed to catch query errors during replication
@@ -1186,9 +1163,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     /*
       With wsrep we allow converting BF abort error to warning if
       errors are ignored.
-     */
-    if (!is_fatal_error &&
-        no_errors       &&
+    */
+    if (!is_fatal_error && no_errors &&
         (wsrep_trx().bf_aborted() || wsrep_retry_counter))
     {
       WSREP_DEBUG("BF abort error converted to warning");
@@ -1199,9 +1175,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       if (!da->is_error())
       {
 	set_row_count_func(-1);
-	da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
+	da->set_error_status(sql_errno, msg, sqlstate, *cond, raised);
       }
     }
+    break;
+  case Sql_condition::WARN_LEVEL_END:
+    /* Impossible */
+    break;
   }
 
   query_cache_abort(this, &query_cache_tls);
@@ -1214,9 +1194,13 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (likely(!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                                   sql_errno == ER_OUTOFMEMORY))))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
+    raised= da->push_warning(this, sql_errno, sqlstate, level, *cond, msg,
+                             cond->m_row_number);
   }
-  DBUG_RETURN(cond);
+ret:
+  if (raised)
+    raised->copy_opt_attributes(cond);
+  DBUG_RETURN(raised);
 }
 
 extern "C"
@@ -1448,7 +1432,10 @@ void THD::update_stats(void)
 void THD::update_all_stats()
 {
   ulonglong end_cpu_time, end_utime;
-  double busy_time, cpu_time;
+  ulonglong busy_time, cpu_time;
+
+  status_var_add(status_var.query_time,
+                 (utime_after_query - utime_after_lock));
 
   /* This is set at start of query if opt_userstat_running was set */
   if (!userstat_running)
@@ -1456,10 +1443,10 @@ void THD::update_all_stats()
 
   end_cpu_time= my_getcputime();
   end_utime=    microsecond_interval_timer();
-  busy_time= (end_utime - start_utime) / 1000000.0;
-  cpu_time=  (end_cpu_time - start_cpu_time) / 10000000.0;
+  busy_time= end_utime - start_utime;
+  cpu_time=  end_cpu_time - start_cpu_time;
   /* In case there are bad values, 2629743 is the #seconds in a month. */
-  if (cpu_time > 2629743.0)
+  if (cpu_time > 2629743000000ULL)
     cpu_time= 0;
   status_var_add(status_var.cpu_time, cpu_time);
   status_var_add(status_var.busy_time, busy_time);
@@ -1882,6 +1869,7 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->table_open_cache_hits+= from_var->table_open_cache_hits;
   to_var->table_open_cache_misses+= from_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows;
+  to_var->query_time+=          from_var->query_time;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
@@ -1939,6 +1927,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                     dec_var->table_open_cache_misses;
   to_var->table_open_cache_overflows+= from_var->table_open_cache_overflows -
                                        dec_var->table_open_cache_overflows;
+  to_var->query_time+=            from_var->query_time - dec_var->query_time;
 
   /*
     We don't need to accumulate memory_used as these are not reset or used by
@@ -2196,7 +2185,8 @@ int THD::killed_errno()
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   case KILL_TIMEOUT:
   case KILL_TIMEOUT_HARD:
-    DBUG_RETURN(ER_STATEMENT_TIMEOUT);
+    DBUG_RETURN(slave_thread ?
+                ER_SLAVE_STATEMENT_TIMEOUT : ER_STATEMENT_TIMEOUT);
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
@@ -2346,13 +2336,13 @@ void THD::cleanup_after_query()
   thd_progress_end(this);
 
   /*
-    Reset rand_used so that detection of calls to rand() will save random 
+    Reset RAND_USED so that detection of calls to rand() will save random
     seeds if needed by the slave.
 
-    Do not reset rand_used if inside a stored function or trigger because 
+    Do not reset RAND_USED if inside a stored function or trigger because
     only the call to these operations is logged. Thus only the calling 
     statement needs to detect rand() calls made by its substatements. These
-    substatements must not set rand_used to 0 because it would remove the
+    substatements must not set RAND_USED to 0 because it would remove the
     detection of rand() by the calling statement. 
   */
   if (!in_sub_stmt) /* stored functions and triggers are a special case */
@@ -2360,7 +2350,7 @@ void THD::cleanup_after_query()
     /* Forget those values, for next binlogger: */
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     auto_inc_intervals_in_cur_stmt_for_binlog.empty();
-    rand_used= 0;
+    used&= ~THD::RAND_USED;
 #ifndef EMBEDDED_LIBRARY
     /*
       Clean possible unused INSERT_ID events by current statement.
@@ -4737,7 +4727,7 @@ void THD::reset_n_backup_open_tables_state(Open_tables_backup *backup)
   DBUG_ENTER("reset_n_backup_open_tables_state");
   backup->set_open_tables_state(this);
   backup->mdl_system_tables_svp= mdl_context.mdl_savepoint();
-  reset_open_tables_state(this);
+  reset_open_tables_state();
   state_flags|= Open_tables_state::BACKUPS_AVAIL;
   DBUG_VOID_RETURN;
 }
@@ -5523,6 +5513,16 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     if (other_rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC)
       return 0;
   }
+  if (rgi->finish_event_group_called || other_rgi->finish_event_group_called)
+  {
+    /*
+      If either of two transactions has already performed commit
+      (e.g split ALTER, asserted below) there won't be any deadlock.
+    */
+    DBUG_ASSERT(rgi->sa_info || other_rgi->sa_info);
+
+    return 0;
+  }
   /*
     This transaction is about to wait for another transaction that is required
     by replication binlog order to commit after. This would cause a deadlock.
@@ -6274,11 +6274,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
 {
   binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-#ifdef WITH_WSREP
-  if ((wsrep_applier || slave_thread) && has_invoker())
-#else
-  if (slave_thread && has_invoker())
-#endif
+  if ((IF_WSREP(wsrep_applier, 0) || slave_thread) && has_invoker())
   {
     definer->user= invoker.user;
     definer->host= invoker.host;
@@ -7682,6 +7678,26 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 }
 
 
+/*
+  DML that doesn't change the table normally is not logged,
+  but it needs to be logged if it auto-created a partition as a side effect.
+*/
+bool THD::binlog_for_noop_dml(bool transactional_table)
+{
+  if (mysql_bin_log.is_open() && log_current_statement())
+  {
+    reset_unsafe_warnings();
+    if (binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
+                      transactional_table, FALSE, FALSE, 0) > 0)
+    {
+      my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 #if defined(DBUG_TRACE) && !defined(_lint)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
@@ -7846,7 +7862,7 @@ MYSQL_TIME THD::query_start_TIME()
   MYSQL_TIME res;
   variables.time_zone->gmt_sec_to_TIME(&res, query_start());
   res.second_part= query_start_sec_part();
-  time_zone_used= 1;
+  used|= TIME_ZONE_USED;
   return res;
 }
 
@@ -8642,7 +8658,7 @@ Query_arena_stmt::~Query_arena_stmt()
 bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                             ulong sec_part, date_mode_t fuzzydate)
 {
-  time_zone_used= 1;
+  used|= TIME_ZONE_USED;
   if (ts == 0 && sec_part == 0)
   {
     if (fuzzydate & TIME_NO_ZERO_DATE)
@@ -8674,4 +8690,46 @@ void THD::my_ok_with_recreate_info(const Recreate_info &info,
 THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_alter_db(const char *db)
+{
+  return Charset_collation_context(variables.collation_server,
+                                   get_default_db_collation(this, db));
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_create_table_in_db(const char *db)
+{
+  CHARSET_INFO *cs= get_default_db_collation(this, db);
+  return Charset_collation_context(cs, cs);
+}
+
+
+Charset_collation_context
+THD::charset_collation_context_alter_table(const TABLE_SHARE *s)
+{
+  return Charset_collation_context(get_default_db_collation(this, s->db.str),
+                                   s->table_charset);
+}
+
+
+void Charset_loader_server::raise_unknown_collation_error(const char *name) const
+{
+  ErrConvString err(name, &my_charset_utf8mb4_general_ci);
+  my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
+  if (error[0])
+    push_warning_printf(current_thd,
+                        Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_COLLATION, "%s", error);
+}
+
+
+void Charset_loader_server::raise_not_applicable_error(const char *cs,
+                                                       const char *cl) const
+{
+  my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
 }

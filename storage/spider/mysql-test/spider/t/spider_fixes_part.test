@@ -488,7 +488,23 @@ if ($HAVE_PARTITION)
   if ($USE_REPLICATION)
   {
     save_master_pos;
+    --source include/save_master_pos.inc
     --connection slave1_1
+    --let $rc= `select master_pos_wait('$_master_file', $_master_pos, 300, '')`
+    if (`select $rc is NULL OR $rc < 0`)
+    {
+      --vertical_results
+       show slave status;
+      --horizontal_results
+      show global status;
+      show global variables;
+      --let $MYSQLD_DATADIR= `select @@datadir`
+      --exec $MYSQL_BINLOG -v $MYSQLD_DATADIR/mysqld-relay-bin.000001;
+      # Check that the relay-log file is fully on disk.
+      --exec ls -l  $MYSQLD_DATADIR;
+      # After that try to restart the slave SQL thread
+      start slave sql_thread;
+    }
     sync_with_master;
     --connection master_1
     --disable_query_log

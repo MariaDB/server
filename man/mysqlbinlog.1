@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-BINLOG\FR" "1" "14 April 2021" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-BINLOG\fR" "1" "14 April 2021" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -19,7 +19,7 @@ mariadb-binlog \- utility for processing binary log files (mysqlbinlog is now a 
 \fBmysqlbinlog [\fR\fBoptions\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
 .SH "DESCRIPTION"
 .PP
-The server\'s binary log consists of files containing
+The server's binary log consists of files containing
 \(lqevents\(rq
 that describe modifications to database contents\&. The server writes these files in binary format\&. To display their contents in text format, use the
 \fBmysqlbinlog\fR
@@ -400,7 +400,7 @@ INSERT
 statements following
 USE db2\&.
 .PP
-\fBRow-based logging\fR. 
+\fBRow-based logging\fR.
 \fBmysqlbinlog\fR
 outputs only entries that change tables belonging to
 \fIdb_name\fR\&. The default database has no effect on this\&. Suppose that the binary log just described was created using row\-based logging rather than statement\-based logging\&.
@@ -455,9 +455,7 @@ with row\-based logging prior to MySQL 5\&.1\&.37\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/mysqlbinlog\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqlbinlog.trace'.
 .RE
 .sp
 .RS 4
@@ -741,7 +739,7 @@ option on the command line,
 \fBmysqlbinlog\fR
 prompts for one\&.
 .sp
-Specifying a password on the command line should be considered insecure\&. You 
+Specifying a password on the command line should be considered insecure\&. You
 can use an option file to avoid giving the password on the command line\&.
 .RE
 .sp
@@ -788,8 +786,8 @@ Print the program argument list from all option files and exit\&.
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for connecting to a remote server, 
-or \fB0\fR for default to, in order of preference, \fBmy.cnf\fR, 
+The TCP/IP port number to use for connecting to a remote server,
+or \fB0\fR for default to, in order of preference, \fBmy.cnf\fR,
 \fB$MYSQL_TCP_PORT\fR, \fB/etc/services\fR, \fRbuilt-in default (3306)\fR\&.
 Forces --protocol=tcp when specified on the command line without other connection properties\&.
 .RE
@@ -877,16 +875,16 @@ Direct output to the given file\&. With --raw this is a prefix for the file name
 \fB\-\-rewrite\-db=\fR\fB\fIname\fR\fR,
 \fB\-r \fR\fB\fIname\fR\fR
 .sp
-Updates to a database with a different name than the original. 
-Example: \fBrewrite-db='from->to'\fR\&. For events that are 
-binlogged as statements, rewriting the database constitutes changing a 
-statement's default database from \fIdb1\fB to \fIdb2\fR\&. There is no statement 
+Updates to a database with a different name than the original.
+Example: \fBrewrite-db='from->to'\fR\&. For events that are
+binlogged as statements, rewriting the database constitutes changing a
+statement's default database from \fIdb1\fB to \fIdb2\fR\&. There is no statement
 analysis or rewrite of any kind, that is, if one specifies \fB"db1.tbl"\fR
-in the statement explicitly, that occurrence won't be changed to 
-\fB"db2.tbl"\fR\&. Row-based events are rewritten correctly to use the new 
-database name\&. Filtering (e.g. with \fB--database=name\fR) happens after 
-the database rewrites have been performed\&. If you use this option on the 
-command line and \fB">"\fR has a special meaning to your command interpreter, 
+in the statement explicitly, that occurrence won't be changed to
+\fB"db2.tbl"\fR\&. Row-based events are rewritten correctly to use the new
+database name\&. Filtering (e.g. with \fB--database=name\fR) happens after
+the database rewrites have been performed\&. If you use this option on the
+command line and \fB">"\fR has a special meaning to your command interpreter,
 quote the value (e.g. \fB--rewrite-db="oldname->newname"\fR\&.
 .RE
 .sp
@@ -935,9 +933,9 @@ statement to the output to specify the character set to be used for processing l
 \fB\-\-short\-form\fR,
 \fB\-s\fR
 .sp
-Display only the statements contained in the log, no extra info 
-and no row-based events\&. This is for testing only, and should 
-not be used in production systems. If you want to suppress 
+Display only the statements contained in the log, no extra info
+and no row-based events\&. This is for testing only, and should
+not be used in production systems. If you want to suppress
 base64-output, consider using \fB--base64-output=never\fR instead\&.
 .RE
 .sp
@@ -1008,10 +1006,34 @@ This option is useful for point\-in\-time recovery\&.
 \fB\-\-start\-position=\fR\fB\fIN\fR\fR,
 \fB\-j \fR\fB\fIN\fR\fR
 .sp
-Start reading the binary log at the first event having a position equal to or greater than
-\fIN\fR\&. This option applies to the first log file named on the command line\&.
+Start reading the binary log at \fIN\fR\&. Type can either be a positive
+integer or a GTID\& list\&. When using a positive integer, the value only
+applies to the first binlog passed on the command line, and the first event
+that has a position equal to or greater than \fIN\fR is printed\&. In GTID mode,
+multiple GTIDs can be passed as a comma separated list, where each must have a
+unique domain id\&. The list represents the gtid binlog state that the client
+(another "replica" server) is aware of\&. Therefore, each GTID is exclusive; only
+events after a given sequence number will be printed to allow users to receive
+events after their current state\&.
 .sp
 This option is useful for point\-in\-time recovery\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlbinlog: gtid-strict-mode
+.\" gtid-strict-mode option: mysqlbinlog
+\fB\-\-gtid\-strict\-mode
+.sp
+Process binlog according to gtid-strict-mode specification\&. The start, stop
+positions are verified to satisfy start < stop comparison condition\&. Sequence
+numbers of any gtid domain must comprise monotically growing sequence\&.
 .RE
 .sp
 .RS 4
@@ -1079,8 +1101,13 @@ The slave server_id used for \fB--read-from-remote-server --stop-never\fR\&.
 .\" stop-position option: mysqlbinlog
 \fB\-\-stop\-position=\fR\fB\fIN\fR\fR
 .sp
-Stop reading the binary log at the first event having a position equal to or greater than
-\fIN\fR\&. This option applies to the last log file named on the command line\&.
+Stop reading the binary log at the first event having a position equal to or
+greater than \fIN\fR\&. Type can either be a positive integer or a GTID
+list\&. When using a positive integer, the value only applies to the last log
+file named on the command line\&. When in GTID mode, multiple GTIDs can be
+passed as a comma separated list, where each must have a unique domain id\&.
+Each GTID is inclusive; only events up to the given sequence numbers are
+printed.
 .sp
 This option is useful for point\-in\-time recovery\&.
 .RE
@@ -1149,6 +1176,7 @@ The MariaDB username to use when connecting to a remote server\&.
 \fB\-v\fR
 .sp
 Reconstruct row events and display them as commented SQL statements\&. If this option is given twice, the output includes comments to indicate column data types and some metadata\&.
+If this option is given three times, the output includes diagnostic warnings about event integrity before program exit\&.
 .sp
 For examples that show the effect of
 \fB\-\-base64\-output\fR
@@ -1196,7 +1224,7 @@ You can pipe the output of
 \fBmysqlbinlog\fR
 into the
 \fBmysql\fR
-client to execute the events contained in the binary log\&. This technique is used to recover from a crash when you have an old 
+client to execute the events contained in the binary log\&. This technique is used to recover from a crash when you have an old
 backup\&. For example:
 .sp
 .if n \{\
@@ -1367,7 +1395,7 @@ The hex output consists of comment lines beginning with
 .RS 4
 .\}
 .nf
-/*!40019 SET @@session\&.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session\&.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 # at 4
 #051024 17:24:13 server id 1  end_log_pos 98
@@ -1408,11 +1436,8 @@ Position: The byte position within the log file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-Timestamp: The event timestamp\&. In the example shown,
-\'9d fc 5c 43\'
-is the representation of
-\'051024 17:24:13\'
-in hexadecimal\&.
+Timestamp: The event timestamp\&. In the example shown, '9d fc 5c 43'
+is the representation of '051024 17:24:13' in hexadecimal\&.
 .RE
 .sp
 .RS 4
@@ -1423,9 +1448,7 @@ in hexadecimal\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-Type: The event type code\&. In the example shown,
-\'0f\'
-indicates a
+Type: The event type code\&. In the example shown, '0f' indicates a
 FORMAT_DESCRIPTION_EVENT\&. The following table lists the possible type codes\&.
 .TS
 allbox tab(:);
@@ -1715,14 +1738,11 @@ T}:T{
 .nf
 LOG_EVENT_BINLOG_IN_USE_F
 T}:T{
-Log file correctly closed\&. (Used only in
-FORMAT_DESCRIPTION_EVENT\&.) If
-this flag is set (if the flags are, for example,
-\'01 00\') in a
-FORMAT_DESCRIPTION_EVENT, the log
-file has not been properly closed\&. Most probably
-this is because of a master crash (for example, due
-to power failure)\&.
+Log file correctly closed\&. (Used only in FORMAT_DESCRIPTION_EVENT\&.) If this
+flag is set (if the flags are, for example, '01 00') in a
+FORMAT_DESCRIPTION_EVENT, the log file has not been properly closed\&. Most
+probably this is because of a master crash (for example, due to power
+failure)\&.
 T}
 T{
 02
@@ -1738,7 +1758,7 @@ T}:T{
 LOG_EVENT_THREAD_SPECIFIC_F
 T}:T{
 Set if the event is dependent on the connection it was executed in (for
-example, \'04 00\'), for example,
+example, '04 00'), for example,
 if the event uses temporary tables\&.
 T}
 T{
@@ -1780,8 +1800,8 @@ CREATE TABLE t
   date DATE NULL
 ) ENGINE = InnoDB;
 START TRANSACTION;
-INSERT INTO t VALUES(1, \'apple\', NULL);
-UPDATE t SET name = \'pear\', date = \'2009\-01\-01\' WHERE id = 1;
+INSERT INTO t VALUES(1, 'apple', NULL);
+UPDATE t SET name = 'pear', date = '2009\-01\-01' WHERE id = 1;
 DELETE FROM t WHERE id = 1;
 COMMIT;
 .fi
@@ -1803,24 +1823,18 @@ shell> \fBmysqlbinlog \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAANoAAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBcBAAAAKAAAAAIBAAAQABEAAAAAAAEAA//8AQAAAAVhcHBsZQ==
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAANoAAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBcBAAAAKAAAAAIBAAAQABEAAAAAAAEAA//8AQAAAAVhcHBsZQ=='/*!*/;
 \&.\&.\&.
 # at 302
 #080828 15:03:08 server id 1  end_log_pos 356 	Update_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAAC4BAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBgBAAAANgAAAGQBAAAQABEAAAAAAAEAA////AEAAAAFYXBwbGX4AQAAAARwZWFyIbIP
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAAC4BAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBgBAAAANgAAAGQBAAAQABEAAAAAAAEAA////AEAAAAFYXBwbGX4AQAAAARwZWFyIbIP'/*!*/;
 \&.\&.\&.
 # at 400
 #080828 15:03:08 server id 1  end_log_pos 442 	Delete_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAAJABAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAAJABAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP'/*!*/;
 .fi
 .if n \{\
 .RE
@@ -1845,43 +1859,37 @@ shell> \fBmysqlbinlog \-v \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAANoAAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBcBAAAAKAAAAAIBAAAQABEAAAAAAAEAA//8AQAAAAVhcHBsZQ==
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAANoAAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBcBAAAAKAAAAAIBAAAQABEAAAAAAAEAA//8AQAAAAVhcHBsZQ=='/*!*/;
 ### INSERT INTO test\&.t
 ### SET
 ###   @1=1
-###   @2=\'apple\'
+###   @2='apple'
 ###   @3=NULL
 \&.\&.\&.
 # at 302
 #080828 15:03:08 server id 1  end_log_pos 356 	Update_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAAC4BAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBgBAAAANgAAAGQBAAAQABEAAAAAAAEAA////AEAAAAFYXBwbGX4AQAAAARwZWFyIbIP
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAAC4BAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBgBAAAANgAAAGQBAAAQABEAAAAAAAEAA////AEAAAAFYXBwbGX4AQAAAARwZWFyIbIP'/*!*/;
 ### UPDATE test\&.t
 ### WHERE
 ###   @1=1
-###   @2=\'apple\'
+###   @2='apple'
 ###   @3=NULL
 ### SET
 ###   @1=1
-###   @2=\'pear\'
-###   @3=\'2009:01:01\'
+###   @2='pear'
+###   @3='2009:01:01'
 \&.\&.\&.
 # at 400
 #080828 15:03:08 server id 1  end_log_pos 442 	Delete_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAAJABAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAAJABAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP'/*!*/;
 ### DELETE FROM test\&.t
 ### WHERE
 ###   @1=1
-###   @2=\'pear\'
-###   @3=\'2009:01:01\'
+###   @2='pear'
+###   @3='2009:01:01'
 .fi
 .if n \{\
 .RE
@@ -1901,43 +1909,37 @@ shell> \fBmysqlbinlog \-vv \fR\fB\fIlog_file\fR\fR
 \&.\&.\&.
 # at 218
 #080828 15:03:08 server id 1  end_log_pos 258 	Write_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAANoAAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBcBAAAAKAAAAAIBAAAQABEAAAAAAAEAA//8AQAAAAVhcHBsZQ==
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAANoAAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBcBAAAAKAAAAAIBAAAQABEAAAAAAAEAA//8AQAAAAVhcHBsZQ=='/*!*/;
 ### INSERT INTO test\&.t
 ### SET
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
-###   @2=\'apple\' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
+###   @2='apple' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
 ###   @3=NULL /* VARSTRING(20) meta=0 nullable=1 is_null=1 */
 \&.\&.\&.
 # at 302
 #080828 15:03:08 server id 1  end_log_pos 356 	Update_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAAC4BAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBgBAAAANgAAAGQBAAAQABEAAAAAAAEAA////AEAAAAFYXBwbGX4AQAAAARwZWFyIbIP
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAAC4BAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBgBAAAANgAAAGQBAAAQABEAAAAAAAEAA////AEAAAAFYXBwbGX4AQAAAARwZWFyIbIP'/*!*/;
 ### UPDATE test\&.t
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
-###   @2=\'apple\' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
+###   @2='apple' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
 ###   @3=NULL /* VARSTRING(20) meta=0 nullable=1 is_null=1 */
 ### SET
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
-###   @2=\'pear\' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
-###   @3=\'2009:01:01\' /* DATE meta=0 nullable=1 is_null=0 */
+###   @2='pear' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
+###   @3='2009:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 \&.\&.\&.
 # at 400
 #080828 15:03:08 server id 1  end_log_pos 442 	Delete_rows: table id 17 flags: STMT_END_F
-BINLOG \'
-fAS3SBMBAAAALAAAAJABAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
-fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP
-\'/*!*/;
+BINLOG 'fAS3SBMBAAAALAAAAJABAAAAABEAAAAAAAAABHRlc3QAAXQAAwMPCgIUAAQ=
+fAS3SBkBAAAAKgAAALoBAAAQABEAAAAAAAEAA//4AQAAAARwZWFyIbIP'/*!*/;
 ### DELETE FROM test\&.t
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
-###   @2=\'pear\' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
-###   @3=\'2009:01:01\' /* DATE meta=0 nullable=1 is_null=0 */
+###   @2='pear' /* VARSTRING(20) meta=20 nullable=0 is_null=0 */
+###   @3='2009:01:01' /* DATE meta=0 nullable=1 is_null=0 */
 .fi
 .if n \{\
 .RE
@@ -1968,7 +1970,7 @@ shell> \fBmysqlbinlog \-v \-\-base64\-output=DECODE\-ROWS \fR\fB\fIlog_file\fR\f
 ### INSERT INTO test\&.t
 ### SET
 ###   @1=1
-###   @2=\'apple\'
+###   @2='apple'
 ###   @3=NULL
 \&.\&.\&.
 # at 302
@@ -1976,20 +1978,20 @@ shell> \fBmysqlbinlog \-v \-\-base64\-output=DECODE\-ROWS \fR\fB\fIlog_file\fR\f
 ### UPDATE test\&.t
 ### WHERE
 ###   @1=1
-###   @2=\'apple\'
+###   @2='apple'
 ###   @3=NULL
 ### SET
 ###   @1=1
-###   @2=\'pear\'
-###   @3=\'2009:01:01\'
+###   @2='pear'
+###   @3='2009:01:01'
 \&.\&.\&.
 # at 400
 #080828 15:03:08 server id 1  end_log_pos 442 	Delete_rows: table id 17 flags: STMT_END_F
 ### DELETE FROM test\&.t
 ### WHERE
 ###   @1=1
-###   @2=\'pear\'
-###   @3=\'2009:01:01\'
+###   @2='pear'
+###   @3='2009:01:01'
 .fi
 .if n \{\
 .RE

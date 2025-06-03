@@ -78,13 +78,6 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 
-#
-# Clean up
-#
---remove_file $MYSQLD_DATADIR/test/emp.txt
---remove_file $MYSQLD_DATADIR/test/sexe.csv
---remove_file $MYSQLD_DATADIR/test/sitmat.csv
-
 --echo #
 --echo # MDEV-28299: Server crashes in
 --echo #             XINDXS::Range/CntIndexRange (Connect engine)
@@ -110,3 +103,20 @@ SELECT x.a
 FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
 WHERE x.pk > 3;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27591 Connect tables (FIX/DOS) don't work with DESC keys - wrong results
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 (
+  id INT,
+  f VARCHAR(32),
+  PRIMARY KEY (id DESC)
+) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='emp.txt';
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/emp.txt
+--remove_file $MYSQLD_DATADIR/test/sexe.csv
+--remove_file $MYSQLD_DATADIR/test/sitmat.csv

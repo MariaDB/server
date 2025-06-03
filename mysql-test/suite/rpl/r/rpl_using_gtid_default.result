@@ -1,0 +1,145 @@
+include/master-slave.inc
+[connection master]
+#
+# Slave default configuration should be Slave_Pos
+connection slave;
+#
+# Ensure that a slave configured with Using_Gtid=Slave_Pos will remain
+# as Slave_Pos after RESET SLAVE
+include/stop_slave.inc
+RESET SLAVE;
+# No warning should be given because Slave_Pos never changed
+SHOW WARNINGS;
+Level	Code	Message
+include/start_slave.inc
+#
+# Ensure that a slave configured with Using_Gtid=No will revert to its
+# default of Slave_Pos after RESET SLAVE for a master which supports
+# GTIDs
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+include/stop_slave.inc
+RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+# A notification that Using_Gtid was reverted should exist
+SHOW WARNINGS;
+Level	Code	Message
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+include/start_slave.inc
+# Clear SHOW WARNINGS
+#
+# If the primary does not support GTIDs (version < 10), the replica
+# should fall back to Using_Gtid=No on slave start, and should not
+# revert Using_Gtid to Slave_Pos after RESET SLAVE
+include/stop_slave.inc
+RESET SLAVE ALL;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=1;
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+set @@global.debug_dbug= "d,mock_mariadb_primary_v5_in_get_master_version";
+include/start_slave.inc
+# Replica should detect at start that the primary does not support GTIDs
+# and fall-back to Using_Gtid=No
+# Replica should have an informational message stating it is falling
+# back to Using_Gtid=No
+FOUND 1 /Falling back to Using_Gtid=No because master does not support GTIDs/ in mysqld.2.err
+include/stop_slave.inc
+RESET SLAVE;
+# Replica should know that the primary does not support GTIDs and
+# preserve Using_Gtid=No
+# 'No' was not reverted and therefore no note should be added
+SHOW WARNINGS;
+Level	Code	Message
+set @@global.debug_dbug= @saved_dbug;
+include/start_slave.inc
+#
+# Ensure that a slave configured with Using_Gtid=Current_Pos will revert
+# to its default of Slave_Pos after RESET SLAVE.
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=Current_Pos;
+include/start_slave.inc
+include/stop_slave.inc
+RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
+# A notification that Using_Gtid was reverted should exist
+SHOW WARNINGS;
+Level	Code	Message
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
+include/start_slave.inc
+# Clear SHOW WARNINGS
+# The MTR include file rpl_change_topology.inc should implicitly set
+# MASTER_USE_GTID=NO when provided with $rpl_master_log_file. Note that
+# this will switch master and slave roles.
+connection slave;
+include/stop_slave.inc
+include/rpl_change_topology.inc [new topology=2->1]
+# connection 'master' is the slave in this comparison
+connection master;
+# Validating Using_Gtid=No..
+# ..success
+include/rpl_change_topology.inc [new topology=1->2]
+# connection 'slave' is back to slave role
+connection slave;
+# Validating Using_Gtid=Slave_Pos..
+# ..success
+include/start_slave.inc
+#
+# The MTR include file reset_slave.inc should keep/delete GTID state
+# when reset_slave_keep_gtid_state is set, respectively.
+#
+connection master;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+# Tagging gtid_slave_pos before reset_slave.inc as old_slave_pos
+# Using reset_slave_keep_gtid_state=1 should preserve GTID state
+include/reset_slave.inc
+# Tagging gtid_slave_pos after reset_slave.inc as new_slave_pos
+# Validating old_slave_pos == new_slave_pos..
+# ..success
+# Using reset_slave_keep_gtid_state=0 should empty GTID state
+include/reset_slave.inc
+# Tagging gtid_slave_pos as new_slave_pos
+# Validating new_slave_pos is empty..
+# ..success
+set global gtid_slave_pos="old_slave_pos";
+include/start_slave.inc
+#
+# A replica issued CHANGE MASTER TO specified with log coordinates but
+# not master_use_gtid=no should warn the user that Using_Gtid is being
+# changed to No.
+#
+connection master;
+include/save_master_pos.inc
+connection slave;
+include/sync_io_with_master.inc
+include/stop_slave.inc
+CHANGE MASTER TO master_log_pos=io_log_pos, master_log_file='io_log_file';
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
+include/start_slave.inc
+#
+# A replica issued CHANGE MASTER TO specified with log coordinates and
+# master_use_gtid=Slave_Pos should warn the user that the log
+# coordinates will be ignored.
+#
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_log_pos=io_log_pos, master_log_file='io_log_file', master_use_gtid=Slave_Pos;
+Warnings:
+Note	1618	<MASTER_LOG_FILE> option ignored
+Note	1618	<MASTER_LOG_POS> option ignored
+CHANGE MASTER TO relay_log_pos=relay_log_pos, relay_log_file='relay_log_file', master_use_gtid=Slave_Pos;
+Warnings:
+Note	1618	<RELAY_LOG_FILE> option ignored
+Note	1618	<RELAY_LOG_POS> option ignored
+include/start_slave.inc
+include/rpl_end.inc
+#
+# End of rpl_using_gtid_default.test

@@ -39,6 +39,32 @@
 class JOIN;
 class Item_sum;
 
+/*
+  When processing an OR clause with more than MAX_OR_ELEMENTS_FOR_INDEX_MERGE
+  disjuncts (i.e. OR-parts), do not construct index_merge plans from it.
+
+  Some users have OR clauses with extremely large number of disjuncts, like:
+
+      (key1=1 AND key2=10) OR
+      (key1=2 AND key2=20) OR
+      (key1=3 AND key2=30) OR
+      ...
+
+  When processing this, the optimizer would try to build a lot of potential
+  index_merge plans. Hypothetically this could be useful as the cheapest plan
+  could be to pick a specific index for each disjunct and build:
+
+     index_merge(key1 IN (1,3,8,15...), key2 IN (20, 40, 50 ...))
+
+  In practice this causes combinatorial amount of time to be spent in the range
+  analyzer, and most variants will be discarded when the range optimizer tries
+  to avoid this combinatorial explosion (which may or may not work depending on
+  the form of the WHERE clause).
+  In practice, very long ORs are served well enough by just considering range
+  accesses on individual indexes.
+*/
+const int MAX_OR_ELEMENTS_FOR_INDEX_MERGE=100;
+
 struct KEY_PART {
   uint16           key,part;
   /* See KEY_PART_INFO for meaning of the next two: */
@@ -53,6 +79,33 @@ struct KEY_PART {
   Field::imagetype image_type;
 };
 
+
+/**
+  A helper function to invert min flags to max flags for DESC key parts.
+  It changes NEAR_MIN, NO_MIN_RANGE to NEAR_MAX, NO_MAX_RANGE appropriately
+*/
+
+inline uint invert_min_flag(uint min_flag)
+{
+  uint max_flag_out = min_flag & ~(NEAR_MIN | NO_MIN_RANGE);
+  if (min_flag & NEAR_MIN) max_flag_out |= NEAR_MAX;
+  if (min_flag & NO_MIN_RANGE) max_flag_out |= NO_MAX_RANGE;
+  return max_flag_out;
+}
+
+
+/**
+  A helper function to invert max flags to min flags for DESC key parts.
+  It changes NEAR_MAX, NO_MAX_RANGE to NEAR_MIN, NO_MIN_RANGE appropriately
+*/
+
+inline uint invert_max_flag(uint max_flag)
+{
+  uint min_flag_out = max_flag & ~(NEAR_MAX | NO_MAX_RANGE);
+  if (max_flag & NEAR_MAX) min_flag_out |= NEAR_MIN;
+  if (max_flag & NO_MAX_RANGE) min_flag_out |= NO_MIN_RANGE;
+  return min_flag_out;
+}
 
 class RANGE_OPT_PARAM;
 /*
@@ -267,6 +320,8 @@ class RANGE_OPT_PARAM;
     - it is a lot easier to compute than computing the number of ranges,
     - it can be updated incrementally when performing AND/OR operations on
       parts of the graph.
+
+  6. For handling DESC keyparts, See HowRangeOptimizerHandlesDescKeyparts
 */
 
 class SEL_ARG :public Sql_alloc
@@ -326,11 +381,15 @@ public:
 
   SEL_ARG() = default;
   SEL_ARG(SEL_ARG &);
-  SEL_ARG(Field *,const uchar *, const uchar *);
-  SEL_ARG(Field *field, uint8 part, uchar *min_value, uchar *max_value,
+  SEL_ARG(Field *, const uchar *, const uchar *);
+  SEL_ARG(Field *field, uint8 part,
+          uchar *min_value, uchar *max_value,
 	  uint8 min_flag, uint8 max_flag, uint8 maybe_flag);
+
+  /* This is used to construct degenerate SEL_ARGS like ALWAYS, IMPOSSIBLE, etc */
   SEL_ARG(enum Type type_arg)
-    :min_flag(0), max_part_no(0) /* first key part means 1. 0 mean 'no parts'*/,
+    :min_flag(0),
+     max_part_no(0) /* first key part means 1. 0 mean 'no parts'*/,
      elements(1),use_count(1),left(0),right(0),
      next_key_part(0), color(BLACK), type(type_arg), weight(1)
   {}
@@ -408,13 +467,14 @@ public:
     {
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
-    return new (thd->mem_root) SEL_ARG(field, part, new_min, new_max, flag_min,
+    return new (thd->mem_root) SEL_ARG(field, part,
+                                       new_min, new_max, flag_min,
                                        flag_max,
                                        MY_TEST(maybe_flag && arg->maybe_flag));
   }
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
-    return new SEL_ARG(field,part, min_value, arg->min_value,
+    return new SEL_ARG(field, part, min_value, arg->min_value,
 		       min_flag, arg->min_flag & NEAR_MIN ? 0 : NEAR_MAX,
 		       maybe_flag | arg->maybe_flag);
   }
@@ -503,6 +563,57 @@ public:
     return 0;
   }
 
+  /* Save minimum and maximum, taking index order into account  */
+  void store_min_max(KEY_PART *kp,
+                     uint length,
+                     uchar **min_key, uint min_flag,
+                     uchar **max_key, uint max_flag,
+                     int *min_part, int *max_part)
+  {
+    if (kp[part].flag & HA_REVERSE_SORT) {
+      *max_part += store_min(length, max_key, min_flag);
+      *min_part += store_max(length, min_key, max_flag);
+    } else {
+      *min_part += store_min(length, min_key, min_flag);
+      *max_part += store_max(length, max_key, max_flag);
+    }
+  }
+  /*
+    Get the flag for range's starting endpoint, taking index order into
+    account.
+  */
+  uint get_min_flag(KEY_PART *kp)
+  {
+    return (kp[part].flag & HA_REVERSE_SORT)? invert_max_flag(max_flag) : min_flag;
+  }
+  /*
+    Get the flag for range's starting endpoint, taking index order into
+    account.
+  */
+  uint get_max_flag(KEY_PART *kp)
+  {
+    return (kp[part].flag & HA_REVERSE_SORT)? invert_min_flag(min_flag) : max_flag ;
+  }
+  /* Get the previous interval, taking index order into account */
+  inline SEL_ARG* index_order_prev(KEY_PART *kp)
+  {
+    return (kp[part].flag & HA_REVERSE_SORT)? next : prev;
+  }
+  /* Get the next interval, taking index order into account */
+  inline SEL_ARG* index_order_next(KEY_PART *kp)
+  {
+    return (kp[part].flag & HA_REVERSE_SORT)? prev : next;
+  }
+
+  /*
+    Produce a single multi-part interval, taking key part ordering into
+    account.
+  */
+  void store_next_min_max_keys(KEY_PART *key, uchar **cur_min_key,
+                               uint *cur_min_flag, uchar **cur_max_key,
+                               uint *cur_max_flag, int *min_part,
+                               int *max_part);
+
   /*
     Returns a number of keypart values appended to the key buffer
     for min key and max key. This function is used by both Range
@@ -515,7 +626,8 @@ public:
   int store_min_key(KEY_PART *key,
                     uchar **range_key,
                     uint *range_key_flag,
-                    uint last_part)
+                    uint last_part,
+                    bool start_key)
   {
     SEL_ARG *key_tree= first();
     uint res= key_tree->store_min(key[key_tree->part].store_length,
@@ -524,15 +636,26 @@ public:
     if (!res)
       return 0;
     *range_key_flag|= key_tree->min_flag;
-    if (key_tree->next_key_part &&
-	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
+    SEL_ARG *nkp= key_tree->next_key_part;
+    if (nkp && nkp->type == SEL_ARG::KEY_RANGE &&
         key_tree->part != last_part &&
-	key_tree->next_key_part->part == key_tree->part+1 &&
+	nkp->part == key_tree->part+1 &&
 	!(*range_key_flag & (NO_MIN_RANGE | NEAR_MIN)))
-      res+= key_tree->next_key_part->store_min_key(key,
-                                                   range_key,
-                                                   range_key_flag,
-                                                   last_part);
+    {
+      const bool asc = !(key[key_tree->part].flag & HA_REVERSE_SORT);
+      if (start_key == asc)
+      {
+        res+= nkp->store_min_key(key, range_key, range_key_flag, last_part,
+                                 start_key);
+      }
+      else
+      {
+        uint tmp_flag = invert_min_flag(*range_key_flag);
+        res += nkp->store_max_key(key, range_key, &tmp_flag, last_part,
+                                  start_key);
+        *range_key_flag = invert_max_flag(tmp_flag);
+      }
+    }
     return res;
   }
 
@@ -540,7 +663,8 @@ public:
   int store_max_key(KEY_PART *key,
                     uchar **range_key,
                     uint *range_key_flag,
-                    uint last_part)
+                    uint last_part,
+                    bool start_key)
   {
     SEL_ARG *key_tree= last();
     uint res=key_tree->store_max(key[key_tree->part].store_length,
@@ -548,15 +672,26 @@ public:
     if (!res)
       return 0;
     *range_key_flag|= key_tree->max_flag;
-    if (key_tree->next_key_part &&
-	key_tree->next_key_part->type == SEL_ARG::KEY_RANGE &&
+    SEL_ARG *nkp= key_tree->next_key_part;
+    if (nkp && nkp->type == SEL_ARG::KEY_RANGE &&
         key_tree->part != last_part &&
-	key_tree->next_key_part->part == key_tree->part+1 &&
+	nkp->part == key_tree->part+1 &&
 	!(*range_key_flag & (NO_MAX_RANGE | NEAR_MAX)))
-      res+= key_tree->next_key_part->store_max_key(key,
-                                                   range_key,
-                                                   range_key_flag,
-                                                   last_part);
+    {
+      const bool asc = !(key[key_tree->part].flag & HA_REVERSE_SORT);
+      if ((!start_key && asc) || (start_key && !asc))
+      {
+        res += nkp->store_max_key(key, range_key, range_key_flag, last_part,
+                                  start_key);
+      }
+      else
+      {
+        uint tmp_flag = invert_max_flag(*range_key_flag);
+        res += nkp->store_min_key(key, range_key, &tmp_flag, last_part,
+                                  start_key);
+        *range_key_flag = invert_min_flag(tmp_flag);
+      }
+    }
     return res;
   }
 
@@ -660,6 +795,73 @@ public:
   SEL_ARG *clone_tree(RANGE_OPT_PARAM *param);
 };
 
+/*
+  HowRangeOptimizerHandlesDescKeyparts
+  ====================================
+
+  Starting with MySQL-8.0 and MariaDB 10.8, index key parts may be descending,
+  for example:
+
+    INDEX idx1(col1, col2 DESC, col3, col4 DESC)
+
+  Range Optimizer handles this as follows:
+
+  Other than that, the SEL_ARG graph is built without any regard to DESC
+  keyparts.
+
+  For example, for an index
+
+    INDEX idx2(kp1 DESC, kp2)
+
+  and range
+
+    kp1 BETWEEN 10 and 20       (RANGE-1)
+
+  the SEL_ARG will have min_value=10, max_value=20
+
+  The ordering of key parts is taken into account when SEL_ARG graph is
+  linearized to ranges, in sel_arg_range_seq_next() and get_quick_keys().
+
+  The storage engine expects the first bound to be the first in the index and
+  the last bound to be the last, that is, for (RANGE-1) we will flip min and
+  max and generate these key_range structures:
+
+    start.key='20' , end.key='10'
+
+  See SEL_ARG::store_min_max(). The flag values are flipped as well, see
+  SEL_ARG::get_min_flag(), get_max_flag().
+
+  == Handling multiple key parts ==
+
+  For multi-part keys, the order of key parts has an effect on which ranges are
+  generated. Consider
+
+    kp1 >= 10 AND kp2 >'foo'
+
+  for INDEX(kp1 ASC, kp2 ASC) the range will be
+
+    (kp1, kp2) > (10, 'foo')
+
+  while for INDEX(kp1 ASC, kp2 DESC) it will be just
+
+    kp1 >= 10
+
+  Another example:
+
+    (kp1 BETWEEN 10 AND 20) AND (kp2 BETWEEN 'foo' AND 'quux')
+
+  with INDEX (kp1 ASC, kp2 ASC) will generate
+
+    (10, 'foo') <= (kp1, kp2) < (20, 'quux')
+
+  while with index INDEX (kp1 ASC, kp2 DESC) it will generate
+
+    (10, 'quux') <= (kp1, kp2) < (20, 'foo')
+
+  This is again achieved by sel_arg_range_seq_next() and get_quick_keys()
+  flipping SEL_ARG's min,max, their flags and next/prev as needed.
+*/
+
 extern MYSQL_PLUGIN_IMPORT SEL_ARG null_element;
 
 class SEL_ARG_IMPOSSIBLE: public SEL_ARG
@@ -712,6 +914,9 @@ public:
     to be always FALSE.
   */
   bool remove_false_where_parts;
+
+  /* If TRUE, do not construct index_merge plans */
+  bool disable_index_merge_plans;
 
   /*
     Which functions should give SQL notes for unusable keys.

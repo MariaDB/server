@@ -8,10 +8,11 @@ The following specify which files/extra groups are read (specified before remain
 --defaults-group-suffix=# Additionally read default groups with # appended as a suffix.
 
  --allow-suspicious-udfs 
- Allows use of UDFs consisting of only one symbol xxx()
- without corresponding xxx_init() or xxx_deinit(). That
- also means that one can load any function from any
- library, for example exit() from libc.so
+ Allows use of user-defined functions (UDFs) consisting of
+ only one symbol xxx() without corresponding xxx_init() or
+ xxx_deinit(). That also means that one can load any
+ function from any library, for example exit() from
+ libc.so
  --alter-algorithm[=name] 
  Specify the alter table algorithm. One of: DEFAULT, COPY,
  INPLACE, NOCOPY, INSTANT
@@ -45,7 +46,11 @@ The following specify which files/extra groups are read (specified before remain
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
  this automatically.
- --bind-address=name IP address to bind to.
+ --bind-address=name IP address to bind to. Several addresses may be
+ specified, separated by a comma (,).
+ --binlog-alter-two-phase 
+ When set, split ALTER at binary logging into 2
+ statements: START ALTER and COMMIT/ROLLBACK ALTER
  --binlog-annotate-row-events 
  Tells the master to annotate RBR events with the
  statement that caused these events
@@ -289,6 +294,7 @@ The following specify which files/extra groups are read (specified before remain
  columns as NULL with DEFAULT NULL attribute, Without this
  option, TIMESTAMP columns are NOT NULL and have implicit
  DEFAULT clauses.
+ (Defaults to on; use --skip-explicit-defaults-for-timestamp to disable.)
  --external-locking  Use system (external) locking (disabled by default). 
  With this option enabled you can run myisamchk to test
  (not repair) tables while the MySQL server is running.
@@ -366,7 +372,7 @@ The following specify which files/extra groups are read (specified before remain
  log. Slave stops with an error if it encounters an event
  that would cause it to generate an out-of-order binlog if
  executed. When ON the same server-id semisync-replicated
- transactions that duplicate exising ones in binlog are
+ transactions that duplicate existing ones in binlog are
  ignored without error and slave interruption.
  -?, --help          Display this help and exit.
  --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
@@ -375,7 +381,8 @@ The following specify which files/extra groups are read (specified before remain
  Specifies type of the histograms created by ANALYZE.
  Possible values are: SINGLE_PREC_HB - single precision
  height-balanced, DOUBLE_PREC_HB - double precision
- height-balanced.
+ height-balanced, JSON_HB - height-balanced, stored as
+ JSON.
  --host-cache-size=# How many host names should be cached to avoid resolving.
  (Automatically configured unless set explicitly)
  --idle-readonly-transaction-timeout=# 
@@ -459,8 +466,7 @@ The following specify which files/extra groups are read (specified before remain
  the only option you need for specifying log files. Sets
  names for --log-bin, --log-bin-index, --relay-log,
  --relay-log-index, --general-log-file,
- --log-slow-query-log-file, --log-error-file, and
- --pid-file
+ --log-slow-query-file, --log-error-file, and --pid-file
  --log-bin[=name]    Log update queries in binary format. Optional argument
  should be name for binary log. If not given
  'datadir'/'log-basename'-bin or 'datadir'/mysql-bin will
@@ -529,6 +535,22 @@ The following specify which files/extra groups are read (specified before remain
  --log-slow-max-warnings=# 
  Max numbers of warnings printed to slow query log per
  statement
+ --log-slow-min-examined-row-limit=# 
+ Don't write queries to slow log that examine fewer rows
+ than that
+ --log-slow-query    Log slow queries to a table or log file. Defaults logging
+ to a file 'hostname'-slow.log or a table mysql.slow_log
+ if --log-output=TABLE is used. Must be enabled to
+ activate other slow log options.
+ --log-slow-query-file=name 
+ Log slow queries to given log file. Defaults logging to
+ 'hostname'-slow.log. Must be enabled to activate other
+ slow log options
+ --log-slow-query-time=# 
+ Log all queries that have taken more than
+ log_slow_query_time seconds to execute to the slow query
+ log file. The argument will be treated as a decimal value
+ with microsecond precision
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -549,10 +571,10 @@ The following specify which files/extra groups are read (specified before remain
  -W, --log-warnings[=#] 
  Log some non critical warnings to the error log.Value can
  be between 0 and 11. Higher values mean more verbosity
- --long-query-time=# Log all queries that have taken more than long_query_time
- seconds to execute to the slow query log file. The
- argument will be treated as a decimal value with
- microsecond precision
+ --long-query-time=# Alias for log_slow_query_time. Log all queries that have
+ taken more than long_query_time seconds to execute to the
+ slow query log file. The argument will be treated as a
+ decimal value with microsecond precision
  --low-priority-updates 
  INSERT/DELETE/UPDATE has lower priority than selects
  --lower-case-table-names[=#] 
@@ -641,8 +663,8 @@ The following specify which files/extra groups are read (specified before remain
  --metadata-locks-hash-instances=# 
  Unused
  --min-examined-row-limit=# 
- Don't write queries to slow log that examine fewer rows
- than that
+ Alias for log_slow_min_examined_row_limit. Don't write
+ queries to slow log that examine fewer rows than that
  --mrr-buffer-size=# Size of buffer to use when using MRR with range access
  --myisam-block-size=# 
  Block size to be used for MyISAM index pages
@@ -701,7 +723,9 @@ The following specify which files/extra groups are read (specified before remain
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
- ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3
+ ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, 
+ IGNORE_INDEX_ONLY_FOR_JOIN, COMPAT_5_1_CHECKSUM, 
+ NO_NULL_COLLATION_IDS
  Use 'ALL' to set all combinations.
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
@@ -728,10 +752,15 @@ The following specify which files/extra groups are read (specified before remain
  keys. fix_reuse_range_for_ref = Do a better job at
  reusing range access estimates when estimating ref
  access. fix_card_multiplier = Fix the computation in
- selectivity_for_indexes. selectivity_multiplier. This
+ selectivity_for_indexes. fix_derived_table_read_cost =
+ Fix the cost of reading materialized derived table. This
  variable will be deleted in MariaDB 11.0 as it is not
  needed with the new 11.0 optimizer.
  Use 'ALL' to set all combinations.
+ --optimizer-extra-pruning-depth=# 
+ If the optimizer needs to enumerate join prefix of this
+ size or larger, then it will try aggressively prune away
+ the search space.
  --optimizer-join-limit-pref-ratio=# 
  For queries with JOIN and ORDER BY LIMIT : make the
  optimizer consider a join order that allows to short-cut
@@ -752,8 +781,9 @@ The following specify which files/extra groups are read (specified before remain
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
  the optimizer search space. Meaning: 0 - do not apply any
- heuristic, thus perform exhaustive search; 1 - prune
- plans based on number of retrieved rows
+ heuristic, thus perform exhaustive search: 1 - prune
+ plans based on cost and number of retrieved rows eq_ref:
+ 2 - prune also if we find an eq_ref chain
  --optimizer-search-depth=# 
  Maximum depth of search performed by the query optimizer.
  Values larger than the number of relations in a query
@@ -1040,7 +1070,7 @@ The following specify which files/extra groups are read (specified before remain
  value
  --read-only         Make all non-temporary tables read-only, with the
  exception for replication (slave) threads and users with
- the SUPER privilege
+ the 'READ ONLY ADMIN' privilege
  --read-rnd-buffer-size=# 
  When reading rows in sorted order after a sort, the rows
  are read through this buffer to avoid a disk seeks
@@ -1263,6 +1293,11 @@ The following specify which files/extra groups are read (specified before remain
  --slave-max-allowed-packet=# 
  The maximum packet length to sent successfully from the
  master to slave.
+ --slave-max-statement-time=# 
+ A query that has taken more than slave_max_statement_time
+ seconds to run on the slave will be aborted. The argument
+ will be treated as a decimal value with microsecond
+ precision. A value of 0 (default) means no timeout
  --slave-net-timeout=# 
  Number of seconds to wait for more data from any
  master/slave connection before aborting the read
@@ -1337,14 +1372,14 @@ The following specify which files/extra groups are read (specified before remain
  If creating the thread takes longer than this value (in
  seconds), the Slow_launch_threads counter will be
  incremented
- --slow-query-log    Log slow queries to a table or log file. Defaults logging
- to a file 'hostname'-slow.log or a table mysql.slow_log
- if --log-output=TABLE is used. Must be enabled to
- activate other slow log options.
+ --slow-query-log    Alias for log_slow_query. Log slow queries to a table or
+ log file. Defaults logging to a file 'hostname'-slow.log
+ or a table mysql.slow_log if --log-output=TABLE is used.
+ Must be enabled to activate other slow log options.
  --slow-query-log-file=name 
- Log slow queries to given log file. Defaults logging to
- 'hostname'-slow.log. Must be enabled to activate other
- slow log options
+ Alias for log_slow_query_file. Log slow queries to given
+ log file. Defaults logging to 'hostname'-slow.log. Must
+ be enabled to activate other slow log options
  --socket=name       Socket file to use for connection
  --sort-buffer-size=# 
  Each thread that needs to do a sort allocates a buffer of
@@ -1403,6 +1438,9 @@ The following specify which files/extra groups are read (specified before remain
  Versioning ALTER TABLE mode. ERROR: Fail ALTER with
  error; KEEP: Keep historical system rows and subject them
  to ALTER
+ --system-versioning-insert-history 
+ Allows direct inserts into ROW_START and ROW_END columns
+ if secure_timestamp allows changing @@timestamp
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
@@ -1531,6 +1569,7 @@ automatic-sp-privileges TRUE
 back-log 80
 big-tables FALSE
 bind-address (No default value)
+binlog-alter-two-phase FALSE
 binlog-annotate-row-events TRUE
 binlog-cache-size 32768
 binlog-checksum CRC32
@@ -1584,7 +1623,7 @@ eq-range-index-dive-limit 200
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
-explicit-defaults-for-timestamp FALSE
+explicit-defaults-for-timestamp TRUE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
@@ -1653,6 +1692,9 @@ log-slow-admin-statements TRUE
 log-slow-disabled-statements sp
 log-slow-filter admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-max-warnings 10
+log-slow-min-examined-row-limit 0
+log-slow-query FALSE
+log-slow-query-time 10
 log-slow-rate-limit 1
 log-slow-slave-statements TRUE
 log-slow-verbosity 
@@ -1714,10 +1756,11 @@ old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-adjust-secondary-key-costs fix_reuse_range_for_ref,fix_card_multiplier
+optimizer-extra-pruning-depth 8
 optimizer-join-limit-pref-ratio 0
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
-optimizer-prune-level 1
+optimizer-prune-level 2
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=on,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on,condition_pushdown_for_subquery=on,rowid_filter=on,condition_pushdown_from_having=on
@@ -1847,6 +1890,7 @@ slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
+slave-max-statement-time 0
 slave-net-timeout 60
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative
@@ -1876,6 +1920,7 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
+system-versioning-insert-history FALSE
 table-definition-cache 400
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0

@@ -69,17 +69,17 @@ Created 9/17/2000 Heikki Tuuri
 
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static void row_mysql_delay_if_needed()
+static void row_mysql_delay_if_needed() noexcept
 {
   const auto delay= srv_dml_needed_delay;
   if (UNIV_UNLIKELY(delay != 0))
   {
     /* Adjust for purge_coordinator_state::refresh() */
-    mysql_mutex_lock(&log_sys.mutex);
+    log_sys.latch.rd_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
-    mysql_mutex_unlock(&log_sys.mutex);
-    const lsn_t lsn= log_sys.get_lsn();
+    const lsn_t lsn= log_sys.get_flushed_lsn();
+    log_sys.latch.rd_unlock();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -687,8 +687,12 @@ handle_new_error:
 			/* MariaDB will roll back the latest SQL statement */
 			break;
 		}
-		/* MariaDB will roll back the entire transaction. */
-		trx->bulk_insert = false;
+		/* For DML, InnoDB does partial rollback and clear
+		bulk buffer in row_mysql_handle_errors().
+		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
+		the bulk insert transaction will be rolled back inside
+		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
@@ -704,6 +708,7 @@ handle_new_error:
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
+	case DB_TEMP_FILE_WRITE_FAIL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
@@ -981,7 +986,7 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table);
+		prebuilt->table->release();
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1374,12 +1379,6 @@ error_exit:
 		}
 	}
 
-	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
-	} else {
-		srv_stats.n_rows_inserted.inc(size_t(trx->id));
-	}
-
 	/* Not protected by dict_sys.latch or table->stats_mutex_lock()
 	for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
@@ -1605,7 +1604,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	ut_ad(table->stat_initialized);
+	ut_ad(table->stat_initialized());
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
@@ -1713,20 +1712,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
-		} else {
-			srv_stats.n_rows_deleted.inc(size_t(trx->id));
-		}
-
 		update_statistics = !srv_stats_include_delete_marked;
 	} else {
-		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
-		} else {
-			srv_stats.n_rows_updated.inc(size_t(trx->id));
-		}
-
 		update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 	}
@@ -1939,8 +1926,6 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 			goto exit;
 
 		case DB_SUCCESS:
-			srv_stats.n_rows_inserted.inc(
-				static_cast<size_t>(trx->id));
 			dict_stats_update_if_needed(table, *trx);
 			goto exit;
 		}
@@ -2024,11 +2009,9 @@ row_update_cascade_for_mysql(
 				dict_table_n_rows_dec(node->table);
 
 				stats = !srv_stats_include_delete_marked;
-				srv_stats.n_rows_deleted.inc(size_t(trx->id));
 			} else {
 				stats = !(node->cmpl_info
 					  & UPD_NODE_NO_ORD_CHANGE);
-				srv_stats.n_rows_updated.inc(size_t(trx->id));
 			}
 
 			if (stats) {

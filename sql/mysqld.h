@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -100,7 +100,9 @@ extern CHARSET_INFO *error_message_charset_info;
 
 extern CHARSET_INFO *character_set_filesystem;
 
-extern MY_BITMAP temp_pool;
+void temp_pool_clear_bit(uint bit);
+uint temp_pool_set_next();
+
 extern bool opt_large_files;
 extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress; 
 extern uint opt_bin_log_compress_min_len;
@@ -141,6 +143,7 @@ extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
 extern const char *shared_memory_base_name;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+extern MYSQL_PLUGIN_IMPORT bool metadata_lock_info_plugin_loaded;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
@@ -242,6 +245,8 @@ extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_si
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
 extern ulong slave_max_allowed_packet;
+extern ulonglong slave_max_statement_time;
+extern double slave_max_statement_time_double;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong binlog_row_metadata;
 extern ulong thread_cache_size;
@@ -305,6 +310,7 @@ extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
 
 enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
+bool is_set_timestamp_forbidden(THD *thd);
 
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
@@ -326,6 +332,8 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
+  key_master_info_start_alter_lock,
+  key_master_info_start_alter_list_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_rpl_group_info_sleep_lock,
@@ -684,6 +692,13 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+#ifdef WITH_WSREP
+// Aditional Galera thread states
+extern PSI_stage_info stage_waiting_isolation;
+extern PSI_stage_info stage_waiting_certification;
+extern PSI_stage_info stage_waiting_ddl;
+extern PSI_stage_info stage_waiting_flow;
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
@@ -832,6 +847,7 @@ enum options_mysqld
   OPT_MYSQL_COMPATIBILITY,
   OPT_TLS_VERSION, OPT_SECURE_AUTH,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
+  OPT_SEQURE_FILE_PRIV,
   OPT_which_is_always_the_last
 };
 #endif

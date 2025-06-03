@@ -233,7 +233,7 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
     cur++;
   }
   advance(from, to, cur, skip);
-  dirp->number_of_files= (uint)(to - dirp->dir_entry);
+  dirp->number_of_files= to - dirp->dir_entry;
   return 0;
 }
 

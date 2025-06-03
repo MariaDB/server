@@ -291,6 +291,16 @@ operator<<(
 	return(lhs);
 }
 
+/** This is a wrapper class, used to print any number in IEC style */
+struct bytes_iec {
+  explicit bytes_iec(unsigned long long t): m_val(t) {}
+  double get_double() const { return static_cast<double>(m_val); }
+  const unsigned long long m_val;
+};
+
+/** Like hex operator above, except for bytes_iec */
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs);
+
 /** The class logger is the base class of all the error log related classes.
 It contains a std::ostringstream object.  The main purpose of this class is
 to forward operator<< to the underlying std::ostringstream object.  Do not

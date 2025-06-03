@@ -45,6 +45,18 @@ public:
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *def,
                                               const Field *field) const override;
+  const Type_handler *type_handler_base() const override
+  {
+    /*
+      Override this method in the same way with what Type_handler_blob_json
+      does, to tell the server that MySQL JSON inherits aggregation behaviour
+      from the LONGBLOB data type.
+      This makes MariaDB JSON column and a MySQL JSON column compatible for
+      assignment, so "ALTER TABLE table_with_mysql_json FORCE" can run without
+      raising ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION.
+    */
+    return &type_handler_long_blob;
+  }
 };
 
 Type_handler_mysql_json type_handler_mysql_json;

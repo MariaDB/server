@@ -76,7 +76,7 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 --echo # MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
 --echo #
 --error 1
---exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
+--exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE 2>/dev/null
 
 --echo #
 --echo # MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check

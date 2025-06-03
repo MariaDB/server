@@ -613,7 +613,7 @@ create or replace table t1 (
   period for system_time(row_start, row_end)
 ) with system versioning;
 show create table t1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 
 create or replace table t1 (
@@ -623,7 +623,7 @@ a int, b int primary key,
   period for system_time(row_start, row_end)
 ) with system versioning;
 show create table t1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 
 # cleanup

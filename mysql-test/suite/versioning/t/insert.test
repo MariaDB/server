@@ -83,4 +83,193 @@ select x, y from t2;
 drop table t1;
 drop table t2;
 
+--echo #
+--echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
+set @@session.time_zone='+00:00';
+let $MAX_TIMESTAMP= TIMESTAMP'2038-01-19 03:14:07.999999';
+
+create table t1(x int primary key) with system versioning;
+create table t2(y int primary key,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+create table t3(z int primary key,
+  row_start timestamp(6) as row start,
+  row_end timestamp(6) as row end,
+  period for system_time (row_start, row_end))
+with system versioning;
+--error ER_BAD_FIELD_ERROR
+insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert into t2(y, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+set @@system_versioning_insert_history= 1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into t2(y, row_start, row_end) values (4, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+insert into t3 values (5, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_WRONG_VALUE
+insert into t3 values (5, '1980-01-02 00:00:00', '1980-01-01 00:00:01');
+
+select x, row_start, row_end from t1 for system_time all;
+select y, row_start, row_end from t2 for system_time all;
+select z, row_start, row_end from t3 for system_time all;
+
+insert into t1(x) values (1);
+insert into t2(y) values (1);
+
+update t1 set x= x + 1;
+--error ER_BAD_FIELD_ERROR
+update t1 set row_start= '1971-01-01 00:00:00';
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+update t2 set row_start= '1971-01-01 00:00:00';
+--error ER_BAD_FIELD_ERROR
+insert t1 (x) values (2) on duplicate key update x= 3, row_end= '1970-01-01 00:00:00';
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert t2 (y) values (1) on duplicate key update y= 3, row_end= '1970-01-01 00:00:00';
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert t2 (y,row_end) values (1, '1970-01-01 00:00:00') on duplicate key update y= 3;
+# this should work, row_start/row_end must be mentioned explicitly:
+insert into t1 values (4);
+insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
+--error ER_WRONG_VALUE
+insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
+--error ER_WRONG_VALUE
+insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
+insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
+--replace_regex /'202\d-\d\d-\d\d .*'/'now'/
+--error ER_WRONG_VALUE
+insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
+eval insert into t1(x, row_end) values (10, $MAX_TIMESTAMP);
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+eval select x, row_start, row_end from t1 for system_time all
+where x > 1 and row_end < $MAX_TIMESTAMP order by x, row_start, row_end;
+--echo # Direct insert is not possible for TRX_ID versioning
+create or replace table t2(y int primary key,
+  row_start bigint unsigned as row start,
+  row_end bigint unsigned as row end,
+  period for system_time (row_start, row_end))
+with system versioning engine innodb;
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert into t2(y, row_start, row_end) values (0, 1, 2);
+set @@system_versioning_insert_history= 0;
+
+--echo ## INSERT..SELECT
+create or replace table t2 like t1;
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+eval select x, row_start, row_end from t2 for system_time all
+where x > 1 and row_end < $MAX_TIMESTAMP order by x, row_start, row_end;
+set @@system_versioning_insert_history= 0;
+
+--echo # REPLACE / REPLACE .. SELECT
+create or replace table t2(a int primary key,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
+create or replace table t2 (a int primary key) with system versioning;
+--error ER_BAD_FIELD_ERROR
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_BAD_FIELD_ERROR
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
+set @@system_versioning_insert_history= 1;
+--echo # REPLACE ignores system_versioning_insert_history
+--error ER_BAD_FIELD_ERROR
+replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t3 (z, row_start) values (0, '1980-01-01 00:00:00');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t3 values (0,  '1980-01-01 00:00:00', '1981-01-01 00:00:00');
+
+--echo # LOAD DATA
+--let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
+--replace_result $DATAFILE DATAFILE
+--disable_cursor_protocol
+--disable_ps2_protocol
+eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
+--enable_ps2_protocol
+--enable_cursor_protocol
+create or replace table t2 like t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+set @@system_versioning_insert_history= 1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+--replace_result $DATAFILE DATAFILE
+eval load data infile '$DATAFILE' into table t2 (x, row_start, row_end);
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+--remove_file $DATAFILE
+
+--echo # Honor secure_timestamp option
+--let $restart_parameters= --secure-timestamp=YES
+--source include/restart_mysqld.inc
+set @@system_versioning_insert_history= 1;
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t3(z, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t3 values (8, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--let $restart_parameters= --secure-timestamp=REPLICATION
+--source include/restart_mysqld.inc
+create user nobody;
+grant all privileges on test.* to nobody;
+change_user nobody;
+set @@system_versioning_insert_history= 1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t3(z, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t3 values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+change_user root;
+--let $restart_parameters= --secure-timestamp=SUPER
+--source include/restart_mysqld.inc
+set @@system_versioning_insert_history= 1;
+insert into test.t3(z, row_start, row_end) values (10, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+change_user nobody;
+set @@system_versioning_insert_history= 1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t3(z, row_start, row_end) values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into test.t3 values (7, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+change_user root;
+use test;
+--let $restart_parameters= --secure-timestamp=NO
+--source include/restart_mysqld.inc
+
+drop tables t1, t2, t3;
+
+--echo #
+--echo # MDEV-29813 REPLACE/IGNORE does not work with historical records in InnoDB
+--echo #
+set sql_mode='STRICT_ALL_TABLES';
+
+create or replace table t1 (a int) with system versioning;
+set system_versioning_insert_history= on;
+insert into t1 (a,row_start,row_end) values (1,'2022-01-01','2023-01-01'),(1,'2022-01-01','2023-01-01');
+--disable_cursor_protocol
+--disable_ps2_protocol
+select a,row_start,row_end into outfile 'mdev29813.txt' from t1 for system_time all;
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+create or replace table t1 (a int primary key) with system versioning;
+load data infile 'mdev29813.txt' ignore into table t1 (a,row_start,row_end);
+select a,row_start,row_end from t1 for system_time all;
+
+create or replace table t1 (a int primary key) with system versioning;
+insert ignore into t1 (a,row_start,row_end) values (1,'2022-01-01','2023-01-01'),(1,'2022-01-01','2023-01-01');
+select a,row_start,row_end from t1 for system_time all;
+
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/mdev29813.txt
+drop table t1;
+set sql_mode=default;
+
 -- source suite/versioning/common_finish.inc

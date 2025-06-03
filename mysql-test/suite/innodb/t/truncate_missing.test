@@ -2,7 +2,7 @@
 --source include/not_embedded.inc
 
 call mtr.add_suppression("InnoDB: Operating system error number ");
-call mtr.add_suppression("InnoDB: (The error means|If you are|Cannot open datafile) ");
+call mtr.add_suppression("InnoDB: (Error number \\d+ means|If you are|Cannot open datafile) ");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t ");
 call mtr.add_suppression("InnoDB: Table test/t .* does not exist");
 

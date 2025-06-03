@@ -2293,3 +2293,26 @@ restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
 # End of 10.6 tests
+#
+# MDEV-29028: Queries using RANDOM_BYTES get stored in query cache
+#
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+create table t1 (a int);
+insert into t1 values (1000);
+flush status;
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	0
+QCACHE_INSERTS	0
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	0
+QCACHE_INSERTS	0
+select random_bytes(1024) = random_bytes(1024) as improbable;
+improbable
+0
+drop table t1;
+set global query_cache_type= @qcache;
+# End of 10.10 tests

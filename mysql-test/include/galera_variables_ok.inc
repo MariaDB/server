@@ -5,7 +5,7 @@ if (!$_galera_variables_delta) {
 --let $galera_variables_delta=0
 }
 
---let $galera_variables_expected=`SELECT 49 + $galera_variables_delta`
+--let $galera_variables_expected=`SELECT 50 + $galera_variables_delta`
 
 --let $galera_variables_count=`SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep%'`
 

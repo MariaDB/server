@@ -13,7 +13,7 @@
 CREATE TABLE t(i INT NOT NULL PRIMARY KEY) ENGINE INNODB;
 INSERT INTO t VALUES(1);
 #
-# In default settings donor should desync
+# In default settings donor should not desync
 #
 --echo # Restart node_2, force SST.
 --connection node_2
@@ -37,7 +37,7 @@ let $restart_noprint=2;
 
 --connection node_1
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
---echo # Both should return FOUND 2 as we have bootstrap and SST
+--echo # Both should return NOT FOUND as we have mariabackup with backup locks
 let SEARCH_PATTERN = Desyncing and pausing the provider;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN = Resuming and resyncing the provider;
@@ -76,7 +76,7 @@ let $restart_noprint=2;
 
 --connection node_1
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
---echo # Both should return FOUND 3 as we have 1 new SST
+--echo # Both should return NOT FOUND as we have mariabackup with backup locks
 let SEARCH_PATTERN = Desyncing and pausing the provider;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN = Resuming and resyncing the provider;
@@ -117,13 +117,16 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup2;
 --enable_result_log
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.2.err;
---echo # Both should return FOUND 1 as node should not desync
+--echo # Both should return FOUND 2 because both backups do desync but on different points
 let SEARCH_PATTERN = Desyncing and pausing the provider;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN = Resuming and resyncing the provider;
 --source include/search_pattern_in_file.inc
---echo # Should return FOUND 1 because only last backup does not desync
-let SEARCH_PATTERN = Server not desynched from group because WSREP_MODE_BF_MARIABACKUP used.;
+--echo # Should return FOUND 1 as server did not desync at BLOCK_DDL
+let SEARCH_PATTERN = Server not desynched from group at BLOCK_DDL because WSREP_MODE_BF_MARIABACKUP is used.;
+--source include/search_pattern_in_file.inc
+--echo # Should return FOUND 1 as server did desync and pause at BLOCK_COMMIT
+let SEARCH_PATTERN = Server desynched from group during BACKUP STAGE BLOCK_COMMIT.;
 --source include/search_pattern_in_file.inc
 
 SET GLOBAL wsrep_mode = DEFAULT;

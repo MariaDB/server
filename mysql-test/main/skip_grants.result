@@ -145,3 +145,17 @@ CREATE DEFINER=a FUNCTION f() RETURNS INT RETURN 100;
 DROP PROCEDURE p;
 DROP FUNCTION f;
 # End of 10.5 tests
+#
+# MDEV-24815 Show "--skip-grant-tables" state in SYSTEM VARIABLES
+#
+SELECT @@skip_grant_tables AS EXPECT_1;
+EXPECT_1
+1
+# restart: --skip-skip-grant-tables
+SELECT @@skip_grant_tables AS EXPECT_0;
+EXPECT_0
+0
+# restart: --skip-grant-tables
+#
+# End of 10.10 tests
+#

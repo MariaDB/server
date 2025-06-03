@@ -43,7 +43,7 @@ variables:
   CMAKE_FLAGS: "-DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF"
   # Major version dictates which branches share the same ccache. E.g. 10.6-abc
   # and 10.6-xyz will have the same cache.
-  MARIADB_MAJOR_VERSION: "10.6"
+  MARIADB_MAJOR_VERSION: "10.9"
   # NOTE! Currently ccache is only used on the Centos 9 build. As each job has
   # sufficiently different environments they are unable to benefit from each
   # other's ccaches. As each build generates about 1 GB of ccache, having
@@ -510,6 +510,37 @@ flawfinder:
       - flawfinder-all-vulnerabilities.html
       - flawfinder-min-level5.json
       
+mini-benchmark:
+  stage: test
+  dependencies:
+    - fedora
+  needs:
+    - fedora
+  script:
+    - ls -la rpm; rm -vf rpm/*.el?.*  # Delete artifacts from Centos builds
+    # Don't use cracklib, otherwise the Sysbench user password will be rejected
+    - rm -vf rpm/*cracklib*.rpm
+    # Nothing provides galera-4 on Fedora, so this step fails if built with wsrep
+    - yum install -y rpm/*.rpm
+    # Fedora does not support running services in Docker (like Debian packages do) so start it manually
+    - /usr/bin/mariadb-install-db -u mysql
+    - sudo -u mysql /usr/sbin/mariadbd & sleep 10
+    # Since we did a manual start, we also need to run upgrade manually
+    - /usr/bin/mariadb-upgrade -u root
+    - |
+      mariadb --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
+      grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't install properly"
+    - yum install -y sysbench procps-ng perf flamegraph flamegraph-stackcollapse-perf util-linux dnf-utils
+    - /usr/share/mysql/mini-benchmark
+    - cp -av */sysbench-run-*.log */metrics.txt .  # Move files one level down so they can be saved as artifacts
+  artifacts:
+    when: always
+    paths:
+      - sysbench-run-*.log
+    reports:
+      metrics:
+        - metrics.txt
+
 # Once all RPM builds and tests have passed, also run the DEB builds and tests
 # @NOTE: This is likely to work well only on salsa.debian.org as the Gitlab.com
 # runners are too small for everything this stage does.

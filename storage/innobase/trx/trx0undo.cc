@@ -310,7 +310,7 @@ void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec, uint16_t offset)
   dict_sys.unfreeze();
 
   ut_ad(table);
-  if (!table->is_active_ddl())
+  if (!table->is_native_online_ddl())
     return;
 
   dict_index_t *index= dict_table_get_first_index(table);

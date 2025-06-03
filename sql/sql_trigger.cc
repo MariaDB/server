@@ -988,7 +988,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Use the filesystem to enforce trigger namespace constraints. */
   trigger_exists= !access(trigname_file.str, F_OK);
 
-  ddl_log_create_trigger(thd, ddl_log_state, &tables->db, &tables->table_name,
+  ddl_log_create_trigger(ddl_log_state, &tables->db, &tables->table_name,
                          &lex->spname->m_name,
                          trigger_exists || table->triggers->count ?
                          DDL_CREATE_TRIGGER_PHASE_DELETE_COPY :
@@ -997,7 +997,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Make a backup of the .TRG file that we can restore in case of crash */
   if (table->triggers->count &&
       (sql_backup_definition_file(&file, &backup_name) ||
-       ddl_log_delete_tmp_file(thd, ddl_log_state_tmp_file, &backup_name,
+       ddl_log_delete_tmp_file(ddl_log_state_tmp_file, &backup_name,
                                ddl_log_state)))
     DBUG_RETURN(true);
 
@@ -1009,7 +1009,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
 
       /* Make a backup of the .TRN file that we can restore in case of crash */
       if (sql_backup_definition_file(&trigname_file, &backup_name) ||
-          ddl_log_delete_tmp_file(thd, ddl_log_state_tmp_file, &backup_name,
+          ddl_log_delete_tmp_file(ddl_log_state_tmp_file, &backup_name,
                                   ddl_log_state))
         DBUG_RETURN(true);
       ddl_log_update_phase(ddl_log_state, DDL_CREATE_TRIGGER_PHASE_OLD_COPIED);
@@ -1355,7 +1355,7 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
       /* This code is executed in case of DROP TRIGGER */
       lex_string_set3(&query, thd->query(), thd->query_length());
     }
-    if (ddl_log_drop_trigger(thd, ddl_log_state,
+    if (ddl_log_drop_trigger(ddl_log_state,
                              &tables->db, &tables->table_name,
                              sp_name, &query))
       goto err;

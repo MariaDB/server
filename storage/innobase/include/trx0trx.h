@@ -36,6 +36,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "read0types.h"
 #include "ilist.h"
 #include "small_vector.h"
+#include "row0merge.h"
 
 #include <vector>
 
@@ -411,6 +412,11 @@ class trx_mod_table_time_t
   /** Whether the modified table is a FTS auxiliary table */
   bool fts_aux_table= false;
 #endif /* UNIV_DEBUG */
+
+  /** Buffer to store insert opertion */
+  row_merge_bulk_t *bulk_store= nullptr;
+
+  friend struct trx_t;
 public:
   /** Constructor
   @param rows   number of modified rows so far */
@@ -444,8 +450,15 @@ public:
     first_versioned= BULK;
   }
 
-  /** Notify the start of a bulk insert operation */
-  void start_bulk_insert() { first|= BULK; }
+  /** Notify the start of a bulk insert operation
+  @param table table to do bulk operation
+  @param also_primary start bulk insert operation for primary index */
+  void start_bulk_insert(dict_table_t *table, bool also_primary)
+  {
+    first|= BULK;
+    if (!table->is_temporary())
+      bulk_store= new row_merge_bulk_t(table, also_primary);
+  }
 
   /** Notify the end of a bulk insert operation */
   void end_bulk_insert() { first&= ~BULK; }
@@ -471,6 +484,46 @@ public:
 
   bool is_aux_table() const { return fts_aux_table; }
 #endif /* UNIV_DEBUG */
+
+  /** @return the first undo record that modified the table */
+  undo_no_t get_first() const
+  {
+    ut_ad(valid());
+    return LIMIT & first;
+  }
+
+  /** Add the tuple to the transaction bulk buffer for the given index.
+  @param entry  tuple to be inserted
+  @param index  bulk insert for the index
+  @param trx    transaction */
+  dberr_t bulk_insert_buffered(const dtuple_t &entry,
+                               const dict_index_t &index, trx_t *trx)
+  {
+    return bulk_store->bulk_insert_buffered(entry, index, trx);
+  }
+
+  /** Do bulk insert operation present in the buffered operation
+  @return DB_SUCCESS or error code */
+  dberr_t write_bulk(dict_table_t *table, trx_t *trx);
+
+  /** @return whether the buffer storage exist */
+  bool bulk_buffer_exist() const
+  {
+    return bulk_store && is_bulk_insert();
+  }
+
+  /** @return whether InnoDB has to skip sort for clustered index */
+  bool skip_sort_pk() const
+  {
+    return bulk_store && !bulk_store->m_sort_primary_key;
+  }
+
+  /** Free bulk insert operation */
+  void clear_bulk_buffer()
+  {
+    delete bulk_store;
+    bulk_store= nullptr;
+  }
 };
 
 /** Collection of persistent tables and their first modification
@@ -756,8 +809,13 @@ public:
   /** normally set; "SET unique_checks=0, foreign_key_checks=0"
   enables bulk insert into an empty table */
   unsigned check_unique_secondary:1;
-  /** whether an insert into an empty table is active */
-  unsigned bulk_insert:1;
+  /** whether an insert into an empty table is active
+  Possible states are
+  TRX_NO_BULK
+  TRX_DML_BULK
+  TRX_DDL_BULK
+  @see trx_bulk_insert in trx0types.h */
+  unsigned bulk_insert:2;
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
 	commit between multiple storage engines and the binary log. When
@@ -1064,6 +1122,7 @@ public:
     ut_ad(!is_not_inheriting_locks());
     ut_ad(check_foreigns);
     ut_ad(check_unique_secondary);
+    ut_ad(bulk_insert == TRX_NO_BULK);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.
@@ -1089,6 +1148,8 @@ public:
   rollback to the start of a statement will work. */
   void end_bulk_insert()
   {
+    if (bulk_insert == TRX_DDL_BULK)
+      return;
     for (auto& t : mod_tables)
       t.second.end_bulk_insert();
   }
@@ -1096,7 +1157,15 @@ public:
   /** @return whether a bulk insert into empty table is in progress */
   bool is_bulk_insert() const
   {
-    if (!bulk_insert || check_unique_secondary || check_foreigns)
+    switch (bulk_insert) {
+    case TRX_NO_BULK:
+      return false;
+    case TRX_DDL_BULK:
+      return true;
+    default:
+      ut_ad(bulk_insert == TRX_DML_BULK);
+    }
+    if (check_unique_secondary || check_foreigns)
       return false;
     for (const auto& t : mod_tables)
       if (t.second.is_bulk_insert())
@@ -1104,7 +1173,41 @@ public:
     return false;
   }
 
+  /**
+  @return logical modification time of a table
+  @retval nullptr if the table doesn't have bulk buffer or
+  can skip sorting for primary key */
+  trx_mod_table_time_t *use_bulk_buffer(dict_index_t *index) noexcept
+  {
+    if (UNIV_LIKELY(!bulk_insert))
+      return nullptr;
+    ut_ad(index->table->skip_alter_undo || !check_unique_secondary);
+    ut_ad(index->table->skip_alter_undo || !check_foreigns);
+    auto it= mod_tables.find(index->table);
+    if (it == mod_tables.end() || !it->second.bulk_buffer_exist())
+      return nullptr;
+    /* Avoid using bulk buffer for load statement */
+    if (index->is_clust() && it->second.skip_sort_pk())
+      return nullptr;
+    return &it->second;
+  }
+
+  /** Do the bulk insert for the buffered insert operation
+  for the transaction.
+  @return DB_SUCCESS or error code */
+  template<trx_bulk_insert type= TRX_DML_BULK>
+  dberr_t bulk_insert_apply()
+  {
+    static_assert(type != TRX_NO_BULK, "");
+    return bulk_insert == type ? bulk_insert_apply_low(): DB_SUCCESS;
+  }
+
 private:
+  /** Apply the buffered bulk inserts. */
+  dberr_t bulk_insert_apply_low();
+
+  /** Rollback the bulk insert operation for the transaction */
+  void bulk_rollback_low();
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

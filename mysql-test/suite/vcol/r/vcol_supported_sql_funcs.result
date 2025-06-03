@@ -2513,8 +2513,8 @@ create table t1 (a timestamp, b timestamp, c long as (timestampdiff(MONTH, a,b))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `b` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `a` timestamp NULL DEFAULT NULL,
+  `b` timestamp NULL DEFAULT NULL,
   `c` mediumtext GENERATED ALWAYS AS (timestampdiff(MONTH,`a`,`b`)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('2003-02-01','2003-05-01',default);

@@ -1,10 +1,3 @@
-# Initialize tables for the test
-
---disable_warnings
-drop table if exists x1;
-drop table if exists x2;
---enable_warnings
-
 set @tmp_subselect_nulls=@@optimizer_switch;
 set optimizer_switch='semijoin=off';
 
@@ -98,8 +91,39 @@ set optimizer_switch= @tmp_subselect_nulls;
 drop table x1;
 drop table x2;
 
-#
-# MDEV-7339 Server crashes in Item_func_trig_cond::val_int
-#
+--echo #
+--echo # MDEV-7339 Server crashes in Item_func_trig_cond::val_int
+--echo #
 select (select 1, 2) in (select 3, 4);
 select (select NULL, NULL) in (select 3, 4);
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-32555 wrong result with an index and a partially null-rejecting condition
+--echo #
+
+create table t1 (a int primary key);
+insert t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (
+  b int not null,
+  c int default null,
+  d int not null,
+  e int not null,
+  unique key (d,b,c)
+);
+
+insert t2 values (1,null,1,1),(1,null,2,2),(1,null,3,3),(1,null,4,4),(2,null,1,2),(3,null,1,3),(4,null,2,2),(4,null,1,4);
+
+select (
+  select sum(t2_.e) from t2 t2_ where t2_.b = a and t2_.c <=> t2.c and t2_.d = 1
+) x from t2 left join t1 on a = b;
+
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

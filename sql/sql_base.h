@@ -156,7 +156,8 @@ thr_lock_type read_lock_type_for_table(THD *thd,
 
 my_bool mysql_rm_tmp_tables(void);
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
-                             const MDL_savepoint &start_of_statement_svp);
+                             const MDL_savepoint &start_of_statement_svp,
+                             bool remove_indirect);
 bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
                                 LEX_CSTRING *table, thr_lock_type lock_type);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
@@ -164,6 +165,7 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                const LEX_CSTRING *db_name,
                                const LEX_CSTRING *table_name);
 int close_thread_tables(THD *thd);
+int close_thread_tables_for_query(THD *thd);
 void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
 void switch_defaults_to_nullable_trigger_fields(TABLE *table);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
@@ -540,7 +542,8 @@ public:
     OT_BACKOFF_AND_RETRY,
     OT_REOPEN_TABLES,
     OT_DISCOVER,
-    OT_REPAIR
+    OT_REPAIR,
+    OT_ADD_HISTORY_PARTITION
   };
   Open_table_context(THD *thd, uint flags);
 
@@ -613,6 +616,9 @@ private:
     protection against global read lock.
   */
   mdl_bitmap_t m_has_protection_against_grl;
+
+public:
+  uint vers_create_count;
 };
 
 

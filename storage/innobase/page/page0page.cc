@@ -2485,7 +2485,7 @@ page_find_rec_with_heap_no(
 @param[in]	page	index tree leaf page
 @return the last record, not delete-marked
 @retval infimum record if all records are delete-marked */
-const rec_t *page_find_rec_max_not_deleted(const page_t *page)
+const rec_t *page_find_rec_last_not_deleted(const page_t *page)
 {
   ut_ad(page_is_leaf(page));
 

@@ -797,7 +797,9 @@ int ha_archive::create(const char *name, TABLE *table_arg,
     {
       Field *field= key_part->field;
 
-      if (!(field->flags & AUTO_INCREMENT_FLAG))
+      if (!(field->flags & AUTO_INCREMENT_FLAG) ||
+          key_part->key_part_flag & HA_REVERSE_SORT)
+
       {
         error= HA_WRONG_CREATE_OPTION;
         DBUG_PRINT("ha_archive", ("Index error in creating archive table"));

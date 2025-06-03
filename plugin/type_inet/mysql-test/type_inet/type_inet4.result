@@ -1,0 +1,2019 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+#
+#
+# Basic CREATE functionality, defaults, metadata
+#
+CREATE TABLE t1 (a INET4 AUTO_INCREMENT);
+ERROR 42000: Incorrect column specifier for column 'a'
+CREATE TABLE t1 (a INET4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+a	inet4	YES		NULL	
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema='test' AND table_name='t1';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	a
+ORDINAL_POSITION	1
+COLUMN_DEFAULT	NULL
+IS_NULLABLE	YES
+DATA_TYPE	inet4
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	inet4
+COLUMN_KEY	
+EXTRA	
+PRIVILEGES	#
+COLUMN_COMMENT	
+IS_GENERATED	NEVER
+GENERATION_EXPRESSION	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.1');
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	254 (type=inet4)	15	7	Y	160	0	8
+a
+0.0.0.1
+SELECT CAST('0.0.0.1' AS INET4) AS a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					a	254 (type=inet4)	15	7	N	33	0	8
+a
+0.0.0.1
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INET4 DEFAULT 0x00000000,
+c2 INET4 DEFAULT 0xFFFFFFFF,
+c3 INET4 DEFAULT '0.0.0.255',
+c4 INET4 DEFAULT '255.0.0.255',
+c5 INET4 DEFAULT CAST(X'FFFF00FF' AS INET4)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` inet4 DEFAULT '0.0.0.0',
+  `c2` inet4 DEFAULT '255.255.255.255',
+  `c3` inet4 DEFAULT '0.0.0.255',
+  `c4` inet4 DEFAULT '255.0.0.255',
+  `c5` inet4 DEFAULT cast(X'ffff00ff' as inet4)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	inet4	YES		0.0.0.0	
+c2	inet4	YES		255.255.255.255	
+c3	inet4	YES		0.0.0.255	
+c4	inet4	YES		255.0.0.255	
+c5	inet4	YES		cast(X'ffff00ff' as inet4)	
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_schema='test' AND table_name='t1';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	c1
+ORDINAL_POSITION	1
+COLUMN_DEFAULT	'0.0.0.0'
+IS_NULLABLE	YES
+DATA_TYPE	inet4
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	inet4
+COLUMN_KEY	
+EXTRA	
+PRIVILEGES	#
+COLUMN_COMMENT	
+IS_GENERATED	NEVER
+GENERATION_EXPRESSION	NULL
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	c2
+ORDINAL_POSITION	2
+COLUMN_DEFAULT	'255.255.255.255'
+IS_NULLABLE	YES
+DATA_TYPE	inet4
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	inet4
+COLUMN_KEY	
+EXTRA	
+PRIVILEGES	#
+COLUMN_COMMENT	
+IS_GENERATED	NEVER
+GENERATION_EXPRESSION	NULL
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	c3
+ORDINAL_POSITION	3
+COLUMN_DEFAULT	'0.0.0.255'
+IS_NULLABLE	YES
+DATA_TYPE	inet4
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	inet4
+COLUMN_KEY	
+EXTRA	
+PRIVILEGES	#
+COLUMN_COMMENT	
+IS_GENERATED	NEVER
+GENERATION_EXPRESSION	NULL
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	c4
+ORDINAL_POSITION	4
+COLUMN_DEFAULT	'255.0.0.255'
+IS_NULLABLE	YES
+DATA_TYPE	inet4
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	inet4
+COLUMN_KEY	
+EXTRA	
+PRIVILEGES	#
+COLUMN_COMMENT	
+IS_GENERATED	NEVER
+GENERATION_EXPRESSION	NULL
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	c5
+ORDINAL_POSITION	5
+COLUMN_DEFAULT	cast(X'ffff00ff' as inet4)
+IS_NULLABLE	YES
+DATA_TYPE	inet4
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	NULL
+NUMERIC_SCALE	NULL
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	inet4
+COLUMN_KEY	
+EXTRA	
+PRIVILEGES	#
+COLUMN_COMMENT	
+IS_GENERATED	NEVER
+GENERATION_EXPRESSION	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INET4 DEFAULT 0x00);
+ERROR 42000: Invalid default value for 'c1'
+CREATE TABLE t1 (c1 INET4 DEFAULT '');
+ERROR 42000: Invalid default value for 'c1'
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('x');
+ERROR 22007: Incorrect inet4 value: 'x' for column `test`.`t1`.`a` at row 1
+INSERT INTO t1 VALUES (1);
+ERROR HY000: Cannot cast 'int' as 'inet4' in assignment of `test`.`t1`.`a`
+INSERT INTO t1 VALUES (TIME'10:20:30');
+ERROR HY000: Cannot cast 'time' as 'inet4' in assignment of `test`.`t1`.`a`
+INSERT INTO t1 VALUES (0x00);
+ERROR 22007: Incorrect inet4 value: '\x00' for column `test`.`t1`.`a` at row 1
+DROP TABLE t1;
+#
+# CAST
+#
+SELECT CAST('garbage' AS INET4);
+CAST('garbage' AS INET4)
+NULL
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT CAST(0x01 AS INET4);
+CAST(0x01 AS INET4)
+NULL
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+SELECT CAST(REPEAT(0x00,16) AS INET4);
+CAST(REPEAT(0x00,16) AS INET4)
+NULL
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+SELECT CAST(REPEAT(0x11,16) AS INET4);
+CAST(REPEAT(0x11,16) AS INET4)
+NULL
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11'
+CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST('0.0.0.0' AS INET4)` inet4 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# Text and binary formats, comparison operators
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES (0x00000000);
+INSERT INTO t1 VALUES (0x00000001);
+INSERT INTO t1 VALUES (0xFF000001);
+INSERT INTO t1 VALUES (0xFF000002);
+SELECT * FROM t1 ORDER BY a;
+a
+0.0.0.0
+0.0.0.1
+255.0.0.1
+255.0.0.2
+SELECT * FROM t1 ORDER BY a DESC;
+a
+255.0.0.2
+255.0.0.1
+0.0.0.1
+0.0.0.0
+SELECT HEX(a),a FROM t1 ORDER BY a;
+HEX(a)	a
+00000000	0.0.0.0
+00000001	0.0.0.1
+FF000001	255.0.0.1
+FF000002	255.0.0.2
+SELECT * FROM t1 WHERE a='0.0.0.0';
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a='0.0.0.1';
+a
+0.0.0.1
+SELECT * FROM t1 WHERE a='255.0.0.1';
+a
+255.0.0.1
+SELECT * FROM t1 WHERE a='255.0.0.2';
+a
+255.0.0.2
+SELECT * FROM t1 WHERE a='255.000.000.002';
+a
+255.0.0.2
+SELECT * FROM t1 WHERE a=0x00000000;
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a=0x00000001;
+a
+0.0.0.1
+SELECT * FROM t1 WHERE a=0xff000001;
+a
+255.0.0.1
+SELECT * FROM t1 WHERE a=0xff000002;
+a
+255.0.0.2
+SELECT * FROM t1 WHERE a<'0.0.0.0';
+a
+SELECT * FROM t1 WHERE a<='0.0.0.0';
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a>='255.0.0.2';
+a
+255.0.0.2
+SELECT * FROM t1 WHERE a>'255.0.0.2';
+a
+SELECT * FROM t1 WHERE a IN ('0.0.0.0', '255.0.0.1') ORDER BY a;
+a
+0.0.0.0
+255.0.0.1
+SELECT * FROM t1 WHERE a IN ('0.0.0.0', 0xff000002) ORDER BY a;
+a
+0.0.0.0
+255.0.0.2
+SELECT * FROM t1 WHERE a<'garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a<='garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a='garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a>='garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a>'garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a<0x01;
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+SELECT * FROM t1 WHERE a<=0x01;
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+SELECT * FROM t1 WHERE a=0x01;
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+Warning	1292	Incorrect inet4 value: '\x01'
+SELECT * FROM t1 WHERE a>=0x01;
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+SELECT * FROM t1 WHERE a>0x01;
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+SELECT * FROM t1 WHERE a='0.0.0.00';
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a='0.0.0.000';
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a='0.0.00.000';
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a='0.0.0.01';
+a
+0.0.0.1
+SELECT * FROM t1 WHERE a='0.0.0.001';
+a
+0.0.0.1
+SELECT * FROM t1 WHERE a='0.0.00.001';
+a
+0.0.0.1
+SELECT * FROM t1 WHERE a='0.0.0.0000';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: '0.0.0.0000'
+Warning	1292	Incorrect inet4 value: '0.0.0.0000'
+SELECT * FROM t1 WHERE a=0;
+ERROR HY000: Illegal parameter data types inet4 and int for operation '='
+SELECT * FROM t1 WHERE a=0.0;
+ERROR HY000: Illegal parameter data types inet4 and decimal for operation '='
+SELECT * FROM t1 WHERE a=0e0;
+ERROR HY000: Illegal parameter data types inet4 and double for operation '='
+SELECT * FROM t1 WHERE a=TIME'10:20:30';
+ERROR HY000: Illegal parameter data types inet4 and time for operation '='
+SELECT * FROM t1 WHERE a IN ('0.0.0.0', 10);
+ERROR HY000: Illegal parameter data types inet4 and int for operation 'in'
+DROP TABLE t1;
+#
+# cmp_item_fbt: IN for non-constants
+#
+CREATE TABLE t1 (a INET4, b INET4);
+INSERT INTO t1 VALUES ('0.0.0.1', '0.0.0.2');
+SELECT * FROM t1 WHERE '0.0.0.0' IN (a, b);
+a	b
+SELECT * FROM t1 WHERE '0.0.0.1' IN (a, b);
+a	b
+0.0.0.1	0.0.0.2
+SELECT * FROM t1 WHERE '0.0.0.1' IN (a, b);
+a	b
+0.0.0.1	0.0.0.2
+SELECT * FROM t1 WHERE '0.0.0.01' IN (a, b);
+a	b
+0.0.0.1	0.0.0.2
+SELECT * FROM t1 WHERE '0.0.0.001' IN (a, b);
+a	b
+0.0.0.1	0.0.0.2
+SELECT * FROM t1 WHERE '0.0.0.0001' IN (a, b);
+a	b
+Warnings:
+Warning	1292	Incorrect inet4 value: '0.0.0.0001'
+DROP TABLE t1;
+#
+# CASE abbreviations
+#
+CREATE TABLE t1 (
+c INET4,
+c_char CHAR(32),
+c_varchar VARCHAR(32),
+c_tinytext TINYTEXT,
+c_text TEXT,
+c_mediumtext TEXT,
+c_longtext LONGTEXT
+);
+CREATE TABLE t2 AS SELECT
+COALESCE(c, c_char),
+COALESCE(c, c_varchar),
+COALESCE(c, c_tinytext),
+COALESCE(c, c_text),
+COALESCE(c, c_mediumtext),
+COALESCE(c, c_longtext)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c, c_char)` inet4 DEFAULT NULL,
+  `COALESCE(c, c_varchar)` inet4 DEFAULT NULL,
+  `COALESCE(c, c_tinytext)` inet4 DEFAULT NULL,
+  `COALESCE(c, c_text)` inet4 DEFAULT NULL,
+  `COALESCE(c, c_mediumtext)` inet4 DEFAULT NULL,
+  `COALESCE(c, c_longtext)` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+LEAST(c, c_char),
+LEAST(c, c_varchar),
+LEAST(c, c_tinytext),
+LEAST(c, c_text),
+LEAST(c, c_mediumtext),
+LEAST(c, c_longtext)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(c, c_char)` inet4 DEFAULT NULL,
+  `LEAST(c, c_varchar)` inet4 DEFAULT NULL,
+  `LEAST(c, c_tinytext)` inet4 DEFAULT NULL,
+  `LEAST(c, c_text)` inet4 DEFAULT NULL,
+  `LEAST(c, c_mediumtext)` inet4 DEFAULT NULL,
+  `LEAST(c, c_longtext)` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES (NULL),('0.0.0.1'),('0.0.0.2');
+SELECT COALESCE(a, '0.0.0.0') FROM t1 ORDER BY a;
+COALESCE(a, '0.0.0.0')
+0.0.0.0
+0.0.0.1
+0.0.0.2
+SELECT a, LEAST(a,'0.0.0.0'), LEAST(a,'0.0.0.255') FROM t1 ORDER BY a;
+a	LEAST(a,'0.0.0.0')	LEAST(a,'0.0.0.255')
+NULL	NULL	NULL
+0.0.0.1	0.0.0.0	0.0.0.1
+0.0.0.2	0.0.0.0	0.0.0.2
+SELECT a, GREATEST(a,'0.0.0.0'), GREATEST(a,'0.0.0.255') FROM t1 ORDER BY a;
+a	GREATEST(a,'0.0.0.0')	GREATEST(a,'0.0.0.255')
+NULL	NULL	NULL
+0.0.0.1	0.0.0.1	0.0.0.255
+0.0.0.2	0.0.0.2	0.0.0.255
+CREATE TABLE t2 AS SELECT
+COALESCE(a, '0.0.0.0'),
+LEAST(a,'0.0.0.0'),
+GREATEST(a,'0.0.0.0')
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a, '0.0.0.0')` inet4 DEFAULT NULL,
+  `LEAST(a,'0.0.0.0')` inet4 DEFAULT NULL,
+  `GREATEST(a,'0.0.0.0')` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+SELECT COALESCE(a, 0x00000000) FROM t1 ORDER BY a;
+COALESCE(a, 0x00000000)
+0.0.0.0
+0.0.0.1
+0.0.0.2
+SELECT a,
+LEAST(a, 0x00000000),
+LEAST(a, 0x0000000f)
+FROM t1 ORDER BY a;
+a	LEAST(a, 0x00000000)	LEAST(a, 0x0000000f)
+NULL	NULL	NULL
+0.0.0.1	0.0.0.0	0.0.0.1
+0.0.0.2	0.0.0.0	0.0.0.2
+SELECT a,
+GREATEST(a, 0x00000000),
+GREATEST(a, 0x0000000f)
+FROM t1 ORDER BY a;
+a	GREATEST(a, 0x00000000)	GREATEST(a, 0x0000000f)
+NULL	NULL	NULL
+0.0.0.1	0.0.0.1	0.0.0.15
+0.0.0.2	0.0.0.2	0.0.0.15
+CREATE TABLE t2 AS SELECT
+COALESCE(a, 0x00000000),
+LEAST(a,0x00000000),
+GREATEST(a,0x00000000)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a, 0x00000000)` inet4 DEFAULT NULL,
+  `LEAST(a,0x00000000)` inet4 DEFAULT NULL,
+  `GREATEST(a,0x00000000)` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+SELECT COALESCE(a, 10) FROM t1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation 'coalesce'
+SELECT LEAST(a, 10) FROM t1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation 'least'
+SELECT GREATEST(a, 10) FROM t1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation 'greatest'
+DROP TABLE t1;
+SELECT COALESCE('garbage', CAST('0.0.0.1' AS INET4));
+COALESCE('garbage', CAST('0.0.0.1' AS INET4))
+0.0.0.1
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT COALESCE(0x01, CAST('0.0.0.1' AS INET4));
+COALESCE(0x01, CAST('0.0.0.1' AS INET4))
+0.0.0.1
+Warnings:
+Warning	1292	Incorrect inet4 value: '\x01'
+#
+# Uniqueness
+#
+CREATE TABLE t1 (a INET4 NOT NULL PRIMARY KEY);
+INSERT INTO t1 VALUES ('65.0.0.1'),('97.0.0.1');
+INSERT INTO t1 VALUES ('97.0.0.1');
+ERROR 23000: Duplicate entry '97.0.0.1' for key 'PRIMARY'
+SELECT * FROM t1;
+a
+65.0.0.1
+97.0.0.1
+DROP TABLE t1;
+#
+# Indexes
+#
+CREATE TABLE t1 (a INET4, KEY(a(1)));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+#
+# Explicit CAST on INSERT
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES (CAST('1.0.0.1' AS INET4));
+INSERT INTO t1 VALUES (CAST('1.0.0.2' AS INET4));
+INSERT INTO t1 VALUES (CAST('1.0.0.3' AS INET4));
+INSERT INTO t1 VALUES (CAST(CONCAT('2','0.0.0.1') AS INET4));
+INSERT INTO t1 VALUES (CAST(CONCAT('2','0.0.0.2') AS INET4));
+INSERT INTO t1 VALUES (CAST(CONCAT('2','0.0.0.3') AS INET4));
+SELECT * FROM t1 ORDER BY a;
+a
+1.0.0.1
+1.0.0.2
+1.0.0.3
+20.0.0.1
+20.0.0.2
+20.0.0.3
+DROP TABLE t1;
+#
+# Explicit CAST and implicit CAST on ALTER
+#
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES ('garbage'),('0.0.0.0'),('0.0.0.1'),('255.0.0.1'),('255.0.0.2');
+SELECT a, CAST(a AS INET4) FROM t1 ORDER BY a;
+a	CAST(a AS INET4)
+0.0.0.0	0.0.0.0
+0.0.0.1	0.0.0.1
+255.0.0.1	255.0.0.1
+255.0.0.2	255.0.0.2
+garbage	NULL
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT a, CAST(a AS INET4) FROM t1 ORDER BY CAST(a AS INET4);
+a	CAST(a AS INET4)
+garbage	NULL
+0.0.0.0	0.0.0.0
+0.0.0.1	0.0.0.1
+255.0.0.1	255.0.0.1
+255.0.0.2	255.0.0.2
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+Warning	1292	Incorrect inet4 value: 'garbage'
+ALTER TABLE t1 MODIFY a INET4;
+ERROR 22007: Incorrect inet4 value: 'garbage' for column `test`.`t1`.`a` at row 1
+SET sql_mode='';
+ALTER TABLE t1 MODIFY a INET4;
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage' for column `test`.`t1`.`a` at row 1
+SET sql_mode=DEFAULT;
+SELECT * FROM t1 ORDER BY a;
+a
+NULL
+0.0.0.0
+0.0.0.1
+255.0.0.1
+255.0.0.2
+DROP TABLE t1;
+CREATE TABLE t1 (a BINARY(4));
+INSERT INTO t1 VALUES (0x00000000);
+INSERT INTO t1 VALUES (0x00000001);
+INSERT INTO t1 VALUES (0xff000001);
+INSERT INTO t1 VALUES (0xff000002);
+SELECT HEX(a), CAST(a AS INET4) FROM t1 ORDER BY a;
+HEX(a)	CAST(a AS INET4)
+00000000	0.0.0.0
+00000001	0.0.0.1
+FF000001	255.0.0.1
+FF000002	255.0.0.2
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1 ORDER BY a;
+a
+0.0.0.0
+0.0.0.1
+255.0.0.1
+255.0.0.2
+DROP TABLE t1;
+#
+# INSERT..SELECT, same data types
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('0.0.0.1'),('0.0.0.2');
+CREATE TABLE t2 (a INET4);
+INSERT INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+a
+0.0.0.0
+0.0.0.1
+0.0.0.2
+DROP TABLE t1,t2;
+#
+# Implicit CAST on INSERT..SELECT, text format
+#
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES ('garbage'),('0.0.0.0'),('0.0.0.1'),('255.0.0.1'),('255.0.0.2');
+CREATE TABLE t2 (a INET4);
+INSERT INTO t2 SELECT a FROM t1;
+ERROR 22007: Incorrect inet4 value: 'garbage' for column `test`.`t2`.`a` at row 1
+SET sql_mode='';
+INSERT INTO t2 SELECT a FROM t1;
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage' for column `test`.`t2`.`a` at row 1
+SELECT * FROM t2 ORDER BY a;
+a
+NULL
+0.0.0.0
+0.0.0.1
+255.0.0.1
+255.0.0.2
+SET sql_mode=DEFAULT;
+DROP TABLE t2;
+CREATE TABLE t2 (a INET4 NOT NULL);
+INSERT INTO t2 SELECT a FROM t1;
+ERROR 22007: Incorrect inet4 value: 'garbage' for column `test`.`t2`.`a` at row 1
+SET sql_mode='';
+INSERT INTO t2 SELECT a FROM t1;
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage' for column `test`.`t2`.`a` at row 1
+SELECT * FROM t2 ORDER BY a;
+a
+0.0.0.0
+0.0.0.0
+0.0.0.1
+255.0.0.1
+255.0.0.2
+SET sql_mode=DEFAULT;
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# Implicit CAST on INSERT..SELECT, binary format
+#
+CREATE TABLE t1 (a BINARY(4));
+INSERT INTO t1 VALUES (0x00000000);
+INSERT INTO t1 VALUES (0x00000001);
+INSERT INTO t1 VALUES (0xff000001);
+INSERT INTO t1 VALUES (0xff000002);
+CREATE TABLE t2 (a INET4);
+INSERT INTO t2 SELECT a FROM t1;
+SELECT a FROM t2 ORDER BY a;
+a
+0.0.0.0
+0.0.0.1
+255.0.0.1
+255.0.0.2
+DROP TABLE t1,t2;
+#
+# CAST to other data types
+#
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS DOUBLE);
+ERROR HY000: Illegal parameter data type inet4 for operation 'double_typecast'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS FLOAT);
+ERROR HY000: Illegal parameter data type inet4 for operation 'float_typecast'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS DECIMAL);
+ERROR HY000: Illegal parameter data type inet4 for operation 'decimal_typecast'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS SIGNED);
+ERROR HY000: Illegal parameter data type inet4 for operation 'cast_as_signed'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS UNSIGNED);
+ERROR HY000: Illegal parameter data type inet4 for operation 'cast_as_unsigned'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS TIME);
+ERROR HY000: Illegal parameter data type inet4 for operation 'cast_as_time'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS DATE);
+ERROR HY000: Illegal parameter data type inet4 for operation 'cast_as_date'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS DATETIME);
+ERROR HY000: Illegal parameter data type inet4 for operation 'cast_as_datetime'
+SELECT CAST(CAST('0.0.0.0' AS INET4) AS CHAR);
+CAST(CAST('0.0.0.0' AS INET4) AS CHAR)
+0.0.0.0
+CREATE TABLE t1 AS SELECT CAST(CAST('0.0.0.0' AS INET4) AS CHAR) AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(15) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('255.0.0.255');
+CREATE TABLE t2 AS SELECT
+CAST(a AS CHAR),
+CAST(a AS CHAR(15)),
+CAST(a AS CHAR(530)),
+CAST(a AS CHAR(65535)),
+CAST(a AS CHAR(66000)),
+CAST(a AS CHAR(16777215)),
+CAST(a AS CHAR(16777216))
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CAST(a AS CHAR)` varchar(15) DEFAULT NULL,
+  `CAST(a AS CHAR(15))` varchar(15) DEFAULT NULL,
+  `CAST(a AS CHAR(530))` text DEFAULT NULL,
+  `CAST(a AS CHAR(65535))` text DEFAULT NULL,
+  `CAST(a AS CHAR(66000))` mediumtext DEFAULT NULL,
+  `CAST(a AS CHAR(16777215))` mediumtext DEFAULT NULL,
+  `CAST(a AS CHAR(16777216))` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+CAST(a AS CHAR)	255.0.0.255
+CAST(a AS CHAR(15))	255.0.0.255
+CAST(a AS CHAR(530))	255.0.0.255
+CAST(a AS CHAR(65535))	255.0.0.255
+CAST(a AS CHAR(66000))	255.0.0.255
+CAST(a AS CHAR(16777215))	255.0.0.255
+CAST(a AS CHAR(16777216))	255.0.0.255
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('255.0.0.255');
+CREATE TABLE t2 AS SELECT
+CAST(a AS BINARY(4)) AS cb4,
+CAST(a AS BINARY) AS cb,
+CAST(a AS BINARY(16)) AS cb16,
+CAST(a AS BINARY(32)) AS cb32,
+CAST(a AS BINARY(530)) AS cb530,
+CAST(a AS BINARY(65535)) AS cb65535,
+CAST(a AS BINARY(66000)) AS cb66000,
+CAST(a AS BINARY(16777215)) AS cb16777215,
+CAST(a AS BINARY(16777216)) AS cb16777216
+FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `cb4` binary(4) DEFAULT NULL,
+  `cb` binary(4) DEFAULT NULL,
+  `cb16` binary(16) DEFAULT NULL,
+  `cb32` binary(32) DEFAULT NULL,
+  `cb530` varbinary(530) DEFAULT NULL,
+  `cb65535` blob DEFAULT NULL,
+  `cb66000` mediumblob DEFAULT NULL,
+  `cb16777215` mediumblob DEFAULT NULL,
+  `cb16777216` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+CAST(a AS BINARY(4)) AS cb4,
+CAST(a AS BINARY) AS cb,
+CAST(a AS BINARY(16)) AS cb16,
+CAST(a AS BINARY(32)) AS cb32,
+CAST(a AS BINARY(530)) AS cb530,
+CAST(a AS BINARY(65535)) AS cb65535
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `cb4` binary(4) DEFAULT NULL,
+  `cb` binary(4) DEFAULT NULL,
+  `cb16` binary(16) DEFAULT NULL,
+  `cb32` binary(32) DEFAULT NULL,
+  `cb530` varbinary(530) DEFAULT NULL,
+  `cb65535` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT
+HEX(cb4),
+HEX(cb),
+HEX(cb16),
+HEX(cb32),
+LENGTH(cb530),
+LENGTH(cb65535)
+FROM t2;
+HEX(cb4)	FF0000FF
+HEX(cb)	FF0000FF
+HEX(cb16)	FF0000FF000000000000000000000000
+HEX(cb32)	FF0000FF00000000000000000000000000000000000000000000000000000000
+LENGTH(cb530)	530
+LENGTH(cb65535)	65535
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# Implicit conversion to other types in INSERT
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
+ERROR HY000: Cannot cast 'inet4' as 'int' in assignment of `test`.`t1`.`a`
+DROP TABLE t1;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
+ERROR HY000: Cannot cast 'inet4' as 'double' in assignment of `test`.`t1`.`a`
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(32,0));
+INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
+ERROR HY000: Cannot cast 'inet4' as 'decimal' in assignment of `test`.`t1`.`a`
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
+SELECT * FROM t1;
+a
+0.0.0.0
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (CAST('0.0.0.0' AS INET4));
+SELECT * FROM t1;
+a
+0.0.0.0
+DROP TABLE t1;
+#
+# Boolean context
+#
+SELECT
+CAST('0.0.0.0' AS INET4) IS TRUE, 
+CAST('0.0.0.0' AS INET4) IS FALSE,
+CAST('0.0.0.1' AS INET4) IS TRUE,
+CAST('0.0.0.1' AS INET4) IS FALSE;
+CAST('0.0.0.0' AS INET4) IS TRUE	CAST('0.0.0.0' AS INET4) IS FALSE	CAST('0.0.0.1' AS INET4) IS TRUE	CAST('0.0.0.1' AS INET4) IS FALSE
+0	1	1	0
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('0.0.0.1');
+SELECT a, a IS TRUE, a IS FALSE FROM t1 ORDER BY a;
+a	a IS TRUE	a IS FALSE
+0.0.0.0	0	1
+0.0.0.1	1	0
+DROP TABLE t1;
+#
+# GROUP BY
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('0.0.0.0');
+INSERT INTO t1 VALUES ('0.0.0.1'),('0.0.0.01'),('0.0.0.001');
+INSERT INTO t1 VALUES ('0.0.0.2'),('0.0.0.2'),('0.0.0.2'),('0.0.0.2');
+SELECT a, COUNT(*) FROM t1 GROUP BY a;
+a	COUNT(*)
+0.0.0.0	2
+0.0.0.1	3
+0.0.0.2	4
+DROP TABLE t1;
+#
+# Aggregate functions
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('0.0.0.0');
+INSERT INTO t1 VALUES ('0.0.0.1'),('0.0.0.01'),('0.0.0.001');
+INSERT INTO t1 VALUES ('0.0.0.2'),('0.0.0.2'),('0.0.0.2'),('0.0.0.2');
+SELECT MIN(a),MAX(a) FROM t1;
+MIN(a)	MAX(a)
+0.0.0.0	0.0.0.2
+CREATE TABLE t2 AS SELECT MIN(a), MAX(a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `MIN(a)` inet4 DEFAULT NULL,
+  `MAX(a)` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+SELECT AVG(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'avg('
+SELECT AVG(DISTINCT a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'avg(distinct '
+SELECT SUM(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'sum('
+SELECT SUM(DISTINCT a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'sum(distinct '
+SELECT STDDEV(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'std('
+SELECT GROUP_CONCAT(a ORDER BY a) FROM t1;
+GROUP_CONCAT(a ORDER BY a)
+0.0.0.0,0.0.0.0,0.0.0.1,0.0.0.1,0.0.0.1,0.0.0.2,0.0.0.2,0.0.0.2,0.0.0.2
+SELECT a, GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a;
+a	GROUP_CONCAT(a ORDER BY a)
+0.0.0.0	0.0.0.0,0.0.0.0
+0.0.0.1	0.0.0.1,0.0.0.1,0.0.0.1
+0.0.0.2	0.0.0.2,0.0.0.2,0.0.0.2,0.0.0.2
+DROP TABLE t1;
+#
+# MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET4 field
+#
+CREATE TABLE t1 (a INET4);
+SELECT BIT_AND(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'bit_and('
+SELECT BIT_OR(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'bit_or('
+SELECT BIT_XOR(a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'bit_xor('
+DROP TABLE t1;
+#
+# Window functions
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.1'),('0.0.0.2'),('0.0.0.3'),('0.0.0.004');
+SELECT
+a,
+LAG(a) OVER (ORDER BY a),
+LEAD(a) OVER (ORDER BY a)
+FROM t1 ORDER BY a;
+a	LAG(a) OVER (ORDER BY a)	LEAD(a) OVER (ORDER BY a)
+0.0.0.1	NULL	0.0.0.2
+0.0.0.2	0.0.0.1	0.0.0.3
+0.0.0.3	0.0.0.2	0.0.0.4
+0.0.0.4	0.0.0.3	NULL
+SELECT
+a,
+FIRST_VALUE(a) OVER (ORDER BY a ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING),
+LAST_VALUE(a) OVER (ORDER BY a ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+FROM t1 ORDER BY a;
+a	FIRST_VALUE(a) OVER (ORDER BY a ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)	LAST_VALUE(a) OVER (ORDER BY a ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+0.0.0.1	0.0.0.1	0.0.0.2
+0.0.0.2	0.0.0.1	0.0.0.3
+0.0.0.3	0.0.0.2	0.0.0.4
+0.0.0.4	0.0.0.3	0.0.0.4
+DROP TABLE t1;
+#
+# Prepared statements
+#
+EXECUTE IMMEDIATE 'CREATE TABLE t1 AS SELECT ? AS a' USING CAST('0.0.0.0' AS INET4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` inet4 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING '0.0.0.1';
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING CAST('0.0.0.2' AS INET4);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING 0x00000003;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING CAST(0x00000004 AS INET4);
+SELECT a FROM t1 ORDER BY a;
+a
+0.0.0.0
+0.0.0.1
+0.0.0.2
+0.0.0.3
+0.0.0.4
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a=?' USING '0.0.0.1';
+a
+0.0.0.1
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a=?' USING CAST('0.0.0.2' AS INET4);
+a
+0.0.0.2
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a=?' USING 0x00000003;
+a
+0.0.0.3
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a=?' USING CAST(0x00000004 AS INET4);
+a
+0.0.0.4
+DROP TABLE t1;
+#
+# Character set and collation aggregation
+#
+CREATE TABLE t1 (a INET4);
+CREATE TABLE t2 AS SELECT
+CONCAT(a) AS c1,
+CONCAT(CAST('0.0.0.0' AS INET4)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(15) DEFAULT NULL,
+  `c2` varchar(15) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+CONCAT(_utf8'1', a) AS c1,
+CONCAT(_utf8'1', CAST('0.0.0.1' AS INET4)) AS c2,
+CONCAT(_utf8'1', COALESCE(a)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(16) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c2` varchar(16) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c3` varchar(16) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+CONCAT(_latin1'1', a) AS c1,
+CONCAT(_latin1'1', CAST('0.0.0.1' AS INET4)) AS c2,
+CONCAT(_latin1'1', COALESCE(a)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(16) DEFAULT NULL,
+  `c2` varchar(16) DEFAULT NULL,
+  `c3` varchar(16) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# UNION
+#
+CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4) AS c UNION SELECT CAST('0.0.0.1' AS INET4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` inet4 NOT NULL DEFAULT '0.0.0.0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4) AS c UNION SELECT '0.0.0.1';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` inet4 NOT NULL DEFAULT '0.0.0.0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT '0.0.0.0' AS c UNION SELECT CAST('0.0.0.1' AS INET4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` inet4 NOT NULL DEFAULT '0.0.0.0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4) AS c UNION SELECT 0x00000001;
+SELECT * FROM t1;
+c
+0.0.0.0
+0.0.0.1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CAST('0.0.0.0' AS INET4) AS c UNION SELECT 1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation 'UNION'
+#
+# Unary operators
+#
+SELECT -CAST('0.0.0.0' AS INET4);
+ERROR HY000: Illegal parameter data type inet4 for operation '-'
+SELECT ABS(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'abs'
+SELECT ROUND(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'round'
+SELECT CEILING(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'ceiling'
+SELECT FLOOR(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'floor'
+#
+# Arithmetic operators
+#
+SELECT CAST('0.0.0.0' AS INET4) + 1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation '+'
+SELECT CAST('0.0.0.0' AS INET4) - 1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation '-'
+SELECT CAST('0.0.0.0' AS INET4) * 1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation '*'
+SELECT CAST('0.0.0.0' AS INET4) / 1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation '/'
+SELECT CAST('0.0.0.0' AS INET4) MOD 1;
+ERROR HY000: Illegal parameter data types inet4 and int for operation 'MOD'
+#
+# Misc
+#
+SELECT RAND(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'rand'
+SELECT FROM_UNIXTIME(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'from_unixtime'
+SELECT HOUR(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'hour'
+SELECT YEAR(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'year'
+SELECT RELEASE_LOCK(CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'release_lock'
+#
+# Virtual columns
+#
+CREATE TABLE t1 (
+a INT,
+b INET4 GENERATED ALWAYS AS (CAST(CONCAT(RAND(),a) AS INET4)), INDEX(b)
+);
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+CREATE TABLE t1 (
+a INT,
+b INET4 GENERATED ALWAYS AS (CAST(CONCAT('0.0.0.',a) AS INET4)), INDEX(b)
+);
+INSERT INTO t1 (a) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15);
+SELECT * FROM t1;
+a	b
+0	0.0.0.0
+1	0.0.0.1
+2	0.0.0.2
+3	0.0.0.3
+4	0.0.0.4
+5	0.0.0.5
+6	0.0.0.6
+7	0.0.0.7
+8	0.0.0.8
+9	0.0.0.9
+10	0.0.0.10
+11	0.0.0.11
+12	0.0.0.12
+13	0.0.0.13
+14	0.0.0.14
+15	0.0.0.15
+DROP TABLE t1;
+#
+# VIEW
+#
+CREATE TABLE t1 (a INT DEFAULT 0);
+INSERT INTO t1 (a) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15);
+SELECT * FROM t1 ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+CREATE VIEW v1 AS SELECT (CAST(CONCAT('0.0.0.',a) AS INET4)) AS c FROM t1;
+SELECT * FROM v1 ORDER BY c;
+c
+0.0.0.0
+0.0.0.1
+0.0.0.2
+0.0.0.3
+0.0.0.4
+0.0.0.5
+0.0.0.6
+0.0.0.7
+0.0.0.8
+0.0.0.9
+0.0.0.10
+0.0.0.11
+0.0.0.12
+0.0.0.13
+0.0.0.14
+0.0.0.15
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4 DEFAULT '0.0.0.0');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+a	inet4	YES		0.0.0.0	
+INSERT INTO v1 VALUES ('0.0.0.0'),('0.0.0.1'),('0.0.0.2');
+SELECT * FROM t1;
+a
+0.0.0.0
+0.0.0.1
+0.0.0.2
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4 DEFAULT CAST('0.0.0.0' AS INET4));
+CREATE VIEW v1 AS SELECT * FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+a	inet4	YES		cast('0.0.0.0' as inet4)	
+INSERT INTO v1 VALUES ('0.0.0.0'),('0.0.0.1'),('0.0.0.2');
+SELECT * FROM t1;
+a
+0.0.0.0
+0.0.0.1
+0.0.0.2
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# Subqueries
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('0.0.0.1'),('0.0.0.2');
+SELECT * FROM t1 WHERE a=(SELECT MIN(a) FROM t1) ORDER BY a;
+a
+0.0.0.0
+SELECT * FROM t1 WHERE a=(SELECT MAX(a) FROM t1) ORDER BY a;
+a
+0.0.0.2
+SELECT * FROM t1 WHERE a IN (SELECT a FROM t1 WHERE a>'0.0.0.0') ORDER BY a;
+a
+0.0.0.1
+0.0.0.2
+DROP TABLE t1;
+#
+# Stored routines
+#
+CREATE PROCEDURE p1(a INET4)
+BEGIN
+DECLARE b INET4 DEFAULT CONCAT('1', a);
+SELECT a, b;
+END;
+$$
+CALL p1('0.0.0.1');
+a	b
+0.0.0.1	10.0.0.1
+CALL p1(CAST('0.0.0.2' AS INET4));
+a	b
+0.0.0.2	10.0.0.2
+DROP PROCEDURE p1;
+CREATE FUNCTION f1(a INET4) RETURNS INET4
+BEGIN
+RETURN CONCAT('1',a);
+END;
+$$
+SELECT f1('0.0.0.1');
+f1('0.0.0.1')
+10.0.0.1
+SELECT f1(CAST('0.0.0.1' AS INET4));
+f1(CAST('0.0.0.1' AS INET4))
+10.0.0.1
+DROP FUNCTION f1;
+#
+# Anchored data types in SP variables
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.1');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va TYPE OF t1.a;
+SELECT MAX(a) INTO va FROM t1;
+SELECT va;
+END;
+$$
+CALL p1;
+va
+0.0.0.1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b INET4);
+INSERT INTO t1 VALUES ('0.0.0.12', '0.0.0.111');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va ROW TYPE OF t1;
+SELECT MAX(a), MAX(b) INTO va FROM t1;
+SELECT va.a, va.b;
+END;
+$$
+CALL p1;
+va.a	va.b
+0.0.0.12	0.0.0.111
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Optimizer: make_const_item_for_comparison
+#
+CREATE TABLE t1 (id INT, a INET4);
+INSERT INTO t1 VALUES (1,'0.0.0.1'),(2,'0.0.0.2');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=COALESCE(CAST('0.0.0.1' AS INET4)) AND id>0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET4'0.0.0.1' and `test`.`t1`.`id` > 0
+DROP TABLE t1;
+#
+# Optimizer: equal field propagation
+#
+CREATE TABLE t1 (id INT, a INET4);
+INSERT INTO t1 VALUES (1,'0.0.0.1'),(2,'0.0.0.2');
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE a=COALESCE(CAST('0.0.0.1' AS INET4))
+AND LENGTH(CONCAT(a,RAND()))>1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET4'0.0.0.1' and octet_length(concat(INET4'0.0.0.1',rand())) > 1
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE a=COALESCE(CAST('0.0.0.1' AS INET4))
+AND LENGTH(a)>1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET4'0.0.0.1'
+DROP TABLE t1;
+#
+# Optimizer: equal expression propagation
+#
+CREATE TABLE t1 (id INT, a INET4);
+INSERT INTO t1 VALUES (1,'0.0.0.1'),(2,'0.0.0.2');
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE COALESCE(a)='0.0.0.1' AND COALESCE(a)=CONCAT(a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '0.0.0.1' and concat(`test`.`t1`.`a`) = '0.0.0.1'
+DROP TABLE t1;
+#
+# Subquery materialization
+#
+CREATE TABLE t1 (a INET4, b VARCHAR(32), KEY (a), KEY(b)) ;
+INSERT INTO t1 VALUES ('0.0.0.10','0.0.0.11'),('0.0.0.10','0.0.0.11');
+SET @@optimizer_switch='semijoin=off,materialization=on,in_to_exists=off,subquery_cache=off';
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT a AS a_inner FROM t1 GROUP BY a_inner);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t1	index	NULL	a	5	NULL	2	Using index
+EXPLAIN SELECT * FROM t1 WHERE b IN (SELECT a AS a_inner FROM t1 GROUP BY a_inner);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	2	Using index; Using where
+SET @@optimizer_switch=DEFAULT;
+DROP TABLE t1;
+#
+# ALTER from INET4 to INET4
+#
+CREATE TABLE t1 (a INET4, b INT);
+INSERT INTO t1 VALUES ('10.11.12.13', 1);
+ALTER TABLE t1 MODIFY b DECIMAL(10,2);
+SELECT * FROM t1;
+a	b
+10.11.12.13	1.00
+DROP TABLE t1;
+#
+# ALTER to character string data types
+#
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS CHAR(15)) FROM t1;
+CAST(a AS CHAR(15))
+10.11.12.13
+ALTER TABLE t1 MODIFY a CHAR(15);
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a VARCHAR(15);
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a TINYTEXT;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a TEXT;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a MEDIUMTEXT;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a LONGTEXT;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+#
+# ALTER from character string data types
+#
+CREATE OR REPLACE TABLE t1 (a CHAR(64));
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS INET4) FROM t1;
+CAST(a AS INET4)
+10.11.12.13
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS INET4) FROM t1;
+CAST(a AS INET4)
+10.11.12.13
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a TINYTEXT);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS INET4) FROM t1;
+CAST(a AS INET4)
+10.11.12.13
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS INET4) FROM t1;
+CAST(a AS INET4)
+10.11.12.13
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a MEDIUMTEXT);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS INET4) FROM t1;
+CAST(a AS INET4)
+10.11.12.13
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a LONGTEXT);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS INET4) FROM t1;
+CAST(a AS INET4)
+10.11.12.13
+ALTER TABLE t1 MODIFY a INET4;
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+#
+# ALTER to binary string data types
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a BINARY(4);
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a BINARY(5);
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D00
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a BINARY(3);
+ERROR 22001: Data too long for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a TINYBLOB;
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a BLOB;
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a MEDIUMBLOB;
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a LONGBLOB;
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D
+DROP TABLE t1;
+#
+# ALTER from binary string data types
+#
+CREATE TABLE t1 (a BINARY(4));
+INSERT INTO t1 VALUES (X'11121314');
+ALTER TABLE t1 MODIFY a INET4;
+SELECT a FROM t1;
+a
+17.18.19.20
+DROP TABLE t1;
+CREATE TABLE t1 (a BINARY(17));
+INSERT INTO t1 VALUES (X'1112131400');
+ALTER TABLE t1 MODIFY a INET4;
+ERROR 22007: Incorrect inet4 value: '\x11\x12\x13\x14\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' for column `test`.`t1`.`a` at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a BINARY(3));
+INSERT INTO t1 VALUES (X'111213');
+ALTER TABLE t1 MODIFY a INET4;
+ERROR 22007: Incorrect inet4 value: '\x11\x12\x13' for column `test`.`t1`.`a` at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYBLOB);
+INSERT INTO t1 VALUES (X'11121314');
+ALTER TABLE t1 MODIFY a INET4;
+SELECT a FROM t1;
+a
+17.18.19.20
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (X'11121314');
+ALTER TABLE t1 MODIFY a INET4;
+SELECT a FROM t1;
+a
+17.18.19.20
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMBLOB);
+INSERT INTO t1 VALUES (X'11121314');
+ALTER TABLE t1 MODIFY a INET4;
+SELECT a FROM t1;
+a
+17.18.19.20
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (X'11121314');
+ALTER TABLE t1 MODIFY a INET4;
+SELECT a FROM t1;
+a
+17.18.19.20
+DROP TABLE t1;
+#
+# SET from INET4 to INET4
+#
+CREATE TABLE t1 (a INET4, b INET4);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+#
+# SET from INET4 to character string
+#
+CREATE TABLE t1 (a INET4, b CHAR(15));
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b VARCHAR(15));
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b TEXT);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b ENUM('255.0.0.255'));
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b SET('255.0.0.255'));
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+#
+# SET from character string to INET4
+#
+CREATE TABLE t1 (a CHAR(15), b INET4);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(15), b INET4);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, b INET4);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a ENUM('255.0.0.255'), b INET4);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a SET('255.0.0.255'), b INET4);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+#
+# SET from INET4 to binary
+#
+CREATE TABLE t1 (a INET4, b BINARY(4));
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT HEX(b) FROM t1;
+HEX(b)
+FF0000FF
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b VARBINARY(4));
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT HEX(b) FROM t1;
+HEX(b)
+FF0000FF
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4, b BLOB);
+INSERT INTO t1 VALUES ('255.0.0.255', NULL);
+UPDATE t1 SET b=a;
+SELECT HEX(b) FROM t1;
+HEX(b)
+FF0000FF
+DROP TABLE t1;
+#
+# SET from binary to INET4
+#
+CREATE TABLE t1 (a BINARY(4), b INET4);
+INSERT INTO t1 VALUES (CONCAT(0xFF,REPEAT(0x00,2),0xFF), NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a VARBINARY(4), b INET4);
+INSERT INTO t1 VALUES (CONCAT(0xFF,REPEAT(0x00,2),0xFF), NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB, b INET4);
+INSERT INTO t1 VALUES (CONCAT(0xFF,REPEAT(0x00,2),0xFF), NULL);
+UPDATE t1 SET b=a;
+SELECT b FROM t1;
+b
+255.0.0.255
+DROP TABLE t1;
+#
+# MDEV-20785 Converting INET6 to CHAR(39) produces garbage without a warning
+#
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT CAST(a AS CHAR(15)) FROM t1;
+CAST(a AS CHAR(15))
+10.11.12.13
+ALTER TABLE t1 MODIFY a CHAR(15);
+SELECT * FROM t1;
+a
+10.11.12.13
+DROP TABLE t1;
+#
+# MDEV-20783 INET6 cannot be converted to BINARY(16) (requires clarification in documentation)
+#
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+ALTER TABLE t1 MODIFY a BINARY(4);
+SELECT HEX(a) FROM t1;
+HEX(a)
+0A0B0C0D
+DROP TABLE t1;
+#
+# MDEV-20795 CAST(inet6 AS BINARY) returns wrong result
+#
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('10.11.12.13');
+SELECT HEX(CAST(a AS BINARY)) FROM t1;
+HEX(CAST(a AS BINARY))
+0A0B0C0D
+SELECT HEX(CAST(a AS BINARY(4))) FROM t1;
+HEX(CAST(a AS BINARY(4)))
+0A0B0C0D
+DROP TABLE t1;
+#
+# MDEV-20808 CAST from INET6 to FLOAT does not produce an error
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0');
+SELECT CAST(a AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'float_typecast'
+DROP TABLE t1;
+#
+# MDEV-20798 Conversion from INET6 to other types performed without errors or warnings
+#
+CREATE TABLE t1 (a INET4, b INT);
+INSERT INTO t1 (a) VALUES ('0.0.0.0');
+UPDATE t1 SET b=a;
+ERROR HY000: Cannot cast 'inet4' as 'int' in assignment of `test`.`t1`.`b`
+SELECT * FROM t1;
+a	b
+0.0.0.0	NULL
+DROP TABLE t1;
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TABLE t1 (a INET4, b TIMESTAMP);
+INSERT INTO t1 (a) VALUES ('0.0.0.0');
+UPDATE t1 SET b=a;
+ERROR HY000: Cannot cast 'inet4' as 'timestamp' in assignment of `test`.`t1`.`b`
+SELECT * FROM t1;
+a	b
+0.0.0.0	NULL
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+CREATE OR REPLACE TABLE t1 (a INET4);
+INSERT INTO t1 (a) VALUES ('0.0.0.0');
+ALTER TABLE t1 MODIFY a DATE;
+ERROR HY000: Cannot cast 'inet4' as 'date' in assignment of `test`.`t1`.`a`
+DROP TABLE t1;
+#
+# MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table
+#
+CREATE TABLE t1 (a INET4);
+SELECT
+CAST(a AS BINARY(0)),
+CAST(a AS BINARY(1)),
+CAST(a AS BINARY(16)),
+CAST(a AS BINARY(255)),
+CAST(a AS BINARY(256)),
+CAST(a AS BINARY(512)),
+CAST(a AS BINARY(513)),
+CAST(a AS BINARY(65532)),
+CAST(a AS BINARY(65533)),
+CAST(a AS BINARY(65534)),
+CAST(a AS BINARY(65535)),
+CAST(a AS BINARY(65536)),
+CAST(a AS BINARY(16777215)),
+CAST(a AS BINARY(16777216))
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST(a AS BINARY(0))	254	0	0	Y	128	0	63
+def					CAST(a AS BINARY(1))	254	1	0	Y	128	0	63
+def					CAST(a AS BINARY(16))	254	16	0	Y	128	0	63
+def					CAST(a AS BINARY(255))	254	255	0	Y	128	0	63
+def					CAST(a AS BINARY(256))	253	256	0	Y	128	0	63
+def					CAST(a AS BINARY(512))	253	512	0	Y	128	0	63
+def					CAST(a AS BINARY(513))	253	513	0	Y	128	0	63
+def					CAST(a AS BINARY(65532))	253	65532	0	Y	128	0	63
+def					CAST(a AS BINARY(65533))	252	65533	0	Y	128	0	63
+def					CAST(a AS BINARY(65534))	252	65534	0	Y	128	0	63
+def					CAST(a AS BINARY(65535))	252	65535	0	Y	128	0	63
+def					CAST(a AS BINARY(65536))	250	65536	0	Y	128	0	63
+def					CAST(a AS BINARY(16777215))	250	16777215	0	Y	128	0	63
+def					CAST(a AS BINARY(16777216))	251	16777216	0	Y	128	0	63
+CAST(a AS BINARY(0))	CAST(a AS BINARY(1))	CAST(a AS BINARY(16))	CAST(a AS BINARY(255))	CAST(a AS BINARY(256))	CAST(a AS BINARY(512))	CAST(a AS BINARY(513))	CAST(a AS BINARY(65532))	CAST(a AS BINARY(65533))	CAST(a AS BINARY(65534))	CAST(a AS BINARY(65535))	CAST(a AS BINARY(65536))	CAST(a AS BINARY(16777215))	CAST(a AS BINARY(16777216))
+DROP TABLE t1;
+#
+# MDEV-20826 Wrong result of MIN(inet6) with GROUP BY
+#
+CREATE TABLE t1 (id INT, a INET4) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, '255.0.0.0'),(1, '128.0.0.0');
+SELECT MIN(a), MAX(a) FROM t1 GROUP BY id;
+MIN(a)	MAX(a)
+128.0.0.0	255.0.0.0
+DROP TABLE t1;
+#
+# MDEV-20809 EXTRACT from INET4 value does not produce any warnings
+#
+CREATE TABLE t1 (a INET4);
+SELECT EXTRACT(DAY FROM a) FROM t1;
+ERROR HY000: Illegal parameter data type inet4 for operation 'extract(day)'
+DROP TABLE t1;
+SELECT EXTRACT(DAY FROM CAST('0.0.0.0' AS INET4));
+ERROR HY000: Illegal parameter data type inet4 for operation 'extract(day)'
+#
+# MDEV-22764 Crash with a stored aggregate function returning INET4
+#
+CREATE OR REPLACE AGGREGATE FUNCTION aggregate_min_inet4(x INET4) RETURNS INET4
+BEGIN
+DECLARE res INET4 DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR NOT FOUND
+RETURN res;
+LOOP
+FETCH GROUP NEXT ROW;
+IF (res IS NULL) OR (res > x) THEN
+SET res= x;
+END IF;
+END LOOP;
+END;
+$$
+CREATE OR REPLACE TABLE t1 (name CHAR(30), val INET4);
+INSERT INTO t1 VALUES ('a', '0.0.0.5');
+INSERT INTO t1 VALUES ('a', '0.0.0.3');
+INSERT INTO t1 VALUES ('b', '0.0.0.1');
+INSERT INTO t1 VALUES ('b', '0.0.0.2');
+INSERT INTO t1 VALUES ('b', '0.0.0.5');
+SELECT name, aggregate_min_inet4(val) pc FROM t1 GROUP BY name;
+name	pc
+a	0.0.0.3
+b	0.0.0.1
+CREATE OR REPLACE TABLE t2 (name CHAR(30), val INET4);
+INSERT INTO t2 SELECT name, aggregate_min_inet4(val) pc FROM t1 GROUP BY name;
+SELECT * FROM t2;
+name	val
+a	0.0.0.3
+b	0.0.0.1
+DROP TABLE t2;
+DROP TABLE t1;
+DROP FUNCTION aggregate_min_inet4;
+#
+# MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+#
+CREATE TABLE t1 (name CHAR(30), star_rating INET4);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '0.0.0.5');
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', '0.0.0.3');
+INSERT INTO t1 VALUES ('Lady of the Flies', '0.0.0.1');
+INSERT INTO t1 VALUES ('Lady of the Flies', '0.0.0.2');
+INSERT INTO t1 VALUES ('Lady of the Flies', '0.0.0.5');
+SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+name	pc
+Lady of the Flies	0.0.0.2
+Lady of the Flies	0.0.0.2
+Lady of the Flies	0.0.0.2
+Lord of the Ladybirds	0.0.0.3
+Lord of the Ladybirds	0.0.0.3
+SELECT name, PERCENTILE_DISC(0)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+name	pc
+Lady of the Flies	0.0.0.1
+Lady of the Flies	0.0.0.1
+Lady of the Flies	0.0.0.1
+Lord of the Ladybirds	0.0.0.3
+Lord of the Ladybirds	0.0.0.3
+SELECT name, PERCENTILE_DISC(1)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+name	pc
+Lady of the Flies	0.0.0.5
+Lady of the Flies	0.0.0.5
+Lady of the Flies	0.0.0.5
+Lord of the Ladybirds	0.0.0.5
+Lord of the Ladybirds	0.0.0.5
+DROP TABLE t1;
+#
+# MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+#
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b INET4 NOT NULL);
+INSERT INTO t1 VALUES ('foo','0.0.0.0'),('bar','1.0.0.1');
+SELECT * FROM t1 ORDER BY CASE WHEN a THEN b ELSE a END;
+a	b
+foo	0.0.0.0
+bar	1.0.0.1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+Warning	1292	Incorrect inet4 value: 'foo'
+Warning	1292	Truncated incorrect DOUBLE value: 'bar'
+Warning	1292	Incorrect inet4 value: 'bar'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(8) NOT NULL);
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 ORDER BY CAST(a AS INET4);
+a
+foo
+bar
+Warnings:
+Warning	1292	Incorrect inet4 value: 'foo'
+Warning	1292	Incorrect inet4 value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (a INET4 NOT NULL, b VARCHAR(32) NOT NULL);
+CREATE TABLE t2 AS SELECT CAST(a AS INET4) AS ca, CAST(b AS INET4) AS cb FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ca` inet4 NOT NULL,
+  `cb` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT COALESCE(a,a), COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,a)` inet4 NOT NULL,
+  `COALESCE(a,b)` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT a AS ca,a AS cb FROM t1 UNION SELECT a,b FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ca` inet4 NOT NULL DEFAULT '0.0.0.0',
+  `cb` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-22758 Assertion `!item->null_value' failed in Type_handler_inet6::make_sort_key_part
+#
+CREATE TABLE t1 (c INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),(NULL);
+SELECT * FROM t1 ORDER BY IFNULL(c, 'foo');
+c
+NULL
+0.0.0.0
+Warnings:
+Warning	1292	Incorrect inet4 value: 'foo'
+DROP TABLE t1;
+CREATE TABLE t1 (c INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),(NULL);
+CREATE TABLE t2 AS SELECT IFNULL(c, 'foo') FROM t1;
+Warnings:
+Warning	1292	Incorrect inet4 value: 'foo'
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(c, 'foo')` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+IFNULL(c, 'foo')
+0.0.0.0
+NULL
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT IFNULL(c, '0.0.0.1') FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(c, '0.0.0.1')` inet4 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t2;
+IFNULL(c, '0.0.0.1')
+0.0.0.0
+0.0.0.1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-26732 Assertion `0' failed in Item::val_native
+#
+SELECT CAST(CONCAT('0.0.0.0', REPEAT('',RAND())) AS INET4) AS f, var_pop('x') FROM dual HAVING f > '';
+f	var_pop('x')
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Incorrect inet4 value: ''
+SELECT CAST(CONCAT('0.0.0.0', REPEAT('',RAND())) AS INET4) AS f, var_pop(1) FROM dual HAVING f >= '0.0.0.0';
+f	var_pop(1)
+0.0.0.0	0.0000
+CREATE TABLE t1(id INET4 NOT NULL PRIMARY KEY, dsc INET4);
+INSERT INTO t1 VALUES ('0.0.0.1', '1.0.0.1'),('0.0.0.3', '1.0.0.3'),('1.0.0.4', NULL);
+CREATE TABLE t2 SELECT COALESCE(t1.dsc), COUNT(*) FROM t1 GROUP BY t1.id;
+SELECT * FROM t2 ORDER BY 1,2;
+COALESCE(t1.dsc)	COUNT(*)
+NULL	1
+1.0.0.1	1
+1.0.0.3	1
+DROP TABLE t1, t2;
+#
+# MDEV-24619 Wrong result or Assertion `0' in Item::val_native / Type_handler_inet6::Item_val_native_with_conversion
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0'),('0.0.0.0');
+SELECT IF(1, '0.0.0.0', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '';
+f
+Warnings:
+Warning	1292	Incorrect inet4 value: ''
+SELECT IF(1, '0.0.0.0', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '0.0.0.0';
+f
+SELECT IF(1, '0.0.0.0', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '0.0.0.1';
+f
+0.0.0.0
+DROP TABLE t1;
+#
+# End of 10.10 tests
+#

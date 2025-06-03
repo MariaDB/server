@@ -131,7 +131,7 @@ CALL sys.statement_performance_analyzer('do magic', NULL, NULL);
 ERROR 45000: Unknown action. Supported actions are: cleanup, create_table, create_tmp, delta, overall, save, snapshot
 SET SESSION sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 CALL sys.statement_performance_analyzer('do magic', NULL, NULL);
-ERROR 01000: Data truncated for column 'in_action' at row 1
+ERROR 01000: Data truncated for column 'in_action' at row 0
 CALL sys.statement_performance_analyzer('create_tmp', 'sys.tmp_digests', NULL);
 ERROR 45000: Invalid value for in_table: `sys`.`tmp_digests` is reserved table name.
 CALL sys.statement_performance_analyzer('create_tmp', 'sys.tmp_digests_delta', NULL);
@@ -187,7 +187,7 @@ DROP TEMPORARY TABLE sys.tmp_digests_delta;
 ERROR 42S02: Unknown table 'sys.tmp_digests_delta'
 SET @identifier := REPEAT('a', 65);
 CALL sys.statement_performance_analyzer('snapshot', CONCAT(@identifier, '.', @identifier), NULL);
-ERROR 22001: Data too long for column 'in_table' at row 1
+ERROR 22001: Data too long for column 'in_table' at row 0
 DROP TEMPORARY TABLE test.tmp_digests_ini;
 DROP TEMPORARY TABLE test.tmp_digests;
 DROP TABLE test.tmp_unsupported;

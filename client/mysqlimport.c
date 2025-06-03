@@ -488,6 +488,7 @@ static MYSQL *db_connect(char *host, char *database,
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
+  my_set_console_cp(default_charset);
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
@@ -536,15 +537,18 @@ static void safe_exit(int error, MYSQL *mysql)
   if (mysql)
     mysql_close(mysql);
 
-  if (error)
-    sf_leaking_memory= 1; /* dirty exit, some threads are still running */
-  else
+  if (counter)
   {
-    mysql_library_end();
-    free_defaults(argv_to_free);
-    my_free(opt_password);
-    my_end(my_end_arg); /* clean exit */
+    /* dirty exit. some threads are running,
+       memory is not freed, openssl not deinitialized */
+    DBUG_ASSERT(error);
+    _exit(error);
   }
+
+  mysql_library_end();
+  free_defaults(argv_to_free);
+  my_free(opt_password);
+  my_end(my_end_arg); /* clean exit */
   exit(error);
 }
 

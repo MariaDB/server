@@ -38,7 +38,9 @@ INSERT INTO t1 VALUES('Procedure Executed.');
 #
 
 CREATE USER 'userTest'@'localhost';
+GRANT CREATE ROUTINE, SELECT ON test.* to 'userTest'@'localhost';
 CREATE USER 'userTest1'@'localhost';
+GRANT CREATE ROUTINE, SELECT ON test.* to 'userTest1'@'localhost';
 
 #
 # Value TRUE

@@ -2609,6 +2609,9 @@ INSERT INTO t1 VALUES (VERSION());
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
 INSERT INTO t1 VALUES (RAND());
+INSERT INTO t1 VALUES (RANDOM_BYTES(1000));
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
 DELETE FROM t1;
 SET TIME_ZONE= '+03:00';
 SET TIMESTAMP=1000000;

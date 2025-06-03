@@ -196,7 +196,7 @@ static void dict_stats_process_entry_from_defrag_pool(THD *thd)
         ? dict_table_find_index_on_id(table, index_id) : nullptr)
       if (index->is_btree())
         dict_stats_save_defrag_stats(index);
-    dict_table_close(table, false, thd, mdl);
+    dict_table_close(table, thd, mdl);
   }
 }
 
@@ -250,18 +250,18 @@ dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
 
 /**************************************************************//**
 Gets the number of reserved and used pages in a B-tree.
-@return	number of pages reserved, or ULINT_UNDEFINED if the index
-is unavailable */
+@return	number of pages reserved
+@retval 0 if the index is unavailable */
 static
-ulint
+uint32_t
 btr_get_size_and_reserved(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
+	uint32_t*	used,	/*!< out: number of pages used (<= reserved) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
 {
-	ulint		dummy;
+	uint32_t	dummy;
 
 	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
 	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
@@ -270,19 +270,19 @@ btr_get_size_and_reserved(
 	    || dict_index_is_online_ddl(index)
 	    || !index->is_committed()
 	    || !index->table->space) {
-		return(ULINT_UNDEFINED);
+		return 0;
 	}
 
 	dberr_t err;
 	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr, &err);
 	*used = 0;
 	if (!root) {
-		return ULINT_UNDEFINED;
+		return 0;
 	}
 
 	mtr->x_lock_space(index->table->space);
 
-	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
+	auto n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					+ root->page.frame, used, mtr);
 	if (flag == BTR_TOTAL_SIZE) {
 		n += fseg_n_reserved_pages(*root,
@@ -309,14 +309,14 @@ dict_stats_save_defrag_stats(
 
   const time_t now= time(nullptr);
   mtr_t mtr;
-  ulint n_leaf_pages;
+  uint32_t n_leaf_pages;
   mtr.start();
   mtr_sx_lock_index(index, &mtr);
-  ulint n_leaf_reserved= btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
-                                                   &n_leaf_pages, &mtr);
+  uint32_t n_leaf_reserved= btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
+                                                      &n_leaf_pages, &mtr);
   mtr.commit();
 
-  if (n_leaf_reserved == ULINT_UNDEFINED)
+  if (!n_leaf_reserved)
     return DB_SUCCESS;
 
   THD *const thd= current_thd;

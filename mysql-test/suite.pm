@@ -83,6 +83,31 @@ sub skip_combinations {
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
+  sub utf8_command_line_ok() {
+   if (IS_WINDOWS) {
+     # Can use UTF8 on command line since Windows 10 1903 (10.0.18362)
+     # or if OS codepage is set to UTF8
+     my($os_name, $os_major, $os_minor, $os_build, $os_id) = Win32::GetOSVersion();
+     if($os_major lt 10){
+       return 0;
+     } elsif($os_major gt 10 or $os_minor gt 0 or $os_build ge 18362){
+       return 1;
+     } elsif(Win32::GetACP() eq 65001) {
+       return 1;
+     }
+     return 0;
+   }
+   return 1;
+  }
+
+  $skip{'include/check_utf8_cli.inc'} = 'No utf8 command line support'
+    unless utf8_command_line_ok();
+
+  $skip{'include/no_utf8_cli.inc'} = 'Not tested with utf8 command line support'
+    unless !utf8_command_line_ok();
+  
+  $skip{'include/check_windows_admin.inc'} = 'Requires admin privileges'
+    unless IS_WINDOWS and Win32::IsAdminUser();
 
   %skip;
 }

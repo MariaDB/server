@@ -33,6 +33,88 @@ const DTCollation &DTCollation_numeric::singleton()
   return tmp;
 }
 
+
+bool
+DTCollation::merge_charset_and_collation(CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl,
+                                         my_repertoire_t repertoire)
+{
+  Lex_exact_charset_opt_extended_collate cscl(cs, true);
+  if (cscl.merge_collation_override(cl))
+    return true;
+  set(cscl.collation().charset_info(), DERIVATION_EXPLICIT, repertoire);
+  return false;
+}
+
+
+bool DTCollation::merge_collation(const Lex_extended_collation_st &cl,
+                                  my_repertoire_t repertoire,
+                                  bool allow_ignorable_with_context_collation)
+{
+  if (derivation != DERIVATION_IGNORABLE)
+  {
+    // A known character set + an extended collation
+    return merge_charset_and_collation(collation, cl, repertoire);
+  }
+
+  if (cl.type() == Lex_extended_collation::TYPE_EXACT)
+  {
+    /*
+      An unknown character set + an exact collation.
+      Just use this exact collation.
+      Examples:
+      - Expressions derived from an explicit NULL:
+          SELECT NULL         COLLATE utf8mb4_general_ci;
+          SELECT CONCAT(NULL) COLLATE utf8mb4_general_ci;
+        Any collation is applicable to an explicit NULL.
+
+      - Expressions with PS parameters (at PREPARE time, not bound yet)
+          SELECT ?         COLLATE utf8mb4_general_ci;
+          SELECT CONCAT(?) COLLATE utf8mb4_general_ci;
+        The collation will be checked for applicability to the
+        character set of the actual bound parameter at the EXECUTE time.
+        We're now in PREPARE: let's assume it will be applicable.
+    */
+    set(cl.charset_info(), DERIVATION_EXPLICIT, repertoire);
+    return false;
+  }
+
+  // An unknown character set + a contextually typed collation
+  if (allow_ignorable_with_context_collation)
+  {
+    /*
+      Expressions with non-bound PS parameters, PREPARE time.
+        SELECT ?         COLLATE uca1400_ai_ci;
+        SELECT CONCAT(?) COLLATE uca1400_ai_ci;
+      There is a chance the character set of the actual bound parameter
+      will be known at the EXECUTE time (unless an explicit NULL is bound).
+
+      For now let's use utf8mb4 to resolve collations like uca1400_ai_ci.
+      The real character set of the actual bound parameter expression will be
+      later used to resolve the collation again, during the EXECUTE time.
+    */
+    return merge_charset_and_collation(&my_charset_utf8mb4_general_ci,
+                                       cl, repertoire);
+  }
+
+  /*
+    Expressions with an unknown character set:
+    - Either without PS parameters at all:
+        SELECT NULL         COLLATE uca1400_ai_ci;
+        SELECT CONCAT(NULL) COLLATE uca1400_ai_ci;
+    - Or with PS parameters bound to NULL at EXECUTE time:
+        EXECUTE IMMEDIATE
+          'SELECT ? COLLATE uca1400_ai_ci' USING NULL;
+        EXECUTE IMMEDIATE
+          'SELECT CONCAT(?) COLLATE uca1400_ai_ci' USING NULL;
+        EXECUTE IMMEDIATE
+          'SELECT ? COLLATE uca1400_ai_ci' USING CONCAT(NULL);
+  */
+  my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0), "NULL");
+  return true;
+}
+
+
 Named_type_handler<Type_handler_row> type_handler_row("row");
 
 Named_type_handler<Type_handler_null> type_handler_null("null");
@@ -1057,7 +1139,7 @@ Datetime::Datetime(THD *thd, const timeval &tv)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(this, tv.tv_sec);
   second_part= tv.tv_usec;
-  thd->time_zone_used= 1;
+  thd->used|= THD::TIME_ZONE_USED;
   DBUG_ASSERT(is_valid_value_slow());
 }
 
@@ -1723,7 +1805,7 @@ Type_handler_time_common::type_handler_for_native_format() const
 
 const Type_handler *Type_handler_typelib::type_handler_for_item_field() const
 {
-  return &type_handler_string;
+  return &type_handler_varchar;
 }
 
 
@@ -2724,11 +2806,10 @@ bool
 Type_handler::Column_definition_set_attributes(THD *thd,
                                                Column_definition *def,
                                                const Lex_field_type_st &attr,
-                                               CHARSET_INFO *cs,
                                                column_definition_type_t type)
                                                const
 {
-  def->charset= cs;
+  def->set_charset_collation_attrs(attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
   return false;
 }
@@ -2757,12 +2838,11 @@ Type_handler_string::Column_definition_set_attributes(
                                                  THD *thd,
                                                  Column_definition *def,
                                                  const Lex_field_type_st &attr,
-                                                 CHARSET_INFO *cs,
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (attr.length())
+  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (attr.has_explicit_length())
     return false;
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
@@ -2789,12 +2869,11 @@ Type_handler_varchar::Column_definition_set_attributes(
                                                  THD *thd,
                                                  Column_definition *def,
                                                  const Lex_field_type_st &attr,
-                                                 CHARSET_INFO *cs,
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (attr.length())
+  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (attr.has_explicit_length())
     return false;
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
@@ -3020,8 +3099,7 @@ bool Type_handler::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3034,8 +3112,7 @@ bool Type_handler_null::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3049,8 +3126,7 @@ bool Type_handler_row::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3064,8 +3140,7 @@ bool Type_handler_temporal_result::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3079,8 +3154,7 @@ bool Type_handler_numeric::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3093,8 +3167,7 @@ bool Type_handler_newdecimal::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3108,28 +3181,26 @@ bool Type_handler_bit::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
 {
   def->charset= &my_charset_numeric;
-  return def->prepare_stage1_bit(thd, mem_root, file, table_flags);
+  return def->prepare_stage1_bit(thd, mem_root);
 }
 
 bool Type_handler_typelib::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
 {
   return def->prepare_charset_for_string(derived_attr) ||
-         def->prepare_stage1_typelib(thd, mem_root, file, table_flags);
+         def->prepare_stage1_typelib(thd, mem_root, type);
 }
 
 
@@ -3137,14 +3208,13 @@ bool Type_handler_string_result::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
 {
   return def->prepare_charset_for_string(derived_attr) ||
-         def->prepare_stage1_string(thd, mem_root, file, table_flags);
+         def->prepare_stage1_string(thd, mem_root);
 }
 
 
@@ -3167,7 +3237,7 @@ bool Type_handler_general_purpose_string::
     Change character sets for all varchar/char/text columns,
     but do not touch varbinary/binary/blob columns.
   */
-  if (defcs != &my_charset_bin)
+  if (!(def->flags & CONTEXT_COLLATION_FLAG) && defcs != &my_charset_bin)
     def->charset= bulk_alter_attr->alter_table_convert_to_charset();
   return false;
 };
@@ -3355,10 +3425,11 @@ bool Type_handler_bit::
                                         handler *file,
                                         ulonglong table_flags) const
 {
-  /* 
-    We have sql_field->pack_flag already set here, see
-    mysql_prepare_create_table().
-  */
+  if (!(table_flags & HA_CAN_BIT_FIELD))
+  {
+    def->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
+    def->create_length_to_internal_length_bit();
+  }
   return false;
 }
 
@@ -7827,11 +7898,10 @@ static const char* item_name(Item *a, String *str)
 }
 
 
-static void wrong_precision_error(uint errcode, Item *a,
-                                  ulonglong number, uint maximum)
+static void wrong_precision_error(uint errcode, Item *a, uint maximum)
 {
   StringBuffer<1024> buf(system_charset_info);
-  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
+  my_error(errcode, MYF(0), item_name(a, &buf), maximum);
 }
 
 
@@ -7850,12 +7920,12 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
 {
   if (length > (ulonglong) max_precision)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, a, length, max_precision);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, a, max_precision);
     return 1;
   }
   if (decimals > (ulonglong) max_scale)
   {
-    wrong_precision_error(ER_TOO_BIG_SCALE, a, decimals, max_scale);
+    wrong_precision_error(ER_TOO_BIG_SCALE, a, max_scale);
     return 1;
   }
 
@@ -7898,8 +7968,7 @@ Item *Type_handler_time_common::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root)
@@ -7913,8 +7982,7 @@ Item *Type_handler_datetime_common::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root)
@@ -7992,8 +8060,7 @@ Item *Type_handler_interval_DDhhmmssff::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,
@@ -8936,41 +9003,48 @@ bool Type_handler_string_result::union_element_finalize(Item_type_holder* item) 
 
 /***************************************************************************/
 
-void Type_handler_var_string::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+
+const Type_handler *
+Type_handler_var_string::type_handler_for_implicit_upgrade() const
 {
-  // Change old VARCHAR to new VARCHAR
-  c->set_handler(&type_handler_varchar);
+  return &type_handler_varchar;
+}
+
+
+void Type_handler::
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
+{
+  old->set_handler(this);
 }
 
 
 void Type_handler_time_common::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
 {
   if (opt_mysql56_temporal_format)
-    c->set_handler(&type_handler_time2);
+    old->set_handler(&type_handler_time2);
   else
-    c->set_handler(&type_handler_time);
+    old->set_handler(&type_handler_time);
 }
 
 
 void Type_handler_datetime_common::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
 {
   if (opt_mysql56_temporal_format)
-    c->set_handler(&type_handler_datetime2);
+    old->set_handler(&type_handler_datetime2);
   else
-    c->set_handler(&type_handler_datetime);
+    old->set_handler(&type_handler_datetime);
 }
 
 
 void Type_handler_timestamp_common::
-  Column_definition_implicit_upgrade(Column_definition *c) const
+  Column_definition_implicit_upgrade_to_this(Column_definition *old) const
 {
   if (opt_mysql56_temporal_format)
-    c->set_handler(&type_handler_timestamp2);
+    old->set_handler(&type_handler_timestamp2);
   else
-    c->set_handler(&type_handler_timestamp);
+    old->set_handler(&type_handler_timestamp);
 }
 
 

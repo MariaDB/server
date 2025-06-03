@@ -712,3 +712,322 @@ LIMIT 1;
 PostID	Voted
 1	NULL
 DROP TABLE t1,t2;
+#
+# MDEV-26278: Table elimination does not work across derived tables
+#
+create table t1 (a int, b int);
+insert into t1 select seq, seq+10 from seq_1_to_10;
+create table t11 (
+a int not null,
+b int,
+key(a)
+);
+insert into t11 select A.seq, A.seq+B.seq
+from
+seq_1_to_10 A,
+seq_1_to_100 B;
+create table t12 (
+pk int primary key,
+col1 int
+);
+insert into t12 select seq, seq from seq_1_to_1000;
+create view v2b as 
+select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a;
+# The whole v2b is eliminated
+explain select t1.* from t1 left join v2b on v2b.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+# Check format JSON as well
+explain format=JSON select t1.* from t1 left join v2b on t1.a=v2b.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+# Elimination of a whole subquery 
+explain select t1.* from t1 left join 
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+# In this case v2b cannot be eliminated (since v2b.b is not unique)!
+explain select t1.* from t1 left join v2b on t1.a=v2b.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t1.a	10	Using where
+2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	1000	Using temporary; Using filesort
+# Check format JSON as well
+explain format=JSON select t1.* from t1 left join v2b on t1.a=v2b.b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["b"],
+          "ref": ["test.t1.a"],
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "trigcond(t1.a = v2b.b and trigcond(t1.a is not null))",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "const_condition": "1",
+              "filesort": {
+                "sort_key": "t11.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t11",
+                        "access_type": "ALL",
+                        "rows": 1000,
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+create view v2c as 
+select t11.a as a, max(t12.col1) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a;
+# The whole v2c is eliminated
+explain select t1.* from t1 left join v2c on v2c.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+# Check format JSON as well
+explain format=JSON select t1.* from t1 left join v2c on v2c.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+# In this case v2c cannot be eliminated (since v2c.b is not unique)!
+explain select t1.* from t1 left join v2c on t1.a=v2c.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	10	Using where
+2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	1000	Using temporary; Using filesort
+2	DERIVED	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.b	1	Using where
+# Check format JSON as well
+explain format=JSON select t1.* from t1 left join v2c on t1.a=v2c.b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["b"],
+          "ref": ["test.t1.a"],
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.a is not null))",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "const_condition": "1",
+              "filesort": {
+                "sort_key": "t11.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t11",
+                        "access_type": "ALL",
+                        "rows": 1000,
+                        "filtered": 100
+                      }
+                    },
+                    {
+                      "table": {
+                        "table_name": "t12",
+                        "access_type": "eq_ref",
+                        "possible_keys": ["PRIMARY"],
+                        "key": "PRIMARY",
+                        "key_length": "4",
+                        "used_key_parts": ["pk"],
+                        "ref": ["test.t11.b"],
+                        "rows": 1,
+                        "filtered": 100,
+                        "attached_condition": "trigcond(trigcond(t11.b is not null))"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# Create a view with multiple fields in the GROUP BY clause:
+create view v2d as 
+select t11.a as a, t11.b as b, max(t12.col1) as max_col1
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a, t11.b;
+# This one must not be eliminated since only one of the GROUP BY fields is bound:
+explain select t1.* from t1 left join v2d on v2d.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	10	Using where
+2	DERIVED	t11	ALL	a	NULL	NULL	NULL	1000	Using temporary; Using filesort
+2	DERIVED	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.b	1	Using where
+# This must be eliminated since both fields are bound:
+explain select t1.* from t1 left join v2d on v2d.a=t1.a and v2d.b=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+create table t13 (dt date, b int);
+# Function year() in the GROUP BY list prevents treating this field 
+# as a unique key
+create view v2e as
+select year(t13.dt) as yyy, max(t12.col1) as max_col1
+from t13 join t12 on t12.pk=t13.b
+group by yyy;
+# No elimination here since function year() is used
+explain select t1.* from t1 left join v2e on v2e.yyy=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	Using where
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+create table t2 (a int, b int, c int);
+insert into t2 select A.seq, B.seq, 123 from seq_1_to_3 A, seq_1_to_3 B;
+# No elimination here since not all fields of the derived table's 
+# GROUP BY are on the SELECT list so D.a is not unique
+explain select t1.* from t1 left join 
+(select a, count(*) as cnt from t2 group by a, b) D on D.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	Using where
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
+# Still no elimination 'cause field D.b is just an alias for t2.a
+explain select t1.* from t1 left join 
+(select a, a as b, count(*) as cnt from t2 group by a, b) D on D.a=t1.a and D.b=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t1.a,test.t1.b	2	Using where
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
+Warnings:
+Warning	1052	Column 'b' in GROUP BY is ambiguous
+# Now both a and b fields are on the SELECT list and they are bound to t1
+# so derived D must be eliminated
+explain select t1.* from t1 left join 
+(select a as a1, b as b1, count(*) as cnt from t2 group by a, b) D 
+on D.a1=t1.a and D.b1=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+# Different order of fields in GROUP BY and SELECT lists
+# must not hamper the elimination
+explain select t1.* from t1 left join 
+(select count(*) as cnt, b, a from t2 group by a, b) D on D.a=t1.a and D.b=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+drop view v2b, v2c, v2d, v2e;
+drop table t1, t11, t12, t13, t2;
+#
+# End of MDEV-26278: Table elimination does not work across derived tables
+#
+#
+# MDEV-28881: Server crashes in Dep_analysis_context::create_table_value/
+#                                check_func_dependency
+#
+CREATE TABLE t1 (a1 int, a2 int);
+INSERT INTO t1 VALUES (0,276),(5,277),(NULL,278);
+CREATE TABLE t2 ( a1 int, a2 int, KEY a2 (a2));
+INSERT INTO t2 VALUES (11,NULL),(185,0);
+SELECT t1.* FROM t1 LEFT JOIN
+( SELECT * FROM (SELECT t2.a1 AS a1, min(t2.a2) AS a2 FROM t2
+WHERE t2.a2 <> NULL
+GROUP BY t2.a1) dt
+) dt2 ON dt2.a2 = t1.a2;
+a1	a2
+0	276
+5	277
+NULL	278
+DROP TABLE t1, t2;
+#
+# MDEV-30007: SIGSEGV in st_select_lex_unit::is_derived_eliminated,
+# runtime error: member access within null pointer of type
+# 'struct TABLE' in st_select_lex_unit::is_derived_eliminated()
+#
+CREATE VIEW v AS SELECT 1 AS a;
+SELECT ROUND ((SELECT 1 FROM v)) FROM v GROUP BY ROUND ((SELECT 1 FROM v));
+ROUND ((SELECT 1 FROM v))
+1
+EXPLAIN
+SELECT ROUND ((SELECT 1 FROM v)) FROM v GROUP BY ROUND ((SELECT 1 FROM v));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived4>	system	NULL	NULL	NULL	NULL	1	
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	<derived5>	system	NULL	NULL	NULL	NULL	1	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+DROP VIEW v;
+#
+# End of 10.10 tests
+#

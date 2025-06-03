@@ -1,6 +1,5 @@
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
-DROP TABLE if exists t1,t2,t3,t4,t5,t6;
 SET default_storage_engine=ARCHIVE;
 CREATE TABLE t1 (
 Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
@@ -12881,6 +12880,9 @@ show warnings;
 Level	Code	Message
 Error	1194	Table 't1' is marked as crashed and should be repaired
 drop table t1;
+#
+# temporary archive
+#
 create temporary table t1 (a int) engine=archive;
 insert t1 values (1),(2),(3);
 select * from t1;
@@ -12906,3 +12908,14 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `b` varchar(10) DEFAULT NULL
 ) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-27396 DESC index attribute remains in Archive table definition, despite being apparently ignored
+#
+create table t (t int auto_increment, key (t desc)) engine=archive;
+ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
+#
+# End of 10.8 tests
+#

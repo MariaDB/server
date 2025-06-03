@@ -56,9 +56,9 @@ f174 numeric (0),
 f175 numeric (64)
 ) engine = <engine_to_be_used>;
 Warnings:
-Note	1265	Data truncated for column 'f150' at row 1
-Note	1265	Data truncated for column 'f151' at row 1
-Note	1265	Data truncated for column 'f152' at row 1
+Note	1265	Data truncated for column 'f150' at row 0
+Note	1265	Data truncated for column 'f151' at row 0
+Note	1265	Data truncated for column 'f152' at row 0
 
 Testcase 3.5.3:
 ---------------
@@ -241,7 +241,7 @@ show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
 GRANT TRIGGER ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT UPDATE ON `priv_db`.* TO `test_yesprivs`@`localhost`
-connect  no_privs_424b,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  no_privs_424b,localhost,test_noprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 connect  yes_privs_424b,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection default;
 connection no_privs_424b;

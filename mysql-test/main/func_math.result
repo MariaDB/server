@@ -1838,24 +1838,118 @@ CRC32(99999999999999999999999999999999)
 SELECT CRC32(-99999999999999999999999999999999);
 CRC32(-99999999999999999999999999999999)
 1052326872
+SELECT CRC32C(NULL), CRC32C(''), CRC32C('MariaDB'), CRC32C('mariadb');
+CRC32C(NULL)	CRC32C('')	CRC32C('MariaDB')	CRC32C('mariadb')
+NULL	0	809606978	1378644259
+SELECT CRC32(NULL,1),CRC32C(NULL,1), CRC32(1,''), CRC32C(1,'');
+CRC32(NULL,1)	CRC32C(NULL,1)	CRC32(1,'')	CRC32C(1,'')
+NULL	NULL	1	1
+SELECT CRC32(42,''),CRC32C(42,''),CRC32('42',''),CRC32C('42','');
+CRC32(42,'')	CRC32C(42,'')	CRC32('42','')	CRC32C('42','')
+42	42	42	42
+SELECT CRC32(42,NULL),CRC32C(42,NULL);
+CRC32(42,NULL)	CRC32C(42,NULL)
+NULL	NULL
+SELECT CRC32 ('5c',''),CRC32 ('5c',0),CRC32 ('5c', '0'),CRC32 ('5c',NULL);
+CRC32 ('5c','')	CRC32 ('5c',0)	CRC32 ('5c', '0')	CRC32 ('5c',NULL)
+5	2226203566	2226203566	NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+SELECT CRC32C('5c',''),CRC32C('5c',0),CRC32C('5c', '0'),CRC32C('5c',NULL);
+CRC32C('5c','')	CRC32C('5c',0)	CRC32C('5c', '0')	CRC32C('5c',NULL)
+5	1466896124	1466896124	NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
+SELECT CRC32('MariaDB',NULL),CRC32C('MariaDB',NULL);
+CRC32('MariaDB',NULL)	CRC32C('MariaDB',NULL)
+NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'MariaDB'
+Warning	1292	Truncated incorrect INTEGER value: 'MariaDB'
+SELECT CRC32(CRC32('MySQL'),''),CRC32(CRC32('My'),'SQL'),CRC32(0,'MySQL');
+CRC32(CRC32('MySQL'),'')	CRC32(CRC32('My'),'SQL')	CRC32(0,'MySQL')
+3259397556	3259397556	3259397556
+SELECT CRC32C(CRC32C('MariaDB'),''),CRC32C(CRC32C('Maria'),'DB'),CRC32C(0,'MariaDB');
+CRC32C(CRC32C('MariaDB'),'')	CRC32C(CRC32C('Maria'),'DB')	CRC32C(0,'MariaDB')
+809606978	809606978	809606978
+select crc32(0,'My','SQL');
+ERROR 42000: Incorrect parameter count in the call to native function 'crc32'
+select crc32c(0,'Maria','DB');
+ERROR 42000: Incorrect parameter count in the call to native function 'crc32c'
+select crc32();
+ERROR 42000: Incorrect parameter count in the call to native function 'crc32'
+select crc32c();
+ERROR 42000: Incorrect parameter count in the call to native function 'crc32c'
+select crc32('' as empty);
+ERROR 42000: Incorrect parameters in the call to native function 'crc32'
+select crc32c('' as empty);
+ERROR 42000: Incorrect parameters in the call to native function 'crc32c'
+select crc32(0, '' as empty);
+ERROR 42000: Incorrect parameters in the call to native function 'crc32'
+select crc32c(0, '' as empty);
+ERROR 42000: Incorrect parameters in the call to native function 'crc32c'
+select crc32(0 as zero, '');
+ERROR 42000: Incorrect parameters in the call to native function 'crc32'
+select crc32c(0 as zero, '');
+ERROR 42000: Incorrect parameters in the call to native function 'crc32c'
+CREATE TEMPORARY TABLE t
+(a CHAR(2), i INT UNSIGNED, c INT UNSIGNED AS (CRC32C(i,a)));
+INSERT INTO t (a,i) VALUES ('DB',CRC32C('Maria'));
+SELECT * FROM t;
+a	i	c
+DB	1253907744	809606978
+DROP TEMPORARY TABLE t;
+select crc32(4294967296,''), hex(char(4294967296));
+crc32(4294967296,'')	hex(char(4294967296))
+0	00
+select crc32(1e100,''), hex(char(1e100));
+crc32(1e100,'')	hex(char(1e100))
+4294967295	FFFFFFFF
+select crc32(10.11,''), hex(char(10.11));
+crc32(10.11,'')	hex(char(10.11))
+10	0A
+select crc32(-1,''), hex(char(-1));
+crc32(-1,'')	hex(char(-1))
+4294967295	FFFFFFFF
+select crc32('',''), hex(char(''));
+crc32('','')	hex(char(''))
+0	00
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+select crc32(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'a') as x;
+x
+3310005809
+Warnings:
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
+Warning	1916	Got overflow when converting '99999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated
+select crc32(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'a') as x;
+x
+3310005809
 DROP TABLE IF EXISTS t;
 Warnings:
 Note	1051	Unknown table 'test.t'
 CREATE TABLE t(a INT, b VARCHAR(2));
 INSERT INTO t VALUES (1,'a'), (2,'qw'), (1,'t'), (3,'t');
-SELECT crc32(SUM(a)) FROM t;
-crc32(SUM(a))
-1790921346
-SELECT crc32(AVG(a)) FROM t GROUP BY b;
-crc32(AVG(a))
-768278432
-2875100430
-2875100430
-SELECT crc32(MAX(b)) FROM t GROUP BY a;
-crc32(MAX(b))
-2238339752
-3114057431
-2238339752
+SELECT crc32(SUM(a)),crc32c(SUM(a)) FROM t;
+crc32(SUM(a))	crc32c(SUM(a))
+1790921346	3058990603
+SELECT crc32(AVG(a)),crc32c(AVG(a)) FROM t GROUP BY b;
+crc32(AVG(a))	crc32c(AVG(a))
+768278432	1816172052
+2875100430	1492934094
+2875100430	1492934094
+SELECT crc32(MAX(b)),crc32c(MAX(b)) FROM t GROUP BY a;
+crc32(MAX(b))	crc32c(MAX(b))
+2238339752	3833565251
+3114057431	4173859780
+2238339752	3833565251
 SELECT a, b, crc32(a) FROM t GROUP BY a,b HAVING crc32(MAX(a))=450215437;
 a	b	crc32(a)
 2	qw	450215437
@@ -3580,7 +3674,7 @@ NULL
 #
 # MDEV-21278 Assertion `is_unsigned() == attr.unsigned_flag' or Assertion `field.is_sane()' failed
 #
-CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL),(NULL);
 SET SESSION SQL_MODE= 'NO_UNSIGNED_SUBTRACTION';
 SELECT DISTINCT UUID_SHORT() - a FROM t1;
@@ -3595,7 +3689,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2, t1;
 SET sql_mode=DEFAULT;
-CREATE  TABLE t1 (a TIMESTAMP);
+CREATE  TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL),(NULL);
 SET SESSION SQL_MODE= 'NO_UNSIGNED_SUBTRACTION';
 SELECT UUID_SHORT() - a FROM t1;

@@ -35,14 +35,6 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-extern uint *spd_db_att_xid_cache_split_num;
-#endif
-extern pthread_mutex_t *spd_db_att_LOCK_xid_cache;
-extern HASH *spd_db_att_xid_cache;
-#endif
 extern struct charset_info_st *spd_charset_utf8mb3_bin;
 
 extern handlerton *spider_hton_ptr;
@@ -888,7 +880,7 @@ int spider_free_trx_alloc(
     spider_free_tmp_share_alloc(trx->tmp_share);
   }
   spider_db_udf_free_set_names(trx);
-  for (roop_count = spider_param_udf_table_lock_mutex_count() - 1;
+  for (roop_count = spider_udf_table_lock_mutex_count - 1;
     roop_count >= 0; roop_count--)
     pthread_mutex_destroy(&trx->udf_table_mutexes[roop_count]);
   spider_free_trx_ha(trx);
@@ -942,7 +934,7 @@ SPIDER_TRX *spider_get_trx(
         &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
         &tmp_wide_handler, (uint) sizeof(SPIDER_WIDE_HANDLER),
         &udf_table_mutexes, (uint) (sizeof(pthread_mutex_t) *
-          spider_param_udf_table_lock_mutex_count()),
+          spider_udf_table_lock_mutex_count),
         NullS))
     )
       goto error_alloc_trx;
@@ -952,7 +944,7 @@ SPIDER_TRX *spider_get_trx(
     trx->udf_table_mutexes = udf_table_mutexes;
 
     for (roop_count = 0;
-      roop_count < (int) spider_param_udf_table_lock_mutex_count();
+      roop_count < (int) spider_udf_table_lock_mutex_count;
       roop_count++)
     {
       if (mysql_mutex_init(spd_key_mutex_udf_table,
@@ -1005,11 +997,6 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_ha_hash.array.size_of_element);
 
     trx->thd = (THD*) thd;
-    if (thd)
-      trx->thd_hash_value = my_calc_hash(&spider_allocated_thds,
-        (uchar*) thd, sizeof(THD *));
-    else
-      trx->thd_hash_value = 0;
     pthread_mutex_lock(&spider_thread_id_mutex);
     trx->spider_thread_id = spider_thread_id;
     ++spider_thread_id;
@@ -1023,10 +1010,8 @@ SPIDER_TRX *spider_get_trx(
       if (
         spider_set_connect_info_default(
           trx->tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           NULL,
           NULL,
-#endif
           NULL
         ) ||
         spider_set_connect_info_default_db_table(
@@ -1328,62 +1313,17 @@ static int spider_xa_lock(
   int error_num;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_lock");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-  my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
-    (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
-#ifdef XID_CACHE_IS_SPLITTED
-  uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
-#endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
   if (xid_cache_insert(thd, xid_state, xid))
   {
     error_num = (spider_stmt_da_sql_errno(thd) == ER_XAER_DUPID ?
       ER_SPIDER_XA_LOCKED_NUM : HA_ERR_OUT_OF_MEM);
     goto error;
   }
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_lock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
-#endif
-#ifdef XID_CACHE_IS_SPLITTED
-  if (my_hash_search_using_hash_value(&spd_db_att_xid_cache[idx], hash_value,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#else
-  if (my_hash_search_using_hash_value(spd_db_att_xid_cache, hash_value,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#endif
-  {
-    error_num = ER_SPIDER_XA_LOCKED_NUM;
-    goto error;
-  }
-  if (my_hash_insert(spd_db_att_xid_cache, (uchar*)xid_state))
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
-    goto error;
-  }
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
-#endif
-#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(0);
 
 error:
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
-#endif
-#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(error_num);
 }
@@ -1394,25 +1334,8 @@ static int spider_xa_unlock(
   THD *thd = current_thd;
   const char *old_proc_info;
   DBUG_ENTER("spider_xa_unlock");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
-#else
-#endif
   old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
-#ifdef SPIDER_XID_USES_xid_cache_iterate
   xid_cache_delete(thd, xid_state);
-#else
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_lock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
-#endif
-  my_hash_delete(spd_db_att_xid_cache, (uchar *)xid_state);
-#ifdef XID_CACHE_IS_SPLITTED
-  pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
-#else
-  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
-#endif
-#endif
   thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(0);
 }
@@ -3327,8 +3250,7 @@ static int spider_trx_update(THD *thd, ha_spider *spider, SPIDER_TRX *trx)
 
   for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
   {
-    if (!spider->handler_opened(roop_count))
-      spider->conns[roop_count] = NULL;
+    spider->conns[roop_count] = NULL;
   }
   DBUG_RETURN(0);
 }

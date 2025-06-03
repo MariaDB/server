@@ -27,9 +27,8 @@ Query optimization produces two data structures:
 produce output of SHOW EXPLAIN, EXPLAIN [FORMAT=JSON], or 
 ANALYZE [FORMAT=JSON], without accessing the execution data structures.
 
-(the only exception is that Explain data structures keep Item* pointers,
-and we require that one might call item->print(QT_EXPLAIN) when printing
-FORMAT=JSON output)
+The exception is that Explain data structures have Item* pointers. See
+ExplainDataStructureLifetime below for details.
 
 === ANALYZE data ===
 EXPLAIN data structures have embedded ANALYZE data structures. These are 
@@ -74,7 +73,6 @@ class Json_writer;
 *************************************************************************************/
 
 
-const uint FAKE_SELECT_LEX_ID= UINT_MAX;
 
 class Explain_query;
 
@@ -346,7 +344,7 @@ extern const char *pushed_derived_text;
 extern const char *pushed_select_text;
 
 /*
-  Explain structure for a UNION.
+  Explain structure for a UNION [ALL].
 
   A UNION may or may not have "Using filesort".
 */
@@ -427,36 +425,54 @@ class Explain_insert;
 /*
   Explain structure for a query (i.e. a statement).
 
-  This should be able to survive when the query plan was deleted. Currently, 
-  we do not intend for it survive until after query's MEM_ROOT is freed. It
-  does surivive freeing of query's items.
-   
-  For reference, the process of post-query cleanup is as follows:
+  This should be able to survive when the query plan was deleted. Currently,
+  we do not intend for it survive until after query's MEM_ROOT is freed.
+
+  == ExplainDataStructureLifetime ==
 
     >dispatch_command
     | >mysql_parse
-    | |  ...
-    | | lex_end()
-    | |  ...
-    | | >THD::cleanup_after_query
-    | | | ...
-    | | | free_items()
-    | | | ...
-    | | <THD::cleanup_after_query
+    | | ...
+    | |
+    | | explain->query_plan_ready(); // (1)
+    | |
+    | |   some_join->cleanup(); //  (2)
+    | |
+    | | explain->notify_tables_are_closed(); // (3)
+    | | close_thread_tables();  // (4)
+    | | ...
+    | | free_items(); // (5)
+    | | ...
     | |
     | <mysql_parse
     |
-    | log_slow_statement()
-    | 
+    | log_slow_statement() // (6)
+    |
     | free_root()
-    | 
+    |
     >dispatch_command
-  
-  That is, the order of actions is:
-    - free query's Items
-    - write to slow query log 
-    - free query's MEM_ROOT
-    
+
+  (1) - Query plan construction is finished and it is available for reading.
+
+  (2) - Temporary tables are freed (with exception of derived tables
+        which are freed at step (4)).
+        The tables are no longer accessible but one can still call
+        item->print(), even for items that refer to temp.tables (see
+        Item_field::print() for details)
+
+  (3) - Notification about (4).
+  (4) - Tables used by the query are closed. One consequence of this is that
+        the values of the const tables' fields are not available anymore.
+        We could adjust the code in Item_field::print() to handle this but
+        instead we make step (3) disallow production of FORMAT=JSON output.
+        We also disable processing of SHOW EXPLAIN|ANALYZE output because
+        the query is about to finish anyway.
+
+  (5) - Item objects are freed. After this, it's certainly not possible to
+        print them into FORMAT=JSON output.
+
+  (6) - We may decide to log tabular EXPLAIN output to the slow query log.
+
 */
 
 class Explain_query : public Sql_alloc
@@ -488,17 +504,23 @@ public:
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
-  void print_explain_json(select_result_sink *output, bool is_analyze);
+  int print_explain_json(select_result_sink *output, bool is_analyze,
+                         ulonglong query_time_in_progress_ms= 0);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
 
   void query_plan_ready();
+  void notify_tables_are_closed();
 
   MEM_ROOT *mem_root;
 
   Explain_update *get_upd_del_plan() { return upd_del_plan; }
 private:
+  bool print_query_blocks_json(Json_writer *writer, const bool is_analyze);
+  void print_query_optimization_json(Json_writer *writer);
+  void send_explain_json_to_output(Json_writer *writer, select_result_sink *output);
+ 
   /* Explain_delete inherits from Explain_update */
   Explain_update *upd_del_plan;
 
@@ -508,7 +530,7 @@ private:
   Dynamic_array<Explain_union*> unions;
   Dynamic_array<Explain_select*> selects;
   
-  THD *thd; // for APC start/stop
+  THD *stmt_thd; // for APC start/stop
   bool apc_enabled;
   /* 
     Debugging aid: count how many times add_node() was called. Ideally, it
@@ -517,6 +539,11 @@ private:
     is unacceptable.
   */
   longlong operations;
+#ifndef DBUG_OFF
+  bool can_print_json= false;
+#endif
+
+  Exec_time_tracker optimization_time_tracker;
 };
 
 

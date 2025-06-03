@@ -4029,7 +4029,7 @@ fts_query(
 	/* Convert the query string to lower case before parsing. We own
 	the ut_malloc'ed result and so remember to free it before return. */
 
-	lc_query_str_len = query_len * charset->casedn_multiply + 1;
+	lc_query_str_len = query_len * charset->casedn_multiply() + 1;
 	lc_query_str = static_cast<byte*>(ut_malloc_nokey(lc_query_str_len));
 
 	/* For binary collations, a case sensitive search is

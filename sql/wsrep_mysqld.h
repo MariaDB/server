@@ -67,12 +67,13 @@ extern const char* wsrep_start_position;
 extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
+extern const char* wsrep_status_file;
+extern const char* wsrep_allowlist;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
 extern my_bool     wsrep_desync;
 extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_recovery;
-extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
@@ -91,7 +92,6 @@ extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
-extern my_bool     wsrep_strict_ddl;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -223,6 +223,7 @@ extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 extern bool wsrep_reload_ssl();
+extern bool wsrep_split_allowlist(std::vector<std::string>& allowlist);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;

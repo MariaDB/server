@@ -154,14 +154,13 @@ DROP TABLE t0;
 --disable_query_log
 # The following are for the orphan file t0.ibd or for the directory t2.ibd:
 call mtr.add_suppression("InnoDB: Operating system error number [0-9]* in a file operation");
-call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory|Invalid argument)'");
+call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
 call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");
 call mtr.add_suppression("InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'");
 # The following are for aborted startup without --innodb-force-recovery:
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
-call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
 call mtr.add_suppression("InnoDB: Cannot read first page of '.*test.[tu]2.ibd': I/O error");
 call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=[1-9][0-9]*, page number=3\\] of corrupted file './test/t2\\.ibd'");
 call mtr.add_suppression("InnoDB: Datafile '.*test.*ibd' is corrupted");

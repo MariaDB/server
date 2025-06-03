@@ -42,7 +42,6 @@ void spider_direct_sql_deinit(
   spider_direct_sql_deinit_body(initid);
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 long long spider_bg_direct_sql(
   UDF_INIT *initid,
   UDF_ARGS *args,
@@ -82,7 +81,6 @@ void spider_bg_direct_sql_add(
 ) {
   spider_direct_sql_body(initid, args, is_null, error, TRUE);
 }
-#endif
 
 long long spider_ping_table(
   UDF_INIT *initid,

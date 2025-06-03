@@ -46,6 +46,18 @@ Created 10/21/1995 Heikki Tuuri
 #include <time.h>
 #endif /* !_WIN32 */
 
+/** The maximum size of a read or write request.
+
+According to Linux "man 2 read" and "man 2 write" this applies to
+both 32-bit and 64-bit systems.
+
+On FreeBSD, the limit is close to the Linux one, INT_MAX.
+
+On Microsoft Windows, the limit is UINT_MAX (4 GiB - 1).
+
+On other systems, the limit typically is up to SSIZE_T_MAX. */
+static constexpr unsigned os_file_request_size_max= 0x7ffff000;
+
 extern bool	os_has_said_disk_full;
 
 /** File offset in bytes */
@@ -107,36 +119,23 @@ struct pfs_os_file_t
 #endif
 };
 
-/** The next value should be smaller or equal to the smallest sector size used
-on any disk. A log block is required to be a portion of disk which is written
-so that if the start and the end of a block get written to disk, then the
-whole block gets written. This should be true even in most cases of a crash:
-if this fails for a log block, then it is equivalent to a media failure in the
-log. */
-
-#define OS_FILE_LOG_BLOCK_SIZE		512U
-
 /** Options for os_file_create_func @{ */
 enum os_file_create_t {
-	OS_FILE_OPEN = 51,		/*!< to open an existing file (if
-					doesn't exist, error) */
-	OS_FILE_CREATE,			/*!< to create new file (if
-					exists, error) */
-	OS_FILE_OVERWRITE,		/*!< to create a new file, if exists
-					the overwrite old file */
-	OS_FILE_OPEN_RAW,		/*!< to open a raw device or disk
-					partition */
-	OS_FILE_CREATE_PATH,		/*!< to create the directories */
-	OS_FILE_OPEN_RETRY,		/*!< open with retry */
+  /** create a new file */
+  OS_FILE_CREATE= 0,
+  /** open an existing file */
+  OS_FILE_OPEN,
+  /** retry opening an existing file */
+  OS_FILE_OPEN_RETRY,
+  /** open a raw block device */
+  OS_FILE_OPEN_RAW,
 
-	/** Flags that can be combined with the above values. Please ensure
-	that the above values stay below 128. */
+  /** do not display diagnostic messages */
+  OS_FILE_ON_ERROR_SILENT= 4,
 
-	OS_FILE_ON_ERROR_NO_EXIT = 128,	/*!< do not exit on unknown errors */
-	OS_FILE_ON_ERROR_SILENT = 256	/*!< don't print diagnostic messages to
-					the log unless it is a fatal error,
-					this flag is only used if
-					ON_ERROR_NO_EXIT is set */
+  OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
+  OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,
+  OS_FILE_OPEN_RETRY_SILENT= OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_SILENT
 };
 
 static const ulint OS_FILE_READ_ONLY = 333;
@@ -150,7 +149,7 @@ static const ulint OS_FILE_READ_ALLOW_DELETE = 555;
 /** Types for file create @{ */
 static constexpr ulint OS_DATA_FILE = 100;
 static constexpr ulint OS_LOG_FILE = 101;
-#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+#if defined _WIN32 || defined O_DIRECT
 static constexpr ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 #endif
 /* @} */
@@ -348,7 +347,7 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success) noexcept;
@@ -357,7 +356,7 @@ os_file_create_simple_func(
 os_file_create_simple_no_error_handling(), not directly this function!
 A simple function to open or create a file.
 @param[in]	name		name of the file or path as a null-terminated string
-@param[in]	create_mode	create mode
+@param[in]	create_mode	OS_FILE_CREATE or OS_FILE_OPEN
 @param[in]	access_type	OS_FILE_READ_ONLY, OS_FILE_READ_WRITE, or
 				OS_FILE_READ_ALLOW_DELETE; the last option
 				is used by a backup program reading the file
@@ -368,27 +367,11 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
-
-#ifndef HAVE_FCNTL_DIRECT
-#define os_file_set_nocache(fd, file_name, operation_name) do{}while(0)
-#else
-/** Tries to disable OS caching on an opened file descriptor.
-@param[in]	fd		file descriptor to alter
-@param[in]	file_name	file name, used in the diagnostic message
-@param[in]	name		"open" or "create"; used in the diagnostic
-				message */
-void
-os_file_set_nocache(
-/*================*/
-	int	fd,		/*!< in: file descriptor to alter */
-	const char*	file_name,
-	const char*	operation_name) noexcept;
-#endif
 
 #ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
 /** Obtain an exclusive lock on a file.
@@ -412,7 +395,7 @@ Opens an existing file or creates a new.
 pfs_os_file_t
 os_file_create_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		type,
 	bool		read_only,
 	bool*		success) noexcept
@@ -453,7 +436,6 @@ bool os_file_close_func(os_file_t file);
 
 /* Keys to register InnoDB I/O with performance schema */
 extern mysql_pfs_key_t	innodb_data_file_key;
-extern mysql_pfs_key_t	innodb_log_file_key;
 extern mysql_pfs_key_t	innodb_temp_file_key;
 
 /* Following four macros are instumentations to register
@@ -610,7 +592,7 @@ pfs_os_file_t
 pfs_os_file_create_simple_func(
 	mysql_pfs_key_t key,
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success,
@@ -626,7 +608,7 @@ monitor file creation/open.
 @param[in]	key		Performance Schema Key
 @param[in]	name		name of the file or path as a null-terminated
 				string
-@param[in]	create_mode	create mode
+@param[in]	create_mode	OS_FILE_CREATE or OS_FILE_OPEN
 @param[in]	access_type	OS_FILE_READ_ONLY, OS_FILE_READ_WRITE, or
 				OS_FILE_READ_ALLOW_DELETE; the last option is
 				used by a backup program reading the file
@@ -641,7 +623,7 @@ pfs_os_file_t
 pfs_os_file_create_simple_no_error_handling_func(
 	mysql_pfs_key_t key,
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success,
@@ -668,7 +650,7 @@ pfs_os_file_t
 pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		type,
 	bool		read_only,
 	bool*		success,

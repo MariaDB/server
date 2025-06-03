@@ -223,10 +223,14 @@ select @@gtid_binlog_state;
 drop table t1;
 stop slave;
 reset slave;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 cluster 2 node 1
 connection node_4;
 stop slave;
 reset slave;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 cluster 1 node 1
 connection node_1;
 change master to master_use_gtid=no, ignore_server_ids=();

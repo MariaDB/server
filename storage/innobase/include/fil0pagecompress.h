@@ -40,7 +40,7 @@ Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
 ulint fil_page_compress(
 	const byte*	buf,
 	byte*		out_buf,
-	ulint		flags,
+	uint32_t	flags,
 	ulint		block_size,
 	bool		encrypted)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
@@ -52,9 +52,6 @@ ulint fil_page_compress(
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */
-ulint fil_page_decompress(
-	byte*	tmp_buf,
-	byte*	buf,
-	ulint	flags)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+ulint fil_page_decompress(byte *tmp_buf, byte *buf, uint32_t flags)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif

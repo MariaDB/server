@@ -300,7 +300,6 @@ class sp_pcontext;
 class sp_variable;
 class sp_expr_lex;
 class sp_assignment_lex;
-class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
 class set_var_base;
@@ -509,6 +508,7 @@ struct LEX_MASTER_INFO
   uint port, connect_retry;
   float heartbeat_period;
   int sql_delay;
+  bool is_demotion_opt;
   /*
     Enum is used for making it possible to detect if the user
     changed variable or if it should be left at old value
@@ -551,6 +551,7 @@ struct LEX_MASTER_INFO
     gtid_pos_str= null_clex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
     sql_delay= -1;
+    is_demotion_opt= 0;
   }
 };
 
@@ -981,7 +982,7 @@ public:
   };
 
   void init_query();
-  st_select_lex* outer_select();
+  st_select_lex* outer_select() const;
   const st_select_lex* first_select() const
   {
     return reinterpret_cast<const st_select_lex*>(slave);
@@ -1052,6 +1053,9 @@ public:
   bool can_be_merged();
 
   friend class st_select_lex;
+
+private:
+  bool is_derived_eliminated() const;
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -3234,8 +3238,6 @@ public:
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  // type information
-  CHARSET_INFO *charset;
   /*
     LEX which represents current statement (conventional, SP or PS)
 
@@ -3572,12 +3574,6 @@ public:
 
 
   /*
-    Reference to a struct that contains information in various commands
-    to add/create/drop/change table spaces.
-  */
-  st_alter_tablespace *alter_tablespace_info;
-
-  /*
     The set of those tables whose fields are referenced in all subqueries
     of the query.
     TODO: possibly this it is incorrect to have used tables in LEX because
@@ -3843,8 +3839,10 @@ public:
   bool table_or_sp_used();
 
   bool is_partition_management() const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   bool part_values_current(THD *thd);
   bool part_values_history(THD *thd);
+#endif
 
   /**
     @brief check if the statement is a single-level join
@@ -3870,17 +3868,16 @@ public:
   bool save_prep_leaf_tables();
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool is_analyze, bool *printed_anything);
+                    bool is_analyze, bool is_json_format,
+                    bool *printed_anything);
   bool restore_set_statement_var();
 
-  void init_last_field(Column_definition *field, const LEX_CSTRING *name,
-                       const CHARSET_INFO *cs);
+  void init_last_field(Column_definition *field, const LEX_CSTRING *name);
   bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
                                                        const char *type,
                                                        uint flags);
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
-  bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
@@ -3894,6 +3891,10 @@ public:
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
+  bool set_names(const char *pos,
+                 CHARSET_INFO *cs,
+                 const Lex_extended_collation_st &coll,
+                 bool no_lookahead);
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
   bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                          Item *val);
@@ -4499,6 +4500,23 @@ public:
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
   bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
+  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  {
+    if (create_info.add_table_option_convert_charset(cs))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
+  bool
+  add_alter_list_item_convert_to_charset(CHARSET_INFO *cs,
+                                         const Lex_extended_collation_st &cl)
+  {
+    if (create_info.add_table_option_convert_charset(cs) ||
+        create_info.add_table_option_convert_collation(cl))
+      return true;
+    alter_info.flags|= ALTER_CONVERT_TO;
+    return false;
+  }
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {
@@ -4667,7 +4685,7 @@ public:
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
-    if (check_period_name(name.str)) {
+    if (check_column_name(name)) {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), name.str);
       return 1;
     }
@@ -4813,6 +4831,7 @@ public:
   void stmt_deallocate_prepare(const Lex_ident_sys_st &ident);
 
   bool stmt_alter_table_exchange_partition(Table_ident *table);
+  bool stmt_alter_table(Table_ident *table);
 
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);

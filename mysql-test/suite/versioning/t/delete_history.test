@@ -240,4 +240,20 @@ drop table t;
 
 --echo # End of 10.5 tests
 
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+--echo #
+--echo # Don't auto-create new partition on DELETE HISTORY:
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+set timestamp= unix_timestamp('2000-01-01 10:00:00');
+delete history from t;
+set timestamp= default;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t;
+drop table t;
+
+--echo # End of 10.9 tests
+
 --source suite/versioning/common_finish.inc

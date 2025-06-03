@@ -1,0 +1,24 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+#
+SET @old_debug_dbug=@@debug_dbug;
+SET debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 INET4, c02 INET4);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 14
+Note	1105	DBUG: [0] name='c01' type_info='inet4'
+Note	1105	DBUG: [1] name='c02' type_info='inet4'
+SET debug_dbug=@old_debug_dbug;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c01` inet4 DEFAULT NULL,
+  `c02` inet4 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+# End of 10.10 tests
+#

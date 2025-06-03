@@ -403,7 +403,7 @@ int fill_collation_statistics(THD *thd, TABLE_LIST *tables)
     if (my_collation_is_known_id(id) &&
         (count= my_collation_statistics_get_use_count(id)))
     {
-      char name[MY_CS_NAME_SIZE + 32];
+      char name[MY_CS_COLLATION_NAME_SIZE + 32];
       size_t namelen= my_snprintf(name, sizeof(name),
                                  "Collation used %s",
                                  get_charset_name(id));

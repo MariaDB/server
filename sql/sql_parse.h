@@ -78,8 +78,6 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               size_t max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 bool check_ident_length(const LEX_CSTRING *ident);
-CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
-CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
 bool check_host_name(LEX_CSTRING *str);
 bool check_identifier_name(LEX_CSTRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);
@@ -89,7 +87,6 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask);
 bool is_update_query(enum enum_sql_command command);
 bool is_log_table_write_query(enum enum_sql_command command);
 bool alloc_query(THD *thd, const char *packet, size_t packet_length);
-void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state);
 bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);

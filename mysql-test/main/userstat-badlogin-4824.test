@@ -13,7 +13,7 @@ flush user_statistics;
 set global userstat=1;
 
 --disable_ps2_protocol
-connect(foo, localhost, foo, foo);
+connect(foo, localhost, foo, foo, "*NO-ONE*");
 --disable_cursor_protocol
 select 1;
 --enable_cursor_protocol
@@ -30,7 +30,7 @@ select user, bytes_received from information_schema.user_statistics where user =
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(foo, localhost, foo, bar);
+connect(foo, localhost, foo, bar, test);
 
 connection default;
 

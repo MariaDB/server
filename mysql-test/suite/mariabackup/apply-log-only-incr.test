@@ -19,7 +19,7 @@ dec $n;
 }
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
 --enable_result_log
 let $n=100;
 while ($n) {
@@ -36,7 +36,7 @@ disconnect flush_log;
 connection default;
 
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir ;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir ;
 exec $XTRABACKUP --prepare --verbose --target-dir=$basedir ;
 --enable_result_log
 

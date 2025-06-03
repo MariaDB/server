@@ -1,53 +1,71 @@
 etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
-lib/systemd/system/mariadb.service # Installed by rules file
-lib/systemd/system/mariadb.socket # Installed by rules file
+etc/my.cnf # Debian packaging has /etc/mysql/my.cnf, which is a symlink to mariadb.cnf
+etc/mysql/mariadb.conf.d/client.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mysql/mariadb.conf.d/enable_encryption.preset # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mysql/mariadb.conf.d/mysql-clients.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mysql/mariadb.conf.d/server.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
 lib/systemd/system/mariadb-extra.socket # Installed by rules file
-lib/systemd/system/mariadb@.service # Installed by rules file
-lib/systemd/system/mariadb@.socket # Installed by rules file
-lib/systemd/system/mariadb-extra@.socket # Installed by rules file
-usr/bin/mysql_config # We already have the MariaDB variant
-usr/bin/mytop # Mytop is distributed from a separate source package
+lib/systemd/system/mariadb.socket # Installed by rules file
+usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does not make sense
+usr/bin/mysql_config # Debian packaging has mysql_config as symlink to mariadb_config
+usr/bin/mysql_embedded # Symlink to mariadb-embedded which is intentionally not included
 usr/bin/sst_dump # Use the one from rocksdb-tools package
-usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/lib/sysusers.d/sysusers.conf
-usr/lib/tmpfiles.d/tmpfiles.conf
-usr/lib/*/libdbbc.a # ColumnStore header file
-usr/lib/*/libidbboot.a # ColumnStore header file
-usr/lib/*/libprocessor.a # ColumnStore header file
-usr/lib/*/libwe_xml.a # ColumnStore header file
-usr/share/doc/mariadb-server-10.6/COPYING
-usr/share/doc/mariadb-server-10.6/COPYING.AGPLv3
-usr/share/doc/mariadb-server-10.6/COPYING.GPLv2
-usr/share/doc/mariadb-server-10.6/COPYING.thirdparty
-usr/share/doc/mariadb-server-10.6/CREDITS
-usr/share/doc/mariadb-server-10.6/EXCEPTIONS-CLIENT
-usr/share/doc/mariadb-server-10.6/INSTALL-BINARY
-usr/share/doc/mariadb-server-10.6/PATENTS
-usr/share/doc/mariadb-server-10.6/README-wsrep
-usr/share/groonga/COPYING
-usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
+usr/lib/*/libdbbc.a # ColumnStore static library
+usr/lib/*/libidbboot.a # ColumnStore static library
+usr/lib/*/libprocessor.a #  ColumnStore static library
+usr/lib/*/libwe_xml.a #  ColumnStore static library
+usr/lib/*/libdbbc.a #  ColumnStore static library
+usr/lib/*/libidbboot.a #  ColumnStore static library
+usr/lib/*/libprocessor.a #  ColumnStore static library
+usr/lib/*/libwe_xml.a #  ColumnStore static library
+usr/lib/*/pkgconfig/mariadb.pc
+usr/bin/test-connect-t
+usr/bin/uca-dump
+usr/bin/wsrep_sst_backup
+usr/lib/mysql/plugin/type_test.so
+usr/lib/sysusers.d/mariadb.conf # Not used (yet) in Debian systemd
+usr/lib/tmpfiles.d/mariadb.conf # Not used (yet) in Debian systemd
+usr/sbin/rcmysql
+usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mysql/mroonga/COPYING")
+usr/share/doc/mariadb-server/CREDITS
+usr/share/doc/mariadb-server/INSTALL-BINARY
+usr/share/doc/mariadb-server/README-wsrep
+usr/share/doc/mariadb-server/README.md
+usr/share/doc/mariadb-server/THIRDPARTY
 usr/share/groonga-normalizer-mysql/README.md
+usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
+usr/share/groonga/COPYING
 usr/share/groonga/README.md
+usr/share/man/man1/mariadb-embedded.1 # Shipping the embedded server in distro packaging does not make sense
+usr/share/man/man1/mysql_embedded.1 # Symlink to mariadb-embedded.1 which is intentionally not included
 usr/share/man/man1/my_safe_process.1
+usr/share/man/man1/mysql-stress-test.pl.1
 usr/share/man/man1/mysql.server.1
+usr/share/mysql/JavaWrappers.jar
+usr/share/mysql/JdbcInterface.jar
+usr/share/mysql/Mongo2.jar
+usr/share/mysql/Mongo3.jar
 usr/share/mysql/binary-configure
 usr/share/mysql/magic
-usr/share/mysql/maria_add_gis_sp.sql
+usr/share/mysql/mariadb.logrotate
+usr/share/mysql/maria_add_gis_sp.sql # mariadb-server-core.install has *_bootstrap.sql
+usr/share/mysql/mysql-test/asan.supp
+usr/share/mysql/mysql-test/lsan.supp
+usr/share/mysql/mysql-test/unstable-tests
+usr/share/mysql/mysql.server # Debian packaging uses mariadb-server.mariadb.init
 usr/share/mysql/mysqld_multi.server
-usr/share/mysql/mysql-log-rotate
-usr/share/mysql/mysql.server
-usr/share/mysql/mysql-test/mtr # Already created by mariadb-test.links
-usr/share/mysql/mysql-test/mysql-test-run # Already created by mariadb-test.links
-usr/share/mysql/mysql_to_mariadb.sql
 usr/share/mysql/policy/apparmor/README # In MariaDB we don't want to use AppArmor at the moment
 usr/share/mysql/policy/apparmor/usr.sbin.mysqld # In MariaDB we don't want to use AppArmor at the moment
 usr/share/mysql/policy/apparmor/usr.sbin.mysqld.local # In MariaDB we don't want to use AppArmor at the moment
+usr/share/mysql/policy/selinux/README # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb-server.fc # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb-server.te # In MariaDB we don't want to use SELinux at the moment
 usr/share/mysql/policy/selinux/mariadb.te # In MariaDB we don't want to use SELinux at the moment
-usr/share/mysql/policy/selinux/README # In MariaDB we don't want to use SELinux at the moment
+usr/share/mysql/systemd/mariadb-extra@.socket # Installed by rules file
 usr/share/mysql/systemd/mariadb.service # Installed by rules file
 usr/share/mysql/systemd/mariadb@.service # Installed by rules file
+usr/share/mysql/systemd/mariadb@.socket # Installed by rules file
+usr/share/mysql/systemd/mysql.service  # Installed by rules file
+usr/share/mysql/systemd/mysqld.service  # Installed by rules file
 usr/share/mysql/systemd/use_galera_new_cluster.conf
-usr/share/mysql/wsrep.cnf
+usr/share/man/man1/wsrep_sst_backup.1

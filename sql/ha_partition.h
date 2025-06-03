@@ -1626,6 +1626,10 @@ public:
   }
 
   bool partition_engine() override { return 1;}
+
+  /**
+     Get the number of records in part_elem and its subpartitions, if any.
+  */
   ha_rows part_records(partition_element *part_elem)
   {
     DBUG_ASSERT(m_part_info);

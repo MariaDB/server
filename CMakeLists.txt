@@ -31,7 +31,7 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135)
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135 CMP0091)
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
@@ -160,6 +160,7 @@ INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
 INCLUDE(pcre)
+INCLUDE(libfmt)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -409,7 +410,8 @@ ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 IF(_FILE_OFFSET_BITS)
   ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=${_FILE_OFFSET_BITS})
 ENDIF()
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include
+                    ${CMAKE_SOURCE_DIR}/include/providers)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
@@ -421,6 +423,7 @@ MYSQL_CHECK_READLINE()
 SET(MALLOC_LIBRARY "system")
 
 CHECK_PCRE()
+CHECK_LIBFMT()
 ADD_SUBDIRECTORY(tpool)
 CHECK_SYSTEMD()
 
@@ -513,7 +516,7 @@ ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(extra/aws_sdk)
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
-  SET(EXPORTED comp_err comp_sql factorial)
+  SET(EXPORTED comp_err comp_sql factorial uca-dump)
   IF(NOT WITHOUT_SERVER)
     SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)
   ENDIF()
@@ -630,7 +633,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill mariadb-upgrade-service)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

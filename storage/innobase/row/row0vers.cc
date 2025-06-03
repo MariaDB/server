@@ -330,7 +330,7 @@ not_locked:
 
 		/* We check if entry and rec are identified in the alphabetical
 		ordering */
-		if (0 == cmp_dtuple_rec(entry, rec, offsets)) {
+		if (0 == cmp_dtuple_rec(entry, rec, index, offsets)) {
 			/* The delete marks of rec and prev_version should be
 			equal for rec to be in the state required by
 			prev_version */
@@ -348,7 +348,7 @@ not_locked:
 			dtuple_set_types_binary(
 				entry, dtuple_get_n_fields(entry));
 
-			if (0 != cmp_dtuple_rec(entry, rec, offsets)) {
+			if (cmp_dtuple_rec(entry, rec, index, offsets)) {
 
 				break;
 			}

@@ -98,7 +98,7 @@ JS
             "column_name": "a",
             "ranges": 
             ["NULL < a < 30"],
-            "selectivity_from_histogram": 0.1484375
+            "selectivity_from_histogram": 0.145
         }
     ]
 ]

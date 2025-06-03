@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -684,6 +684,13 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
     DBUG_PRINT("loop", ("flags: %lu  key_parts: %d  key_part: %p",
                         key->flags, key->user_defined_key_parts,
                         key->key_part));
+
+    /* For SPATIAL, FULLTEXT and HASH indexes (anything other than B-tree),
+       ignore the ASC/DESC attribute of columns. */
+    const uchar ha_reverse_sort=
+      key->algorithm > HA_KEY_ALG_BTREE || key->flags & (HA_FULLTEXT|HA_SPATIAL)
+      ? 0 : HA_REVERSE_SORT;
+
     for (key_part=key->key_part,key_part_end=key_part+key->user_defined_key_parts ;
 	 key_part != key_part_end ;
 	 key_part++)
@@ -696,7 +703,8 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
       int2store(pos,key_part->fieldnr+1+FIELD_NAME_USED);
       offset= (uint) (key_part->offset+data_offset+1);
       int2store(pos+2, offset);
-      pos[4]=0;					// Sort order
+      key_part->key_part_flag &= ha_reverse_sort;
+      pos[4]= (uchar)(key_part->key_part_flag);
       int2store(pos+5,key_part->key_type);
       int2store(pos+7,key_part->length);
       pos+=9;

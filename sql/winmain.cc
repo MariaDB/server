@@ -55,6 +55,7 @@
 #include <windows.h>
 #include <string>
 #include <cassert>
+#include <winservice.h>
 
 static SERVICE_STATUS svc_status{SERVICE_WIN32_OWN_PROCESS};
 static SERVICE_STATUS_HANDLE svc_status_handle;

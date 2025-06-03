@@ -106,6 +106,18 @@ struct rpl_parallel_thread {
   bool running;
   bool stop;
   bool pause_for_ftwrl;
+  /*
+    0  = No start alter assigned
+   >0 = Start alter assigned
+  */
+  uint64 current_start_alter_id;
+  uint32 current_start_alter_domain_id;
+  /*
+   This flag is true when Start Alter just needs to be binlogged only.
+   This scenario will happens when there is congestion , and we can not
+   allocate independent worker to start alter.
+  */
+  bool reserved_start_alter_thread;
   mysql_mutex_t LOCK_rpl_thread;
   mysql_cond_t COND_rpl_thread;
   mysql_cond_t COND_rpl_thread_queue;
@@ -305,6 +317,12 @@ struct rpl_parallel_thread_pool {
   mysql_cond_t COND_rpl_thread_pool;
   uint32 count;
   bool inited;
+
+  /*
+    Lock first LOCK_rpl_thread_pool and then LOCK_rpl_thread to
+    update this variable.
+  */
+  uint32 current_start_alters;
   /*
     While FTWRL runs, this counter is incremented to make SQL thread or
     STOP/START slave not try to start new activity while that operation
@@ -357,6 +375,7 @@ struct rpl_parallel_entry {
   */
   uint32 need_sub_id_signal;
   uint64 last_commit_id;
+  uint32 pending_start_alters;
   bool active;
   /*
     Set when SQL thread is shutting down, and no more events can be processed,
@@ -458,12 +477,17 @@ struct rpl_parallel_entry {
   uint64 count_committing_event_groups;
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
+  /* Relay log info of replication source for this entry. */
+  Relay_log_info *rli;
 
   void check_scheduling_generation(sched_bucket *cur);
   sched_bucket *check_xa_xid_dependency(xid_t *xid);
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,
                                       Gtid_log_event *gtid_ev);
+  rpl_parallel_thread *
+  choose_thread_internal(sched_bucket *cur_thr, bool *did_enter_cond,
+                         rpl_group_info *rgi, PSI_stage_info *old_stage);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
   /*
@@ -481,7 +505,7 @@ struct rpl_parallel {
   rpl_parallel();
   ~rpl_parallel();
   void reset();
-  rpl_parallel_entry *find(uint32 domain_id);
+  rpl_parallel_entry *find(uint32 domain_id, Relay_log_info *rli);
   void wait_for_done(THD *thd, Relay_log_info *rli);
   void stop_during_until();
   int wait_for_workers_idle(THD *thd);

@@ -34,7 +34,7 @@ int mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock);
 int mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag);
 int mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table);
 bool mysql_lock_abort_for_thread(THD *thd, TABLE *table);
-MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b);
+MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a, MYSQL_LOCK *b, THD *thd= NULL);
 /* Lock based on name */
 bool lock_schema_name(THD *thd, const char *db);
 /* Lock based on stored routine name */

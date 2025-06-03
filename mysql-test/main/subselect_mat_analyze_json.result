@@ -9,24 +9,32 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100,
-      "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2))"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100,
+          "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2))"
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 2,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -37,23 +45,30 @@ EXPLAIN
 analyze format=json select * from t1 where a in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 25,
-      "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2))"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 25,
+          "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2))"
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -63,18 +78,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -85,23 +104,30 @@ ANALYZE
 analyze format=json select * from t1 where a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 50,
-      "attached_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 50,
+          "attached_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))"
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -113,18 +139,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -135,6 +165,9 @@ ANALYZE
 analyze format=json select a from t1 group by a in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -148,18 +181,22 @@ ANALYZE
       "r_buffer_size": "REPLACED",
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 4,
-          "r_rows": 4,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 4,
+              "r_rows": 4,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ],
         "subqueries": [
           {
             "materialization": {
@@ -171,18 +208,22 @@ ANALYZE
                 "select_id": 2,
                 "r_loops": 1,
                 "r_total_time_ms": "REPLACED",
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "r_loops": 1,
-                  "rows": 2,
-                  "r_rows": 2,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
-                  "r_engine_stats": REPLACED,
-                  "filtered": 100,
-                  "r_filtered": 100
-                }
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "r_loops": 1,
+                      "rows": 2,
+                      "r_rows": 2,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_filtered": 100
+                    }
+                  }
+                ]
               }
             }
           }
@@ -194,6 +235,9 @@ ANALYZE
 analyze format=json select a from t1 group by a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
@@ -207,18 +251,22 @@ ANALYZE
       "r_buffer_size": "REPLACED",
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 4,
-          "r_rows": 4,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 4,
+              "r_rows": 4,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ],
         "subqueries": [
           {
             "materialization": {
@@ -230,6 +278,82 @@ ANALYZE
                 "select_id": 2,
                 "r_loops": 1,
                 "r_total_time_ms": "REPLACED",
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "r_loops": 1,
+                      "rows": 2,
+                      "r_rows": 2,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_filtered": 100
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+# Subselect in ORDER BY
+analyze format=json select a from t1 order by a in (select b from t2);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 4,
+          "filesort": {
+            "sort_key": "<in_optimizer>(t1.a,t1.a in (subquery#2))",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 4,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 4,
+              "r_rows": 4,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 4,
+          "r_index_lookups": 3,
+          "r_partial_matches": 1,
+          "query_block": {
+            "select_id": 2,
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "nested_loop": [
+              {
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
@@ -243,31 +367,27 @@ ANALYZE
                   "r_filtered": 100
                 }
               }
-            }
+            ]
           }
-        ]
+        }
       }
-    }
+    ]
   }
 }
-# Subselect in ORDER BY
-analyze format=json select a from t1 order by a in (select b from t2);
+# Subselect in HAVING
+analyze format=json select a from t1 having a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 4,
-      "filesort": {
-        "sort_key": "<in_optimizer>(t1.a,t1.a in (subquery#2))",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 4,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,addon_fields",
+    "having_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))",
+    "nested_loop": [
+      {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
@@ -281,7 +401,7 @@ ANALYZE
           "r_filtered": 100
         }
       }
-    },
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -293,68 +413,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
-          }
-        }
-      }
-    ]
-  }
-}
-# Subselect in HAVING
-analyze format=json select a from t1 having a not in (select b from t2);
-ANALYZE
-{
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "having_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "subqueries": [
-      {
-        "materialization": {
-          "r_strategy": "null-aware index_lookup",
-          "r_loops": 4,
-          "r_index_lookups": 3,
-          "r_partial_matches": 1,
-          "query_block": {
-            "select_id": 2,
-            "r_loops": 1,
-            "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -365,23 +439,30 @@ ANALYZE
 analyze format=json select a from t1 where a in (select a from t1 where a in (select b from t2));
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 25,
-      "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2))"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 25,
+          "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#2))"
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -391,19 +472,23 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 25,
-              "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#3))"
-            },
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 25,
+                  "attached_condition": "<in_optimizer>(t1.a,t1.a in (subquery#3))"
+                }
+              }
+            ],
             "subqueries": [
               {
                 "materialization": {
@@ -413,18 +498,22 @@ ANALYZE
                     "select_id": 3,
                     "r_loops": 1,
                     "r_total_time_ms": "REPLACED",
-                    "table": {
-                      "table_name": "t2",
-                      "access_type": "ALL",
-                      "r_loops": 1,
-                      "rows": 2,
-                      "r_rows": 2,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
-                      "r_engine_stats": REPLACED,
-                      "filtered": 100,
-                      "r_filtered": 100
-                    }
+                    "nested_loop": [
+                      {
+                        "table": {
+                          "table_name": "t2",
+                          "access_type": "ALL",
+                          "r_loops": 1,
+                          "rows": 2,
+                          "r_rows": 2,
+                          "r_table_time_ms": "REPLACED",
+                          "r_other_time_ms": "REPLACED",
+                          "r_engine_stats": REPLACED,
+                          "filtered": 100,
+                          "r_filtered": 100
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -441,46 +530,55 @@ insert into t3 (c) values (3), (null), (4);
 analyze format=json select a from t1 left join t2 on a not in (select c from t3);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 2,
-        "r_rows": 2,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "87",
-      "join_type": "BNL",
-      "attached_condition": "trigcond(trigcond(!<in_optimizer>(t1.a,t1.a in (subquery#2))))",
-      "r_loops": 4,
-      "r_filtered": 50,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 2
-    },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 2,
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "87",
+          "join_type": "BNL",
+          "attached_condition": "trigcond(trigcond(!<in_optimizer>(t1.a,t1.a in (subquery#2))))",
+          "r_loops": 4,
+          "r_filtered": 50,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 2
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -491,18 +589,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 3,
-              "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 3,
+                  "r_rows": 3,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -515,22 +617,29 @@ select (b, b + 1, b + 2) not in
 from t2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -542,30 +651,34 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "read_sorted_file": {
-              "r_rows": 4,
-              "filesort": {
-                "sort_key": "t1.a + 1, t1.a + 2",
-                "r_loops": 1,
-                "r_total_time_ms": "REPLACED",
-                "r_used_priority_queue": false,
-                "r_output_rows": 4,
-                "r_buffer_size": "REPLACED",
-                "r_sort_mode": "sort_key,addon_fields",
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ALL",
-                  "r_loops": 1,
-                  "rows": 4,
+            "nested_loop": [
+              {
+                "read_sorted_file": {
                   "r_rows": 4,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
-                  "r_engine_stats": REPLACED,
-                  "filtered": 100,
-                  "r_filtered": 100
+                  "filesort": {
+                    "sort_key": "t1.a + 1, t1.a + 2",
+                    "r_loops": 1,
+                    "r_total_time_ms": "REPLACED",
+                    "r_used_priority_queue": false,
+                    "r_output_rows": 4,
+                    "r_buffer_size": "REPLACED",
+                    "r_sort_mode": "sort_key,addon_fields",
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "r_loops": 1,
+                      "rows": 4,
+                      "r_rows": 4,
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_filtered": 100
+                    }
+                  }
                 }
               }
-            }
+            ]
           }
         }
       }
@@ -588,23 +701,31 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "const_condition": "!<in_optimizer>((NULL,'b'),(NULL,'b') in (subquery#2))",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 4,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 4,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -614,21 +735,28 @@ EXPLAIN
 analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "!<in_optimizer>((NULL,'b'),(NULL,'b') in (subquery#2))",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -641,18 +769,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -664,21 +796,28 @@ set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=o
 analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "!<in_optimizer>((NULL,'b'),(NULL,'b') in (subquery#2))",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -689,18 +828,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -713,23 +856,31 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "rows": 1,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 4,
-              "filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 4,
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -739,20 +890,27 @@ EXPLAIN
 analyze format=json select t1.*, (a1, a2) in (select * from t2) as in_res from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -763,18 +921,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -784,20 +946,27 @@ ANALYZE
 analyze format=json select t1.*, (a1, a2) not in (select * from t2) as in_res from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -808,18 +977,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -830,20 +1003,27 @@ set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=of
 analyze format=json select t1.*, (a1, a2) in (select * from t2) as in_res from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -856,18 +1036,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -877,20 +1061,27 @@ ANALYZE
 analyze format=json select t1.*, (a1, a2) not in (select * from t2) as in_res from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "system",
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "system",
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": null
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -903,18 +1094,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }

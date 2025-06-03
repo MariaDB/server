@@ -1,0 +1,134 @@
+--echo #
+--echo # MDEV-27228 Deprecate Spider plugin variables that result in excessive tweak
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--echo # MDEV-28297 Deprecate spider_internal_offset
+SET spider_internal_offset = 1;
+SHOW VARIABLES LIKE "spider_internal_offset";
+
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='ios "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='internal_offset "1"';
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-27981 Deprecate spider_internal_limit 
+SET spider_internal_limit = 1;
+SHOW VARIABLES LIKE "spider_internal_limit";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='ilm "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='internal_limit "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-28244 Deprecate spider_xa_register_mode
+SET spider_xa_register_mode = 0;
+SHOW VARIABLES LIKE "spider_xa_register_mode";
+
+--echo # MDEV-28007 Deprecate Spider plugin variables regarding statistics persistence
+SET GLOBAL spider_store_last_sts = 0;
+SHOW VARIABLES LIKE "spider_store_last_sts";
+
+SET GLOBAL spider_store_last_crd = 0;
+SHOW VARIABLES LIKE "spider_store_last_crd";
+
+SET GLOBAL spider_load_sts_at_startup = 0;
+SHOW VARIABLES LIKE "spider_load_sts_at_startup";
+
+SET GLOBAL spider_load_crd_at_startup = 0;
+SHOW VARIABLES LIKE "spider_load_crd_at_startup";
+
+--echo # MDEV-28008 Deprecate spider_crd_mode and spider_sts_mode
+SET spider_crd_mode = 1;
+SHOW VARIABLES LIKE "spider_crd_mode";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='cmd "3"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_mode "3"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+SET spider_sts_mode = 1;
+SHOW VARIABLES LIKE "spider_sts_mode";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='smd "3"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='sts_mode "3"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-28010 Deprecate spider_crd_type and spider_crd_weight
+SET spider_crd_type = 1;
+SHOW VARIABLES LIKE "spider_crd_type";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='ctp "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_type "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+SET spider_crd_weight = 1;
+SHOW VARIABLES LIKE "spider_crd_weight";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='cwg "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='crd_weight "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-28560 Deprecate spider_buffer_size
+SET spider_buffer_size = 1;
+SHOW VARIABLES LIKE "spider_buffer_size";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='bfz "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='buffer_size "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-27926 Deprecate spider_init_sql_alloc_size
+SET spider_init_sql_alloc_size = 1;
+SHOW VARIABLES LIKE "spider_init_sql_alloc_size";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='isa "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='init_sql_alloc_size "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-28829 Deprecate spider_semi_table_lock and spider_semi_table_lock_connection
+SET spider_semi_table_lock = 1;
+SHOW VARIABLES LIKE "spider_semi_table_lock";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='stl "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='semi_table_lock "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+SET spider_semi_table_lock_connection = 0;
+SHOW VARIABLES LIKE "spider_semi_table_lock_connection";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='stc "0"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='semi_table_lock_connection "0"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+--echo # MDEV-28795 Deprecate spider_bka_table_name_type
+SET spider_bka_table_name_type = 1;
+SHOW VARIABLES LIKE "spider_bka_table_name_type";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='btt "1"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='bka_table_name_type "1"';
+
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log

@@ -1,0 +1,58 @@
+set names utf8;
+
+create table t1 (json json);
+show create table t1;
+
+
+insert into t1 values
+('{  }'),
+('[  ]'),
+('{ "foo" : "bar" }'),
+('{ "foo" : "bar", "baz" : "whatever" }'),
+('[ 1.2, 0.0, "text", 0, null, true, false ]'),
+('[ "string", { "key" : "val", "a" : "b", "c" : [ 10, 9, 8, "seven", 11 ] }]'),
+('{ "ăț€": "val1", "âț€":"val2" }');
+
+select json, json_normalize(json) from t1
+order by json;
+
+
+create view v1 as (select json, json_normalize(json) norm_json from t1);
+show create view v1;
+
+select * from v1
+order by json;
+
+select json_normalize(NULL);
+select json_normalize('{ "invalid": "no_close"');
+
+drop table t1;
+drop view v1;
+
+create table t1 (text varchar(200) character set 'latin1');
+insert into t1 values (unhex('22E522'));
+
+create table t2 (text varchar(200) character set 'utf8mb4');
+insert into t2 SELECT * FROM t1;
+
+select t1.text, hex(t1.text) from t1;
+select t2.text, hex(t2.text) from t2;
+
+select t1.text
+     , t2.text
+     , replace(json_normalize(t1.text), unhex('C3A5'), unhex('C385'))
+     , replace(json_normalize(t2.text), unhex('C3A5'), unhex('C385'))
+     , hex(replace(json_normalize(t1.text), unhex('C3A5'), unhex('C385')))
+     , hex(replace(json_normalize(t2.text), unhex('C3A5'), unhex('C385')))
+from t1, t2;
+
+drop table t1;
+drop table t2;
+
+create table t1 (text varchar(1));
+insert into t1 values ('0');
+
+select concat_ws(' ', t1.text, t1.text) from t1;
+select concat_ws(' ', json_normalize(t1.text), json_normalize(t1.text)) from t1;
+
+drop table t1;

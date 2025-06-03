@@ -290,7 +290,6 @@ SPIDER_CONN *spider_tree_delete(
   SPIDER_CONN *top
 );
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_set_conn_bg_param(
   ha_spider *spider
 );
@@ -387,7 +386,6 @@ void spider_free_mon_threads(
 void *spider_bg_mon_action(
   void *arg
 );
-#endif
 
 int spider_conn_first_link_idx(
   THD *thd,
@@ -428,18 +426,6 @@ int spider_conn_lock_mode(
 
 bool spider_conn_check_recovery_link(
   SPIDER_SHARE *share
-);
-
-bool spider_conn_use_handler(
-  ha_spider *spider,
-  int lock_mode,
-  int link_idx
-);
-
-bool spider_conn_need_open_handler(
-  ha_spider *spider,
-  uint idx,
-  int link_idx
 );
 
 SPIDER_IP_PORT_CONN *spider_create_ipport_conn(SPIDER_CONN *conn);

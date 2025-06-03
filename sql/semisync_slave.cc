@@ -64,7 +64,7 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
 
   if (get_slave_enabled())
   {
-    if (DBUG_EVALUATE_IF("semislave_corrupt_log", 0, 1)
+    if (!DBUG_IF("semislave_corrupt_log")
         && header[0] == k_packet_magic_num)
     {
       bool semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
@@ -141,7 +141,7 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     DBUG_ASSERT(!debug_sync_set_action(mi->io_thd, STRING_WITH_LEN(act)));
   };);
 #endif
-    kill_connection(mi->mysql);
+    kill_connection(mi);
   }
 
   set_slave_enabled(0);
@@ -158,8 +158,9 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
 }
 
 
-void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
+void Repl_semi_sync_slave::kill_connection(Master_info *mi)
 {
+  MYSQL *mysql= mi->mysql;
   if (!mysql)
     return;
 
@@ -168,13 +169,13 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   size_t kill_buffer_length;
 
   kill_mysql = mysql_init(kill_mysql);
-  mysql_options(kill_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &m_kill_conn_timeout);
-  mysql_options(kill_mysql, MYSQL_OPT_READ_TIMEOUT, &m_kill_conn_timeout);
+
+  setup_mysql_connection_for_master(kill_mysql, mi, m_kill_conn_timeout);
   mysql_options(kill_mysql, MYSQL_OPT_WRITE_TIMEOUT, &m_kill_conn_timeout);
 
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
             mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));
-  if (DBUG_EVALUATE_IF("semisync_slave_failed_kill", 1, 0) || ret)
+  if (DBUG_IF("semisync_slave_failed_kill") || ret)
   {
     sql_print_information("cannot connect to master to kill slave io_thread's "
                           "connection");
@@ -227,8 +228,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
   }
 
   row= mysql_fetch_row(res);
-  if (DBUG_EVALUATE_IF("master_not_support_semisync", 1, 0)
-      || (!row || ! row[1]))
+  if (DBUG_IF("master_not_support_semisync") || (!row || ! row[1]))
   {
     /* Master does not support semi-sync */
     if (!row)
@@ -300,8 +300,7 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
                            name_len + REPLY_BINLOG_NAME_OFFSET);
   if (!reply_res)
   {
-    reply_res= DBUG_EVALUATE_IF("semislave_failed_net_flush", 1,
-                                net_flush(net));
+    reply_res= DBUG_IF("semislave_failed_net_flush") || net_flush(net);
     if (!reply_res)
       rpl_semi_sync_slave_send_ack++;
   }

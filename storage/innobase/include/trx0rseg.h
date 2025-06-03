@@ -281,7 +281,10 @@ which corresponds to the transaction just being committed.
 In a replication slave, this updates the master binlog position
 up to which replication has proceeded.
 @param[in,out]	rseg_header	rollback segment header
-@param[in]	trx		committing transaction
+@param[in]	log_file_name	binlog file name
+@param[in]	log_offset	binlog offset value
 @param[in,out]	mtr		mini-transaction */
-void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
+void trx_rseg_update_binlog_offset(buf_block_t *rseg_header,
+                                   const char *log_file_name,
+                                   ulonglong log_offset,
                                    mtr_t *mtr);

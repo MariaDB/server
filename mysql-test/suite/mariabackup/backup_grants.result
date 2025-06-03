@@ -12,11 +12,6 @@ GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 NOT FOUND /missing required privilege/ in backup.log
 NOT FOUND /xyz/ in xtrabackup_info
 REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
-NOT FOUND /xyz/ in xtrabackup_info
-FOUND 1 /missing required privilege CONNECTION ADMIN/ in backup.log
-GRANT CONNECTION ADMIN ON *.* TO backup@localhost;
-NOT FOUND /missing required privilege/ in backup.log
-NOT FOUND /xyz/ in xtrabackup_info
 FOUND 1 /missing required privilege REPLICATION SLAVE ADMIN/ in backup.log
 FOUND 1 /missing required privilege SLAVE MONITOR/ in backup.log
 GRANT REPLICATION SLAVE ADMIN ON *.* TO backup@localhost;

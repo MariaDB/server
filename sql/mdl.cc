@@ -2129,6 +2129,8 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
   if (lock->can_grant_lock(mdl_request->type, this, false))
   {
+    if (metadata_lock_info_plugin_loaded)
+      ticket->m_time= microsecond_interval_timer();
     lock->m_granted.add_ticket(ticket);
 
     mysql_prlock_unlock(&lock->m_rwlock);
@@ -2200,6 +2202,7 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
   DBUG_ASSERT(mdl_request->ticket->has_stronger_or_equal_type(ticket->m_type));
 
   ticket->m_lock= mdl_request->ticket->m_lock;
+  ticket->m_time= mdl_request->ticket->m_time;
   mdl_request->ticket= ticket;
 
   mysql_prlock_wrlock(&ticket->m_lock->m_rwlock);
@@ -2243,8 +2246,8 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
 
       /*
         If the conflicting thread is another parallel replication
-        thread for the same master and it's not in commit stage, then
-        the current transaction has started too early and something is
+        thread for the same master and it's not in commit or post-commit stages,
+        then the current transaction has started too early and something is
         seriously wrong.
       */
       if (conflicting_rgi_slave &&
@@ -2252,7 +2255,9 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
           conflicting_rgi_slave->rli == rgi_slave->rli &&
           conflicting_rgi_slave->current_gtid.domain_id ==
           rgi_slave->current_gtid.domain_id &&
-          !conflicting_rgi_slave->did_mark_start_commit)
+          !((conflicting_rgi_slave->did_mark_start_commit ||
+             conflicting_rgi_slave->worker_error)           ||
+            conflicting_rgi_slave->finish_event_group_called))
         return 1;                               // Fatal error
     }
   }
@@ -2327,6 +2332,22 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     DBUG_RETURN(TRUE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP(get_thd()))
+  {
+    THD* requester= get_thd();
+    bool requester_toi= wsrep_thd_is_toi(requester) || wsrep_thd_is_applying(requester);
+    WSREP_DEBUG("::acquire_lock is TOI %d for %s", requester_toi,
+                wsrep_thd_query(requester));
+    if (requester_toi)
+      THD_STAGE_INFO(requester, stage_waiting_ddl);
+    else
+      THD_STAGE_INFO(requester, stage_waiting_isolation);
+  }
+#endif /* WITH_WSREP */
+
+  if (metadata_lock_info_plugin_loaded)
+    ticket->m_time= microsecond_interval_timer();
   lock->m_waiting.add_ticket(ticket);
 
   /*

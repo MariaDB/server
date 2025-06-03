@@ -13,7 +13,6 @@ CREATE TABLE t1 (a INT PRIMARY KEY);
 SET sql_log_bin= 0;
 INSERT INTO t1 VALUES (1);
 SET sql_log_bin= 1;
-CHANGE MASTER TO master_use_gtid= current_pos;
 
 --connection master
 

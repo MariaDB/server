@@ -59,12 +59,14 @@ int spider_udf_set_copy_tables_param_default(
     }
   }
 
+  if (copy_tables->bulk_insert_interval == -1)
+    copy_tables->bulk_insert_interval = 10;
+  if (copy_tables->bulk_insert_rows == -1)
+    copy_tables->bulk_insert_rows = 100;
   if (copy_tables->use_transaction == -1)
     copy_tables->use_transaction = 1;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (copy_tables->bg_mode == -1)
     copy_tables->bg_mode = 0;
-#endif
   DBUG_RETURN(0);
 }
 
@@ -136,9 +138,7 @@ static void spider_minus_1(SPIDER_COPY_TABLES *copy_tables)
   copy_tables->bulk_insert_rows = -1;
   copy_tables->use_table_charset = -1;
   copy_tables->use_transaction = -1;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   copy_tables->bg_mode = -1;
-#endif
 }
 
 int spider_udf_parse_copy_tables_param(
@@ -183,9 +183,7 @@ int spider_udf_parse_copy_tables_param(
         error_num= parse.fail(true);
         goto error;
       case 3:
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         SPIDER_PARAM_INT_WITH_MAX("bgm", bg_mode, 0, 1);
-#endif
         SPIDER_PARAM_INT("bii", bulk_insert_interval, 0);
         SPIDER_PARAM_LONGLONG("bir", bulk_insert_rows, 1);
         SPIDER_PARAM_STR("dtb", database);
@@ -193,12 +191,10 @@ int spider_udf_parse_copy_tables_param(
         SPIDER_PARAM_INT_WITH_MAX("utr", use_transaction, 0, 1);
         error_num= parse.fail(true);
         goto error;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       case 7:
         SPIDER_PARAM_INT_WITH_MAX("bg_mode", bg_mode, 0, 1);
         error_num= parse.fail(true);
         goto error;
-#endif
       case 8:
         SPIDER_PARAM_STR("database", database);
         error_num= parse.fail(true);
@@ -315,10 +311,8 @@ int spider_udf_get_copy_tgt_tables(
     if (
       (error_num = spider_set_connect_info_default(
         tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         NULL,
         NULL,
-#endif
         NULL
       )) ||
       (error_num = spider_set_connect_info_default_db_table(
@@ -679,7 +673,6 @@ int spider_udf_copy_tables_create_table_list(
   DBUG_RETURN(0);
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_udf_bg_copy_exec_sql(
   SPIDER_COPY_TABLE_CONN *table_conn
 ) {
@@ -708,7 +701,6 @@ int spider_udf_bg_copy_exec_sql(
   conn->bg_caller_sync_wait = FALSE;
   DBUG_RETURN(0);
 }
-#endif
 
 long long spider_copy_tables_body(
   UDF_INIT *initid,
@@ -865,6 +857,7 @@ long long spider_copy_tables_body(
   copy_tables->trx->trx_start = TRUE;
   copy_tables->trx->updated_in_this_trx = FALSE;
   DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
+
     MDL_REQUEST_INIT(&table_list->mdl_request,
     MDL_key::TABLE,
     SPIDER_TABLE_LIST_db_str(table_list),
@@ -908,8 +901,7 @@ long long spider_copy_tables_body(
   else
     copy_tables->access_charset = system_charset_info;
 
-  bulk_insert_rows = spider_param_udf_ct_bulk_insert_rows(
-    copy_tables->bulk_insert_rows);
+  bulk_insert_rows= copy_tables->bulk_insert_rows;
   for (src_tbl_conn = copy_tables->table_conn[0]; src_tbl_conn;
     src_tbl_conn = src_tbl_conn->next)
   {

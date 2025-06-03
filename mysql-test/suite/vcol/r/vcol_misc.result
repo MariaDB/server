@@ -403,7 +403,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` timestamp GENERATED ALWAYS AS (cast(`a` as datetime)) VIRTUAL,
-  `c` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+  `c` timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #

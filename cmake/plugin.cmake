@@ -214,6 +214,11 @@ MACRO(MYSQL_ADD_PLUGIN)
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
 
+    IF(WIN32)
+      # A popular library, turns out many plugins need it for gethostname()
+      TARGET_LINK_LIBRARIES (${target} ws2_32)
+    ENDIF()
+
     IF(CMAKE_SYSTEM_NAME MATCHES AIX)
       TARGET_LINK_OPTIONS(${target} PRIVATE "-Wl,-bE:${CMAKE_SOURCE_DIR}/libservices/mysqlservices_aix.def")
     ENDIF()

@@ -390,7 +390,7 @@ Rdb_key_def::~Rdb_key_def() {
   m_pack_info = nullptr;
 }
 
-void Rdb_key_def::setup(const TABLE *const tbl,
+uint Rdb_key_def::setup(const TABLE *const tbl,
                         const Rdb_tbl_def *const tbl_def) {
   DBUG_ASSERT(tbl != nullptr);
   DBUG_ASSERT(tbl_def != nullptr);
@@ -406,7 +406,7 @@ void Rdb_key_def::setup(const TABLE *const tbl,
     RDB_MUTEX_LOCK_CHECK(m_mutex);
     if (m_maxlength != 0) {
       RDB_MUTEX_UNLOCK_CHECK(m_mutex);
-      return;
+      return HA_EXIT_SUCCESS;
     }
 
     KEY *key_info = nullptr;
@@ -487,6 +487,14 @@ void Rdb_key_def::setup(const TABLE *const tbl,
       /* this loop also loops over the 'extended key' tail */
       for (uint src_i = 0; src_i < m_key_parts; src_i++, keypart_to_set++) {
         Field *const field = key_part ? key_part->field : nullptr;
+
+        if (key_part && key_part->key_part_flag & HA_REVERSE_SORT)
+        {
+          my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+                   "ROCKSDB", "DESC");
+          RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+          return HA_EXIT_FAILURE;
+        }
 
         if (simulating_extkey && !hidden_pk_exists) {
           DBUG_ASSERT(secondary_key);
@@ -591,6 +599,7 @@ void Rdb_key_def::setup(const TABLE *const tbl,
 
     RDB_MUTEX_UNLOCK_CHECK(m_mutex);
   }
+  return HA_EXIT_SUCCESS;
 }
 
 /*
@@ -1102,12 +1111,12 @@ size_t Rdb_key_def::get_unpack_header_size(char tag) {
  */
 void Rdb_key_def::get_lookup_bitmap(const TABLE *table, MY_BITMAP *map) const {
   DBUG_ASSERT(map->bitmap == nullptr);
-  my_bitmap_init(map, nullptr, MAX_REF_PARTS, false);
+  my_bitmap_init(map, nullptr, MAX_REF_PARTS);
   uint curr_bitmap_pos = 0;
 
   // Indicates which columns in the read set might be covered.
   MY_BITMAP maybe_covered_bitmap;
-  my_bitmap_init(&maybe_covered_bitmap, nullptr, table->read_set->n_bits, false);
+  my_bitmap_init(&maybe_covered_bitmap, nullptr, table->read_set->n_bits);
 
   for (uint i = 0; i < m_key_parts; i++) {
     if (table_has_hidden_pk(table) && i + 1 == m_key_parts) {
@@ -1187,7 +1196,7 @@ bool Rdb_key_def::covers_lookup(const rocksdb::Slice *const unpack_info,
 
   MY_BITMAP covered_bitmap;
   my_bitmap_map covered_bits;
-  my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS, false);
+  my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS);
   covered_bits = rdb_netbuf_to_uint16((const uchar *)unpack_header +
                                       sizeof(RDB_UNPACK_COVERED_DATA_TAG) +
                                       RDB_UNPACK_COVERED_DATA_LEN_SIZE);
@@ -1356,7 +1365,7 @@ uint Rdb_key_def::pack_record(const TABLE *const tbl, uchar *const pack_buffer,
   MY_BITMAP covered_bitmap;
   my_bitmap_map covered_bits;
   uint curr_bitmap_pos = 0;
-  my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS, false);
+  my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS);
 
   for (uint i = 0; i < n_key_parts; i++) {
     // Fill hidden pk id into the last key part for secondary keys for tables
@@ -1661,7 +1670,7 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
   bool has_covered_bitmap =
       has_unpack_info && (unpack_header[0] == RDB_UNPACK_COVERED_DATA_TAG);
   if (has_covered_bitmap) {
-    my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS, false);
+    my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS);
     covered_bits = rdb_netbuf_to_uint16((const uchar *)unpack_header +
                                         sizeof(RDB_UNPACK_COVERED_DATA_TAG) +
                                         RDB_UNPACK_COVERED_DATA_LEN_SIZE);
@@ -3852,7 +3861,7 @@ bool Rdb_validate_tbls::scan_for_frms(const std::string &datadir,
 
   /* Scan through the files in the directory */
   struct fileinfo *file_info = dir_info->dir_entry;
-  for (uint ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
+  for (size_t ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
     /* Find .frm files that are not temp files (those that contain '#sql') */
     const char *ext = strrchr(file_info->name, '.');
     if (ext != nullptr && strstr(file_info->name, tmp_file_prefix) == nullptr &&
@@ -3897,7 +3906,7 @@ bool Rdb_validate_tbls::compare_to_actual_tables(const std::string &datadir,
   }
 
   file_info = dir_info->dir_entry;
-  for (uint ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
+  for (size_t ii = 0; ii < dir_info->number_of_files; ii++, file_info++) {
     /* Ignore files/dirs starting with '.' */
     if (file_info->name[0] == '.') continue;
 

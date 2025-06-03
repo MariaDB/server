@@ -107,6 +107,7 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 extra/pcre2
+extra/libfmt
 plugin/auth_pam/auth_pam_tool
 plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
@@ -186,6 +187,7 @@ sql-bench/innotest1b.pl
 sql-bench/innotest2.pl
 sql-bench/innotest2a.pl
 sql-bench/innotest2b.pl
+sql-bench/output
 sql-bench/run-all-tests.pl
 sql-bench/server-cfg.pl
 sql-bench/test-ATIS.pl
@@ -240,7 +242,6 @@ storage/perfschema/pfs_config.h
 storage/rocksdb/ldb
 storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
-storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/rdb_source_revision.h
 storage/rocksdb/sst_dump
 strings/conf_to_src
@@ -257,12 +258,13 @@ support-files/mariadb-extra.socket
 support-files/mariadb@.service
 support-files/mariadb@.socket
 support-files/mariadb-extra@.socket
+support-files/mini-benchmark
 support-files/my-huge.cnf
 support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf
 support-files/my-medium.cnf
 support-files/my-small.cnf
-support-files/mysql-log-rotate
+support-files/mariadb.logrotate
 support-files/mysql.10.0.11.spec
 support-files/mysql.server
 support-files/mysql.service
@@ -615,6 +617,8 @@ scripts/mariadb-setpermission
 sql/mariadbd
 sql/mariadb-tzinfo-to-sql
 storage/rocksdb/mariadb-ldb
+strings/ctype-uca1400data.h
+strings/uca-dump
 tests/mariadb-client-test
 versioninfo_dll.rc
 versioninfo_exe.rc

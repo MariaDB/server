@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -340,9 +340,7 @@ The database to use\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/mysql\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysql.trace'.
 .RE
 .sp
 .RS 4
@@ -884,7 +882,7 @@ Directory for client-side plugins\&.
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
-The TCP/IP port number to use for the connection or 0 for default to, in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&. 
+The TCP/IP port number to use for the connection or 0 for default to, in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
 Forces --protocol=tcp when specified on the command line without other connection properties\&.
 .RE
 .sp
@@ -1238,7 +1236,7 @@ Forces --protocol=socket when specified on the command line without other connec
 .\" SSL options: mysql
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp
@@ -1529,9 +1527,9 @@ The XML output also uses an XML namespace, as shown here:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-\-xml \-uroot \-e "SHOW VARIABLES LIKE \'version%\'"\fR
+shell> \fBmysql \-\-xml \-uroot \-e "SHOW VARIABLES LIKE 'version%'"\fR
 <?xml version="1\&.0"?>
-<resultset statement="SHOW VARIABLES LIKE \'version%\'" xmlns:xsi="http://www\&.w3\&.org/2001/XMLSchema\-instance">
+<resultset statement="SHOW VARIABLES LIKE 'version%'" xmlns:xsi="http://www\&.w3\&.org/2001/XMLSchema\-instance">
 <row>
 <field name="Variable_name">version</field>
 <field name="Value">5\&.0\&.40\-debug</field>
@@ -1665,7 +1663,7 @@ if it exists, and then use either of the following techniques:
 Set the
 MYSQL_HISTFILE
 variable to
-/dev/null\&. To cause this setting to take effect each time you log in, put the setting in one of your shell\'s startup files\&.
+/dev/null\&. To cause this setting to take effect each time you log in, put the setting in one of your shell's startup files\&.
 .RE
 .sp
 .RS 4
@@ -1713,8 +1711,8 @@ prompt:
 .nf
 mysql> \fBhelp\fR
 List of all MySQL commands:
-Note that all text commands must be first on line and end with \';\'
-?         (\e?) Synonym for `help\'\&.
+Note that all text commands must be first on line and end with ';'
+?         (\e?) Synonym for 'help'\&.
 clear     (\ec) Clear command\&.
 connect   (\er) Reconnect to the server\&. Optional arguments are db and host\&.
 delimiter (\ed) Set statement delimiter\&.
@@ -1724,7 +1722,7 @@ exit      (\eq) Exit mysql\&. Same as quit\&.
 go        (\eg) Send command to mysql server\&.
 help      (\eh) Display this help\&.
 nopager   (\en) Disable pager, print to stdout\&.
-notee     (\et) Don\'t write into outfile\&.
+notee     (\et) Don't write into outfile\&.
 pager     (\eP) Set PAGER [to_pager]\&. Print the query results via PAGER\&.
 print     (\ep) Print current command\&.
 prompt    (\eR) Change your mysql prompt\&.
@@ -1739,8 +1737,8 @@ use       (\eu) Use another database\&. Takes database name as argument\&.
 charset   (\eC) Switch to another charset\&. Might be needed for processing
                binlog with multi\-byte charsets\&.
 warnings  (\eW) Show warnings after every statement\&.
-nowarning (\ew) Don\'t show warnings after every statement\&.
-For server side help, type \'help contents\'
+nowarning (\ew) Don't show warnings after every statement\&.
+For server side help, type 'help contents'
 .fi
 .if n \{\
 .RE
@@ -1848,7 +1846,7 @@ Change the string that
 \fBmysql\fR
 interprets as the separator between SQL statements\&. The default is the semicolon character (\(lq;\(rq)\&.
 .sp
-The delimiter can be specified as an unquoted or quoted argument\&. Quoting can be done with either single quote (\') or douple quote (") characters\&. To include a quote within a quoted string, either quote the string with the other quote character or escape the quote with a backslash (\(lq\e\(rq) character\&. Backslash should be avoided outside of quoted strings because it is the escape character for MariaDB\&. For an unquoted argument, the delmiter is read up to the first space or end of line\&. For a quoted argument, the delimiter is read up to the matching quote on the line\&.
+The delimiter can be specified as an unquoted or quoted argument\&. Quoting can be done with either single quote (') or douple quote (") characters\&. To include a quote within a quoted string, either quote the string with the other quote character or escape the quote with a backslash (\(lq\e\(rq) character\&. Backslash should be avoided outside of quoted strings because it is the escape character for MariaDB\&. For an unquoted argument, the delmiter is read up to the first space or end of line\&. For a quoted argument, the delimiter is read up to the matching quote on the line\&.
 .sp
 When the delimiter recognized by
 \fBmysql\fR
@@ -2556,7 +2554,7 @@ T}:T{
 A space (a space follows the backslash)
 T}
 T{
-\e\'
+\e'
 T}:T{
 Single quote
 T}
@@ -2702,7 +2700,7 @@ prompt
 .\}
 .nf
 mysql> \fBprompt (\eu@\eh) [\ed]>\e_\fR
-PROMPT set to \'(\eu@\eh) [\ed]>\e_\'
+PROMPT set to '(\eu@\eh) [\ed]>\e_'
 (\fIuser\fR@\fIhost\fR) [\fIdatabase\fR]>
 (\fIuser\fR@\fIhost\fR) [\fIdatabase\fR]> prompt
 Returning to default PROMPT of mysql>
@@ -2740,7 +2738,7 @@ If there is no match for the search string, the search fails:
 .nf
 mysql> \fBhelp me\fR
 Nothing found
-Please try to run \'help contents\' for a list of all accessible topics
+Please try to run 'help contents' for a list of all accessible topics
 .fi
 .if n \{\
 .RE
@@ -2756,7 +2754,7 @@ to see a list of the help categories:
 .nf
 mysql> \fBhelp contents\fR
 You asked for help about help category: "Contents"
-For more information, type \'help <item>\', where <item> is one of the
+For more information, type 'help <item>', where <item> is one of the
 following categories:
    Account Management
    Administration
@@ -2788,7 +2786,7 @@ shows a list of matching topics:
 .nf
 mysql> \fBhelp logs\fR
 Many help items for your request exist\&.
-To make a more specific request, please type \'help <item>\',
+To make a more specific request, please type 'help <item>',
 where <item> is one of the following topics:
    SHOW
    SHOW BINARY LOGS
@@ -2806,7 +2804,7 @@ Use a topic as the search string to see the help entry for that topic:
 .\}
 .nf
 mysql> \fBhelp show binary logs\fR
-Name: \'SHOW BINARY LOGS\'
+Name: 'SHOW BINARY LOGS'
 Description:
 Syntax:
 SHOW BINARY LOGS
@@ -2906,7 +2904,7 @@ Sometimes you may want your script to display progress information to the user\&
 .RS 4
 .\}
 .nf
-SELECT \'<info_to_display>\' AS \' \';
+SELECT '<info_to_display>' AS ' ';
 .fi
 .if n \{\
 .RE
@@ -2953,7 +2951,7 @@ mail_from: Monty
       sbj: UTF\-8
       txt: >>>>> "Thimble" == Thimble Smith writes:
 Thimble> Hi\&.  I think this is a good idea\&.  Is anyone familiar
-Thimble> with UTF\-8 or Unicode? Otherwise, I\'ll put this on my
+Thimble> with UTF\-8 or Unicode? Otherwise, I'll put this on my
 Thimble> TODO list and see what happens\&.
 Yes, please do that\&.
 Regards,

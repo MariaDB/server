@@ -558,7 +558,7 @@ SET time_zone=DEFAULT;
 --echo #
 
 SET time_zone='Europe/Moscow';
-CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP NOT NULL DEFAULT NOW());
 SET timestamp=1288477526  /* this is summer time */ ;
 INSERT INTO t1 VALUES (3,NULL);
 SET timestamp=1288477526+3599 /* this is winter time*/ ;
@@ -575,7 +575,7 @@ SET time_zone=DEFAULT;
 --echo #
 
 SET time_zone='Europe/Moscow';
-CREATE TABLE t1 (i INT, d TIMESTAMP(6));
+CREATE TABLE t1 (i INT, d TIMESTAMP(6) NOT NULL DEFAULT NOW());
 SET timestamp=1288479599.999999  /* this is the last second in summer time */ ;
 INSERT INTO t1 VALUES (1,NULL);
 SET timestamp=1288479600.000000 /* this is the first second in winter time */ ;

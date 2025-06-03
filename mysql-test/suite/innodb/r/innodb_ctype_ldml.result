@@ -402,6 +402,7 @@ utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
 utf8mb4_test_400_ci	utf8mb4	328			8
 utf8mb4_test_520_nopad_ci	utf8mb4	329			8
+utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4
 latin1_test	latin1	331			1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
@@ -438,6 +439,7 @@ ucs2_test_ci	ucs2	358			8
 utf8mb4_test_ci	utf8mb4	326			8
 utf8mb4_test_400_ci	utf8mb4	328			8
 utf8mb4_test_520_nopad_ci	utf8mb4	329			8
+utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4
 utf16_test_ci	utf16	327			8
 utf32_test_ci	utf32	391			8
 show collation like 'ucs2_vn_ci';

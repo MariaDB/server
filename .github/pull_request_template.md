@@ -26,8 +26,16 @@ An amazing description should answer some questions like:
 TODO: fill description here
 
 ## How can this PR be tested?
-TODO: fill steps to reproduce here, if applicable,
-      or remove the section
+
+TODO: modify the automated test suite to verify that the PR causes MariaDB to
+behave as intended. Consult the documentation on
+["Writing good test cases"](https://mariadb.org/get-involved/getting-started-for-developers/writing-good-test-cases-mariadb-server).
+In many cases, this will be as simple as modifying one `.test` and one `.result`
+file in the `mysql-test/` subdirectory. Without _automated_ tests, future regressions
+in the expected behavior can't be automatically detected and verified.
+
+If the changes are not amenable to automated testing, please explain why not and
+carefully describe how to test manually.
 
 <!--
 Tick one of the following boxes [x] to help us understand
@@ -47,4 +55,3 @@ You might consider answering some questions like:
 -->
 ## Backward compatibility
 TODO: fill details here, if applicable, or remove the section
-

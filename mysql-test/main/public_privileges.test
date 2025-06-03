@@ -1,0 +1,409 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-5215 Granted to PUBLIC
+--echo #
+
+--echo #
+--echo # Test DB/TABLE/COLUMN privileges in queries
+--echo #
+
+SHOW GRANTS FOR PUBLIC;
+
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+insert into t1 values (1,2);
+create database testdb2;
+use testdb2;
+create table t2 (a int, b int);
+insert into t2 values (1,2);
+create table t3 (a int, b int);
+insert into t3 values (1,2);
+
+connect (testuser,localhost,testuser,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from testdb1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from testdb2.t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+select b from testdb2.t3;
+--error ER_TABLEACCESS_DENIED_ERROR
+select a from testdb2.t3;
+
+connection default;
+
+GRANT SELECT ON testdb1.* to PUBLIC;
+GRANT SELECT ON testdb2.t2 to PUBLIC;
+GRANT SELECT (b) ON testdb2.t3 to PUBLIC;
+
+connection testuser;
+select * from testdb1.t1;
+select * from testdb2.t2;
+select b from testdb2.t3;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from testdb2.t3;
+
+show grants;
+show grants for testuser@'%';
+
+connection default;
+disconnect testuser;
+
+--echo # check that the privileges are correctly read by acl_load
+flush privileges;
+
+connect (testuser,localhost,testuser,,);
+select * from testdb1.t1;
+select * from testdb2.t2;
+select b from testdb2.t3;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select a from testdb2.t3;
+
+connection default;
+use test;
+disconnect testuser;
+REVOKE SELECT ON testdb1.* from PUBLIC;
+REVOKE SELECT ON testdb2.t2 from PUBLIC;
+REVOKE SELECT (b) ON testdb2.t3 from PUBLIC;
+drop user testuser;
+drop database testdb1;
+drop database testdb2;
+
+--echo #
+--echo # test global process list privilege and EXECUTE db level
+--echo #
+
+create user testuser;
+create database testdb;
+use testdb;
+create procedure p1 () select 1;
+
+connect (testuser,localhost,testuser,,);
+
+select user,db from information_schema.processlist where user='root';
+--error ER_PROCACCESS_DENIED_ERROR
+call testdb.p1();
+
+connection default;
+
+GRANT PROCESS ON *.* to PUBLIC;
+GRANT EXECUTE ON testdb.* to PUBLIC;
+
+# need to reconnect because of PROCESS
+disconnect testuser;
+connect (testuser,localhost,testuser,,);
+
+select user,db from information_schema.processlist where user='root';
+call testdb.p1();
+
+connection default;
+disconnect testuser;
+
+--echo # check that the privileges are correctly read by acl_load
+flush privileges;
+
+connect (testuser,localhost,testuser,,);
+
+select user,db from information_schema.processlist where user='root';
+call testdb.p1();
+
+connection default;
+use test;
+disconnect testuser;
+REVOKE PROCESS ON *.* from PUBLIC;
+REVOKE EXECUTE ON testdb.* from PUBLIC;
+drop user testuser;
+drop database testdb;
+
+--echo #
+--echo # test DB privilege to allow USE statement
+--echo #
+
+create user testuser;
+create database testdb;
+
+connect (testuser,localhost,testuser,,);
+
+--error ER_DBACCESS_DENIED_ERROR
+use testdb;
+
+connection default;
+
+GRANT LOCK TABLES ON testdb.* to PUBLIC;
+
+connection testuser;
+
+use testdb;
+
+connection default;
+disconnect testuser;
+
+--echo # check that the privileges are correctly read by acl_load
+flush privileges;
+
+connect (testuser,localhost,testuser,,);
+
+use testdb;
+
+connection default;
+
+use test;
+disconnect testuser;
+REVOKE LOCK TABLES ON testdb.* from PUBLIC;
+drop user testuser;
+drop database testdb;
+
+
+--echo #
+--echo # test DB privilege to allow USE statement (as above)
+--echo # test current db privileges
+--echo #
+
+create user testuser;
+create database testdb;
+use testdb;
+create table t1 (a int);
+insert into t1 values (1);
+GRANT LOCK TABLES ON testdb.* to PUBLIC;
+
+connect (testuser,localhost,testuser,,);
+
+use testdb;
+--error ER_TABLEACCESS_DENIED_ERROR
+update t1 set a=a+1;
+
+connection default;
+
+GRANT UPDATE,SELECT ON testdb.* to PUBLIC;
+
+connection testuser;
+
+use testdb;
+update t1 set a=a+1;
+
+connection default;
+select * from testdb.t1;
+
+use test;
+disconnect testuser;
+REVOKE LOCK TABLES ON testdb.* from PUBLIC;
+REVOKE UPDATE,SELECT ON testdb.* from PUBLIC;
+drop user testuser;
+drop database testdb;
+
+
+--echo #
+--echo # test DB privilege to allow USE statement (as above)
+--echo # test table/column privileges in current DB
+--echo #
+
+create user testuser;
+create database testdb;
+use testdb;
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (a int, b int);
+insert into t2 values (1,2);
+GRANT LOCK TABLES ON testdb.* to PUBLIC;
+
+connect (testuser,localhost,testuser,,);
+
+use testdb;
+--error ER_TABLEACCESS_DENIED_ERROR
+delete from t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select b from t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+select a from t2;
+
+connection default;
+
+GRANT DELETE ON testdb.t1 to PUBLIC;
+GRANT SELECT (a) ON testdb.t2 to PUBLIC;
+
+connection testuser;
+
+use testdb;
+delete from t1;
+select a from t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select b from t2;
+
+connection default;
+select * from testdb.t1;
+insert into t1 values (1);
+disconnect testuser;
+
+--echo # check that the privileges are correctly read by acl_load
+flush privileges;
+
+connect (testuser,localhost,testuser,,);
+
+use testdb;
+delete from t1;
+select a from t2;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select b from t2;
+
+connection default;
+select * from testdb.t1;
+
+
+use test;
+disconnect testuser;
+REVOKE ALL PRIVILEGES, GRANT OPTION from `PUBLIC`;
+SHOW GRANTS FOR PUBLIC;
+
+drop user testuser;
+drop database testdb;
+
+--echo #
+--echo # test function privilege
+--echo #
+
+create user testuser;
+create database testdb;
+use testdb;
+create function f1() returns int return 2;
+
+connect (testuser,localhost,testuser,,);
+
+--error ER_PROCACCESS_DENIED_ERROR
+alter function testdb.f1 comment "A stupid function";
+--error ER_PROCACCESS_DENIED_ERROR
+select testdb.f1();
+
+connection default;
+
+GRANT ALTER ROUTINE ON testdb.* to PUBLIC;
+
+connection testuser;
+
+alter function testdb.f1 comment "A stupid function";
+--error ER_PROCACCESS_DENIED_ERROR
+select testdb.f1();
+
+connection default;
+disconnect testuser;
+
+--echo # check that the privileges are correctly read by acl_load
+flush privileges;
+
+connect (testuser,localhost,testuser,,);
+
+alter function testdb.f1 comment "A stupid function";
+--error ER_PROCACCESS_DENIED_ERROR
+select testdb.f1();
+
+connection default;
+
+use test;
+disconnect testuser;
+REVOKE ALTER ROUTINE ON testdb.* from PUBLIC;
+drop function testdb.f1;
+drop user testuser;
+drop database testdb;
+
+--echo #
+--echo # bug with automatically added PUBLIC role
+--echo #
+
+--echo # automaticly added PUBLIC
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+GRANT SELECT on test.* to PUBLIC;
+
+REVOKE SELECT on test.* from PUBLIC;
+
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+insert into t1 values (1,2);
+
+connect (testuser,localhost,testuser,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from testdb1.t1;
+
+connection default;
+ 
+disconnect testuser;
+drop user testuser;
+drop database testdb1;
+
+--echo #
+--echo # check assigning privileges via GRAND role TO PUBLIC
+--echo #
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+
+--echo # check that user do not have rights
+connect (testuser,localhost,testuser,,*NO-ONE*);
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from testdb1.t1;
+connection default;
+
+--echo give rights to everyone via assigning the role to public
+create role roletest;
+GRANT SELECT ON testdb1.* TO roletest;
+GRANT roletest TO PUBLIC;
+
+connection testuser;
+select * from testdb1.t1;
+connection default;
+disconnect testuser;
+
+--echo # check that the privileges are correctly read by acl_load
+flush privileges;
+
+connect (testuser,localhost,testuser,,*NO-ONE*);
+select * from testdb1.t1;
+connection default;
+
+
+--echo # drop role...
+drop role roletest;
+
+--echo # ... and check that user does not have rights again
+connection testuser;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from testdb1.t1;
+connection default;
+disconnect testuser;
+
+drop user testuser;
+drop database testdb1;
+
+-- echo # clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+
+--echo #
+--echo # MDEV-29752 SHOW GRANTS FOR PUBLIC should work for all users
+--echo #
+
+create database dbtest;
+create user `testuser`@`%`;
+
+GRANT USAGE ON *.* TO `testuser`@`%`;
+GRANT ALL PRIVILEGES ON `dbtest`.* TO `PUBLIC`;
+
+connect (testuser,localhost,testuser,,);
+
+show grants for public;
+show grants for testuser;
+
+connection default;
+disconnect testuser;
+
+REVOKE ALL PRIVILEGES ON `dbtest`.* FROM `PUBLIC`;
+REVOKE USAGE ON *.* FROM `testuser`@`%`;
+drop user `testuser`@`%`;
+drop database dbtest;
+
+-- echo # clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;

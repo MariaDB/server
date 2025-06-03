@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-IMPORT\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-IMPORT\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -49,7 +49,7 @@ shell> \fBmysqlimport [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB \fR\
 .PP
 For each text file named on the command line,
 \fBmysqlimport\fR
-strips any extension from the file name and uses the result to determine the name of the table into which to import the file\'s contents\&. For example, files named
+strips any extension from the file name and uses the result to determine the name of the table into which to import the file's contents\&. For example, files named
 patient\&.txt,
 patient\&.text, and
 patient
@@ -144,9 +144,7 @@ Compress all information sent between the client and the server if both support 
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o'.
 .RE
 .sp
 .RS 4
@@ -633,7 +631,7 @@ Forces --protocol=socket when specified on the command line without other connec
 .\" SSL options: mysqladmin
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp
@@ -836,7 +834,7 @@ Here is a sample session that demonstrates use of
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-e \'CREATE TABLE imptest(id INT, n VARCHAR(30))\' test\fR
+shell> \fBmysql \-e 'CREATE TABLE imptest(id INT, n VARCHAR(30))' test\fR
 shell> \fBed\fR
 a
 100     Max Sydow
@@ -851,7 +849,7 @@ shell> \fBod \-c imptest\&.txt\fR
 0000040
 shell> \fBmysqlimport \-\-local test imptest\&.txt\fR
 test\&.imptest: Records: 2  Deleted: 0  Skipped: 0  Warnings: 0
-shell> \fBmysql \-e \'SELECT * FROM imptest\' test\fR
+shell> \fBmysql \-e 'SELECT * FROM imptest' test\fR
 +\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+
 | id   | n             |
 +\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+

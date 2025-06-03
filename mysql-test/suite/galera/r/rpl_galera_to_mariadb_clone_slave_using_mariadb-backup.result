@@ -107,6 +107,8 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 ### Slave: Shutdown the server
 connection slave;
 ### Master: Run a transaction while the slave is shut down
@@ -137,6 +139,8 @@ tr#01:stmt#02 - slave run#0, before backup
 CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=###, MASTER_CONNECT_RETRY=1;
 ### Slave: Execute the CHANGE MASTER statement from xtrabackup_slave_info
 CHANGE MASTER TO MASTER_LOG_FILE='master_after_tr01_show_master_status_file', MASTER_LOG_POS=master_after_tr01_show_master_status_position;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
 ### Slave: Execute START SLAVE
 include/start_slave.inc
 ### Master: Wait for the slave to apply all master events
@@ -199,6 +203,8 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 set global wsrep_on=OFF;
 RESET MASTER;

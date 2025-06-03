@@ -21,7 +21,7 @@ a	b
 include/stop_slave.inc
 connection server_1;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_PORT,
-master_user = 'root', master_use_gtid = current_pos;
+master_user = 'root';
 START SLAVE;
 include/wait_for_slave_to_start.inc
 connection server_2;
@@ -50,8 +50,7 @@ INSERT INTO t1 VALUES (5, 1);
 INSERT INTO t1 VALUES (6, 1);
 include/save_master_gtid.inc
 connection server_2;
-CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-master_use_gtid = current_pos;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT;
 START SLAVE;
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;

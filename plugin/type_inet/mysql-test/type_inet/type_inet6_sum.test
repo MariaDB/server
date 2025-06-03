@@ -1,0 +1,41 @@
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo #  MDEV-27015 Assertion `!is_null()' failed in FixedBinTypeBundle<FbtImpl>::Fbt FixedBinTypeBundle<FbtImpl>::Field_fbt::to_fbt()
+--echo #
+
+CREATE TABLE t1 (i6 INET6, a1 TIME, a2 VARCHAR(10));
+INSERT INTO t1 VALUES ('::','09:43:12','uw'), ('70:ef59::46:c7b:f:678:bd9f','00:00:00','a');
+SELECT GROUP_CONCAT(IF(a1, i6, a2) ORDER BY 1) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i6 inet6, a2 varchar(10));
+INSERT INTO t1 VALUES ('::','uw'), (null,'a');
+SELECT group_concat(coalesce(i6, a2) ORDER BY 1) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES();
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i6 INET6, a1 INT, a2 VARCHAR(10));
+INSERT INTO t1 VALUES ('::',1,'uw'), ('70:ef59::46:c7b:f:678:bd9f',0,'a');
+SELECT GROUP_CONCAT(IF(a1, i6, a2) ORDER BY 1) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i6 INET6, a2 VARCHAR(10));
+INSERT INTO t1 VALUES ('::',''), (NULL,NULL);
+SELECT GROUP_CONCAT(COALESCE(i6, a2) ORDER BY 1) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i6 INET6, a2 VARCHAR(10));
+INSERT INTO t1 VALUES ('::',''), (NULL,NULL);
+SELECT GROUP_CONCAT(DISTINCT COALESCE(i6, a2)) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

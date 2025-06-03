@@ -52,6 +52,7 @@ SELECT DATABASE();
 --error 0,ER_CANNOT_USER
 DROP   USER 'testuser1'@'localhost';
 CREATE USER 'testuser1'@'localhost';
+GRANT SELECT ON test.* TO 'testuser1'@'localhost';
 # Low privileged user
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 connect (testuser1, localhost, testuser1, , test);

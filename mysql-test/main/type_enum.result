@@ -2570,3 +2570,34 @@ Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten c
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+#
+CREATE TABLE t1
+(
+c_int INT,
+c_enum ENUM('1')
+);
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c_int` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_enum)  FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_int, c_enum)` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c_int	c_int	253	11	0	Y	0	0	8
+c_int
+SELECT COALESCE(c_int, c_enum)  FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c_int, c_enum)	253	11	0	Y	0	39	8
+COALESCE(c_int, c_enum)
+DROP TABLE t1;

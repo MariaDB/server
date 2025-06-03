@@ -7581,34 +7581,46 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
           "pseudo_bits_condition": "1 = t1.a or <in_optimizer>(1,<exists>(subquery#3))",
-          "table": {
-            "table_name": "t2",
-            "access_type": "system",
-            "rows": 1,
-            "filtered": 100
-          },
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "system",
+                "rows": 1,
+                "filtered": 100
+              }
+            }
+          ],
           "subqueries": [
             {
               "query_block": {
                 "select_id": 3,
-                "table": {
-                  "table_name": "t3",
-                  "access_type": "ALL",
-                  "rows": 2,
-                  "filtered": 100,
-                  "attached_condition": "1 = t3.c"
-                }
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t3",
+                      "access_type": "ALL",
+                      "rows": 2,
+                      "filtered": 100,
+                      "attached_condition": "1 = t3.c"
+                    }
+                  }
+                ]
               }
             }
           ]

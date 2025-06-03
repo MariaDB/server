@@ -101,6 +101,9 @@ public:
 
 	int open(const char *name, int mode, uint test_if_locked) override;
 
+	/** Fetch or recalculate InnoDB table statistics */
+	dberr_t statistics_init(dict_table_t *table, bool recalc);
+
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;

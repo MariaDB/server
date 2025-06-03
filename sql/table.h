@@ -80,6 +80,7 @@ class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
+class Open_table_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -302,6 +303,7 @@ typedef struct st_grant_info
    */
   GRANT_TABLE *grant_table_user;
   GRANT_TABLE *grant_table_role;
+  GRANT_TABLE *grant_public;
   /**
      @brief Used for cache invalidation when caching privilege information.
 
@@ -348,6 +350,14 @@ typedef struct st_grant_info
     want_privilege(NO_ACL),
     orig_want_privilege(NO_ACL)
   { }
+
+  void read(const Security_context *sctx, const char *db,
+            const char *table);
+
+  inline void refresh(const Security_context *sctx, const char *db,
+                     const char *table);
+  inline privilege_t aggregate_privs();
+  inline privilege_t aggregate_cols();
 
   /* OR table and all column privileges */
   privilege_t all_privilege();
@@ -663,12 +673,12 @@ public:
   ~TABLE_STATISTICS_CB();
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  ulong total_hist_size;         /* Total size of all histograms */
   uint  stats_available;
+  bool  histograms_exists_on_disk;
 
   bool histograms_exists() const
   {
-    return total_hist_size != 0;
+    return histograms_exists_on_disk;
   }
   bool unused()
   {
@@ -903,6 +913,13 @@ struct TABLE_SHARE
   vers_kind_t versioned;
   period_info_t vers;
   period_info_t period;
+  /*
+      Protect multiple threads from repeating partition auto-create over
+      single share.
+
+      TODO: remove it when partitioning metadata will be in TABLE_SHARE.
+  */
+  bool          vers_skip_auto_create;
 
   bool init_period_from_extra2(period_info_t *period, const uchar *data,
                                const uchar *end);
@@ -1707,6 +1724,30 @@ public:
   Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
+  // Check if the value list is assignable to the explicit field list
+  static bool check_assignability_explicit_fields(List<Item> fields,
+                                                  List<Item> values,
+                                                  bool ignore);
+  // Check if the value list is assignable to all visible fields
+  bool check_assignability_all_visible_fields(List<Item> &values,
+                                              bool ignore) const;
+  /*
+    Check if the value list is assignable to:
+    - The explicit field list if fields.elements > 0, e.g.
+        INSERT INTO t1 (a,b) VALUES (1,2);
+    - All visible fields, if fields.elements==0, e.g.
+        INSERT INTO t1 VALUES (1,2);
+  */
+  bool check_assignability_opt_fields(List<Item> fields,
+                                      List<Item> values,
+                                      bool ignore) const
+  {
+    DBUG_ASSERT(values.elements);
+    return fields.elements ?
+           check_assignability_explicit_fields(fields, values, ignore) :
+           check_assignability_all_visible_fields(values, ignore);
+  }
+
   bool insert_all_rows_into_tmp_table(THD *thd, 
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
@@ -1794,6 +1835,10 @@ public:
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
+                             Open_table_context *ot_ctx);
+#endif
 
   int update_generated_fields();
   void period_prepare_autoinc();
@@ -1804,7 +1849,7 @@ public:
   static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
   int delete_row();
   /* Used in majority of DML (called from fill_record()) */
-  void vers_update_fields();
+  bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
@@ -2147,7 +2192,7 @@ struct vers_select_conds_t
   void init(vers_system_time_t _type,
             Vers_history_point _start= Vers_history_point(),
             Vers_history_point _end= Vers_history_point(),
-            Lex_ident          _name= "SYSTEM_TIME")
+            Lex_ident          _name= { STRING_WITH_LEN("SYSTEM_TIME") })
   {
     type= _type;
     orig_type= _type;
@@ -2162,7 +2207,7 @@ struct vers_select_conds_t
   void set_all()
   {
     type= SYSTEM_TIME_ALL;
-    name= "SYSTEM_TIME";
+    name= { STRING_WITH_LEN("SYSTEM_TIME") };
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -2684,6 +2729,13 @@ struct TABLE_LIST
   bool          merged;
   bool          merged_for_insert;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
+  /*
+      Protect single thread from repeating partition auto-create over
+      multiple share instances (as the share is closed on backoff action).
+
+      Skips auto-create only for one given query id.
+  */
+  query_id_t    vers_skip_create;
 
   /*
     Items created by create_view_field and collected to change them in case
@@ -3210,6 +3262,7 @@ typedef struct st_nested_join
   table_map         sj_depends_on;
   /* Outer non-trivially correlated tables */
   table_map         sj_corr_tables;
+  table_map         direct_children_map;
   List<Item_ptr>    sj_outer_expr_list;
   /**
      True if this join nest node is completely covered by the query execution
@@ -3337,8 +3390,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 bool check_db_name(LEX_STRING *db);
-bool check_column_name(const char *name);
-bool check_period_name(const char *name);
+bool check_column_name(const Lex_ident &name);
 bool check_table_name(const char *name, size_t length, bool check_for_path_chars);
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);

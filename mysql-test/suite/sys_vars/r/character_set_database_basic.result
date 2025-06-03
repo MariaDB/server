@@ -380,10 +380,9 @@ SET @@character_set_database = 1;
 SELECT @@character_set_database;
 @@character_set_database
 big5
+# latin2_czech_cs is not a default collation
 SET @@character_set_database = 2;
-SELECT @@character_set_database;
-@@character_set_database
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@character_set_database = 3;
 SELECT @@character_set_database;
 @@character_set_database
@@ -392,20 +391,19 @@ SET @@character_set_database = 36;
 SELECT @@character_set_database;
 @@character_set_database
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@character_set_database = 99;
-SELECT @@character_set_database;
-@@character_set_database
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@character_set_database = 100;
 ERROR 42000: Unknown character set: '100'
 SET @@global.character_set_database = 1;
 SELECT @@global.character_set_database;
 @@global.character_set_database
 big5
+# latin2_czech_cs is not a default collation
 SET @@global.character_set_database = 2;
-SELECT @@global.character_set_database;
-@@global.character_set_database
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@global.character_set_database = 3;
 SELECT @@global.character_set_database;
 @@global.character_set_database
@@ -414,10 +412,10 @@ SET @@global.character_set_database = 36;
 SELECT @@global.character_set_database;
 @@global.character_set_database
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@global.character_set_database = 99;
-SELECT @@global.character_set_database;
-@@global.character_set_database
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@global.character_set_database = 100;
 ERROR 42000: Unknown character set: '100'
 SET @total_charset = (SELECT count(*) FROM INFORMATION_SCHEMA.CHARACTER_SETS);

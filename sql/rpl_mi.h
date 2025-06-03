@@ -237,7 +237,7 @@ class Master_info : public Slave_reporting_capability
   File fd; // we keep the file open, so we need to remember the file pointer
   IO_CACHE file;
 
-  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock;
+  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
   mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
   THD *io_thd;
   MYSQL* mysql;
@@ -375,13 +375,47 @@ class Master_info : public Slave_reporting_capability
        to slave) gtid exists in the server's binlog. Then, in gtid strict mode,
        it must be ignored similarly to the replicate-same-server-id rule.
  */
-  bool do_accept_own_server_id;
+  bool do_accept_own_server_id= false;
   /*
     Set to 1 when semi_sync is enabled. Set to 0 if there is any transmit
     problems to the slave, in which case any furter semi-sync reply is
     ignored
   */
   bool semi_sync_reply_enabled;
+  List <start_alter_info> start_alter_list;
+  MEM_ROOT mem_root;
+  /*
+    Flag is raised at the parallel worker slave stop. Its purpose
+    is to mark the whole start_alter_list when slave stops.
+    The flag is read by Start Alter event to self-mark its state accordingly
+    at time its alter info struct is about to be appened to the list.
+  */
+  bool is_shutdown= false;
+
+  /*
+    A replica will default to Slave_Pos for using Using_Gtid; however, we
+    first need to test if the master supports GTIDs. If not, fall back to 'No'.
+    Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
+  */
+  bool master_supports_gtid= true;
+
+  /*
+    When TRUE, transition this server from being an active master to a slave.
+    This updates the replication state to account for any transactions which
+    were committed into the binary log. In particular, it merges
+    gtid_binlog_pos into gtid_slave_pos.
+  */
+  bool is_demotion= false;
+};
+
+struct start_alter_thd_args
+{
+  rpl_group_info *rgi;
+  LEX_CSTRING query;
+  LEX_CSTRING *db;
+  char *catalog;
+  bool shutdown;
+  CHARSET_INFO *cs;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
@@ -420,7 +454,7 @@ public:
   bool check_duplicate_master_info(LEX_CSTRING *connection_name,
                                    const char *host, uint port);
   bool add_master_info(Master_info *mi, bool write_to_file);
-  bool remove_master_info(Master_info *mi);
+  bool remove_master_info(Master_info *mi, bool clear_log_files);
   Master_info *get_master_info(const LEX_CSTRING *connection_name,
                                Sql_condition::enum_warning_level warning);
   bool start_all_slaves(THD *thd);
@@ -452,6 +486,17 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
 void free_key_master_info(Master_info *mi);
 uint any_slave_sql_running(bool already_locked);
 bool give_error_if_slave_running(bool already_lock);
+
+/*
+  Sets up the basic options for a MYSQL connection, mysql, to connect to the
+  primary server described by the Master_info parameter, mi. The timeout must
+  be passed explicitly, as different types of connections created by the slave
+  will use different values.
+
+  Assumes mysql_init() has already been called on the mysql connection object.
+*/
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout);
 
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

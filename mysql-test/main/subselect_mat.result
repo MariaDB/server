@@ -61,7 +61,7 @@ explain extended
 select * from t1 where a1 in (select b1 from t2 where b1 > '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`>(<in_optimizer>(`test`.`t1`.`a1`,`test`.`t1`.`a1` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1`))))
 select * from t1 where a1 in (select b1 from t2 where b1 > '0');
@@ -72,7 +72,7 @@ explain extended
 select * from t1 where a1 in (select b1 from t2 where b1 > '0' group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`>(<in_optimizer>(`test`.`t1`.`a1`,`test`.`t1`.`a1` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1`))))
 select * from t1 where a1 in (select b1 from t2 where b1 > '0' group by b1);
@@ -83,7 +83,7 @@ explain extended
 select * from t1 where (a1, a2) in (select b1, b2 from t2 where b1 > '0' group by b1, b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1` and `test`.`t1`.`a2` = `<subquery2>`.`b2`))))
 select * from t1 where (a1, a2) in (select b1, b2 from t2 where b1 > '0' group by b1, b2);
@@ -94,7 +94,7 @@ explain extended
 select * from t1 where (a1, a2) in (select b1, min(b2) from t2 where b1 > '0' group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where; Using temporary
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1`,min(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`b1` > '0' group by `test`.`t2`.`b1` ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1` and `test`.`t1`.`a2` = `<subquery2>`.`min(b2)`))))
 select * from t1 where (a1, a2) in (select b1, min(b2) from t2 where b1 > '0' group by b1);
@@ -321,7 +321,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 4	MATERIALIZED	t2i	index	it2i2	it2i3	18	NULL	5	100.00	Using where; Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1` and `test`.`t1`.`a2` = `<subquery2>`.`b2`)))) and <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#3 */ select `test`.`t3`.`c1`,`test`.`t3`.`c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#4 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` where `test`.`t2i`.`b2` > '0' ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery4>`.`b1` and `test`.`t3`.`c2` = `<subquery4>`.`b2`)))) ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery3>`.`c1` and `test`.`t1`.`a2` = `<subquery3>`.`c2`))))
 select * from t1
@@ -451,8 +451,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 5	MATERIALIZED	t2i	index	it2i2	it2i3	18	NULL	5	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	99.22	Using where
-3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),<exists>(/* select#2 */ select `test`.`t1`.`a1`,`test`.`t1`.`a2` from `test`.`t1` where `test`.`t1`.`a1` > '0' and <cache>(`test`.`t1`.`a1`) = `test`.`t1`.`a1` and <cache>(`test`.`t1`.`a2`) = `test`.`t1`.`a2` union /* select#3 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` < '9' and <cache>(`test`.`t1`.`a1`) = `test`.`t2`.`b1` and <cache>(`test`.`t1`.`a2`) = `test`.`t2`.`b2`))) and <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1`,`test`.`t3`.`c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#5 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` where `test`.`t2i`.`b2` > '0' ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery5>`.`b1` and `test`.`t3`.`c2` = `<subquery5>`.`b2`)))) ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery4>`.`c1` and `test`.`t1`.`a2` = `<subquery4>`.`c2`))))
@@ -474,8 +474,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 5	MATERIALIZED	t2i	index	it2i2	it2i3	18	NULL	5	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	99.22	Using where
-3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2`,`test`.`t3`.`c1` AS `c1`,`test`.`t3`.`c2` AS `c2` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`c1` = `test`.`t1`.`a1` and <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),<exists>(/* select#2 */ select `test`.`t1`.`a1`,`test`.`t1`.`a2` from `test`.`t1` where `test`.`t1`.`a1` > '0' and <cache>(`test`.`t1`.`a1`) = `test`.`t1`.`a1` and <cache>(`test`.`t1`.`a2`) = `test`.`t1`.`a2` union /* select#3 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` < '9' and <cache>(`test`.`t1`.`a1`) = `test`.`t2`.`b1` and <cache>(`test`.`t1`.`a2`) = `test`.`t2`.`b2`))) and <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1`,`test`.`t3`.`c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#5 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` where `test`.`t2i`.`b2` > '0' ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery5>`.`b1` and `test`.`t3`.`c2` = `<subquery5>`.`b2`)))) ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery4>`.`c1` and `test`.`t3`.`c2` = `<subquery4>`.`c2`))))
@@ -496,8 +496,8 @@ select * from t3
 where c1 in (select a1 from t1 where a1 > '0' UNION select b1 from t2 where b1 < '9');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	99.22	Using where
-3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`c1` AS `c1`,`test`.`t3`.`c2` AS `c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`>(<in_optimizer>(`test`.`t3`.`c1`,<exists>(/* select#2 */ select `test`.`t1`.`a1` from `test`.`t1` where `test`.`t1`.`a1` > '0' and <cache>(`test`.`t3`.`c1`) = `test`.`t1`.`a1` union /* select#3 */ select `test`.`t2`.`b1` from `test`.`t2` where `test`.`t2`.`b1` < '9' and <cache>(`test`.`t3`.`c1`) = `test`.`t2`.`b1`)))
@@ -711,7 +711,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DEPENDENT SUBQUERY	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	99.22	Using where
+4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><concat(`test`.`t1`.`a1`,'x')>(<in_optimizer>(concat(`test`.`t1`.`a1`,'x'),<exists>(/* select#2 */ select left(`test`.`t1_16`.`a1`,8) from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`>(<in_optimizer>((`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`),<exists>(/* select#3 */ select `test`.`t2_16`.`b1`,`test`.`t2_16`.`b2` from `test`.`t2_16` join `test`.`t2` where `test`.`t2`.`b2` = substr(`test`.`t2_16`.`b2`,1,6) and <expr_cache><`test`.`t2`.`b1`>(<in_optimizer>(`test`.`t2`.`b1`,`test`.`t2`.`b1` in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1` from `test`.`t3` where `test`.`t3`.`c2` > '0' ), <primary_index_lookup>(`test`.`t2`.`b1` in <temporary table> on distinct_key where `test`.`t2`.`b1` = `<subquery4>`.`c1`)))) and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1` and <cache>(`test`.`t1_16`.`a2`) = `test`.`t2_16`.`b2`))) and <cache>(concat(`test`.`t1`.`a1`,'x')) = left(`test`.`t1_16`.`a1`,8))))
 drop table t1_16, t2_16, t3_16;
@@ -2404,6 +2404,21 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	32	test.t1.assignment_group	1	Using where; Using index
 2	MATERIALIZED	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where
 2	MATERIALIZED	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
+set statement optimizer_prune_level=1 for explain SELECT t1.assignment_group
+FROM t1, t3
+WHERE t1.assignment_group = t3.sys_id AND
+t1.dispatch_group IN
+(SELECT t2.ugroup
+FROM t2, t3 t3_i
+WHERE t2.ugroup = t3_i.sys_id AND 
+t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
+t2.user = '86826bf03710200044e0bfc8bcbe5d79');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ref	idx1,idx2	idx1	35	test.t2.ugroup	2	Using where
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	32	test.t1.assignment_group	1	Using where; Using index
+3	MATERIALIZED	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where
+3	MATERIALIZED	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
 SELECT t1.assignment_group
 FROM t1, t3
 WHERE t1.assignment_group = t3.sys_id AND
@@ -3082,22 +3097,29 @@ NULL	NULL
 analyze format=json select a, a in (select b from t2) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -3109,18 +3131,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3138,22 +3164,29 @@ NULL	NULL
 analyze format=json select a, a in (select b from t2) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -3164,18 +3197,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 3,
-              "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 3,
+                  "r_rows": 3,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3194,22 +3231,29 @@ NULL	NULL
 analyze format=json select a, a in (select b from t2) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -3218,18 +3262,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3259,6 +3307,9 @@ NULL
 analyze format=json update t1 set a=a+1 where a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -3284,18 +3335,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3327,6 +3382,9 @@ NULL
 analyze format=json delete from t1 where a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -3352,18 +3410,22 @@ ANALYZE
             "select_id": 2,
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }

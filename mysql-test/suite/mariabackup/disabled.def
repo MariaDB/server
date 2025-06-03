@@ -1,1 +1,2 @@
 log_page_corruption : MDEV-26210
+mariabackup.xb_compressed_encrypted : MDEV-26154 (error 194 "Tablespace is missing for a table")

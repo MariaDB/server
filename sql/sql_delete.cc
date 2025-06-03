@@ -462,6 +462,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   */
 
   has_triggers= table->triggers && table->triggers->has_delete_triggers();
+  transactional_table= table->file->has_transactions_and_rollback();
 
   if (!returning && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() && !has_triggers)
@@ -520,6 +521,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
 
+    if (thd->binlog_for_noop_dml(transactional_table))
+      DBUG_RETURN(1);
+
     if (!thd->lex->current_select->leaf_tables_saved)
     {
       thd->lex->current_select->save_leaf_tables(thd);
@@ -558,6 +562,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     */
     if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
+
+    if (thd->binlog_for_noop_dml(transactional_table))
+      DBUG_RETURN(1);
 
     if (!thd->lex->current_select->leaf_tables_saved)
     {
@@ -761,6 +768,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   explain->tracker.on_scan_init();
 
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
+
   if (!delete_while_scanning)
   {
     /*
@@ -820,9 +829,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
 
+  thd->get_stmt_da()->reset_current_row_for_warning(0);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
   {
+    thd->get_stmt_da()->inc_current_row_for_warning();
     if (delete_while_scanning)
       delete_record= record_should_be_deleted(thd, table, select, explain,
                                               delete_history);
@@ -898,6 +909,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     else
       break;
   }
+  thd->get_stmt_da()->reset_current_row_for_warning(1);
 
 terminate_delete:
   killed_status= thd->killed;
@@ -938,14 +950,14 @@ cleanup:
   deltempfile=NULL;
   delete select;
   select= NULL;
-  transactional_table= table->file->has_transactions_and_rollback();
 
   if (!transactional_table && deleted > 0)
     thd->transaction->stmt.modified_non_trans_table=
       thd->transaction->all.modified_non_trans_table= TRUE;
 
   /* See similar binlogging code in sql_update.cc, for comments */
-  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table))
+  if (likely((error < 0) || thd->transaction->stmt.modified_non_trans_table
+      || thd->log_current_statement()))
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -955,8 +967,8 @@ cleanup:
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
-      ScopedStatementReplication scoped_stmt_rpl(
-          table->versioned(VERS_TRX_ID) ? thd : NULL);
+      StatementBinlog stmt_binlog(thd, table->versioned(VERS_TRX_ID) ||
+                                       thd->binlog_need_stmt_format(transactional_table));
       /*
         [binlog]: If 'handler::delete_all_rows()' was called and the
         storage engine does not inject the rows itself, we replicate
@@ -1479,13 +1491,15 @@ void multi_delete::abort_result_set()
     DBUG_VOID_RETURN;
   }
 
-  if (thd->transaction->stmt.modified_non_trans_table)
+  if (thd->transaction->stmt.modified_non_trans_table ||
+      thd->log_current_statement())
   {
     /*
        there is only side effects; to binlog with the error
     */
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
+      StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
       /* possible error of writing binary log is ignored deliberately */
       (void) thd->binlog_query(THD::ROW_QUERY_TYPE,
@@ -1627,7 +1641,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
 /*
   Send ok to the client
 
-  return:  0 sucess
+  return:  0 success
 	   1 error
 */
 
@@ -1666,7 +1680,8 @@ bool multi_delete::send_eof()
     query_cache_invalidate3(thd, delete_tables, 1);
   }
   if (likely((local_error == 0) ||
-             thd->transaction->stmt.modified_non_trans_table))
+             thd->transaction->stmt.modified_non_trans_table) ||
+      thd->log_current_statement())
   {
     if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
@@ -1675,7 +1690,8 @@ bool multi_delete::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
-      thd->thread_specific_used= TRUE;
+      thd->used|= THD::THREAD_SPECIFIC_USED;
+      StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
       if (unlikely(thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      thd->query(), thd->query_length(),
                                      transactional_tables, FALSE, FALSE,

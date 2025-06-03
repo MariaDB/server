@@ -3133,3 +3133,18 @@ drop table t1, t2;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-26767 Server crashes when rename table and alter storage engine
+#
+alter table txxx engine=innodb, rename to tyyy;
+ERROR 42S02: Table 'test.txxx' doesn't exist
+#
+# MDEV-27048 UBSAN: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'
+#
+CREATE TABLE t (a INT,b INT,c INT,x TEXT,y TEXT,z TEXT,id INT UNSIGNED AUTO_INCREMENT,i INT,KEY(id),UNIQUE KEY a (a,b,c));
+ALTER TABLE t ADD CONSTRAINT test UNIQUE (id) USING HASH;
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the USING HASH clause of `id`
+DROP TABLE t;
+#
+# End of 10.7 tests
+#

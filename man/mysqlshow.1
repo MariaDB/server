@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-SHOW\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-SHOW\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -26,7 +26,7 @@ mariadb-show \- display database, table, and column information (mysqlshow is no
 .PP
 The
 \fBmysqlshow\fR
-client can be used to quickly see which databases exist, their tables, or a table\'s columns or indexes\&.
+client can be used to quickly see which databases exist, their tables, or a table's columns or indexes\&.
 .PP
 \fBmysqlshow\fR
 provides a command\-line interface to several SQL
@@ -191,9 +191,7 @@ tables\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o'.
 .RE
 .sp
 .RS 4
@@ -510,7 +508,7 @@ Forces --protocol=socket when specified on the command line without other connec
 .\" SSL options: mysqlshow
 \fB\-\-ssl\fR
 .sp
-Enable SSL for connection (automatically enabled with other flags). Disable with 
+Enable SSL for connection (automatically enabled with other flags). Disable with
 \fB\-\-skip-ssl\fR\&.
 .RE
 .sp

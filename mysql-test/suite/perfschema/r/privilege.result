@@ -5,6 +5,9 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 create user 'pfs_user_1'@localhost;
 create user 'pfs_user_2'@localhost;
 create user 'pfs_user_3'@localhost;
+grant SELECT,INSERT,UPDATE,DELETE,DROP,CREATE on test.* to 'pfs_user_1'@localhost;
+grant SELECT,INSERT,UPDATE,DELETE,DROP,CREATE on test.* to 'pfs_user_2'@localhost;
+grant SELECT,INSERT,UPDATE,DELETE,DROP,CREATE on test.* to 'pfs_user_3'@localhost;
 grant ALL on *.* to 'pfs_user_1'@localhost with GRANT OPTION;
 grant ALL on performance_schema.* to 'pfs_user_2'@localhost
 with GRANT OPTION;
@@ -521,7 +524,7 @@ flush privileges;
 # Test cases from WL#4818
 # Setup user
 CREATE user pfs_user_4;
-connect  pfs_user_4, localhost, pfs_user_4, , ;
+connect  pfs_user_4, localhost, pfs_user_4, ,"*NO-ONE*";
 #
 # WL#4818, NFS4: Normal user does not have access to view data
 #                without grants

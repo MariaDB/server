@@ -57,11 +57,7 @@ public:
 		/**
 		Gets the number of used bytes in a block.
 		@return	number of bytes used */
-		ulint used() const
-			MY_ATTRIBUTE((warn_unused_result))
-		{
-			return m_used;
-		}
+		uint32_t used() const { return m_used; }
 
 		/**
 		Gets pointer to the start of data.
@@ -316,7 +312,7 @@ public:
 	Iterate over each block and call the functor.
 	@return	false if iteration was terminated. */
 	template <typename Functor>
-	bool for_each_block(Functor& functor) const
+	bool for_each_block(const Functor& functor) const
 	{
 		for (list_t::iterator it = m_list.begin(), end = m_list.end();
 		     it != end; ++it) {

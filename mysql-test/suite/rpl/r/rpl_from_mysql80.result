@@ -22,6 +22,8 @@ include/wait_for_slave_sql_error.inc [errno=1594]
 STOP SLAVE IO_THREAD;
 include/wait_for_slave_io_to_stop.inc
 CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=2297;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'No' to 'No'
 START SLAVE IO_THREAD;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_io_to_start.inc
@@ -39,6 +41,8 @@ a	b
 STOP SLAVE IO_THREAD;
 include/wait_for_slave_io_to_stop.inc
 CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'No' to 'No'
 START SLAVE IO_THREAD;
 START SLAVE SQL_THREAD;
 include/wait_for_slave_io_to_start.inc

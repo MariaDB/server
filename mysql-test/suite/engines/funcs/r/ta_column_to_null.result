@@ -300,7 +300,7 @@ t2
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 MODIFY c1 TIMESTAMP NULL;
 SHOW TABLES;
@@ -804,7 +804,7 @@ t2
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `c1` timestamp NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t2 CHANGE c1 c1 TIMESTAMP NULL;
 SHOW TABLES;

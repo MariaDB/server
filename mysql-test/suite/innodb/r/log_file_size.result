@@ -1,5 +1,5 @@
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
-# restart: --innodb-log-file-size=2m
+# restart: --innodb-log-file-size=4m
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -35,61 +35,32 @@ FOUND 1 /syntax error in innodb_log_group_home_dir/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: Starting crash recovery from checkpoint LSN=.*/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_3
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
 # restart: --innodb-read-only
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_4
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 5 /redo log from [0-9]+ to [0-9]+ bytes/ in mysqld.1.err
 # restart: --debug=d,innodb_log_abort_5
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 6 /redo log from [0-9]+ to [0-9]+ bytes/ in mysqld.1.err
+FOUND 1 /redo log from 5\.000MiB to [0-9.]*[KMGT]iB/ in mysqld.1.err
 # restart: --innodb-read-only
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 2 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_6
+# restart
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 7 /redo log from [0-9]+ to [0-9]+ bytes/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_7
+FOUND 1 /InnoDB: File .*ib_logfile0 is too small/ in mysqld.1.err
+# restart
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-# restart: --innodb-read-only
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: Cannot create log file in read-only mode/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_8
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: Setting log file .*ib_logfile[0-9]+ size to/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_9
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: Setting log file .*ib_logfile[0-9]+ size to/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_9
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: Log file .*ib_logfile0 size 7 is not a multiple of 512 bytes/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_9
-SELECT * FROM t1;
-a
-42
-123
-# restart: --debug=d,innodb_log_abort_10
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: Setting log file .*ib_logfile[0-9]+ size to/ in mysqld.1.err
-FOUND 1 /InnoDB: Renaming log file .*ib_logfile101 to .*ib_logfile0/ in mysqld.1.err
+FOUND 1 /InnoDB: Expecting only ib_logfile0/ in mysqld.1.err
+# restart
+FOUND 1 /InnoDB: File .*ib_logfile0 was not found/ in mysqld.1.err
 # restart
 SELECT * FROM t1;
 a
 42
 123
 DROP TABLE t1;
+FOUND 2 /InnoDB: Resizing redo log from 5\.000MiB to [0-9.]*[KMGT]iB; LSN=\d+\b/ in mysqld.1.err

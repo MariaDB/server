@@ -87,21 +87,21 @@ SHOW GRANTS FOR user_replclient@localhost;
 --echo #
 SHOW GRANTS FOR user_replslave@localhost;
 
---connect (con1,localhost,user_super_replslave,,test)
+--connect (con1,localhost,user_super_replslave,,"*NO-ONE*")
 --connection con1
 --disable_result_log
 SHOW SLAVE STATUS;
 --enable_result_log
 --disconnect con1
 
---connect (con1,localhost,user_replclient,,test)
+--connect (con1,localhost,user_replclient,,"*NO-ONE*")
 --connection con1
 --disable_result_log
 SHOW SLAVE STATUS;
 --enable_result_log
 --disconnect con1
 
---connect (con1,localhost,user_replslave,,test)
+--connect (con1,localhost,user_replslave,,"*NO-ONE*")
 --connection con1
 --disable_ps_protocol
 --disable_result_log

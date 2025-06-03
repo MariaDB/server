@@ -196,71 +196,6 @@ dict_tables_have_same_db(
 	return(FALSE);
 }
 
-/** Decrement the count of open handles */
-void dict_table_close(dict_table_t *table)
-{
-  if (table->get_ref_count() == 1 &&
-      dict_stats_is_persistent_enabled(table) &&
-      strchr(table->name.m_name, '/'))
-  {
-    /* It looks like we are closing the last handle. The user could
-    have executed FLUSH TABLES in order to have the statistics reloaded
-    from the InnoDB persistent statistics tables. We must acquire
-    exclusive dict_sys.latch to prevent a race condition with another
-    thread concurrently acquiring a handle on the table. */
-    dict_sys.lock(SRW_LOCK_CALL);
-    if (table->release())
-    {
-      table->stats_mutex_lock();
-      if (table->get_ref_count() == 0)
-        dict_stats_deinit(table);
-      table->stats_mutex_unlock();
-    }
-    dict_sys.unlock();
-  }
-  else
-    table->release();
-}
-
-/** Decrements the count of open handles of a table.
-@param[in,out]	table		table
-@param[in]	dict_locked	whether dict_sys.latch is being held
-@param[in]	thd		thread to release MDL
-@param[in]	mdl		metadata lock or NULL if the thread
-				is a foreground one. */
-void
-dict_table_close(
-	dict_table_t*	table,
-	bool		dict_locked,
-	THD*		thd,
-	MDL_ticket*	mdl)
-{
-  if (!dict_locked)
-    dict_table_close(table);
-  else
-  {
-    if (table->release() && dict_stats_is_persistent_enabled(table) &&
-	strchr(table->name.m_name, '/'))
-    {
-      /* Force persistent stats re-read upon next open of the table so
-      that FLUSH TABLE can be used to forcibly fetch stats from disk if
-      they have been manually modified. */
-      table->stats_mutex_lock();
-      if (table->get_ref_count() == 0)
-        dict_stats_deinit(table);
-      table->stats_mutex_unlock();
-    }
-
-    ut_ad(dict_lru_validate());
-    ut_ad(dict_sys.find(table));
-  }
-
-  if (!thd || !mdl);
-  else if (MDL_context *mdl_context= static_cast<MDL_context*>
-           (thd_mdl_context(thd)))
-    mdl_context->release_lock(mdl);
-}
-
 /** Check if the table has a given (non_virtual) column.
 @param[in]	table		table object
 @param[in]	col_name	column name
@@ -585,6 +520,14 @@ dict_index_get_nth_field_pos(
 	}
 
 	return(ULINT_UNDEFINED);
+}
+
+void mdl_release(THD *thd, MDL_ticket *mdl) noexcept
+{
+  if (!thd || !mdl);
+  else if (MDL_context *mdl_context= static_cast<MDL_context*>
+           (thd_mdl_context(thd)))
+    mdl_context->release_lock(mdl);
 }
 
 /** Parse the table file name into table name and database name.
@@ -990,7 +933,7 @@ void dict_sys_t::create() noexcept
   UT_LIST_INIT(table_LRU, &dict_table_t::table_LRU);
   UT_LIST_INIT(table_non_LRU, &dict_table_t::table_LRU);
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_pool_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
 
   table_hash.create(hash_size);
@@ -1055,6 +998,17 @@ ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze() noexcept
 }
 #endif /* UNIV_PFS_RWLOCK */
 
+/** Report an error about failing to open a table.
+@param name   table name */
+static void dict_table_open_failed(const table_name_t &name)
+{
+  my_printf_error(ER_TABLE_CORRUPT,
+                  "Table %`.*s.%`s is corrupted."
+                  " Please drop the table and recreate.",
+                  MYF(ME_ERROR_LOG),
+                  int(name.dblen()), name.m_name, name.basename());
+}
+
 /**********************************************************************//**
 Returns a table object and increments its open handle count.
 NOTE! This is a high-level function to be used mainly from outside the
@@ -1087,8 +1041,20 @@ dict_table_open_on_name(
       if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
           !table->is_readable() && table->corrupted)
       {
-        ib::error() << "Table " << table->name
-                    << " is corrupted. Please drop the table and recreate.";
+        ulint algo= table->space->get_compression_algo();
+        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo))
+          my_printf_error(ER_PROVIDER_NOT_LOADED,
+                          "Table %`.*s.%`s is compressed with %s,"
+                          " which is not currently loaded. "
+                          "Please load the %s provider plugin"
+                          " to open the table",
+                          MYF(ME_ERROR_LOG),
+                          int(table->name.dblen()), table->name.m_name,
+                          table->name.basename(),
+                          page_compression_algorithms[algo],
+                          page_compression_algorithms[algo]);
+        else
+          dict_table_open_failed(table->name);
         dict_sys.unfreeze();
         DBUG_RETURN(nullptr);
       }
@@ -1108,8 +1074,7 @@ dict_table_open_on_name(
     if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
         !table->is_readable() && table->corrupted)
     {
-      ib::error() << "Table " << table->name
-                  << " is corrupted. Please drop the table and recreate.";
+      dict_table_open_failed(table->name);
       if (!dict_locked)
         dict_sys.unlock();
       DBUG_RETURN(nullptr);
@@ -1158,7 +1123,7 @@ bool dict_stats::open(THD *thd) noexcept
   if (index_stats)
     return false;
 
-  dict_table_close(table_stats);
+  table_stats->release();
 release_mdl:
   if (mdl_index)
     mdl_context->release_lock(mdl_index);
@@ -1168,8 +1133,8 @@ release_mdl:
 
 void dict_stats::close() noexcept
 {
-  dict_table_close(table_stats);
-  dict_table_close(index_stats);
+  table_stats->release();
+  index_stats->release();
   mdl_context->release_lock(mdl_table);
   mdl_context->release_lock(mdl_index);
 }
@@ -1295,7 +1260,7 @@ static bool dict_table_can_be_evicted(dict_table_t *table)
 dict_index_t *dict_index_t::clone() const
 {
   ut_ad(n_fields);
-  ut_ad(!(type & (DICT_IBUF | DICT_SPATIAL | DICT_FTS)));
+  ut_ad(is_btree());
   ut_ad(online_status == ONLINE_INDEX_COMPLETE);
   ut_ad(is_committed());
   ut_ad(!is_dummy);
@@ -2309,15 +2274,14 @@ found:
 	return(TRUE);
 }
 
-/*******************************************************************//**
-Adds a column to index. */
-void
-dict_index_add_col(
-/*===============*/
-	dict_index_t*		index,		/*!< in/out: index */
-	const dict_table_t*	table,		/*!< in: table */
-	dict_col_t*		col,		/*!< in: column */
-	ulint			prefix_len)	/*!< in: column prefix length */
+/** Add a column to an index.
+@param index          index
+@param table          table
+@param col            column
+@param prefix_len     column prefix length
+@param descending     whether to use descending order */
+void dict_index_add_col(dict_index_t *index, const dict_table_t *table,
+                        dict_col_t *col, ulint prefix_len, bool descending)
 {
 	dict_field_t*	field;
 	const char*	col_name;
@@ -2355,6 +2319,8 @@ dict_index_add_col(
 		field->fixed_len = 0;
 	}
 
+	field->descending = descending;
+
 	/* The comparison limit above must be constant.  If it were
 	changed, the disk format of some fixed-length columns would
 	change, which would be a disaster. */
@@ -2386,7 +2352,7 @@ dict_index_copy(
 		field = dict_index_get_nth_field(index2, i);
 
 		dict_index_add_col(index1, index2->table, field->col,
-				   field->prefix_len);
+				   field->prefix_len, field->descending);
 	}
 }
 
@@ -2700,17 +2666,12 @@ dict_index_build_internal_non_clust(
 	index entry uniquely */
 
 	for (i = 0; i < clust_index->n_uniq; i++) {
-
 		field = dict_index_get_nth_field(clust_index, i);
 
-		if (!indexed[field->col->ind]) {
+		if (!indexed[field->col->ind] || index->is_spatial()) {
 			dict_index_add_col(new_index, table, field->col,
-					   field->prefix_len);
-		} else if (dict_index_is_spatial(index)) {
-			/*For spatial index, we still need to add the
-			field to index. */
-			dict_index_add_col(new_index, table, field->col,
-					   field->prefix_len);
+					   field->prefix_len,
+					   field->descending);
 		}
 	}
 
@@ -4438,7 +4399,7 @@ void dict_sys_t::resize() noexcept
   table_id_hash.free();
   temp_id_hash.free();
 
-  const ulint hash_size = buf_pool_get_curr_size()
+  const ulint hash_size = buf_pool.curr_pool_size()
     / (DICT_POOL_PER_TABLE_HASH * UNIV_WORD_SIZE);
   table_hash.create(hash_size);
   table_id_hash.create(hash_size);
@@ -4564,7 +4525,7 @@ dict_foreign_qualify_index(
 		return(false);
 	}
 
-	if (index->type & (DICT_SPATIAL | DICT_FTS | DICT_CORRUPT)) {
+	if (!index->is_btree()) {
 		return false;
 	}
 

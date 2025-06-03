@@ -92,6 +92,7 @@ C_MODE_START
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
+#define MY_ROOT_USE_MPROTECT 0x20000U /* init_alloc_root: read only segments */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
 
@@ -172,10 +173,17 @@ extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
+extern my_bool my_use_large_pages;
 
-int my_init_large_pages(my_bool super_large_pages);
+int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
+#ifdef _WIN32
+/* On Windows, use my_virtual_mem_reserve() and my_virtual_mem_commit(). */
+#else
+char *my_large_virtual_alloc(size_t *size);
+#endif
 void my_large_free(void *ptr, size_t size);
+void my_large_page_truncate(size_t *size);
 
 #ifdef _WIN32
 extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
@@ -230,7 +238,7 @@ extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
 /* charsets */
-#define MY_ALL_CHARSETS_SIZE 2048
+#define MY_ALL_CHARSETS_SIZE 4096
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *default_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *all_charsets[MY_ALL_CHARSETS_SIZE];
 extern struct charset_info_st compiled_charsets[];
@@ -273,6 +281,7 @@ extern my_bool  my_disable_async_io,
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
+extern size_t my_system_page_size;
 
 enum cache_type
 {
@@ -332,9 +341,9 @@ typedef void (*FREE_FUNC)(void *);
 typedef struct st_dynamic_array
 {
   uchar *buffer;
-  uint elements,max_element;
-  uint alloc_increment;
-  uint size_of_element;
+  size_t elements, max_element;
+  size_t alloc_increment;
+  size_t size_of_element;
   PSI_memory_key m_psi_key;
   myf malloc_flags;
 } DYNAMIC_ARRAY;
@@ -343,7 +352,7 @@ typedef struct st_my_tmpdir
 {
   DYNAMIC_ARRAY full_list;
   char **list;
-  uint cur, max;
+  size_t cur, max;
   mysql_mutex_t mutex;
 } MY_TMPDIR;
 
@@ -824,21 +833,20 @@ File create_temp_file(char *to, const char *dir, const char *pfx,
 #define my_init_dynamic_array(A,B,C,D,E,F) init_dynamic_array2(A,B,C,NULL,D,E,F)
 #define my_init_dynamic_array2(A,B,C,D,E,F,G) init_dynamic_array2(A,B,C,D,E,F,G)
 extern my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
-                                   uint element_size, void *init_buffer,
-                                   uint init_alloc, uint alloc_increment,
+                                   size_t element_size, void *init_buffer,
+                                   size_t init_alloc, size_t alloc_increment,
                                    myf my_flags);
 extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);
 extern void *alloc_dynamic(DYNAMIC_ARRAY *array);
 extern void *pop_dynamic(DYNAMIC_ARRAY*);
 extern my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element,
-                           uint array_index);
-extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
-extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
+                           size_t array_index);
+extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, size_t max_elements);
+extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
-extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
+extern void delete_dynamic_element(DYNAMIC_ARRAY *array, size_t array_index);
 extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
-extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
 #define dynamic_element(array,array_index,type) ((type)((array)->buffer) +(array_index))
 #define push_dynamic(A,B) insert_dynamic((A),(B))
@@ -877,7 +885,6 @@ extern void my_free_lock(void *ptr);
 #define my_free_lock(A) my_free((A))
 #endif
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
-#define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define DEFAULT_ROOT_BLOCK_SIZE 1024
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
 extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
@@ -890,6 +897,9 @@ extern void move_root(MEM_ROOT *to, MEM_ROOT *from);
 extern void set_prealloc_root(MEM_ROOT *root, char *ptr);
 extern void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                 size_t prealloc_size);
+extern USED_MEM *get_last_memroot_block(MEM_ROOT* root);
+extern void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block);
+extern void protect_root(MEM_ROOT *root, int prot);
 extern char *strdup_root(MEM_ROOT *root,const char *str);
 static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
 {
@@ -897,6 +907,7 @@ static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
 }
 extern char *strmake_root(MEM_ROOT *root,const char *str,size_t len);
 extern void *memdup_root(MEM_ROOT *root,const void *str, size_t len);
+
 extern LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str);
 extern my_bool my_compress(uchar *, size_t *, size_t *);
 extern my_bool my_uncompress(uchar *, size_t , size_t *);
@@ -1014,23 +1025,32 @@ extern int my_win_pclose(FILE*);
 #endif
 
 /* my_getpagesize */
-#ifdef HAVE_GETPAGESIZE
-#define my_getpagesize()        getpagesize()
-#else
 int my_getpagesize(void);
-#endif
 
 int my_msync(int, void *, size_t, int);
 
 #define MY_UUID_SIZE 16
-#define MY_UUID_STRING_LENGTH (8+1+4+1+4+1+4+1+12)
-#define MY_UUID_ORACLE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_BARE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_SEPARATORS 4
+#define MY_UUID_STRING_LENGTH (MY_UUID_BARE_STRING_LENGTH + MY_UUID_SEPARATORS)
 
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
-void my_uuid2str(const uchar *guid, char *s);
-void my_uuid2str_oracle(const uchar *guid, char *s);
 void my_uuid_end(void);
+
+static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
+{
+  int i;
+  int mask= with_separators ? ((1 << 3) | (1 << 5) | (1 << 7) | (1 << 9)) : 0;
+  for (i=0; i < MY_UUID_SIZE; i++, mask >>= 1)
+  {
+    *s++= _dig_vec_lower[guid[i] >>4];
+    *s++= _dig_vec_lower[guid[i] & 15];
+    if (mask & 1)
+      *s++= '-';
+  }
+}
+
 
 const char *my_dlerror(const char *dlpath);
 
@@ -1075,6 +1095,9 @@ extern char *my_get_tty_password(const char *opt_message);
 #define BACKSLASH_MBTAIL
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
+extern int my_set_console_cp(const char *name);
+#else
+#define my_set_console_cp(A) do {} while (0)
 #endif
 extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
@@ -1085,13 +1108,6 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
-
-#ifdef _WIN32
-
-/* implemented in my_conio.c */
-char* my_cgets(char *string, size_t clen, size_t* plen);
-
-#endif
 
 #include <mysql/psi/psi.h>
 
@@ -1104,4 +1120,135 @@ void my_init_mysys_psi_keys(void);
 struct st_mysql_file;
 extern struct st_mysql_file *mysql_stdin;
 C_MODE_END
+
+
+#ifdef __cplusplus
+
+class Charset_loader_mysys: public MY_CHARSET_LOADER
+{
+public:
+  Charset_loader_mysys()
+  {
+    my_charset_loader_init_mysys(this);
+  }
+
+  /**
+    Get a CHARSET_INFO by a character set name.
+
+    @param name      Collation name
+    @param cs_flags  e.g. MY_CS_PRIMARY, MY_CS_BINARY
+    @param my_flags  mysys flags (MY_WME, MY_UTF8_IS_UTF8MB3)
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_charset(const char *cs_name, uint cs_flags, myf my_flags)
+  {
+    error[0]= '\0'; // Need to clear in case of the second call
+    return my_charset_get_by_name(this, cs_name, cs_flags, my_flags);
+  }
+
+  /**
+    Get a CHARSET_INFO by an exact collation by name.
+
+    @param name      Collation name
+    @param my_flags  e.g. the utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_exact_collation(const char *name, myf my_flags)
+  {
+    error[0]= '\0'; // Need to clear in case of the second call
+    return my_collation_get_by_name(this, name, my_flags);
+  }
+
+  /**
+    Get a CHARSET_INFO by a context collation by name.
+    The returned pointer must be further resolved to a character set.
+
+    @param name      Collation name
+    @param utf8_flag The utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_context_collation(const char *name, myf my_flags)
+  {
+    return get_exact_collation_by_context_name(&my_charset_utf8mb4_general_ci,
+                                               name, my_flags);
+  }
+
+  /**
+    Get an exact CHARSET_INFO by a contextually typed collation name.
+
+    @param name      Collation name
+    @param utf8_flag The utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointer on success
+  */
+  CHARSET_INFO *get_exact_collation_by_context_name(CHARSET_INFO *cs,
+                                                    const char *name,
+                                                    myf my_flags)
+  {
+    char tmp[MY_CS_COLLATION_NAME_SIZE];
+    my_snprintf(tmp, sizeof(tmp), "%s_%s", cs->cs_name.str, name);
+    return get_exact_collation(tmp, my_flags);
+  }
+
+  /*
+    Find a collation with binary comparison rules
+  */
+  CHARSET_INFO *get_bin_collation(CHARSET_INFO *cs, myf my_flags)
+  {
+    /*
+      We don't need to handle old_mode=UTF8_IS_UTF8MB3 here,
+      This method assumes that "cs" points to a real character set name.
+      It can be either "utf8mb3" or "utf8mb4". It cannot be "utf8".
+      No thd->get_utf8_flag() flag passed to get_charset_by_csname().
+    */
+    DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
+    /*
+      CREATE TABLE t1 (a CHAR(10) BINARY)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+      Nothing to do, we have the binary collation already.
+    */
+    if (cs->state & MY_CS_BINSORT)
+      return cs;
+
+    // CREATE TABLE t1 (a CHAR(10) BINARY) CHARACTER SET utf8mb4;/
+    error[0]= '\0'; // Need in case of the second execution
+    return get_charset(cs->cs_name.str, MY_CS_BINSORT, my_flags);
+  }
+
+  /*
+    Find the default collation in the given character set
+  */
+  CHARSET_INFO *get_default_collation(CHARSET_INFO *cs, myf my_flags)
+  {
+    // See comments in find_bin_collation_or_error()
+    DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
+    /*
+      CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT) CHARACTER SET utf8mb4;
+      Nothing to do, we have the default collation already.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+      return cs;
+    /*
+      CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+
+      Don't need to handle old_mode=UTF8_IS_UTF8MB3 here.
+      See comments in find_bin_collation_or_error.
+    */
+    cs= get_charset(cs->cs_name.str, MY_CS_PRIMARY, my_flags);
+    DBUG_ASSERT(cs);
+    return cs;
+  }
+};
+
+#endif /*__cplusplus */
+
+
 #endif /* _my_sys_h */

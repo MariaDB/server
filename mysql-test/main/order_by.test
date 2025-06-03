@@ -4,19 +4,12 @@
 #
 
 call mtr.add_suppression("Sort aborted.*");
-
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
 --source include/have_sequence.inc
 
 #
 # Test old ORDER BY bug
 #
-
---source include/have_sequence.inc
 
 CREATE TABLE t1 (
   id int(6) DEFAULT '0' NOT NULL,
@@ -2800,3 +2793,14 @@ eval $query;
 DROP TABLE t1, t2;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-13756 Implement descending index: KEY (a DESC, b ASC)
+--echo #
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+explain select * from t1 force index(r) order by a desc,b limit 20;
+        select * from t1 force index(r) order by a desc,b limit 20;
+drop table t1;

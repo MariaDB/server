@@ -21,6 +21,7 @@
 #include <errno.h>
 
 #include "stdarg.h"
+#include "my_bit.h"
 
 /*
   Returns the number of bytes required for strnxfrm().
@@ -175,7 +176,6 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
 {
   const uchar *map= cs->sort_order, *end;
   size_t length;
-  int res;
 
   end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
@@ -183,7 +183,6 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
     if (map[*a++] != map[*b++])
       return ((int) map[a[-1]] - (int) map[b[-1]]);
   }
-  res= 0;
   if (a_length != b_length)
   {
     int swap= 1;
@@ -197,15 +196,14 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
       a_length= b_length;
       a= b;
       swap= -1;                                 /* swap sign of result */
-      res= -res;
     }
     for (end= a + a_length-length; a < end ; a++)
     {
       if (map[*a] != map[' '])
-	return (map[*a] < map[' ']) ? -swap : swap;
+        return (map[*a] < map[' ']) ? -swap : swap;
     }
   }
-  return res;
+  return 0;
 }
 
 
@@ -1491,8 +1489,6 @@ static my_bool
 my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
 {
   cs->state|= my_8bit_charset_flags_from_data(cs);
-  cs->caseup_multiply= 1;
-  cs->casedn_multiply= 1;
   cs->pad_char= ' ';
   if (!cs->to_lower || !cs->to_upper || !cs->m_ctype || !cs->tab_to_uni)
     return TRUE;
@@ -1946,13 +1942,27 @@ my_bool my_propagate_complex(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+void my_ci_set_strength(struct charset_info_st *cs, uint strength)
+{
+  DBUG_ASSERT(strength > 0);
+  DBUG_ASSERT(strength <= MY_STRXFRM_NLEVELS);
+  cs->levels_for_order= ((1 << strength) - 1);
+}
+
+
+void my_ci_set_level_flags(struct charset_info_st *cs, uint flags)
+{
+  DBUG_ASSERT(flags < (1<<MY_STRXFRM_NLEVELS));
+  cs->levels_for_order= flags;
+}
+
 /*
   Normalize strxfrm flags
 
   SYNOPSIS:
     my_strxfrm_flag_normalize()
+    cs       - the CHARSET_INFO pointer
     flags    - non-normalized flags
-    nlevels  - number of levels
     
   NOTES:
     If levels are omitted, then 1-maximum is assumed.
@@ -1963,8 +1973,9 @@ my_bool my_propagate_complex(CHARSET_INFO *cs __attribute__((unused)),
     normalized flags
 */
 
-uint my_strxfrm_flag_normalize(uint flags, uint maximum)
+uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags)
 {
+  uint maximum= my_bit_log2_uint32(cs->levels_for_order) + 1;
   DBUG_ASSERT(maximum >= 1 && maximum <= MY_STRXFRM_NLEVELS);
   
   /* If levels are omitted, then 1-maximum is assumed*/
@@ -2137,7 +2148,9 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_8bit
+    my_wc_to_printable_8bit,
+    my_casefold_multiply_1,
+    my_casefold_multiply_1
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
@@ -2155,7 +2168,9 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_hash_sort_simple,
     my_propagate_simple,
     my_min_str_8bit_simple,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };
 
 
@@ -2174,5 +2189,7 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_hash_sort_simple_nopad,
     my_propagate_simple,
     my_min_str_8bit_simple_nopad,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };

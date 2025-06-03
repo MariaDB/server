@@ -920,3 +920,124 @@ drop view v;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo #  MDEV-27743 Remove Lex::charset
+--echo #
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+
+
+--echo #
+--echo # MDEV-29446 Change SHOW CREATE TABLE to display default collations
+--echo #
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+# ENUM is not supported yet in JSON_TABLE.
+# But if it is eventually supported, the below
+# test should be modified to make sure that "CHARACTER SET BINARY"
+# is not followed by "COLLATE BINARY".
+--error ER_PARSE_ERROR
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #

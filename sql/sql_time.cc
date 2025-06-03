@@ -508,7 +508,7 @@ bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
 
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code)
 {
-  thd->time_zone_used= 1;
+  thd->used|= THD::TIME_ZONE_USED;
   return thd->variables.time_zone->TIME_to_gmt_sec(t, error_code);
 }
 
@@ -1280,7 +1280,7 @@ mix_date_and_time(MYSQL_TIME *to, const MYSQL_TIME *from)
 void set_current_date(THD *thd, MYSQL_TIME *to)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(to, thd->query_start());
-  thd->time_zone_used= 1;
+  thd->used|= THD::TIME_ZONE_USED;
   datetime_to_date(to);
 }
 

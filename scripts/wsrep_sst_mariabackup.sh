@@ -1183,12 +1183,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
         iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
 
-        if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-            wsrep_log_info "Forcing FTWRL due to environment variable" \
-                           "FORCE_FTWRL equal to $FORCE_FTWRL"
-            iopts="--no-backup-locks${iopts:+ }$iopts"
-        fi
-
         # if compression is enabled for backup files, then add the
         # appropriate options to the mariadb-backup command line:
         if [ "$compress" != 'none' ]; then

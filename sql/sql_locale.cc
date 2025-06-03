@@ -31,7 +31,7 @@ enum err_msgs_index
 {
   en_US= 0, zh_CN, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
   ja_JP, ko_KR, no_NO, nn_NO, pl_PL, pt_PT, ro_RO, ru_RU, sr_RS,  sk_SK,
-  es_ES, sv_SE, uk_UA, hi_IN
+  es_ES, sv_SE, uk_UA, hi_IN, ka_GE
 } ERR_MSGS_INDEX;
 
 
@@ -62,6 +62,7 @@ MY_LOCALE_ERRMSGS global_errmsgs[]=
   {"swedish", NULL},
   {"ukrainian", NULL},
   {"hindi", NULL},
+  {"georgian", NULL},
   {NULL, NULL}
 };
 
@@ -3318,6 +3319,65 @@ MY_LOCALE my_locale_rm_CH
 /***** LOCALE END rm_CH *****/
 
 
+/***** LOCALE BEGIN ka_GE: Georgian - Georgia *****/
+static const char *my_locale_month_names_ka_GE[13] =
+{
+  "იანვარი",    // January
+  "თებერვალი",  // February
+  "მარტი",      // March
+  "აპრილი",     // April
+  "მაისი",      // May
+  "ივნისი",     // June
+  "ივლისი",     // July
+  "აგვისტო",    // August
+  "სექტემბერი", // September
+  "ოქტომბერი",  // October
+  "ნოემბერი",   // November
+  "დეკემბერი",  // December
+  NullS
+};
+
+static const char *my_locale_ab_month_names_ka_GE[13] =
+ {"იან","თებ","მარ","აპრ","მაი","ივნ","ივლ","აგვ","სექტ","ოქტ","ნოე","დეკ", NullS };
+
+static const char *my_locale_day_names_ka_GE[8] =
+ {"ორშაბათი","სამშაბათი","ოთხშაბათი","ხუთშაბათი","პარასკევი","შაბათი","კვირა", NullS };
+
+static const char *my_locale_ab_day_names_ka_GE[8] =
+ {"ორშ","სამშ","ოთხშ","ხუთშ","პარ","შაბ","კვ", NullS };
+
+static TYPELIB my_locale_typelib_month_names_ka_GE =
+ { array_elements(my_locale_month_names_ka_GE)-1, "", my_locale_month_names_ka_GE, NULL };
+
+static TYPELIB my_locale_typelib_ab_month_names_ka_GE =
+ { array_elements(my_locale_ab_month_names_ka_GE)-1, "", my_locale_ab_month_names_ka_GE, NULL };
+
+static TYPELIB my_locale_typelib_day_names_ka_GE =
+ { array_elements(my_locale_day_names_ka_GE)-1, "", my_locale_day_names_ka_GE, NULL };
+
+static TYPELIB my_locale_typelib_ab_day_names_ka_GE =
+ { array_elements(my_locale_ab_day_names_ka_GE)-1, "", my_locale_ab_day_names_ka_GE, NULL };
+
+MY_LOCALE my_locale_ka_GE
+(
+  111,
+  "ka_GE",
+  "Georgian - Georgia",
+  FALSE,
+  &my_locale_typelib_month_names_ka_GE,
+  &my_locale_typelib_ab_month_names_ka_GE,
+  &my_locale_typelib_day_names_ka_GE,
+  &my_locale_typelib_ab_day_names_ka_GE,
+  10,
+  9,
+  ',',        /* decimal point ka_GE */
+  ' ',        /* thousands_sep ka_GE */
+  "\x03",     /* grouping      ka_GE */
+  &global_errmsgs[ka_GE]
+);
+/***** LOCALE END ka_GE *****/
+
+
 /*
   The list of all locales.
   Note, locales must be ordered according to their
@@ -3437,6 +3497,7 @@ MY_LOCALE *my_locales[]=
     &my_locale_zh_HK,
     &my_locale_el_GR,
     &my_locale_rm_CH,
+    &my_locale_ka_GE,
     NULL 
   };
 

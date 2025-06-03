@@ -160,7 +160,7 @@ alter user baz@baz identified with mysql_native_password as password("baz");
 show create user baz@baz;
 drop user bar@foo;
 drop user baz@baz;
-# need to restart the server to restore the --skip-grant state
+# Need to restart the server to restore the "--skip-grant-tables" state
 --source include/restart_mysqld.inc
 
 --enable_ps_protocol
@@ -179,3 +179,22 @@ DROP PROCEDURE p;
 DROP FUNCTION f;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-24815 Show "--skip-grant-tables" state in SYSTEM VARIABLES
+--echo #
+
+SELECT @@skip_grant_tables AS EXPECT_1;
+
+# Also check when the server starts without "--skip-grant-table" option
+--let $restart_parameters = --skip-skip-grant-tables
+--source include/restart_mysqld.inc
+SELECT @@skip_grant_tables AS EXPECT_0;
+
+# Need to restart the server to restore the "--skip-grant-tables" state
+--let $restart_parameters = --skip-grant-tables
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

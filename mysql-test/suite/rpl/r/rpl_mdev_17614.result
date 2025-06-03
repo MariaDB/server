@@ -30,7 +30,7 @@ a	b	c
 1	1	1
 2	2	3
 include/stop_slave_io.inc
-reset slave;
+include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;
@@ -189,7 +189,7 @@ a	b	c
 1	1	1
 2	2	3
 include/stop_slave_io.inc
-reset slave;
+include/reset_slave.inc
 connection master;
 reset master;
 drop table t1;

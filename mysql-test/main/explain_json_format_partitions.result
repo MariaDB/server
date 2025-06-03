@@ -12,42 +12,56 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "partitions": ["p0"],
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "t1.a in (2,3,4)"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["p0"],
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t1.a in (2,3,4)"
+        }
+      }
+    ]
   }
 }
 analyze format=json select * from t1 where a in (2,3,4);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "partitions": ["p0"],
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 30,
-      "attached_condition": "t1.a in (2,3,4)"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "partitions": ["p0"],
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 30,
+          "attached_condition": "t1.a in (2,3,4)"
+        }
+      }
+    ]
   }
 }
 analyze format=json update t1 set a=a+10 where a in (2,3,4);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -70,6 +84,9 @@ ANALYZE
 analyze format=json delete from t1 where a in (20,30,40);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",

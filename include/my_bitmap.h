@@ -28,12 +28,6 @@ typedef struct st_bitmap
 {
   my_bitmap_map *bitmap;
   my_bitmap_map *last_word_ptr;
-  /*
-     mutex will be acquired for the duration of each bitmap operation if
-     thread_safe flag in bitmap_init was set.  Otherwise, we optimize by not
-     acquiring the mutex
-   */
-  mysql_mutex_t *mutex;
   my_bitmap_map last_bit_mask;
   uint32	n_bits; /* number of bits occupied by the above */
   my_bool       bitmap_allocated;
@@ -47,8 +41,7 @@ extern "C" {
 #define my_bitmap_clear(A) ((A)->bitmap= 0)
 
 extern void create_last_bit_mask(MY_BITMAP *map);
-extern my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
-                              my_bool thread_safe);
+extern my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits);
 extern my_bool bitmap_is_clear_all(const MY_BITMAP *map);
 extern my_bool bitmap_is_prefix(const MY_BITMAP *map, uint prefix_size);
 extern my_bool bitmap_is_set_all(const MY_BITMAP *map);
@@ -82,9 +75,6 @@ extern void bitmap_copy(MY_BITMAP *map, const MY_BITMAP *map2);
 /* Functions to export/import bitmaps to an architecture independent format */
 extern void bitmap_export(uchar *to, MY_BITMAP *map);
 extern void bitmap_import(MY_BITMAP *map, uchar *from);
-
-extern uint bitmap_lock_set_next(MY_BITMAP *map);
-extern void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit);
 
 #define my_bitmap_map_bytes sizeof(my_bitmap_map)
 #define my_bitmap_map_bits  (my_bitmap_map_bytes*8)

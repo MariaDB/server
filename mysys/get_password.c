@@ -62,35 +62,58 @@
 
 char *my_get_tty_password(const char *opt_message)
 {
-  char to[80];
-  char *pos=to,*end=to+sizeof(to)-1;
+  wchar_t wbuf[80];
+  char *to;
+  int to_len;
+  UINT cp;
+  wchar_t *pos=wbuf,*end=wbuf + array_elements(wbuf)-1;
   DBUG_ENTER("my_get_tty_password");
   _cputs(opt_message ? opt_message : "Enter password: ");
   for (;;)
   {
-    char tmp;
-    tmp=_getch();
-    if (tmp == '\b' || (int) tmp == 127)
+    int wc;
+    wc=_getwch();
+    if (wc == '\b' || wc == 127)
     {
-      if (pos != to)
+      if (pos != wbuf)
       {
-	_cputs("\b \b");
-	pos--;
-	continue;
+        _cputs("\b \b");
+        pos--;
+        continue;
       }
     }
-    if (tmp == '\n' || tmp == '\r' || tmp == 3)
+    if (wc == '\n' || wc == '\r' || wc == 3 || pos == end)
       break;
-    if (iscntrl(tmp) || pos == end)
+    if (iswcntrl(wc))
       continue;
-    _cputs("*");
-    *(pos++) = tmp;
+
+    /* Do not print '*' for half-unicode char(high surrogate)*/
+    if (wc < 0xD800 || wc > 0xDBFF)
+    {
+      _cputs("*");
+    }
+    *(pos++)= (wchar_t)wc;
   }
-  while (pos != to && isspace(pos[-1]) == ' ')
-    pos--;					/* Allow dummy space at end */
   *pos=0;
   _cputs("\n");
-  DBUG_RETURN(my_strdup(PSI_INSTRUMENT_ME, to,MYF(MY_FAE)));
+
+  /*
+    Allocate output string, and convert UTF16 password to output codepage.
+  */
+  cp= GetACP() == CP_UTF8 ? CP_UTF8 : GetConsoleCP();
+
+  if (!(to_len= WideCharToMultiByte(cp, 0, wbuf, -1, NULL, 0, NULL, NULL)))
+    DBUG_RETURN(NULL);
+
+  if (!(to= my_malloc(PSI_INSTRUMENT_ME, to_len, MYF(MY_FAE))))
+    DBUG_RETURN(NULL);
+
+  if (!WideCharToMultiByte(cp, 0, wbuf, -1, to, to_len, NULL, NULL))
+  {
+    my_free(to);
+    DBUG_RETURN(NULL);
+  }
+  DBUG_RETURN(to);
 }
 
 #else
