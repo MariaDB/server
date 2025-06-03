@@ -4037,6 +4037,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 
   if (get_string_parameter(mi->host, lex_mi->host, sizeof(mi->host)-1,
                            "MASTER_HOST", system_charset_info) ||
+      get_string_parameter(mi->bind_addr, lex_mi->bind_addr,
+                           sizeof(mi->bind_addr)-1,
+                           "MASTER_BIND", system_charset_info) ||
       get_string_parameter(mi->user, lex_mi->user, sizeof(mi->user)-1,
                            "MASTER_USER", system_charset_info) ||
       get_string_parameter(mi->password, lex_mi->password,
