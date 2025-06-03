@@ -8347,9 +8347,17 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       Direct SELECT of a sequence table doesn't set t_ref->sequence, so
       privileges will be checked normally, as for any table.
     */
-    if (t_ref->sequence &&
-        !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
-      continue;
+    if (t_ref->sequence)
+    {
+      if (!(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+        continue;
+      /*
+        If it is ALTER..SET DEFAULT= nextval(sequence), also defer checks
+        until ::fix_fields().
+      */
+      if (tl != tables && want_access == ALTER_ACL)
+        continue;
+    }
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,

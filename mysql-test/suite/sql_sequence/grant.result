@@ -97,6 +97,19 @@ ERROR 42000: SELECT, INSERT command denied to user 'u'@'localhost' for table `my
 disconnect con1;
 connection default;
 drop user u;
+create user u_alter;
+create table t1 (id int);
+grant alter on t1 to u_alter;
+connect con_alter,localhost,u_alter,,mysqltest_1;
+alter table t1 modify id int default nextval(s1);
+ERROR 42000: SELECT, INSERT command denied to user 'u_alter'@'localhost' for table `mysqltest_1`.`s1`
+connection default;
+grant insert, select on s1 to u_alter;
+connection con_alter;
+alter table t1 modify id int default nextval(s1);
+disconnect con_alter;
+connection default;
+drop user u_alter;
 drop database mysqltest_1;
 #
 # End of 10.11 tests

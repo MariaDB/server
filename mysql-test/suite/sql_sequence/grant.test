@@ -106,6 +106,22 @@ create table t1 (a int not null default(nextval(s1)),
 --connection default
 drop user u;
 
+# ALTER for table with DEFAULT NEXTVAL(seq) column needs INSERT/SELECT on seq
+# just like CREATE does in the example above
+create user u_alter;
+create table t1 (id int);
+grant alter on t1 to u_alter;
+--connect(con_alter,localhost,u_alter,,mysqltest_1)
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 modify id int default nextval(s1);
+--connection default
+grant insert, select on s1 to u_alter;
+--connection con_alter
+alter table t1 modify id int default nextval(s1);
+--disconnect con_alter
+--connection default
+drop user u_alter;
+
 #
 # Cleanup
 #
