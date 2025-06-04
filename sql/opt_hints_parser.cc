@@ -33,7 +33,8 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
                 const Lex_ident_sys *key_name_arg,
-                const Printable_parser_rule *hint);
+                const Printable_parser_rule *hint,
+                const Lex_ident_sys *add_info= nullptr);
 
 Opt_hints_qb *get_qb_hints(Parse_context *pc);
 
@@ -543,6 +544,11 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (!tab)
     return false;
 
+  const Lex_ident_sys table_conflict(
+      STRING_WITH_LEN("an index hint was already specified for this table"));
+  const Lex_ident_sys key_conflict(
+      STRING_WITH_LEN("another hint was already specified for this index"));
+
   if (is_empty())  // Empty list of index names, i.e. it is a table level hint
   {
     if ((is_compound_hint(hint_type) &&
@@ -551,7 +557,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
          tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, nullptr, this);
+                 &qb_name_sys, &table_name_sys, nullptr, this, &table_conflict);
     }
     else if (is_compound_hint(hint_type))
       tab->get_compound_key_hint(hint_type)->parsed_hint= this;
@@ -590,7 +596,9 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
       {
         is_conflicting= true;
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT,hint_type, hint_state,
-                   &qb_name_sys, &table_name_sys, nullptr, this);
+                   &qb_name_sys, &table_name_sys, nullptr, this,
+                   tab->is_specified(hint_type) ? &table_conflict :
+                                                  &key_conflict);
         break;
       }
       key_hints.push_back(key);

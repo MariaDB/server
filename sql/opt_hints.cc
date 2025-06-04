@@ -80,13 +80,30 @@ void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
   DBUG_VOID_RETURN;
 }
 
+/*
+  Function prepares and prints a warning message related to hints parsing or
+  resolving.
+
+  @param thd             Pointer to THD object for session.
+         err_code        Numeric code of the warning
+         hint_type       Numeric hint type
+         hint_state      true: enabling hint (HINT(...),
+                         false: disabling (NO_HINT(...))
+         qb_name_arg     optional query block name
+         table_name_arg  optional table name
+         key_name_arg    optional key (index) name
+         hint            optional pointer to the parsed hint object
+         add_info        optional string, if given then will be appended to
+                         the end of the message embraced in brackets
+*/
 
 void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
                 const Lex_ident_sys *key_name_arg,
-                const Printable_parser_rule *hint)
+                const Printable_parser_rule *hint,
+                const Lex_ident_sys *add_info= nullptr)
 {
   String str;
 
@@ -157,8 +174,18 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
   }
 
   str.append(')');
+
+  String add_info_str;
+  if (add_info)
+  {
+    add_info_str.append(STRING_WITH_LEN(" ("));
+    add_info_str.append(add_info);
+    add_info_str.append(')');
+  }
+
   push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
-                    err_code, ER_THD(thd, err_code), str.c_ptr_safe());
+                    err_code, ER_THD(thd, err_code), str.c_ptr_safe(),
+                    add_info_str.c_ptr_safe());
 }
 
 

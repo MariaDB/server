@@ -21,19 +21,21 @@ ANALYZE TABLE t1;
 --echo # JOIN_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1) JOIN_INDEX(t1) */ a FROM t1;
 --echo # INDEX(t1 i_d) is ignored as duplicated (same type of hint for the same table)
-EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) INDEX(t1 i_d) */ a FROM t1;
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) NO_INDEX(t1 i_d) */ a FROM t1;
 --echo # JOIN_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) JOIN_INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_b) */ a FROM t1;
 --echo # GROUP_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) */ a FROM t1;
 --echo # GROUP_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1) */ a FROM t1;
---echo # ORDER_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
+--echo # ORDER_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same key)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) */ a FROM t1;
+--echo # INDEX(t1 i_b,i_a) is ignored as intersected (INDEX/other hint for the same key)
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) INDEX(t1 i_b,i_a)*/ a FROM t1;
 --echo # ORDER_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1) */ a FROM t1;
 --echo # ORDER_INDEX(t1 i_b) is ignored as intersected (same hint/INDEX for the same table)
-EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) NO_ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
 --echo # INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) INDEX(t1)*/ a FROM t1;
 --echo # INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)

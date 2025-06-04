@@ -21,70 +21,77 @@ EXPLAIN EXTENDED SELECT /*+ INDEX(t1) JOIN_INDEX(t1) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint JOIN_INDEX(`t1` ) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # INDEX(t1 i_d) is ignored as duplicated (same type of hint for the same table)
-EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) INDEX(t1 i_d) */ a FROM t1;
+EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a, i_b, i_c) NO_INDEX(t1 i_d) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint INDEX(`t1` `i_d`) is ignored as conflicting/duplicated
+Warning	4219	Hint NO_INDEX(`t1` `i_d`) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`,`i_b`,`i_c`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # JOIN_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) JOIN_INDEX(t1 i_a, i_b) JOIN_INDEX(t1 i_b) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint JOIN_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated
+Warning	4219	Hint JOIN_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated (another hint was already specified for this index)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) JOIN_INDEX(`t1`@`select#1` `i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # GROUP_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint GROUP_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated
+Warning	4219	Hint GROUP_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated (another hint was already specified for this index)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) GROUP_INDEX(`t1`@`select#1` `i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # GROUP_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) GROUP_INDEX(t1) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint GROUP_INDEX(`t1` ) is ignored as conflicting/duplicated
+Warning	4219	Hint GROUP_INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
-# ORDER_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same table)
+# ORDER_INDEX(t1 i_a, i_b) is ignored as intersected (INDEX/other hint for the same key)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint ORDER_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated
+Warning	4219	Hint ORDER_INDEX(`t1` `i_a`,`i_b`) is ignored as conflicting/duplicated (another hint was already specified for this index)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) ORDER_INDEX(`t1`@`select#1` `i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
+# INDEX(t1 i_b,i_a) is ignored as intersected (INDEX/other hint for the same key)
+EXPLAIN EXTENDED SELECT /*+ ORDER_INDEX(t1 i_a) INDEX(t1 i_b,i_a)*/ a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
+Warnings:
+Warning	4219	Hint INDEX(`t1` `i_b`,`i_a`) is ignored as conflicting/duplicated (another hint was already specified for this index)
+Note	1003	select /*+ ORDER_INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # ORDER_INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+ INDEX(t1 i_a) ORDER_INDEX(t1) */ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint ORDER_INDEX(`t1` ) is ignored as conflicting/duplicated
+Warning	4219	Hint ORDER_INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_a`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # ORDER_INDEX(t1 i_b) is ignored as intersected (same hint/INDEX for the same table)
-EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
+EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) NO_ORDER_INDEX(t1 i_b) INDEX(t1 i_c)*/ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint ORDER_INDEX(`t1` `i_b`) is ignored as conflicting/duplicated
+Warning	4219	Hint NO_ORDER_INDEX(`t1` `i_b`) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ INDEX(`t1`@`select#1` `i_c`) ORDER_INDEX(`t1`@`select#1` `i_a`,`i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1 i_a, i_b) GROUP_INDEX(t1 i_b) INDEX(t1)*/ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint INDEX(`t1` ) is ignored as conflicting/duplicated
+Warning	4219	Hint INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ GROUP_INDEX(`t1`@`select#1` `i_b`) ORDER_INDEX(`t1`@`select#1` `i_a`,`i_b`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # INDEX(t1) is ignored as intersected (INDEX/other hint for the same table)
 EXPLAIN EXTENDED SELECT /*+  ORDER_INDEX(t1) GROUP_INDEX(t1) INDEX(t1)*/ a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	i_a	5	NULL	256	100.00	Using index
 Warnings:
-Warning	4219	Hint INDEX(`t1` ) is ignored as conflicting/duplicated
+Warning	4219	Hint INDEX(`t1` ) is ignored as conflicting/duplicated (an index hint was already specified for this table)
 Note	1003	select /*+ GROUP_INDEX(`t1`@`select#1`) ORDER_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1`
 # Check the use of index hints.
 # Force the use of i_a, i_b indexes, intersect(i_a,i_b) is used.
