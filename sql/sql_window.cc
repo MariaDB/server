@@ -482,7 +482,7 @@ int compare_order_elements(ORDER *ord1, int weight1,
         The weight is the same. That is, the elements come from the same
         window specification... This shouldn't happen.
       */
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       cmp= item1 - item2;
     }
   }

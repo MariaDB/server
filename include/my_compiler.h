@@ -81,6 +81,20 @@
 # define MY_ALIGNED(n)      __attribute__((__aligned__((n))))
 #endif
 
+/*
+   An analog of c++23 [[assume(cond)]] 
+   for GCC >= 13.0, Clang and MSVC.
+*/
+#if defined __GNUC__ && __GNUC__ >= 13 && defined __cplusplus
+#define MY_ASSUME(A) __attribute__((__assume__(A)));
+#elif defined __clang__
+#define MY_ASSUME(A) __builtin_assume(A);
+#elif defined _MSC_VER
+#define MY_ASSUME(A) __assume(A);
+#else
+#define MY_ASSUME(A) do { } while(0)
+#endif
+
 /**
   Generic (compiler-independent) features.
 */

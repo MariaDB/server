@@ -2339,7 +2339,7 @@ bool Item_func_int_val::native_op(THD *thd, Native *to)
   // TODO: turn Item_func_int_val into Item_handled_func eventually.
   if (type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME)
     return Time(thd, this).to_native(to, decimals);
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return true;
 }
 
@@ -2796,7 +2796,7 @@ bool Item_func_round::native_op(THD *thd, Native *to)
   // TODO: turn Item_func_round into Item_handled_func eventually.
   if (type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_TIME)
     return Time(thd, this).to_native(to, decimals);
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return true;
 }
 
@@ -3668,7 +3668,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
           break;
         case ROW_RESULT:
         case TIME_RESULT:
-          DBUG_ASSERT(0);          // This case should never be chosen
+          DBUG_ASSERT_NO_ASSUME(0);          // This case should never be chosen
           break;
         }
       }
@@ -3744,7 +3744,7 @@ bool udf_handler::get_arguments()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-      DBUG_ASSERT(0);              // This case should never be chosen
+      DBUG_ASSERT_NO_ASSUME(0);              // This case should never be chosen
       break;
     }
   }
@@ -4572,7 +4572,7 @@ longlong Item_func_benchmark::val_int()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
-      DBUG_ASSERT(0);              // This case should never be chosen
+      DBUG_ASSERT_NO_ASSUME(0);              // This case should never be chosen
       return 0;
     }
   }
@@ -4811,7 +4811,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     set_handler(&type_handler_newdecimal);
     break;
   case ROW_RESULT:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     set_handler(&type_handler_row);
     break;
   }

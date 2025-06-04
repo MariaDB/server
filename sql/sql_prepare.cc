@@ -940,7 +940,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         param->set_ignore(false);
         break;
       default:
-        DBUG_ASSERT(0);
+        DBUG_ASSERT_NO_ASSUME(0);
         DBUG_RETURN(1);
       }
     }
