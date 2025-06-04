@@ -86,13 +86,13 @@
    for GCC >= 13.0, Clang and MSVC.
 */
 #if defined __GNUC__ && __GNUC__ >= 13 && defined __cplusplus
-#define DBUG_ASSUME(A) __attribute__((__assume__(A)));
+#define MY_ASSUME(A) __attribute__((__assume__(A)));
 #elif defined __clang__
-#define DBUG_ASSUME(A) __builtin_assume(A);
+#define MY_ASSUME(A) __builtin_assume(A);
 #elif defined _MSC_VER
-#define DBUG_ASSUME(A) __assume(A);
+#define MY_ASSUME(A) __assume(A);
 #else
-#define DBUG_ASSUME(A) do { } while(0)
+#define MY_ASSUME(A) do { } while(0)
 #endif
 
 /**
