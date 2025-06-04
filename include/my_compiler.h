@@ -85,7 +85,7 @@
    An analog of c++23 [[assume(cond)]] 
    for GCC >= 13.0, Clang and MSVC.
 */
-#if defined __GNUC__ && __GNUC__ >= 13
+#if defined __GNUC__ && __GNUC__ >= 13 && defined __cplusplus
 #define DBUG_ASSUME(A) __attribute__((__assume__(A)));
 #elif defined __clang__
 #define DBUG_ASSUME(A) __builtin_assume(A);
