@@ -824,6 +824,14 @@ public:
   ha_field_option_struct *option_struct;   /* structure with parsed options */
   /* Field is part of the following keys */
   key_map	key_start, part_of_key, part_of_key_not_clustered;
+  /*
+    If the field is a Virtual Column (vcol), part_of_key contains indexes that
+    contain the field directly and also indexes that contain all fields used
+    in vcol's expression.
+    vcol_direct_part_of_key only contains indexes that contain the field
+    directly.
+  */
+  key_map vcol_direct_part_of_key;
 
   /*
     Bitmap of indexes that have records ordered by col1, ... this_field, ...

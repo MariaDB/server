@@ -1023,6 +1023,18 @@ bool Item_field::update_vcol_processor(void *arg)
   return 0;
 }
 
+/*
+   If Item_field itself is a vcol, the underlying field would have
+   already had its part_of_key fixed, so there is no need to recurse
+   further
+*/
+bool Item_field::intersect_field_part_of_key(void *arg)
+{
+  key_map *part_of_key= (key_map *) arg;
+  part_of_key->intersect(field->part_of_key);
+  return 0;
+}
+
 
 bool Item::check_cols(uint c)
 {

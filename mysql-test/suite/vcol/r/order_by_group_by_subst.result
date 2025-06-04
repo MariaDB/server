@@ -1,0 +1,279 @@
+#
+# MDEV-36132 Optimizer support for functional indexes: handle GROUP/ORDER BY
+#
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc int as (c + 1),
+add index(vc);
+explain select c from t order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
+explain select vc from t order by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+explain select vc from t order by vc limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+explain select c + 1 from t order by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+explain select c + 1 from t order by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+explain select vc from t order by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+explain select vc from t order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
+explain select c from t order by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+explain select c from t order by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+explain select vc from t order by c + 1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	2	Using index
+explain select c + 1 from t order by c + 1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+explain select c + 1 from t order by vc limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select c + 1 from t order by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "location": "ORDER BY",
+        "from": "t.c + 1",
+        "to": "t.vc"
+    }
+]
+set optimizer_trace=@old_optimizer_trace;
+drop table t;
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc int as (c + 1),
+add index(vc);
+explain select vc from t order by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+explain select vc from t order by c + 1 limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+drop table t;
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc1 int as (c + 1),
+add index(vc1);
+alter table t
+add column vc2 int as (vc1 * 2),
+add index(vc2);
+explain select c from t order by vc2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+explain select vc2 from t order by vc1 * 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc2	5	NULL	10000	Using index
+explain select vc2 from t order by vc1 * 2 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc2	5	NULL	2	Using index
+drop table t;
+create table t (c int, vc int generated always as (1 + 1) virtual, key (c));
+insert into t values (42, default), (83, default);
+explain select vc from t order by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	2	Using index; Using filesort
+select vc from t order by vc;
+vc
+2
+2
+drop table t;
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc1 int as (c + 1),
+add index(vc1);
+alter table t
+add column vc2 int as (1 - c),
+add index(vc2);
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select * from t order by c + 1, 1 - c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using filesort
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "location": "ORDER BY",
+        "from": "t.c + 1",
+        "to": "t.vc1"
+    },
+    {
+        "location": "ORDER BY",
+        "from": "1 - t.c",
+        "to": "t.vc2"
+    }
+]
+set optimizer_trace=@old_optimizer_trace;
+drop table t;
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc1 int as (c + 1);
+alter table t
+add column vc2 int as (1 - c),
+add index(vc1, vc2);
+explain select vc1, vc2 from t order by c + 1, 1 - c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc1	10	NULL	10000	Using index
+drop table t;
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc int as (c + 1),
+add index(vc);
+explain select c from t group by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
+explain select vc from t group by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+explain select vc from t group by vc limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+explain select c + 1 from t group by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+explain select c + 1 from t group by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+explain select vc from t group by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+explain select vc from t group by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index
+explain select c from t group by vc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+explain select c from t group by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+explain select vc from t group by c + 1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	2	Using index
+explain select c + 1 from t group by c + 1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+explain select c + 1 from t group by vc limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	2	
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select c + 1 from t group by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "location": "GROUP BY",
+        "from": "t.c + 1",
+        "to": "t.vc"
+    }
+]
+set optimizer_trace=@old_optimizer_trace;
+drop table t;
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc int as (c + 1),
+add index(vc);
+explain select vc from t group by c + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10000	Using index
+explain select vc from t group by c + 1 limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc	5	NULL	10	Using index
+drop table t;
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc1 int as (c + 1),
+add index(vc1);
+alter table t
+add column vc2 int as (vc1 * 2),
+add index(vc2);
+explain select c from t group by vc2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+explain select vc2 from t group by vc1 * 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc2	5	NULL	10000	Using index
+explain select vc2 from t group by vc1 * 2 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc2	5	NULL	2	Using index
+drop table t;
+create table t (c int, key (c));
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc1 int as (c + 1),
+add index(vc1);
+alter table t
+add column vc2 int as (1 - c),
+add index(vc2);
+set @old_optimizer_trace=@@optimizer_trace;
+set optimizer_trace=1;
+explain select * from t group by c + 1, 1 - c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	5	NULL	10000	Using index; Using temporary; Using filesort
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "location": "GROUP BY",
+        "from": "t.c + 1",
+        "to": "t.vc1"
+    },
+    {
+        "location": "GROUP BY",
+        "from": "1 - t.c",
+        "to": "t.vc2"
+    }
+]
+set optimizer_trace=@old_optimizer_trace;
+drop table t;
+create table t (c int);
+insert into t select seq from seq_1_to_10000;
+alter table t
+add column vc1 int as (c + 1);
+alter table t
+add column vc2 int as (1 - c),
+add index(vc1, vc2);
+explain select vc1, vc2 from t group by c + 1, 1 - c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	vc1	10	NULL	10000	Using index
+drop table t;
