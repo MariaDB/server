@@ -59,8 +59,7 @@
       Opt_hints_qb
         Opt_hints_table
           Opt_hints_key
-          Index_key_hint
-          Global_index_key_hint
+          Compound_key_hint
 
   Some hints can be specified at a specific level (e.g. per-index) or at a
   more general level (e.g. per-table).  When checking the hint, we need
@@ -602,7 +601,7 @@ class Compound_key_hint : public Sql_alloc
   Key_map key_map;           // Keys specified in the hint.
   bool fixed= false;         // true if all keys of the hint are resolved
 
-protected:
+public:
   Compound_key_hint()
   {
     key_map.clear_all();
@@ -622,25 +621,6 @@ public:
   Key_map *get_key_map() { return &key_map; }
 };
 
-
-/**
-  Auxiliary class for JOIN_INDEX, GROUP_INDEX, ORDER_INDEX hints.
-*/
-
-class Index_key_hint : public Compound_key_hint
-{
-};
-
-
-/**
-  Auxiliary class for INDEX hint.
-*/
-
-class Global_index_key_hint : public Compound_key_hint
-{
-};
-
-
 /**
   Table level hints.
 */
@@ -649,10 +629,7 @@ class Opt_hints_table : public Opt_hints
 {
 public:
   Mem_root_array<Opt_hints_key *> keyinfo_array;
-  Global_index_key_hint global_index;
-  Index_key_hint join_index;
-  Index_key_hint group_index;
-  Index_key_hint order_index;
+  Compound_key_hint global_index, join_index, group_index, order_index;
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
