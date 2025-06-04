@@ -643,9 +643,14 @@ void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
 
 
 /**
-  Function updates keys_in_use_for_query, keys_in_use_for_group_by,
-  keys_in_use_for_order_by depending on INDEX, JOIN_INDEX, GROUP_INDEX,
-  ORDER_INDEX hints.
+  For each index hint that is not ignored, include the index in
+    - tbl->keys_in_use_for_query if the hint is INDEX or JOIN_INDEX
+    - tbl->keys_in_use_for_group_by if the hint is INDEX or
+      GROUP_INDEX
+    - tbl->keys_in_use_for_order_by if the hint is INDEX or
+      ORDER_INDEX
+    conversely, subtract the index from the corresponding
+    tbl->keys_in_use_for_... map if the hint is prefixed with NO_.
 
   @param thd            pointer to THD object
   @param tbl            pointer to TABLE object
@@ -663,19 +668,20 @@ bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by=
       tbl->keys_in_use_for_order_by= usable_index_map;
 
-  const bool force_index= is_force_index_hint(INDEX_HINT_ENUM);
-  tbl->force_index= (force_index || is_force_index_hint(JOIN_INDEX_HINT_ENUM));
+  bool is_force= is_force_index_hint(INDEX_HINT_ENUM);
+  tbl->force_index_join=
+      (is_force || is_force_index_hint(JOIN_INDEX_HINT_ENUM));
   tbl->force_index_group=
-      (force_index || is_force_index_hint(GROUP_INDEX_HINT_ENUM));
+      (is_force || is_force_index_hint(GROUP_INDEX_HINT_ENUM));
   tbl->force_index_order=
-      (force_index || is_force_index_hint(ORDER_INDEX_HINT_ENUM));
+      (is_force || is_force_index_hint(ORDER_INDEX_HINT_ENUM));
 
-  if (tbl->force_index || tbl->force_index_group || tbl->force_index_order)
-  {
+  if (tbl->force_index_join)
     tbl->keys_in_use_for_query.clear_all();
+  if (tbl->force_index_group)
     tbl->keys_in_use_for_group_by.clear_all();
+  if (tbl->force_index_order)
     tbl->keys_in_use_for_order_by.clear_all();
-  }
 
   update_index_hint_map(&tbl->keys_in_use_for_query, &usable_index_map,
                         INDEX_HINT_ENUM);
@@ -1197,9 +1203,10 @@ bool Opt_hints_global::fix_hint(THD *thd)
 
 
 /**
-  Function checks if INDEX hint is conflicting with
-  already specified JOIN_INDEX, GROUP_INDEX, ORDER_INDEX
-  hints.
+  Function checks if an INDEX hint conflicts with
+  any JOIN_INDEX, GROUP_INDEX, ORDER_INDEX
+  hints, by checking if any of the latter is already
+  specified at table level or index level.
 
   @param table_hint         pointer to table hint
   @param key_hint           pointer to key hint

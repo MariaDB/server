@@ -8330,7 +8330,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
             !table_list->opt_hints_table->update_index_hint_maps(thd, table))
         {
           /*
-            Old-style index hints are processed only if there
+            Old-style index hints are processed only if
             new-style hints are not specified
           */
           if (table_list->process_index_hints(table))

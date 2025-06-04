@@ -29,7 +29,6 @@
 #include "sql_class.h"                          // THD
 #include "debug_sync.h"
 #include "sql_debug.h"
-#include "opt_hints.h"
 
 ulonglong myisam_recover_options;
 static ulong opt_myisam_block_size;
@@ -1458,7 +1457,6 @@ int ha_myisam::assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt)
 
   if (table_list->process_index_hints(table))
     DBUG_RETURN(HA_ADMIN_FAILED);
-
   map= ~(ulonglong) 0;
   if (!table->keys_in_use_for_query.is_clear_all())
     /* use all keys if there's no list specified by the user through hints */

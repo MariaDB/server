@@ -435,10 +435,39 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
   Resolve a parsed index level hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-Return value:
-- false: no critical errors, warnings on duplicated hints,
-       unresolved query block names, etc. are allowed
-- true: critical errors detected, break further hints processing
+  Return value:
+  - false: no critical errors, warnings on duplicated hints,
+         unresolved query block names, etc. are allowed
+  - true: critical errors detected, break further hints processing
+
+  Taxonomy of index hints
+  - 2 levels of hints:
+    - table level hints: only table name specified but no index names
+    - index level hints: both table name and index names specified
+  - 2 kinds of hints:
+    - global: [NO_]INDEX
+    - non-global: [NO_]JOIN_INDEX, [NO_]GROUP_INDEX, [NO_]ORDER_INDEX
+  - 4 types of hints:
+    - [NO_]JOIN_INDEX
+    - [NO_]GROUP_INDEX
+    - [NO_]ORDER_INDEX
+    - [NO_]INDEX
+
+  Conflict checking
+  - A conflict happens if and only if
+    - for a table level hint
+      - a hint of the same or opposite kind has already been specified for the
+        same table
+    - for a index level hint
+      - the same type of hint has already been specified for the same
+        table or for the same index, OR
+      - the opposite kind of hint has already been specified for the
+        same index
+  - For a multi index hint like JOIN_INDEX(t1 i1, i2, i3), it conflicts
+    with a previous hint if any of the JOIN_INDEX(t1 i1), JOIN_INDEX(t1
+    i2), JOIN_INDEX(t1 i3) conflicts with a previous hint
+  - When a hint type is specified for an index, it is also marked as
+    specified with the same switch state for the table
 */
 bool Parser::Index_level_hint::resolve(Parse_context *pc) const
 {

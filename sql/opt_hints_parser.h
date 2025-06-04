@@ -387,7 +387,11 @@ private:
   };
 
 
-  // index_level_hint_type ::= MRR | NO_RANGE_OPTIMIZATION | NO_ICP | NO_MRR
+  /*
+    index_level_hint_type ::= MRR | NO_RANGE_OPTIMIZATION | NO_ICP | NO_MRR |
+      INDEX | NO_INDEX | JOIN_INDEX | NO_JOIN_INDEX | ORDER_INDEX |
+      NO_ORDER_INDEX | GROUP_INDEX | NO_GROUP_INDEX
+  */
   class Index_level_hint_type_cond
   {
   public:

@@ -44,7 +44,6 @@ C_MODE_END
 #include "sql_parse.h"
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
-#include "opt_hints.h"
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -1841,7 +1840,6 @@ int ha_maria::assign_to_keycache(THD * thd, HA_CHECK_OPT *check_opt)
 
   if (table_list->process_index_hints(table))
     DBUG_RETURN(HA_ADMIN_FAILED);
-
   map= ~(ulonglong) 0;
   if (!table->keys_in_use_for_query.is_clear_all())
     /* use all keys if there's no list specified by the user through hints */
