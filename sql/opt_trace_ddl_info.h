@@ -20,6 +20,6 @@
 
 #include "my_global.h"
 
-bool store_table_definitions_in_trace(THD *thd);
+bool store_tables_context_in_trace(THD *thd);
 
 #endif
