@@ -336,7 +336,7 @@ get_max_range_rowid_filter_elems_for_table(
   case SORTED_ARRAY_CONTAINER :
     return thd->variables.max_rowid_filter_size/tab->file->ref_length;
   default :
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   }
 }
