@@ -517,8 +517,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (is_empty())  // Empty list of index names, i.e. it is a table level hint
   {
     if ((is_compound_hint(hint_type) &&
-         tab->get_compound_key_hint(hint_type)->is_hint_conflicting(tab,
-                                                                    nullptr)) ||
+         is_index_hint_conflicting(tab, nullptr, hint_type)) ||
          tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
@@ -557,7 +556,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
       bool is_specified= tab->is_specified(hint_type) ||
                           key->is_specified(hint_type);
       if (is_specified ||
-          tab->get_compound_key_hint(hint_type)->is_hint_conflicting(tab, key))
+          is_index_hint_conflicting(tab, key, hint_type))
       {
         is_conflicting= true;
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT,hint_type, hint_state,

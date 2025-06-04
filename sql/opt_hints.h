@@ -620,11 +620,6 @@ public:
   bool is_set_key_map(uint i) { return key_map.is_set(i); }
   bool is_key_map_clear_all() { return key_map.is_clear_all(); }
   Key_map *get_key_map() { return &key_map; }
-  virtual bool is_hint_conflicting(Opt_hints_table *table_hint,
-                                   Opt_hints_key *key_hint) const
-  {
-    return false;
-  }
 };
 
 
@@ -634,9 +629,6 @@ public:
 
 class Index_key_hint : public Compound_key_hint
 {
-public:
-  bool is_hint_conflicting(Opt_hints_table *table_hint,
-                           Opt_hints_key *key_hint) const override;
 };
 
 
@@ -646,9 +638,6 @@ public:
 
 class Global_index_key_hint : public Compound_key_hint
 {
-public:
-  bool is_hint_conflicting(Opt_hints_table *table_hint,
-                           Opt_hints_key *key_hint) const override;
 };
 
 
@@ -733,7 +722,9 @@ public:
   bool update_index_hint_maps(THD *thd, TABLE *tbl);
 };
 
-
+bool is_index_hint_conflicting(Opt_hints_table *table_hint,
+                               Opt_hints_key *key_hint,
+                               opt_hints_enum hint_type);
 bool is_compound_hint(opt_hints_enum type_arg);
 
 
