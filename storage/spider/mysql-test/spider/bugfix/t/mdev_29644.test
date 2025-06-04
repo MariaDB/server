@@ -29,7 +29,7 @@ eval CREATE TABLE tbl_a (
 
 SET sql_mode='';
 
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.1.err;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.11.err;
 let SEARCH_PATTERN= \[WARN SPIDER RESULT\].* Warning 1265 Data truncated for column 'a' at row 1.*;
 
 INSERT INTO tbl_a VALUES ("this will be truncated");

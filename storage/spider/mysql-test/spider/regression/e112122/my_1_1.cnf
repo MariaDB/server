@@ -1,4 +1,4 @@
-[mysqld.1.1]
+[mysqld.11]
 log-bin=                  master-bin
 loose_handlersocket_port=                20000
 loose_handlersocket_port_wr=             20001
@@ -21,10 +21,10 @@ USE_FULLTEXT_TEST=        1
 USE_HA_TEST=              1
 USE_GENERAL_LOG=          1
 USE_REPLICATION=          1
-MASTER_1_MYPORT=          @mysqld.1.1.port
+MASTER_1_MYPORT=          @mysqld.11.port
 MASTER_1_HSRPORT=         20000
 MASTER_1_HSWPORT=         20001
-MASTER_1_MYSOCK=          @mysqld.1.1.socket
+MASTER_1_MYSOCK=          @mysqld.11.socket
 MASTER_1_ENGINE_TYPE=     Spider
 #MASTER_1_ENGINE_TYPE=     MyISAM
 MASTER_1_ENGINE=          ENGINE=Spider

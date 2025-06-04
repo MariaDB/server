@@ -1,4 +1,4 @@
-[mysqld.2.1]
+[mysqld.21]
 loose_handlersocket_port=                20002
 loose_handlersocket_port_wr=             20003
 loose_handlersocket_threads=             2
@@ -16,21 +16,21 @@ open_files_limit=                        4096
 [ENV]
 USE_CHILD_GROUP2=         1
 OUTPUT_CHILD_GROUP2=      0
-CHILD2_1_MYPORT=          @mysqld.2.1.port
+CHILD2_1_MYPORT=          @mysqld.21.port
 CHILD2_1_HSRPORT=         20002
 CHILD2_1_HSWPORT=         20003
-CHILD2_1_MYSOCK=          @mysqld.2.1.socket
+CHILD2_1_MYSOCK=          @mysqld.21.socket
 CHILD2_1_ENGINE_TYPE=     InnoDB
 CHILD2_1_ENGINE=          ENGINE=InnoDB
 CHILD2_1_CHARSET=         DEFAULT CHARSET=utf8
 CHILD2_1_CHARSET2=        DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
-CHILD2_1_FT_MYPORT=       @mysqld.2.1.port
-CHILD2_1_FT_MYSOCK=       @mysqld.2.1.socket
+CHILD2_1_FT_MYPORT=       @mysqld.21.port
+CHILD2_1_FT_MYSOCK=       @mysqld.21.socket
 CHILD2_1_FT_ENGINE_TYPE=  MyISAM
 CHILD2_1_FT_ENGINE=       ENGINE=MyISAM
 CHILD2_1_FT_CHARSET=      DEFAULT CHARSET=utf8
-CHILD2_1_GM_MYPORT=       @mysqld.2.1.port
-CHILD2_1_GM_MYSOCK=       @mysqld.2.1.socket
+CHILD2_1_GM_MYPORT=       @mysqld.21.port
+CHILD2_1_GM_MYSOCK=       @mysqld.21.socket
 CHILD2_1_GM_ENGINE_TYPE=  MyISAM
 CHILD2_1_GM_ENGINE=       ENGINE=MyISAM
 CHILD2_1_GM_CHARSET=      DEFAULT CHARSET=utf8

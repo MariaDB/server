@@ -2,5 +2,5 @@
 !include ../my_1_1.cnf
 !include ../my_2_1.cnf
 !include ../my_4_1.cnf
-[mysqld.4.1]
+[mysqld.41]
 slave_transaction_retry_errors="10000,20000,30000"
