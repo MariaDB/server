@@ -82,6 +82,14 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
       )
 
 
+  # clang ~16+ with return values being undefined is resolved by basic optimization
+  # compiler flags for the function mach_read_from_2 (per MDEV-36316)
+  IF(WITH_MSAN AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+      SET_SOURCE_FILES_PROPERTIES(
+          ${INNOBASE_SOURCES}
+          innochecksum.cc
+          PROPERTIES COMPILE_FLAGS -Og)
+  ENDIF()
   MYSQL_ADD_EXECUTABLE(innochecksum innochecksum.cc ${INNOBASE_SOURCES})
   TARGET_LINK_LIBRARIES(innochecksum mysys mysys_ssl)
   ADD_DEPENDENCIES(innochecksum GenError)

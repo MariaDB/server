@@ -1936,7 +1936,6 @@ thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
 thread-pool-stall-limit 500
-thread-stack 299008
 time-format %H:%i:%s
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216

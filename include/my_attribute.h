@@ -91,9 +91,22 @@ _Pragma("GCC diagnostic ignored \"-Wframe-larger-than=\"")
 #define PRAGMA_REENABLE_CHECK_STACK_FRAME                    \
 _Pragma("GCC diagnostic pop")
 
+/*
+  The following check is for older gcc version that allocates
+  a lot of stack during startup that does not need to be checked
+*/
+
+#if !defined(__clang__) && __GNUC__ < 13
+#define PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA PRAGMA_DISABLE_CHECK_STACK_FRAME
 #else
+#define PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
+#endif /* !defined(__clang__) && __GNUC__ < 13 */
+
+#else /*! __GNUC__ */
 #define PRAGMA_DISABLE_CHECK_STACK_FRAME
 #define PRAGMA_REENABLE_CHECK_STACK_FRAME
-#endif
+#define PRAGMA_DISABLE_CHECK_STACK_FRAME
+#define PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
+#endif /* __GNUC__ */
 
 #endif /* _my_attribute_h */

@@ -30,7 +30,7 @@ perl;
                table-open-cache table-open-cache-instances max-connections
                server-uid tls-version version.* password-reuse-check
                provider-bzip2 provider-lzma provider-lzo
-               password-reuse-check-interval analyze-max-length/;
+               password-reuse-check-interval analyze-max-length thread-stack/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition s3
