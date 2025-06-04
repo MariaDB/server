@@ -20,6 +20,7 @@
 #include "semisync_master.h"
 #include <algorithm>
 #include <mysql_com.h>
+#include "debug_sync.h" // debug_sync_set_action
 
 #define TIME_THOUSAND 1000
 #define TIME_MILLION  1000000
@@ -49,6 +50,7 @@ ulonglong rpl_semi_sync_master_net_wait_num = 0;
 ulong rpl_semi_sync_master_clients          = 0;
 ulonglong rpl_semi_sync_master_net_wait_time = 0;
 ulonglong rpl_semi_sync_master_trx_wait_time = 0;
+unsigned int rpl_semi_sync_master_wait_for_slave_count = 1;
 
 Repl_semi_sync_master repl_semisync_master;
 Ack_receiver ack_receiver;
@@ -68,17 +70,16 @@ static ulonglong timespec_to_usec(const struct timespec *ts)
   return (ulonglong) ts->tv_sec * TIME_MILLION + ts->tv_nsec / TIME_THOUSAND;
 }
 
-int signal_waiting_transaction(THD *waiting_thd, const char *binlog_file,
-                                my_off_t binlog_pos)
+/** @return Should we revert to async because there's not enough slaves?
+  Specifically: `true` when there is less number of slaves than
+  @ref rpl_semi_sync_master_wait_for_slave_count and
+  @ref rpl_semi_sync_master_wait_no_slave = 0
+*/
+static bool is_no_slave()
 {
-  /*
-    It is possible that the connection thd waiting for an ACK was killed. In
-    such circumstance, the connection thread will nullify the thd member of its
-    Active_tranx node. So before we try to signal, ensure the THD exists.
-  */
-  if (waiting_thd)
-    mysql_cond_signal(&waiting_thd->COND_wakeup_ready);
-  return 0;
+  return rpl_semi_sync_master_clients <
+    rpl_semi_sync_master_wait_for_slave_count &&
+    !rpl_semi_sync_master_wait_no_slave;
 }
 
 /*******************************************************************************
@@ -157,6 +158,17 @@ int Active_tranx::compare(const char *log_file_name1, my_off_t log_file_pos1,
   return 0;
 }
 
+Tranx_node *
+Active_tranx::get_tranx_node(const char *log_file_name, my_off_t log_file_pos)
+{
+  Tranx_node *entry;
+  mysql_mutex_assert_owner(m_lock);
+  for (entry= m_trx_htb[get_hash_value(log_file_name, log_file_pos)];
+       entry && compare(entry, log_file_name, log_file_pos);
+       entry= entry->hash_next);
+  return entry;
+}
+
 int Active_tranx::insert_tranx_node(THD *thd_to_wait,
                                     const char *log_file_name,
                                     my_off_t log_file_pos)
@@ -230,42 +242,25 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
                                     my_off_t    log_file_pos)
 {
   DBUG_ENTER("Active_tranx::is_tranx_end_pos");
-
-  unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
-  Tranx_node *entry = m_trx_htb[hash_val];
-
-  while (entry != NULL)
-  {
-    if (compare(entry, log_file_name, log_file_pos) == 0)
-      break;
-
-    entry = entry->hash_next;
-  }
-
-  DBUG_PRINT("semisync", ("%s: probe (%s, %lu) in entry(%u)",
-                          "Active_tranx::is_tranx_end_pos",
-                          log_file_name, (ulong)log_file_pos, hash_val));
-
-  DBUG_RETURN(entry != NULL);
+  DBUG_RETURN(get_tranx_node(log_file_name, log_file_pos));
 }
 
-void Active_tranx::clear_active_tranx_nodes(
-    const char *log_file_name, my_off_t log_file_pos,
-    active_tranx_action pre_delete_hook)
+void Active_tranx::clear_active_tranx_nodes(Tranx_node *node)
 {
   Tranx_node *new_front;
 
-  DBUG_ENTER("Active_tranx::::clear_active_tranx_nodes");
+  DBUG_ENTER("Active_tranx::clear_active_tranx_nodes");
+  mysql_mutex_assert_owner(m_lock);
 
-  new_front= m_trx_front;
-  while (new_front)
-  {
-    if ((log_file_name != NULL) &&
-        compare(new_front, log_file_name, log_file_pos) > 0)
-      break;
-    pre_delete_hook(new_front->thd, new_front->log_name, new_front->log_pos);
-    new_front = new_front->next;
-  }
+  for (new_front= m_trx_front; new_front && new_front != node;
+       new_front= new_front->next)
+    /*
+      It is possible that the connection thd waiting for an ACK was killed.
+      In such circumstance, the connection thread will nullify the thd member of
+      its Active_tranx node. So before we try to signal, ensure the THD exists.
+    */
+    if (new_front->thd)
+      mysql_cond_signal(&new_front->thd->COND_wakeup_ready);
 
   if (new_front == NULL)
   {
@@ -283,7 +278,7 @@ void Active_tranx::clear_active_tranx_nodes(
     }
 
     DBUG_PRINT("semisync", ("%s: cleared all nodes",
-                            "Active_tranx::::clear_active_tranx_nodes"));
+                            "Active_tranx::clear_active_tranx_nodes"));
   }
   else if (new_front != m_trx_front)
   {
@@ -321,7 +316,7 @@ void Active_tranx::clear_active_tranx_nodes(
     m_allocator.free_nodes_before(m_trx_front);
 
     DBUG_PRINT("semisync", ("%s: cleared %d nodes back until pos (%s, %lu)",
-                            "Active_tranx::::clear_active_tranx_nodes",
+                            "Active_tranx::clear_active_tranx_nodes",
                             n_frees,
                             m_trx_front->log_name, (ulong)m_trx_front->log_pos));
   }
@@ -337,47 +332,25 @@ void Active_tranx::clear_active_tranx_nodes(
   DBUG_VOID_RETURN;
 }
 
+const Tranx_node *Active_tranx::find_acked_tranx_node()
+{
+  Tranx_node *acked_node= nullptr;
+  mysql_mutex_assert_owner(m_lock);
+  for (Tranx_node *entry= m_trx_front; entry; entry= entry->next)
+    if (entry->acks >= rpl_semi_sync_master_wait_for_slave_count)
+      acked_node= entry;
+      // no `break` - keep iterating for the __last__ transaction
+  return acked_node;
+}
+
 void Active_tranx::unlink_thd_as_waiter(const char *log_file_name,
                                         my_off_t log_file_pos)
 {
   DBUG_ENTER("Active_tranx::unlink_thd_as_waiter");
-  mysql_mutex_assert_owner(m_lock);
-
-  unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
-  Tranx_node *entry = m_trx_htb[hash_val];
-
-  while (entry != NULL)
-  {
-    if (compare(entry, log_file_name, log_file_pos) == 0)
-      break;
-
-    entry = entry->hash_next;
-  }
-
+  Tranx_node *entry= get_tranx_node(log_file_name, log_file_pos);
   if (entry)
     entry->thd= NULL;
-
   DBUG_VOID_RETURN;
-}
-
-bool Active_tranx::is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                                 my_off_t log_file_pos)
-{
-  DBUG_ENTER("Active_tranx::assert_thd_is_waiter");
-  mysql_mutex_assert_owner(m_lock);
-
-  unsigned int hash_val = get_hash_value(log_file_name, log_file_pos);
-  Tranx_node *entry = m_trx_htb[hash_val];
-
-  while (entry != NULL)
-  {
-    if (compare(entry, log_file_name, log_file_pos) == 0)
-      break;
-
-    entry = entry->hash_next;
-  }
-
-  DBUG_RETURN(static_cast<bool>(entry));
 }
 
 /*******************************************************************************
@@ -565,14 +538,14 @@ void Repl_semi_sync_master::remove_slave()
 {
   lock();
   DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
-  if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave)
+  --rpl_semi_sync_master_clients;
+  if (is_no_slave())
   {
     /*
       Signal transactions waiting in commit_trx() that they do not have to
       wait anymore.
     */
-    m_active_tranxs->clear_active_tranx_nodes(NULL, 0,
-                                              signal_waiting_transaction);
+    m_active_tranxs->clear_active_tranx_nodes(nullptr);
   }
   unlock();
 }
@@ -641,6 +614,13 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
 
   rpl_semi_sync_master_get_ack++;
   report_reply_binlog(server_id, log_file_name, log_file_pos);
+  /*FIXME: no DBUG_ASSERT due to
+    MDEV-32748 debug_sync_set_action() Fails if Entered in an Error State */
+  DBUG_EXECUTE_IF("sync_semisync_report_reply",
+    debug_sync_set_action(current_thd, STRING_WITH_LEN(
+      "now SIGNAL report_reply_wait WAIT_FOR report_reply_continue"
+    ));
+  );
   DBUG_RETURN(0);
 
 l_end:
@@ -705,28 +685,32 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
 
   if (need_copy_send_pos)
   {
-    strmake_buf(m_reply_file_name, log_file_name);
-    m_reply_file_pos = log_file_pos;
-    m_reply_file_name_inited = true;
-
-    /* Remove all active transaction nodes before this point. */
-    DBUG_ASSERT(m_active_tranxs != NULL);
-    m_active_tranxs->clear_active_tranx_nodes(log_file_name, log_file_pos,
-                                              signal_waiting_transaction);
-    if (m_active_tranxs->is_empty())
-      m_wait_file_name_inited= false;
+    Tranx_node *entry;
+    DBUG_ASSERT(m_active_tranxs);
+    entry= m_active_tranxs->get_tranx_node(log_file_name, log_file_pos);
+    if (entry && ++(entry->acks) >= rpl_semi_sync_master_wait_for_slave_count)
+      report_reply_trx(*entry);
 
     DBUG_PRINT("semisync", ("%s: Got reply at (%s, %lu)",
                             "Repl_semi_sync_master::report_reply_binlog",
                             log_file_name, (ulong)log_file_pos));
   }
 
-
- l_end:
+l_end:
   unlock();
-
-
   DBUG_RETURN(0);
+}
+
+void Repl_semi_sync_master::report_reply_trx(const Tranx_node &entry)
+{
+  mysql_mutex_assert_owner(&LOCK_binlog);
+  strmake_buf(m_reply_file_name, entry.log_name);
+  m_reply_file_pos = entry.log_pos;
+  m_reply_file_name_inited = true;
+  /* Remove all active transaction nodes before this point. */
+  m_active_tranxs->clear_active_tranx_nodes(entry.next);
+  if (m_active_tranxs->is_empty())
+    m_wait_file_name_inited= false;
 }
 
 int Repl_semi_sync_master::wait_after_sync(const char *log_file,
@@ -859,7 +843,7 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
   bool success= 0;
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
-  if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
+  if (is_no_slave())
   {
     rpl_semi_sync_master_no_transactions++;
     DBUG_RETURN(0);
@@ -895,7 +879,7 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
     while (is_on() && !(aborted= thd_killed(thd)))
     {
       /* We have to check these again as things may have changed */
-      if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
+      if (is_no_slave())
       {
         aborted= 1;
         break;
@@ -930,8 +914,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
        * rpl_semi_sync_master_yes/no_tx consistent with it, we check for a
        * semi-sync restart _after_ checking the reply state.
        */
-      if (unlikely(!m_active_tranxs->is_thd_waiter(thd, trx_wait_binlog_name,
-                                                   trx_wait_binlog_pos)))
+      if (unlikely(!m_active_tranxs->is_tranx_end_pos(trx_wait_binlog_name,
+                                                      trx_wait_binlog_pos)))
       {
         DBUG_EXECUTE_IF(
             "semisync_log_skip_trx_wait",
@@ -1115,8 +1099,7 @@ void Repl_semi_sync_master::switch_off()
 
   /* Clear the active transaction list. */
   if (m_active_tranxs)
-    m_active_tranxs->clear_active_tranx_nodes(NULL, 0,
-                                              signal_waiting_transaction);
+    m_active_tranxs->clear_active_tranx_nodes(nullptr);
 
   if (m_state)
   {
@@ -1472,7 +1455,7 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
   struct timespec timeout;
   int wait_result= 0;
   bool first= true;
-  DBUG_ENTER("Repl_semi_sync_master::::await_all_slave_replies");
+  DBUG_ENTER("Repl_semi_sync_master::await_all_slave_replies");
 
   /*
     Wait for all transactions that need ACKS to have received them; or timeout.
@@ -1495,6 +1478,20 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
     wait_result=
         mysql_cond_timedwait(&COND_binlog_send, &LOCK_binlog, &timeout);
   }
+  unlock();
+  DBUG_VOID_RETURN;
+}
+
+void Repl_semi_sync_master::clear_acked_tranx_nodes()
+{
+  DBUG_ENTER("Repl_semi_sync_master::clear_acked_tranx_nodes");
+  lock();
+    if (get_master_enabled())
+    {
+      const Tranx_node *acked_node= m_active_tranxs->find_acked_tranx_node();
+      if (acked_node)
+        report_reply_trx(*acked_node);
+    }
   unlock();
   DBUG_VOID_RETURN;
 }

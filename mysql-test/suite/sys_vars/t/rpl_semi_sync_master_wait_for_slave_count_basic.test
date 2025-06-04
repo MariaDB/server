@@ -1,0 +1,37 @@
+--source include/not_embedded.inc
+--echo # MDEV-18983: @@rpl_semi_sync_master_wait_for_slave_count basic test
+
+--echo # GLOBAL scope
+# Expect different from default (1) as configured by `.opt`
+SET @orig= @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count;
+SELECT @orig;
+SELECT @@rpl_semi_sync_master_wait_for_slave_count;
+
+--echo # Read-Write
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 11;
+SELECT @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count;
+
+--echo # DEFAULT
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= DEFAULT;
+SELECT @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count;
+
+--echo # Not SESSION scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.rpl_semi_sync_master_wait_for_slave_count;
+--error ER_GLOBAL_VARIABLE
+SET @@SESSION.rpl_semi_sync_master_wait_for_slave_count= 12;
+
+--echo # Range
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 65536;
+SELECT @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count;
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 0;
+SELECT @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count;
+
+--echo # Type
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 13.0;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 'strikes of the clock';
+
+--echo # Cleanup
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= @orig;

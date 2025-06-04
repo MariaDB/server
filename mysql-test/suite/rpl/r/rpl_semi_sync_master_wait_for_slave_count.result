@@ -1,0 +1,171 @@
+# MDEV-18983: `@@rpl_semi_sync_master_wait_for_slave_count` feature test
+include/rpl_init.inc [topology=1->2, 1->3]
+SET @dbug_reset= @@GLOBAL.debug_dbug;
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+# Case 0: Semi-Sync commits only when both slaves ACKs
+connection server_3;
+SET @dbug_reset= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,simulate_delay_semisync_slave_reply';
+include/rpl_connect.inc [creating master]
+connection master;
+SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+CREATE TABLE t0 (a TINYINT);
+connection server_1;
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+CREATE TABLE t1 (a TINYINT);
+connection default;
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	0
+connection server_3;
+SET @@SESSION.debug_sync= 'now WAIT_FOR io_thd_at_slave_reply';
+SET @@SESSION.debug_sync= 'now SIGNAL io_thd_do_reply';
+connection master;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	1
+connection server_3;
+SET @@SESSION.debug_sync= 'now WAIT_FOR io_thd_at_slave_reply';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL io_thd_do_reply';
+connection server_1;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	2
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_get\_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	4
+connection server_2;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_slave\_send\_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+connection server_3;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_slave\_send\_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+SET @@SESSION.debug_sync= 'RESET';
+disconnect master;
+connection server_1;
+# Case 1: Lowering a high requirement unblocks the waiting Semi-Sync
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+INSERT INTO t1 VALUES (0);
+connection default;
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	0
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+connection server_1;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	1
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression('Timeout waiting for reply of binlog');
+# Cases 2.x Matrix:
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+# Case 2.1: falls back to Async when the requirement is set too high
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+INSERT INTO t0 VALUES (1);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	1
+Rpl_semi_sync_master_yes_tx	0
+# Case 2.2: stays Async as long as the requirement is not met
+SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+INSERT INTO t0 VALUES (-2);
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+INSERT INTO t0 VALUES (2);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	1
+Rpl_semi_sync_master_yes_tx	0
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+# Case 2.3: returns to Semi-Sync when the requirement is set just right
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+INSERT INTO t0 VALUES (-3);
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+INSERT INTO t0 VALUES (3);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	1
+# Cases 2.x Matrix:
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 1;
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+# Case 2.1: falls back to Async when the requirement is set too high
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+INSERT INTO t1 VALUES (1);
+# Case 2.1.1: An up-to-date slaves does not ACK when it reconnects
+connection default;
+connection server_3;
+include/stop_slave.inc
+include/start_slave.inc
+connection server_1;
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	1
+Rpl_semi_sync_master_yes_tx	0
+# Case 2.2: stays Async as long as the requirement is not met
+SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+INSERT INTO t1 VALUES (-2);
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+INSERT INTO t1 VALUES (2);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	1
+Rpl_semi_sync_master_yes_tx	0
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+# Case 2.3: returns to Semi-Sync when the requirement is set just right
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+INSERT INTO t1 VALUES (-3);
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+INSERT INTO t1 VALUES (3);
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+Rpl_semi_sync_master_yes_tx	1
+# Cleanup
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'RESET';
+DROP TABLE t0, t1;
+include/rpl_end.inc
