@@ -3662,13 +3662,13 @@ count(*)
 # Test for type 'range|filter'
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100;
 count(*)
 49
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 count(*)
 49
@@ -3706,13 +3706,13 @@ count(*)
 # Test for type 'range|filter'
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100;
 count(*)
 49
 EXPLAIN SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	b,a	b|a	5|5	NULL	49 (10%)	Using where; Using rowid filter
+1	SIMPLE	t1	range	b,a	a	5	NULL	99	Using where; Using index
 SELECT count(*) FROM t1 WHERE a<100 and b <100 FOR UPDATE;
 count(*)
 49

@@ -1129,6 +1129,25 @@ Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
   return new (mem_root) Item_func_hash(thd, *field_list);
 }
 
+/*
+  Update index covering for a vcol field, by merging its existing
+  index covering with the intersection of all index coverings of leaf
+  fields of the vcol expr
+*/
+static void update_vcol_key_covering(Field *vcol_field)
+{
+  Item *item= vcol_field->vcol_info->expr;
+  /* Collect indexes that cover vcol's expression */
+  key_map part_of_key= vcol_field->table->s->keys_for_keyread;
+  item->walk(&Item::intersect_field_part_of_key, 1, &part_of_key);
+
+  vcol_field->vcol_direct_part_of_key= vcol_field->part_of_key;
+  /*
+    part_of_key includes indexes that cover vcol and also indexes that cover
+    vcol's expression
+  */
+  vcol_field->part_of_key.merge(part_of_key);
+}
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1268,6 +1287,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         goto end;
       }
       table->map= 0;
+      if (vcol)
+        update_vcol_key_covering(*field_ptr);
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
@@ -9237,8 +9258,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
-  if (h->keyread_enabled())
-    DBUG_RETURN(0);
   /*
     TODO: this imposes memory leak until table flush when save_in_field()
           does expr_arena allocation. F.ex. case in
@@ -9281,8 +9300,24 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= (!vcol_info->is_stored() &&
-               bitmap_is_set(read_set, vf->field_index));
+      if (!bitmap_is_set(read_set, vf->field_index))
+        update= false;
+      else if (h->keyread_enabled())
+      {
+        /*
+          Compute vcol if it is not directly present in the index
+          but can be computed from index columns.
+        */
+        update= (!vf->vcol_direct_part_of_key.is_set(h->keyread) &&
+                 vf->part_of_key.is_set(h->keyread));
+      }
+      else
+      {
+        /*
+          Compute vcol if it is not stored and marked in the read set.
+        */
+        update= !vcol_info->is_stored();
+      }
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
