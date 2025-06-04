@@ -85,8 +85,8 @@ void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
   resolving.
 
   @param thd             Pointer to THD object for session.
-         err_code        Numeric code of the warning
-         hint_type       Numeric hint type
+         err_code        Enumerated code of the warning
+         hint_type       Enumerated hint type
          hint_state      true: enabling hint (HINT(...),
                          false: disabling (NO_HINT(...))
          qb_name_arg     optional query block name
@@ -545,12 +545,13 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
 }
 
 
-bool Opt_hints_table::is_hint_conflicting(Opt_hints_key *key_hint,
-                                          opt_hints_enum type) const
+static bool table_or_key_hint_type_specified(Opt_hints_table *table_hint,
+                                             Opt_hints_key *key_hint,
+                                             opt_hints_enum type)
 {
-  if ((key_hint == nullptr) && is_specified(type))
-    return true;
-  return (key_hint && key_hint->is_specified(type));
+  DBUG_ASSERT(table_hint || key_hint );
+  return key_hint ? key_hint->is_specified(type) :
+                    table_hint->is_specified(type);
 }
 
 
@@ -1230,40 +1231,31 @@ bool Opt_hints_global::fix_hint(THD *thd)
 
 
 /**
-  Function checks if an INDEX hint conflicts with
-  any JOIN_INDEX, GROUP_INDEX, ORDER_INDEX
-  hints, by checking if any of the latter is already
-  specified at table level or index level.
+  Function checks if an INDEX (resp. JOIN_INDEX, GROUP_INDEX or
+  ORDER_INDEX) hint conflicts with any JOIN_INDEX, GROUP_INDEX or
+  ORDER_INDEX (resp. INDEX) hints, by checking if any of the latter is
+  already specified at table level or index level.
 
   @param table_hint         pointer to table hint
   @param key_hint           pointer to key hint
+  @param hint_type          enumerated hint type
 
   @return false if no conflict, true otherwise.
 */
 
-bool Global_index_key_hint::is_hint_conflicting(Opt_hints_table *table_hint,
-                                                Opt_hints_key *key_hint) const
+bool is_index_hint_conflicting(Opt_hints_table *table_hint,
+                               Opt_hints_key *key_hint,
+                               opt_hints_enum hint_type)
 {
-  return (table_hint->is_hint_conflicting(key_hint, JOIN_INDEX_HINT_ENUM) ||
-          table_hint->is_hint_conflicting(key_hint, GROUP_INDEX_HINT_ENUM) ||
-          table_hint->is_hint_conflicting(key_hint, ORDER_INDEX_HINT_ENUM));
-}
-
-
-/**
-  Function checks if JOIN_INDEX|GROUP_INDEX|ORDER_INDEX
-  hint is conflicting with already specified INDEX hint.
-
-  @param table_hint         pointer to table hint
-  @param key_hint           pointer to key hint
-
-  @return false if no conflict, true otherwise.
-*/
-
-bool Index_key_hint::is_hint_conflicting(Opt_hints_table *table_hint,
-                                         Opt_hints_key *key_hint) const
-{
-  return table_hint->is_hint_conflicting(key_hint, INDEX_HINT_ENUM);
+  if (hint_type != INDEX_HINT_ENUM)
+    return table_or_key_hint_type_specified(table_hint, key_hint,
+                                            INDEX_HINT_ENUM);
+  return (table_or_key_hint_type_specified(table_hint, key_hint,
+                                           JOIN_INDEX_HINT_ENUM) ||
+          table_or_key_hint_type_specified(table_hint, key_hint,
+                                           ORDER_INDEX_HINT_ENUM) ||
+          table_or_key_hint_type_specified(table_hint, key_hint,
+                                           GROUP_INDEX_HINT_ENUM));
 }
 
 

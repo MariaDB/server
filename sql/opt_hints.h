@@ -588,13 +588,11 @@ private:
 
 
 /**
-  Auxiliary class for compound key objects.
-  Used for processing INDEX, JOIN_INDEX, GROUP_INDEX and ORDER_INDEX hints.
+  Auxiliary class for compound key objects,
+  used for processing INDEX, JOIN_INDEX, GROUP_INDEX and ORDER_INDEX hints.
 
   Represents a bitmap of keys specified in the hint along with methods for
   handling it.
-  The class cannot be instantiated, can only be used as a base class
-  for derived ones, see `Index_key_hint`, `Global_index_key_hint`
 */
 
 class Compound_key_hint : public Sql_alloc
@@ -602,15 +600,12 @@ class Compound_key_hint : public Sql_alloc
   Key_map key_map;           // Keys specified in the hint.
   bool fixed= false;         // true if all keys of the hint are resolved
 
-protected:
+public:
   Compound_key_hint()
   {
     key_map.clear_all();
   }
 
-  virtual ~Compound_key_hint() = default;
-
-public:
   const Parser::Index_level_hint *parsed_hint= nullptr;
 
   void set_fixed(bool arg) { fixed= arg; }
@@ -620,37 +615,6 @@ public:
   bool is_set_key_map(uint i) { return key_map.is_set(i); }
   bool is_key_map_clear_all() { return key_map.is_clear_all(); }
   Key_map *get_key_map() { return &key_map; }
-  virtual bool is_hint_conflicting(Opt_hints_table *table_hint,
-                                   Opt_hints_key *key_hint) const
-  {
-    return false;
-  }
-};
-
-
-/**
-  Auxiliary class for JOIN_INDEX, GROUP_INDEX, ORDER_INDEX hints.
-  See description of `Compound_key_hint` class for more information
-*/
-
-class Index_key_hint : public Compound_key_hint
-{
-public:
-  bool is_hint_conflicting(Opt_hints_table *table_hint,
-                           Opt_hints_key *key_hint) const override;
-};
-
-
-/**
-  Auxiliary class for INDEX hint.
-  See description of `Compound_key_hint` class for more information
-*/
-
-class Global_index_key_hint : public Compound_key_hint
-{
-public:
-  bool is_hint_conflicting(Opt_hints_table *table_hint,
-                           Opt_hints_key *key_hint) const override;
 };
 
 
@@ -662,10 +626,7 @@ class Opt_hints_table : public Opt_hints
 {
 public:
   Mem_root_array<Opt_hints_key *> keyinfo_array;
-  Global_index_key_hint global_index;
-  Index_key_hint join_index;
-  Index_key_hint group_index;
-  Index_key_hint order_index;
+  Compound_key_hint global_index, join_index, group_index, order_index;
 
   Opt_hints_table(const Lex_ident_sys &table_name_arg,
                   Opt_hints_qb *qb_hints_arg,
@@ -735,6 +696,9 @@ public:
   bool update_index_hint_maps(THD *thd, TABLE *tbl);
 };
 
+bool is_index_hint_conflicting(Opt_hints_table *table_hint,
+                               Opt_hints_key *key_hint,
+                               opt_hints_enum hint_type);
 
 bool is_compound_hint(opt_hints_enum type_arg);
 

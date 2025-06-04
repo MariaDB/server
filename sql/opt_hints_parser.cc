@@ -552,8 +552,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (is_empty())  // Empty list of index names, i.e. it is a table level hint
   {
     if ((is_compound_hint(hint_type) &&
-         tab->get_compound_key_hint(hint_type)->is_hint_conflicting(tab,
-                                                                    nullptr)) ||
+           is_index_hint_conflicting(tab, nullptr, hint_type)) ||
          tab->set_switch(hint_state, hint_type, false))
     {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
@@ -570,12 +569,13 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   for (const Hint_param_index &index_name : *this)
   {
     const Lex_ident_sys index_name_sys= index_name.to_ident_sys(pc->thd);
+    bool new_opt_key_hint_created= false;
     Opt_hints_key *key= (Opt_hints_key *)tab->find_by_name(index_name_sys);
     if (!key)
     {
       key= new (pc->thd->mem_root)
         Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
-      tab->register_child(key);
+      new_opt_key_hint_created= true;
     }
 
     if (!is_compound_hint(hint_type))
@@ -586,13 +586,14 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
                    &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
         continue;
       }
+      if (new_opt_key_hint_created)
+        tab->register_child(key);
     }
     else
     {
       bool is_specified= tab->is_specified(hint_type) ||
-                          key->is_specified(hint_type);
-      if (is_specified ||
-          tab->get_compound_key_hint(hint_type)->is_hint_conflicting(tab, key))
+                         key->is_specified(hint_type);
+      if (is_specified || is_index_hint_conflicting(tab, key, hint_type))
       {
         is_conflicting= true;
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT,hint_type, hint_state,
@@ -602,6 +603,8 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
         break;
       }
       key_hints.push_back(key);
+      if (new_opt_key_hint_created)
+        tab->register_child(key);
     }
   }
 
