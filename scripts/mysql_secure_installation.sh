@@ -338,7 +338,7 @@ set_root_password() {
 remove_anonymous_users() {
     do_query "DELETE FROM mysql.global_priv WHERE User='';"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!"
 	clean_and_exit
@@ -350,7 +350,7 @@ remove_anonymous_users() {
 remove_remote_root() {
     do_query "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!"
     fi
@@ -360,7 +360,7 @@ remove_test_database() {
     echo " - Dropping test database..."
     do_query "DROP DATABASE IF EXISTS test;"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!  Not critical, keep moving..."
     fi
@@ -368,7 +368,7 @@ remove_test_database() {
     echo " - Removing privileges on test database..."
     do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	echo "SQL executed without errors!"
     else
 	echo " ... Failed!  Not critical, keep moving..."
     fi
@@ -413,12 +413,11 @@ prepare
 set_echo_compat
 
 echo
-echo "NOTE: RUNNING ALL PARTS OF THIS SCRIPT IS RECOMMENDED FOR ALL MariaDB"
-echo "      SERVERS IN PRODUCTION USE!  PLEASE READ EACH STEP CAREFULLY!"
+echo "NOTE: MariaDB is secure by default. Running this script is mostly"
+echo "      unecessary and it will likely be removed in a future release,"
+echo "      but it is for now preserved for backwards compatibility."
 echo
-echo "In order to log into MariaDB to secure it, we'll need the current"
-echo "password for the root user. If you've just installed MariaDB, and"
-echo "haven't set the root password yet, you should just press enter here."
+echo "Enter root user password or leave blank:"
 echo
 
 get_root_password
@@ -450,7 +449,7 @@ else
   emptypass=0
   do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.password_last_changed', UNIX_TIMESTAMP(), '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
   if [ $? -eq 0 ]; then
-   echo "Enabled successfully!"
+   echo "Enabled successfully (or at least no errors was emitted)!"
    echo "Reloading privilege tables.."
    reload_privilege_tables
    if [ $? -eq 1 ]; then
