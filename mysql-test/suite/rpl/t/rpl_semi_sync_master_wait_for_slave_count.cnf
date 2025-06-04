@@ -1,0 +1,15 @@
+!include ../my.cnf
+[ENV]
+SERVER_MYPORT_3= @mysqld.3.port
+
+[mysqld.1]
+rpl_semi_sync_master_enabled= 1
+rpl_semi_sync_master_wait_for_slave_count= 2
+rpl_semi_sync_master_wait_no_slave= 1 # interactions are tested too
+rpl_semi_sync_master_wait_point= AFTER_COMMIT # for consistency in the test
+rpl_semi_sync_master_timeout= 3000 # test timeouts faster and stricter
+
+[mysqld.2]
+rpl_semi_sync_slave_enabled= 1
+[mysqld.3]
+rpl_semi_sync_slave_enabled= 1

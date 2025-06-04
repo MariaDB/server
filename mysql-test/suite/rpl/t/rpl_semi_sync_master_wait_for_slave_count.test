@@ -1,0 +1,159 @@
+--echo # MDEV-18983: `@@rpl_semi_sync_master_wait_for_slave_count` feature test
+# A gotcha:
+# `FLUSH GLOBAL STATUS` and `CALL mtr.add_suppression()` are also replicated;
+# wrapping them with `SET STATEMENT sql_log_bin=0 FOR` avoids this side effect.
+
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc # format-agnostic
+# The variable's default is 1 to match the behavior before this feature came.
+# Therefore, this test uses two slaves to prove that the variable took effect.
+--let $rpl_topology= 1->2, 1->3
+--source include/rpl_init.inc
+
+SET @dbug_reset= @@GLOBAL.debug_dbug;
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+
+
+--echo # Case 0: Semi-Sync commits only when both slaves ACKs
+# Simulate lag on one of the slaves
+--connection server_3
+SET @dbug_reset= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,simulate_delay_semisync_slave_reply';
+
+# Queue 2 transactions and wait for their *complete* `server_2` ACK processings
+--let $rpl_connection_name= master
+--let $rpl_server_number= 1
+--source include/rpl_connect.inc
+--connection master
+SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+--send CREATE TABLE t0 (a TINYINT)
+--connection server_1
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+--send CREATE TABLE t1 (a TINYINT)
+--connection default
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+
+# Check status mid-transaction - expect 0 while waiting for the "slow" slave
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+# Unblock the first transcation
+--connection server_3
+SET @@SESSION.debug_sync= 'now WAIT_FOR io_thd_at_slave_reply';
+SET @@SESSION.debug_sync= 'now SIGNAL io_thd_do_reply';
+--connection master
+--reap
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx'; # expect only the 1st one
+
+# Unblock the other transcation
+--connection server_3
+SET @@SESSION.debug_sync= 'now WAIT_FOR io_thd_at_slave_reply';
+SET @@GLOBAL.debug_dbug= @dbug_reset; # (and all future transactions)
+SET @@SESSION.debug_sync= 'now SIGNAL io_thd_do_reply';
+--connection server_1
+--reap
+
+# Check status in full after transactions - expect 2 successful transactions
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_get\_ack';
+--connection server_2
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_slave\_send\_ack';
+--connection server_3
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_slave\_send\_ack';
+
+# Cleanup
+SET @@SESSION.debug_sync= 'RESET';
+--disconnect master
+--connection server_1
+
+
+--echo # Case 1: Lowering a high requirement unblocks the waiting Semi-Sync
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+--send INSERT INTO t1 VALUES (0)
+--connection default
+# Wait for 2 *complete* ACK processings
+SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+SET @@SESSION.debug_sync=
+  'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx'; # expect 0
+SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+--connection server_1
+--reap
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression('Timeout waiting for reply of binlog');
+--let $wait_no_slave= 0
+while ($wait_no_slave < 2)
+{
+  --echo # Cases 2.x Matrix:
+  --eval SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= $wait_no_slave
+  SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+
+  --echo # Case 2.1: falls back to Async when the requirement is set too high
+  SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 3;
+  --send_eval INSERT INTO t$wait_no_slave VALUES (1)
+  if ($wait_no_slave)
+  {
+    --echo # Case 2.1.1: An up-to-date slaves does not ACK when it reconnects
+    --connection default
+    --sync_slave_with_master server_3
+    --source include/stop_slave.inc
+    --source include/start_slave.inc
+    --connection server_1
+  }
+  --reap
+  SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+  --echo # Case 2.2: stays Async as long as the requirement is not met
+  SET @@GLOBAL.debug_dbug= '+d,sync_semisync_report_reply';
+  # Semi-Sync tries to reactivate when it receives ACK(s)
+  --eval INSERT INTO t$wait_no_slave VALUES (-2)
+  # Wait for 2 *complete* ACK processings
+  SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+  SET @@SESSION.debug_sync=
+    'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+  SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+  # Check a new transaction
+  SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+  --eval INSERT INTO t$wait_no_slave VALUES (2)
+  SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+  # Consume the 2 *complete* ACK processings for that test transaction as well
+  SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+  SET @@SESSION.debug_sync=
+    'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+  SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+
+  --echo # Case 2.3: returns to Semi-Sync when the requirement is set just right
+  SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
+  # Semi-Sync tries to reactivate when it receives ACK(s)
+  --eval INSERT INTO t$wait_no_slave VALUES (-3)
+  # Wait for 2 *complete* ACK processings
+  SET @@SESSION.debug_sync= 'now WAIT_FOR report_reply_wait';
+  SET @@SESSION.debug_sync=
+    'now SIGNAL report_reply_continue WAIT_FOR report_reply_wait';
+  SET @@GLOBAL.debug_dbug= @dbug_reset;
+  SET @@SESSION.debug_sync= 'now SIGNAL report_reply_continue';
+  # Check a new transaction
+  SET STATEMENT sql_log_bin=0 FOR FLUSH GLOBAL STATUS;
+  --eval INSERT INTO t$wait_no_slave VALUES (3)
+  SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
+
+  --inc $wait_no_slave
+}
+
+
+--echo # Cleanup
+SET @@GLOBAL.debug_dbug= @dbug_reset;
+SET @@SESSION.debug_sync= 'RESET';
+DROP TABLE t0, t1;
+--source include/rpl_end.inc

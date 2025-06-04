@@ -1,0 +1,1 @@
+--rpl-semi-sync-master-wait-for-slave-count=10

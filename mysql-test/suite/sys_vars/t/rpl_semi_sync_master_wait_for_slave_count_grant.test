@@ -1,0 +1,6 @@
+--echo # MDEV-18983: @@rpl_semi_sync_master_wait_for_slave_count privilege test
+
+--let $var = rpl_semi_sync_master_wait_for_slave_count
+--let $grant = REPLICATION MASTER ADMIN
+--let $value = 2
+--source suite/sys_vars/inc/sysvar_global_grant.inc
