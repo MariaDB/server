@@ -1,0 +1,40 @@
+include/master-slave.inc
+[connection master]
+# Stop slave to set replicate_do_db
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db = 'test';
+SET @@GLOBAL.replicate_ignore_db = 'ignored_db';
+include/start_slave.inc
+# On master: create two databases and insert data
+connection master;
+CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t1 VALUES (1, 'row in t1');
+CREATE DATABASE ignored_db;
+USE ignored_db;
+CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
+INSERT INTO t2 VALUES (1, 'row in t2');
+# Capture current binlog file name
+# Sync master and slave
+include/sync_slave_sql_with_master.inc
+# Find relay log file on slave
+connection slave;
+# Dump master binlog to file
+# Dump slave relay log to file
+# Validate that 'INSERT INTO t1' is in the master binlog
+include/assert_grep.inc [INSERT INTO t1 must be present in master binlog]
+# Validate that 'INSERT INTO t1' is in the slave relaylog
+include/assert_grep.inc [INSERT INTO t1 must be present in master binlog]
+# Cleanup
+connection master;
+USE test;
+DROP TABLE t1;
+USE ignored_db;
+DROP TABLE t2;
+USE test;
+DROP DATABASE ignored_db;
+include/sync_slave_sql_with_master.inc
+include/rpl_end.inc
+connection slave;
+SET @@GLOBAL.replicate_do_db="";
+SET @@GLOBAL.replicate_ignore_db="";
