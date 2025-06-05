@@ -758,7 +758,7 @@ class Master_info;
 class Sys_var_rpl_filter: public sys_var
 {
 private:
-  int opt_id;
+
   privilege_t m_access_global;
 
 public:
@@ -766,8 +766,9 @@ public:
                      privilege_t access_global)
     : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL), opt_id(getopt_id),
-      m_access_global(access_global)
+              NULL, NULL, NULL), 
+              m_access_global(access_global),
+              opt_id(getopt_id)
   {
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
@@ -799,6 +800,22 @@ public:
     return check_global_access(thd, m_access_global);
   }
 
+protected:
+  int opt_id;
+
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+    const override;
+  bool set_filter_value(const char *value, Master_info *mi);
+};
+
+// No additional functionality all behavior is inherited from Sys_var_rpl_filter to
+// avoid code duplication. This class inherits Sys_var_rpl_filter since setting the
+// global variable should also be dynamic unlike Sys_var_binlog_filter.
+class Sys_var_binlog_dump_filter: public Sys_var_rpl_filter
+{
+  using Sys_var_rpl_filter::Sys_var_rpl_filter;
+public:
+  bool global_update(THD *thd, set_var *var) override;
 protected:
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
     const override;
