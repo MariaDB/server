@@ -5838,6 +5838,47 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
+bool Sys_var_binlog_dump_filter::global_update(THD *thd, set_var *var)
+{
+  bool result= true;                            // Assume error
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  // passing NULL as Master_info is just a workaround to follow the Sys_var_rpl_filter's overridden method
+  result= set_filter_value(var->save_result.string_value.str, NULL);
+  
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return result;
+}
+
+bool Sys_var_binlog_dump_filter::set_filter_value(const char *value, Master_info *mi)
+{
+  bool status= true;
+
+  switch (opt_id) {
+  case OPT_BINLOG_DUMP_DO_DB:
+    status= binlog_dump_thread_filter->set_do_db(value);
+    break;
+  case OPT_BINLOG_DUMP_DO_TABLE:
+    status= binlog_dump_thread_filter->set_do_table(value);
+    break;
+  case OPT_BINLOG_DUMP_IGNORE_DB:
+    status= binlog_dump_thread_filter->set_ignore_db(value);
+    break;
+  case OPT_BINLOG_DUMP_IGNORE_TABLE:
+    status= binlog_dump_thread_filter->set_ignore_table(value);
+    break;
+  case OPT_BINLOG_DUMP_WILD_DO_TABLE:
+    status= binlog_dump_thread_filter->set_wild_do_table(value);
+    break;
+  case OPT_BINLOG_DUMP_WILD_IGNORE_TABLE:
+    status= binlog_dump_thread_filter->set_wild_ignore_table(value);
+    break;
+  }
+
+  return status;
+}
+
 const uchar *
 Sys_var_rpl_filter::global_value_ptr(THD *thd,
                                      const LEX_CSTRING *base_name) const
@@ -5889,6 +5930,40 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   mi->release();
+
+  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+
+  return ret;
+}
+
+const uchar *
+Sys_var_binlog_dump_filter::global_value_ptr(THD *thd,
+                                               const LEX_CSTRING *base_name) const
+{
+  char buf[256];
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+  uchar *ret;
+
+  switch(this->opt_id) {
+    case OPT_BINLOG_DUMP_DO_DB:
+      binlog_dump_thread_filter->get_do_db(&tmp);
+      break;
+    case OPT_BINLOG_DUMP_IGNORE_DB:
+      binlog_dump_thread_filter->get_ignore_db(&tmp);
+      break;
+    case OPT_BINLOG_DUMP_DO_TABLE:
+      binlog_dump_thread_filter->get_do_table(&tmp);
+      break;
+    case OPT_BINLOG_DUMP_IGNORE_TABLE:
+      binlog_dump_thread_filter->get_ignore_table(&tmp);
+      break;
+    case OPT_BINLOG_DUMP_WILD_DO_TABLE:
+      binlog_dump_thread_filter->get_wild_do_table(&tmp);
+      break;
+    case OPT_BINLOG_DUMP_WILD_IGNORE_TABLE:
+      binlog_dump_thread_filter->get_wild_ignore_table(&tmp);
+      break;
+  }
 
   ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
 
