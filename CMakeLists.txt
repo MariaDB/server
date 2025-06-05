@@ -542,31 +542,7 @@ IF(SOURCE_REVISION OR
                ${PROJECT_BINARY_DIR}/include/source_revision.h )
 ENDIF()
 
-CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in
-    ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
-
-# Handle the "INFO_*" files.
-INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)
-# Source: This can be done during the cmake phase, all information is
-# available, but should be repeated on each "make" just in case someone
-# does "cmake ; make ; git pull ; make".
-CREATE_INFO_SRC(${CMAKE_BINARY_DIR}/Docs)
-ADD_CUSTOM_TARGET(INFO_SRC ALL
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/info_src.cmake
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-# Build flags: This must be postponed to the make phase.
-ADD_CUSTOM_TARGET(INFO_BIN ALL
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/info_bin.cmake
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
 INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
-
-# MDEV-6526 these files are not installed anymore
-#INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
-#                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
 
 IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
