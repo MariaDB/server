@@ -241,6 +241,7 @@ struct FVector
     // Round up to process full vector, including padding
     size_t base= ((len + POWER_dims - 1) / POWER_dims) * POWER_dims;
 
+    #pragma GCC unroll 4
     for (size_t i= 0; i < base; i+= POWER_dims)
     {
       vector short x= vec_ld(0, &v1[i]);
