@@ -1303,7 +1303,6 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_mode)
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 /*
  -1 :fallback to default
   0 :No synchronization.
@@ -1324,7 +1323,6 @@ static MYSQL_THDVAR_INT(
 );
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, crd_sync)
-#endif
 
 /*
  -1 :fallback to default
@@ -1425,7 +1423,6 @@ static MYSQL_THDVAR_INT(
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, sts_mode)
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 /*
  -1 :fallback to default
   0 :No synchronization.
@@ -1446,7 +1443,6 @@ static MYSQL_THDVAR_INT(
 );
 
 SPIDER_THDVAR_OVERRIDE_VALUE_FUNC(int, sts_sync)
-#endif
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 /*
@@ -2581,9 +2577,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(second_read),
   MYSQL_SYSVAR(crd_interval),
   MYSQL_SYSVAR(crd_mode),
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   MYSQL_SYSVAR(crd_sync),
-#endif
   MYSQL_SYSVAR(store_last_crd),
   MYSQL_SYSVAR(load_crd_at_startup),
   MYSQL_SYSVAR(crd_type),
@@ -2593,9 +2587,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #endif
   MYSQL_SYSVAR(sts_interval),
   MYSQL_SYSVAR(sts_mode),
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   MYSQL_SYSVAR(sts_sync),
-#endif
   MYSQL_SYSVAR(store_last_sts),
   MYSQL_SYSVAR(load_sts_at_startup),
 #ifndef WITHOUT_SPIDER_BG_SEARCH
