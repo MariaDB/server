@@ -7796,3 +7796,21 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-36765 JSON Histogram cannot handle >1 byte characters
+#
+CREATE TABLE t1 (f varchar(50)) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO t1 VALUES (UNHEX('E983A8E996800AE983A8E99680'));
+SET STATEMENT histogram_type=JSON_HB FOR ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT min_value, max_value, hist_type
+FROM mysql.column_stats WHERE db_name = 'test' AND table_name = 't1';
+min_value	max_value	hist_type
+部門
+部門	部門
+部門	JSON_HB
+DROP TABLE t1;
+DELETE FROM mysql.column_stats;
+# End of 10.11 tests

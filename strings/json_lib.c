@@ -1656,13 +1656,13 @@ int json_unescape(CHARSET_INFO *json_cs,
     }
     if (c_len == MY_CS_ILUNI)
     {
-      return -1;
+      return JSON_ERROR_ILLEGAL_SYMBOL;
     }
     /* Result buffer is too small. */
-    return -1;
+    return JSON_ERROR_OUT_OF_SPACE;
   }
 
-  return s.error==JE_EOS ? (int)(res - res_b) : -1;
+  return s.error==JE_EOS ? (int)(res - res_b) : JSON_ERROR_OUT_OF_SPACE;
 }
 
 
