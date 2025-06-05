@@ -1429,7 +1429,6 @@ group_by_handler *spider_create_group_by_handler(
   do {
     DBUG_PRINT("info",("spider from=%p", from));
     ++table_count;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       DBUG_PRINT("info",("spider partition handler"));
@@ -1442,7 +1441,6 @@ group_by_handler *spider_create_group_by_handler(
         DBUG_RETURN(NULL);
       }
     }
-#endif
   } while ((from = from->next_local));
 
   if (!(table_holder= spider_create_table_holder(table_count)))
@@ -1451,7 +1449,6 @@ group_by_handler *spider_create_group_by_handler(
   my_bitmap_init(&skips, NULL, query->select->elements, TRUE);
   table_idx = 0;
   from = query->from;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (from->table->part_info)
   {
     partition_info *part_info = from->table->part_info;
@@ -1462,7 +1459,6 @@ group_by_handler *spider_create_group_by_handler(
   } else {
     spider = (ha_spider *) from->table->file;
   }
-#endif
   share = spider->share;
   spider->idx_for_direct_join = table_idx;
   ++table_idx;
@@ -1484,7 +1480,6 @@ group_by_handler *spider_create_group_by_handler(
   }
   while ((from = from->next_local))
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1495,7 +1490,6 @@ group_by_handler *spider_create_group_by_handler(
     } else {
       spider = (ha_spider *) from->table->file;
     }
-#endif
     share = spider->share;
     spider->idx_for_direct_join = table_idx;
     ++table_idx;
@@ -1524,7 +1518,6 @@ group_by_handler *spider_create_group_by_handler(
 
   from = query->from;
   do {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1535,7 +1528,6 @@ group_by_handler *spider_create_group_by_handler(
     } else {
       spider = (ha_spider *) from->table->file;
     }
-#endif
     share = spider->share;
     if (spider_param_skip_default_condition(thd,
       share->skip_default_condition))
@@ -1693,7 +1685,6 @@ group_by_handler *spider_create_group_by_handler(
     goto skip_free_table_holder;
 
   from = query->from;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (from->table->part_info)
   {
     partition_info *part_info = from->table->part_info;
@@ -1704,7 +1695,6 @@ group_by_handler *spider_create_group_by_handler(
   } else {
     spider = (ha_spider *) from->table->file;
   }
-#endif
   share = spider->share;
   lock_mode = spider_conn_lock_mode(spider);
   if (lock_mode)
@@ -1770,7 +1760,6 @@ group_by_handler *spider_create_group_by_handler(
   {
     fields->clear_conn_holder_from_conn();
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1781,7 +1770,6 @@ group_by_handler *spider_create_group_by_handler(
     } else {
       spider = (ha_spider *) from->table->file;
     }
-#endif
     share = spider->share;
     DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
     DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
