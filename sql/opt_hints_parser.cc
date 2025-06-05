@@ -457,8 +457,8 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
   Conflict checking
   - A conflict happens if and only if
     - for a table level hint
-      - a hint of the same or opposite kind has already been specified for the
-        same table
+      - a hint of the same type or opposite kind has already been specified
+        for the same table
     - for a index level hint
       - the same type of hint has already been specified for the same
         table or for the same index, OR
@@ -564,7 +564,9 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   }
 
   // Key names for a compound hint are first collected into the array:
-  Mem_root_array<Opt_hints_key *> key_hints(pc->thd->mem_root);
+  Mem_root_array<std::pair<Opt_hints_key *,
+                           bool /* whether a new one was created */>>
+      key_hints(pc->thd->mem_root);
   bool is_conflicting= false;
   for (const Hint_param_index &index_name : *this)
   {
@@ -602,9 +604,7 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
                                                   &key_conflict);
         break;
       }
-      key_hints.push_back(key);
-      if (new_opt_key_hint_created)
-        tab->register_child(key);
+      key_hints.push_back({ key, new_opt_key_hint_created });
     }
   }
 
@@ -617,8 +617,10 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     */
     for (size_t i= 0; i < key_hints.size(); i++)
     {
-      Opt_hints_key *key= key_hints.at(i);
-      key->set_switch(hint_state, hint_type, true);
+      std::pair<Opt_hints_key *, bool> key= key_hints.at(i);
+      key.first->set_switch(hint_state, hint_type, true);
+      if (key.second)
+        tab->register_child(key.first);
     }
 
     tab->get_compound_key_hint(hint_type)->parsed_hint= this;

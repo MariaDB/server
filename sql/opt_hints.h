@@ -59,8 +59,7 @@
       Opt_hints_qb
         Opt_hints_table
           Opt_hints_key
-          Index_key_hint
-          Global_index_key_hint
+          Compound_key_hint
 
   Some hints can be specified at a specific level (e.g. per-index) or at a
   more general level (e.g. per-table).  When checking the hint, we need
