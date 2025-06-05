@@ -850,9 +850,6 @@ public:
   virtual void free_result() = 0;
   virtual SPIDER_DB_ROW *current_row() = 0;
   virtual SPIDER_DB_ROW *fetch_row(MY_BITMAP *skips = NULL) = 0;
-  virtual SPIDER_DB_ROW *fetch_row_from_result_buffer(
-    spider_db_result_buffer *spider_res_buf
-  ) = 0;
   virtual SPIDER_DB_ROW *fetch_row_from_tmp_table(
     TABLE *tmp_table
   ) = 0;
