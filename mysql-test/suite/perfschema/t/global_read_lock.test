@@ -73,6 +73,8 @@ disconnect con1;
 
 connection default;
 
+--disable_warnings
 drop user pfsuser@localhost;
+--enable_warnings
 flush privileges;
 

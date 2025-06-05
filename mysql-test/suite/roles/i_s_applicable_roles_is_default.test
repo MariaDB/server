@@ -58,5 +58,7 @@ select * from information_schema.applicable_roles;
 drop role role3;
 drop role role2;
 drop role role1;
+--disable_warnings
 drop user foo;
+--enable_warnings
 update mysql.global_priv set priv=json_compact(json_remove(priv, '$.default_role'));

@@ -482,8 +482,10 @@ CREATE VIEW v1 AS SELECT test.bug12812()|
 # Cleanup
 connection default|
 disconnect test_user_12812|
+--disable_warnings
 --error 0,ER_CANNOT_USER
 DROP USER user_bug12812@localhost|
+--enable_warnings
 drop function bug12812|
 delimiter ;|
 
