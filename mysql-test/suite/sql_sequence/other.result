@@ -48,7 +48,6 @@ create sequence s2;
 insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
 ERROR HY000: Field 'maximum_value' doesn't have a default value
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
-ERROR HY000: Table 's1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
 ERROR HY000: Sequence 'test.s1' has out of range value for options
 insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);

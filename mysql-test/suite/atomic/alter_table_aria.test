@@ -4,4 +4,4 @@
 let $engine_count=1;
 let $engines='aria';
 let $extra_engine=myisam;
---source alter_table.test
+--source alter_table.inc

@@ -923,4 +923,67 @@ SELECT pkg.f1();
 pkg.f1()
 1 2
 DROP PACKAGE pkg;
+#
+# MDEV-36462: Crash on `DECLARE spvar1 ROW TYPE OF cursor1` after a table recreation
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR SELECT a FROM t1;
+BEGIN
+DECLARE va ROW TYPE OF c; -- the crash happens here
+END;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+FOR i IN 1..10 DO  -- usually it crashes on the third iteration, but not always
+SELECT i;
+CREATE OR REPLACE TABLE t1 (a INT);
+CALL p1;
+CALL p1;
+END FOR;
+END;
+/
+CALL p2;
+i
+1
+i
+2
+i
+3
+i
+4
+i
+5
+i
+6
+i
+7
+i
+8
+i
+9
+i
+10
+# Clean up
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# The following test is taken from the task MDEV-36114 which is
+# partially a duplicate of the task MDEV-36462
+CREATE PROCEDURE p()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+END;
+END;
+/
+CREATE TABLE t (id INT);
+CALL p();
+CREATE OR REPLACE TABLE t (id INT);
+CALL p();
+# Clean up
+DROP PROCEDURE p;
+DROP TABLE t;
 # End of 11.4 tests

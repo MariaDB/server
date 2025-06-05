@@ -38,7 +38,6 @@ create sequence s1;
 create sequence s2;
 --error ER_NO_DEFAULT_FOR_FIELD
 insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
---error ER_UPDATE_TABLE_USED
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
 --error ER_SEQUENCE_INVALID_DATA
 insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
