@@ -971,7 +971,7 @@ static MYSQL_THDVAR_INT(
   PLUGIN_VAR_RQCMDARG, /* opt */
   "Execute optimize to remote server with local", /* comment */
   NULL, /* check */
-  NULL, /* update */
+  spider_var_deprecated_int, /* update */
   0, /* def */
   0, /* min */
   2, /* max */
