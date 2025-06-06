@@ -1167,6 +1167,62 @@ set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
 
+--echo #
+--echo # MDEV-36461: Remove join_execution nodes and add range_check_for_each_record when appropriate
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1, 999),(999, 1),(987,987);
+create table t2 (a int, b int, index(a),index(b));
+insert into t2 select seq, seq from seq_1_to_1000;
+create table t3 (a int);
+insert into t3 select seq from seq_1_to_2;
+
+set optimizer_trace='enabled=on';
+
+analyze
+select 
+(
+  select count(*) 
+  from t1, t2 
+  where t2.a<t1.a and t2.b<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a 
+from t3;
+
+--echo # The trace must contain 6 objects with select_id 2 and
+--echo # loop varying from 1..2 for each of the 3 ranges from t1:
+set @trace=(select trace from information_schema.optimizer_trace);
+set @trace=(select json_extract(@trace, '$**.range-checked-for-each-record'));
+set @trace=json_replace(@trace, '$[0].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[1].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[2].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[3].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[4].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[5].rows_estimation[0].range_analysis','REPLACED');
+select json_detailed(@trace) as TRACE;
+
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+    from information_schema.optimizer_trace;
+
+select
+(
+  select count(*)
+  from t1, t2
+  where t2.a+1<t1.a and t2.b+1<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a
+from t3;
+
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+    from information_schema.optimizer_trace;
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+    from information_schema.optimizer_trace;
+set optimizer_trace='enabled=off';
+
+drop table t1,t2,t3;
+--echo # End of 10.11 tests
 
 --echo #
 --echo # Testing of records_out
@@ -1271,4 +1327,3 @@ set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;
 set  @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
-

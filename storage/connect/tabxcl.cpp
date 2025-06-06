@@ -186,8 +186,8 @@ bool TDBXCL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Physically open the object table.                                */
   /*********************************************************************/
-	if (Tdbp->OpenDB(g))
-		return TRUE;
+  if (Tdbp->OpenDB(g))
+    return TRUE;
 
   Use = USE_OPEN;
 	return FALSE;

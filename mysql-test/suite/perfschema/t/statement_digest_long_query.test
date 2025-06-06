@@ -6,6 +6,7 @@
 --source include/have_perfschema.inc
 # Test requires: sp-protocol/ps-protocol/view-protocol/cursor-protocol disabled
 --source include/no_protocol.inc
+--source include/not_msan_with_debug.inc
 # Thread stack overrun on solaris
 let $have_solaris = `select convert(@@version_compile_os using latin1) LIKE ("solaris%")`;
 if ($have_solaris)

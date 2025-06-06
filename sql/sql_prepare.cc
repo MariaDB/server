@@ -2267,18 +2267,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   }
 
 #ifdef WITH_WSREP
-    if (wsrep_sync_wait(thd, sql_command))
-      goto error;
-    if (!stmt->is_sql_prepare())
-    {
-      wsrep_after_command_before_result(thd);
-      if (wsrep_current_error(thd))
-      {
-        wsrep_override_error(thd, wsrep_current_error(thd),
-                             wsrep_current_error_status(thd));
-        goto error;
-      }
-    }
+  if (wsrep_sync_wait(thd, sql_command))
+    goto error;
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2494,6 +2484,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   default:
     break;
   }
+
+#ifdef WITH_WSREP
+  if (!stmt->is_sql_prepare())
+  {
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd))
+    {
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      goto error;
+    }
+  }
+#endif
+
   if (res == 0)
   {
     if (!stmt->is_sql_prepare())
@@ -6298,6 +6302,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
+    new_thd->affected_rows= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off

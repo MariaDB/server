@@ -1414,16 +1414,11 @@ row_upd_changes_ord_field_binary_func(
 			if (UNIV_LIKELY_NULL(buf)) {
 				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
 					/* The externally stored field
-					was not written yet. This
-					record should only be seen by
-					trx_rollback_recovered()
-					when the server had crashed before
-					storing the field. */
-					ut_ad(!thr
-					      || thr->graph->trx->is_recovered);
-					ut_ad(!thr
-					      || thr->graph->trx
-					         == trx_roll_crash_recv_trx);
+					was not written yet. InnoDB must
+					have ran out of space or been killed
+					before storing the page */
+					ut_ad(thr);
+					ut_ad(thr->graph->trx->in_rollback);
 					return(TRUE);
 				}
 

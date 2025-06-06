@@ -1077,6 +1077,7 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
 
 void purge_sys_t::wait_FTS(bool also_sys)
 {
+  std::this_thread::yield();
   for (const uint32_t mask= also_sys ? ~0U : ~PAUSED_SYS; m_FTS_paused & mask;)
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }

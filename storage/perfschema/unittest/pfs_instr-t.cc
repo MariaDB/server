@@ -86,8 +86,6 @@ void test_no_instruments()
   cleanup_instruments();
 }
 
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 void test_no_instances()
 {
   int rc;
@@ -218,7 +216,7 @@ void test_no_instances()
   ok(file == NULL, "no file");
   ok(global_file_container.m_lost == 4, "lost 4");
 
-  char long_file_name[10000];
+  char long_file_name[5000];
   int size= sizeof(long_file_name);
   memset(long_file_name, 'X', size);
 
@@ -247,7 +245,6 @@ void test_no_instances()
   cleanup_file_hash();
   cleanup_instruments();
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void test_with_instances()
 {

@@ -42,6 +42,10 @@ SET(MY_WARNING_FLAGS
   -Wcast-function-type-strict
   )
 
+IF(NOT (WITH_MSAN OR WITH_ASAN OR WITH_UBSAN))
+  SET(MY_WARNING_FLAGS ${MY_WARNING_FLAGS} -Wframe-larger-than=16384)
+ENDIF()
+
 # Warning flags that are in testing before moving
 # to MY_WARNING_FLAGS if stable.
 SET(MY_WARNING_FLAGS_NON_FATAL
@@ -58,7 +62,7 @@ ENDFOREACH()
 
 SET(MY_ERROR_FLAGS -Werror -fno-operator-names -Wsuggest-override)
 
-IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=non-virtual-dtor) # gcc bug 7302
 ENDIF()

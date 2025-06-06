@@ -890,6 +890,9 @@ static int disable_binlog()
 }
 
 
+/* Ok as mysqlcheck is not multi threaded */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int handle_request_for_tables(char *tables, size_t length,
                                      my_bool view, my_bool dont_quote)
 {
@@ -1020,9 +1023,6 @@ static void insert_table_name(DYNAMIC_ARRAY *arr, char *in, size_t dblen)
   my_snprintf(buf, sizeof(buf), "%`s.%`s", in, in + dblen + 1);
   insert_dynamic(arr, (uchar*) buf);
 }
-
-/* Ok as mysqlcheck is not multi threaded */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static void __attribute__((noinline)) print_result()
 {

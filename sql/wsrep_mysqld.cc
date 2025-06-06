@@ -1471,7 +1471,8 @@ bool wsrep_check_mode_after_open_table (THD *thd,
       }
 
       // Check are we inside a transaction
-      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true);
+      bool not_used;
+      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true, &not_used);
       bool changes= wsrep_has_changes(thd);
 
       // Roll back current stmt if exists
@@ -4116,5 +4117,38 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables)
       return true;
     }
   }
+  return false;
+}
+
+bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
+{
+  if (WSREP(thd) && !thd->wsrep_applier &&
+      wsrep_is_active(thd) &&
+      (sql_command_flags[thd->lex->sql_command] &
+       (CF_UPDATES_DATA | CF_DELETES_DATA)))
+  {
+    wsrep::key key(wsrep::key::shared);
+    key.append_key_part(fk->foreign_db->str, fk->foreign_db->length);
+    key.append_key_part(fk->foreign_table->str, fk->foreign_table->length);
+
+    if (thd->wsrep_cs().append_key(key))
+    {
+      WSREP_ERROR("Appending table key failed: %s",
+                  wsrep_thd_query(thd));
+      sql_print_information("Failed Foreign key referenced table found: "
+                            "%s.%s",
+                            fk->foreign_db->str,
+                            fk->foreign_table->str);
+      return true;
+    }
+
+    DBUG_EXECUTE_IF(
+      "wsrep_print_foreign_keys_table",
+      sql_print_information("Foreign key referenced table found: %s.%s",
+                            fk->foreign_db->str,
+                            fk->foreign_table->str);
+    );
+  }
+
   return false;
 }

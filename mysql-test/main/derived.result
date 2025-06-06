@@ -1383,6 +1383,152 @@ drop table t1,t2,t3;
 # End of 10.3 tests
 #
 #
+# MDEV-24588: Fix crash with unnamed column in derived table.
+# Assertion `item->name.str && item->name.str[0]` in
+# `TABLE_LIST::create_field_translation` fails when a SELECT
+# query includes a derived table containing unnamed column
+# (eg: `SELECT '' from t`).
+#
+# Tests from the bug report
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a) FROM t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+SET sql_mode='';
+PREPARE p FROM 'SELECT SHA(pk) IN (SELECT * FROM (SELECT \'\' FROM t) AS a) FROM t;';
+EXECUTE p;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+EXECUTE p;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+DEALLOCATE PREPARE p;
+# Tests on derived tables
+SELECT * FROM (SELECT 1, '' FROM t) AS a;
+1	
+1	
+1	
+1	
+SELECT * FROM (SELECT '', 1 FROM t) AS a;
+	1
+	1
+	1
+	1
+SELECT * FROM (SELECT 1, 2, '' FROM t) AS a;
+1	2	
+1	2	
+1	2	
+1	2	
+SELECT * FROM (SELECT pk, '' FROM t) AS a;
+pk	
+1	
+2	
+3	
+SELECT '/', '/';
+/	/
+/	/
+SELECT * FROM (SELECT pk, '', '' as c1 FROM t) AS a;
+pk		c1
+1		
+2		
+3		
+SELECT * FROM (SELECT '', '' from t) AS a;
+ERROR 42S21: Duplicate column name ''
+SELECT * FROM (SELECT '/', '/' FROM t) AS a;
+ERROR 42S21: Duplicate column name '/'
+SELECT * FROM (SELECT '/', '/') AS a;
+ERROR 42S21: Duplicate column name '/'
+DROP TABLE t;
+# Tests on views
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+CREATE VIEW v_t AS SELECT * FROM t;
+SHOW CREATE VIEW v_t;
+View	Create View	character_set_client	collation_connection
+v_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_t` AS select `t`.`pk` AS `pk` from `t`	latin1	latin1_swedish_ci
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a) FROM v_t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a)
+0
+0
+0
+SELECT * FROM (SELECT pk, '', '' as c1 FROM v_t) AS a;
+pk		c1
+1		
+2		
+3		
+SELECT * FROM (SELECT '', '' from v_t) AS a;
+ERROR 42S21: Duplicate column name ''
+SELECT * FROM (SELECT '/', '/' from v_t) AS a;
+ERROR 42S21: Duplicate column name '/'
+CREATE VIEW v1 AS SELECT '/', '/';
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select '/' AS `/`,'/' AS `My_exp_/`	latin1	latin1_swedish_ci
+DROP VIEW v_t, v1;
+DROP TABLE t;
+# Tests on views created using SELECT statements that contain derived columns
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+CREATE VIEW v1_t AS SELECT '' FROM t;
+SHOW CREATE VIEW v1_t;
+View	Create View	character_set_client	collation_connection
+v1_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1_t` AS select '' AS `Name_exp_1` from `t`	latin1	latin1_swedish_ci
+SELECT * FROM v1_t;
+Name_exp_1
+
+
+
+CREATE VIEW v2_t AS SELECT * FROM (SELECT '' FROM t) AS a;
+SHOW CREATE VIEW v2_t;
+View	Create View	character_set_client	collation_connection
+v2_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2_t` AS select `tmp_field` AS `Name_exp_1` from (select '' from `t`) `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v2_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * FROM v2_t;
+ERROR HY000: View 'test.v2_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE VIEW v3_t AS SELECT * FROM (SELECT '' as c1 FROM t) AS a;
+SHOW CREATE VIEW v3_t;
+View	Create View	character_set_client	collation_connection
+v3_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3_t` AS select `a`.`c1` AS `c1` from (select '' AS `c1` from `t`) `a`	latin1	latin1_swedish_ci
+SELECT * FROM v3_t;
+c1
+
+
+
+CREATE VIEW v4_t AS SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SHOW CREATE VIEW v4_t;
+View	Create View	character_set_client	collation_connection
+v4_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4_t` AS select `a`.`1` AS `1`,`tmp_field` AS `Name_exp_2` from (select 1 AS `1`,'' from `t`) `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v4_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * from v4_t;
+ERROR HY000: View 'test.v4_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE VIEW v5_t AS SELECT '';
+SHOW CREATE VIEW v5_t;
+View	Create View	character_set_client	collation_connection
+v5_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v5_t` AS select '' AS `Name_exp_1`	latin1	latin1_swedish_ci
+SELECT * FROM v5_t;
+Name_exp_1
+
+CREATE VIEW v6_t AS SELECT * FROM (SELECT '') AS a;
+SHOW CREATE VIEW v6_t;
+View	Create View	character_set_client	collation_connection
+v6_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v6_t` AS select `tmp_field` AS `Name_exp_1` from (select '') `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * FROM v6_t;
+ERROR HY000: View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
+DROP TABLE t;
+# End of 10.11 tests
+#
 # Test of "Derived tables and union can now create distinct keys"
 #
 create table t1 (a int);

@@ -1819,9 +1819,9 @@ static void *allowlist_check_thread(void *param)
   Allowlist_check_arg *arg= (Allowlist_check_arg *) param;
 
   my_thread_init();
-  THD thd(0);
-  thd.thread_stack= (char *) &thd;
-  wsrep_init_thd_for_schema(&thd);
+  THD *thd= new THD(0);
+  thd->thread_stack= (char *) thd;
+  wsrep_init_thd_for_schema(thd);
 
   int error;
   TABLE *allowlist_table= 0;
@@ -1835,8 +1835,8 @@ static void *allowlist_check_thread(void *param)
   /*
    * Read allowlist table
    */
-  Wsrep_schema_impl::init_stmt(&thd);
-  if (Wsrep_schema_impl::open_for_read(&thd, allowlist_table_str.c_str(),
+  Wsrep_schema_impl::init_stmt(thd);
+  if (Wsrep_schema_impl::open_for_read(thd, allowlist_table_str.c_str(),
                                        &allowlist_table_l) ||
       (allowlist_table= allowlist_table_l.table,
        Wsrep_schema_impl::init_for_scan(allowlist_table)))
@@ -1877,9 +1877,10 @@ static void *allowlist_check_thread(void *param)
   {
     goto out;
   }
-  Wsrep_schema_impl::finish_stmt(&thd);
-  (void) trans_commit(&thd);
+  Wsrep_schema_impl::finish_stmt(thd);
+  (void) trans_commit(thd);
 out:
+  delete thd;
   my_thread_end();
   arg->response = match_found_or_empty;
   return 0;

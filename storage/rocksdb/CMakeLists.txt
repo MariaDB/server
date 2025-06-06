@@ -9,6 +9,13 @@ SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB
 SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
+STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+       CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+       CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+       CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wframe-larger-than=32768)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-invalid-offsetof)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-effc++ DEBUG RELWITHDEBINFO)

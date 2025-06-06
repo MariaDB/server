@@ -139,7 +139,7 @@ drop table t1;
 create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or c1 is null ) );
 ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the CHECK clause of `c1`
 create table t1 (a int check (@b in (select user from mysql.user)));
-ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `a`
+ERROR 42000: CHECK does not support subqueries or stored functions
 create table t1 (a int check (a > @b));
 ERROR HY000: Function or expression '@b' cannot be used in the CHECK clause of `a`
 create table t1 (a int check (a = 1));

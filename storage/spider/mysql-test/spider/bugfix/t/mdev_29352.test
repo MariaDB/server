@@ -4,7 +4,9 @@ FLUSH TABLES WITH READ LOCK;
 
 --error ER_CANT_UPDATE_WITH_READLOCK
 CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
+--disable_view_protocol
 SELECT * FROM t;
+--enable_view_protocol
 
 --source include/restart_mysqld.inc
 

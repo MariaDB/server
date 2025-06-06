@@ -4,10 +4,12 @@
 --source include/have_64bit.inc
 # Disable asan it asan builds crashes when trying to allocate too much memory
 --source include/not_asan.inc
---source include/not_msan.inc
 # Valgrind is useful here, but very slow as lots of memory is allocated
 --source include/no_valgrind_without_big.inc
 --source include/have_innodb.inc
+
+# MSAN runs, but ignore its notice. ER_OUTOFMEMORY is expected by tests
+call mtr.add_suppression("MemorySanitizer failed to allocate");
 
 --echo #
 --echo # MDEV-28217 Incorrect Join Execution When Controlling Join Buffer Size

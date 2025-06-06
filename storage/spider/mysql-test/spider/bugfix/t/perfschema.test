@@ -7,8 +7,10 @@ enable_query_log;
 --echo # MDEV-33031 Assertion failure upon reading from performance schema with binlog enabled
 --echo #
 connect foo,localhost,root;
+--disable_view_protocol
 select variable_name, variable_value from performance_schema.status_by_thread
 where variable_name like '%spider_direct_aggregate%';
+--enable_view_protocol
 disconnect foo;
 connection default;
 

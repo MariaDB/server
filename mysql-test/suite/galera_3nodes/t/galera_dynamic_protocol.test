@@ -50,7 +50,7 @@ SELECT COUNT(*) = 1 FROM t1;
 # Restart node with SSL enabled
 --source include/shutdown_mysqld.inc
 --let $restart_noprint = 1
---let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1 --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-key.pem
+--let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1 --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-key.pem
 --source include/start_mysqld.inc
 --source include/galera_wait_ready.inc
 

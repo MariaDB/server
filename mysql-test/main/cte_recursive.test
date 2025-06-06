@@ -1,6 +1,6 @@
 --source include/default_optimizer_switch.inc
 # This is too slow on MSAN
---source include/not_msan.inc
+--source include/no_msan_without_big.inc
 --source include/not_valgrind.inc
 --source include/have_innodb.inc
 

@@ -87,7 +87,7 @@ create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or 
 #
 # MDEV-12421 Check constraint with query crashes server and renders DB unusable
 #
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_SUBQUERIES_NOT_SUPPORTED
 create table t1 (a int check (@b in (select user from mysql.user)));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int check (a > @b));
