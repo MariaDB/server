@@ -40,6 +40,10 @@ FUNCTION (CHECK_AWS_SDK RETVAL REASON)
   ENDIF()
 
   IF(UNIX)
+    IF("${WITH_ZLIB}" STREQUAL "bundled")
+      # Breaks FIND_PACKAGE(ZLIB)
+      SKIP_AWS_SDK("Incompatible with WITH_ZLIB=bundled")
+    ENDIF()
     # Check libraries required for building SDK
     FOREACH(pkg CURL ZLIB OpenSSL)
       FIND_PACKAGE(${pkg})
