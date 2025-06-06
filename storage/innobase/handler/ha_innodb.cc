@@ -15197,6 +15197,117 @@ ha_innobase::optimize(
 	return try_alter ? HA_ADMIN_TRY_ALTER : HA_ADMIN_OK;
 }
 
+/** Does the following validation check for the sequence table
+1) Check whether the InnoDB table has no_rollback flags
+2) Should have only one primary index
+3) Root index page must be leaf page
+4) There should be only one record in leaf page
+5) There shouldn't be delete marked record in leaf page
+6) DB_TRX_ID, DB_ROLL_PTR in the record should be 0 and 1U << 55
+@param thd   Thread
+@param table InnoDB table
+@retval true if validation succeeds or false if validation fails */
+static bool innobase_sequence_table_check(THD *thd, dict_table_t *table)
+{
+  fil_space_t *space= table->space;
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  mtr_t mtr;
+  bool corruption= false;
+  const rec_t *rec= nullptr;
+  buf_block_t *root_block= nullptr;
+
+  if (UT_LIST_GET_LEN(table->indexes) != 1)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s does have more than one "
+                        "indexes.", table->name.m_name);
+    corruption= true;
+    goto func_exit;
+  }
+
+  if (!clust_index->is_gen_clust())
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s does not have generated "
+                        "clustered index.", table->name.m_name);
+    corruption= true;
+    goto func_exit;
+  }
+
+  mtr.start();
+  mtr.set_named_space(space);
+  root_block= buf_page_get_gen(page_id_t(space->id, clust_index->page),
+                               space->zip_size(), RW_S_LATCH, nullptr, BUF_GET,
+                               &mtr);
+  DBUG_EXECUTE_IF("fail_root_page", root_block= nullptr;);
+  if (!root_block)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s is corrupted.",
+                        table->name.m_name);
+    corruption= true;
+    goto err_exit;
+  }
+
+  if (!page_is_leaf(root_block->page.frame))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Non leaf page exists for sequence table %s.",
+                        table->name.m_name);
+    corruption= true;
+    goto err_exit;
+  }
+
+  if (page_get_n_recs(root_block->page.frame) != 1)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Should have only one record in sequence "
+                        "table %s. But it has %u records.", table->name.m_name,
+                        page_get_n_recs(root_block->page.frame));
+    corruption= true;
+    goto err_exit;
+  }
+
+  rec= page_rec_get_next(page_get_infimum_rec(root_block->page.frame));
+
+  if (rec_get_deleted_flag(rec, dict_table_is_comp(table)))
+  {
+    corruption= true;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Encountered delete marked record in sequence "
+                        "table %s.", table->name.m_name);
+     goto err_exit;
+  }
+
+  if (trx_read_trx_id(rec + clust_index->trx_id_offset) != 0 ||
+      trx_read_roll_ptr(rec + clust_index->trx_id_offset + DATA_TRX_ID_LEN) !=
+        roll_ptr_t{1} << ROLL_PTR_INSERT_FLAG_POS)
+  {
+    corruption= true;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Record in sequence table %s is corrupted.",
+                        table->name.m_name);
+    goto err_exit;
+  }
+
+  if (!table->no_rollback())
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s has ROLLBACK enabled.",
+                        table->name.m_name);
+    corruption= true;
+  }
+err_exit:
+  mtr.commit();
+func_exit:
+  if (corruption)
+  {
+    dict_set_corrupted(clust_index, "Table corruption");
+    return false;
+  }
+  return true;
+}
+
 /*******************************************************************//**
 Tries to check that an InnoDB table is not corrupted. If corruption is
 noticed, prints to stderr information about it. In case of corruption
@@ -15265,6 +15376,11 @@ ha_innobase::check(
 			table->s->table_name.str);
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
+	} else if (table->s->table_type == TABLE_TYPE_SEQUENCE) {
+		DBUG_RETURN(
+		  innobase_sequence_table_check(thd, m_prebuilt->table)
+		  ? HA_ADMIN_OK
+		  : HA_ADMIN_CORRUPT);
 	}
 
 	m_prebuilt->trx->op_info = "checking table";
