@@ -2319,7 +2319,8 @@ struct TABLE_LIST
                                             TABLE_LIST *belong_to_view_arg,
                                             uint8 trg_event_map_arg,
                                             TABLE_LIST ***last_ptr,
-                                            my_bool insert_data)
+                                            my_bool insert_data,
+                                            my_bool override_fk_ignore_table= FALSE)
 
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
@@ -2331,7 +2332,8 @@ struct TABLE_LIST
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
     /* MDL is enough for read-only FK checks, we don't need the table */
-    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE)
+    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE &&
+        !override_fk_ignore_table)
       open_strategy= OPEN_STUB;
 
     **last_ptr= this;
