@@ -1,0 +1,15 @@
+--- check_sequence.result	2025-06-06 18:01:15.720022720 +0530
++++ check_sequence.reject	2025-06-06 18:12:51.299760661 +0530
+@@ -98,3 +98,12 @@
+ 3
+ disconnect prevent_purge;
+ DROP SEQUENCE s1;
++CREATE SEQUENCE s ENGINE=InnoDB;
++ALTER TABLE s SEQUENCE=0;
++FLUSH TABLES;
++SET STATEMENT DEBUG_DBUG="+d,fail_root_page" FOR
++CHECK TABLE s;
++Table	Op	Msg_type	Msg_text
++test.s	check	Warning	InnoDB: Sequence table test/s is corrupted.
++test.s	check	error	Corrupt
++DROP SEQUENCE s;
