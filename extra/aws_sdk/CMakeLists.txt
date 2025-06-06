@@ -31,7 +31,7 @@ SET(all_libs
   aws-c-compression
   aws-cpp-sdk-core
 )
-IF (UNIX)
+IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   LIST(APPEND all_libs s2n)
 ENDIF()
 
@@ -73,8 +73,10 @@ IF(WIN32)
   TARGET_LINK_LIBRARIES(aws-c-common INTERFACE  shlwapi)
   TARGET_LINK_LIBRARIES(aws-cpp-sdk-core INTERFACE winhttp wininet version userenv)
 ELSE()
-  TARGET_LINK_LIBRARIES(aws-c-io INTERFACE s2n)
-  TARGET_LINK_LIBRARIES(aws-c-cal INTERFACE OpenSSL::Crypto)
+  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    TARGET_LINK_LIBRARIES(aws-c-io INTERFACE s2n)
+  ENDIF()
+  TARGET_LINK_LIBRARIES(aws-c-cal INTERFACE OpenSSL::Crypto ${CMAKE_DL_LIBS})
   TARGET_LINK_LIBRARIES(aws-cpp-sdk-core INTERFACE ZLIB::ZLIB CURL::libcurl)
 ENDIF()
 
