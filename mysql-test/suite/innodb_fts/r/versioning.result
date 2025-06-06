@@ -3,9 +3,11 @@ SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 ERROR HY000: Index articles is corrupted
 call mtr.add_suppression("test/articles.? contains 3 indexes inside InnoDB");
+call mtr.add_suppression("updating stats for table .*");
 alter table articles force;
 Warnings:
 Warning	1082	InnoDB: Table test/articles contains 3 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
+Warning	1088	Error updating stats for table after table rebuild: Persistent statistics do not exist
 flush tables;
 show create table articles;
 Table	Create Table
@@ -290,7 +292,10 @@ AGAINST ('this' IN NATURAL LANGUAGE MODE);
 drop index idx on articles2;
 Warnings:
 Warning	1082	InnoDB: Table test/articles2 contains 3 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
+Warning	1088	Error updating stats for table after table rebuild: Persistent statistics do not exist
 create fulltext index idx on articles2(title, body);
+Warnings:
+Warning	1088	Error updating stats for table after table rebuild: Persistent statistics do not exist
 SELECT * FROM articles2 WHERE MATCH (title,body)
 AGAINST ('the' IN NATURAL LANGUAGE MODE);
 id	title	body
