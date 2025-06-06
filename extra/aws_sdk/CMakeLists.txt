@@ -69,7 +69,7 @@ TARGET_LINK_LIBRARIES(aws-c-s3 INTERFACE aws-c-auth  aws-checksums aws-c-http aw
 TARGET_LINK_LIBRARIES(aws-c-sdkutils INTERFACE aws-c-common)
 
 IF(WIN32)
-  TARGET_LINK_LIBRARIES(aws-c-io INTERFACE bcrypt crypt32 secur32 ncrypt)
+  TARGET_LINK_LIBRARIES(aws-c-io INTERFACE bcrypt crypt32 secur32 ncrypt ws2_32)
   TARGET_LINK_LIBRARIES(aws-c-common INTERFACE  shlwapi)
   TARGET_LINK_LIBRARIES(aws-cpp-sdk-core INTERFACE winhttp wininet version userenv)
 ELSE()
@@ -84,6 +84,7 @@ ELSE()
     TARGET_LINK_LIBRARIES(aws-c-common INTERFACE s2n m rt)
   ELSEIF(APPLE)
     TARGET_LINK_LIBRARIES(aws-c-common INTERFACE "-framework CoreFoundation")
+    TARGET_LINK_LIBRARIES(aws-c-io INTERFACE "-framework Security" "-framework Network")
   ENDIF()
 ENDIF()
 
