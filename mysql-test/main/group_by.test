@@ -2163,6 +2163,28 @@ UPDATE t1 SET c=1 ORDER BY (SELECT c);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-35238: Wrong results from a tables with a single record and an aggregate
+--echo #
+CREATE OR REPLACE TABLE t1 (a int) ENGINE=myisam;
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+INSERT INTO t1 VALUES (NULL);
+SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+explain format=json SELECT 1+0, min(1) FROM t1 WHERE if(uuid_short(), a,1);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=myisam;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (a int NOT NULL) ENGINE=myisam;
+INSERT INTO t2 VALUES (10);
+
+SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+explain format=json SELECT 1+0, MIN(t1.a) FROM t1,t2 WHERE t2.a = rand();
+
+DROP TABLE t1,t2;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 

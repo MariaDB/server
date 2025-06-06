@@ -185,7 +185,7 @@ create table myUC (i int);
 select TABLE_SCHEMA,TABLE_NAME FROM information_schema.TABLES
 where TABLE_SCHEMA ='mysqltest_LC2';
 TABLE_SCHEMA	TABLE_NAME
-mysqltest_lc2	myUC
+mysqltest_LC2	myUC
 use test;
 drop database mysqltest_LC2;
 #

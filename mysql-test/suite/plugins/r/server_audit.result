@@ -20,6 +20,9 @@ set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
+set global server_audit_file_path=REPEAT(REPEAT('new_file_name', 50), 50);
+Warnings:
+Warning	1	server_audit_file_path can't exceed FN_LEN characters.
 set global server_audit_logging=on;
 set global server_audit_incl_users= repeat("'root',", 10000);
 ERROR 42000: Variable 'server_audit_incl_users' can't be set to the value of ''root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','root','...'

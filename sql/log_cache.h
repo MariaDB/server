@@ -100,6 +100,11 @@ public:
     incident= TRUE;
   }
 
+  void clear_incident(void)
+  {
+    incident= FALSE;
+  }
+
   bool has_incident(void) const
   {
     return(incident);

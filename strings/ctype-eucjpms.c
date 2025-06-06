@@ -67514,7 +67514,8 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_ci_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -67534,7 +67535,8 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
     my_min_str_mb_simple,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -67554,7 +67556,8 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_nopad_ci_handler =
     my_min_str_mb_simple_nopad,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -67574,7 +67577,8 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_nopad_bin_handler =
     my_min_str_mb_simple_nopad,
     my_max_str_mb_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 

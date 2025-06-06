@@ -2220,7 +2220,8 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_min_str_8bit_simple,
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 
@@ -2240,5 +2241,6 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_min_str_8bit_simple_nopad,
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
-    my_ci_get_collation_name_generic
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };

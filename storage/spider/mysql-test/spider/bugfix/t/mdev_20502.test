@@ -51,17 +51,23 @@ TRUNCATE TABLE mysql.general_log;
 
 --disable_ps2_protocol
 --connection master_1
+--disable_view_protocol
 SELECT id, 0 AS const, val FROM tbl_a;
 SELECT 1+2, id, 0 AS const, val, val+10, (SELECT tbl_a.val+1 FROM tbl_a) AS sq
 FROM tbl_a;
+--enable_view_protocol
 INSERT INTO tbl_a (val) VALUES (2), (1);
+--disable_view_protocol
 SELECT val+10, 0 AS const, val, (SELECT tbl_a.val+1 FROM tbl_a LIMIT 1) AS sq
 FROM tbl_a GROUP BY val;
 SELECT MAX(id) AS m, 0 AS const, val, (SELECT tbl_a.val+1 FROM tbl_a LIMIT 1) AS sq
 FROM tbl_a GROUP BY val;
+--enable_view_protocol
 
 --connection child2_1
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps2_protocol
 

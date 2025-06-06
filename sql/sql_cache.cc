@@ -3552,6 +3552,7 @@ Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
     if (table_block == 0)
     {
       DBUG_PRINT("qcache", ("Can't write table name to cache"));
+      node->parent= NULL;
       DBUG_RETURN(0);
     }
     Query_cache_table *header= table_block->table();
@@ -3575,6 +3576,7 @@ Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
       DBUG_PRINT("qcache", ("Can't insert table to hash"));
       // write_block_data return locked block
       free_memory_block(table_block);
+      node->parent= NULL;
       DBUG_RETURN(0);
     }
     char *db= header->db();

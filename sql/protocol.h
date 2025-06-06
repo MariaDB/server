@@ -201,12 +201,10 @@ class Protocol_text :public Protocol
   StringBuffer<FLOATING_POINT_BUFFER> buffer;
   bool store_numeric_string_aux(const char *from, size_t length);
 public:
-  Protocol_text(THD *thd_arg, ulong prealloc= 0)
-   :Protocol(thd_arg)
-  {
-    if (prealloc)
-      packet->alloc(prealloc);
-  }
+  Protocol_text(THD *thd_arg)
+   :Protocol(thd_arg) {};
+  bool __attribute__((warn_unused_result))
+       allocate(size_t size) { return packet->alloc(size); }
   void prepare_for_resend() override;
   bool store_null() override;
   bool store_tiny(longlong from) override;

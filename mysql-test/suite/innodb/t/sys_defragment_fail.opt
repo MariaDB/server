@@ -1,0 +1,6 @@
+--innodb_page_size=4k
+--innodb_data_file_path=ibdata1:15M:autoextend:autoshrink
+--innodb_undo_tablespaces=0
+--innodb_stats_persistent=0
+--skip_partition=0
+--innodb_sys_tablespaces

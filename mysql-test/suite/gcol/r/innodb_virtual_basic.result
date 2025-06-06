@@ -87,6 +87,8 @@ delete from t where a =13;
 DROP INDEX idx1 ON t;
 DROP INDEX idx2 ON t;
 DROP TABLE t;
+# restart
+set default_storage_engine=innodb;
 /* Test large BLOB data */
 CREATE TABLE `t` (
 `a` BLOB,

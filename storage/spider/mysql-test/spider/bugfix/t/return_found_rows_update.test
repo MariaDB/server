@@ -60,9 +60,11 @@ exec $MYSQL -v -v -u root -h localhost --default-character-set=latin1 -P $MASTER
 --enable_query_log
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --echo

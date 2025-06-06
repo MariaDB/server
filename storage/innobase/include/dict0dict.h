@@ -1504,6 +1504,14 @@ public:
   bool load_sys_tables() noexcept;
   /** Create or check system tables on startup */
   dberr_t create_or_check_sys_tables() noexcept;
+
+  bool is_sys_table(table_id_t table_id) const noexcept
+  {
+    return (table_id > 0 && table_id <= 4) ||
+      table_id == sys_foreign->id ||
+      table_id == sys_foreign_cols->id ||
+      table_id == sys_virtual->id;
+  }
 };
 
 /** the data dictionary cache */

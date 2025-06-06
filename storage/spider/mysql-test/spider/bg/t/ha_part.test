@@ -463,8 +463,10 @@ if ($HAVE_PARTITION)
   eval $MASTER_1_SET_RECOVERY_STATUS_P_2_1;
   eval $MASTER_1_CHECK_LINK_STATUS;
   --disable_ps_protocol
+  --disable_view_protocol
   eval $MASTER_1_COPY_TABLES_P_2_1;
   --enable_ps_protocol
+  --enable_view_protocol
   if ($USE_CHILD_GROUP3)
   {
     if (!$OUTPUT_CHILD_GROUP3)

@@ -1,0 +1,25 @@
+# restart
+SET GLOBAL innodb_file_per_table= 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL, f3 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+SET GLOBAL innodb_file_per_table= default;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,f2 VARCHAR(40))ENGINE=InnoDB PARTITION BY KEY() PARTITIONS 256;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+DROP TABLE t2, t1;
+InnoDB		0 transactions not purged
+select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+name	file_size
+innodb_system	205520896
+set GLOBAL innodb_fast_shutdown= 0;
+# restart
+FOUND 1 /InnoDB: Moving the data from extents 4096 through 22016/ in mysqld.1.err
+FOUND 1 /InnoDB: Defragmentation of system tablespace is successful/ in mysqld.1.err
+select name, file_size from information_schema.innodb_sys_tablespaces where space = 0;
+name	file_size
+innodb_system	14680064
+# restart

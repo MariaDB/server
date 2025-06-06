@@ -557,16 +557,18 @@ buf_page_is_checksum_valid_crc32(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-/** Checks whether the lsn present in the page is lesser than the
-peek current lsn.
-@param check_lsn    lsn to check
+/** Check whether a page is newer than the durable LSN.
+@param check_lsn    whether to check the LSN
 @param read_buf     page frame
-@return whether the FIL_PAGE_LSN is invalid */
-static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf)
+@return whether the FIL_PAGE_LSN is invalid (ahead of the durable LSN) */
+static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf) noexcept
 {
   if (!check_lsn)
     return false;
-  lsn_t current_lsn= log_sys.get_lsn();
+  /* A page may not be read before it is written, and it may not be
+  written before the corresponding log has been durably written.
+  Hence, we refer to the current durable LSN here */
+  lsn_t current_lsn= log_sys.get_flushed_lsn(std::memory_order_relaxed);
   if (UNIV_UNLIKELY(current_lsn == log_sys.FIRST_LSN) &&
       srv_force_recovery == SRV_FORCE_NO_LOG_REDO)
     return false;
@@ -1352,7 +1354,11 @@ bool buf_pool_t::create() noexcept
  retry:
   {
     NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
+#ifdef _WIN32
     memory_unaligned= my_virtual_mem_reserve(&size);
+#else
+    memory_unaligned= my_large_virtual_alloc(&size);
+#endif
   }
 
   if (!memory_unaligned)
@@ -1386,6 +1392,7 @@ bool buf_pool_t::create() noexcept
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
 #endif
+#ifdef _WIN32
   if (!my_virtual_mem_commit(memory, actual_size))
   {
     my_virtual_mem_release(memory_unaligned, size_unaligned);
@@ -1393,6 +1400,9 @@ bool buf_pool_t::create() noexcept
     memory_unaligned= nullptr;
     goto oom;
   }
+#else
+  update_malloc_size(actual_size, 0);
+#endif
 
 #ifdef HAVE_LIBNUMA
   if (srv_numa_interleave)
@@ -1712,8 +1722,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         continue;
       }
 
-      if (UNIV_LIKELY_NULL(b->zip.data) &&
-          will_be_withdrawn(b->zip.data, size))
+      if (UNIV_UNLIKELY(will_be_withdrawn(b->zip.data, size)))
       {
         block= buf_buddy_shrink(b, block);
         ut_ad(mach_read_from_4(b->zip.data + FIL_PAGE_OFFSET) == id.page_no());
@@ -1802,6 +1811,9 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     block= allocate();
     goto next;
   }
+
+  if (UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < usable_size() / 20)
+    return SHRINK_ABORT;
 
   mysql_mutex_lock(&flush_list_mutex);
 
@@ -2651,8 +2663,8 @@ buf_page_get_gen(
 	innodb_undo_tablespaces=127. */
 	ut_d(extern bool ibuf_upgrade_was_needed;)
 	ut_ad(mode == BUF_GET_RECOVER
-	      ? recv_recovery_is_on() || log_sys.get_lsn() < 120000
-	      || log_sys.get_lsn() == recv_sys.lsn + SIZE_OF_FILE_CHECKPOINT
+	      ? recv_recovery_is_on() || log_get_lsn() < 120000
+	      || log_get_lsn() == recv_sys.lsn + SIZE_OF_FILE_CHECKPOINT
 	      || ibuf_upgrade_was_needed
 	      : !recv_recovery_is_on() || recv_sys.after_apply);
 	ut_ad(mtr->is_active());
@@ -3008,7 +3020,6 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
 {
   ut_ad(!page.in_file());
   buf_block_init_low(this);
-  page.lock.init();
   page.init(fix, page_id);
   page.set_os_used();
   page_zip_set_size(&page.zip, zip_size);

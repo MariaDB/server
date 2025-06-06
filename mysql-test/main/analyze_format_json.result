@@ -1029,7 +1029,7 @@ ANALYZE
             ],
             "subqueries": [
               {
-                "expression_cache": {
+                "subquery_cache": {
                   "state": "uninitialized",
                   "r_loops": 0,
                   "query_block": {
@@ -1130,7 +1130,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "r_loops": 0,
           "query_block": {

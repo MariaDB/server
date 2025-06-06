@@ -1947,4 +1947,17 @@ create_data
 
 SST_PID="$DATA/wsrep_sst.pid"
 
+if [ -n "${MTR_SST_JOINER_DELAY:-}" ]; then
+    MTR_SST_JOINER_DELAY=$(trim_string "$MTR_SST_JOINER_DELAY")
+fi
+
+simulate_long_sst()
+{
+    # Delay for MTR tests if needed to simulate long SST/IST:
+    if [ ${MTR_SST_JOINER_DELAY:-0} -gt 0 ]; then
+        wsrep_log_info "Sleeping $MTR_SST_JOINER_DELAY seconds for MTR test"
+        sleep $MTR_SST_JOINER_DELAY
+    fi
+}
+
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

@@ -263,9 +263,14 @@ ERROR 21000: Subquery returns more than 1 row
 set global userstat= 0;
 drop function f;
 drop table t1;
-#
 # End of 10.2 tests
 #
+# MDEV-36586 USER_STATISTICS.BUSY_TIME is in microseconds
+#
+select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
+busy_time>1e5	cpu_time>1e5
+0	0
+# End of 10.11 tests
 #
 # MDEV-33901 INDEX_STATISTICS.QUERIES is incremented additionally for
 # subqueries

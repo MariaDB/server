@@ -25,8 +25,8 @@ SET DEBUG_SYNC='buf_pool_shrink_before_wakeup SIGNAL blocked WAIT_FOR go';
 send SET GLOBAL innodb_buffer_pool_size=8388608;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
-# adjust for 32-bit
---replace_result 504/504 505/505
+# adjust for 32-bit and SUX_LOCK_GENERIC
+--replace_regex /(5..)\/\1/505\/505/
 SHOW STATUS LIKE 'innodb_buffer_pool_resize_status';
 SET DEBUG_SYNC='now SIGNAL go';
 connection con1;

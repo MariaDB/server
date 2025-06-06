@@ -28,16 +28,5 @@ ELSE()
 
   MYSQL_ADD_PLUGIN(spider ${SPIDER_SOURCES} ${extra_options}
     STORAGE_ENGINE MODULE_ONLY)
-  IF(NOT TARGET spider)
-    RETURN()
-  ENDIF()
 ENDIF()
 
-IF(MSVC AND (TARGET spider))
-  IF (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    ADD_CUSTOM_COMMAND(TARGET spider
-                       POST_BUILD
-                       COMMAND if not exist ..\\..\\sql\\lib mkdir ..\\..\\sql\\lib\\plugin
-                       COMMAND copy Debug\\ha_spider.dll ..\\..\\sql\\lib\\plugin\\ha_spider.dll)
-  ENDIF()
-ENDIF()

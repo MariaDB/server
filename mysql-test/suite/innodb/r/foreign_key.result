@@ -155,7 +155,6 @@ INSERT INTO parent SET a=0;
 FLUSH TABLES;
 # restart
 disconnect incomplete;
-SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 INSERT INTO child SET a=0;
 INSERT INTO child SET a=1;
@@ -1186,6 +1185,25 @@ ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fail
 ALTER TABLE t2 ADD KEY(b), ALGORITHM=NOCOPY;
 DELETE FROM t1;
 DROP TABLE t2, t1;
+#
+# MDEV-33167 ASAN errors after failing to load foreign key
+#   relation for the table
+#
+call mtr.add_suppression("InnoDB: Load table `test`.`t3` failed, the table has missing foreign key indexes. Turn off 'foreign_key_checks' and try again.");
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t1(f1 VARCHAR(8),
+FOREIGN KEY(f1) REFERENCES test.t3(f1))ENGINE=InnoDB;
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t2(f1 VARCHAR(8),
+FOREIGN KEY(f1) REFERENCES test.t3(f1))
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+SET STATEMENT FOREIGN_KEY_CHECKS = 0 FOR
+CREATE TABLE t3(f1 VARCHAR(8) PRIMARY KEY)
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+set GLOBAL innodb_fast_shutdown=0;
+# restart
+ALTER TABLE t2 FORCE;
+DROP TABLE t2, t1, t3;
 # End of 10.6 tests
 CREATE TABLE t1
 (
@@ -1208,5 +1226,4 @@ ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
 ADD UNIQUE INDEX(f3);
 ERROR HY000: Cannot delete rows from table which is parent in a foreign key constraint 't1_ibfk_1' of table 't1'
 drop table t1, t2;
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 # End of 10.11 tests

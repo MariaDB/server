@@ -402,38 +402,27 @@
 #cmakedefine SIGNAL_WITH_VIO_CLOSE 1
 
 /* Windows stuff, mostly functions, that have Posix analogs but named differently */
-#cmakedefine S_IROTH @S_IROTH@
-#cmakedefine S_IFIFO @S_IFIFO@
-#cmakedefine IPPROTO_IPV6 @IPPROTO_IPV6@
-#cmakedefine IPV6_V6ONLY @IPV6_V6ONLY@
-#cmakedefine sigset_t @sigset_t@
-#cmakedefine mode_t @mode_t@
-#cmakedefine SIGQUIT @SIGQUIT@
-#cmakedefine SIGPIPE @SIGPIPE@
-#cmakedefine popen @popen@
-#cmakedefine pclose @pclose@
-#cmakedefine ssize_t @ssize_t@
-#cmakedefine strcasecmp @strcasecmp@
-#cmakedefine strncasecmp @strncasecmp@
-#cmakedefine snprintf @snprintf@
-#cmakedefine strtok_r @strtok_r@
-#cmakedefine strtoll @strtoll@
-#cmakedefine strtoull @strtoull@
-#cmakedefine vsnprintf @vsnprintf@
-#if defined(_MSC_VER) && (_MSC_VER > 1800)
+#ifdef _WIN32
+#define S_IROTH _S_IREAD
+#define S_IFIFO _S_IFIFO
+#define SIGQUIT SIGTERM
+#define SIGPIPE SIGINT
+#define sigset_t int
+#define mode_t int
+#define popen _popen
+#define pclose _pclose
+#define ssize_t SSIZE_T
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define strtok_r strtok_s
 #define tzname _tzname
 #define P_tmpdir "C:\\TEMP"
-#endif
-#if defined(_MSC_VER) && (_MSC_VER > 1310)
-# define HAVE_SETENV
 #define setenv(a,b,c) _putenv_s(a,b)
-#endif
-#define PSAPI_VERSION 1     /* for GetProcessMemoryInfo() */
 
-/* We don't want the min/max macros */
-#ifdef _WIN32
+#define HAVE_SETENV
 #define NOMINMAX 1
-#endif
+#define PSAPI_VERSION 2     /* for GetProcessMemoryInfo() */
+#endif /* _WIN32 */
 
 /*
   MySQL features

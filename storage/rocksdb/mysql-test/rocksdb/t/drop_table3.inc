@@ -1,8 +1,5 @@
 --source include/have_rocksdb.inc
 
-call mtr.add_suppression("Column family 'cf1' not found");
-call mtr.add_suppression("Column family 'rev:cf2' not found");
-
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
@@ -10,11 +7,6 @@ DROP TABLE IF EXISTS t1;
 call mtr.add_suppression("Column family 'cf1' not found");
 call mtr.add_suppression("Column family 'rev:cf2' not found");
 
-# Start from clean slate
-set global rocksdb_compact_cf = 'cf1';
-set global rocksdb_compact_cf = 'rev:cf2';
-set global rocksdb_signal_drop_index_thread = 1;
---source include/restart_mysqld.inc
 
 CREATE TABLE t1 (
   a int not null,
@@ -28,6 +20,12 @@ CREATE TABLE t1 (
 let $max = 50000;
 let $table = t1;
 --source drop_table3_repopulate_table.inc
+
+# Start from clean slate
+set global rocksdb_compact_cf = 'cf1';
+set global rocksdb_compact_cf = 'rev:cf2';
+set global rocksdb_signal_drop_index_thread = 1;
+--source include/restart_mysqld.inc
 
 --disable_cursor_protocol
 select variable_value into @a from information_schema.global_status where variable_name='rocksdb_compact_read_bytes';
@@ -49,6 +47,7 @@ let $wait_condition = select count(*) = 0
 --source include/wait_condition.inc
 
 select case when variable_value-@a < 500000 then 'true' else 'false' end  from information_schema.global_status where variable_name='rocksdb_compact_read_bytes';
+#select variable_value-@a from information_schema.global_status where variable_name='rocksdb_compact_read_bytes';
 
 # Cleanup
 DROP TABLE IF EXISTS t1;

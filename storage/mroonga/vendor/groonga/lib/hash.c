@@ -1727,15 +1727,15 @@ grn_io_hash_calculate_entry_size(uint32_t key_size, uint32_t value_size,
 {
   if (flags & GRN_OBJ_KEY_VAR_SIZE) {
     if (flags & GRN_OBJ_KEY_LARGE) {
-      return (uintptr_t)((grn_io_hash_entry_large *)0)->value + value_size;
+      return offsetof(grn_io_hash_entry_large, value) + value_size;
     } else {
-      return (uintptr_t)((grn_io_hash_entry_normal *)0)->value + value_size;
+      return offsetof(grn_io_hash_entry_normal, value) + value_size;
     }
   } else {
     if (key_size == sizeof(uint32_t)) {
-      return (uintptr_t)((grn_plain_hash_entry *)0)->value + value_size;
+      return offsetof(grn_plain_hash_entry, value) + value_size;
     } else {
-      return (uintptr_t)((grn_rich_hash_entry *)0)->key_and_value
+      return offsetof(grn_rich_hash_entry, key_and_value)
           + key_size + value_size;
     }
   }
@@ -1865,12 +1865,12 @@ grn_tiny_hash_calculate_entry_size(uint32_t key_size, uint32_t value_size,
 {
   uint32_t entry_size;
   if (flags & GRN_OBJ_KEY_VAR_SIZE) {
-    entry_size = (uintptr_t)((grn_tiny_hash_entry *)0)->value + value_size;
+    entry_size = offsetof(grn_tiny_hash_entry, value) + value_size;
   } else {
     if (key_size == sizeof(uint32_t)) {
-      entry_size = (uintptr_t)((grn_plain_hash_entry *)0)->value + value_size;
+      entry_size = offsetof(grn_plain_hash_entry, value) + value_size;
     } else {
-      entry_size = (uintptr_t)((grn_rich_hash_entry *)0)->key_and_value
+      entry_size = offsetof(grn_rich_hash_entry, key_and_value)
           + key_size + value_size;
     }
   }

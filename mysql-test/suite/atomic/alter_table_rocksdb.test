@@ -4,4 +4,4 @@ let $engine_count=1;
 let $engines='rocksdb';
 let $skip_vector=1;
 set global rocksdb_flush_log_at_trx_commit=1;
---source alter_table.test
+--source alter_table.inc

@@ -22,6 +22,8 @@ SET GLOBAL wsrep_on = ON;
 DROP TABLE t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
 SHOW TABLES;
 
 # Drop schema that does not exist
@@ -33,6 +35,8 @@ SET GLOBAL wsrep_on = ON;
 DROP SCHEMA s1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME LIKE 's1';
+--source include/wait_condition.inc
 SHOW SCHEMAS;
 
 # Drop index that does not exist using DROP INDEX
@@ -45,6 +49,10 @@ SET GLOBAL wsrep_on = ON;
 DROP INDEX idx1 ON t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE NAME LIKE 'idx1';
+--source include/wait_condition.inc
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
@@ -58,6 +66,10 @@ SET GLOBAL wsrep_on = ON;
 ALTER TABLE t1 DROP INDEX idx1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE NAME LIKE 'idx1';
+--source include/wait_condition.inc
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
@@ -71,6 +83,11 @@ SET GLOBAL wsrep_on = ON;
 ALTER TABLE t1 DROP COLUMN f2;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE NAME LIKE 'f2';
+--source include/wait_condition.inc
+
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
@@ -93,6 +110,10 @@ DELETE FROM t1 WHERE f1 = 1;
 SELECT COUNT(*) AS expect_0 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
+--source include/wait_condition.inc
 SELECT COUNT(*) AS expect_0 FROM t1;
 DROP TABLE t1;
 
@@ -112,6 +133,10 @@ COMMIT;
 SELECT COUNT(*) AS expect_1 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
 SELECT COUNT(*) AS expect_1 FROM t1;
 DROP TABLE t1;
 
@@ -136,6 +161,8 @@ DELETE FROM t1;
 SELECT COUNT(*) AS expect_0 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE expect_Primary FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';
@@ -171,6 +198,8 @@ SET AUTOCOMMIT=ON;
 SELECT COUNT(*) AS expect_0 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE expect_Primary FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';
@@ -202,6 +231,8 @@ DELETE t1, t2 FROM t1 JOIN t2 WHERE t1.f1 = t2.f1;
 SELECT COUNT(*) expect_0 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM t1;
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 'Primary' FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';
@@ -219,6 +250,10 @@ CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KE
 INSERT INTO child VALUES (1,1),(2,2),(3,3);
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/parent';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/child';
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 3 FROM child;
 --source include/wait_condition.inc
 
@@ -233,6 +268,10 @@ SELECT COUNT(*) AS expect_0 FROM parent;
 SELECT COUNT(*) AS expect_0 FROM child;
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/parent';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/child';
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM child;
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 'Primary' FROM performance_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';

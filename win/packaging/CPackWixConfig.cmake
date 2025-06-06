@@ -37,7 +37,7 @@ add_component_group(AlwaysInstall HIDDEN
   DISPLAY_NAME "AlwaysInstall"
   DESCRIPTION "Always installed components")
 
-foreach(c Readme Common VCCRT)
+foreach(c Readme Common VCCRT RuntimeDeps)
   add_component(${c} GROUP AlwaysInstall)
 endforeach()
 
@@ -53,7 +53,8 @@ add_component(Backup
   DESCRIPTION "Installs backup utilities(mariabackup and mbstream)")
  
 #Miscellaneous hidden components, part of server / or client programs
-foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine)
+foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine
+       hashicorp-key-management)
   add_component(${comp} GROUP MySQLServer HIDDEN)
 endforeach()
 

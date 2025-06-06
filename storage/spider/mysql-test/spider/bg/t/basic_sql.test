@@ -1039,8 +1039,11 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+# MDEV-36357
+--disable_view_protocol
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM tb_l a WHERE
 EXISTS (SELECT * FROM ta_l b WHERE b.b = a.b) ORDER BY a.a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)

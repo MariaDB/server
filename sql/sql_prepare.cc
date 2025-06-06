@@ -1329,6 +1329,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
+  bool cache_results= FALSE;
   DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
@@ -1361,7 +1362,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
                              update_values, duplic, ignore,
-                             &unused_conds, FALSE))
+                             &unused_conds, FALSE,
+                             &cache_results))
       goto error;
 
     value_count= values->elements;
@@ -5508,8 +5510,8 @@ public:
 
   my_bool do_log_bin;
 
-  Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
-    Protocol_text(thd_arg, prealloc),
+  Protocol_local(THD *thd_arg, THD *new_thd_arg) :
+    Protocol_text(thd_arg),
     cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
     new_thd(new_thd_arg), do_log_bin(FALSE)
   {}
@@ -6325,7 +6327,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   else
     new_thd= NULL;
 
-  p= new Protocol_local(thd_orig, new_thd, 0);
+  p= new Protocol_local(thd_orig, new_thd);
   if (new_thd)
     new_thd->protocol= p;
   else

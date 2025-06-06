@@ -630,7 +630,8 @@ bool Sql_cmd_alter_table_exchange_partition::
   ddl_log.new_table_id.length= MY_UUID_SIZE;
 
   /* set lock pruning on first table */
-  const Lex_cstring_strlen partition_name= alter_info->partition_names.head();
+  const Lex_cstring_strlen partition_name=
+    Lex_cstring_strlen(alter_info->partition_names.head());
   if (unlikely(table_list->table->part_info->
                set_named_partition_bitmap(partition_name.str,
                                           partition_name.length)))
