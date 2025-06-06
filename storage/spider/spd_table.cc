@@ -5902,7 +5902,7 @@ int spider_open_all_tables(
 ) {
   THD *thd = trx->thd;
   TABLE *table_tables;
-  int error_num, *need_mon, mon_val;
+  int error_num, mon_val;
   /* This share has only one link */
   SPIDER_SHARE tmp_share;
   char *db_name, *table_name;
@@ -5911,13 +5911,7 @@ int spider_open_all_tables(
   uint tmp_connect_info_length[SPIDER_TMP_SHARE_UINT_COUNT];
   long tmp_long[SPIDER_TMP_SHARE_LONG_COUNT];
   longlong tmp_longlong[SPIDER_TMP_SHARE_LONGLONG_COUNT];
-  SPIDER_CONN *conn, **conns;
-  ha_spider *spider;
-  SPIDER_SHARE *share;
-  char **connect_info;
-  uint *connect_info_length;
-  long *long_info;
-  longlong *longlong_info;
+  SPIDER_CONN *conn;
   MEM_ROOT mem_root;
   SPIDER_Open_tables_backup open_tables_backup;
   DBUG_ENTER("spider_open_all_tables");
@@ -6020,115 +6014,8 @@ int spider_open_all_tables(
     }
     spider_unlock_after_query(conn, 0);
 
-    if (lock && spider_param_use_snapshot_with_flush_tables(thd) == 2)
-    {
-      if (!(spider = new ha_spider()))
-      {
-        spider_sys_index_end(table_tables);
-        spider_sys_close_table(thd, &open_tables_backup);
-        spider_free_tmp_dbton_share(&tmp_share);
-        spider_free_tmp_share_alloc(&tmp_share);
-        free_root(&mem_root, MYF(0));
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-      spider->wide_handler->lock_type = TL_READ_NO_INSERT;
-
-      if (!(share = (SPIDER_SHARE *)
-        spider_bulk_malloc(spider_current_trx, SPD_MID_OPEN_ALL_TABLES_1, MYF(MY_WME | MY_ZEROFILL),
-          &share, (uint) (sizeof(*share)),
-          &connect_info,
-            (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
-          &connect_info_length,
-            (uint) (sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT),
-          &long_info, (uint) (sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT),
-          &longlong_info,
-            (uint) (sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT),
-          &conns, (uint) (sizeof(SPIDER_CONN *)),
-          &need_mon, (uint) (sizeof(int)),
-          &spider->conn_link_idx, (uint) (sizeof(uint)),
-          &spider->conn_can_fo, (uint) (sizeof(uchar)),
-          NullS))
-      ) {
-        delete spider;
-        spider_sys_index_end(table_tables);
-        spider_sys_close_table(thd, &open_tables_backup);
-        spider_free_tmp_dbton_share(&tmp_share);
-        spider_free_tmp_share_alloc(&tmp_share);
-        free_root(&mem_root, MYF(0));
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      }
-      memcpy((void*)share, &tmp_share, sizeof(*share));
-      spider_set_tmp_share_pointer(share, connect_info,
-        connect_info_length, long_info, longlong_info);
-      memcpy(connect_info, &tmp_connect_info, sizeof(char *) *
-        SPIDER_TMP_SHARE_CHAR_PTR_COUNT);
-      memcpy(connect_info_length, &tmp_connect_info_length, sizeof(uint) *
-        SPIDER_TMP_SHARE_UINT_COUNT);
-      memcpy(long_info, &tmp_long, sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT);
-      memcpy(longlong_info, &tmp_longlong, sizeof(longlong) *
-        SPIDER_TMP_SHARE_LONGLONG_COUNT);
-      spider->share = share;
-      spider->wide_handler->trx = trx;
-      spider->conns = conns;
-      spider->need_mons = need_mon;
-      spider->conn_link_idx[0] = 0;
-      spider->conn_can_fo[0] = 0;
-      if ((error_num = spider_create_tmp_dbton_handler(spider)))
-      {
-        spider_free(trx, share, MYF(0));
-        delete spider;
-        spider_sys_index_end(table_tables);
-        spider_sys_close_table(thd, &open_tables_backup);
-        spider_free_tmp_dbton_share(&tmp_share);
-        spider_free_tmp_share_alloc(&tmp_share);
-        free_root(&mem_root, MYF(0));
-        DBUG_RETURN(error_num);
-      }
-
-      /* create another conn */
-      if ((!(conn= spider_get_conn(&tmp_share, 0, tmp_share.conn_keys[0], trx,
-                                   spider, TRUE, FALSE, &error_num))))
-      {
-        spider_free_tmp_dbton_handler(spider);
-        spider_free(trx, share, MYF(0));
-        delete spider;
-        spider_sys_index_end(table_tables);
-        spider_sys_close_table(thd, &open_tables_backup);
-        spider_free_tmp_dbton_share(&tmp_share);
-        spider_free_tmp_share_alloc(&tmp_share);
-        free_root(&mem_root, MYF(0));
-        DBUG_RETURN(error_num);
-      }
-      conn->error_mode &= spider_param_error_read_mode(thd, 0);
-      conn->error_mode &= spider_param_error_write_mode(thd, 0);
-
-      spider->next = NULL;
-      if (conn->another_ha_last)
-      {
-        ((ha_spider*) conn->another_ha_last)->next = spider;
-      } else {
-        conn->another_ha_first = (void*) spider;
-      }
-      conn->another_ha_last = (void*) spider;
-
-      int appended = 0;
-      if ((error_num = spider->dbton_handler[conn->dbton_id]->
-        append_lock_tables_list(conn, 0, &appended)))
-      {
-        spider_free_tmp_dbton_handler(spider);
-        spider_free(trx, share, MYF(0));
-        delete spider;
-        spider_sys_index_end(table_tables);
-        spider_sys_close_table(thd, &open_tables_backup);
-        spider_free_tmp_dbton_share(&tmp_share);
-        spider_free_tmp_share_alloc(&tmp_share);
-        free_root(&mem_root, MYF(0));
-        DBUG_RETURN(error_num);
-      }
-    } else {
-      spider_free_tmp_dbton_share(&tmp_share);
-      spider_free_tmp_share_alloc(&tmp_share);
-    }
+    spider_free_tmp_dbton_share(&tmp_share);
+    spider_free_tmp_share_alloc(&tmp_share);
     error_num = spider_sys_index_next(table_tables);
   } while (error_num == 0);
   free_root(&mem_root, MYF(0));
@@ -6152,12 +6039,7 @@ bool spider_flush_logs(
     DBUG_RETURN(TRUE);
   }
   if (
-    spider_param_use_flash_logs(trx->thd) &&
-    (
-      !trx->trx_consistent_snapshot ||
-      !spider_param_use_all_conns_snapshot(trx->thd) ||
-      !spider_param_use_snapshot_with_flush_tables(trx->thd)
-    )
+    spider_param_use_flash_logs(trx->thd)
   ) {
     if (
       (error_num = spider_open_all_tables(trx, FALSE)) ||

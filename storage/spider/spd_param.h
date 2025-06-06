@@ -138,9 +138,6 @@ int spider_param_internal_optimize_local(
 bool spider_param_use_flash_logs(
   THD *thd
 );
-int spider_param_use_snapshot_with_flush_tables(
-  THD *thd
-);
 bool spider_param_use_all_conns_snapshot(
   THD *thd
 );

@@ -962,25 +962,6 @@ static MYSQL_THDVAR_BOOL(
 SPIDER_THDVAR_VALUE_FUNC(bool, use_flash_logs)
 
 /*
-  0 :off
-  1 :flush tables with read lock
-  2 :flush tables another connection
- */
-static MYSQL_THDVAR_INT(
-  use_snapshot_with_flush_tables, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Execute optimize to remote server with local", /* comment */
-  NULL, /* check */
-  spider_var_deprecated_int, /* update */
-  0, /* def */
-  0, /* min */
-  2, /* max */
-  0 /* blk */
-);
-
-SPIDER_THDVAR_VALUE_FUNC(int, use_snapshot_with_flush_tables)
-
-/*
   FALSE: off
   TRUE:  on
  */
@@ -2442,7 +2423,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(internal_optimize),
   MYSQL_SYSVAR(internal_optimize_local),
   MYSQL_SYSVAR(use_flash_logs),
-  MYSQL_SYSVAR(use_snapshot_with_flush_tables),
   MYSQL_SYSVAR(use_all_conns_snapshot),
   MYSQL_SYSVAR(lock_exchange),
   MYSQL_SYSVAR(internal_unlock),

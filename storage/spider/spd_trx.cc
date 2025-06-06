@@ -2800,40 +2800,8 @@ int spider_start_consistent_snapshot(
         trx->internal_xa = FALSE;
         if ((error_num = spider_open_all_tables(trx, TRUE)))
           goto error_open_all_tables;
-        if (
-          spider_param_use_snapshot_with_flush_tables(trx->thd) == 1 &&
-          (error_num = spider_trx_all_flush_tables(trx))
-        )
-          goto error_trx_all_flush_tables;
-        if (spider_param_use_snapshot_with_flush_tables(trx->thd) == 2)
-        {
-          if ((error_num = spider_trx_another_lock_tables(trx)))
-            goto error_trx_another_lock_tables;
-          if ((error_num = spider_trx_another_flush_tables(trx)))
-            goto error_trx_another_flush_tables;
-        }
         if ((error_num = spider_trx_all_start_trx(trx)))
           goto error_trx_all_start_trx;
-        if (spider_param_use_snapshot_with_flush_tables(trx->thd) == 1)
-        {
-          if (
-            spider_param_use_flash_logs(trx->thd) &&
-            (error_num = spider_trx_all_flush_logs(trx))
-          )
-            goto error_trx_all_flush_logs;
-          if ((error_num = spider_trx_all_unlock_tables(trx)))
-            goto error_trx_all_unlock_tables;
-        }
-        if (spider_param_use_snapshot_with_flush_tables(trx->thd) == 2)
-        {
-          if (
-            spider_param_use_flash_logs(trx->thd) &&
-            (error_num = spider_trx_all_flush_logs(trx))
-          )
-            goto error_trx_all_flush_logs2;
-          if ((error_num = spider_free_trx_another_conn(trx, TRUE)))
-            goto error_free_trx_another_conn;
-        }
       } else
         trx->internal_xa = spider_param_internal_xa(trx->thd);
     }
@@ -2841,19 +2809,8 @@ int spider_start_consistent_snapshot(
 
   DBUG_RETURN(0);
 
-error_trx_all_flush_logs:
 error_trx_all_start_trx:
-error_trx_another_flush_tables:
-error_trx_another_lock_tables:
-error_trx_all_flush_tables:
-  if (spider_param_use_snapshot_with_flush_tables(trx->thd) == 1)
-    spider_trx_all_unlock_tables(trx);
-error_trx_all_flush_logs2:
-error_trx_all_unlock_tables:
 error_open_all_tables:
-  if (spider_param_use_snapshot_with_flush_tables(trx->thd) == 2)
-    spider_free_trx_another_conn(trx, TRUE);
-error_free_trx_another_conn:
 error:
   DBUG_RETURN(error_num);
 }
