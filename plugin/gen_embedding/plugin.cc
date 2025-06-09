@@ -121,9 +121,9 @@ String *Item_func_gen_embedding::read_json(String *str,
   if ((null_value= args[0]->null_value))
     return 0;
 
-    c_path->p.types_used= JSON_PATH_KEY_NULL;
-    // TODO: This path constant needs to be defined in another place probably
-    const uchar* s_p = (const uchar*) "$.data[0].embedding";
+  c_path->p.types_used= JSON_PATH_KEY_NULL;
+  // TODO: This path constant needs to be defined in another place probably
+  const uchar* s_p = (const uchar*) "$.data[0].embedding";
   if (s_p)
   {
     if (json_path_setup(&c_path->p,&my_charset_utf8mb3_general_ci, s_p,
