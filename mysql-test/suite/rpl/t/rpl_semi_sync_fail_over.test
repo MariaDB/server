@@ -21,6 +21,7 @@ flush tables;
 
 # Initial master
 --connection server_1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @@global.max_binlog_size= 4096;
 set @@global.rpl_semi_sync_master_enabled = 1;
@@ -199,10 +200,12 @@ SHOW VARIABLES LIKE 'gtid_binlog_state';
 set global rpl_semi_sync_slave_enabled = 0;
 set global rpl_semi_sync_master_enabled = 0;
 set global rpl_semi_sync_master_wait_point=default;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 RESET SLAVE;
 
 --connection server_2
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 RESET SLAVE;
 set @@global.rpl_semi_sync_master_enabled = 0;

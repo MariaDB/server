@@ -80,15 +80,18 @@ DROP TABLE t1,t2;
 STOP SLAVE;
 RESET SLAVE ALL;
 SET GLOBAL wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL wsrep_on=ON;
 
 --connection node_1
 SET GLOBAL wsrep_on=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL wsrep_on=ON;
 
 --connection node_3
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 --connection node_2

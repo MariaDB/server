@@ -137,12 +137,9 @@ connect con3,localhost,root,,;
 SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont";
 RESET MASTER;
 connection default;
-SET @old_dbug= @@global.DEBUG_DBUG;
-SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
 SET debug_sync="now WAIT_FOR reset_master_ready";
 RESET MASTER;
-SET debug_sync="now WAIT_FOR injected_binlog_background_thread";
-SET GLOBAL debug_dbug=@old_dbug;
+ERROR HY000: Cannot execute RESET MASTER as the binlog is in use by a connected slave or other RESET MASTER or binlog reader. Check SHOW PROCESSLIST for "Binlog Dump" commands and use KILL to stop such readers
 SET debug_sync="now SIGNAL reset_master_cont";
 connection con3;
 connection default;

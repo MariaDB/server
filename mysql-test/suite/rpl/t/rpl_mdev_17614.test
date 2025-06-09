@@ -43,6 +43,7 @@ SELECT * FROM t1;
 --source include/stop_slave_io.inc
 --source include/reset_slave.inc
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 drop table t1;
 connection slave;
@@ -161,6 +162,7 @@ SELECT * FROM t1;
 --source include/stop_slave_io.inc
 --source include/reset_slave.inc
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 drop table t1;
 connection slave;

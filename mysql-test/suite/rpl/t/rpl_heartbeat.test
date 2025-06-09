@@ -10,11 +10,14 @@
 -- source include/have_log_bin.inc
 -- source include/master-slave.inc
 
+connection slave;
+-- source include/stop_slave.inc
+
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 connection slave;
--- source include/stop_slave.inc
 set @restore_slave_net_timeout= @@global.slave_net_timeout;
 --disable_warnings
 set @@global.slave_net_timeout= 10;

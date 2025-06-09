@@ -207,5 +207,6 @@ Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 set global wsrep_on=OFF;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 set global wsrep_on=ON;

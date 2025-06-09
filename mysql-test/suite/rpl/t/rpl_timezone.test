@@ -179,6 +179,7 @@ SET @@session.time_zone = default;
 # Insert 2 values into timestamp col with different time_zone. Check result.
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 reset master;
 CREATE TABLE t1 (date timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, a int(11) default NULL);
 

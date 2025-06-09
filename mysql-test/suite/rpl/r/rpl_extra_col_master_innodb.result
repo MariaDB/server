@@ -448,6 +448,7 @@ CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
 connection master;
 CREATE TABLE t10 (a INT KEY, b BLOB, f DOUBLE DEFAULT '233',
 c CHAR(5), e INT DEFAULT '1')ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -490,6 +491,7 @@ CREATE TABLE t11 (a INT PRIMARY KEY, b BLOB, c VARCHAR(254)
 connection master;
 CREATE TABLE t11 (a INT KEY, b BLOB, f TEXT,
 c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -532,6 +534,7 @@ CREATE TABLE t12 (a INT PRIMARY KEY, b BLOB, c BLOB
 connection master;
 CREATE TABLE t12 (a INT KEY, b BLOB, f TEXT,
 c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -583,6 +586,7 @@ CREATE TABLE t14 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -644,6 +648,7 @@ include/reset_slave.inc
 DROP TABLE t14;
 connection master;
 DROP TABLE t14;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -667,6 +672,7 @@ CREATE TABLE t15 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -703,6 +709,7 @@ Warning	1948	Specified value for @@gtid_slave_pos contains no value for replicat
 DROP TABLE t15;
 connection master;
 DROP TABLE t15;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -726,6 +733,7 @@ CREATE TABLE t16 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -762,6 +770,7 @@ Warning	1948	Specified value for @@gtid_slave_pos contains no value for replicat
 DROP TABLE t16;
 connection master;
 DROP TABLE t16;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -785,6 +794,7 @@ CREATE TABLE t17 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -851,6 +861,7 @@ CREATE TABLE t18 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***
@@ -916,6 +927,7 @@ CREATE TABLE t5 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 LONG, 
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 )ENGINE='InnoDB';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 *** Start Slave ***

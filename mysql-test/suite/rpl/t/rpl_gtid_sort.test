@@ -13,6 +13,7 @@ SHOW VARIABLES LIKE 'gtid_slave_pos';
 SHOW VARIABLES LIKE 'gtid_binlog_state';
 
 --connection server_1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;

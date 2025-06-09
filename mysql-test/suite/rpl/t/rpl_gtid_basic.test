@@ -180,6 +180,7 @@ SET @old_state= @@GLOBAL.gtid_binlog_state;
 
 --error ER_BINLOG_MUST_BE_EMPTY
 SET GLOBAL gtid_binlog_state = '';
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET GLOBAL gtid_binlog_state = '';
 FLUSH LOGS;

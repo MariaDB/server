@@ -7,6 +7,7 @@ include/stop_slave.inc
 RESET SLAVE;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 
@@ -268,6 +269,7 @@ DROP TABLE t1;
 set sql_log_bin= 1;
 connection master;
 DROP TABLE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.5;
@@ -293,9 +295,12 @@ connection slave;
 STOP SLAVE;
 include/reset_slave.inc
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=0.1;
+connection master;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+connection slave;
 include/start_slave.inc
 connection master;
-RESET MASTER;
 connection slave;
 Heartbeat events are received after reset of master (1 means 'yes'): 1
 

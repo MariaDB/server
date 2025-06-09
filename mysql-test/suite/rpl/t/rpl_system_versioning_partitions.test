@@ -38,12 +38,18 @@
 
 --echo #
 --echo # Initialize system-versioned and partitioned table and its data
+--connection slave
+--source include/stop_slave.inc
 --connection master
 
 # Fix the timestamp for the system versioned row_start and row_end fields, so
 # the later hard-coded BINLOG base64 data can find the rows.
 SET timestamp=UNIX_TIMESTAMP('2025-01-01 01:00:00.000000');
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
+--connection slave
+--source include/start_slave.inc
+--connection master
 
 create table t1 (x int) engine=InnoDB with system versioning partition by system_time limit 3 partitions 5;
 insert into t1 values(1);

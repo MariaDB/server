@@ -13,6 +13,7 @@ call mtr.add_suppression("Could not use master-bin for logging");
 SET @old_debug= @@global.debug_dbug;
 SELECT repeat('x',8192) INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data';
 SELECT repeat('x',10) INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/bug_46166-2.data';
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 ###################### TEST #1
 FLUSH LOGS;
@@ -273,5 +274,6 @@ Note	1255	Slave already has been stopped
 RESET SLAVE;
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 include/rpl_end.inc

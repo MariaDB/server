@@ -63,6 +63,7 @@ STOP SLAVE IO_THREAD;
 
 --echo # Reset master binlogs (as there is an invalid event) and slave state
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --connection slave
 RESET MASTER;
@@ -97,6 +98,7 @@ set statement SQL_LOG_BIN=0 for XA COMMIT 'x1';
 
 --echo # Reset master binlogs (as there is an invalid event) and slave state
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --connection slave
 RESET MASTER;
@@ -131,6 +133,7 @@ set statement SQL_LOG_BIN=0 for XA COMMIT 'x1';
 
 --echo # Reset master binlogs (as there is an invalid event) and slave state
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --connection slave
 RESET MASTER;
@@ -159,6 +162,7 @@ STOP SLAVE IO_THREAD;
 
 --echo # Reset master binlogs (as there is an invalid event) and slave state
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection slave
@@ -188,6 +192,7 @@ STOP SLAVE IO_THREAD;
 
 --echo # Reset master binlogs (as there is an invalid event) and slave state
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection slave

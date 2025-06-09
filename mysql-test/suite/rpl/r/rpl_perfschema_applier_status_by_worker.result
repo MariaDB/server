@@ -82,6 +82,7 @@ include/stop_slave.inc
 RESET SLAVE;
 connection master;
 DROP TABLE t;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Verify that number of rows in 'replication_applier_status_by_worker' table match with

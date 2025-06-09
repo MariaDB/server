@@ -30,4 +30,5 @@ CALL mtr.add_suppression("(Transport endpoint|Socket) is not connected");
 CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
 CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
 connection node_4;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;

@@ -16,6 +16,7 @@ create table t1 (
 
 connection master;
 create table t1 (a int primary key, b blob, c char(5)) engine=innodb;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 
 connection slave;

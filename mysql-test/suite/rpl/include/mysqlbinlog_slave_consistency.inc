@@ -133,6 +133,7 @@ if (!$slave_sql_errno)
 
 --connection $con1
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --echo # MYSQL_BINLOG BINLOG_FILE_PARAM $msbl_args 2> MYSQLBINLOG_STDERR | MYSQL
 --exec $MYSQL_BINLOG $BINLOG_FILE_PARAM $msbl_args 2> $MYSQLBINLOG_STDERR | $MYSQL
@@ -164,6 +165,7 @@ set global gtid_slave_pos="";
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), IGNORE_SERVER_IDS=();
 
 --connection $con1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
 --source include/save_master_gtid.inc
@@ -178,6 +180,7 @@ set global gtid_slave_pos="";
 RESET MASTER;
 
 --connection $con1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --connection $con2

@@ -25,6 +25,7 @@
 --connection master
 --let $datadir= `SELECT @@datadir`
 
+--source include/kill_binlog_dump_threads.inc
 reset master; # Master starts a new serious of binlog files
 
 create table t2 (a timestamp, b int);

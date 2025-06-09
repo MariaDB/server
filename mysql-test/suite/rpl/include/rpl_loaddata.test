@@ -115,6 +115,7 @@ stop slave;
 # Finally, see if logging is done ok on master for a failing LOAD DATA INFILE
 
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 eval create table t2 (day date,id int(9),category enum('a','b','c'),name varchar(60),
 unique(day)) engine=$engine_type; # no transactions

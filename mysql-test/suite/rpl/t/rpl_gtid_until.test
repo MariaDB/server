@@ -211,6 +211,7 @@ SET GLOBAL gtid_slave_pos='';
 --connection server_1
 # Do it once to compute the right GTID, then throw it away and do it again
 # for the actual test.
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (10);
 INSERT INTO t1 VALUES (11);
