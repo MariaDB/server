@@ -68,6 +68,7 @@ eval CREATE TABLE t1 (
   t LONGTEXT
 );
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --echo *** Start replication ***

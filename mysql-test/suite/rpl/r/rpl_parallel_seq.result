@@ -48,6 +48,7 @@ Note	1255	Slave already has been stopped
 RESET MASTER;
 SET @@global.gtid_slave_pos="";
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE ti (a INT) ENGINE=innodb;
 CREATE SEQUENCE s2 ENGINE=innodb;

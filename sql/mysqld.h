@@ -330,7 +330,8 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_binlog_use,
+  key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
@@ -377,7 +378,8 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
+extern PSI_cond_key key_BINLOG_COND_binlog_use,
+  key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
   key_COND_cache_status_changed, key_COND_manager,
@@ -707,6 +709,7 @@ extern PSI_stage_info stage_slave_background_process_request;
 extern PSI_stage_info stage_slave_background_wait_request;
 extern PSI_stage_info stage_waiting_for_deadlock_kill;
 extern PSI_stage_info stage_starting;
+extern PSI_stage_info stage_waiting_for_reset_master;
 #ifdef WITH_WSREP
 // Aditional Galera thread states
 extern PSI_stage_info stage_waiting_isolation;

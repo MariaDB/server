@@ -15,6 +15,7 @@ include/reset_slave.inc
 CREATE TABLE t1 (a DECIMAL(5,2));
 connection master;
 CREATE TABLE t1 (a DECIMAL(20, 10));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
 connection slave;
@@ -29,6 +30,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -42,6 +44,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a DECIMAL(27, 9));
 connection master;
 CREATE TABLE t1 (a DECIMAL(27, 18));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
 connection slave;
@@ -56,6 +59,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -69,6 +73,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a NUMERIC(5,2));
 connection master;
 CREATE TABLE t1 (a NUMERIC(20, 10));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
 connection slave;
@@ -83,6 +88,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -97,6 +103,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a FLOAT(20));
 connection master;
 CREATE TABLE t1 (a FLOAT(47));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (901251.90125);
 connection slave;
@@ -111,6 +118,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -125,6 +133,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a BIT(5));
 connection master;
 CREATE TABLE t1 (a BIT(64));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (B'10101');
 connection slave;
@@ -139,6 +148,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -152,6 +162,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a BIT(11));
 connection master;
 CREATE TABLE t1 (a BIT(12));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES (B'10101');
 connection slave;
@@ -166,6 +177,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -180,6 +192,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a SET('4'));
 connection master;
 CREATE TABLE t1 (a SET('1','2','3','4','5','6','7','8','9'));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('4');
 connection slave;
@@ -194,6 +207,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -208,6 +222,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a CHAR(10));
 connection master;
 CREATE TABLE t1 (a CHAR(20));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
@@ -222,6 +237,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -267,6 +283,7 @@ CREATE TABLE t1 (a ENUM(
 '281','282','283','284','285','286','287','288','289',
 '291','292','293','294','295','296','297','298','299'
             ));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('44');
 connection slave;
@@ -281,6 +298,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -295,6 +313,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a VARCHAR(100));
 connection master;
 CREATE TABLE t1 (a VARCHAR(2000));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
@@ -309,6 +328,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -322,6 +342,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a VARCHAR(10));
 connection master;
 CREATE TABLE t1 (a VARCHAR(200));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
@@ -336,6 +357,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -349,6 +371,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a VARCHAR(1000));
 connection master;
 CREATE TABLE t1 (a VARCHAR(2000));
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
@@ -363,6 +386,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;
@@ -377,6 +401,7 @@ Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No'
 CREATE TABLE t1 (a TINYBLOB);
 connection master;
 CREATE TABLE t1 (a LONGBLOB);
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
@@ -391,6 +416,7 @@ include/reset_slave.inc
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
 START SLAVE;

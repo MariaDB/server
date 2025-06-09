@@ -63,11 +63,26 @@ while ($_rpl_server)
   --let $rpl_connection_name= server_$_rpl_server
   --source include/rpl_connection.inc
 
-  RESET MASTER;
   # Check if this server is configured to have a master
   if (`SELECT SUBSTRING('$rpl_master_list', 1 + ($_rpl_server - 1) * $rpl_server_count_length, $rpl_server_count_length) != ''`)
   {
     --source include/stop_slave.inc
+  }
+  --dec $_rpl_server
+}
+
+--let $_rpl_server= $rpl_server_count
+while ($_rpl_server)
+{
+  --let $rpl_connection_name= server_$_rpl_server
+  --source include/rpl_connection.inc
+
+  --source include/kill_binlog_dump_threads.inc
+  RESET MASTER;
+
+  # Check if this server is configured to have a master
+  if (`SELECT SUBSTRING('$rpl_master_list', 1 + ($_rpl_server - 1) * $rpl_server_count_length, $rpl_server_count_length) != ''`)
+  {
     --source include/reset_slave.inc
   }
   --dec $_rpl_server
