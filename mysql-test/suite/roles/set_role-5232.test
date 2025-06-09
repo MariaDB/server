@@ -16,5 +16,7 @@ set role r1;
 disconnect c;
 connection default;
 drop role r1;
+--disable_warnings
 drop user c;
 drop user ''@localhost;
+--enable_warnings

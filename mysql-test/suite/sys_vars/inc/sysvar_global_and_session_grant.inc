@@ -18,7 +18,9 @@ GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
 --eval SET SESSION $var=$value
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET $var" is allowed with $grant
 
@@ -31,6 +33,8 @@ CREATE USER user1@localhost;
 --eval SET SESSION $var=$value
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --eval SET @@global.$var=@global

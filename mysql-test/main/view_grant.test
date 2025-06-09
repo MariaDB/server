@@ -2339,7 +2339,9 @@ SELECT * FROM foo.v;
 --echo #
 connection default;
 disconnect con1;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 drop schema foo;
 --echo # End of 10.6 tests
 
