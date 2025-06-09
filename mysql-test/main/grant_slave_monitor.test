@@ -73,7 +73,9 @@ SHOW RELAYLOG EVENTS;
 --disconnect con1
 
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-25030 Upgrade to 10.5.9 breaks root's ability to grant

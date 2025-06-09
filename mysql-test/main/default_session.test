@@ -56,8 +56,10 @@ select * from t1;
 drop database mysqltest1;
 drop view v2, v3, v5, v6;
 drop table t1;
+--disable_warnings
 drop user ''@localhost;
 drop user foo@localhost;
+--enable_warnings
 drop role bar;
 
 create table t1 (a date,

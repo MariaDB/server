@@ -247,7 +247,9 @@ DROP TABLE temp1, temp2;
 disconnect con1;
 connection default;
 SET GLOBAL READ_ONLY = OFF;
+--disable_warnings
 DROP USER bug33669@localhost;
+--enable_warnings
 DROP DATABASE db1;
 
 --echo # End of 5.5 tests

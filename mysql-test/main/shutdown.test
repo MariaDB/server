@@ -30,7 +30,9 @@ drop procedure try_shutdown;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+--disable_warnings
 drop user user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-8491 - On shutdown, report the user and the host executed that.

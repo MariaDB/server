@@ -286,7 +286,9 @@ connection default;
 disconnect con1;
 
 drop database db1;
+--disable_warnings
 drop user user1@localhost;
+--enable_warnings
 --echo #
 --echo # End of MariaDB 10.4 tests
 --echo #

@@ -42,7 +42,9 @@ BACKUP STAGE END;
 --source include/wait_until_disconnected.inc
 
 --connection default
+--disable_warnings
 DROP USER user1@localhost, user2@localhost;
+--enable_warnings
 
 --echo #
 --echo # Test using BACKUP STAGES in a SP

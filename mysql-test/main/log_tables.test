@@ -1057,7 +1057,9 @@ select 'evil-doing', sleep(1.1);
 select 'after evil-doing', sleep(0.2);
 select distinct sql_text from mysql.slow_log where sql_text like '%evil%';
 set global log_output=default;
+--disable_warnings
 drop user u@localhost;
+--enable_warnings
 --enable_cursor_protocol
 
 SET @@global.log_output=       @old_log_output;

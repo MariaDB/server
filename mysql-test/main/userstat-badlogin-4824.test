@@ -38,5 +38,7 @@ connection default;
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
 --enable_ps2_protocol
 
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 set global userstat=@save_userstat;

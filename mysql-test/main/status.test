@@ -312,7 +312,9 @@ drop database db37908;
 drop procedure proc37908;
 drop function func37908;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+--disable_warnings
 DROP USER mysqltest_1@localhost;
+--enable_warnings
 # Wait until all non-default sessions are disconnected
 let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.processlist;
 --source include/wait_condition.inc

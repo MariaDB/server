@@ -26,7 +26,9 @@ set session authorization foo@bar;
 select @a;
 disconnect con1;
 connection default;
+--disable_warnings
 drop user foo@bar;
+--enable_warnings
 
 # user() != current_user() (w/ wildcards)
 create user ''@'l%t' identified via mysql_native_password using password('foo');
@@ -81,7 +83,9 @@ create procedure sudo_foobar()
 call sudo_foobar();
 drop procedure sudo_foobar;
 
+--disable_warnings
 drop user ''@'%';
+--enable_warnings
 
 # doesn't work if --skip-grant-tables
 --let $restart_parameters= --skip-grant-tables

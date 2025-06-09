@@ -74,7 +74,9 @@ DROP DATABASE mysqltest;
 --enable_warnings
 
 disconnect user1;
+--disable_warnings
 DROP USER mysqltest_1@localhost;
+--enable_warnings
 
 # Cleanup
 DROP VIEW v1;

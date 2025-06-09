@@ -26,7 +26,9 @@ disconnect con2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM user_1@localhost;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM USER_1@localhost;
+--disable_warnings
 DROP USER user_1@localhost;
 DROP USER USER_1@localhost;
+--enable_warnings
 DROP DATABASE db1;
 use test;

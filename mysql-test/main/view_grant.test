@@ -1046,11 +1046,11 @@ disconnect def;
 --disable_warnings
 DROP DATABASE IF EXISTS mysqltest_db1;
 DROP DATABASE IF EXISTS mysqltest_db2;
---enable_warnings
 --error 0,ER_CANNOT_USER
 DROP USER mysqltest_u1;
 --error 0,ER_CANNOT_USER
 DROP USER mysqltest_u2;
+--enable_warnings
 
 CREATE USER mysqltest_u1@localhost;
 CREATE USER mysqltest_u2@localhost;

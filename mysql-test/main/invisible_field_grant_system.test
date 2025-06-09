@@ -47,5 +47,7 @@ disconnect con1;
 --echo #Cleanup
 --source include/wait_until_disconnected.inc
 connection default;
+--disable_warnings
 drop user user_1;
+--enable_warnings
 drop database d;

@@ -194,7 +194,9 @@ set optimizer_trace='enabled=off';
 connection default;
 select current_user();
 select * from db1.v1;
+--disable_warnings
 drop user foo@localhost, bar@localhost;
+--enable_warnings
 drop view db1.v1;
 drop table db1.t1;
 drop database db1;

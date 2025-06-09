@@ -361,7 +361,9 @@ revoke show create routine on package body test_db.pk from user@localhost;
 SET sql_mode=@save_sql_mode;
 
 drop database test_db;
+--disable_warnings
 drop user user@localhost;
+--enable_warnings
 
 --echo #
 --echo # End of 11.3 tests

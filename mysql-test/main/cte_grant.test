@@ -126,4 +126,6 @@ with cte as (select * from t1 where i < 4)
 
 --connection default
 drop database db;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings

@@ -357,7 +357,9 @@ COMMIT;
 disconnect con1;
 --source include/wait_until_disconnected.inc
 connection default;
+--disable_warnings
 DROP USER user1;
+--enable_warnings
 
 SET GLOBAL read_only= 0;
 DROP TABLE t1;

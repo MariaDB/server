@@ -148,7 +148,9 @@ DROP TABLE table_target2;
 DROP TABLE table_target3;
 DROP VIEW  view_target2;
 DROP VIEW  view_target3;
+--disable_warnings
 DROP USER  user20989@localhost;
+--enable_warnings
 
 disconnect root;
 

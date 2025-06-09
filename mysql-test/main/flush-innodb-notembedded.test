@@ -53,8 +53,10 @@ FLUSH TABLE db1.t1 FOR EXPORT;
 --source include/wait_until_disconnected.inc
 
 --connection default
+--disable_warnings
 DROP USER user1@localhost, user2@localhost, user3@localhost,
           user4@localhost, user5@localhost;
+--enable_warnings
 DROP TABLE db1.t1;
 DROP DATABASE db1;
 

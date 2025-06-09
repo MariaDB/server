@@ -341,7 +341,9 @@ connect (con1,localhost,mysqltest_1,,);
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
 connection default;
+--disable_warnings
 DROP USER mysqltest_1@localhost;
+--enable_warnings
 #
 CREATE USER mysqltest_2@localhost;
 GRANT ALL ON *.* TO mysqltest_2@localhost;
@@ -351,7 +353,9 @@ connect (con1,localhost,mysqltest_2,,);
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
 connection default;
+--disable_warnings
 DROP USER mysqltest_2@localhost;
+--enable_warnings
 
 #
 # Example 1.

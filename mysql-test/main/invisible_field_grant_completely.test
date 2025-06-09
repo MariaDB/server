@@ -51,6 +51,8 @@ disconnect con1;
 connection default;
 set debug_dbug= "+d,test_completely_invisible";
 select a,invisible from t1;
+--disable_warnings
 drop user user_1;
+--enable_warnings
 drop database d;
 set @old_debug= @@debug_dbug;

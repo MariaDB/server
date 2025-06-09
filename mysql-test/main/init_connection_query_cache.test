@@ -20,7 +20,9 @@ explain extended select * from test.t1 where 0;
 connection default;
 disconnect con1;
 revoke all privileges, grant option from mysqltest1@localhost;
+--disable_warnings
 drop user mysqltest1@localhost;
+--enable_warnings
 
 drop table t1;
 

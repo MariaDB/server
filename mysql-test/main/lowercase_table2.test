@@ -309,7 +309,9 @@ show tables;
 
 connection default;
 disconnect conn1;
+--disable_warnings
 drop user 'mysqltest_1'@'localhost';
+--enable_warnings
 drop tables a, B;
 drop database db1;
 

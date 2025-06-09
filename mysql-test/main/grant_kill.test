@@ -31,8 +31,10 @@ SELECT user FROM information_schema.processlist ORDER BY user;
 --disconnect bar
 --connection default
 --source include/wait_until_count_sessions.inc
+--disable_warnings
 DROP USER foo@localhost;
 DROP USER bar@localhost;
+--enable_warnings
 
 --echo #
 --echo # Test that KILL is allowed with CONNECTION ADMIN
@@ -56,8 +58,10 @@ let $wait_condition=
 --disconnect foo
 --disconnect bar
 --source include/wait_until_count_sessions.inc
+--disable_warnings
 DROP USER foo@localhost;
 DROP USER bar@localhost;
+--enable_warnings
 
 --enable_service_connection
 

@@ -5229,7 +5229,9 @@ disconnect con1;
 connection default;
 
 SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-21173: Assertion `m_thd == __null' failed in sp_head::~sp_head

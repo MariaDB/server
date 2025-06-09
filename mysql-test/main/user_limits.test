@@ -95,7 +95,9 @@ disconnect mcph2;
 connect (mcph3, localhost, mysqltest_1,,);
 # Cleanup
 connection default;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Test of MAX_USER_CONNECTIONS limit
 # We need this to reset internal mqh_used variable

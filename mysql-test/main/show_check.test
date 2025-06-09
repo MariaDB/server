@@ -1270,7 +1270,9 @@ SHOW ENGINE MYISAM STATUS;
 disconnect conn1;
 --source include/wait_until_disconnected.inc
 connection default;
+--disable_warnings
 DROP USER test_u@localhost;
+--enable_warnings
 
 --echo End of 5.1 tests
 

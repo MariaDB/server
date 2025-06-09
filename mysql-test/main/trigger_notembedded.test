@@ -350,8 +350,10 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS ORDER BY trigger_name;
 
 --connection default
 
+--disable_warnings
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
+--enable_warnings
 
 DROP DATABASE mysqltest_db1;
 

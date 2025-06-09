@@ -256,7 +256,9 @@ let $count_sessions=1;
 --source include/wait_until_count_sessions.inc
 
 --echo
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
+--enable_warnings
 
 --echo
 --echo # -- End of Bug#33507.
@@ -424,8 +426,10 @@ connection default;
 
 source include/switch_to_mysql_global_priv.inc;
 
+--disable_warnings
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
+--enable_warnings
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

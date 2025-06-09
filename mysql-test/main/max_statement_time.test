@@ -106,7 +106,9 @@ select max_user_timeouts from information_schema.user_statistics where user="use
 --enable_parsing
 
 set @global.userstat=0;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo
 --echo # MAX_STATEMENT_TIME status variables.

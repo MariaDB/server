@@ -30,7 +30,9 @@ disconnect u1;
 connection default;
 drop database mysqltest1;
 drop view v, v2, v3;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
@@ -80,6 +82,8 @@ FLUSH SESSION STATUS;
 FLUSH GLOBAL STATUS;
 disconnect con1;
 connection default;
+--disable_warnings
 DROP USER mysqltest@localhost;
+--enable_warnings
 
 --echo # End of 11.5 tests

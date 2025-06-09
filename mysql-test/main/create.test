@@ -471,7 +471,9 @@ connection user1;
 select database(), user();
 connection default;
 disconnect user1;
+--disable_warnings
 drop user mysqltest_1;
+--enable_warnings
 use test;
 --enable_service_connection
 

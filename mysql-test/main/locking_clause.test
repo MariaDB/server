@@ -143,8 +143,10 @@ disconnect con1;
 disconnect con2;
 
 DROP TABLE t1;
+--disable_warnings
 DROP USER test@localhost;
 DROP USER test2@localhost;
+--enable_warnings
 --enable_view_protocol
 
 --echo #

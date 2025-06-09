@@ -50,7 +50,9 @@ SELECT * FROM cte4 as r;
 --disconnect u1
 --connection default
 
+--disable_warnings
 DROP USER 'u1'@'localhost';
+--enable_warnings
 DROP DATABASE db;
 
 USE test;

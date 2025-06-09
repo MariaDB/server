@@ -294,7 +294,9 @@ connection con1;
 disconnect con1;
 --source include/wait_until_disconnected.inc
 connection default;
+--disable_warnings
 drop user mysqltest_1;
+--enable_warnings
 
 --echo # End of 4.1 tests
 

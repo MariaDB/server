@@ -69,7 +69,9 @@ error ER_INVALID_ROLE;
 set role r2;
 disconnect u1;
 connection default;
+--disable_warnings
 drop user u1@`%`;
+--enable_warnings
 drop role r1, r2;
 
 --echo #

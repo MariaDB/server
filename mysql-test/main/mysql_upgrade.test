@@ -432,7 +432,9 @@ connect con1,localhost,user3,a_password;
 select current_user();
 disconnect con1;
 connection default;
+--disable_warnings
 drop user user3@localhost;
+--enable_warnings
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 

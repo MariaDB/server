@@ -95,7 +95,9 @@ connection default;
 
 DROP TABLE t1,t2;
 DROP FUNCTION f;
+--disable_warnings
 DROP USER nopriv_user@localhost;
+--enable_warnings
 
 --echo #
 --echo # End Bug#54812

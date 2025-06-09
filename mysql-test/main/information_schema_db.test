@@ -213,8 +213,10 @@ connection testdb_2;
 disconnect testdb_2;
 --source include/wait_until_disconnected.inc
 connection default;
+--disable_warnings
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
+--enable_warnings
 
 --echo #
 --echo # Bug#22763 Disrepancy between SHOW CREATE VIEW and I_S.VIEWS

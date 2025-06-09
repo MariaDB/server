@@ -100,8 +100,10 @@ connection default;
 use mysqltest_db1;
 DROP TABLE t1;
 DROP TABLE t2;
+--disable_warnings
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
+--enable_warnings
 DROP DATABASE mysqltest_db1;
 USE test;
 
