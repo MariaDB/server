@@ -5,6 +5,7 @@ include/stop_slave.inc
 RESET MASTER;
 RESET SLAVE;
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -92,6 +93,7 @@ include/stop_slave.inc
 RESET SLAVE ALL;
 RESET MASTER;
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection server_2;
 SET GLOBAL gtid_slave_pos='';
@@ -199,6 +201,7 @@ include/stop_slave.inc
 RESET MASTER;
 SET GLOBAL gtid_slave_pos="";
 connection server_1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 TRUNCATE TABLE t1;
 INSERT INTO t1 VALUES (10);
@@ -244,6 +247,7 @@ SET GLOBAL gtid_slave_pos= "";
 CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=no, master_log_file="", master_log_pos= 4;
 connection server_1;
 DROP TABLE t1;
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 connection server_2;

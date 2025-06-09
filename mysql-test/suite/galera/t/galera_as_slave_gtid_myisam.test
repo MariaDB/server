@@ -68,19 +68,21 @@ DROP TABLE t1;
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
-RESET MASTER;
 
 --connection node_1
 STOP SLAVE;
 RESET SLAVE ALL;
 SET GLOBAL WSREP_ON=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 
 --connection node_2
 SET GLOBAL WSREP_ON=OFF;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 SET GLOBAL WSREP_ON=ON;
 
 --connection node_3
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;

@@ -679,6 +679,18 @@ class MYSQL_BIN_LOG: public TC_LOG, public Event_log
   uint reset_master_pending;
   ulong mark_xid_done_waiting;
 
+  /*
+    Protect against binlog readers (eg. slave dump threads) running
+    concurrently with RESET MASTER.
+    binlog_use_count counts the number of active readers, or is -1 when a
+    RESET MASTER is running. It is protected by LOCK_binlog_use and
+    COND_binlog_use is signalled when RESET MASTER completes so new
+    readers can wait for that.
+  */
+  int32_t binlog_use_count;
+  mysql_mutex_t LOCK_binlog_use;
+  mysql_cond_t COND_binlog_use;
+
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
   mysql_mutex_t LOCK_xid_list;
@@ -1105,6 +1117,8 @@ public:
   int register_create_index_entry(const char* entry);
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
+  bool start_use_binlog(THD *thd);
+  void end_use_binlog(THD *thd);
   bool reset_logs(THD* thd, bool create_new_log,
                   rpl_gtid *init_state, uint32 init_state_len,
                   ulong next_log_number);

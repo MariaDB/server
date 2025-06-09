@@ -157,8 +157,10 @@ STOP ALL SLAVES;
 RESET SLAVE ALL;
 
 --connection primary1
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --connection primary2
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --source include/auto_increment_offset_restore.inc

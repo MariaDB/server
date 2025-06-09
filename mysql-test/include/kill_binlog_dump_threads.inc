@@ -38,6 +38,7 @@ while ($wait_counter)
     let $_tid= `SELECT id FROM information_schema.processlist WHERE command = 'Binlog Dump' LIMIT 1`;
     if ($_tid)
     {
+        --error 0,ER_NO_SUCH_THREAD
         eval KILL QUERY $_tid;
     }
     if (!$_tid)
@@ -54,6 +55,14 @@ if (!$success)
 {
     SHOW FULL PROCESSLIST;
     --die Timeout while waiting for binlog dump threads to disappear.
+}
+# This an attempt to get more info about a rare sporadic test failure where
+# RESET MASTER still fails with ER_BINLOG_IN_USE after this has run.
+--let $sanity_check= `SELECT COUNT(*) FROM information_schema.processlist WHERE command = 'Binlog Dump'`
+if ($sanity_check > 0) {
+  SHOW FULL PROCESSLIST;
+  --echo ERROR: still $sanity_check dump thread(s) found!
+  --die ERROR: still $sanity_check dump thread(s) found
 }
 
 --enable_query_log
