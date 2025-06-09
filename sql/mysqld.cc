@@ -9483,6 +9483,7 @@ PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0}
 PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
 PSI_stage_info stage_alter_inplace_commit= { 0, "Committing alter table to storage engine", 0};
 PSI_stage_info stage_apply_event= { 0, "Apply log event", 0};
+PSI_stage_info stage_buffer_partial_rows= { 0, "Buffering Partial_rows_log_event", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
 PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};
@@ -9491,6 +9492,7 @@ PSI_stage_info stage_checking_query_cache_for_query= { 0, "Checking query cache 
 PSI_stage_info stage_cleaning_up= { 0, "Reset for next command", 0};
 PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
 PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
+PSI_stage_info stage_constructing_rows_ev= { 0, "Constructing Rows_log_event from buffer of fragments", 0};
 PSI_stage_info stage_converting_heap_to_myisam= { 0, "Converting HEAP to " TMP_ENGINE_NAME, 0};
 PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
 PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
@@ -9726,6 +9728,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_binlog_processing_checkpoint_notify,
   & stage_binlog_stopping_background_thread,
   & stage_binlog_waiting_background_tasks,
+  & stage_buffer_partial_rows,
   & stage_changing_master,
   & stage_checking_master_version,
   & stage_checking_permissions,
@@ -9736,6 +9739,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_commit,
   & stage_commit_implicit,
   & stage_connecting_to_master,
+  & stage_constructing_rows_ev,
   & stage_converting_heap_to_myisam,
   & stage_copy_to_tmp_table,
   & stage_copying_to_group_table,

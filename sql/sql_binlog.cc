@@ -83,6 +83,7 @@ static int check_event_type(int type, Relay_log_info *rli)
   case PRE_GA_WRITE_ROWS_EVENT:
   case PRE_GA_UPDATE_ROWS_EVENT:
   case PRE_GA_DELETE_ROWS_EVENT:
+  case PARTIAL_ROW_DATA_EVENT:
     /*
       Row events are only allowed if a Format_description_event has
       already been seen.
@@ -273,6 +274,7 @@ void mysql_client_binlog_statement(THD* thd)
   const char *error= 0;
   Log_event *ev = 0;
   my_bool is_fragmented= FALSE;
+  my_bool keep_rgi= false;
   /*
     Out of memory check
   */
@@ -424,6 +426,16 @@ void mysql_client_binlog_statement(THD* thd)
         */
         LEX *backup_lex;
 
+        /*
+          If we are re-assembling a Rows_log_event from a group of
+          Partial_rows_log_events, the rgi houses the assembler, so we need
+          it around while we are re-constructing the event.
+        */
+        if (ev->get_type_code() == PARTIAL_ROW_DATA_EVENT &&
+            (((Partial_rows_log_event *) ev)->seq_no <
+             ((Partial_rows_log_event *) ev)->total_fragments))
+          keep_rgi= true;
+
         thd->backup_and_reset_current_lex(&backup_lex);
         err= save_restore_context_apply_event(ev, rgi);
         thd->restore_current_lex(backup_lex);
@@ -466,7 +478,11 @@ end:
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
-  delete rgi;
-  rgi= thd->rgi_fake= NULL;
+
+  if (!keep_rgi)
+  {
+    delete rgi;
+    rgi= thd->rgi_fake= NULL;
+  }
   DBUG_VOID_RETURN;
 }
