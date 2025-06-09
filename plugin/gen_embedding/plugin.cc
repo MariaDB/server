@@ -270,7 +270,7 @@ maria_declare_plugin(type_test)
   MariaDB_FUNCTION_PLUGIN,       // the plugin type
   Item_func_gen_embedding::plugin_descriptor(),
   "GENERATE_EMBEDDING_OPENAI",// plugin name
-  "MariaDB Corporation",        // plugin author
+  "Apostolis Stamatis",        // plugin author
   "Function GENERATE_EMBEDDING_OPENAI()", // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license
   0,                            // Pointer to plugin initialization function
