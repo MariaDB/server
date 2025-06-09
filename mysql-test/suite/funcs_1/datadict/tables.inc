@@ -49,7 +49,9 @@ SHOW TABLES FROM test2;
 
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP USER testuser1@localhost;
+--enable_warnings
 
 DROP DATABASE test1;
 DROP DATABASE test2;

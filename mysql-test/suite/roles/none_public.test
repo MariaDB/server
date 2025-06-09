@@ -68,7 +68,9 @@ select * from information_schema.enabled_roles;
 disconnect foo;
 
 connection default;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 
 insert mysql.global_priv values ('', 'none', '{"is_role":true}');
 flush privileges;

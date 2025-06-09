@@ -72,7 +72,9 @@ SET DEFAULT ROLE NONE;
 SHOW GRANTS;
 disconnect test_user;
 connection default;
+--disable_warnings
 DROP USER test_user;
+--enable_warnings
 DROP ROLE test_role;
 
 #

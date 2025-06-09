@@ -236,8 +236,10 @@ kill hard connection user test@localhost;
 --disable_info
 revoke all privileges on test.* from test@localhost;
 revoke all privileges on test.* from test2@localhost;
+--disable_warnings
 drop user test@localhost;
 drop user test2@localhost;
+--enable_warnings
 
 connection con3;
 --error 2013,2006,5014

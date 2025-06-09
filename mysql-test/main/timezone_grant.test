@@ -118,7 +118,9 @@ create view v1 as select a, convert_tz(b, 'UTC', 'Europe/Moscow') as lb from t1,
 connection default;
 disconnect tzuser3;
 drop table t1;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # End of 5.0 tests
 

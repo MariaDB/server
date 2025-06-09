@@ -183,10 +183,12 @@ disconnect testuser4;
 eval $my_select;
 --replace_column 6 #
 eval $my_show;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';
 DROP USER 'testuser4'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict;
 
 

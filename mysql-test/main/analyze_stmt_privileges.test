@@ -45,5 +45,7 @@ analyze DELETE FROM db.v1 WHERE i = 5;
 --disconnect con1
 --connection default
 
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 drop database db;

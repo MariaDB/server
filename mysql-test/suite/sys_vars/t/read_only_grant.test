@@ -19,7 +19,9 @@ SET read_only=0;
 SET SESSION read_only=0;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET read_only" is allowed with READ_ONLY ADMIN
 
@@ -34,7 +36,9 @@ SET read_only=0;
 SET SESSION read_only=0;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-29632 SUPER users created before 10.11 should retain READ_ONLY ADMIN privilege upon upgrade

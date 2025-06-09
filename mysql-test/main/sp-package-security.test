@@ -270,7 +270,9 @@ DROP PROCEDURE p1root;
 disconnect conn1;
 connection default;
 
+--disable_warnings
 DROP USER u1@localhost;
+--enable_warnings
 DROP DATABASE db1;
 USE test;
 

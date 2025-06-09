@@ -868,7 +868,9 @@ SELECT security_type from mysql.proc where specific_name='sp11';
 CALL sp11();
 
 # cleanup
+--disable_warnings
 DROP USER 'user_1'@'localhost';
+--enable_warnings
 DROP PROCEDURE sp11;
 drop table mysql.t1;
 

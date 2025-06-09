@@ -151,8 +151,10 @@ eval $show_testuser1;
 eval $show_testuser2;
 
 # Cleanup
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict_1;
 DROP DATABASE db_datadict_2;
 DROP DATABASE db_datadict_3;
@@ -245,7 +247,9 @@ disconnect the_user;
 ############ Check DROP USER
 connection default;
 eval $my_select;
+--disable_warnings
 DROP USER 'the_user'@'localhost';
+--enable_warnings
 eval $my_select;
 
 

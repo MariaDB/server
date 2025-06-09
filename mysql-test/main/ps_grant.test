@@ -111,7 +111,9 @@ disconnect con3 ;
 revoke all privileges, grant option from second_user@localhost ;
 --sorted_result
 show grants for second_user@localhost ;
+--disable_warnings
 drop user second_user@localhost ;
+--enable_warnings
 commit ;
 --error 1141
 show grants for second_user@localhost ;

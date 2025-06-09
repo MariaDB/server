@@ -186,8 +186,10 @@ disconnect con8;
 connection default;
 
 # Clean up - Drop all of the remaining users at once
+--disable_warnings
 drop user mysqltest_1@host1, mysqltest_2@host2, mysqltest_4@host4,
   mysqltest_5@host5, mysqltest_6@host6, mysqltest_7@host7;
+--enable_warnings
 
 # Check that it's still possible to connect
 connect (con9,127.0.0.1,root,,test,$MASTER_MYPORT,);
@@ -656,7 +658,9 @@ connection default;
 disconnect conn1;
 USE test;
 DROP TABLE db1.t1, db1.t2;
+--disable_warnings
 DROP USER mysqltest1@localhost;
+--enable_warnings
 DROP DATABASE db1;
 
 
@@ -1026,11 +1030,13 @@ DROP TEMPORARY TABLE t9;
 SET GLOBAL keycache1.key_buffer_size = 0;
 DROP DATABASE mysqltest_db1;
 DROP DATABASE mysqltest_db2;
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
 DROP USER mysqltest_u2@localhost;
 DROP USER mysqltest_u3@localhost;
 DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
+--enable_warnings
 
 
 set GLOBAL sql_mode=default;

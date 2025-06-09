@@ -21,7 +21,9 @@ SET init_connect="SET @xxx=1";
 SET SESSION init_connect="SET @xxx=1";
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET init_connect" is allowed with CONNECTION ADMIN
 
@@ -36,6 +38,8 @@ SET init_connect="SET @xxx=1";
 SET SESSION init_connect="SET @xxx=1";
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 SET @@global.init_connect=@global;

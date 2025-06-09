@@ -62,7 +62,9 @@ SELECT DATABASE();
 #
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP   USER 'testuser1'@'localhost';
+--enable_warnings
 
 
 --echo #######################################################################
@@ -102,7 +104,9 @@ connect (testuser1, localhost, testuser1, , test);
 
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP   USER 'testuser1'@'localhost';
+--enable_warnings
 
 --echo ###############################################################################
 --echo # Testcase 3.2.1.1+3.2.1.2: INFORMATION_SCHEMA tables can be queried via SELECT
@@ -449,7 +453,9 @@ connect (testuser1, localhost, testuser1, , test);
 # Cleanup
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP   USER 'testuser1'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict;
 
 --echo ########################################################################

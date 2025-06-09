@@ -164,9 +164,11 @@ disconnect testuser1;
 disconnect testuser2;
 disconnect testuser3;
 DROP DATABASE db_datadict;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';
+--enable_warnings
 
 
 --echo ################################################################################
@@ -264,7 +266,9 @@ eval $my_show;
 
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict;
 
 

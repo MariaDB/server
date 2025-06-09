@@ -101,4 +101,6 @@ ORDER BY collation_name, character_set_name;
 # Cleanup
 connection default;
 disconnect con;
+--disable_warnings
 DROP USER dbdict_test@localhost;
+--enable_warnings

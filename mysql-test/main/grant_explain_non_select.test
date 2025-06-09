@@ -255,7 +255,9 @@ EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
 connection default;
 disconnect con1;
 
+--disable_warnings
 DROP USER 'privtest'@localhost;
+--enable_warnings
 USE test;
 DROP DATABASE privtest_db;
 

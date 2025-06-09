@@ -138,8 +138,10 @@ eval $select;
 connection default;
 disconnect testuser1;
 disconnect testuser2;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
+--enable_warnings
 DROP TABLE t1_1;
 DROP TABLE t1_2;
 DROP DATABASE IF EXISTS db_datadict;

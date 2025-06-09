@@ -23,7 +23,9 @@ SET thread_pool_stall_limit=400;
 SET SESSION thread_pool_stall_limit=400;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET thread_pool_stall_limit" is allowed with CONNECTION ADMIN
 
@@ -38,6 +40,8 @@ SET thread_pool_stall_limit=400;
 SET SESSION thread_pool_stall_limit=400;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 SET @@global.thread_pool_stall_limit=@global;
