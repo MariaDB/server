@@ -1,6 +1,7 @@
 connect (master,$IPv6,root,,test,$MASTER_MYPORT);
 connect (slave,127.0.0.1,root,,test,$SLAVE_MYPORT);
 connection master;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 source include/show_master_status.inc;
 save_master_pos;

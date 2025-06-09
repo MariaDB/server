@@ -161,6 +161,7 @@ connection master;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
 0-1-410
+include/kill_binlog_dump_threads.inc
 RESET master;
 connection slave;
 select @@gtid_binlog_state;

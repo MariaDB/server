@@ -3721,12 +3721,14 @@ void MYSQL_BIN_LOG::cleanup()
 
     mysql_mutex_destroy(&LOCK_log);
     mysql_mutex_destroy(&LOCK_index);
+    mysql_mutex_destroy(&LOCK_binlog_use);
     mysql_mutex_destroy(&LOCK_xid_list);
     mysql_mutex_destroy(&LOCK_binlog_background_thread);
     mysql_mutex_destroy(&LOCK_binlog_end_pos);
     mysql_cond_destroy(&COND_relay_log_updated);
     mysql_cond_destroy(&COND_bin_log_updated);
     mysql_cond_destroy(&COND_queue_busy);
+    mysql_cond_destroy(&COND_binlog_use);
     mysql_cond_destroy(&COND_xid_list);
     mysql_cond_destroy(&COND_binlog_background_thread);
     mysql_cond_destroy(&COND_binlog_background_thread_end);
@@ -3748,11 +3750,14 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   Event_log::init_pthread_objects();
   mysql_mutex_init(m_key_LOCK_index, &LOCK_index, MY_MUTEX_INIT_SLOW);
   mysql_mutex_setflags(&LOCK_index, MYF_NO_DEADLOCK_DETECTION);
+  mysql_mutex_init(key_BINLOG_LOCK_binlog_use, &LOCK_binlog_use,
+                   MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_BINLOG_LOCK_xid_list,
                    &LOCK_xid_list, MY_MUTEX_INIT_FAST);
   mysql_cond_init(m_key_relay_log_update, &COND_relay_log_updated, 0);
   mysql_cond_init(m_key_bin_log_update, &COND_bin_log_updated, 0);
   mysql_cond_init(m_key_COND_queue_busy, &COND_queue_busy, 0);
+  mysql_cond_init(key_BINLOG_COND_binlog_use, &COND_binlog_use, 0);
   mysql_cond_init(key_BINLOG_COND_xid_list, &COND_xid_list, 0);
 
   mysql_mutex_init(key_BINLOG_LOCK_binlog_background_thread,
@@ -4557,6 +4562,67 @@ err:
 }
 
 
+/*
+  Start reading the binlog, eg. a slave dump thread.
+  Wait for any already running RESET MASTER to complete.
+  Then increment the binlog use count.
+  Must be paired with a call to end_use_binlog() when use of the binlog is
+  complete by the reader, unless start_use_binlog() returns true/error.
+
+  Returns:
+    false  Successfully marked binlog in use.
+    true   Error (wait was terminated by kill).
+*/
+bool
+MYSQL_BIN_LOG::start_use_binlog(THD *thd)
+{
+  PSI_stage_info old_stage;
+  bool killed_err= false;
+
+  if (unlikely(is_relay_log))
+  {
+    DBUG_ASSERT(FALSE);
+    return false;
+  }
+
+  mysql_mutex_lock(&LOCK_binlog_use);
+  thd->ENTER_COND(&COND_binlog_use, &LOCK_binlog_use,
+                  &stage_waiting_for_reset_master, &old_stage);
+  while (binlog_use_count < 0 && !thd->check_killed(1))
+    mysql_cond_wait(&COND_binlog_use, &LOCK_binlog_use);
+  if (binlog_use_count < 0)
+    killed_err= true;
+  else
+    ++binlog_use_count;
+  thd->EXIT_COND(&old_stage);
+
+  return killed_err;
+}
+
+
+/*
+  Stop reading the binlog, eg. a slave dump thread.
+  Must be called after a successful start_use_binlog(), once the use of the
+  binlog has completed.
+*/
+void
+MYSQL_BIN_LOG::end_use_binlog(THD *thd)
+{
+  if (unlikely(is_relay_log))
+  {
+    DBUG_ASSERT(FALSE);
+    return;
+  }
+
+  mysql_mutex_lock(&LOCK_binlog_use);
+  if (likely(binlog_use_count > 0))
+    --binlog_use_count;
+  else
+    DBUG_ASSERT(FALSE);
+  mysql_mutex_unlock(&LOCK_binlog_use);
+}
+
+
 /**
   Delete all logs referred to in the index file.
 
@@ -4594,15 +4660,33 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
       DBUG_RETURN(1);
     }
 
+    /*
+      Give an error if any slave dump threads are running, and prevent any
+      new binlog readers (or another RESET MASTER) from running concurrently.
+    */
+    mysql_mutex_lock(&LOCK_binlog_use);
+    if (binlog_use_count)
+    {
+      my_error(ER_BINLOG_IN_USE, MYF(0));
+      mysql_mutex_unlock(&LOCK_binlog_use);
+      DBUG_RETURN(1);
+    }
+    binlog_use_count= -1;
+    mysql_mutex_unlock(&LOCK_binlog_use);
+
     if (opt_binlog_engine_hton)
     {
       if (next_log_number)
       {
         my_error(ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER, MYF(0));
-        DBUG_RETURN(true);
+        error= true;
       }
-      DBUG_ASSERT(create_new_log);
-      DBUG_RETURN(reset_engine_binlogs(thd, init_state, init_state_len));
+      else
+      {
+        DBUG_ASSERT(create_new_log);
+        error= reset_engine_binlogs(thd, init_state, init_state_len);
+      }
+      goto exit_engine_binlog;
     }
 
     /*
@@ -4863,6 +4947,17 @@ err:
 
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
+
+  if (!is_relay_log)
+  {
+exit_engine_binlog:
+    mysql_mutex_lock(&LOCK_binlog_use);
+    DBUG_ASSERT(binlog_use_count == -1);
+    binlog_use_count= 0;
+    mysql_cond_signal(&COND_binlog_use);
+    mysql_mutex_unlock(&LOCK_binlog_use);
+  }
+
   DBUG_RETURN(error);
 }
 

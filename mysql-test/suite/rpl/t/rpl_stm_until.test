@@ -136,6 +136,7 @@ connection master;
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
+--source include/kill_binlog_dump_threads.inc
 reset master;
 create table t1 (a int primary key auto_increment);
 save_master_pos;

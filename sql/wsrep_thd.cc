@@ -465,8 +465,6 @@ uint wsrep_kill_thd(THD *thd, THD *victim_thd, killed_state kill_signal)
   DEBUG_SYNC(thd, "wsrep_kill_before_awake_no_mutex");
   victim_thd->wsrep_abort_by_kill= kill_signal;
   victim_thd->awake_no_mutex(kill_signal);
-  /* ha_abort_transaction() releases tmp->LOCK_thd_kill, so tmp
-     is not safe to access anymore. */
   ha_abort_transaction(thd, victim_thd, 1);
   DBUG_RETURN(0);
 }

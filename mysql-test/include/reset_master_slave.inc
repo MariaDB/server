@@ -21,6 +21,7 @@ while ($con_name != 'No such row')
 	--let $con_name = query_get_value(show all slaves status, Connection_name, 1)
 }
 
+--source include/kill_binlog_dump_threads.inc
 --error 0,ER_FLUSH_MASTER_BINLOG_CLOSED
 reset master;
 set global gtid_slave_pos='';
