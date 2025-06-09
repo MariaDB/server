@@ -508,6 +508,7 @@ public:
   class LS_container: public LS
   {
   public:
+    using Container= LS_container;
     using LS::LS;
     static LS_container empty(const Parser &parser)
     {
@@ -662,7 +663,7 @@ public:
   {
   public:
     using LS_container::LS_container;
-    using Container= CONTAINER1<Parser, Format_flags>;
+    using Container= CONTAINER1P<Parser, LS_container, Format_flags>;
     using LParser= TOKEN<Parser, TokenID::tFM>;
     feature_t features_found() const
     {
@@ -678,7 +679,7 @@ public:
   {
   public:
     using LS_container::LS_container;
-    using Container= CONTAINER1<Parser, EEEE>;
+    using Container= CONTAINER1P<Parser, LS_container, EEEE>;
     using LParser= TOKEN<Parser, TokenID::tEEEE>;
     feature_t features_found() const
     {
@@ -694,7 +695,7 @@ public:
   {
   public:
     using LS_container::LS_container;
-    using Container= CONTAINER1<Parser, Prefix_sign>;
+    using Container= CONTAINER1P<Parser, LS_container, Prefix_sign>;
     using LParser= TOKEN<Parser, TokenID::tS>;
     feature_t features_found() const
     {
@@ -792,6 +793,7 @@ public:
     using PARENT= LS_container;
   public:
     using PARENT::PARENT;
+    using Container= CONTAINER1P<Parser, LS_container, Postfix_sign>;
     // Initializing from rules
     Postfix_sign(Postfix_sign_signature && rhs)
      :PARENT(std::move(static_cast<PARENT&&>(rhs)))
@@ -799,7 +801,6 @@ public:
     Postfix_sign(Postfix_specific_sign_signature && rhs)
      :PARENT(std::move(static_cast<PARENT&&>(rhs)))
     { }
-    using Container= CONTAINER1<Parser, Postfix_sign>;
 
     // Conversion methods
     feature_t features_found() const
@@ -882,7 +883,7 @@ public:
   public:
     using LS_container::LS_container;
     class Cond: public Positional_currency_signature_cond { };
-    using Container= CONTAINER1<Parser, Prefix_currency>;
+    using Container= CONTAINER1P<Parser, LS_container, Prefix_currency>;
     using LParser= TokenChoice<Parser, Cond>;
     // Conversion methods
     feature_t features_found() const
@@ -901,7 +902,7 @@ public:
   public:
     using LS_container::LS_container;
     class Cond: public Positional_currency_signature_cond { };
-    using Container= CONTAINER1<Parser, Postfix_currency>;
+    using Container= CONTAINER1P<Parser, LS_container, Postfix_currency>;
     using LParser= TokenChoice<Parser, Cond>;
     // Conversion methods
     feature_t features_found() const
@@ -920,7 +921,7 @@ public:
   public:
     using LS_container::LS_container;
     class Cond: public Positional_currency_signature_cond { };
-    using Container= CONTAINER1<Parser, Dec_delimiter_pDVCLU>;
+    using Container= CONTAINER1P<Parser, LS_container, Dec_delimiter_pDVCLU>;
     using LParser= TokenChoice<Parser, Cond>;
     // Conversion methods
     feature_t features_found() const
@@ -956,8 +957,25 @@ public:
     using Cond= TokenChoiceCond3<Parser, TokenID::tTM,
                                          TokenID::tTM9,
                                          TokenID::tTME>;
-    using Container= CONTAINER1<Parser, Format_TM>;
+    using Container= CONTAINER1P<Parser, LS_container, Format_TM>;
     using LParser= TokenChoice<Parser, Cond>;
+    // Initializing from itself
+    Format_TM(Format_TM && rhs)
+     :LS_container(std::move(rhs))
+    { }
+    Format_TM & operator=(Format_TM && rhs)
+    {
+      LS_container::operator=(std::move(rhs));
+      return *this;
+    }
+    // Initializing from its components
+    Format_TM(LS_container && rhs)
+     :LS_container(std::move(rhs))
+    { }
+    // Initializing from rules
+    Format_TM(LParser && rhs)
+     :LS_container(std::move(rhs))
+    { }
     // Conversion methods
     feature_t features_found() const
     {
@@ -1021,7 +1039,7 @@ public:
   {
   public:
     using LS_container::LS_container;
-    using Container= CONTAINER1<Parser, Currency_prefix_flags>;
+    using Container= CONTAINER1P<Parser, LS_container, Currency_prefix_flags>;
     using Flag= TokenChoice<Parser, Decimal_flag_cond>;
     using LParser= LIST<Parser, Container, Flag,
                         TokenID::tNULL /* not separated */,
@@ -1068,6 +1086,18 @@ public:
     using B= Decimal_flag_counters;
   public:
     using Container= OR_CONTAINER2<Parser, Digits, A, B>;
+    // Default ctor + Initializing from itself
+    Digits()
+    { }
+    Digits(Digits && rhs)
+     :A(std::move(rhs)), B(std::move(rhs))
+    { }
+    Digits & operator=(Digits && rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      return *this;
+    }
     // Initializing from its components
     Digits(A && a, B && b)
      :A(std::move(a)), B(std::move(b))
@@ -1124,13 +1154,28 @@ public:
   /********** Rules related to the integer part of a number ***/
 
   // GRAMMAR: integer: integer_element [ integer_element...]
-  class Integer: public Digits::Container
+  class Integer: public Digits
   {
-    using PARENT= Digits::Container;
+    using PARENT= Digits;
     using SELF= Integer;
   public:
-    using Container= CONTAINER1<Parser, Integer>;
+    using Container= CONTAINER1P<Parser, Digits, Integer>;
     using PARENT::PARENT;
+
+    // Initializing from itself
+    Integer(Integer && rhs)
+     :Digits(std::move(rhs))
+    { }
+    SELF & operator=(SELF && rhs)
+    {
+      Digits::operator=(std::move(rhs));
+      return *this;
+    }
+
+    // Initializing from its components
+    Integer(Digits && rhs)
+     :Digits(std::move(rhs))
+    { }
 
     // Helper constructors used in descendants
 
@@ -1247,15 +1292,19 @@ public:
   /********** Rules related to the fractional part of a number ***/
 
   // GRAMMAR: fraction_body: fractional_digit [ fractional_digit ... ]
-  class Fraction_body: public Digits::Container
+  class Fraction_body: public Digits
   {
-    using PARENT= Digits::Container;
+    using PARENT= Digits;
   public:
     using PARENT::PARENT;
-    using Container= CONTAINER1<Parser, Fraction_body>;
+    using Container= CONTAINER1P<Parser, Digits, Fraction_body>;
     using LParser= LIST<Parser, Fraction_body::Container, Fractional_element,
                         TokenID::tNULL /* not separated */, 1>;
 
+    // Initializing from its components
+    Fraction_body(Digits && rhs)
+     :Digits(std::move(rhs))
+    { }
     // Conversion methods
     static feature_t features_supported_by_to_dbln_fixed()
     {
@@ -1334,22 +1383,28 @@ public:
     GRAMMAR:                | fraction_pDV [ postfix_currency_signature ]
   */
 
-  class Fraction: public Dec_delimiter_pDVCLU::Container,
-                  public Fraction_body::Container,
-                  public Postfix_currency::Container
+  class Fraction: public Dec_delimiter_pDVCLU,
+                  public Fraction_body,
+                  public Postfix_currency
   {
-    using A= Dec_delimiter_pDVCLU::Container;
-    using B= Fraction_body::Container;
-    using C= Postfix_currency::Container;
+    using A= Dec_delimiter_pDVCLU;
+    using B= Fraction_body;
+    using C= Postfix_currency;
   public:
-    using Container= OR_CONTAINER3<Parser, Fraction, A, B, C>;
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() && C::operator bool();
+    }
+    using Container= OR_CONTAINER3P<Parser, Fraction, A, B, C>;
+
 
     size_t length() const
     {
       return A::length() + B::length() +  C::length();
     }
 
-
+    Fraction()
+    { }
     // Initialization from its components
     Fraction(A && a, B && b, C && c)
      :A(std::move(a)), B(std::move(b)), C(std::move(c))
@@ -1376,7 +1431,12 @@ public:
     // Initialization from rules
     Fraction(pDV && rhs)
      :A(std::move(static_cast<Fraction_pDV_signature&&>(rhs))),
-      B(std::move(static_cast<Fraction_body::Container&&>(rhs))),
+      B(std::move(static_cast<Fraction_body&&>(rhs))),
+      C(C::empty())
+    { }
+    Fraction(pDV::Opt && rhs)
+     :A(std::move(static_cast<Fraction_pDV_signature&&>(rhs))),
+      B(std::move(static_cast<Fraction_body&&>(rhs))),
       C(C::empty())
     { }
 
@@ -1426,18 +1486,27 @@ public:
     GRAMMAR:                 | fraction_pDV
   */
 
-  class Decimal_tail: public Integer::Container,
-                      public Fraction::Container
+  class Decimal_tail: public Integer,
+                      public Fraction
   {
-    using A= Integer::Container;
-    using B= Fraction::Container;
+    using A= Integer;
+    using B= Fraction;
   public:
-    using Container= OR_CONTAINER2<Parser, Decimal_tail,
-                                   Integer::Container,
-                                   Fraction::Container>;
+    using Container= OR_CONTAINER2P<Parser, Decimal_tail,
+                                    Integer,
+                                    Fraction>;
+    Decimal_tail()
+    { }
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool();
+    }
     // Initializing from its componenets
     Decimal_tail(A && a, B && b)
      :A(std::move(a)), B(std::move(b))
+    { }
+    Decimal_tail(B && b)
+     :A(A::Container::empty()), B(std::move(b))
     { }
 
     // Dependency rules
@@ -1453,17 +1522,16 @@ public:
 
     // Initializing from rules
     Decimal_tail(Integer_tail_Opt_Fraction_pDVCLU && rhs)
-     :A(std::move(rhs)), B(std::move(rhs))
+     :A(static_cast<Integer::Tail&&>(std::move(rhs))),
+      B(static_cast<Fraction&&>(std::move(rhs)))
     { }
     Decimal_tail(Integer_tail_Opt_Fraction_pDV && rhs)
-     :A(std::move(rhs)), B(std::move(rhs))
+     :A(static_cast<Integer::Tail&&>(std::move(rhs))),
+      B(static_cast<Fraction::pDV::Opt&&>(std::move(rhs)))
     { }
 
-    Decimal_tail(Fraction::LParser && rhs)
-     :A(A::empty()), B(std::move(rhs))
-    { }
     Decimal_tail(Fraction::pDV && rhs)
-     :A(A::empty()), B(std::move(rhs))
+     :A(A::Container::empty()), B(std::move(rhs))
     { }
 
     // Derived rules
@@ -1480,12 +1548,12 @@ public:
 
   /********** A decimal number ****/
 
-  class Decimal: public Decimal_tail::Container
+  class Decimal: public Decimal_tail
   {
-    using PARENT= Decimal_tail::Container;
+    using PARENT= Decimal_tail;
   public:
     using PARENT::PARENT;
-    using Container= CONTAINER1<Parser, Decimal>;
+    using Container= CONTAINER1P<Parser, Decimal_tail, Decimal>;
 
     // Initializing from rules
     Decimal(XChain && rhs)
@@ -1496,8 +1564,8 @@ public:
     Decimal(Zeros_or_nines && head, Decimal_tail && tail)
      :PARENT(
         Integer::Container(std::move(head),
-                           std::move(static_cast<Integer::Container&&>(tail))),
-        std::move(static_cast<Fraction::Container&&>(tail)))
+                           std::move(static_cast<Integer&&>(tail))),
+        std::move(static_cast<Fraction&&>(tail)))
     { }
 
   };
@@ -1514,17 +1582,36 @@ public:
     GRAMMAR: approximate_tail_pDV: decimal_tail_pDV [ EEEE ]
     GRAMMAR:                     | EEEE
   */
-  class Approximate_tail: public Decimal_tail::Container,
-                          public EEEE::Container
+  class Approximate_tail: public Decimal_tail,
+                          public EEEE
   {
-    using A= Decimal_tail::Container;
-    using B= EEEE::Container;
+    using A= Decimal_tail;
+    using B= EEEE;
   public:
-    using Container= OR_CONTAINER2<Parser, Approximate_tail, A, B>;
-
+    using Container= OR_CONTAINER2P<Parser, Approximate_tail, A, B>;
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool();
+    }
+    Approximate_tail()
+    { }
+    // Initialization from itself
+    Approximate_tail(Approximate_tail && rhs)
+     :A(std::move(rhs)), B(std::move(rhs))
+    { }
+    Approximate_tail & operator=(Approximate_tail && rhs)
+    {
+      Decimal_tail::operator=(std::move(rhs));
+      EEEE::operator=(std::move(rhs));
+      return *this;
+    }
     // Initialization from its components
     Approximate_tail(A && a, B && b)
      :A(std::move(a)), B(std::move(b))
+    { }
+
+    Approximate_tail(Decimal && a, EEEE && b)
+     :Decimal_tail(std::move(a)), EEEE(std::move(b))
     { }
 
     // Dependency rules
@@ -1538,7 +1625,7 @@ private:
 public:
     // Initialization from rules
     Approximate_tail(EEEE::LParser::Opt && rhs)
-     :A(A::empty()), B(std::move(rhs))
+     :A(A::Container::empty()), B(std::move(rhs))
     { }
     Approximate_tail(Decimal_tail_pDVCLU_Opt_EEEE && rhs)
      :A(std::move(static_cast<Decimal::Tail_pDVCLU&&>(rhs))),
@@ -1549,13 +1636,16 @@ public:
       B(std::move(static_cast<EEEE::LParser::Opt&&>(rhs)))
     { }
     Approximate_tail(XChain && rhs)
-     :A(std::move(rhs)), B(B::empty())
+     :A(Decimal(std::move(rhs))), B(B::Container::empty())
     { }
     Approximate_tail(Fraction::pDV && rhs)
      :A(std::move(rhs)), B(B::empty())
     { }
-    Approximate_tail(Fraction::LParser && rhs)
-     :A(std::move(rhs)), B(B::empty())
+//    Approximate_tail(Fraction::LParser && rhs)
+//     :A(Decimal_tail::Container(std::move(rhs))), B(B::Container::empty())
+//    { }
+    Approximate_tail(Fraction && rhs)
+     :A(Decimal_tail::Container(std::move(rhs))), B(B::Container::empty())
     { }
 
     // Derived rules
@@ -1582,13 +1672,23 @@ public:
     GRAMMAR:                | fraction_pDV
   */
 
-  class Approximate: public Approximate_tail::Container
+  class Approximate: public Approximate_tail
   {
-    using PARENT= Approximate_tail::Container;
+    using PARENT= Approximate_tail;
     using SELF= Approximate;
   public:
     using PARENT::PARENT;
-    using Container= CONTAINER1<Parser, Approximate>;
+    using Container= CONTAINER1P<Parser, Approximate_tail, Approximate>;
+
+    // Initializing from itself
+    Approximate(Approximate && rhs)
+     :Approximate_tail(std::move(rhs))
+    { }
+    Approximate & operator=(Approximate && rhs)
+    {
+      Approximate_tail::operator=(std::move(rhs));
+      return *this;
+    }
 
     // Dependency rules
 private:
@@ -1618,33 +1718,34 @@ public:
     // Initializing from rules
     Approximate(Zeros_Opt_approximate_tail_pDVCLU && rhs)
      :PARENT(
-       Decimal::Container(
+       Decimal(
          std::move(static_cast<Zeros &&>(rhs)),
-         std::move(static_cast<Decimal_tail::Container &&>(rhs))),
-       std::move(static_cast<EEEE::Container&&>(rhs)))
+         std::move(static_cast<Decimal_tail &&>(rhs))),
+       std::move(static_cast<EEEE&&>(rhs)))
     {  }
 
     Approximate(Nines_Opt_approximate_tail_pDVCLU && rhs)
      :PARENT(
-       Decimal::Container(std::move(static_cast<Nines &&>(rhs)),
-                         std::move(static_cast<Decimal_tail::Container &&>(rhs))),
-       std::move(static_cast<EEEE::Container&&>(rhs)))
+       Decimal(
+         std::move(static_cast<Nines &&>(rhs)),
+         std::move(static_cast<Decimal_tail &&>(rhs))),
+       std::move(static_cast<EEEE&&>(rhs)))
     { }
 
     Approximate(Zeros_or_nines_Opt_approximate_tail_pDVCLU && rhs)
      :PARENT(
-       Decimal::Container(
+       Decimal(
          std::move(static_cast<Zeros_or_nines &&>(rhs)),
-         std::move(static_cast<Decimal_tail::Container &&>(rhs))),
-       std::move(static_cast<EEEE::Container&&>(rhs)))
+         std::move(static_cast<Decimal_tail &&>(rhs))),
+       std::move(static_cast<EEEE&&>(rhs)))
     { }
 
     Approximate(Zeros_or_nines_Opt_approximate_tail_pDV && rhs)
      :PARENT(
-       Decimal::Container(
+       Decimal(
          std::move(static_cast<Zeros_or_nines &&>(rhs)),
-         std::move(static_cast<Decimal_tail::Container &&>(rhs))),
-       std::move(static_cast<EEEE::Container&&>(rhs)))
+         std::move(static_cast<Decimal_tail &&>(rhs))),
+       std::move(static_cast<EEEE&&>(rhs)))
     { }
 
     // Derived rules
@@ -1671,16 +1772,16 @@ public:
     void print(String *str) const
     {
       DBUG_ASSERT(Dec_delimiter_pDVCLU::length() ||
-                  !Fraction_body::Container::length());
+                  !Fraction_body::length());
       str->append("A='"_LS);
-      Integer::Container::print(str);
+      Integer::print(str);
       if (Dec_delimiter_pDVCLU::length())
       {
         str->append("["_LS);
         Dec_delimiter_pDVCLU::print(str);
         str->append("]"_LS);
       }
-      Fraction_body::Container::print(str);
+      Fraction_body::print(str);
       str->append("'"_LS);
       if (Postfix_currency::length())
         Postfix_currency::print_var_value(str, "RC"_LS);
@@ -1812,16 +1913,33 @@ public:
     GRAMMAR:              | prefix_currency_signature 'B' [ approximate_pDV ]
   */
 
-  class Unsigned_currency: public Prefix_currency::Container,
-                           public Currency_prefix_flags::Container,
-                           public Approximate::Container
+  class Unsigned_currency: public Prefix_currency,
+                           public Currency_prefix_flags,
+                           public Approximate
   {
-    using A= Prefix_currency::Container;
-    using B= Currency_prefix_flags::Container;
-    using C= Approximate::Container;
+    using A= Prefix_currency;
+    using B= Currency_prefix_flags;
+    using C= Approximate;
   public:
-    using Container= OR_CONTAINER3<Parser, Unsigned_currency, A, B, C>;
+    using Container= OR_CONTAINER3P<Parser, Unsigned_currency, A, B, C>;
 
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() && C::operator bool();
+    }
+    Unsigned_currency()
+    { }
+    // Initializing from itself
+    Unsigned_currency(Unsigned_currency &&rhs)
+     :A(std::move(rhs)), B(std::move(rhs)), C(std::move(rhs))
+    { }
+    Unsigned_currency & operator=(Unsigned_currency && rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      C::operator=(std::move(rhs));
+      return *this;
+    }
     // Initializing from its componenents
     Unsigned_currency(A && a, B && b, C && c)
      :A(std::move(a)), B(std::move(b)), C(std::move(c))
@@ -1866,11 +1984,11 @@ public:
     Unsigned_currency(Fraction_pDV_Opt_EEEE_Opt_postfix_currency &&rhs)
      :A(A::empty()),
       B(B::empty()),
-      C(Fraction::Container(
+      C(Decimal(Fraction(
           std::move(static_cast<Fraction_pDV_signature&&>(rhs)),
           std::move(static_cast<Fraction_body::LParser::Opt&&>(rhs)),
-          std::move(static_cast<Postfix_currency::LParser::Opt&&>(rhs))),
-        EEEE::Container(std::move(static_cast<EEEE::LParser::Opt&&>(rhs))))
+          std::move(static_cast<Postfix_currency::LParser::Opt&&>(rhs)))),
+        EEEE(std::move(static_cast<EEEE::LParser::Opt&&>(rhs))))
     { }
     Unsigned_currency(Zeros_Opt_approximate_tail_pDVCLU && rhs)
      :A(A::empty()),
@@ -2060,14 +2178,29 @@ public:
     GRAMMAR:                           | unsigned_currency1 [ postfix_sign ]
     GRAMMAR:                           | postfix_specific_sign_signature
   */
-  class Currency_with_postfix_sign: public Unsigned_currency::Container,
-                                    public Postfix_sign::Container
+  class Currency_with_postfix_sign: public Unsigned_currency,
+                                    public Postfix_sign
   {
-    using A= Unsigned_currency::Container;
-    using B= Postfix_sign::Container;
+    using A= Unsigned_currency;
+    using B= Postfix_sign;
   public:
-    using Container= OR_CONTAINER2<Parser, Currency_with_postfix_sign, A, B>;
-
+    using Container= OR_CONTAINER2P<Parser, Currency_with_postfix_sign, A, B>;
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool();
+    }
+    Currency_with_postfix_sign()
+    { }
+    // Initialization from itself
+    Currency_with_postfix_sign(Currency_with_postfix_sign && rhs)
+     :A(std::move(rhs)), B(std::move(rhs))
+    { }
+    Currency_with_postfix_sign & operator=(Currency_with_postfix_sign && rhs)
+    {
+      Unsigned_currency::operator=(std::move(rhs));
+      Postfix_sign::operator=(std::move(rhs));
+      return *this;
+    }
     // Initialization from its components
     Currency_with_postfix_sign(A && a, B && b)
      :A(std::move(a)), B(std::move(b))
@@ -2087,17 +2220,18 @@ private:
 public:
     // Initialization from rules
     Currency_with_postfix_sign(XChain && rhs)
-     :A(Approximate::Container(std::move(rhs))),
-      B(B::empty())
+     :A(Unsigned_currency::Container(Approximate::Container(std::move(rhs)))),
+      B(B::Container::empty())
     { }
 
     Currency_with_postfix_sign(Currency0_with_postfix_sign && rhs)
-     :A(Approximate::Container(
-          Decimal::Container(
-            std::move(static_cast<Zeros&&>(rhs)),
-            std::move(static_cast<Decimal_tail::Container&&>(rhs))),
-            std::move(static_cast<EEEE::Container&&>(rhs)))),
-      B(std::move(static_cast<Postfix_sign::Container&&>(rhs)))
+     :A(Unsigned_currency::Container(
+          Approximate::Container(
+            Decimal(
+              std::move(Zeros_or_nines(static_cast<Zeros&&>(rhs))),
+              std::move(static_cast<Decimal_tail&&>(rhs))),
+            std::move(static_cast<EEEE&&>(rhs))))),
+      B(std::move(static_cast<Postfix_sign&&>(rhs)))
     { }
 
     Currency_with_postfix_sign(Unsigned_currency1_Opt_Postfix_sign && rhs)
@@ -2106,7 +2240,7 @@ public:
     { }
 
     Currency_with_postfix_sign(Postfix_specific_sign_signature && rhs)
-     :A(A::empty()),
+     :A(A::Container::empty()),
       B(std::move(rhs))
     { }
 
@@ -2125,16 +2259,16 @@ public:
 
     void print(String *str) const
     {
-      if (Currency_prefix_flags::Container::length())
-        Currency_prefix_flags::Container::print_var_value(str, "CFl"_LS);
+      if (Currency_prefix_flags::length())
+        Currency_prefix_flags::print_var_value(str, "CFl"_LS);
 
       if (Prefix_currency::length())
         Prefix_currency::print_var_value(str, "LC"_LS);
 
-      Approximate::Container::print(str);
+      Approximate::print(str);
 
-      if (Postfix_sign::Container::length())
-        Postfix_sign::Container::print_var_value(str, "RS"_LS);
+      if (Postfix_sign::length())
+        Postfix_sign::print_var_value(str, "RS"_LS);
     }
 
     // Conversion methods
@@ -2183,14 +2317,29 @@ public:
     GRAMMAR:                | format_TM_signature
   */
 
-  class Unsigned_format: public Unsigned_currency::Container,
-                         public Format_TM::Container
+  class Unsigned_format: public Unsigned_currency,
+                         public Format_TM
   {
-    using A= Unsigned_currency::Container;
-    using B= Format_TM::Container;
+    using A= Unsigned_currency;
+    using B= Format_TM;
   public:
-    using Container= OR_CONTAINER2<Parser, Unsigned_format, A, B>;
-
+    using Container= OR_CONTAINER2P<Parser, Unsigned_format, A, B>;
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool();
+    }
+    Unsigned_format()
+    { }
+    // Initializing from itself
+    Unsigned_format(Unsigned_format && rhs)
+     :A(std::move(rhs)), B(std::move(rhs))
+    { }
+    Unsigned_format & operator=(Unsigned_format && rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      return *this;
+    }
     // Initializing from its componenet
     Unsigned_format(A && a, B && b)
      :A(std::move(a)), B(std::move(b))
@@ -2202,7 +2351,7 @@ public:
     { }
 
     Unsigned_format(Format_TM::LParser && rhs)
-     :A(A::empty()), B(std::move(rhs))
+     :A(A::Container::empty()), B(std::move(rhs))
     { }
     using LParser= OR2C<Parser, Container,
                         Unsigned_currency::LParser,
@@ -2218,17 +2367,20 @@ public:
     GRAMMAR:               | format_TM
   */
 
-  class Format_FM_tail: public Prefix_sign::Container,
-                        public Unsigned_format::Container,
-                        public Postfix_sign::Container
+  class Format_FM_tail: public Prefix_sign,
+                        public Unsigned_format,
+                        public Postfix_sign
   {
-    using A= Prefix_sign::Container;
-    using B= Unsigned_format::Container;
-    using C= Postfix_sign::Container;
+    using A= Prefix_sign;
+    using B= Unsigned_format;
+    using C= Postfix_sign;
     using SELF= Format_FM_tail;
   public:
-    using Container= OR_CONTAINER3<Parser, Format_FM_tail, A, B, C>;
-
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() && C::operator bool();
+    }
+    using Container= OR_CONTAINER3P<Parser, Format_FM_tail, A, B, C>;
     // Initialization from its components
     Format_FM_tail(A && a, B && b, C && c)
      :A(std::move(a)), B(std::move(b)), C(std::move(c))
@@ -2242,15 +2394,15 @@ private:
 public:
     // Initializing from rules
     Format_FM_tail(Format_TM::LParser &&rhs)
-     :A(A::empty()),
-      B(Format_TM::Container(std::move(rhs))),
+     :A(A::Container::empty()),
+      B(Unsigned_format::Container(std::move(rhs))),
       C(C::empty())
     { }
 
     Format_FM_tail(Currency_with_postfix_sign::LParser && rhs)
      :A(A::empty()),
-      B(static_cast<Unsigned_currency::Container&&>(rhs)),
-      C(std::move(static_cast<Postfix_sign::Container&&>(rhs)))
+      B(Unsigned_format::Container(static_cast<Unsigned_currency&&>(rhs))),
+      C(std::move(static_cast<Postfix_sign&&>(rhs)))
     { }
 
     Format_FM_tail(Prefix_sign_Opt_unsigned_format && rhs)
@@ -2272,17 +2424,34 @@ public:
     GRAMMAR:       | 'S' ['FM'] [ unsigned_format ]
     GRAMMAR:       | format_TM_signature
   */
-  class Format: public Format_flags::Container,
-                public Prefix_sign::Container,
-                public Currency_with_postfix_sign::Container,
-                public Format_TM::Container
+  class Format: public Format_flags,
+                public Prefix_sign,
+                public Currency_with_postfix_sign,
+                public Format_TM
   {
-    using A= Format_flags::Container;
-    using B= Prefix_sign::Container;
-    using C= Currency_with_postfix_sign::Container;
-    using D= Format_TM::Container;
+    using A= Format_flags;
+    using B= Prefix_sign;
+    using C= Currency_with_postfix_sign;
+    using D= Format_TM;
   public:
-    using Container= OR_CONTAINER4<Parser, Format, A, B, C, D>;
+    using Container= OR_CONTAINER4P<Parser, Format, A, B, C, D>;
+    operator bool() const
+    {
+      return A::operator bool() && B::operator bool() &&
+             C::operator bool() && D::operator bool();
+    }
+    // Initialization from itself
+    Format(Format && rhs)
+     :A(std::move(rhs)), B(std::move(rhs)), C(std::move(rhs)), D(std::move(rhs))
+    { }
+    Format & operator=(Format && rhs)
+    {
+      A::operator=(std::move(rhs));
+      B::operator=(std::move(rhs));
+      C::operator=(std::move(rhs));
+      D::operator=(std::move(rhs));
+      return *this;
+    }
 
     // Initialization from its components
     Format(A && a, B && b, C && c, D && d)
@@ -2304,23 +2473,24 @@ public:
     // Initialization from rules
     Format(Format_FM && rhs)
      :A(std::move(static_cast<Format_flags::LParser&&>(rhs))),
-      B(std::move(static_cast<Prefix_sign::Container&&>(rhs))),
-      C(std::move(static_cast<Unsigned_currency::Container&&>(rhs)),
-        std::move(static_cast<Postfix_sign::Container&&>(rhs))),
-      D(std::move(static_cast<Format_TM::Container&&>(rhs)))
+      B(std::move(static_cast<Prefix_sign&&>(rhs))),
+      C(std::move(static_cast<Unsigned_currency&&>(rhs)),
+        std::move(static_cast<Postfix_sign&&>(rhs))),
+      D(std::move(static_cast<Format_TM&&>(rhs)))
     { }
 
     Format(Format_prefix_sign_Opt_FM_Opt_unsigned_format && rhs)
      :A(std::move(static_cast<Format_flags::LParser::Opt&&>(rhs))),
       B(std::move(static_cast<Prefix_sign::LParser&&>(rhs))),
-      C(std::move(static_cast<Unsigned_currency::Container&&>(rhs))),
-      D(std::move(static_cast<Format_TM::Container&&>(rhs)))
+      C(Currency_with_postfix_sign::Container(
+          std::move(static_cast<Unsigned_currency&&>(rhs)))),
+      D(std::move(static_cast<Format_TM&&>(rhs)))
     { }
 
     Format(Format_TM::LParser && rhs)
-     :A(A::empty()),
-      B(B::empty()),
-      C(C::empty()),
+     :A(A::Container::empty()),
+      B(B::Container::empty()),
+      C(C::Container::empty()),
       D(Format_TM::Container(std::move(rhs)))
     { }
 
@@ -2333,7 +2503,7 @@ public:
     // Other methods
     bool check(const Parser & parser, enum_warning_level level) const
     {
-      if (Currency_with_postfix_sign::Container::operator bool() &&
+      if (Currency_with_postfix_sign::operator bool() &&
           Currency_with_postfix_sign::check(parser, level,
                                             prefix_flag_counters()))
         return true;
@@ -2349,7 +2519,7 @@ public:
       if (Prefix_sign::length() > 0)
         Prefix_sign::print_var_value(str, "LS"_LS);
 
-      if (Currency_with_postfix_sign::Container::operator bool())
+      if (Currency_with_postfix_sign::operator bool())
         Currency_with_postfix_sign::print(str);
 
       if (Format_TM::length())

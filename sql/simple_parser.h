@@ -105,6 +105,34 @@ protected:
     using A::operator bool;
   };
 
+  template<class PARSER, class AParent, class A>
+  class CONTAINER1P: public A
+  {
+    using SELF= CONTAINER1P;
+    using A::A;
+  public:
+    // Initialization from its components
+    CONTAINER1P(A && rhs) :A(std::move(rhs)) { }
+    // Initialization from itself
+    CONTAINER1P(SELF && rhs) :A(std::move(rhs))  { }
+    SELF & operator=(SELF && rhs)
+    {
+      AParent::operator=(std::move(rhs));
+      return *this;
+    }
+    // Generating empty values
+    static SELF empty(const PARSER &p)
+    {
+      return A(AParent::Container::empty(p));
+    }
+    static SELF empty()
+    {
+      return A(AParent::Container::empty());
+    }
+    // Boolean
+    using A::operator bool;
+  };
+
   // Make a single container from two other containers suitable for ORxC
   template<class PARSER, class AB, class A, class B>
   class OR_CONTAINER2: public AB
@@ -152,6 +180,55 @@ protected:
     {
       return A::operator bool() && B::operator bool();
     }
+  };
+
+  // Make a single container from two other containers suitable for ORxC
+  template<class PARSER, class AB, class A, class B>
+  class OR_CONTAINER2P: public AB
+  {
+    using SELF= OR_CONTAINER2P;
+  public:
+    using AB::AB;
+    // Initialization on parse error
+    OR_CONTAINER2P()
+     :AB(A(), B())
+    { }
+    // Initialization from its components
+    OR_CONTAINER2P(A && rhs)
+     :AB(std::move(rhs),
+         B::Container::empty())
+    { }
+    OR_CONTAINER2P(B && rhs)
+     :AB(A::Container::empty(),
+         std::move(rhs))
+    { }
+    // Initialization from itself
+    OR_CONTAINER2P(SELF && rhs)
+     :AB(std::move(static_cast<A&&>(rhs)),
+         std::move(static_cast<B&&>(rhs)))
+    { }
+    // Assignment from itself
+    SELF & operator=(SELF && rhs)
+    {
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      return *this;
+    }
+    // Generating empty values
+    explicit OR_CONTAINER2P(AB && rhs) :AB(std::move(rhs)) { }
+    static SELF empty(const PARSER &p)
+    {
+      return SELF(AB(A::Container::empty(p), B::Container::empty(p)));
+    }
+    static SELF empty()
+    {
+      return SELF(AB(A::Container::empty(), B::Container::empty()));
+    }
+    // The rest
+    //operator bool() const
+    //{
+    //  return A::operator bool() && B::operator bool();
+    //}
   };
 
   // Make a single container from three other containers suitable for ORxC
@@ -206,6 +283,64 @@ protected:
     {
       return A::operator bool() && B::operator bool() && C::operator bool();
     }
+  };
+
+
+  template<class PARSER, class ABC, class A, class B, class C>
+  class OR_CONTAINER3P: public ABC
+  {
+    using SELF= OR_CONTAINER3P;
+  public:
+    using ABC::ABC;
+
+    // Initialization on parse error
+    OR_CONTAINER3P()
+     :ABC(A(), B(), C())
+    { }
+    // Initialization from its components
+    OR_CONTAINER3P(A && rhs)
+     :ABC(std::move(rhs),
+          B::Container::empty(),
+          C::Container::empty())
+    { }
+    OR_CONTAINER3P(B && rhs)
+     :ABC(A::Container::empty(),
+          std::move(rhs),
+          C::Container::empty())
+    { }
+    OR_CONTAINER3P(C && rhs)
+     :ABC(A::Container::empty(),
+          B::Container::empty(),
+          std::move(rhs))
+    { }
+    // Initialization from itself
+    explicit OR_CONTAINER3P(ABC && rhs) :ABC(std::move(rhs)) { }
+    SELF & operator=(SELF && rhs)
+    {
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      C::operator=(std::move(static_cast<C&&>(rhs)));
+      return *this;
+    }
+    // Gerating empty values
+    OR_CONTAINER3P(SELF && rhs) :ABC(std::move(rhs))  { }
+    static SELF empty(const PARSER &p)
+    {
+      return SELF(ABC(A::Container::empty(p),
+                      B::Container::empty(p),
+                      C::Container::empty(p)));
+    }
+    static SELF empty()
+    {
+      return SELF(ABC(A::Container::empty(),
+                      B::Container::empty(),
+                      C::Container::empty()));
+    }
+    // Boolean
+    //operator bool() const
+    //{
+    //  return A::operator bool() && B::operator bool() && C::operator bool();
+    //}
   };
 
 
@@ -267,6 +402,79 @@ protected:
              C::operator bool() &&
              D::operator bool();
     }
+  };
+
+
+  // Make a single container from four other containers suitable for ORxC
+  template<class PARSER, class ABCD, class A, class B, class C, class D>
+  class OR_CONTAINER4P: public ABCD
+  {
+    using SELF= OR_CONTAINER4P;
+  public:
+    using ABCD::ABCD;
+    // Initialization on parse error
+    OR_CONTAINER4P()
+     :ABCD(A(), B(), C(), D())
+    { }
+    // Initialization from its components
+    OR_CONTAINER4P(A && rhs)
+     :ABCD(std::move(rhs),
+           B::Container::empty(),
+           C::Container::empty(),
+           D::Container::empty())
+    { }
+    OR_CONTAINER4P(B && rhs)
+     :ABCD(A::Container::empty(),
+           std::move(rhs),
+           C::Container::empty(),
+           D::Container::empty())
+    { }
+    OR_CONTAINER4P(C && rhs)
+     :ABCD(A::Container::empty(),
+           B::Container::empty(),
+           std::move(rhs),
+           D::Container::empty())
+    { }
+    OR_CONTAINER4P(D && rhs)
+     :ABCD(A::Container::empty(),
+           B::Container::empty(),
+           C::Container::empty(),
+           std::move(rhs))
+    { }
+    // Initializing from itself
+    OR_CONTAINER4P(SELF && rhs) :ABCD(std::move(rhs))  { }
+    SELF & operator=(SELF && rhs)
+    {
+      A::operator=(std::move(static_cast<A&&>(rhs)));
+      B::operator=(std::move(static_cast<B&&>(rhs)));
+      C::operator=(std::move(static_cast<C&&>(rhs)));
+      D::operator=(std::move(static_cast<D&&>(rhs)));
+      return *this;
+    }
+    // Generating empty values
+    explicit OR_CONTAINER4P(ABCD && rhs) :ABCD(std::move(rhs)) { }
+    static SELF empty(const PARSER &p)
+    {
+      return SELF(ABCD(A::Container::empty(p),
+                       B::Container::empty(p),
+                       C::Container::empty(p),
+                       D::Container::empty(p)));
+    }
+    static SELF empty()
+    {
+      return SELF(ABCD(A::Container::empty(),
+                       B::Container::empty(),
+                       C::Container::empty(),
+                       D::Container::empty()));
+    }
+    // Boolean
+    //operator bool() const
+    //{
+    //  return A::operator bool() &&
+    //         B::operator bool() &&
+    //         C::operator bool() &&
+    //         D::operator bool();
+    //}
   };
 
 
