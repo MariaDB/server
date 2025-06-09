@@ -23,7 +23,9 @@ BINLOG '';
 disconnect con1;
 
 connection default;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # Test that binlog replay statements are allowed with BINLOG REPLAY
@@ -43,7 +45,9 @@ BINLOG '';
 disconnect con1;
 
 connection default;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # End of 10.5 tests

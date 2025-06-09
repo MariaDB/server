@@ -682,7 +682,9 @@ DROP EVENT e1;
 disconnect conn1;
 connection default;
 
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
+--enable_warnings
 
 
 #
@@ -1009,10 +1011,10 @@ DROP EVENT bug28641;
 --echo #####################################################################
 --echo
 
+--disable_warnings
 --error 0,ER_CANNOT_USER
 DROP USER mysqltest_u1@localhost;
 
---disable_warnings
 DROP EVENT IF EXISTS e1;
 DROP EVENT IF EXISTS e2;
 --enable_warnings
@@ -1165,7 +1167,9 @@ SET GLOBAL READ_ONLY = 0;
 
 --echo
 
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
+--enable_warnings
 
 --echo
 --echo #####################################################################

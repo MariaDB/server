@@ -38,6 +38,8 @@ eval $my_select;
 
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP USER testuser1@localhost;
+--enable_warnings
 DROP DATABASE db_datadict;
 

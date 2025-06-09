@@ -53,10 +53,20 @@ select * from s1;
 ERROR 42000: SELECT command denied to user 'only_alter'@'localhost' for table `mysqltest_1`.`s1`
 connection default;
 drop user 'normal'@'%';
+Warnings:
+Note	4226	Dropped users ['normal'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user 'read_only'@'%';
+Warnings:
+Note	4226	Dropped users ['read_only'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user 'read_write'@'%';
+Warnings:
+Note	4226	Dropped users ['read_write'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user 'alter'@'%';
+Warnings:
+Note	4226	Dropped users ['alter'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user 'only_alter'@'%';
+Warnings:
+Note	4226	Dropped users ['only_alter'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop sequence s1;
 #
 # MDEV-36413  User without any privileges to a sequence can read from

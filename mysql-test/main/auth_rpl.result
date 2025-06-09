@@ -24,4 +24,6 @@ DROP USER 'plug_user';
 # Cleanup (on master).
 connection master;
 DROP USER 'plug_user';
+Warnings:
+Note	4226	Dropped users ['plug_user'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 include/rpl_end.inc

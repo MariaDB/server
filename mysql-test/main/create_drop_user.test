@@ -103,4 +103,6 @@ SET sql_mode= @save_sql_mode;
 --disconnect con1
 --disconnect con3
 --echo # Clean up
+--disable_warnings
 DROP USER u1, u2, u3;
+--enable_warnings

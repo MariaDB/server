@@ -133,6 +133,8 @@ connection default;
 DROP DATABASE mysqltest2;
 USE test;
 DROP USER mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect con1;
 create table t2 (i int )
 ENGINE = MyISAM

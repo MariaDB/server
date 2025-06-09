@@ -335,6 +335,8 @@ DROP PROCEDURE p1;
 --echo # Clean up
 --echo #
 disconnect conn1;
+--source include/wait_until_disconnected.inc
+
 connection default;
 
 DROP USER user1;

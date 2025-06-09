@@ -3934,6 +3934,8 @@ drop table t1;
 drop table u1;
 revoke all privileges on mysqldump_myDB.* from myDB_User@localhost;
 drop user myDB_User@localhost;
+Warnings:
+Note	4226	Dropped users ['myDB_User'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqldump_myDB;
 flush privileges;
 # Bug#21424 continues from here.

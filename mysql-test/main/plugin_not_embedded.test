@@ -18,7 +18,9 @@ connection con1;
 UNINSTALL PLUGIN example;
 disconnect con1;
 connection default;
+--disable_warnings
 DROP USER bug51770@localhost;
+--enable_warnings
 
 # 
 # BUG#58246: INSTALL PLUGIN not secure & crashable

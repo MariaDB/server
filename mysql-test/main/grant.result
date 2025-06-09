@@ -1299,6 +1299,8 @@ DROP TABLE t1;
 USE test;
 DROP DATABASE bug23556;
 DROP USER bug23556@localhost;
+Warnings:
+Note	4226	Dropped users ['bug23556'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection default;
 disconnect bug23556;
 connect  con1, localhost, root,,*NO-ONE*;
@@ -1587,6 +1589,8 @@ mysqltest1.f1()
 0
 connection default;
 drop user mysqluser1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqluser1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 #
 # Test that dropping of user is properly reflected in
 # both privilege tables and in in-memory structures.
@@ -1786,6 +1790,8 @@ revoke insert         on mysqltest.t4 from mysqltest@localhost;
 revoke create, insert on mysqltest.t5 from mysqltest@localhost;
 revoke create, insert on mysqltest.t6 from mysqltest@localhost;
 drop user mysqltest@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect user1;
 drop database mysqltest;
 use test;

@@ -492,7 +492,11 @@ disconnect con200;
 disconnect con201;
 disconnect anonymous1;
 disconnect anonymous2;
+--disable_warnings
 DROP USER ddicttestuser1@'localhost';
 DROP USER ddicttestuser2@'localhost';
+--enable_warnings
 REVOKE USAGE ON *.* FROM ''@'localhost';
+--disable_warnings
 DROP USER ''@'localhost';
+--enable_warnings

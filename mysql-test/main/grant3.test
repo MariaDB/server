@@ -167,7 +167,9 @@ SELECT * FROM mysqltest_1.t1;
 disconnect conn1;
 
 connection default;
+--disable_warnings
 DROP USER 'mysqltest1'@'%';
+--enable_warnings
 DROP DATABASE mysqltest_1;
 
 --echo #
@@ -203,7 +205,9 @@ SELECT b FROM temp.t1;
 disconnect conn1;
 
 connection default;
+--disable_warnings
 DROP USER 'user2'@'%';
+--enable_warnings
 DROP DATABASE temp;
 
 set global sql_mode=default;
@@ -235,7 +239,9 @@ create table t2 as values (1),(2),(3);
 disconnect foo;
 
 connection default;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 drop database db1;
 
 # Wait till we reached the initial number of concurrent sessions

@@ -119,4 +119,6 @@ disconnect con_user4;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'testUser'@'localhost';
 
+--disable_warnings
 DROP USER 'testUser'@'localhost';
+--enable_warnings

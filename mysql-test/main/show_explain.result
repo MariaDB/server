@@ -1048,6 +1048,8 @@ a
 SET debug_dbug=@old_debug;
 revoke all privileges on test.* from test2@localhost;
 drop user test2@localhost;
+Warnings:
+Note	4226	Dropped users ['test2'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect con2;
 #
 # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting

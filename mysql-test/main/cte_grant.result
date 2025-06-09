@@ -62,6 +62,8 @@ c	d
 connection root;
 revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 #
 # MDEV-13453: privileges checking for CTE

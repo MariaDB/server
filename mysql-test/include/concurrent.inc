@@ -595,6 +595,8 @@ disconnect thread1;
 disconnect thread2;
 connection default;
 drop table t1;
+--disable_warnings
 drop user mysqltest@localhost;
+--enable_warnings
 
 SET SQL_MODE=default;

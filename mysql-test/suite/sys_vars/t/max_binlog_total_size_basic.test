@@ -39,4 +39,6 @@ set global max_binlog_total_size=1;
 set global binlog_space_limit=1;
 disconnect con2;
 connection default;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings

@@ -137,7 +137,9 @@ connection default;
 
 DISCONNECT connn;
 
+--disable_warnings
 DROP USER sameea;
+--enable_warnings
 
 DROP TABLE t1;
 DROP TABLE t2;

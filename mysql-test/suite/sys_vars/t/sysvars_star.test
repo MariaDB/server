@@ -35,7 +35,9 @@ connection default;
 replace_regex /(C:)?\/.*\//var\//;
 select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
 disconnect foo;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 set global low_priority_updates=default;
 disable_warnings;
 uninstall soname 'sql_errlog';

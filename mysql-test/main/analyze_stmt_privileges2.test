@@ -5389,7 +5389,9 @@ ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 disconnect con1;
 connection default;
 
+--disable_warnings
 DROP USER 'privtest'@localhost;
+--enable_warnings
 USE test;
 DROP DATABASE privtest_db;
 

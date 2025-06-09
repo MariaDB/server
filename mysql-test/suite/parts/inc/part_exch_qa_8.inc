@@ -62,5 +62,7 @@ disconnect test2;
 connection default;
 --source suite/parts/inc/part_exch_drop_tabs.inc
 
+--disable_warnings
 DROP USER test2@localhost;
+--enable_warnings
 DROP DATABASE testdb;

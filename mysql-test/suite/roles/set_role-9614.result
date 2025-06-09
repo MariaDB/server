@@ -91,6 +91,10 @@ use bug_db;
 #
 connection default;
 drop user john;
+Warnings:
+Note	4226	Dropped users ['john'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user usertestjohn;
+Warnings:
+Note	4226	Dropped users ['usertestjohn'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop role client;
 drop database bug_db;

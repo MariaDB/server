@@ -354,6 +354,8 @@ show status like 'debug%';
 Variable_name	Value
 connection default;
 drop user foo@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop role role1;
 drop role role2;
 drop role role3;

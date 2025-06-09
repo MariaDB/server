@@ -291,7 +291,9 @@ select * from v5d;
 select * from v5i;
 disconnect foo;
 drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 drop procedure rootonly;
 --enable_service_connection
 
@@ -325,7 +327,9 @@ show index in t3;
 
 --disconnect con1
 --connection default
+--disable_warnings
 drop user u@localhost;
+--enable_warnings
 drop database db;
 
 --echo #
@@ -425,7 +429,9 @@ select * from information_schema.users;
 
 disconnect con2;
 connection default;
+--disable_warnings
 drop user naughty_user;
+--enable_warnings
 set global max_password_errors=@old_max_password_errors;
 
 --echo # more password expiration tests

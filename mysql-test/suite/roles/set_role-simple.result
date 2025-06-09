@@ -57,3 +57,5 @@ GRANT USAGE ON *.* TO `user1`@`%`
 set role none;
 connection default;
 drop user user1;
+Warnings:
+Note	4226	Dropped users ['user1'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.

@@ -162,10 +162,12 @@ revoke all privileges, grant option from user1@localhost;
 revoke all privileges, grant option from user2@localhost;
 revoke all privileges, grant option from user3@localhost;
 revoke all privileges, grant option from user4@localhost;
+--disable_warnings
 drop user user1@localhost;
 drop user user2@localhost;
 drop user user3@localhost;
 drop user user4@localhost;
+--disable_warnings
 flush privileges;
 
 truncate table performance_schema.setup_actors;

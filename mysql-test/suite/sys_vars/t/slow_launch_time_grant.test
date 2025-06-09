@@ -21,7 +21,9 @@ SET slow_launch_time=10;
 SET SESSION slow_launch_time=10;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET slow_launch_time" is allowed with CONNECTION ADMIN
 
@@ -36,6 +38,8 @@ SET slow_launch_time=10;
 SET SESSION slow_launch_time=10;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 SET @@global.slow_launch_time=@global;

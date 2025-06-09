@@ -473,6 +473,8 @@ Debug_role_merges_column	30
 Debug_role_merges_routine	28
 connection default;
 drop user foo@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop role role1;
 drop role role2;
 drop role role3;

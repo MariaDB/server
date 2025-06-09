@@ -53,7 +53,9 @@ disconnect root;
 
 connection default;
 set global binlog_format = @saved_binlog_format;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Testing if REPLICATION CLIENT privilege is enough to execute
 # SHOW MASTER LOGS and SHOW BINARY.
@@ -73,7 +75,9 @@ SHOW BINLOG STATUS;
 # clean up
 --disconnect rpl
 connection default;
+--disable_warnings
 DROP USER 'mysqltest_1'@'localhost';
+--enable_warnings
 
 --echo #
 --echo # End of 10.4 tests
@@ -110,7 +114,9 @@ SHOW BINARY LOGS;
 SHOW BINLOG STATUS;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test if PURGE BINARY LOGS is not allowed without BINLOG ADMIN
 CREATE USER user1@localhost;
@@ -122,7 +128,9 @@ REVOKE BINLOG ADMIN ON *.* FROM user1@localhost;
 PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test if PURGE BINLOG is allowed with BINLOG ADMIN
 CREATE USER user1@localhost;
@@ -132,7 +140,9 @@ GRANT BINLOG ADMIN ON *.* TO user1@localhost;
 PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
 --disconnect user1
 connection default;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test if SHOW BINLOG EVENTS is not allowed without BINLOG MONITOR
 CREATE USER user1@localhost;
@@ -144,7 +154,9 @@ REVOKE BINLOG MONITOR ON *.* FROM user1@localhost;
 SHOW BINLOG EVENTS;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test if SHOW BINLOG EVENTS is allowed with BINLOG MONITOR
 CREATE USER user1@localhost;
@@ -156,7 +168,9 @@ SHOW BINLOG EVENTS;
 --enable_result_log
 --disconnect user1
 connection default;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-21975 Add BINLOG REPLAY privilege and bind new privileges to

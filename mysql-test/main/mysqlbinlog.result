@@ -692,6 +692,8 @@ a	b
 connection default;
 DROP DATABASE mysqltest1;
 DROP USER untrusted@localhost;
+Warnings:
+Note	4226	Dropped users ['untrusted'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 Bug#32580 mysqlbinlog cannot read binlog event with user variables
 connection default;
 USE test;

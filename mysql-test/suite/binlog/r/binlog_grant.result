@@ -144,6 +144,8 @@ include/diff_tables.inc [t1,t2]
 #  Test cleanup
 DROP TABLE t2,t1;
 DROP USER user1@localhost;
+Warnings:
+Note	4226	Dropped users ['user1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 #
 # End of 10.5 test
 #

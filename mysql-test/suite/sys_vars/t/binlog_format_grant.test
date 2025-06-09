@@ -19,7 +19,9 @@ SET GLOBAL binlog_format=mixed;
 SET SESSION binlog_format=mixed;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET binlog_format" is allowed with BINLOG ADMIN
 
@@ -32,4 +34,6 @@ SET GLOBAL binlog_format=mixed;
 SET SESSION binlog_format=mixed;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings

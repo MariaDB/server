@@ -116,4 +116,6 @@ drop table t;
 # Global cleanup
 --disconnect chopped
 --connection default
+--disable_warnings
 drop user periods_hidden@localhost;
+--enable_warnings

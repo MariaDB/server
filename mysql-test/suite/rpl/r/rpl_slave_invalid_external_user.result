@@ -11,5 +11,7 @@ CREATE TRIGGER tr_before BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 SELECT 
 CREATE DEFINER='root'@'localhost' TRIGGER tr_after AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 SELECT variable_name FROM INFORMATION_SCHEMA.SESSION_VARIABLES;
 INSERT INTO t1 VALUES (1);
 DROP USER 'test_user'@'localhost';
+Warnings:
+Note	4226	Dropped users ['test_user'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP TABLE t1, t2;
 include/rpl_end.inc

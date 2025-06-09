@@ -190,8 +190,10 @@ eval $my_show1;
 connection default;
 disconnect testuser1;
 disconnect testuser2;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict;
 DROP DATABASE db_datadict_2;
 

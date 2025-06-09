@@ -78,7 +78,9 @@ SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFIN
 --disconnect ev_con1
 use test;
 DROP EVENT events_test.one_event;
+--disable_warnings
 DROP USER ev_test@localhost;
+--enable_warnings
 DROP DATABASE events_test;
 
 #

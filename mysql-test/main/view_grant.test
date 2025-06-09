@@ -115,7 +115,9 @@ select d from mysqltest.v1;
 connection root;
 disconnect user1;
 revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 drop database mysqltest;
 
 #
@@ -326,7 +328,9 @@ delete from v2 where c < 4;
 connection root;
 disconnect user1;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 drop database mysqltest;
 
 #
@@ -710,7 +714,9 @@ select @v1def1, @v1def2, @v1def1=@v1def2;
 
 connection root;
 disconnect test14256;
+--disable_warnings
 drop user test14256;
+--enable_warnings
 
 #
 # Bug#14726 freeing stack variable in case of an error of opening a view when
@@ -837,7 +843,9 @@ DROP VIEW mysqltest1.v_ti;
 DROP VIEW mysqltest1.v_ts;
 DROP VIEW mysqltest1.v_t1;
 DROP TABLE mysqltest1.t1;
+--disable_warnings
 DROP USER readonly@localhost;
+--enable_warnings
 DROP DATABASE mysqltest1;
 
 #
@@ -892,7 +900,9 @@ DROP VIEW mysqltest_db1.view2;
 DROP VIEW mysqltest_db1.view1;
 DROP TABLE mysqltest_db1.t1;
 DROP SCHEMA mysqltest_db1;
+--disable_warnings
 DROP USER mysqltest_db1@localhost;
+--enable_warnings
 #
 # Bug#20482 failure on Create join view with sources views/tables
 #           in different schemas
@@ -972,7 +982,9 @@ DROP PROCEDURE p1;
 DROP FUNCTION f1;
 DROP VIEW v2;
 DROP VIEW v1;
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
+--enable_warnings
 
 
 #
@@ -1021,7 +1033,9 @@ connection root;
 --echo for a superuser
 --error ER_MALFORMED_DEFINER
 SELECT * FROM v1;
+--disable_warnings
 DROP USER inv_17254@localhost;
+--enable_warnings
 DROP DATABASE db17254;
 disconnect def;
 
@@ -1091,8 +1105,10 @@ REVOKE ALL ON mysqltest_db1.* FROM mysqltest_u1@localhost;
 REVOKE ALL ON mysqltest_db2.* FROM mysqltest_u2@localhost;
 DROP DATABASE mysqltest_db1;
 DROP DATABASE mysqltest_db2;
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
 DROP USER mysqltest_u2@localhost;
+--enable_warnings
 
 #
 # Bug#26813 The SUPER privilege is wrongly required to alter a view created
@@ -1258,7 +1274,9 @@ disconnect bug24040_con;
 
 DROP DATABASE mysqltest1;
 DROP DATABASE mysqltest2;
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
+--enable_warnings
 
 
 #
@@ -1294,7 +1312,9 @@ disconnect addconfoo;
 USE test;
 REVOKE SELECT (f1) ON db1.t1 FROM foo;
 REVOKE SELECT (f1) ON db1.v1 FROM foo;
+--disable_warnings
 DROP USER foo;
+--enable_warnings
 DROP VIEW db1.v1;
 DROP TABLE db1.t1;
 DROP DATABASE db1;
@@ -1603,6 +1623,7 @@ disconnect test11765687;
 --echo ... as root again at last: clean-up time!
 connection root;
 
+--disable_warnings
 drop user alice@localhost;
 drop user bob@localhost;
 drop user cecil@localhost;
@@ -1620,6 +1641,7 @@ drop user noam@localhost;
 drop user olga@localhost;
 drop user pjotr@localhost;
 drop user quintessa@localhost;
+--enable_warnings
 
 drop database mysqltest1;
 
@@ -1695,7 +1717,9 @@ SELECT b FROM v1;
 DROP TABLE t1, t2;
 DROP VIEW v1;
 DROP DATABASE mysqltest1;
+--disable_warnings
 DROP USER mysqluser1@localhost;
+--enable_warnings
 USE test;
 
 --echo End of 5.1 tests.
@@ -1731,7 +1755,9 @@ CREATE VIEW v1 AS SELECT * FROM mysqltest1.t2;
 DROP TABLE t1, t2;
 DROP VIEW v1;
 DROP DATABASE mysqltest1;
+--disable_warnings
 DROP USER mysqluser1@localhost;
+--enable_warnings
 
 #
 # Bug#35600 Security breach via view, I_S table and prepared
@@ -1775,7 +1801,9 @@ EXECUTE stmt;
 DROP VIEW v1, v2;
 DROP DATABASE mysqltest1;
 DROP VIEW test.v3;
+--disable_warnings
 DROP USER mysqluser1@localhost;
+--enable_warnings
 USE test;
 
 --echo #
@@ -1888,7 +1916,9 @@ SHOW CREATE VIEW v_mysqluser1_v1;
 
 --disconnect connection1
 --connection default
+--disable_warnings
 DROP USER mysqluser1@localhost;
+--enable_warnings
 DROP DATABASE mysqltest1;
 DROP DATABASE mysqltest2;
 USE test;
@@ -1924,7 +1954,9 @@ SELECT a FROM v2;
 
 --connection default
 --disconnect mysqluser1
+--disable_warnings
 DROP USER mysqluser1;
+--enable_warnings
 DROP DATABASE mysqltest1;
 USE test;
 
@@ -2048,8 +2080,10 @@ SELECT * FROM v2_uses_t2;
 --connection default
 USE test;
 DROP DATABASE mysqltest1;
+--disable_warnings
 DROP USER 'mysqluser1'@'%';
 DROP USER 'mysqluser2'@'%';
+--enable_warnings
 
 --echo #
 --echo # Test for bug #11766767 - "59957: VIEW USING MERGE PERMISSIONS
@@ -2235,8 +2269,10 @@ SELECT CURRENT_USER;
 --connection default
 
 DROP VIEW v1;
+--disable_warnings
 DROP USER foo;
 DROP USER FOO;
+--enable_warnings
 
 --echo #
 --echo # MDEV-36380: User has unauthorized access to a sequence through

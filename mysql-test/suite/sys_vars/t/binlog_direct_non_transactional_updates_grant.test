@@ -21,8 +21,11 @@ SET GLOBAL binlog_direct_non_transactional_updates=0;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SET SESSION binlog_direct_non_transactional_updates=0;
 --disconnect user1
+
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET binlog_direct_non_transactional_updates" is allowed with BINLOG ADMIN
 
@@ -35,7 +38,9 @@ SET GLOBAL binlog_direct_non_transactional_updates=0;
 SET SESSION binlog_direct_non_transactional_updates=0;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 SET GLOBAL binlog_direct_non_transactional_updates=@global;
 SET SESSION binlog_direct_non_transactional_updates=@session;

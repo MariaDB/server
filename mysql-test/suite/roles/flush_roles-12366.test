@@ -375,5 +375,7 @@ DROP ROLE a_th;
 DROP ROLE b_th;
 DROP ROLE c_th;
 DROP ROLE d_th;
+--disable_warnings
 DROP USER u;
+--enable_warnings
 DROP ROLE operations_cluster;

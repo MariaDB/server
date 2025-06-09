@@ -77,6 +77,8 @@ grant auto_create to foo2@localhost identified by 'pass';
 ERROR 42000: You are not allowed to create a user with GRANT
 connection default;
 drop user foo@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user bar@localhost;
 drop role auto_create;
 drop user auto_create;

@@ -56,7 +56,9 @@ disconnect con2;
 disconnect con3;
 disconnect con4;
 disconnect con5;
+--disable_warnings
 drop user 'user_1'@'localhost';
+--enable_warnings
 
 --source include/delete_anonymous_users.inc
 
@@ -257,7 +259,9 @@ drop trigger trg1;
 set global init_connect="set @a='a\\0c'";
 
 revoke all privileges, grant option from mysqltest1@localhost;
+--disable_warnings
 drop user mysqltest1@localhost;
+--enable_warnings
 drop table t1, t2;
 
 # Wait till all disconnects are completed

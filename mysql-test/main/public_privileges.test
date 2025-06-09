@@ -66,7 +66,9 @@ disconnect testuser;
 REVOKE SELECT ON testdb1.* from PUBLIC;
 REVOKE SELECT ON testdb2.t2 from PUBLIC;
 REVOKE SELECT (b) ON testdb2.t3 from PUBLIC;
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb1;
 drop database testdb2;
 
@@ -113,7 +115,9 @@ use test;
 disconnect testuser;
 REVOKE PROCESS ON *.* from PUBLIC;
 REVOKE EXECUTE ON testdb.* from PUBLIC;
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb;
 
 --echo #
@@ -151,7 +155,9 @@ connection default;
 use test;
 disconnect testuser;
 REVOKE LOCK TABLES ON testdb.* from PUBLIC;
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb;
 
 
@@ -189,7 +195,9 @@ use test;
 disconnect testuser;
 REVOKE LOCK TABLES ON testdb.* from PUBLIC;
 REVOKE UPDATE,SELECT ON testdb.* from PUBLIC;
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb;
 
 
@@ -255,7 +263,9 @@ disconnect testuser;
 REVOKE ALL PRIVILEGES, GRANT OPTION from `PUBLIC`;
 SHOW GRANTS FOR PUBLIC;
 
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb;
 
 --echo #
@@ -302,7 +312,9 @@ use test;
 disconnect testuser;
 REVOKE ALTER ROUTINE ON testdb.* from PUBLIC;
 drop function testdb.f1;
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb;
 
 --echo #
@@ -329,7 +341,9 @@ select * from testdb1.t1;
 connection default;
  
 disconnect testuser;
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb1;
 
 --echo #
@@ -374,7 +388,9 @@ select * from testdb1.t1;
 connection default;
 disconnect testuser;
 
+--disable_warnings
 drop user testuser;
+--enable_warnings
 drop database testdb1;
 
 -- echo # clean up
@@ -401,7 +417,9 @@ disconnect testuser;
 
 REVOKE ALL PRIVILEGES ON `dbtest`.* FROM `PUBLIC`;
 REVOKE USAGE ON *.* FROM `testuser`@`%`;
+--disable_warnings
 drop user `testuser`@`%`;
+--enable_warnings
 drop database dbtest;
 
 -- echo # clean up

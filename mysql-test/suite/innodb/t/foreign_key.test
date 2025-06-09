@@ -387,7 +387,9 @@ disconnect foo;
 connection default;
 select * from t2;
 drop table t2, t1;
+--disable_warnings
 drop user foo;
+--enable_warnings
 
 --echo #
 --echo # MDEV-17595 - Server crashes in copy_data_between_tables or

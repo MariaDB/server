@@ -66,6 +66,8 @@ GRANT ALL PRIVILEGES ON *.* TO `mysqltest_1`@`localhost`
 GRANT DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost`
 GRANT DELETE HISTORY ON `mysqltest`.`t` TO `mysqltest_1`@`localhost`
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 disconnect root;

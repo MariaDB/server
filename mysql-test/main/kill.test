@@ -288,7 +288,9 @@ connection default;
 --error ER_QUERY_INTERRUPTED
 reap;
 disconnect con5;
+--disable_warnings
 DROP USER u1@localhost;
+--enable_warnings
 
 set global sql_mode=default;
 disconnect con1;

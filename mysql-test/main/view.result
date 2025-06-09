@@ -2902,6 +2902,8 @@ x
 1
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user21261'@'localhost';
 DROP USER 'user21261'@'localhost';
+Warnings:
+Note	4226	Dropped users ['user21261'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP VIEW v1;
 DROP TABLE t1;
 DROP DATABASE bug21261DB;

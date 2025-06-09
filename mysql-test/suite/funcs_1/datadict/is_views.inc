@@ -125,9 +125,11 @@ connection default;
 disconnect testuser1;
 disconnect testuser2;
 disconnect test_no_views;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'test_no_views'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict;
 
 --echo #########################################################################

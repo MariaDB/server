@@ -31,6 +31,8 @@ SHOW SLAVE HOSTS;
 Server_id	Host	Port	Master_id
 connection default;
 DROP USER user1@localhost;
+Warnings:
+Note	4226	Dropped users ['user1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 #
 # End of 10.5 tests
 #

@@ -313,7 +313,9 @@ flush privileges;
 --disconnect user_32753
 
 --connection default
+--disable_warnings
 drop user mysqltest_32753@localhost;
+--enable_warnings
 
 
 #

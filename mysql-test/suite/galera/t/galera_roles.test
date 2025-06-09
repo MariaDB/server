@@ -162,7 +162,9 @@ disconnect foo_node_2;
 --echo # Connect with node_1
 --connection node_1
 
+--disable_warnings
 DROP USER foo@localhost;
+--enable_warnings
 DROP DATABASE test1;
 
 --echo #

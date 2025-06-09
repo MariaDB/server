@@ -76,7 +76,9 @@ disconnect conn5;
 connection default;
 drop table t1;
 
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 drop schema mysqltest_1;
 
 --echo End of 5.1 tests

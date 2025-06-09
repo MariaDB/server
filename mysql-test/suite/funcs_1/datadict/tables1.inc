@@ -32,5 +32,7 @@ connect (testuser1,localhost,testuser1,,test1);
 
 connection default;
 disconnect testuser1;
+--disable_warnings
 DROP USER testuser1@localhost;
+--enable_warnings
 DROP DATABASE test1;

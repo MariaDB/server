@@ -45,7 +45,9 @@ drop table t1;
 --connection default
 
 --disconnect con_test
+--disable_warnings
 drop user test;
+--enable_warnings
 
 # check files in datadir about t1
 --list_files  $DATADIR/test/

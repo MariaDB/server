@@ -51,6 +51,8 @@ test_user@localhost	test_user@localhost
 # Cleanup
 connection default;
 DROP USER 'test_user'@'%';
+Warnings:
+Note	4226	Dropped users ['test_user'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP FUNCTION test.func_session_user;
 DROP VIEW test.view_session_user;
 DROP TABLE test.t1;

@@ -956,9 +956,17 @@ revoke all privileges, grant option from user2@localhost;
 revoke all privileges, grant option from user3@localhost;
 revoke all privileges, grant option from user4@localhost;
 drop user user1@localhost;
+Warnings:
+Note	4226	Dropped users ['user1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user user2@localhost;
+Warnings:
+Note	4226	Dropped users ['user2'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user user3@localhost;
+Warnings:
+Note	4226	Dropped users ['user3'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user user4@localhost;
+Warnings:
+Note	4226	Dropped users ['user4'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 flush privileges;
 truncate table performance_schema.setup_actors;
 insert into performance_schema.setup_actors

@@ -536,7 +536,13 @@ END//
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 connection default;
 drop user test_general@localhost;
+Warnings:
+Note	4226	Dropped users ['test_general'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user test_general;
+Warnings:
+Note	4226	Dropped users ['test_general'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user test_super@localhost;
+Warnings:
+Note	4226	Dropped users ['test_super'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP TABLE test.tb3;
 set GLOBAL sql_mode=default;

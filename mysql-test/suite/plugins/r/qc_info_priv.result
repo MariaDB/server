@@ -44,6 +44,8 @@ count(*)
 0
 connection default;
 drop user mysqltest;
+Warnings:
+Note	4226	Dropped users ['mysqltest'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop table t1;
 set @@global.query_cache_size=@save_query_cache_size;
 set global query_cache_type=default;

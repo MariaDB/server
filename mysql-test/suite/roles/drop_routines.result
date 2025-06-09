@@ -79,3 +79,5 @@ connection default;
 drop function mysql.test_func;
 drop role r1, r2, r3;
 drop user u1;
+Warnings:
+Note	4226	Dropped users ['u1'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.

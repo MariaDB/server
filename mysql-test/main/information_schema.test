@@ -657,7 +657,9 @@ disconnect con1;
 disconnect con2;
 disconnect con3;
 disconnect con4;
+--disable_warnings
 drop user user1@localhost, user2@localhost, user3@localhost, user4@localhost;
+--enable_warnings
 use test;
 drop database mysqltest;
 
@@ -897,7 +899,9 @@ connection default;
 disconnect con16681;
 drop view v1, v2;
 drop table t1;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 #
 # Bug#19599 duplication of information_schema column value in a CONCAT expr with user var
@@ -941,7 +945,9 @@ connection default;
 
 DROP FUNCTION f1;
 DROP PROCEDURE p1;
+--disable_warnings
 DROP USER mysql_bug20230@localhost;
+--enable_warnings
 
 #
 # Bug#21231 query with a simple non-correlated subquery over
@@ -1071,7 +1077,9 @@ select trigger_name from information_schema.triggers
 where event_object_table='t1';
 connection default;
 disconnect con27629;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 drop database mysqltest;
 
 #
@@ -1140,7 +1148,9 @@ connection con3148;
 select user,db from information_schema.processlist;
 connection default;
 disconnect con3148;
+--disable_warnings
 drop user user3148@localhost;
+--enable_warnings
 
 #
 # `time` and `time_ms` columns of INFORMATION_SCHEMA.PROCESSLIST.
@@ -1460,7 +1470,9 @@ SELECT COUNT(*) FROM TABLES WHERE TABLE_NAME='t1';
 connection default;
 --echo # connected as root
 disconnect nonpriv_con;
+--disable_warnings
 DROP USER nonpriv;
+--enable_warnings
 DROP TABLE db1.t1;
 DROP DATABASE db1;
 
@@ -1499,7 +1511,9 @@ connection con1;
 select 1 from information_schema.tables where table_schema=repeat('a', 2000);
 connection default;
 disconnect con1;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 --echo End of 5.1 tests.
 

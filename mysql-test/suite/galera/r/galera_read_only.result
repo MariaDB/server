@@ -33,3 +33,6 @@ DROP TABLE t2;
 SET GLOBAL read_only=FALSE;
 DROP TABLE t1;
 DROP USER foo@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
+

@@ -38,7 +38,9 @@ SHOW PROFILES;
 #========== Clean up ===========
 connection default;
 disconnect con1;
+--disable_warnings
 DROP USER mysqltest1@localhost;
+--enable_warnings
 
 SET GLOBAL profiling=@saved_profiling;
 SET GLOBAL init_connect=@saved_init_connect;

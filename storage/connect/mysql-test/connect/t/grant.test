@@ -67,7 +67,9 @@ DELETE FROM v1;
 SELECT user();
 DROP VIEW v1;
 DROP TABLE t1;
+--disable_warnings
 DROP USER user@localhost;
+--enable_warnings
 --echo #
 --echo # Testing FILE privileges done
 --echo #

@@ -47,6 +47,8 @@ call mbase.p1();
 connection default;
 use `inf%`;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop table t1;
 select table_name, table_type, table_comment from information_schema.tables
 where table_schema='inf%' and func2();
@@ -248,6 +250,8 @@ show create view testdb_1.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `testdb_1`.`v1`
 connection default;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database testdb_1;
 connection user1;
 disconnect user1;
@@ -477,6 +481,8 @@ USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
 # Delete user while some connection is still alive, then select.
 connection default;
 drop user nice_user;
+Warnings:
+Note	4226	Dropped users ['nice_user'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection con2;
 select * from information_schema.users;
 ERROR 0L000: The current user is invalid

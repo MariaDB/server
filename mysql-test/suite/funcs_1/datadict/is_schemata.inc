@@ -131,9 +131,11 @@ connection default;
 disconnect testuser1;
 disconnect testuser2;
 disconnect testuser3;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict_1;
 DROP DATABASE db_datadict_2;
 

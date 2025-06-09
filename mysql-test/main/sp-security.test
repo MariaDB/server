@@ -412,7 +412,9 @@ drop procedure bug7291_2;
 drop procedure bug7291_0;
 disconnect user1;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM user1@localhost;
+--disable_warnings
 drop user user1@localhost;
+--enable_warnings
 
 #
 # Bug#12318 Wrong error message when accessing an inaccessible stored
@@ -453,7 +455,9 @@ drop procedure mysqltest_1.p1;
 drop database mysqltest_1;
 
 revoke usage on *.* from mysqltest_1@localhost;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 #
 # Bug#12812 create view calling a function works without execute right
@@ -478,6 +482,7 @@ CREATE VIEW v1 AS SELECT test.bug12812()|
 # Cleanup
 connection default|
 disconnect test_user_12812|
+--source include/wait_until_disconnected.inc
 DROP USER user_bug12812@localhost|
 drop function bug12812|
 delimiter ;|
@@ -520,9 +525,11 @@ connection default;
 disconnect user1_bug14834;
 disconnect user2_bug14834;
 disconnect user3_bug14834;
+--disable_warnings
 drop user user1_bug14834@localhost;
 drop user user2_bug14834@localhost;
 drop user user3_bug14834@localhost;
+--enable_warnings
 drop database db_bug14834;
 
 
@@ -562,7 +569,9 @@ select * from db_bug14533.t1;
 # Cleanup
 connection default;
 disconnect user_bug14533;
+--disable_warnings
 drop user user_bug14533@localhost;
+--enable_warnings
 drop database db_bug14533;
 
 
@@ -714,7 +723,9 @@ SELECT bug13198_f1();
 
 --disconnect mysqltest_1_con
 
+--disable_warnings
 DROP USER mysqltest_1@localhost;
+--enable_warnings
 
 # Check that u2 can not call the procedure/function.
 
@@ -734,7 +745,9 @@ SELECT bug13198_f1();
 
 --disconnect mysqltest_2_con
 
+--disable_warnings
 DROP USER mysqltest_2@localhost;
+--enable_warnings
 
 DROP DATABASE mysqltest;
 
@@ -778,7 +791,9 @@ DROP PROCEDURE IF EXISTS test.sp19857;
 
 SELECT Host,User,Plugin,Authentication_string FROM mysql.user WHERE User='user19857';
 
+--disable_warnings
 DROP USER user19857@localhost;
+--enable_warnings
 
 --disconnect con1root
 --connection default
@@ -850,7 +865,9 @@ connection default;
 
 DROP VIEW v1;
 DROP FUNCTION f_evil;
+--disable_warnings
 DROP USER mysqltest_u1@localhost;
+--enable_warnings
 DROP PROCEDURE p_suid;
 DROP FUNCTION f_suid;
 DROP TABLE t1;
@@ -910,8 +927,10 @@ DROP FUNCTION `f_Test`;
 DROP FUNCTION `f_Test_denied`;
 
 USE test;
+--disable_warnings
 DROP USER 'tester';
 DROP USER 'Tester';
+--enable_warnings
 DROP DATABASE B48872;
 
 --echo #
@@ -944,7 +963,9 @@ drop function if exists mysqltest_db.f1;
 drop procedure if exists mysqltest_db.p1;
 connection default;
 disconnect conn1;
+--disable_warnings
 drop user bug57061_user@localhost;
+--enable_warnings
 drop database mysqltest_db;
 
 
@@ -977,7 +998,9 @@ SHOW CREATE PROCEDURE db1.p1;
 
 connection default;
 disconnect con2;
+--disable_warnings
 DROP USER user2@localhost;
+--enable_warnings
 DROP DATABASE db1;
 
 #
@@ -995,8 +1018,10 @@ create procedure fooproc() select 'i am fooproc';
 show grants;
 disconnect con1;
 connection default;
+--disable_warnings
 drop user foo@local_ost;
 drop user foo@`local\_ost`;
+--enable_warnings
 drop procedure fooproc;
 drop database foodb;
 
@@ -1038,7 +1063,9 @@ create view bug12602983_v1 as select mysqltest_db.f1();
 
 connection default;
 disconnect conn1;
+--disable_warnings
 drop user bug12602983_user@localhost;
+--enable_warnings
 drop database mysqltest_db;
 
 # Wait till all disconnects are completed
@@ -1055,7 +1082,9 @@ show grants;
 drop procedure sp1;
 disconnect u1;
 connection default;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE
@@ -1081,7 +1110,9 @@ DELIMITER ;$$
 disconnect u1;
 connection default;
 DROP DATABASE u1;
+--disable_warnings
 DROP USER u1@localhost;
+--enable_warnings
 
 set @@global.character_set_server=@save_character_set_server;
 
@@ -1601,7 +1632,9 @@ SET sql_mode=ORACLE;
 revoke show create routine on package body test_db.pk from user@localhost;
 SET sql_mode=@save_sql_mode;
 
+--disable_warnings
 drop user user@localhost;
+--enable_warnings
 drop database test_db;
 
 --echo #
@@ -1671,6 +1704,7 @@ SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.RO
 connection default;
 disconnect conn1;
 
+--error 0,ER_CANNOT_USER
 drop user user@localhost;
 drop database test_db;
 

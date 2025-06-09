@@ -810,8 +810,10 @@ DROP TRIGGER t1_bi;
 disconnect definer;
 disconnect invoker;
 connection default;
+--disable_warnings
 DROP USER mysqltest_inv@localhost;
 DROP USER mysqltest_dfn@localhost;
+--enable_warnings
 DROP TABLE t2;
 DROP TABLE t1;
 DROP DATABASE mysqltest_db1;
@@ -942,7 +944,9 @@ SHOW CREATE TRIGGER db1.trg;
 
 connection default;
 disconnect con1;
+--disable_warnings
 DROP USER 'no_rights'@'localhost';
+--enable_warnings
 DROP DATABASE db1;
 
 #

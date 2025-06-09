@@ -246,7 +246,9 @@ connection default;
 set global read_only=0;
 disconnect con1;
 drop table t1,t2;
+--disable_warnings
 drop user test@localhost;
+--enable_warnings
 
 --echo #
 --echo # Bug#27440 read_only allows create and drop database

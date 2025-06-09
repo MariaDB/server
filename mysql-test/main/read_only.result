@@ -336,5 +336,7 @@ count(*)
 4
 drop table t1;
 drop user user1;
+Warnings:
+Note	4226	Dropped users ['user1'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect con1;
 # End of 11.8 tests

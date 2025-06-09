@@ -50,3 +50,5 @@ connection default;
 drop role simple;
 drop role admin;
 drop user foo;
+Warnings:
+Note	4226	Dropped users ['foo'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.

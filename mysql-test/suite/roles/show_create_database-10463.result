@@ -61,5 +61,9 @@ connection default;
 drop database db;
 drop role r1;
 drop user beep;
+Warnings:
+Note	4226	Dropped users ['beep'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop role r2;
 drop user beep2;
+Warnings:
+Note	4226	Dropped users ['beep2'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.

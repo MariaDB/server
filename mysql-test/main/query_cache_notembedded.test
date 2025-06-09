@@ -280,7 +280,9 @@ connection default;
 USE test;
 DROP DATABASE bug30269;
 disconnect bug30269;
+--disable_warnings
 DROP USER 'bug30269'@'localhost';
+--enable_warnings
 
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;

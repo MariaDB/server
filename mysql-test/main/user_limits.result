@@ -23,6 +23,8 @@ select * from t1;
 ERROR 42000: User 'mysqltest_1' has exceeded the 'max_queries_per_hour' resource (current value: 2)
 connection default;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect mqph;
 disconnect mqph2;
 create user mysqltest_1@localhost;
@@ -50,6 +52,8 @@ select * from t1;
 i
 connection default;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect muph;
 disconnect muph2;
 create user mysqltest_1@localhost;

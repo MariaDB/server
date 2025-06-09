@@ -6384,7 +6384,9 @@ select * from v;
 --connection default
 use test;
 drop database test_db;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-13523: Group By in a View, called within a Stored Routine
@@ -6418,7 +6420,9 @@ execute stmt;
 # Cleanup
 --disconnect con1
 --connection default
+--disable_warnings
 drop user procView;
+--enable_warnings
 drop view procViewSimple;
 drop table procViewTable;
 use test;

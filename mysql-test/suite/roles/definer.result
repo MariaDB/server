@@ -620,6 +620,8 @@ drop view test.v1, test.v2, test.v3, test.v4, test.v5;
 drop table t1, t2;
 drop role role1, role2;
 drop user foo@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest1;
 use test;
 create user utest;
@@ -748,8 +750,14 @@ drop role r2;
 drop role r3;
 drop role user_like_role;
 drop user user1;
+Warnings:
+Note	4226	Dropped users ['user1'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user foo;
+Warnings:
+Note	4226	Dropped users ['foo'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user user_like_role;
+Warnings:
+Note	4226	Dropped users ['user_like_role'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop procedure user1_proc;
 drop procedure user1_proc2;
 drop procedure sensitive_proc;

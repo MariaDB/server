@@ -272,7 +272,9 @@ disconnect u1;
 
 connection default;
 drop table t1;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 set global read_only=0;
 
 --echo # End of 10.5 tests

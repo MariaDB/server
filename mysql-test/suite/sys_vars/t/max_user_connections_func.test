@@ -84,6 +84,8 @@ DISCONNECT conn2;
 DISCONNECT conn5;
 DISCONNECT conn6;
 
+--disable_warnings
 drop user test@localhost;
+--enable_warnings
 
 SET @@global.max_user_connections = @default_max_user_connections;

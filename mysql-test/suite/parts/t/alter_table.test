@@ -322,7 +322,9 @@ alter table t1 convert partition p1 to table tp1;
 --connection default
 
 drop database EXISTENT;
+--disable_warnings
 drop user alan;
+--enable_warnings
 drop tables t1, tp1, tp2, tp4;
 
 --echo #
@@ -340,7 +342,9 @@ alter table t1 convert table tp to partition p2 values less than (1000);
 # Cleanup
 --disconnect con1
 --connection default
+--disable_warnings
 drop user u@localhost;
+--enable_warnings
 drop database db;
 
 --echo # End of 10.11 tests

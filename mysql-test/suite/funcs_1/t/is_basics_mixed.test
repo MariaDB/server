@@ -306,8 +306,10 @@ FROM information_schema.tables WHERE table_schema = 'db_datadict';
 connection default;
 disconnect testuser1;
 disconnect testuser2;
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
+--enable_warnings
 DROP DATABASE db_datadict;
 
 

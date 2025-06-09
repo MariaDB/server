@@ -88,5 +88,7 @@ connection default;
 SET GLOBAL READ_ONLY=0;
 
 disconnect con1;
+--disable_warnings
 DROP USER test@localhost;
+--enable_warnings
 --disable_connect_log

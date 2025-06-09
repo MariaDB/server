@@ -53,4 +53,6 @@ Warnings:
 Note	1008	Can't drop database 'db2'; database doesn't exist
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 set global sql_mode=default;

@@ -73,8 +73,10 @@ lock table mysqltest3.v3i write; select * from mysqltest3.v3i;
 disconnect inv;
 connection default;
 
+--disable_warnings
 drop user invoker@localhost;
 drop user definer@localhost;
+--enable_warnings
 drop database mysqltest1;
 drop database mysqltest2;
 drop database mysqltest3;
@@ -94,5 +96,7 @@ connection default;
 exec $MYSQL_DUMP --no-autocommit=0 test v1 -uu1 --compact;
 drop view v1;
 drop table t1;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 --enable_service_connection

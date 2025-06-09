@@ -143,6 +143,8 @@ disconnect test_con2;
 
 connection default;
 
+--disable_warnings
 DROP USER tt@localhost;
+--enable_warnings
 SET @@global.log_bin_trust_function_creators= @start_value;
 

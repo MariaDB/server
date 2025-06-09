@@ -87,6 +87,8 @@ f
 7
 drop table t1, t2;
 drop user zedjzlcsjhd@localhost;
+Warnings:
+Note	4226	Dropped users ['zedjzlcsjhd'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 use test;
 SET TIMESTAMP=1040323920;
 create table t1(f int);

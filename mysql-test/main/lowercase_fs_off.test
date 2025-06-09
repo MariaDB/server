@@ -25,7 +25,9 @@ disconnect sample;
 --source include/wait_until_disconnected.inc
 
 connection master;
+--disable_warnings
 drop user 'sample'@'localhost';
+--enable_warnings
 drop database if exists d1;
 disconnect master;
 --source include/wait_until_disconnected.inc
@@ -55,7 +57,9 @@ connection default;
 disconnect con1;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM user_1@localhost;
+--disable_warnings
 DROP USER user_1@localhost;
+--enable_warnings
 DROP DATABASE d1;
 USE test;
 
@@ -89,8 +93,10 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM user_1@localhost;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM USER_1@localhost;
 DROP FUNCTION f1;
 DROP PROCEDURE p1;
+--disable_warnings
 DROP USER user_1@localhost;
 DROP USER USER_1@localhost;
+--enable_warnings
 DROP DATABASE db1;
 use test;
 

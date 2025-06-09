@@ -177,7 +177,9 @@ order by relative_event_id asc;
 
 --disable_query_log
 revoke all privileges, grant option from user1@localhost;
+--disable_warnings
 drop user user1@localhost;
+--enable_warnings
 flush privileges;
 
 truncate table performance_schema.setup_actors;

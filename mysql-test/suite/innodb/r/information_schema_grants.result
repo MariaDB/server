@@ -267,3 +267,5 @@ SET GLOBAL innodb_max_purge_lag_wait=0;
 drop database test;
 create database test;
 drop user select_only@localhost;
+Warnings:
+Note	4226	Dropped users ['select_only'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.

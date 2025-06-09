@@ -26,7 +26,9 @@ disconnect con1;
 
 connection default;
 SET @@GLOBAL.read_only=0;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 DROP TABLE t1;
 
 --echo #
@@ -50,7 +52,9 @@ disconnect con1;
 
 connection default;
 SET @@GLOBAL.read_only=0;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 DROP TABLE t1;
 
 
@@ -81,7 +85,9 @@ disconnect con1;
 
 connection default;
 SET @@GLOBAL.read_only=0;
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 DROP TABLE t1;
 
 --echo #

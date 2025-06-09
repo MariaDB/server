@@ -45,7 +45,9 @@ set session authorization fist@list;
 select @a;
 disconnect con1;
 connection default;
+--disable_warnings
 drop user ''@'l%t';
+--enable_warnings
 
 create user ''@'%' identified via mysql_native_password using password('foo');
 connect con1, localhost, root;
@@ -99,7 +101,9 @@ set session authorization u1@localhost;
 select @@max_statement_time;
 disconnect u1;
 connection default;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-36399 SET SESSION AUTHORIZATION allows an unrpivileged user to bypass resource limits
@@ -114,7 +118,9 @@ select 1;
 select 2;
 disconnect u1;
 connection default;
+--disable_warnings
 drop user u1;
+--enable_warnings
 
 --echo #
 --echo # MDEV-36401 Access denied errors produced by SET SESSION AUTHORIZATION not reflected in status values
@@ -134,7 +140,9 @@ set session authorization foo@bar;
 disconnect u1;
 connection default;
 show global status like 'access_denied_errors';
+--disable_warnings
 drop user u1;
+--enable_warnings
 
 --echo #
 --echo # MDEV-36405 Session tracking does not report changes from COM_CHANGE_USER

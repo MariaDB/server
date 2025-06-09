@@ -77,6 +77,8 @@ Note	1976	Can't drop role 'role_1'; it doesn't exist
 DROP ROLE role_1;
 ERROR HY000: Operation DROP ROLE failed for 'role_1'
 DROP USER u1@localhost;
+Warnings:
+Note	4226	Dropped users ['u1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 CREATE ROLE r;
 GRANT SHOW DATABASES ON *.* TO r;
 CREATE USER foo;

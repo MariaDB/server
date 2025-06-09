@@ -46,6 +46,8 @@ Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
 connection master;
 drop user replssl@localhost;
+Warnings:
+Note	4226	Dropped users ['replssl'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop table t1;
 connection slave;
 include/stop_slave.inc

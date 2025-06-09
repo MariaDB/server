@@ -17,6 +17,8 @@ show grants for foo@'%';
 ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
 connection default;
 drop user test, foo;
+Warnings:
+Note	4226	Dropped users ['test'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop role foo;
 CREATE TABLE t1 (a INT);
 LOCK TABLE t1 WRITE;

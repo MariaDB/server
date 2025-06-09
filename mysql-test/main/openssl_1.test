@@ -58,7 +58,9 @@ connection default;
 disconnect con1;
 disconnect con3;
 disconnect con4;
+--disable_warnings
 drop user ssl_user1@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
+--enable_warnings
 
 drop table t1;
 
@@ -192,7 +194,9 @@ connect(con1,localhost,bug42158,,,,,SSL);
 SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 disconnect con1;
 connection default;
+--disable_warnings
 DROP USER bug42158@localhost;
+--enable_warnings
 
 set global sql_mode=default;
 --echo End of 5.1 tests

@@ -8,7 +8,9 @@ connect a,localhost,a;
 select * from performance_schema.global_status where variable_name='b';
 connection default;
 disconnect a;
+--disable_warnings
 drop user a@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-35384 Table performance_schema.session_status and other two tables are not shown in information_schema.tables for normal users
@@ -20,6 +22,8 @@ select table_schema,engine from information_schema.tables where table_name='sess
 select count(*) > 0 as 'table is readable' from performance_schema.session_status;
 connection default;
 disconnect foo;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 
 --echo # End of 10.6 tests

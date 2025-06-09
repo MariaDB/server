@@ -73,7 +73,9 @@ select USER(),CURRENT_USER();
 
 connection default;
 disconnect non_ascii;
+--disable_warnings
 DROP USER `Ÿ`;
+--enable_warnings
 
 --echo ## test GRANT ... IDENTIFIED WITH/BY ...
 
@@ -110,7 +112,9 @@ DROP TABLE t1;
 connection default;
 disconnect plug_con_grant;
 
+--disable_warnings
 DROP USER new_grant_user;
+--enable_warnings
 
 --echo # try re-create existing user via GRANT IDENTIFIED WITH
 
@@ -235,6 +239,7 @@ SHOW GRANTS FOR test_drop@localhost;
 DROP USER test_drop@localhost;
 SELECT * FROM mysql.proxies_priv WHERE Host = 'test_drop' AND User = 'localhost';
 
+--disable_warnings
 DROP USER proxy_admin;
 
 DROP USER grant_plug,grant_plug_dest,grant_plug_dest2;
@@ -244,6 +249,7 @@ DROP USER grant_plug,grant_plug_dest,grant_plug_dest2;
 --echo ## cleanup
 DROP USER plug;
 DROP USER plug_dest;
+--enable_warnings
 
 --echo ## @@proxy_user tests
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
@@ -268,8 +274,10 @@ connection default;
 disconnect plug_con;
 
 --echo ## cleanup
+--disable_warnings
 DROP USER plug;
 DROP USER plug_dest;
+--enable_warnings
 --echo ## END @@proxy_user tests
 
 --echo ## @@external_user tests
@@ -294,8 +302,10 @@ connection default;
 disconnect plug_con;
 
 --echo ## cleanup
+--disable_warnings
 DROP USER plug;
 DROP USER plug_dest;
+--enable_warnings
 --echo ## END @@external_user tests
 
 --echo #
@@ -314,8 +324,10 @@ SELECT user(),current_user(),@@proxy_user;
 connection default;
 disconnect plug_con;
 
+--disable_warnings
 DROP USER power_user;
 DROP USER ''@'%%';
+--enable_warnings
 DROP DATABASE confidential_db;
 
 --echo # Test case #2 (crash with double grant proxy)
@@ -377,7 +389,9 @@ disconnect proxy_granter_con;
 REVOKE ALL PRIVILEGES ON *.* FROM u1@localhost, u2@localhost;
 
 --echo # test if DROP USER work without the proxies_priv table
+--disable_warnings
 DROP USER u1@localhost,u2@localhost;
+--enable_warnings
 
 --echo # test if FLUSH PRIVILEGES works without the proxies_priv table
 FLUSH PRIVILEGES;
@@ -423,7 +437,9 @@ select USER(),CURRENT_USER();
 
 connection default;
 disconnect cleartext_con;
+--disable_warnings
 DROP USER uplain@localhost;
+--enable_warnings
 
 # prepare for two tests that use mysql.user table
 source include/switch_to_mysql_user.inc;
@@ -536,8 +552,9 @@ connect(b12610784,localhost,bug12610784,,test);
 connect(b12610784,localhost,bug12610784,secret,"*NO-ONE*");
 connection default;
 disconnect b12610784;
+--disable_warnings
 DROP USER bug12610784@localhost;
-
+--enable_warnings
 
 --echo #
 --echo # Bug #12818542: PAM: ADDING PASSWORD FOR AN ACCOUNT DISABLES PAM 
@@ -564,8 +581,10 @@ SELECT USER(),CURRENT_USER();
 connection default;
 disconnect bug12818542_con2;
 
+--disable_warnings
 DROP USER bug12818542@localhost;
 DROP USER bug12818542_dest@localhost;
+--enable_warnings
 
 SET GLOBAL SQL_MODE=default;
 --echo End of 5.5 tests

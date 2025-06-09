@@ -20,5 +20,7 @@ connect (foo, localhost, foo);
 call mysql.AddGeometryColumn('', 'mysql', 'proc', 'c', 10);
 disconnect foo;
 connection default;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 

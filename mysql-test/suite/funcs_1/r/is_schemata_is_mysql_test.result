@@ -37,4 +37,6 @@ SHOW DATABASES LIKE 'test';
 Database (test)
 connection default;
 DROP USER 'testuser1'@'localhost';
+Warnings:
+Note	4226	Dropped users ['testuser1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP DATABASE db_datadict;

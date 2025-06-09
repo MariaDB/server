@@ -162,6 +162,8 @@ connection master;
 xa rollback '1';
 connection master;
 drop user test;
+Warnings:
+Note	4226	Dropped users ['test'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop table t1;
 drop table t2;
 connection slave;

@@ -173,8 +173,10 @@ disconnect testuser1;
 disconnect testuser2;
 
 # Cleanup
+--disable_warnings
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
+--enable_warnings
 DROP DATABASE IF EXISTS db_datadict;
 
 

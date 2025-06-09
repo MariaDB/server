@@ -153,3 +153,5 @@ revoke role4 from current_user;
 grant role4 to current_user;
 drop role role1, role2, role3, role4, role5, role6;
 drop user foo@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.

@@ -27,7 +27,9 @@ GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 REVOKE PROXY ON plug_dest FROM plug_user;
 --error 1
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
+--disable_warnings
 DROP USER plug_user,plug_dest;
+--enable_warnings
 #
 # GRANT...WITH
 GRANT ALL PRIVILEGES ON test_user_db.* TO plug_user
@@ -123,7 +125,9 @@ UPDATE mysql.global_priv SET user='plug_user' WHERE user='new_user';
 FLUSH PRIVILEGES;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
+--disable_warnings
 DROP USER plug_dest,plug_user;
+--enable_warnings
 --echo ========== test 1.3 ========================================
 
 #
@@ -173,7 +177,9 @@ connect(plug_user,localhost,new_dest,new_dest_passwd,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_user;
+--disable_warnings
 DROP USER new_user,new_dest,plug_dest;
+--enable_warnings
 
 --echo ========== test 2, 2.1, 2.2 ================================
 
@@ -202,7 +208,9 @@ SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
 connection default;
 disconnect proxy_con;
+--disable_warnings
 DROP USER ''@'%%',proxied_user;
+--enable_warnings
 #
 GRANT ALL PRIVILEGES ON test_user_db.* TO ''@'%%' 
                      IDENTIFIED WITH test_plugin_server AS 'proxied_user';
@@ -228,7 +236,9 @@ SELECT USER(),CURRENT_USER();
 SELECT @@proxy_user;
 connection default;
 disconnect proxy_con;
+--disable_warnings
 DROP USER ''@'%%',proxied_user;
+--enable_warnings
 #
 CREATE USER ''@'%%' IDENTIFIED WITH test_plugin_server AS 'proxied_user';
 CREATE USER proxied_user_1 IDENTIFIED BY 'proxied_user_1_pwd';
@@ -269,7 +279,9 @@ disconnect proxy_con_2;
 disconnect proxy_con_3;
 disconnect proxy_con_4;
 disconnect proxy_con_5;
+--disable_warnings
 DROP USER ''@'%%',proxied_user_1,proxied_user_2,proxied_user_3,proxied_user_4,proxied_user_5;
+--enable_warnings
 
 --echo ========== test 3 ==========================================
 

@@ -94,7 +94,9 @@ connection default;
 USE db_storedproc_1;
 --source suite/funcs_1/include/show_connection.inc
 
+--disable_warnings
 DROP USER 'user_1'@'localhost';
+--enable_warnings
 DROP PROCEDURE sp1;
 
 
@@ -149,7 +151,9 @@ connection default;
 USE db_storedproc_1;
 --source suite/funcs_1/include/show_connection.inc
 
+--disable_warnings
 drop user 'user_1'@'localhost';
+--enable_warnings
 DROP PROCEDURE sp3;
 DROP FUNCTION fn1;
 
@@ -202,7 +206,9 @@ disconnect user3;
 connection default;
 --source suite/funcs_1/include/show_connection.inc
 DROP PROCEDURE sp4;
+--disable_warnings
 DROP USER 'user_1'@'localhost';
+--enable_warnings
 
 
 # ------------------------------------------------------------------------------
@@ -330,8 +336,10 @@ DROP PROCEDURE sp5_s_i;
 DROP PROCEDURE sp5_sel;
 DROP PROCEDURE sp5_ins;
 DROP TABLE t3165;
+--disable_warnings
 DROP USER 'user_1'@'localhost';
 DROP USER 'user_2'@'localhost';
+--enable_warnings
 
 
 # ------------------------------------------------------------------------------
@@ -445,8 +453,10 @@ DROP PROCEDURE sp3166_s_i;
 DROP PROCEDURE sp3166_sel;
 DROP PROCEDURE sp3166_ins;
 DROP TABLE t3166;
+--disable_warnings
 DROP USER 'user_1'@'localhost';
 DROP USER 'user_2'@'localhost';
+--enable_warnings
 
 
 # ==============================================================================

@@ -23,6 +23,8 @@ connection default;
 set global read_only=0;
 drop table table_11733 ;
 drop user test@localhost;
+Warnings:
+Note	4226	Dropped users ['test'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect con1;
 create user test@localhost;
 GRANT CREATE, SELECT, DROP, LOCK TABLES ON *.* TO test@localhost;
@@ -69,6 +71,8 @@ SET GLOBAL read_only=0;
 UNLOCK TABLES;
 DROP TABLE t1;
 DROP USER test@localhost;
+Warnings:
+Note	4226	Dropped users ['test'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 disconnect con1;
 # End of 5.1 tests
 #

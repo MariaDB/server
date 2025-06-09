@@ -62,4 +62,6 @@ DEALLOCATE PREPARE stmt_1;
 include/rpl_end.inc
 connection default;
 DROP USER u1;
+Warnings:
+Note	4226	Dropped users ['u1'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 # End of 10.2 tests

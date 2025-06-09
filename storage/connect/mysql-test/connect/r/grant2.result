@@ -768,3 +768,5 @@ DROP PROCEDURE p_definer;
 DROP PROCEDURE p_invoker;
 DROP PROCEDURE p_baddefiner;
 DROP USER user@localhost;
+Warnings:
+Note	4226	Dropped users ['user'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.

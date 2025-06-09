@@ -59,6 +59,8 @@ ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 
 connection root;
 revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int);
@@ -195,6 +197,8 @@ v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 connection root;
 revoke all privileges on mysqltest.* from mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -258,6 +262,8 @@ ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `
 connection root;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -326,6 +332,8 @@ ERROR 42000: INSERT command denied to user 'mysqltest_1'@'localhost' for table `
 connection root;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -368,6 +376,8 @@ create view v4 as select b+1 from mysqltest.t2;
 connection root;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 drop view v1,v2,v4;
 disconnect user1;
@@ -381,6 +391,8 @@ create view v1 as select * from t1;
 connection root;
 revoke all privileges on mysqltest.* from mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -403,6 +415,8 @@ select * from v1;
 a	b
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop view v1;
 drop database mysqltest;
 disconnect user1;
@@ -446,6 +460,8 @@ drop table t1, t2;
 use test;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -487,6 +503,8 @@ drop table t1, t2;
 use test;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -524,6 +542,8 @@ drop table t1;
 use test;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 connection root;
@@ -561,6 +581,8 @@ drop table t1;
 use test;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 create user 'test14256'@'%';
@@ -606,6 +628,8 @@ UNLOCK TABLES;
 connection root;
 use test;
 drop user mysqltest_1@localhost;
+Warnings:
+Note	4226	Dropped users ['mysqltest_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop database mysqltest;
 disconnect user1;
 disconnect root;
@@ -831,6 +855,8 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 connection root;
 GRANT SELECT ON db17254.v1 TO inv_17254@localhost;
 DROP USER def_17254@localhost;
+Warnings:
+Note	4226	Dropped users ['def_17254'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 connect  inv,localhost,inv_17254,,db17254;
 connection inv;
 for a user without SET USER
@@ -934,6 +960,8 @@ SHOW CREATE VIEW v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci
 DROP USER u26813@localhost;
+Warnings:
+Note	4226	Dropped users ['u26813'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP DATABASE db26813;
 disconnect u1;
 #
@@ -981,7 +1009,11 @@ SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=UNDEFINED DEFINER=`u29908_1`@`localhost` SQL SECURITY INVOKER VIEW `v2` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci
 DROP USER u29908_1@localhost;
+Warnings:
+Note	4226	Dropped users ['u29908_1'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP USER u29908_2@localhost;
+Warnings:
+Note	4226	Dropped users ['u29908_2'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP DATABASE mysqltest_29908;
 disconnect u1;
 disconnect u2;

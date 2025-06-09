@@ -79,7 +79,9 @@ ALTER TABLE t1 FILE_NAME='t1.EXT';
 --connection default
 DROP TABLE t1;
 --disconnect user
+--disable_warnings
 DROP USER user@localhost;
+--enable_warnings
 
 --echo #
 --echo # End of grant.inc

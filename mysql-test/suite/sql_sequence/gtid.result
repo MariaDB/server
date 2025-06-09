@@ -824,8 +824,14 @@ connection master;
 use s_db;
 drop database s_db;
 drop user normal_1@'%';
+Warnings:
+Note	4226	Dropped users ['normal_1'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user normal_2@'%';
+Warnings:
+Note	4226	Dropped users ['normal_2'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop user normal_3@'%';
 drop user normal_4@'%';
 drop user normal_5@'%';
+Warnings:
+Note	4226	Dropped users ['normal_5'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 include/rpl_end.inc

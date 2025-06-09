@@ -117,6 +117,8 @@ create user foo@localhost;
 alter user current_user identified with 'something';
 --connection default
 --disconnect x
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 
 update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

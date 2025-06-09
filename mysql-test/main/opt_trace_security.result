@@ -442,6 +442,8 @@ a
 2
 3
 drop user foo@localhost, bar@localhost;
+Warnings:
+Note	4226	Dropped users ['foo'@'localhost','bar'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop view db1.v1;
 drop table db1.t1;
 drop database db1;

@@ -23,7 +23,9 @@ SET thread_pool_max_threads=10;
 SET SESSION thread_pool_max_threads=10;
 --disconnect user1
 --connection default
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 
 --echo # Test that "SET thread_pool_max_threads" is allowed with CONNECTION ADMIN
 

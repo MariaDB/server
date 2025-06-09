@@ -48,7 +48,9 @@ connect u1, localhost, u1;
 update mysqltest1.t1 set id=1 where id=2;
 connection default;
 disconnect u1;
+--disable_warnings
 drop user u1@localhost;
+--enable_warnings
 drop database mysqltest1;
 use test;
 
@@ -209,7 +211,9 @@ show create view t_v;
 --connection default
 --disconnect con1
 drop database db1;
+--disable_warnings
 drop user foo@localhost;
+--enable_warnings
 --echo #
 --echo # MDEV-28455: CREATE TEMPORARY TABLES privilege
 --echo #            is insufficient for SHOW COLUMNS
@@ -260,9 +264,11 @@ show columns in db.tmp;
 --connection default
 # Cleanup
 drop database db;
+--disable_warnings
 drop user foo@localhost;
 drop user bar@localhost;
 drop user buz@localhost;
+--enable_warnings
 
 CREATE USER foo;
 CREATE DATABASE db;
@@ -374,7 +380,9 @@ disconnect conn1;
 connection default;
 
 drop database mysqltest_1;
+--disable_warnings
 drop user twg@'%';
+--enable_warnings
 
 #
 # test the empty db case
@@ -398,7 +406,9 @@ delete from db.t1 returning *;
 --disconnect con1
 --connection default
 drop database db;
+--disable_warnings
 drop user foo;
+--enable_warnings
 
 #
 # MDEV-23009 SIGSEGV in get_field from acl_load (on optimized builds)
