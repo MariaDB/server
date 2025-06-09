@@ -20,6 +20,7 @@ include/reset_slave.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
@@ -301,8 +302,10 @@ connection master;
 create table t1 (a int) engine = ENGINE_TYPE;
 drop table t1;
 connection slave;
+include/stop_slave.inc
 [ test reset master ]
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
@@ -314,7 +317,6 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	0
 connection slave;
-include/stop_slave.inc
 include/reset_slave.inc
 include/kill_binlog_dump_threads.inc
 connection slave;
@@ -349,6 +351,7 @@ connection slave;
 include/stop_slave.inc
 include/reset_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 reset master;
 include/kill_binlog_dump_threads.inc
 set sql_log_bin=0;

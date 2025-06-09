@@ -162,6 +162,7 @@ while ($_rpl_server)
   USE test;
   if (!$rpl_skip_reset_master_and_slave)
   {
+    --source include/kill_binlog_dump_threads.inc
     if (!$rpl_server_skip_log_bin)
     {
      --error 0

@@ -384,6 +384,7 @@ CHANGE MASTER TO MASTER_DELAY = 71;
 --source include/reset_slave.inc
 --echo [on master]
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --echo [on slave]
 --connection slave

@@ -57,6 +57,7 @@ STOP SLAVE;
 --source include/wait_for_slave_to_stop.inc
 --source include/reset_slave.inc
 connection master;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 SET SESSION BINLOG_FORMAT=STATEMENT;
