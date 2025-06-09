@@ -849,6 +849,9 @@ The following specify which files/extra groups are read (specified before remain
  heuristic, thus perform exhaustive search: 1 - prune
  plans based on cost and number of retrieved rows eq_ref:
  2 - prune also if we find an eq_ref chain
+ --optimizer-record-context 
+ Controls storing of optmizer context of all the tables
+ that are referenced in a query
  --optimizer-row-copy-cost=# 
  Cost of copying a row from the engine or the join cache
  to the SQL layer
@@ -1881,6 +1884,7 @@ optimizer-key-next-find-cost 0.082347
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
 optimizer-prune-level 2
+optimizer-record-context FALSE
 optimizer-row-copy-cost 0.060866
 optimizer-row-lookup-cost 0.130839
 optimizer-row-next-find-cost 0.045916
