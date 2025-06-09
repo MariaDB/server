@@ -492,6 +492,43 @@ SELECT min_value, max_value, hist_type
 FROM mysql.column_stats WHERE db_name = 'test' AND table_name = 't1';
 
 DROP TABLE t1;
-DELETE FROM mysql.column_stats;
+
+create table t1 (
+  col1 varchar(10) charset utf8
+);
+set names utf8;
+select hex('б'), collation('б');
+insert into t1 values 
+('а'),('б'),('в'),('г'),('д'),('е'),('ж'),('з'),('и'),('й');
+
+analyze table t1 persistent for all;
+select hex(col1) from t1;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+
+explain extended select * from t1 where col1 < 'а';
+explain extended select * from t1 where col1 < 'в';
+explain extended select * from t1 where col1 < 'д';
+explain extended select * from t1 where col1 < 'ж';
+explain extended select * from t1 where col1 < 'й';
+
+delete from t1;
+insert into t1 values 
+('"а'),('"б'),('"в'),('"г'),('"д'),('"е'),('"ж'),('"з'),('"и'),('"й');
+
+analyze table t1 persistent for all;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+select hex(col1) from t1;
+explain extended select * from t1 where col1 < '"а';
+explain extended select * from t1 where col1 < '"в';
+explain extended select * from t1 where col1 < '"д';
+explain extended select * from t1 where col1 < '"ж';
+explain extended select * from t1 where col1 < '"й';
+
+drop table t1;
+
+# JSON_UNQUOTE was touched by this patch also
+select JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251));
 
 --echo # End of 10.11 tests
