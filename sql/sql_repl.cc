@@ -3486,6 +3486,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   binlog_send_info infoobj(thd, packet, flags, linfo.log_file_name);
   binlog_send_info *info= &infoobj;
   bool has_transmit_started= false;
+  bool start_use_binlog= false;
 
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
   thd->variables.max_allowed_packet= MAX_MAX_ALLOWED_PACKET;
@@ -3494,6 +3495,14 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   DBUG_PRINT("enter",("log_ident: '%s'  pos: %ld", log_ident, (long) pos));
 
   bzero((char*) &log,sizeof(log));
+
+  if (mysql_bin_log.start_use_binlog(thd))
+  {
+    info->errmsg= "Binlog dump terminated by user kill";
+    info->error= ER_CONNECTION_KILLED;
+    goto err;
+  }
+  start_use_binlog= true;
 
   if (init_binlog_sender(info, &linfo, log_ident, &pos))
     goto err;
@@ -3716,6 +3725,9 @@ err:
   thd->reset_current_linfo();
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   delete info->fdev;
+
+  if (start_use_binlog)
+    mysql_bin_log.end_use_binlog(thd);
 
   if (likely(info->error == 0))
   {

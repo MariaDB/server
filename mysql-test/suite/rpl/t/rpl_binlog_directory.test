@@ -54,6 +54,7 @@ SELECT * FROM t1 ORDER BY a;
 SET GLOBAL gtid_slave_pos= '';
 
 --connection master
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --rmdir $master_datadir/binlog_dir
 

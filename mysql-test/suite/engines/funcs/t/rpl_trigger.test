@@ -357,6 +357,7 @@ connection master;
 SHOW TABLES LIKE 't_';
 SHOW TRIGGERS;
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 # Restart slave.

@@ -221,6 +221,7 @@ RESET SLAVE ALL;
 --connection replica2
 STOP SLAVE;
 RESET SLAVE ALL;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 --source include/auto_increment_offset_restore.inc

@@ -214,6 +214,7 @@ flush logs;
 
 connection master;
 set @@global.binlog_checksum= CRC32;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 flush logs;
 create table t3 (a int, b char(5));
@@ -232,6 +233,7 @@ eval change master to master_host='127.0.0.1',master_port=$MASTER_MYPORT, master
 
 connection master;
 flush logs;
+--source include/kill_binlog_dump_threads.inc
 reset master;
 insert into t3 value (1, @@global.binlog_checksum);
 

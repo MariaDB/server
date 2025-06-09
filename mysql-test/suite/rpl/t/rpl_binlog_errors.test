@@ -77,6 +77,7 @@ SET @old_debug= @@global.debug_dbug;
 --enable_ps2_protocol
 --enable_cursor_protocol
 
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 
 -- echo ###################### TEST #1
@@ -444,6 +445,7 @@ call mtr.add_suppression("Can't generate a unique log-filename .*");
 ### clean up
 -- source include/stop_slave_sql.inc
 RESET SLAVE;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 --remove_file $load_file
 --remove_file $load_file2

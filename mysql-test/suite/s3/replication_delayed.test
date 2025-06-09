@@ -5,9 +5,14 @@
 --source include/have_sequence.inc
 
 # First clear the binlog
+connection slave;
+--source include/stop_slave.inc
+connection master;
 set binlog_format=mixed;
+--source include/kill_binlog_dump_threads.inc
 RESET MASTER;
 connection slave;
+--source include/start_slave.inc
 set binlog_format=mixed;
 RESET MASTER;
 connection master;

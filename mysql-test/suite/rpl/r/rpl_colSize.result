@@ -53,6 +53,7 @@ r TEXT,
 s MEDIUMTEXT,
 t LONGTEXT
 );
+include/kill_binlog_dump_threads.inc
 RESET MASTER;
 *** Start replication ***
 connection slave;
