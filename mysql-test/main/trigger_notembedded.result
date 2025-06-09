@@ -170,11 +170,7 @@ def	mysqltest_db1	trg4	UPDATE	def	mysqltest_db1	t1	1	NULL	SET @a = 4	ROW	AFTER	N
 def	mysqltest_db1	trg5	DELETE	def	mysqltest_db1	t1	1	NULL	SET @a = 5	ROW	BEFORE	NULL	NULL	OLD	NEW	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	@abcdef@@@hostname	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection default;
 DROP USER mysqltest_dfn@localhost;
-Warnings:
-Note	4226	Dropped users ['mysqltest_dfn'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP USER mysqltest_inv@localhost;
-Warnings:
-Note	4226	Dropped users ['mysqltest_inv'@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP DATABASE mysqltest_db1;
 DELETE FROM mysql.user WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';

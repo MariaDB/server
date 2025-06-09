@@ -1151,7 +1151,9 @@ AS jt;
 disconnect conn1;
 connection default;
 
+--disable_warnings
 DROP USER user1@localhost;
+--enable_warnings
 DROP DATABASE db2;
 
 --echo #
@@ -1206,7 +1208,9 @@ connect (con1,localhost,foo,,foo);
 SELECT 1 FROM JSON_TABLE('[1,2,3]', '$[*]' COLUMNS (num INT PATH '$.a')) AS jt;
 connection default;
 disconnect con1;
+--disable_warnings
 DROP USER foo@localhost;
+--enable_warnings
 DROP SCHEMA foo;
 
 --echo #
@@ -1231,7 +1235,9 @@ FROM
 
 connection default;
 disconnect con1;
+--disable_warnings
 DROP USER foo@localhost;
+--enable_warnings
 DROP SCHEMA my_schema;
 
 --echo #

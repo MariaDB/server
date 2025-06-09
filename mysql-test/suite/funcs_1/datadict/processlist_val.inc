@@ -408,5 +408,7 @@ reap;
 connection default;
 disconnect con1;
 disconnect con2;
+--disable_warnings
 DROP USER test_user@'localhost';
+--enable_warnings
 DROP TABLE test.t1;

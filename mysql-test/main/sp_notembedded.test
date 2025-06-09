@@ -80,7 +80,9 @@ call 15298_2();
 
 connection default;
 disconnect con1;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 drop procedure 15298_1;
 drop procedure 15298_2;
 
@@ -316,7 +318,9 @@ show grants;
 --connection default
 --disconnect foo
 drop procedure spfoo;
+--disable_warnings
 drop user foo1@localhost;
+--enable_warnings
 --source include/switch_to_mysql_global_priv.inc
 
 #

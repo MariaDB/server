@@ -129,8 +129,10 @@ USE db_storedproc;
 --source suite/funcs_1/include/show_connection.inc
 DROP PROCEDURE sp31102;
 DROP FUNCTION  fn31105;
+--disable_warnings
 DROP USER 'user_1'@'localhost';
 DROP USER 'user_2'@'localhost';
+--enable_warnings
 
 
 # ------------------------------------------------------------------------------

@@ -206,8 +206,10 @@ where PROCESSLIST_ID = connection_id();
 
 revoke all privileges, grant option from user1@localhost;
 revoke all privileges, grant option from user2@localhost;
+--disable_warnings
 drop user user1@localhost;
 drop user user2@localhost;
+--enable_warnings
 flush privileges;
 
 truncate table performance_schema.setup_actors;

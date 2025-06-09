@@ -56,7 +56,9 @@ update performance_schema.setup_instruments set timed='NO';
 --connection default
 --disconnect con1
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'pfs_user_5'@localhost;
+--disable_warnings
 DROP USER 'pfs_user_5'@localhost;
+--enable_warnings
 flush privileges;
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
 

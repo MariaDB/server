@@ -77,7 +77,9 @@ SELECT SUM(ISNULL(ATTR_VALUE)), COUNT(*)
     AND PROCESSLIST_ID = CONNECTION_ID();
 change_user root,,test;
 
+--disable_warnings
 DROP USER wl5924@localhost;
+--enable_warnings
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

@@ -43,5 +43,7 @@ select user, host, default_role from mysql.user where user = 'test_user';
 disconnect c1;
 
 connection default;
+--disable_warnings
 drop role test_role;
 drop user test_user@localhost;
+--enable_warnings

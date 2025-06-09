@@ -24,7 +24,9 @@ select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q
 connection default;
 disconnect con1;
 
+--disable_warnings
 drop user u@localhost;
+--enable_warnings
 drop database db;
 
 use test;

@@ -191,7 +191,9 @@ DROP DATABASE bug42217_db;
 # user was already dropped in the slave before
 # so we should not replicate this statement.
 SET SQL_LOG_BIN= 0;
+--disable_warnings
 DROP USER 'create_rout_db'@'localhost';
+--enable_warnings
 SET SQL_LOG_BIN= 1;
 
 # finish entire clean up (remove binlogs)
