@@ -1542,6 +1542,7 @@ static grn_builtin_type mrn_grn_type_from_field(grn_ctx *ctx, Field *field,
     break;
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
   case MYSQL_TYPE_BLOB_COMPRESSED:
+  case MYSQL_TYPE_INTERVAL:
     DBUG_ASSERT(0);
 #ifdef MRN_HAVE_MYSQL_TYPE_JSON
   case MYSQL_TYPE_JSON:
@@ -11303,6 +11304,7 @@ void ha_mroonga::storage_store_field(Field *field,
     break;
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
   case MYSQL_TYPE_BLOB_COMPRESSED:
+  case MYSQL_TYPE_INTERVAL:
     DBUG_ASSERT(0);
 #ifdef MRN_HAVE_MYSQL_TYPE_JSON
   case MYSQL_TYPE_JSON:

@@ -29,6 +29,7 @@
 #include "sql_type_ref.h"
 #include "compat56.h"
 #include "log_event_data_type.h"
+#include <sql_interval.h>
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -105,6 +106,7 @@ class sp_type_def;
 class sp_head;
 class sp_instr;
 class my_var;
+class Interval;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -119,7 +121,8 @@ enum protocol_send_type_t
   PROTOCOL_SEND_LONGLONG,
   PROTOCOL_SEND_DATETIME,
   PROTOCOL_SEND_DATE,
-  PROTOCOL_SEND_TIME
+  PROTOCOL_SEND_TIME,
+  PROTOCOL_SEND_INTERVAL
 };
 
 
@@ -1525,6 +1528,7 @@ public:
 
 
 /*
+  While implementing "class Interval" the following class will be removed and all functions that use it will start relying on the Interval class instead
   This class is used for the "time_interval" argument of these SQL functions:
     TIMESTAMP(tm,time_interval)
     ADDTIME(tm,time_interval)
@@ -3016,6 +3020,19 @@ public:
   }
 };
 
+class Interval_native : public Native
+{
+protected:
+  bool neg;
+public:
+  Interval_native();
+  Interval_native(const Interval &iv, uint decimals);
+  Interval_native(const Native &iv);
+  int save_in_field(Field *field, uint decimals);
+  int save_in_field(Field *field);
+  int cmp(const Interval_native &other) const;
+  bool is_negative() { return neg; }
+};
 
 /**
   A helper class to store nullable MariaDB TIMESTAMP values in
@@ -3914,6 +3931,7 @@ protected:
   bool Item_send_date(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_timestamp(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_interval(Item *item, Protocol *protocol, st_value *buf) const;
   bool Column_definition_prepare_stage2_legacy(Column_definition *c,
                                                enum_field_types type)
                                                const;
@@ -3923,6 +3941,13 @@ protected:
   bool Column_definition_prepare_stage2_legacy_real(Column_definition *c,
                                                     enum_field_types type)
                                                     const;
+  void Item_temporal_add_interval_common(THD *thd,
+                                       Item *base_value,
+                                       Item *interval_value,
+                                       MYSQL_TIME *result,
+                                       bool subtract,
+                                       date_conv_mode_t base_conv_mode,
+                                       timestamp_type ts_type) const;
 public:
 
   enum class object_method_type_t
@@ -4788,6 +4813,11 @@ public:
                                             Temporal::Warn *,
                                             MYSQL_TIME *,
                                             date_mode_t fuzzydate) const= 0;
+  virtual
+  bool Item_func_hybrid_field_type_get_interval(THD *,
+                                          Item_func_hybrid_field_type *,
+                                          Interval *) const
+  { return false; }
   bool Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                                                 Item_func_hybrid_field_type *,
                                                 MYSQL_TIME *,
@@ -4808,6 +4838,12 @@ public:
   virtual
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
+
+  virtual
+  bool  Item_func_min_max_get_interval(THD *thd, Item_func_min_max*,
+                                Interval *) const
+  { return false; }
+
   virtual bool
   Item_func_between_fix_length_and_dec(Item_func_between *func) const= 0;
   virtual longlong
@@ -4870,6 +4906,16 @@ public:
   void raise_bad_data_type_for_functor(const Qualified_ident &ident,
                                        const Lex_ident_sys &field=
                                          Lex_ident_sys()) const;
+
+  virtual void Item_temporal_add_interval(THD *thd,
+                                          Item *base_value,
+                                          Item *interval_value,
+                                          MYSQL_TIME *result,
+                                          bool subtract) const
+  {
+    set_zero_time(result, MYSQL_TIMESTAMP_NONE);
+  }
+  virtual interval_type get_interval_type() const { return INTERVAL_LAST; }
 };
 
 
@@ -6409,6 +6455,11 @@ public:
                             const override;
   void Item_param_set_param_func(Item_param *param, uchar **pos, ulong len)
                                  const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                      Item *item1,
+                                      Item *item2,
+                                      MYSQL_TIME *res, bool substract) const override;
+
 };
 
 
@@ -6574,6 +6625,11 @@ public:
     override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                      Item *item1,
+                                      Item *item2,
+                                      MYSQL_TIME *res, bool substract) const override;
+
 };
 
 class Type_handler_date: public Type_handler_date_common
@@ -6716,6 +6772,10 @@ public:
                                        const override;
   void Item_param_set_param_func(Item_param *param, uchar **pos, ulong len)
                                  const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                  Item *item1,
+                                  Item *item2,
+                                  MYSQL_TIME *res, bool substract) const override;
 };
 
 
@@ -6886,6 +6946,11 @@ public:
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate)
                                   const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                      Item *item1,
+                                      Item *item2,
+                                      MYSQL_TIME *res, bool substract) const override;
+
 };
 
 
@@ -7593,12 +7658,289 @@ public:
 };
 
 
-// A pseudo type handler, mostly for test purposes for now
-class Type_handler_interval_DDhhmmssff: public Type_handler_long_blob
-{
+class Type_handler_interval_common : public Type_handler_temporal_with_date {
+  static uint m_hires_bytes[MAX_DATETIME_PRECISION+1];
 public:
-  Item *create_typecast_item(THD *thd, Item *item,
-                             const Type_cast_attributes &attr) const override;
+  static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
+  const Name &default_value() const override {
+    static Name def(STRING_WITH_LEN("interval"));
+    return def;
+  }
+
+  enum_field_types field_type() const override {
+    return MYSQL_TYPE_INTERVAL;
+  }
+
+  protocol_send_type_t protocol_send_type() const override {
+    return PROTOCOL_SEND_INTERVAL;
+  }
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
+  {
+    return Item_send_interval(item, protocol, buf);
+  }
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes*) const override {
+    return DYN_COL_NULL;
+  }
+  Item_result cmp_type() const override { return INTERVAL_RESULT; }
+
+  const Type_handler *type_handler_for_comparison() const override;
+
+  decimal_digits_t Item_decimal_precision(const Item*) const override;
+
+  Field *make_conversion_table_field(MEM_ROOT*, TABLE*, uint, const Field*) const override;
+
+  uint32 max_display_length_for_field(const Conv_source&) const override;
+
+  bool Column_definition_fix_attributes(Column_definition* c) const override;
+
+  Field *make_table_field(MEM_ROOT*, const LEX_CSTRING*,
+                          const Record_addr&, const Type_all_attributes&,
+                          TABLE_SHARE*) const override;
+
+  Field *make_table_field_from_def(TABLE_SHARE*, MEM_ROOT*, const LEX_CSTRING*,
+                                   const Record_addr&, const Bit_addr&,
+                                   const Column_definition_attributes*, uint32) const override;
+
+  uint32 calc_pack_length(uint32) const override;
+
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
+
+  Item_cache *Item_get_cache(THD*, const Item*) const override;
+
+  bool Item_hybrid_func_fix_attributes(THD*, const LEX_CSTRING&,
+                                       Type_handler_hybrid_field_type*,
+                                       Type_all_attributes*, Item**, uint) const override;
+
+  String *Item_func_min_max_val_str(Item_func_min_max*, String*) const override;
+
+  double Item_func_min_max_val_real(Item_func_min_max*) const override;
+
+  longlong Item_func_min_max_val_int(Item_func_min_max*) const override;
+
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max*, my_decimal*) const override;
+
+  bool Item_func_round_fix_length_and_dec(Item_func_round*) const override;
+
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
+
+  Item *create_typecast_item(THD* thd, Item* item,
+                             const Type_cast_attributes& attr) const override;
+
+  bool Column_definition_prepare_stage2(Column_definition* c,
+                                       handler* file,
+                                       ulonglong table_flags) const override;
+
+  Item_literal *create_literal_item_for_interval(THD *thd, const char *str, size_t length,
+                                CHARSET_INFO *cs, bool send_error, interval_type itype,
+                                uint8 start_prec, uint8 end_prec)
+                                const;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                   bool binary_cmp) const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
+                          const override;
+  const Type_handler *type_handler_for_native_format() const override;
+  int cmp_native(const Native &a, const Native &b) const override;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
+                                       const override;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
+                                              const override;
+  const Type_handler* determine_result_type(const Type_handler* th0, const Type_handler* th1) const;
+
+  const Type_handler *determine_merged_interval_type(const Type_handler *th0, const Type_handler *th1) const;
+
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *item) const override;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *item) const override;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *item) const override;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *item) const override;
+  bool Item_func_hybrid_field_type_get_interval(THD *thd, Item_func_hybrid_field_type *item, Interval *res) const override;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const override;
+
+  void Item_update_null_value(Item *item) const override;
+
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const override;
+  bool Item_func_min_max_get_interval(THD *thd, Item_func_min_max*, Interval *) const override;
+
+};
+
+
+class Type_handler_interval_year : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_YEAR;
+  }
+};
+
+
+class Type_handler_interval_quarter : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_QUARTER;
+  }
+};
+
+
+class Type_handler_interval_month : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MONTH;
+  }
+};
+
+
+class Type_handler_interval_week : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_WEEK;
+  }
+};
+
+
+class Type_handler_interval_day : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY;
+  }
+};
+
+
+class Type_handler_interval_hour : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR;
+  }
+};
+
+
+class Type_handler_interval_minute : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MINUTE;
+  }
+};
+
+
+class Type_handler_interval_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_SECOND;
+  }
+};
+
+
+class Type_handler_interval_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_year_month: public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_YEAR_MONTH;
+  }
+};
+
+
+class Type_handler_interval_day_hour : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_HOUR;
+  }
+};
+
+
+class Type_handler_interval_day_minute : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_MINUTE;
+  }
+};
+
+
+class Type_handler_interval_day_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_SECOND;
+  }
+};
+
+
+class Type_handler_interval_hour_minute : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR_MINUTE;
+  }
+};
+
+
+class Type_handler_interval_hour_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR_SECOND;
+  }
+};
+
+
+class Type_handler_interval_minute_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MINUTE_SECOND;
+  }
+};
+
+
+class Type_handler_interval_day_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_hour_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_minute_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MINUTE_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_second_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_SECOND_MICROSECOND;
+  }
 };
 
 
@@ -7801,7 +8143,29 @@ extern Named_type_handler<Type_handler_datetime2>   type_handler_datetime2;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
 
-extern Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
+extern Named_type_handler<Type_handler_interval_common> type_handler_interval_common;
+extern Named_type_handler<Type_handler_interval_year> type_handler_interval_year;
+extern Named_type_handler<Type_handler_interval_quarter> type_handler_interval_quarter;
+extern Named_type_handler<Type_handler_interval_month> type_handler_interval_month;
+extern Named_type_handler<Type_handler_interval_week> type_handler_interval_week;
+extern Named_type_handler<Type_handler_interval_day> type_handler_interval_day;
+extern Named_type_handler<Type_handler_interval_hour> type_handler_interval_hour;
+extern Named_type_handler<Type_handler_interval_minute> type_handler_interval_minute;
+extern Named_type_handler<Type_handler_interval_second> type_handler_interval_second;
+extern Named_type_handler<Type_handler_interval_microsecond> type_handler_interval_microsecond;
+
+extern Named_type_handler<Type_handler_interval_year_month> type_handler_interval_year_month;
+extern Named_type_handler<Type_handler_interval_day_hour> type_handler_interval_day_hour;
+extern Named_type_handler<Type_handler_interval_day_minute> type_handler_interval_day_minute;
+extern Named_type_handler<Type_handler_interval_day_second> type_handler_interval_day_second;
+extern Named_type_handler<Type_handler_interval_hour_minute> type_handler_interval_hour_minute;
+extern Named_type_handler<Type_handler_interval_hour_second> type_handler_interval_hour_second;
+extern Named_type_handler<Type_handler_interval_minute_second> type_handler_interval_minute_second;
+extern Named_type_handler<Type_handler_interval_day_microsecond> type_handler_interval_day_microsecond;
+extern Named_type_handler<Type_handler_interval_hour_microsecond> type_handler_interval_hour_microsecond;
+extern Named_type_handler<Type_handler_interval_minute_microsecond> type_handler_interval_minute_microsecond;
+extern Named_type_handler<Type_handler_interval_second_microsecond> type_handler_interval_second_microsecond;
+
 
 class Type_aggregator
 {

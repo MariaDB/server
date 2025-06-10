@@ -2821,6 +2821,7 @@ static inline int part_val_int(Item *item_expr, longlong *result)
   case REAL_RESULT:
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }

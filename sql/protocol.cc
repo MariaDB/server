@@ -1659,6 +1659,19 @@ bool Protocol_text::store_time(MYSQL_TIME *tm, int decimals)
   return store_numeric_string_aux(buff, length);
 }
 
+
+bool Protocol_text::store_interval(Interval *iv)
+{
+#ifndef DBUG_OFF
+  DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_INTERVAL));
+  field_pos++;
+#endif
+  char buff[MAX_INTERVAL_STRING_REP_LENGTH];
+  uint length= interval_to_string(iv, iv->m_interval_type, buff, MAX_INTERVAL_STRING_REP_LENGTH);
+  return store_numeric_string_aux(buff, length);
+}
+
+
 /**
   Assign OUT-parameters to user variables.
 

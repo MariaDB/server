@@ -21559,6 +21559,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
     new_field= tmp_table_field_from_field_type(root, table);
     break;
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     // This case should never be chosen
     DBUG_ASSERT(0);
     new_field= 0;

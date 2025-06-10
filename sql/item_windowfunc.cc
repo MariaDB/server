@@ -540,6 +540,7 @@ void Item_sum_hybrid_simple::reset_field()
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
   }
 }

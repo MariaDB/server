@@ -29,6 +29,7 @@ extern "C"				/* Bug in BSDI include file */
 #include "sql_udf.h"    // udf_handler
 #include "my_decimal.h" // string2my_decimal
 #include <cmath>
+#include "sql_type.h" //determine_merged_interval_type
 
 
 extern bool st_append_json(String *s,
@@ -1017,6 +1018,13 @@ public:
            Item_func_hybrid_field_type_get_date_with_warn(thd, this, to, mode);
   }
 
+  bool get_interval(THD *thd, Interval *iv) override
+  {
+    DBUG_ASSERT(fixed());
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_get_interval(thd, this, iv);
+  }
+
   bool val_native(THD *thd, Native *to) override
   {
     DBUG_ASSERT(fixed());
@@ -1092,6 +1100,9 @@ public:
      @return The result of the operation.
   */
   virtual bool time_op(THD *thd, MYSQL_TIME *res)= 0;
+
+  virtual bool interval_op(THD *thd, Interval *res)= 0;
+
 
   virtual bool native_op(THD *thd, Native *native)= 0;
 
@@ -1173,6 +1184,11 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  bool interval_op(THD *thd, Interval *res) override
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   bool native_op(THD *thd, Native *to) override
   {
     DBUG_ASSERT(0);
@@ -1234,10 +1250,37 @@ public:
   }
   void fix_length_and_dec_temporal(bool downcast_decimal_to_int)
   {
+    const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+    const Type_handler_interval_common* th1 = dynamic_cast<const Type_handler_interval_common*>(args[1]->type_handler());
+    if (th0 || th1)
+    {
+      if (th0)
+      {
+        set_handler(th0->determine_result_type(args[0]->type_handler(), args[1]->type_handler()));
+      }
+      else
+      {
+        set_handler(th0->determine_result_type(args[1]->type_handler(), args[0]->type_handler()));
+      }
+      return;
+    }
     set_handler(&type_handler_newdecimal);
     fix_length_and_dec_decimal();
     if (decimals == 0 && downcast_decimal_to_int)
       set_handler(type_handler_long_or_longlong());
+  }
+
+  void fix_length_and_dec_interval()
+  {
+    if (args[0]->is_null() || args[1]->is_null())
+    {
+      set_handler(&type_handler_interval_common);
+      return;
+    }
+
+    Type_handler_interval_common th;
+
+    set_handler(th.determine_merged_interval_type(args[0]->type_handler(), args[1]->type_handler()));
   }
   bool need_parentheses_in_default() override { return true; }
 };
@@ -1699,6 +1742,9 @@ public:
   longlong int_op() override;
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_plus>(thd, this); }
 };
@@ -1721,6 +1767,9 @@ public:
   longlong int_op() override;
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool fix_length_and_dec(THD *thd) override;
   void fix_unsigned_flag();
   void fix_length_and_dec_double()
@@ -1757,6 +1806,7 @@ public:
   longlong int_op() override;
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool interval_op(THD *thd, Interval *res) override;
   void result_precision() override;
   bool fix_length_and_dec(THD *thd) override;
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -1774,6 +1824,7 @@ public:
   longlong int_op() override { DBUG_ASSERT(0); return 0; }
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool interval_op(THD *thd, Interval *res) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("/") };
@@ -1862,6 +1913,7 @@ public:
   double real_op() override;
   longlong int_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool interval_op(THD *thd, Interval *res) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("-") };
@@ -2152,6 +2204,10 @@ public:
     // Thinks like CEILING(TIMESTAMP'0000-01-01 23:59:59.9') returns NULL
     set_maybe_null();
   }
+  void fix_length_and_dec_interval()
+  {
+    set_handler(interval_type_to_handler_type(args[0]->type_handler()->get_interval_type()));
+  }
   bool fix_length_and_dec(THD *thd) override;
   String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
   Type_ref_null ref_op(THD *thd) override
@@ -2177,6 +2233,7 @@ public:
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_ceiling>(thd, this); }
@@ -2197,6 +2254,7 @@ public:
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_floor>(thd, this); }
@@ -2224,6 +2282,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool native_op(THD *thd, Native *to) override;
   String *str_op(String *str) override
   {
@@ -2245,6 +2304,7 @@ public:
   void fix_arg_time();
   void fix_arg_datetime();
   void fix_arg_temporal(const Type_handler *h, uint int_part_length);
+  void fix_arg_interval();
   bool fix_length_and_dec(THD *thd) override
   {
     /*
@@ -2421,7 +2481,7 @@ public:
   my_decimal *val_decimal_native(my_decimal *);
   bool get_date_native(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool get_time_native(THD *thd, MYSQL_TIME *res);
-
+  bool get_interval_native(THD *thd, Interval *res);
   double val_real() override
   {
     DBUG_ASSERT(fixed());
@@ -2451,6 +2511,13 @@ public:
     DBUG_ASSERT(fixed());
     return Item_func_min_max::type_handler()->
              Item_func_min_max_get_date(thd, this, res, fuzzydate);
+  }
+
+  bool get_interval(THD *thd, Interval *iv) override
+  {
+    DBUG_ASSERT(fixed());
+    return Item_func_min_max::type_handler()->
+             Item_func_min_max_get_interval(thd, this, iv);
   }
   bool val_native(THD *thd, Native *to) override;
   void aggregate_attributes_real(Item **items, uint nitems)

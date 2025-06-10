@@ -1216,6 +1216,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool native_op(THD *thd, Native *to) override;
   Type_ref_null ref_op(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override
@@ -1315,6 +1316,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool native_op(THD *thd, Native *to) override;
   Type_ref_null ref_op(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override
@@ -1370,6 +1372,10 @@ public:
   bool time_op(THD *thd, MYSQL_TIME *ltime) override
   {
     return (null_value= Time(find_item()).copy_to_mysql_time(ltime));
+  }
+  bool interval_op(THD *thd, Interval *res) override
+  {
+    return (null_value= find_item()->get_interval(thd, res));
   }
   longlong int_op() override
   {
@@ -1500,6 +1506,7 @@ public:
   }
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   double real_op() override;
   longlong int_op() override;
   String *str_op(String *str) override;
@@ -1704,6 +1711,19 @@ public:
   void value_to_item(uint pos, Item *item) override;
   const Type_handler *type_handler() const  override
   { return &type_handler_timestamp2; }
+};
+
+class in_interval :public in_vector
+{
+  Interval tmp;
+public:
+  in_interval(THD *thd, uint elements);
+  bool set(uint pos, Item *item) override;
+  uchar *get_value(Item *item) override;
+  Item* create_item(THD *thd) override;
+  void value_to_item(uint pos, Item *item) override;
+  const Type_handler *type_handler() const  override
+  { return &type_handler_interval_common; }
 };
 
 
@@ -2446,6 +2466,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool interval_op(THD *thd, Interval *res) override;
   bool native_op(THD *thd, Native *to) override;
   Type_ref_null ref_op(THD *thd) override;
   bool fix_fields(THD *thd, Item **ref) override;

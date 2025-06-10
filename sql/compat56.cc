@@ -473,4 +473,85 @@ void my_timestamp_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
   }
 }
 
+/**
+  Convert MariaDBxx binary interval representation to in-memory representation.
+
+  @param  OUT tm  The variable to convert to.
+  @param      ptr The pointer to read the value from.
+  @param      dec Precision.
+*/
+void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec)
+{
+  tm->tv_sec= mi_uint5korr(ptr);
+  switch (dec)
+  {
+  case 0:
+  default:
+    tm->tv_usec= 0;
+    break;
+  case 1:
+  case 2:
+    tm->tv_usec= ((uint) ptr[5]) * 10000;
+    break;
+  case 3:
+  case 4:
+    tm->tv_usec= (uint) mi_uint2korr(ptr + 5) * 100;
+    break;
+  case 5:
+  case 6:
+    tm->tv_usec= (uint) mi_uint3korr(ptr + 5);
+  }
+if (tm->tv_sec & INTERVAL_SIGN_BIT)
+  {
+    tm->tv_sec ^= INTERVAL_SIGN_BIT;
+  }
+  else
+  {
+    tm->tv_sec= -tm->tv_sec;
+  }
+}
+
+
+/**
+  Convert MariaDBxx in-memory interval representation to on-disk representation.
+
+  @param        tm   The value to convert.
+  @param  OUT   ptr  The pointer to store the value to.
+  @param        dec  Precision.
+*/
+void my_interval_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
+{
+  long long seconds= tm->tv_sec, microseconds= (long long)tm->tv_usec;
+  if (seconds < 0LL )
+  {
+    seconds= -seconds;
+  }
+  else
+  {
+    seconds|= INTERVAL_SIGN_BIT;
+  }
+  mi_int5store(ptr, seconds);
+  switch (dec)
+  {
+  case 0:
+  default:
+    break;
+  case 1:
+  case 2:
+    ptr[5]= (unsigned char) (char) (microseconds / 10000);
+    break;
+  case 3:
+  case 4:
+    mi_int2store(ptr + 5, microseconds / 100);
+    break;
+  case 5:
+  case 6:
+    mi_int3store(ptr + 5, microseconds);
+  }
+}
+
+uint my_interval_binary_length(uint dec)
+{
+  return 5 + (dec + 1) / 2;
+}
 /****************************************/
