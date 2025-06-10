@@ -147,7 +147,9 @@ drop role r_active_global, r_active_database, r_active_table, r_active_column;
 drop role r_execute_proc, r_execute_func;
 drop role r_active_proc, r_active_func;
 drop role upper_level, middle_level, lower_level;
+--disable_warnings
 drop user foo;
+--enable_warnings
 
 --echo #
 --echo # Test that dropping of roles clears the intermediate generated
@@ -191,7 +193,9 @@ create table t1 (a int);
 disconnect con1;
 
 connection default;
+--disable_warnings
 drop user intern@localhost;
+--enable_warnings
 drop role student;
 drop role admin;
 drop database crm;

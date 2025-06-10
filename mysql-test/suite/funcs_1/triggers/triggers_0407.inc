@@ -604,9 +604,11 @@ let $message= Testcase 3.5.7.17 (see Testcase 3.5.1.1);
 
 # Cleanup section 3.5
 	connection default;
+--disable_warnings
 	drop user test_general@localhost;
 	drop user test_general;
 	drop user test_super@localhost;
+--enable_warnings
 
 DROP TABLE test.tb3;
 

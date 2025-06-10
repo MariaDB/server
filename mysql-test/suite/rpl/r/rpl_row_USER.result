@@ -38,8 +38,6 @@ DROP DATABASE mysqltest1;
 REVOKE ALL ON mysqltest1.* FROM 'tester'@'%';
 REVOKE ALL ON mysqltest1.* FROM ''@'localhost%';
 DROP USER tester@'%';
-Warnings:
-Note	4226	Dropped users ['tester'@'%'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP USER ''@'localhost%';
 FLUSH PRIVILEGES;
 connection slave;

@@ -133,9 +133,13 @@ CHANGE MASTER TO
  master_ssl_verify_server_cert=0,
  master_ssl=1;
 connection master;
+--disable_warnings
 drop user replssl@127.0.0.1;
+--enable_warnings
 connection slave;
+--disable_warnings
 drop user replssl@127.0.0.1;
+--enable_warnings
 
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

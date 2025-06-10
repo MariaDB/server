@@ -370,7 +370,9 @@ sync_slave_with_master;
 connection master;
 drop function fn1;
 drop database mysqltest1;
+--disable_warnings
 drop user "zedjzlcsjhd"@127.0.0.1;
+--enable_warnings
 use test;
 sync_slave_with_master;
 use test;

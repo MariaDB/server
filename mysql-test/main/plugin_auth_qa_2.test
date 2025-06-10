@@ -29,8 +29,10 @@ SELECT @@external_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 
+--disable_warnings
 DROP USER qa_test_1_user;
 DROP USER qa_test_1_dest;
+--enable_warnings
 
 --echo === Assign values to components of info ====================
 
@@ -52,9 +54,11 @@ SELECT @@external_user;
 --sorted_result
 SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 
+--disable_warnings
 DROP USER qa_test_2_user;
 DROP USER qa_test_2_dest;
 DROP USER authenticated_as;
+--enable_warnings
 
 --echo === Assign too high values for *length, which should have no effect ====
 
@@ -66,8 +70,10 @@ GRANT PROXY ON qa_test_3_dest TO qa_test_3_user;
 --echo exec MYSQL -h localhost -u qa_test_3_user --password=qa_test_3_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 --exec $MYSQL -h localhost -u qa_test_3_user --password=qa_test_3_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--disable_warnings
 DROP USER qa_test_3_user;
 DROP USER qa_test_3_dest;
+--enable_warnings
 
 --echo === Assign too low values for *length, which should have no effect ====
 
@@ -79,8 +85,10 @@ GRANT PROXY ON qa_test_4_dest TO qa_test_4_user;
 --echo exec MYSQL -h localhost -u qa_test_4_user --password=qa_test_4_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 --exec $MYSQL -h localhost -u qa_test_4_user --password=qa_test_4_dest  test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--disable_warnings
 DROP USER qa_test_4_user;
 DROP USER qa_test_4_dest;
+--enable_warnings
 
 --echo === Assign empty string especially to authenticated_as (in plugin) ====
 
@@ -99,9 +107,11 @@ SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 
 --error 1
 --exec $MYSQL -h localhost --user=qa_test_5_user --password=qa_test_5_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--disable_warnings
 DROP USER qa_test_5_user;
 DROP USER qa_test_5_dest;
 DROP USER ''@'localhost';
+--enable_warnings
 
 --echo === Assign 'root' especially to authenticated_as (in plugin) ====
 
@@ -133,8 +143,10 @@ SELECT user,plugin,authentication_string FROM mysql.user WHERE user != 'root';
 --error 1
 --exec $MYSQL -h localhost --user=root --password=qa_test_6_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--disable_warnings
 DROP USER qa_test_6_user;
 DROP USER qa_test_6_dest;
+--enable_warnings
 DELETE FROM mysql.user WHERE user='root' AND plugin='qa_auth_interface';
 --sorted_result
 SELECT user,plugin,authentication_string,password FROM mysql.user WHERE user != 'root';
@@ -151,7 +163,9 @@ GRANT PROXY ON qa_test_11_dest TO qa_test_11_user;
 --error 1
 --exec $MYSQL --default_auth=qa_auth_client -h localhost -u qa_test_11_user --password=qa_test_11_dest test_user_db -e "SELECT current_user(),user(),@@local.proxy_user,@@local.external_user;" 2>&1
 
+--disable_warnings
 DROP USER qa_test_11_user, qa_test_11_dest;
+--enable_warnings
 DROP DATABASE test_user_db;
 
 --exit

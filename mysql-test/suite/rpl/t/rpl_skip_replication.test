@@ -36,7 +36,9 @@ connection nonpriv;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
 disconnect nonpriv;
 connection slave;
+--disable_warnings
 DROP USER'nonsuperuser'@'127.0.0.1';
+--enable_warnings
 
 SELECT @@global.replicate_events_marked_for_skip;
 --error ER_SLAVE_MUST_STOP
