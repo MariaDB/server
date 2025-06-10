@@ -205,17 +205,28 @@ public:
     DBUG_ASSERT(host.hostname[hostname_length] == '\0');
     return Lex_ident_host(host.hostname, hostname_length);
   }
-};
 
+  void disable_new_connections()
+  {
+    dont_accept_conn= true;
+  }
 
-class ACL_USER :public ACL_USER_BASE, public ACL_USER_PARAM
-{
+  bool dont_accept_new_connections() const
+  {
+    return dont_accept_conn;
+  }
+
+protected:
   /*
     Ephemeral state (meaning it is not stored anywhere in the Data Dictionary)
     to disable establishing sessions in case the user is being dropped.
   */
   bool dont_accept_conn= false;
+};
 
+
+class ACL_USER :public ACL_USER_BASE, public ACL_USER_PARAM
+{
 public:
   ACL_USER() = default;
   ACL_USER(THD *, const LEX_USER &, const Account_options &, const privilege_t);
@@ -249,7 +260,6 @@ public:
     dst->host.hostname= safe_strdup_root(root, host.hostname);
     dst->default_rolename= safe_lexcstrdup_root(root, default_rolename);
     bzero(&dst->role_grants, sizeof(role_grants));
-    dst->dont_accept_conn= dont_accept_conn;
     return dst;
   }
 
@@ -281,16 +291,6 @@ public:
         DBUG_ASSERT(0);
         break;
     }
-  }
-
-  void disable_new_connections()
-  {
-    dont_accept_conn= true;
-  }
-
-  bool dont_accept_new_connections() const
-  {
-    return dont_accept_conn;
   }
 };
 
@@ -11349,64 +11349,45 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 }
 
 
-struct count_user_threads_callback_arg
-{
-  explicit count_user_threads_callback_arg(LEX_USER *user_arg)
-  : user(user_arg), counter(0)
-  {}
-
-  LEX_USER *user;
-  uint counter;
-};
-
-
 /**
-  Callback function invoked for every active THD to count a number of
-  sessions established by specified user
+  Callback function invoked for every active THD to find a first session
+  established by specified user
 
   @param[in] thd   Thread context
-  @param arg       Account info for that a number of active connections
-                   should be countered
+  @param arg       Account info for that checks presence of an active
+                   connection
+
+  @return true on matching, else false
 */
 
 static my_bool count_threads_callback(THD *thd,
-                                      count_user_threads_callback_arg *arg)
+                                      LEX_USER *arg)
 {
   if (thd->security_ctx->user)
   {
     /*
       Check that hostname (if given) and user name matches.
-
-      host.str[0] == '%' means that host name was not given. See sql_yacc.yy
     */
-    if (((arg->user->host.str[0] == '%' && !arg->user->host.str[1]) ||
-         !strcmp(thd->security_ctx->host_or_ip, arg->user->host.str)) &&
-        !strcmp(thd->security_ctx->user, arg->user->user.str))
-      arg->counter++;
+    if (!strcmp(arg->host.str, thd->main_security_ctx.priv_host) &&
+        !strcmp(arg->user.str, thd->main_security_ctx.priv_user))
+      return true;
   }
   return false;
 }
 
 
 /**
-  Get a number of connections currently established on behalf the user
+  Check presence of an active connection established on behalf the user
 
-  @param[in] thd   Thread context
-  @param[in] user  User credential to count up a number of connections
+  @param[in] user  User credential for that checks presence of an active
+                   connection
 
-  @return  a number of connections established by the user at the moment of
-           the function call
+  @return true on presence connection, else false
 */
 
-static int count_sessions_for_user(LEX_USER *user)
+static bool exist_active_sessions_for_user(LEX_USER *user)
 {
-  count_user_threads_callback_arg arg(user);
-  bool ret __attribute__((unused));
-
-  ret= server_threads.iterate(count_threads_callback, &arg);
-  DBUG_ASSERT(ret == false);
-
-  return arg.counter;
+  return server_threads.iterate(count_threads_callback, user);
 }
 
 
@@ -11419,8 +11400,7 @@ static int count_sessions_for_user(LEX_USER *user)
 
 static void disable_connections_for_user(LEX_USER *user)
 {
-  ACL_USER *found_user= find_user_or_anon(user->host.str, user->user.str,
-                                          nullptr);
+  ACL_USER *found_user= find_user_exact(user->host, user->user);
 
   if (found_user != nullptr)
     found_user->disable_new_connections();
@@ -11463,7 +11443,6 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
-  List<LEX_USER> correct_users_list;
   /*
     String for storing a comma separated list of users that specified
     at the DROP USER statement being processed and have active connections
@@ -11471,6 +11450,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   String connected_users;
   while ((tmp_user_name= user_list++))
   {
+    int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
     if (!user_name || (handle_as_role && is_public(user_name)))
     {
@@ -11490,38 +11470,24 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       continue;
     }
 
-    if (count_sessions_for_user(user_name) != 0)
-      append_user(thd, &connected_users, user_name);
+    if (exist_active_sessions_for_user(user_name))
+    {
 
-    correct_users_list.push_back(user_name);
+      if ((thd->variables.sql_mode & MODE_ORACLE))
+      {
+        append_user(thd, &wrong_users, user_name);
+        result= TRUE;
+        continue;
+      }
+      else
+        append_user(thd, &connected_users, user_name);
+    }
+
     /*
       Prevent new connections to be established on behalf the user
       being dropped.
     */
     disable_connections_for_user(user_name);
-  }
-
-  if (!connected_users.is_empty() &&
-      (thd->variables.sql_mode & MODE_ORACLE))
-  {
-    /*
-      Throw error in case there are connections for the user being dropped AND
-      sql_mode = oracle
-    */
-    mysql_mutex_unlock(&acl_cache->lock);
-    mysql_rwlock_unlock(&LOCK_grant);
-
-    my_error(ER_CANNOT_USER, MYF(0),
-             (handle_as_role) ? "DROP ROLE" : "DROP USER",
-              connected_users.c_ptr_safe());
-
-    DBUG_RETURN(true);
-  }
-
-  user_list.init(correct_users_list);
-  while ((user_name= user_list++))
-  {
-    int rc;
 
     if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
     {

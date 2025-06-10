@@ -12331,4 +12331,4 @@ ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
 ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
         eng "Dropped users [%s] have active connections. Use KILL CONNECTION if they should not be used anymore."
 ER_CONNECT_WHILE_DROP_USER_IN_PROGRESS
-        eng "Attempt to make a connection on behalf the user [%s] being currently dropped"
+        eng "Attempt to make a connection on behalf the user %.256s being currently dropped"
