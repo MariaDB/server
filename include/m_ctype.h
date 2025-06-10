@@ -861,44 +861,44 @@ struct charset_info_st
     return mbmaxlen > 1;
   }
 
-  size_t numchars(const char *b, const char *e) const
+  size_t numchars(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL) const
   {
     return (cset->numchars)(this, b, e);
   }
 
-  size_t charpos(const char *b, const char *e, size_t pos) const
+  size_t charpos(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, size_t pos) const
   {
     return (cset->charpos)(this, b, e, pos);
   }
-  size_t charpos(const uchar *b, const uchar *e, size_t pos) const
+  size_t charpos(const uchar *b ATTRIBUTE_NONNULL, const uchar *e ATTRIBUTE_NONNULL, size_t pos) const
   {
     return (cset->charpos)(this, (const char *) b, (const char*) e, pos);
   }
 
-  size_t lengthsp(const char *str, size_t length) const
+  size_t lengthsp(const char *str ATTRIBUTE_NONNULL, size_t length) const
   {
     return (cset->lengthsp)(this, str, length);
   }
 
-  size_t numcells(const char *b, const char *e) const
+  size_t numcells(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL) const
   {
     return (cset->numcells)(this, b, e);
   }
 
-  size_t caseup(const char *src, size_t srclen,
-                char *dst, size_t dstlen) const
+  size_t caseup(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     return (cset->caseup)(this, src, srclen, dst, dstlen);
   }
 
-  size_t casedn(const char *src, size_t srclen,
-                char *dst, size_t dstlen) const
+  size_t casedn(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     return (cset->casedn)(this, src, srclen, dst, dstlen);
   }
 
-  size_t opt_casedn(const char *src, size_t srclen,
-                    char *dst, size_t dstlen, my_bool opt_casedn) const
+  size_t opt_casedn(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                    char *dst ATTRIBUTE_NONNULL, size_t dstlen, my_bool opt_casedn) const
   {
     if (opt_casedn)
       return casedn(src, srclen, dst, dstlen);
@@ -909,8 +909,8 @@ struct charset_info_st
   }
 
   /* Convert to a lower-cased 0-terminated string */
-  size_t casedn_z(const char *src, size_t srclen,
-                  char *dst, size_t dstlen) const
+  size_t casedn_z(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                  char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     DBUG_ASSERT(dstlen);
     DBUG_ASSERT(src != dst);
@@ -920,8 +920,8 @@ struct charset_info_st
   }
 
   /* Convert to a upper-cased 0-terminated string */
-  size_t caseup_z(const char *src, size_t srclen,
-                  char *dst, size_t dstlen) const
+  size_t caseup_z(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                  char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     DBUG_ASSERT(dstlen);
     DBUG_ASSERT(src != dst);
@@ -940,123 +940,123 @@ struct charset_info_st
     return (cset->casedn_multiply)(this);
   }
 
-  size_t long10_to_str(char *dst, size_t dstlen,
+  size_t long10_to_str(char *dst ATTRIBUTE_NONNULL, size_t dstlen,
                        int radix, long int val) const
   {
     return (cset->long10_to_str)(this, dst, dstlen, radix, val);
   }
 
-  size_t (longlong10_to_str)(char *dst, size_t dstlen,
+  size_t (longlong10_to_str)(char *dst ATTRIBUTE_NONNULL, size_t dstlen,
                              int radix, longlong val) const
   {
     return (cset->longlong10_to_str)(this, dst, dstlen, radix, val);
   }
 
-  int mb_wc(my_wc_t *wc, const uchar *b, const uchar *e) const
+  int mb_wc(my_wc_t *wc ATTRIBUTE_NONNULL, const uchar *b ATTRIBUTE_NONNULL, const uchar *e ATTRIBUTE_NONNULL) const
   {
     return (cset->mb_wc)(this, wc, b, e);
   }
 
-  int wc_mb(my_wc_t wc, uchar *s, uchar *e) const
+  int wc_mb(my_wc_t wc, uchar *s ATTRIBUTE_NONNULL, uchar *e ATTRIBUTE_NONNULL) const
   {
     return (cset->wc_mb)(this, wc, s, e);
   }
 
-  int native_to_mb(my_wc_t wc, uchar *s, uchar *e) const
+  int native_to_mb(my_wc_t wc, uchar *s ATTRIBUTE_NONNULL, uchar *e ATTRIBUTE_NONNULL) const
   {
     return (cset->native_to_mb)(this, wc, s, e);
   }
 
-  int wc_to_printable(my_wc_t wc, uchar *s, uchar *e) const
+  int wc_to_printable(my_wc_t wc, uchar *s ATTRIBUTE_NONNULL, uchar *e ATTRIBUTE_NONNULL) const
   {
     return (cset->wc_to_printable)(this, wc, s, e);
   }
 
-  int ctype(int *to, const uchar *s, const uchar *e) const
+  int ctype(int *to ATTRIBUTE_NONNULL, const uchar *s ATTRIBUTE_NONNULL, const uchar *e ATTRIBUTE_NONNULL) const
   {
     return (cset->ctype)(this, to, s, e);
   }
 
-  void fill(char *to, size_t len, int ch) const
+  void fill(char *to ATTRIBUTE_NONNULL, size_t len, int ch) const
   {
     (cset->fill)(this, to, len, ch);
   }
 
-  long strntol(const char *str, size_t length,
+  long strntol(const char *str ATTRIBUTE_NONNULL, size_t length,
                int base, char **endptr, int *error) const
   {
     return (cset->strntol)(this, str, length, base, endptr, error);
   }
 
-  ulong strntoul(const char *str, size_t length,
+  ulong strntoul(const char *str ATTRIBUTE_NONNULL, size_t length,
                  int base, char **endptr, int *error) const
   {
     return (cset->strntoul)(this, str, length, base, endptr, error);
   }
 
-  longlong strntoll(const char *str, size_t length,
+  longlong strntoll(const char *str ATTRIBUTE_NONNULL, size_t length,
                     int base, char **endptr, int *error) const
   {
     return (cset->strntoll)(this, str, length, base, endptr, error);
   }
 
-  ulonglong strntoull(const char *str, size_t length,
+  ulonglong strntoull(const char *str ATTRIBUTE_NONNULL, size_t length,
                       int base, char **endptr, int *error) const
   {
     return (cset->strntoull)(this, str, length, base, endptr, error);
   }
 
-  double strntod(char *str, size_t length,
+  double strntod(char *str ATTRIBUTE_NONNULL, size_t length,
                  char **endptr, int *error) const
   {
     return (cset->strntod)(this, str, length, endptr, error);
   }
 
-  longlong strtoll10(const char *str, char **endptr, int *error) const
+  longlong strtoll10(const char *str ATTRIBUTE_NONNULL, char **endptr, int *error) const
   {
     return (cset->strtoll10)(this, str, endptr, error);
   }
 
-  ulonglong strntoull10rnd(const char *str, size_t length, int unsigned_fl,
+  ulonglong strntoull10rnd(const char *str ATTRIBUTE_NONNULL, size_t length, int unsigned_fl,
                            char **endptr, int *error) const
   {
     return (cset->strntoull10rnd)(this, str, length, unsigned_fl, endptr, error);
   }
 
-  size_t scan(const char *b, const char *e, int seq) const
+  size_t scan(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, int seq) const
   {
     return (cset->scan)(this, b, e, seq);
   }
 
-  int charlen(const uchar *str, const uchar *end) const
+  int charlen(const uchar *str ATTRIBUTE_NONNULL, const uchar *end ATTRIBUTE_NONNULL) const
   {
     return (cset->charlen)(this, str, end);
   }
-  int charlen(const char *str, const char *end) const
+  int charlen(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL) const
   {
     return (cset->charlen)(this, (const uchar *) str, (const uchar *) end);
   }
 
-  uint charlen_fix(const uchar *str, const uchar *end) const
+  uint charlen_fix(const uchar *str ATTRIBUTE_NONNULL, const uchar *end ATTRIBUTE_NONNULL) const
   {
     int char_length= (cset->charlen)(this, str, end);
     DBUG_ASSERT(str < end);
     return char_length > 0 ? (uint) char_length : (uint) 1U;
   }
-  uint charlen_fix(const char *str, const char *end) const
+  uint charlen_fix(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL) const
   {
     return charlen_fix((const uchar *) str, (const uchar *) end);
   }
 
-  size_t well_formed_char_length(const char *str, const char *end,
+  size_t well_formed_char_length(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL,
                                  size_t nchars,
                                  MY_STRCOPY_STATUS *status) const
   {
     return (cset->well_formed_char_length)(this, str, end, nchars, status);
   }
 
-  size_t copy_fix(char *dst, size_t dst_length,
-                  const char *src, size_t src_length,
+  size_t copy_fix(char *dst ATTRIBUTE_NONNULL, size_t dst_length,
+                  const char *src ATTRIBUTE_NONNULL, size_t src_length,
                   size_t nchars, MY_STRCOPY_STATUS *status) const
   {
     return (cset->copy_fix)(this, dst, dst_length, src, src_length, nchars,
@@ -1099,26 +1099,26 @@ struct charset_info_st
                              (const uchar *) b.str, b.length, b_is_prefix);
   }
 
-  int strnncoll(const uchar *a, size_t alen,
-                const uchar *b, size_t blen, my_bool b_is_prefix= FALSE) const
+  int strnncoll(const uchar *a ATTRIBUTE_NONNULL, size_t alen,
+                const uchar *b ATTRIBUTE_NONNULL, size_t blen, my_bool b_is_prefix= FALSE) const
   {
     return (coll->strnncoll)(this, a, alen, b, blen, b_is_prefix);
   }
-  int strnncoll(const char *a, size_t alen,
-                const char *b, size_t blen, my_bool b_is_prefix= FALSE) const
+  int strnncoll(const char *a ATTRIBUTE_NONNULL, size_t alen,
+                const char *b ATTRIBUTE_NONNULL, size_t blen, my_bool b_is_prefix= FALSE) const
   {
     return (coll->strnncoll)(this,
                              (const uchar *) a, alen,
                              (const uchar *) b, blen, b_is_prefix);
   }
 
-  int strnncollsp(const uchar *a, size_t alen,
-                  const uchar *b, size_t blen) const
+  int strnncollsp(const uchar *a ATTRIBUTE_NONNULL, size_t alen,
+                  const uchar *b ATTRIBUTE_NONNULL, size_t blen) const
   {
     return (coll->strnncollsp)(this, a, alen, b, blen);
   }
-  int strnncollsp(const char *a, size_t alen,
-                  const char *b, size_t blen) const
+  int strnncollsp(const char *a ATTRIBUTE_NONNULL, size_t alen,
+                  const char *b ATTRIBUTE_NONNULL, size_t blen) const
   {
     return (coll->strnncollsp)(this, (uchar *) a, alen, (uchar *) b, blen);
   }
@@ -1462,9 +1462,9 @@ my_ci_instr(CHARSET_INFO *ci,
 
 
 static inline void
-my_ci_hash_sort(CHARSET_INFO *ci,
-                const uchar *key, size_t len,
-                ulong *nr1, ulong *nr2)
+my_ci_hash_sort(CHARSET_INFO *ci ATTRIBUTE_NONNULL,
+                const uchar *key ATTRIBUTE_NONNULL, size_t len,
+                ulong *nr1 ATTRIBUTE_NONNULL, ulong *nr2 ATTRIBUTE_NONNULL)
 {
   (ci->coll->hash_sort)(ci, key, len, nr1, nr2);
 }
