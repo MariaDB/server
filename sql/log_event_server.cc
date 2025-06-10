@@ -5686,8 +5686,11 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         */
         RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
+        ptr->create_column_mappings(
+            ptr->m_tabledef.get_optional_metadata_str(),
+            ptr->m_tabledef.get_optional_metadata_len());
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
+        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr, &conv_table))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -5803,18 +5806,47 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
 
-    bitmap_set_all(table->read_set);
-    if (get_general_type_code() == DELETE_ROWS_EVENT ||
-        get_general_type_code() == UPDATE_ROWS_EVENT)
-      bitmap_intersect(table->read_set,&m_cols);
+    {
+      /*
+        Update table->read_set. Slave columns can be organized differently, so
+        go through columns 1-by-1 to find the correct slave column to update
+      */
+      RPL_TABLE_LIST *table_el= NULL;
+      rgi->get_table_list_el(table, &table_el);
+      for (uint i=0; i < m_cols.n_bits; i++)
+      {
+        uint slave_col_idx;
+        /*
+          If the slave doesn't have this column, ignore
+        */
+        if (!bitmap_is_set(&m_cols, i) ||
+            table_el->lookup_slave_column(i, &slave_col_idx))
+          continue;
+        bitmap_set_bit(table->read_set, slave_col_idx);
+      }
 
-    bitmap_set_all(table->write_set);
-    table->rpl_write_set= table->write_set;
+      /*
+        Update table->write_set. Slave columns can be organized differently, so
+        go through columns 1-by-1 to find the correct slave column to update
+      */
+      MY_BITMAP *after_image=
+          ((get_general_type_code() == UPDATE_ROWS_EVENT) ? &m_cols_ai
+                                                          : &m_cols);
+      for (uint i=0; i < after_image->n_bits; i++)
+      {
+        uint slave_col_idx;
+        if (!bitmap_is_set(after_image, i) ||
+            table_el->lookup_slave_column(i, &slave_col_idx))
+          continue;
+        bitmap_set_bit(table->write_set, slave_col_idx);
+      }
 
-    /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
-    MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
-                             &m_cols_ai : &m_cols);
-    bitmap_intersect(table->write_set, after_image);
+      /*
+        Update table->rpl_write_set now that table read/write bitsets are
+        solidified
+      */
+      table->mark_columns_per_binlog_row_image();
+    }
 
     this->slave_exec_mode= slave_exec_mode_options; // fix the mode
 
@@ -6595,6 +6627,8 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
   table_list->updating= 1;
   table_list->required_type= TABLE_TYPE_NORMAL;
+  table_list->lookup_slave_column_func= &RPL_TABLE_LIST::lookup_by_identity_func;
+  table_list->master_to_slave_structs_inited= false;
 
   DBUG_PRINT("debug", ("table: %s is mapped to %llu",
                        table_list->table_name.str,
@@ -6617,10 +6651,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
       inside Relay_log_info::clear_tables_to_lock() by calling the
       table_def destructor explicitly.
     */
-    new (&table_list->m_tabledef)
-      table_def(m_coltype, m_colcnt,
-                m_field_metadata, m_field_metadata_size,
-                m_null_bits, m_flags);
+    new (&table_list->m_tabledef) table_def(
+        m_coltype, m_colcnt, m_field_metadata, m_field_metadata_size,
+        m_null_bits, m_flags, m_optional_metadata_len, m_optional_metadata);
     table_list->m_tabledef_valid= TRUE;
     table_list->m_conv_table= NULL;
     table_list->open_type= OT_BASE_ONLY;
