@@ -11,8 +11,8 @@ IF(NOT PLUGIN_PERFSCHEMA STREQUAL NO)
 ENDIF()
 
 # let's temporarily disable the warning, until ColumnStore is fixed
-MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=suggest-override")
-MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-suggest-override")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=suggest-override" DEBUG)
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-suggest-override" DEBUG)
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -U_GLIBCXX_DEBUG -U_GLIBCXX_ASSERTIONS")
 
 # new gcc is quite buggy re. spurious warnings. let's shut it up
