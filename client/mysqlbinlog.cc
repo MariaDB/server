@@ -441,7 +441,9 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   ptr= fname + target_dir_name_len;
   memcpy(ptr,bname,blen);
   ptr+= blen;
-  ptr+= sprintf(ptr, "-%x", file_id);
+  //ptr points to fname (with the size = full_len) + target_dir_name_len
+  //so the rest of fname has size full_len - target_dir_name_len
+  ptr+= snprintf(ptr, full_len - target_dir_name_len, "-%x", file_id);
 
   if ((file= create_unique_file(fname,ptr)) < 0)
   {
@@ -1219,7 +1221,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           }
 
           memset(tmp_sql, 0, sizeof(tmp_sql));
-          sprintf(tmp_sql, " "
+          snprintf(tmp_sql, sizeof(tmp_sql), " "
                   "SELECT Group_concat(cols) "
                   "FROM   (SELECT 'op_type char(1)' cols "
                   "  UNION ALL "
@@ -1266,12 +1268,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
             else
             {
               memset(tmp_sql, 0, sizeof(tmp_sql));
-              sprintf(tmp_sql, "__%s", map->get_table_name());
+              snprintf(tmp_sql, sizeof(tmp_sql), "__%s", map->get_table_name());
               ev->set_flashback_review_tablename(tmp_sql);
             }
             memset(tmp_sql, 0, sizeof(tmp_sql));
-            tmp_sql_offset= sprintf(tmp_sql, "CREATE TABLE IF NOT EXISTS");
-            tmp_sql_offset+= sprintf(tmp_sql + tmp_sql_offset, " `%s`.`%s` (%s) %s",
+            tmp_sql_offset= snprintf(tmp_sql, sizeof(tmp_sql), "CREATE TABLE IF NOT EXISTS");
+            tmp_sql_offset+= snprintf(tmp_sql + tmp_sql_offset, sizeof(tmp_sql) - (uint) tmp_sql_offset, " `%s`.`%s` (%s) %s",
                                      ev->get_flashback_review_dbname(),
                                      ev->get_flashback_review_tablename(),
                                      row[0],
@@ -1295,7 +1297,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           else
           {
             memset(tmp_str, 0, sizeof(tmp_str));
-            sprintf(tmp_str, "__%s", map->get_table_name());
+            snprintf(tmp_str, sizeof(tmp_sql), "__%s", map->get_table_name());
             ev->set_flashback_review_tablename(tmp_str);
           }
         }
