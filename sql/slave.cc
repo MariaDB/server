@@ -7808,9 +7808,9 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
 
 /**
   Reads next event from the relay log.  Should be called from the
-  slave IO thread.
+  slave SQL thread.
 
-  @param rli Relay_log_info structure for the slave IO thread.
+  @param rgi rpl_group_info structure for the slave SQL thread.
 
   @return The event read, or NULL on error.  If an error occurs, the
   error is reported through the sql_print_information() or
