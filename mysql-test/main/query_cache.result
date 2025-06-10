@@ -2316,3 +2316,59 @@ improbable
 drop table t1;
 set global query_cache_type= @qcache;
 # End of 10.10 tests
+#
+# MDEV-29076 Query_cache stored identical select queries
+#
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+set @save_time_zone=@@time_zone;
+set local time_zone = SYSTEM;
+reset query cache;
+flush status;
+create table t1 (i int not null);
+insert into t1 (i) values (1);
+select * from t1 order by i;
+i
+1
+select from_unixtime(i), i from t1 order by i;
+from_unixtime(i)	i
+1970-01-01 10:00:01	1
+select * from information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Qcache_hits','Qcache_inserts','Qcache_not_cached','Qcache_queries_in_cache') ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	0
+QCACHE_INSERTS	2
+QCACHE_NOT_CACHED	1
+QCACHE_QUERIES_IN_CACHE	2
+set time_zone = "+9:00";
+select * from t1 order by i;
+i
+1
+select from_unixtime(i), i from t1 order by i;
+from_unixtime(i)	i
+1970-01-01 10:00:01	1
+select * from information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Qcache_hits','Qcache_inserts','Qcache_not_cached','Qcache_queries_in_cache') ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	2
+QCACHE_INSERTS	2
+QCACHE_NOT_CACHED	2
+QCACHE_QUERIES_IN_CACHE	2
+set time_zone = "+10:00";
+select * from t1 order by i;
+i
+1
+select from_unixtime(i), i from t1 order by i;
+from_unixtime(i)	i
+1970-01-01 10:00:01	1
+select * from information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Qcache_hits','Qcache_inserts','Qcache_not_cached','Qcache_queries_in_cache') ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	4
+QCACHE_INSERTS	2
+QCACHE_NOT_CACHED	3
+QCACHE_QUERIES_IN_CACHE	2
+drop table t1;
+set time_zone=@save_time_zone;
+set global query_cache_type= @qcache;
+#
+# End of 10.11 tests
+#
