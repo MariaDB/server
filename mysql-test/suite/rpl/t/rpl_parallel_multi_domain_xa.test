@@ -69,7 +69,9 @@ while ($mode)
     --eval XA START '$conn$trx$i'
     --eval   UPDATE t1 SET b = 1 - 2 * $decision WHERE a = 1
     --eval XA END '$conn$trx$i'
+    set @@session.note_verbosity="";
     --eval XA PREPARE '$conn$trx$i'
+    set @@session.note_verbosity=default;
     --let $term = COMMIT
     if ($decision)
     {

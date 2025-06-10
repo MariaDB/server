@@ -111,7 +111,8 @@ set @@global.binlog_format = @sav_binlog_format;
 --echo #
 --echo # Test Case 5: A mixed XA transaction consisting of one statement that
 --echo # can successfully be rolled back (first statement), and another that
---echo # can not (second statement) should be binlogged
+--echo # can not (second statement) should be binlogged similarly to the normal
+--echo # transaction to reflect the 2nd statement.
 
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
@@ -133,7 +134,8 @@ set @@global.binlog_format = @sav_binlog_format;
 --echo #
 --echo # Test Case 6: A mixed XA transaction consisting of one statement that
 --echo # cannot successfully be rolled back (first statement), and another that
---echo # can (second statement) should be binlogged
+--echo # can (second statement) should be binlogged similarly to the normal
+--echo # transaction to reflect the 1st statement.
 
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
@@ -153,7 +155,7 @@ set @@global.binlog_format = @sav_binlog_format;
 
 --echo #
 --echo # Test Case 7: An XA transaction consisting of two failed
---echo # non-transactional statements should be binlogged
+--echo # non-transactional statements should be binlogged akin to 5,6.
 
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
@@ -197,6 +199,7 @@ change master to master_use_gtid=slave_pos;
 SET @@GLOBAL.replicate_ignore_db= "";
 SET @@GLOBAL.replicate_do_db= "db2";
 change master to master_use_gtid=slave_pos;
+SET @@GLOBAL.slave_parallel_workers=2;
 --source include/start_slave.inc
 
 --connection server_1
@@ -296,7 +299,53 @@ SET @@GLOBAL.replicate_do_db="";
 --connection server_1
 drop database db1;
 drop database db2;
+use test;
 
+# MDEV-32257 dangling XA-rollback in binlog from emtpy XA
+# create a case of XA ROLLBACK gets to binlog while its XAP was not and
+# try replicate it.
+# Expected result is both slaves error out.
+--connection server_1
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $binlog_file =  query_get_value(SHOW MASTER STATUS, File, 1)
+create table t_not_in_binlog (a int) engine=innodb;
+flush logs;
+--source include/save_master_gtid.inc
+--let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
+
+# External connection XID access after disconnect is subject to race.
+# "(" open parenthesis to remember # of connection before ...
+--source include/count_sessions.inc
+
+--connect(con1,localhost,root,,)
+call mtr.add_suppression("XAER_NOTA: Unknown XID");
+
+SET sql_log_bin=0;
+XA START 'a';
+insert into t_not_in_binlog set a=1;
+XA END 'a';
+XA PREPARE 'a';
+--disconnect con1
+
+--connection server_1
+# .. ")" close parenthesis, to wait until con1 fully releases access to xid.
+--source include/wait_until_count_sessions.inc
+xa recover;
+#
+# replicate orphan XAR to server 2,3 and expect the error first
+# after that compensate it.
+
+--error 0
+XA ROLLBACK 'a';
+# cleanup at once
+drop table t_not_in_binlog;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
 
 #
 # Cleanup

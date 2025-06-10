@@ -1,0 +1,23 @@
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+SET pseudo_slave_mode=1;
+XA START 'a';
+INSERT INTO t VALUES (1),(2),(3);
+XA END 'a';
+XA PREPARE 'a';
+XA COMMIT 'a';
+ERROR HY000: This xid does not exist
+DROP TABLE t;
+SET max_session_mem_used=32768;
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+XA START 'b';
+INSERT INTO t VALUES ();
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=32768 option so it cannot execute this statement
+INSERT INTO t VALUES ();
+SET pseudo_slave_mode=1;
+XA END 'b';
+XA PREPARE 'b';
+Warnings:
+Warning	4205	Pseudo thread id should not be modified by the client as it will be overwritten
+XA ROLLBACK 'b';
+# cleanup
+DROP TABLE t;

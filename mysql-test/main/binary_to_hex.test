@@ -9,6 +9,7 @@
 #
 
 # Save the initial number of concurrent sessions
+--source include/have_innodb.inc
 --source include/count_sessions.inc
 --source include/not_embedded.inc
 
@@ -74,7 +75,7 @@ DROP TABLE t1, t2;
 
 # MDEV-14593 human-readable XA RECOVER 
 
-create table t1 (a int);
+create table t1 (a int) engine=innodb;
 
 --write_file $MYSQLTEST_VARDIR/tmp/mdev-14593.sql
 DELIMITER /

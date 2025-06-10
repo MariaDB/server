@@ -16,9 +16,9 @@
 #   MDEV-31038: Parallel Replication Breaks if XA PREPARE Fails Updating Slave
 #               GTID State
 #
-source include/master-slave.inc;
 source include/have_binlog_format_row.inc;
 source include/have_innodb.inc;
+source include/master-slave.inc;
 
 --connection slave
 --source include/stop_slave.inc

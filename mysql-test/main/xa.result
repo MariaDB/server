@@ -175,10 +175,14 @@ xa rollback 'a';
 xa start 'a';
 xa end 'a';
 xa prepare 'a';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa commit 'a';
 xa start 'a';
 xa end 'a';
 xa prepare 'a';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa commit 'a';
 CREATE TABLE t1(a INT, KEY(a)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1),(2);
@@ -222,8 +226,10 @@ XA END 'x';
 XA END 'x';
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
 XA PREPARE 'x';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA PREPARE 'x';
-ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
 XA ROLLBACK 'x';
 #
 # Bug#59986 Assert in Diagnostics_area::set_ok_status() for XA COMMIT
@@ -324,6 +330,8 @@ connection con2;
 XA START 'xid1';
 XA END 'xid1';
 XA PREPARE 'xid1';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'xid1';
 connection default;
 DROP TABLE t1, t2;
@@ -396,6 +404,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 XA BEGIN 'Я_упaлa_c_сеновала_тормозила_головой';
 XA END 'Я_упaлa_c_сеновала_тормозила_головой';
 XA PREPARE 'Я_упaлa_c_сеновала_тормозила_головой';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA ROLLBACK 'Я_упaлa_c_сеновала_тормозила_головой';
 SET NAMES default;
 DROP TABLE t1;
@@ -422,9 +432,11 @@ XA ROLLBACK 'unknown';
 ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
 XA END 'xid1';
 XA PREPARE 'xid1';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 XA COMMIT 'xid1' ONE PHASE;
-ERROR XAE05: XAER_INVAL: Invalid arguments (or unsupported command)
 XA ROLLBACK 'xid1';
+ERROR XAE04: XAER_NOTA: Unknown XID
 #
 # MDEV-21856 - xid_t::formatID has to be constrained to 4 byte size
 #
@@ -463,8 +475,10 @@ SELECT * FROM t;
 a
 XA END '0';
 XA PREPARE '0';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 HANDLER t READ NEXT;
-ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
 # Cleanup
 XA COMMIT '0';
 DROP TABLE t;
@@ -555,6 +569,8 @@ select 0;
 0
 xa end '1';
 xa prepare '1';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa commit '1';
 xa start '2';
 select 0;
@@ -562,6 +578,8 @@ select 0;
 0
 xa end '2';
 xa prepare '2';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 xa rollback '2';
 # Read-only disconnect case
 connect  con1_ro,localhost,root,,;
@@ -571,13 +589,14 @@ select 0;
 0
 xa end '3';
 xa prepare '3';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con1_ro;
 connection default;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-1	1	0	3
 xa commit '3';
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 connect  con2_ro,localhost,root,,;
 xa start '4';
 select 0;
@@ -585,13 +604,14 @@ select 0;
 0
 xa end '4';
 xa prepare '4';
+Warnings:
+Note	4226	Found to be read-only XA transaction is rolled back
 disconnect con2_ro;
 connection default;
 xa recover;
 formatID	gtrid_length	bqual_length	data
-1	1	0	4
 xa rollback '4';
-ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+ERROR XAE04: XAER_NOTA: Unknown XID
 set @@global.read_only=@sav_read_only;
 #
 # End of 10.5 tests

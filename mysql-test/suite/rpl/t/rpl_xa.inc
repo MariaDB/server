@@ -71,8 +71,7 @@ let $diff_tables= master:t2, slave:t2;
 source include/diff_tables.inc;
 
 #
-# Read-only XA remains prepared after disconnect and must rollback at XA-complete
-# after recoonect. To the read-only also belongs non-transactional engine XA.
+# Read-only XA is not binlogged and is rolled back by disconnect.
 #
 --connection master
 
@@ -128,7 +127,7 @@ while ($p_trx)
   --dec $p_trx
 }
 
---echo *** $ro_cases prepared xa:s must be in the list:
+--echo *** Zero prepared xa:s must be in the list:
 --connection master
 sorted_result;
 xa recover;
@@ -140,7 +139,7 @@ while ($p_trx)
   --let $complete=`select if(floor(rand()*10)%2,'COMMIT','ROLLBACK')`
   --disable_query_log
   --disable_result_log
-  --error ER_XA_RBROLLBACK
+  --error ER_XAER_NOTA
   --eval xa $complete '$xid'
   --enable_result_log
   --enable_query_log
@@ -150,7 +149,7 @@ while ($p_trx)
 --echo *** Zero prepared xa:s must be in the list:
 xa recover;
 
---echo *** At the end of read-only section gtid list has 0 more compare with previous check:
+--echo *** At the end of the above read-only section gtid list must not change from the previous check:
 flush logs;
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 --source include/show_gtid_list.inc
@@ -160,8 +159,9 @@ flush logs;
 # XA logging cases while some of XA resources are read-only
 #
 # A1. Binlog filter
-
-
+# The empty XAP is created. It reaches slave though where it is read-only
+# optimized. This affects the following XA-complete which causes slave error out.
+#
 --let $db=test_ign
 --eval create database $db
 set @@sql_log_bin = 0;
@@ -179,12 +179,13 @@ set @@sql_log_bin = 1;
 xa recover;
 
 --let $complete=`select if(floor(rand()*10)%2,'COMMIT','ROLLBACK')`
---error 0
---disable_query_log
---disable_result_log
---eval xa $complete '$xid'
---enable_result_log
---enable_query_log
+# ignore-db filtered out XA-PREPARE is empty-binlogged and ...
+# as of now unnecessarily replicated.
+# todo: implement SKIP_REPLICATION flag for either of XA -PREPARE and -COMPLETE
+# As a work-around skip binlogging of its completion.
+set @@session.sql_log_bin = 0;
+--evalp xa $complete '$xid'
+set @@session.sql_log_bin = 1;
 
 --echo *** Zero must be in the list:
 --connection master
@@ -192,15 +193,15 @@ xa recover;
 # restore for the following tests
 --let $db=test
 
---echo *** At the end of --binlog-ignore-db section gtid list has 2 more:
+--echo *** At the end of --binlog-ignore-db section gtid list remains the same.
 flush logs;
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 --source include/show_gtid_list.inc
 
 #
 # A2. Opposite to A1, ineffective execution in Engine may create a
-#     binlog transaction
-#
+#     binlog transaction.
+#     This case is non-crash-recoverable by design of "maybe-all" record DELETE.
 connection master;
 create table t3 (a int) engine=innodb;
 
@@ -265,8 +266,8 @@ flush logs;
 --source include/show_gtid_list.inc
 
 #
-# A3 MyISAM "xa" logs empty XA-prepare group, followed by
-#     an XA-complete event
+# A3 MyISAM "xa" does not log even empty XA-prepare group.
+#    Such transaction is considered to be read-only so optimized away.
 create table tm (a int) engine=myisam;
 
 # No disconnect
@@ -298,6 +299,8 @@ xa recover;
   --let $complete=`select if(floor(rand()*10)%2,'COMMIT','ROLLBACK')`
   --disable_query_log
   --disable_result_log
+  # the result of read-only optimization
+  --error ER_XAER_NOTA
   --eval xa $complete '$xid'
   --enable_result_log
   --enable_query_log
@@ -305,18 +308,27 @@ xa recover;
 --echo *** Zero prepared xa:s must be in the list:
 xa recover;
 
---echo *** At the end of MyISAM "xa" section gtid list has 7 more compare with previous check:
+--echo *** At the end of MyISAM "xa" section gtid list has 3 more compare with previous check:
 flush logs;
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 --source include/show_gtid_list.inc
 
 
-# B. Session binlog disable does not log even empty XA-prepare
-#    Therefore XA-complete should be also run in sql_log_bin-OFF environment.
+# B. Session binlog disable does log even empty XA-prepare.
+#    As a workaround XA-complete should be also run in sql_log_bin=OFF.
 
 --let $db=test
 --let $xid=skip_binlog
 --let $query=insert into t2 values(1)
+set @@session.sql_log_bin = OFF;
+ --source rpl_create_xa_prepared.inc
+ --let $complete=`select if(floor(rand()*10)%2,'COMMIT','ROLLBACK')`
+ --evalp xa $complete '$xid'
+set @@session.sql_log_bin = ON;
+  --disconnect master_$xid
+  --source include/wait_until_disconnected.inc
+
+# with disconnect
 --connect (master_$xid, 127.0.0.1,root,,$db,$MASTER_MYPORT,)
 set @@session.sql_log_bin = OFF;
 --eval xa start '$xid'
