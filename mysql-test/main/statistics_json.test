@@ -531,4 +531,157 @@ drop table t1;
 # JSON_UNQUOTE was touched by this patch also
 select JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251));
 
+
+--echo #
+--echo # MDEV-36977 Histogram code lacks coverage for non-latin characters
+--echo #
+
+create table t1 (
+  col1 varchar(10) charset utf8 collate utf8mb3_general_ci
+);
+set names utf8;
+select hex('Ꙃ'), collation('Ꙃ');
+insert into t1 values
+('Ꙩ'),('Ꙛ'),('ꙮ'),('Ꙃ'),('Ꚛ'),('ꘐ'),('ꘜ'),('ꕫ'),('ꖿ'), ('ꙛ');
+
+analyze table t1 persistent for all;
+select  col1, hex(col1) from t1 order by col1;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+
+analyze select * from t1 where col1 < 'ꕫ';
+analyze select * from t1 where col1 < 'ꖿ';
+analyze select * from t1 where col1 < 'Ꙃ';
+analyze select * from t1 where col1 < 'ꙛ';
+analyze select * from t1 where col1 < 'Ꚛ';
+
+delete from t1;
+insert into t1 values
+('"Ꙩ'),('"Ꙛ'),('"ꙮ'),('"Ꙃ'),('"Ꚛ'),('"ꘐ'),('"ꘜ'),('"ꕫ'),('"ꖿ'), ('"ꙛ');
+
+analyze table t1 persistent for all;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+select  col1, hex(col1) from t1 order by col1;
+analyze select * from t1 where col1 < '"ꕫ';
+analyze select * from t1 where col1 < '"ꖿ';
+analyze select * from t1 where col1 < '"Ꙃ';
+analyze select * from t1 where col1 < '"ꙛ';
+analyze select * from t1 where col1 < '"Ꚛ';
+
+drop table t1;
+
+create table t1 (
+  col1 varchar(10) charset utf32 collate utf32_uca1400_ai_ci
+);
+show variables like "histogram_size";
+SET NAMES utf8mb4;
+--disable_service_connection
+select hex('🌀'), collation('🌀');
+--enable_service_connection
+insert into t1 values
+('𝄞'),('🌀'),('😎'),('😀'),('🂡'),('🌚'), ('🀄'),('𝄢'), ('😺'), ('🧸');
+
+
+analyze table t1 persistent for all;
+select  col1, hex(col1) from t1 order by col1;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+
+analyze select * from t1 where col1 < '𝄞';
+analyze select * from t1 where col1 < '𝄢';
+analyze select * from t1 where col1 < '🂡';
+analyze select * from t1 where col1 < '🌚';
+analyze select * from t1 where col1 < '😺';
+
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"😎'),('"😀'),('"🂡'),('"🌚'), ('"🀄'),('"𝄢'), ('"😺'), ('"🧸');
+
+analyze table t1 persistent for all;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+select  col1, hex(col1) from t1 order by col1;
+analyze select * from t1 where col1 < '"𝄞';
+analyze select * from t1 where col1 < '"𝄢';
+analyze select * from t1 where col1 < '"🂡';
+analyze select * from t1 where col1 < '"🌚';
+analyze select * from t1 where col1 < '"😺';
+
+drop table t1;
+
+# Different behavior for collation utf32_uca1400_ai_ci and utf32_general_ci
+
+create table t1 (
+  col1 varchar(10) charset utf32 collate utf32_general_ci
+);
+show variables like "histogram_size";
+SET NAMES utf8mb4;
+insert into t1 values
+('𝄞'),('🌀'),('б'),('😀'),('🂡'),('🀄'), ('ꕫ'),('Ꙃ'), ('😺'), ('d');
+
+
+analyze table t1 persistent for all;
+select  col1, hex(col1) from t1 order by col1;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+
+analyze select * from t1 where col1 < 'd';
+analyze select * from t1 where col1 < 'ꕫ';
+analyze select * from t1 where col1 < '𝄞';
+analyze select * from t1 where col1 < '🂡';
+analyze select * from t1 where col1 < '😺';
+
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"б'),('"😀'),('"🂡'),('"🌚'), ('"ꕫ'),('"Ꙃ'), ('"😺'), ('"d');
+
+analyze table t1 persistent for all;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+select  col1, hex(col1) from t1 order by col1;
+analyze select * from t1 where col1 < '"d';
+analyze select * from t1 where col1 < '"ꕫ';
+analyze select * from t1 where col1 < '"𝄞';
+analyze select * from t1 where col1 < '"🂡';
+analyze select * from t1 where col1 < '"😺';
+
+drop table t1;
+
+create table t1 (
+  col1 varchar(10) charset utf32  COLLATE utf32_uca1400_ai_ci
+);
+show variables like "histogram_size";
+SET NAMES utf8mb4;
+insert into t1 values
+('𝄞'),('🌀'),('б'),('😀'),('🂡'),('🀄'), ('ꕫ'),('Ꙃ'), ('😺'), ('d');
+
+
+analyze table t1 persistent for all;
+select  col1, hex(col1) from t1 order by col1;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+
+analyze select * from t1 where col1 < 'd';
+analyze select * from t1 where col1 < 'ꕫ';
+analyze select * from t1 where col1 < '𝄞';
+analyze select * from t1 where col1 < '🂡';
+analyze select * from t1 where col1 < '😺';
+
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"б'),('"😀'),('"🂡'),('"🌚'), ('"ꕫ'),('"Ꙃ'), ('"😺'), ('"d');
+
+analyze table t1 persistent for all;
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+select  col1, hex(col1) from t1 order by col1;
+analyze select * from t1 where col1 < '"d';
+analyze select * from t1 where col1 < '"ꕫ';
+analyze select * from t1 where col1 < '"𝄞';
+analyze select * from t1 where col1 < '"🂡';
+analyze select * from t1 where col1 < '"😺';
+
+drop table t1;
+
 --echo # End of 10.11 tests
