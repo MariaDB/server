@@ -425,9 +425,7 @@ Warnings:
 Warning	1292	Incorrect interval value: '100000-02-03'
 SELECT EXTRACT(DAY FROM '1111');
 EXTRACT(DAY FROM '1111')
-NULL
-Warnings:
-Warning	1292	Incorrect interval value: '1111'
+0
 SELECT EXTRACT(DAY FROM '111');
 EXTRACT(DAY FROM '111')
 NULL
