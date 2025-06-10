@@ -217,7 +217,8 @@ bool trans_begin(THD *thd, uint flags)
 #endif //EMBEDDED_LIBRARY
 
   /* ha_start_consistent_snapshot() relies on OPTION_BEGIN flag set. */
-  if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
+  if ((flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT) ||
+      thd->tx_isolation == ISO_SERIALIZABLE)
   {
 #ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
