@@ -356,7 +356,7 @@ struct LEX_MASTER_INFO
   DYNAMIC_ARRAY repl_ignore_server_ids;
   DYNAMIC_ARRAY repl_do_domain_ids;
   DYNAMIC_ARRAY repl_ignore_domain_ids;
-  const char *host, *user, *password, *log_file_name;
+  const char *host, *bind_addr, *user, *password, *log_file_name;
   const char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   const char *ssl_crl, *ssl_crlpath;
   const char *relay_log_name;
@@ -406,7 +406,7 @@ struct LEX_MASTER_INFO
       delete_dynamic(&repl_ignore_domain_ids);
     }
 
-    host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
+    host= bind_addr= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
     pos= relay_log_pos= server_id= port= connect_retry= retry_count= 0;
     heartbeat_period= 0;
