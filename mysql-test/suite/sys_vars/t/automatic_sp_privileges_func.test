@@ -136,7 +136,9 @@ DROP PROCEDURE testProc;
 --enable_warnings
 DROP PROCEDURE testProc1;
 
+--disable_warnings
 DROP USER 'userTest'@'localhost';
 DROP USER 'userTest1'@'localhost';
+--enable_warnings
 
 DROP TABLE t1;

@@ -922,7 +922,9 @@ update t1 left join t3 on t1.id = t3.id set t1.v1 = 'hello';
 select * from t2;
 
 drop table t1,t2, t3;
+--disable_warnings
 drop user foo;
+--enable_warnings
 
 #
 # Another test on not-opening tables unnecessary

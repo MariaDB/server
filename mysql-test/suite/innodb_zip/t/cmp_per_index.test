@@ -78,7 +78,9 @@ SELECT * FROM information_schema.innodb_cmp_per_index;
 -- connection default
 -- disconnect con1
 
+--disable_warnings
 DROP USER 'tuser01'@'localhost';
+--enable_warnings
 
 SELECT
 database_name,

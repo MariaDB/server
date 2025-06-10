@@ -2241,7 +2241,9 @@ update mysqltest1.t11 as t11, mysqltest2.v42 as v4 set v4.val= 'test20'
 --echo #
 disconnect conn_11766767;
 connection default;
+--disable_warnings
 drop user user_11766767;
+--enable_warnings
 drop database mysqltest1;
 drop database mysqltest2;
 
@@ -2319,7 +2321,9 @@ select * from vds;
 --disconnect con1
 --connection default
 drop database db;
+--disable_warnings
 drop user u@localhost;
+--enable_warnings
 
 --echo # End of 10.5 tests
 

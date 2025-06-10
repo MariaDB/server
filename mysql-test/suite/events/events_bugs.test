@@ -505,7 +505,9 @@ select event_schema, event_name, definer, event_type, status from information_sc
 drop event events_test.mysqltest_user1;
 disconnect conn2;
 connection default;
+--disable_warnings
 drop user mysqltest_user1@localhost;
+--enable_warnings
 drop database mysqltest_db1;
 #
 # END   - 18897: Events: unauthorized action possible with alter event rename

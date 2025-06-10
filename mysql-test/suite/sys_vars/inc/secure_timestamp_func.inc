@@ -24,7 +24,9 @@ enable_abort_on_error;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'SUPER';
 disconnect con2;
 connection slave;
+--disable_warnings
 drop user foo@127.0.0.1;
+--enable_warnings
 set timestamp=default;
 
 --echo ### BINLOG REPLAY
@@ -37,7 +39,9 @@ enable_abort_on_error;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'BINLOG REPLAY';
 disconnect con2;
 connection slave;
+--disable_warnings
 drop user foo@127.0.0.1;
+--enable_warnings
 set timestamp=default;
 
 --echo ### non-privileged user
@@ -49,7 +53,9 @@ enable_abort_on_error;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'non-privileged';
 disconnect con2;
 connection slave;
+--disable_warnings
 drop user foo@127.0.0.1;
+--enable_warnings
 set timestamp=default;
 
 ### replication

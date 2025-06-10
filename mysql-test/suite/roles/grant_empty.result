@@ -14,3 +14,5 @@ GRANT USAGE ON *.* TO ``@`localhost`
 connection default;
 drop role r1;
 drop user ''@localhost;
+Warnings:
+Note	4226	Dropped users [''@'localhost'] have active connections. Use KILL CONNECTION if they should not be used anymore.

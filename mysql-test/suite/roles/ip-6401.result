@@ -12,4 +12,6 @@ ROLE_NAME
 r1
 connection default;
 drop user foo@'127.0.0.1';
+Warnings:
+Note	4226	Dropped users ['foo'@'127.0.0.1'] have active connections. Use KILL CONNECTION if they should not be used anymore.
 drop role r1;

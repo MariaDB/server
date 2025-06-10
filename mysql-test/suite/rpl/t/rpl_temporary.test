@@ -359,7 +359,9 @@ disconnect cont43748;
 --echo -- throw out test-user on slave.
 connection slave;
 
+--disable_warnings
 DROP USER user43748@127.0.0.1;
+--enable_warnings
 
 --echo #
 --echo # MDEV-10216: Assertion `strcmp(share->unique_file_name,filename) ||

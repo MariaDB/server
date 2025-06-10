@@ -91,8 +91,10 @@ DROP DATABASE foo;
 
 DISCONNECT con1;
 --CONNECTION default
+--disable_warnings
 DROP USER boo1;
 DROP USER boo2;
+--enable_warnings
 
 --echo #
 --echo # MDEV-18440: Information_schema.check_constraints possible data leak

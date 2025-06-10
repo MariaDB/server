@@ -23,6 +23,8 @@ connection c1;
 
 --query_vertical select user(), current_user(), @@external_user
 connection default;
+--disable_warnings
 drop user tt;
 drop user zzzzzzzzzzzzzzzz;
+--enable_warnings
 uninstall plugin auth_0x0100;
