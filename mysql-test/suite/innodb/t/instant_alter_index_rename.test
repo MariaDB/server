@@ -110,6 +110,7 @@ drop table errors;
 
 --disable_query_log
 call mtr.add_suppression("Flagged corruption of `a_key` in table `test`.`corrupted` in dict_set_index_corrupted");
+call mtr.add_suppression("Index ./test/corrupted is corrupted");
 --enable_query_log
 
 create table corrupted (
