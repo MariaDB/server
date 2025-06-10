@@ -23,7 +23,23 @@
 #include "sql_type_vector.h"
 #include "item_jsonfunc.cc"
 
+static char *host, *api_key;
 
+static MYSQL_THDVAR_STR(host,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+  "OpenAI API host, can be set to 'https://api.openai.com/v1/embeddings' or a custom endpoint",
+  NULL, NULL, "My Default Host"); // TODO: Change this
+
+static MYSQL_THDVAR_STR(api_key,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+  "OpenAI API key",
+  NULL, NULL, "My Default API Key"); // TODO: Change this
+
+static struct st_mysql_sys_var* system_variables[]= {
+  MYSQL_SYSVAR(host),
+  MYSQL_SYSVAR(api_key),
+  NULL
+};
 
 class Item_func_gen_embedding: public Item_str_func 
 {
@@ -35,6 +51,10 @@ class Item_func_gen_embedding: public Item_str_func
       Store the result in api_response
       This is a placeholder for the actual implementation
     */
+    
+    // std::cout << "Host " << host << std::endl;
+    // std::cout <<  "API KEY" << api_key << std::endl;
+
     String *value = args[0]->val_json(&api_response); // For now just pass the input text
     api_response.copy(*value);
     if (!value) {
@@ -53,6 +73,11 @@ class Item_func_gen_embedding: public Item_str_func
     using Item_str_func::Item_str_func;
     bool fix_length_and_dec(THD *thd) override
     {
+      // TODO: I am grabbing the session variables here, because this is the function that has access to the THD
+      // Is there a better place to do this?
+      host = THDVAR(thd, host);
+      api_key = THDVAR(thd, api_key);
+
       decimals= 0;
       uint max_dimensions = 3072;
       // TODO: What is the best way/place to do this allocation?
@@ -277,7 +302,7 @@ maria_declare_plugin(type_test)
   0,                            // Pointer to plugin deinitialization function
   0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
-  NULL,                         // System variables
+  system_variables,                         // System variables
   "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
 }
