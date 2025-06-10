@@ -105,7 +105,7 @@ protected:
       */
       if (unlikely(!item->is_explicit_name()))
       {
-        my_error(ER_NEED_NAMED_ASSOCIATION, MYF(0), def.get_name());
+        my_error(ER_NEED_NAMED_ASSOCIATION, MYF(0), def.get_name().str);
         return true;
       }
 
