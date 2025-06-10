@@ -385,7 +385,7 @@ my_decimal::my_decimal(Field *field)
   my_decimal *dec=
 #endif
   field->val_decimal(this);
-  DBUG_ASSERT(dec == this);
+  DBUG_ASSERT_NO_ASSUME(dec == this);
 }
 
 

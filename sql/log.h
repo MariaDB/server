@@ -503,7 +503,7 @@ public:
   {
     IF_DBUG(auto prev= ,)
     ref_count.fetch_add(1);
-    DBUG_ASSERT(prev != 0);
+    DBUG_ASSERT_NO_ASSUME(prev != 0);
   }
 
   void release()

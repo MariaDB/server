@@ -2915,7 +2915,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
   /* commit_list and tc_heuristic_recover cannot be set both */
   DBUG_ASSERT(info.commit_list==0 || tc_heuristic_recover==0);
   /* if either is set, total_ha_2pc must be set too */
-  DBUG_ASSERT(info.dry_run ||
+  DBUG_ASSERT_NO_ASSUME(info.dry_run ||
               (failed_ha_2pc + total_ha_2pc) > (ulong)opt_bin_log);
 
   if (total_ha_2pc <= (ulong)opt_bin_log)
@@ -7878,7 +7878,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
         else
         {
           Item_func_left *fnc= static_cast<Item_func_left *>(arguments[j]);
-          DBUG_ASSERT(Lex_ident_routine(fnc->func_name_cstring()).
+          DBUG_ASSERT_NO_ASSUME(Lex_ident_routine(fnc->func_name_cstring()).
                         streq("left"_LEX_CSTRING));
           DBUG_ASSERT(fnc->arguments()[0]->type() == Item::FIELD_ITEM);
           t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;

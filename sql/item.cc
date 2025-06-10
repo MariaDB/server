@@ -1880,7 +1880,7 @@ bool Item_splocal::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont);
 }
@@ -1888,7 +1888,7 @@ Item_splocal::this_item()
 const Item *
 Item_splocal::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont);
 }
@@ -1897,7 +1897,7 @@ Item_splocal::this_item() const
 Item **
 Item_splocal::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_rcontext(thd->spcont)->get_variable_addr(m_var_idx);
 }
@@ -2014,7 +2014,7 @@ bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_row_field::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
@@ -2023,7 +2023,7 @@ Item_splocal_row_field::this_item()
 const Item *
 Item_splocal_row_field::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
@@ -2032,7 +2032,7 @@ Item_splocal_row_field::this_item() const
 Item **
 Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(thd->spcont)->addr(m_field_idx);
 }
@@ -2124,7 +2124,7 @@ bool Item_case_expr::fix_fields(THD *thd, Item **ref)
 Item *
 Item_case_expr::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
 
   return m_thd->spcont->get_case_expr(m_case_expr_id);
 }
@@ -2134,7 +2134,7 @@ Item_case_expr::this_item()
 const Item *
 Item_case_expr::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == m_thd->spcont->m_sp);
 
   return m_thd->spcont->get_case_expr(m_case_expr_id);
 }
@@ -2143,7 +2143,7 @@ Item_case_expr::this_item() const
 Item **
 Item_case_expr::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT_NO_ASSUME(m_sp == thd->spcont->m_sp);
 
   return thd->spcont->get_case_expr_addr(m_case_expr_id);
 }
@@ -5415,7 +5415,7 @@ bool Item_param::assign_default(Field *field)
 
 double Item_copy_string::val_real()
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
@@ -5426,7 +5426,7 @@ double Item_copy_string::val_real()
 
 longlong Item_copy_string::val_int()
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   int err;
   return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
                                                         str_value.length(), 10,
@@ -5436,7 +5436,7 @@ longlong Item_copy_string::val_int()
 
 int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   return save_str_value_in_field(field, &str_value);
 }
 
@@ -5455,7 +5455,7 @@ void Item_copy_string::copy()
 /* ARGSUSED */
 String *Item_copy_string::val_str(String *str)
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (String*) 0;
@@ -5465,7 +5465,7 @@ String *Item_copy_string::val_str(String *str)
 
 my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 {
-  DBUG_ASSERT(copied_in);
+  DBUG_ASSERT_NO_ASSUME(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (my_decimal *) 0;
