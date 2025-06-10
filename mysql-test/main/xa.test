@@ -573,8 +573,10 @@ XA COMMIT 'unknown' ONE PHASE;
 XA ROLLBACK 'unknown';
 XA END 'xid1';
 XA PREPARE 'xid1';
---error ER_XAER_INVAL
+# marked to rollback at prepare does not warn (maybe it should)
+--error 0
 XA COMMIT 'xid1' ONE PHASE;
+--error ER_XAER_NOTA
 XA ROLLBACK 'xid1';
 
 
@@ -731,7 +733,7 @@ disconnect con1_ro;
 connection default;
 --source include/wait_until_count_sessions.inc
 xa recover;
---error ER_XA_RBROLLBACK
+--error ER_XAER_NOTA
 xa commit '3';
 
 --source include/count_sessions.inc
@@ -745,7 +747,7 @@ disconnect con2_ro;
 connection default;
 --source include/wait_until_count_sessions.inc
 xa recover;
---error ER_XA_RBROLLBACK
+--error ER_XAER_NOTA
 xa rollback '4';
 
 set @@global.read_only=@sav_read_only;

@@ -2537,6 +2537,10 @@ rpl_group_info::unmark_start_commit()
   if (!did_mark_start_commit)
     return;
   did_mark_start_commit= false;
+  /* MDEV-36826 read-only xa tried unmarking for no reason */
+  DBUG_ASSERT(!(thd->transaction->xid_state.is_explicit_XA() &&
+		thd->transaction->xid_state.get_state_code() ==
+		XA_ROLLBACK_ONLY));
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);

@@ -1,0 +1,111 @@
+#
+#   This test ensures that two-phase XA transactions have their first and
+# second phases parallelized for both XA COMMIT and XA ROLLBACK. It ensures the
+# following behaviors:
+#
+#   Test Case 1: Ensure that a 2-phase XA transaction has its XA PREPARE and
+# XA COMMIT/ROLLBACK run concurrently. That is, the XA COMMIT/ROLLBACK will
+# wait at group commit until the XA PREPARE binlogs, and then it will wait
+# again until the XA PREPARE finishes preparing in all engines. At this point,
+# the XA COMMIT/ROLLBACK will run to completion.
+#
+#   Test Case 2: If two XA transactions have different XIDs, if XA COMMIT ends
+# a transaction, ensure both phases of both transactions can all execute
+# concurrently.
+#
+#   Test Case 3: Two current 2-phase XA transactions with matching XIDs should
+# run one after the other, while each transaction still allows both phases of
+# its own transaction to run concurrently.
+#
+#   Test Case 4: Error Case. If an XAP errors while its XAC/R is waiting on it,
+# both the XAP and XAC/R should rollback successfully. Note this tests both:
+#    a) XAC/R is waiting in group commit (first phase times out in DMLs)
+#    b) XAC/R is waiting in group commit, with another XAP with a duplicate XID
+#       waiting on it.
+#
+#   Test Case 5: If an XAP is skipped by the replica (e.g. by incorrectly
+# setting gtid_slave_pos), and only its XAC/XAR is tried to execute, the
+# replica should report ER_XAER_NOTA.
+#
+#
+# References:
+#   MDEV-31949: slow parallel replication of user xa
+#
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--let $xa_complete_sym= COMMIT
+--source include/rpl_xa_concurrent_2pc.inc
+
+--let $xa_complete_sym= ROLLBACK
+--source include/rpl_xa_concurrent_2pc.inc
+
+--echo #
+--echo # Test Case 5: If an XAP is skipped by the replica (e.g. by incorrectly
+--echo # setting gtid_slave_pos), and only its XAC/XAR is tried to execute, the
+--echo # replica should report ER_XAER_NOTA.
+
+--connection master
+create table t1 (a int) engine=innodb;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+call mtr.add_suppression("XAER_NOTA: Unknown XID");
+
+--let $i=2
+while ($i)
+{
+	--source include/stop_slave.inc
+	--replace_regex /[0-9]*-[0-9]*-[0-9]*/<value>/
+	change master to master_use_gtid = slave_pos;
+
+  --connection master
+	--let $complete=rollback
+	if ($i == 1)
+	{
+		--let $complete=commit
+	}
+	xa start '1'; insert into t1 set a=1; xa end '1'; xa prepare '1';
+	--eval xa $complete '1'
+	insert into t1 set a=2;
+	--source include/save_master_gtid.inc
+
+	--connection slave
+
+	# reposition the slave to skip one transaction from master
+	set @save_gtid_slave_pos= @@global.gtid_slave_pos;
+	SELECT CONCAT(domain_id,"-",server_id,"-", seq_no + 1)
+				 into @gtid_skip
+    		 FROM mysql.gtid_slave_pos
+				 WHERE seq_no = (SELECT DISTINCT max(seq_no) FROM mysql.gtid_slave_pos) limit 1;
+	set @@global.gtid_slave_pos = @gtid_skip;
+
+	start slave;
+	let $slave_sql_errno= 1397; # ER_XAER_NOTA
+	source include/wait_for_slave_sql_error.inc;
+	--eval select count(*) = $i % 2 as 'must be true' from t1;
+	--let $rpl_allow_error = 1
+	--source include/stop_slave.inc
+
+	--disable_warnings
+	set @@global.gtid_slave_pos = @save_gtid_slave_pos;
+	--enable_warnings
+	--replace_regex /[0-9]*-[0-9]*-[0-9]*/<value>/
+	show warnings;
+	--source include/start_slave.inc
+	--source include/sync_with_master_gtid.inc
+
+	--dec $i
+}
+
+# MDEV-31949 cleanup
+--connection master
+drop table t1;
+
+--sync_slave_with_master
+--source include/rpl_end.inc
+--echo # End of rpl_xa_concurrent_2pc.test
+

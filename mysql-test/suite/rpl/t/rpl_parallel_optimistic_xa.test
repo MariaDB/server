@@ -56,13 +56,26 @@ while($i > 0)
 {
   # 'decision' to commit 0, or rollback 1
   --let  $decision = `SELECT $i % 2`
+  --let  $b = `SELECT 1 - 2 * $decision`
   --eval XA START '$conn$trx$i'
-  --eval   UPDATE t1 SET b = 1 - 2 * $decision WHERE a = 1
+  --let  $ignore_note = `select @@session.binlog_format = 'ROW' AND b = $b from t1 where a = 1`
+  --eval UPDATE t1 SET b = $b WHERE a = 1
   --eval XA END '$conn$trx$i'
-  --let $one_phase = `SELECT IF(floor(rand()*10)%2, "ONE PHASE", 0)`
+  --let $one_phase = `SELECT IF($i%2, "ONE PHASE", 0)`
   if (!$one_phase)
   {
+    # Only ROW format can produce empty XA-prepare so generates notes.
+    # STATEMENT (MIXED) format case features actual binlogging yet
+    # of ineffective in Engine updates (same record updated).
+    if ($ignore_note)
+    {
+      set @@session.note_verbosity="";
+    }
     --eval XA PREPARE '$conn$trx$i'
+    if ($ignore_note)
+    {
+      set @@session.note_verbosity=default;
+    }
     --let $one_phase =
   }
 
@@ -85,7 +98,7 @@ while($i > 0)
 --source include/stop_slave.inc
 
 
-# II. Logging XS:s from multiple connections in random interweaving manner:
+# II. Logging XS:s from multiple connections in interweaving manner:
 #
 # in a loop ($i) per connection
 #   arrange an inner ($k) loop where
@@ -126,7 +139,7 @@ while($i > 0)
   # the row id of the last connection that committed its XA
   --let $c_max     = 1
   --let $k         = 0
-  while ($decision < 3)
+  while ($decision < 4)
   {
     --inc $k
     --eval XA START '$conn_i$trx$k'
@@ -147,7 +160,6 @@ while($i > 0)
     --eval XA END '$conn_i$trx$k'
 
     --let $term = COMMIT
-    --let $decision  = `SELECT (floor(rand()*10 % 10) + ($i+$k)) % 4`
     if ($decision == 1)
     {
     --let $term = ROLLBACK
@@ -162,6 +174,8 @@ while($i > 0)
     {
     --eval XA COMMIT '$conn_i$trx$k' ONE PHASE
     }
+
+    --inc $decision
   }
 
   # $decision = 3

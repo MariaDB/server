@@ -45,10 +45,9 @@
 # D. Prove that not prepared XA remains to be cleared out by disconnection.
 #
 
-#
-# A. The temp table only prepared XA recovers only formally to
-#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
-
+--echo #
+--echo # A. The temp table only prepared XA recovers only formally to
+--echo #    let post recovery XA COMMIT or XA ROLLBACK with no effect.
 --let $type = tmp
 --let $index = 1
 --let $sql_init1 = SET @@sql_log_bin = OFF
@@ -63,9 +62,9 @@
 --source suite/binlog/include/binlog_xa_prepare_connection.inc
 --let $conn3_id=`SELECT connection_id()`
 
-#
-# Various prohibited XA state changes to test here:
-#
+--echo #
+--echo # Various prohibited XA state changes to test here:
+--echo #
 
 --connection default
 # Stealing is not allowed
@@ -84,10 +83,9 @@
 --let $num_trx_prepared = $index
 --source suite/binlog/include/binlog_xa_prepare_disconnect.inc
 
-#
-# B. "Read-only" (select) prepared XA recovers only formally to
-#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
-#
+--echo #
+--echo # B. "Read-only" (select) prepared XA recovers only formally to
+--echo #    let post recovery XA COMMIT or XA ROLLBACK with no effect.
 --let $type=ro
 --let $index = 1
 --let $sql_init1 =
@@ -107,10 +105,10 @@
 --inc $num_trx_prepared
 --source suite/binlog/include/binlog_xa_prepare_disconnect.inc
 
-#
-# C. Empty prepared XA recovers only formally to
-#    let post recovery XA COMMIT or XA ROLLBACK with no effect.
-#
+--echo #
+--echo # C. Empty prepared XA recovers only formally to
+--echo #    let post recovery XA COMMIT or XA ROLLBACK with no effect.
+--echo #
 --let $type=empty
 --let $index = 1
 --let $sql_init1 =
@@ -129,11 +127,11 @@
 --inc $num_trx_prepared
 --source suite/binlog/include/binlog_xa_prepare_disconnect.inc
 
-#
-# D. Not prepared XA disconnects to be cleared out,
-#    no effect on data left as well.
-#    Few more prohibited XA state transactions is checked out.
-#
+--echo #
+--echo # D. Not prepared XA disconnects to be cleared out,
+--echo #    no effect on data left as well.
+--echo #    Few more prohibited XA state transactions is checked out.
+--echo #
 --let $type=unprepared
 --let $prev_count=`SELECT count(*) from t`
 
@@ -161,12 +159,12 @@ if (`SELECT count(*) > $prev_count from t`)
     --die
 }
 
-#
-# II. Regular case.
-#
-# Prepared transactions get disconnected in three ways:
-# actively, being killed and by the server shutdown.
-#
+--echo #
+--echo # II. Regular case.
+--echo #
+--echo # Prepared transactions get disconnected in three ways:
+--echo # actively, being killed and by the server shutdown.
+--echo #
 --let $i=0
 while ($i < $conn_number)
 {
@@ -208,7 +206,7 @@ while ($i < $conn_number)
     --inc $i
 }
 
-# [0, $rollback_number - 1] are rolled back now
+--echo # [0, $rollback_number - 1] are rolled back now
 --connection default
 
 --let $i=0
@@ -219,7 +217,7 @@ while ($i < $rollback_number)
     --inc $i
 }
 
-# [$rollback_number, $rollback_number + $commit_number - 1] get committed
+--echo # [$rollback_number, $rollback_number + $commit_number - 1] get committed
 while ($i < $term_number)
 {
     --eval XA COMMIT 'trx_$i'
@@ -227,15 +225,22 @@ while ($i < $term_number)
     --inc $i
 }
 
+if (`select @@log_bin`)
+{
+  # This test may be run on binlog-off server,
+  # wait of the above XA-complete:s durable
+  FLUSH LOGS;
+  --source include/wait_for_binlog_checkpoint.inc
+}
 --source include/$how_to_restart
 
-#
-# III. Post server-restart verification.
-# It concludes survived XA:s with a number of commits and rollbacks
-# as configured in the 1st part to check expected results in the end.
-# Cleanup section consists of explicit disconnect (for killed, or
-# not disconnected before shutdown).
-#
+--echo #
+--echo # III. Post server-restart verification.
+--echo # It concludes survived XA:s with a number of commits and rollbacks
+--echo # as configured in the 1st part to check expected results in the end.
+--echo # Cleanup section consists of explicit disconnect (for killed, or
+--echo # not disconnected before shutdown).
+--echo #
 
 # New XA can be prepared and committed
 --let $k = 0
@@ -265,11 +270,11 @@ while ($k < $post_restart_conn_number)
     --inc $k
 }
 
-#
-# Symmetrically to the pre-restart, the resurrected trx:s are committed
-# [$term_number, $term_number + $commit_number - 1]
-# and the rest is rolled back.
-#
+--echo #
+--echo # Symmetrically to the pre-restart, the resurrected trx:s are committed
+--echo # [$term_number, $term_number + $commit_number - 1]
+--echo # and the rest is rolled back.
+--echo #
 --let $i = $term_number
 
 while ($i < `SELECT $term_number + $commit_number`)
@@ -290,9 +295,9 @@ while ($i < $conn_number)
     --inc $i
 }
 
-#
-# Verification of correct results of recovered XA transaction handling:
-#
+--echo #
+--echo # Verification of correct results of recovered XA transaction handling:
+--echo #
 SELECT * FROM t;
 
 --let $type=tmp

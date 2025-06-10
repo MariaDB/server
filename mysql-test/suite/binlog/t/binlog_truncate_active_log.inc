@@ -67,4 +67,8 @@ SELECT * FROM t4;
 --inc $binlog_file_index
 
 # Local cleanup
+if (`select '$query1' = 'CALL sp_xa'`)
+{
+  xa rollback 'xid';
+}
 DELETE FROM t;
