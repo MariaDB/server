@@ -87,11 +87,11 @@
    An analog of c++23 [[assume(cond)]] 
    for GCC >= 13.0, Clang and MSVC.
 */
-#if defined __GNUC__ && __GNUC__ >= 13 && defined __cplusplus
+#if defined __GNUC__ && __GNUC__ >= 13
 # define MY_ASSUME(A) [[gnu::assume(!!(A))]]
-#elif defined __clang__ && defined __cplusplus
+#elif defined __clang__
 # define MY_ASSUME(A) __builtin_assume(!!(A))
-#elif defined _MSC_VER && defined __cplusplus
+#elif defined _MSC_VER
 # define MY_ASSUME(A) __assume(!!(A))
 #else
 # define MY_ASSUME(A) do { } while(0)
