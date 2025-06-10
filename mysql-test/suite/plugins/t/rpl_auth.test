@@ -1,6 +1,3 @@
-# MSAN doesn't like gnutls_rnd
-source include/not_msan.inc;
-
 if ($MTR_COMBINATION_ED25519) {
   let $AUTH_PLUGIN = ed25519;
   let $CLIENT_PLUGIN=client_ed25519;
