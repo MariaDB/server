@@ -211,7 +211,7 @@ int logger_write(LOGGER_HANDLE *log, const void *buffer, size_t size)
 
   if (log->buffer_size)
   {
-    result= my_b_write(&log->cache, (uchar *) buffer, size) ? 0 : size;
+    result= my_b_write(&log->cache, (uchar *) buffer, size) ? 0 : (int) size;
   }
   else
   {
@@ -250,7 +250,7 @@ int logger_sync(LOGGER_HANDLE *log)
 
 sync_file:
   if (!result)
-    result= fsync(log->file);
+    result= my_sync(log->file, MYF(0));
 
   mysql_mutex_unlock(&log->lock);
 
