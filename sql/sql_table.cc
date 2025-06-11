@@ -12120,6 +12120,23 @@ bool check_engine(THD *thd, const char *db_name,
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
+#ifdef WITH_WSREP
+    /*  @@enforce_storage_engine is local, if user has used
+	ENGINE=XXX we can't allow it in cluster in this
+	case as enf_engine != new _engine. This is because
+        original stmt is replicated including ENGINE=XXX and
+        here */
+    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+        WSREP(thd))
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "ENFORCE_STORAGE_ENGINE");
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_OPTION_PREVENTS_STATEMENT,
+                          "Do not use ENGINE=x when @@enforce_storage_engine is set");
+
+      DBUG_RETURN(TRUE);
+    }
+#endif
     *new_engine= enf_engine;
   }
 
