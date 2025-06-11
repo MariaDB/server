@@ -12328,3 +12328,11 @@ ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
         eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this table)"
+ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for this table)"
+ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY
+        eng "Hint %s is ignored as conflicting/duplicated (an index hint of the same type or opposite kind has already been specified for the key)"
