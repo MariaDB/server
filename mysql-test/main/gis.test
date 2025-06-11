@@ -3574,3 +3574,21 @@ CREATE TABLE t1 (a INT, b POINT GENERATED ALWAYS AS (a));
 CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
 
 --echo # End of 11.5 tests
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-35739 Linestring self-intersection equality
+--echo #
+CREATE TABLE t1(geom geometry NOT NULL);
+INSERT INTO t1 (geom) VALUES(ST_GeomFromText('LINESTRING(2 2,4 4,6 2,3 2,2 4)'));
+SELECT ST_ASTEXT(geom) FROM t1;
+SELECT ST_EQUALS(geom, ST_INTERSECTION(geom, geom)) AS isequal, ST_ASTEXT(ST_INTERSECTION(geom, geom)) AS intersection FROM t1;
+SELECT ST_AsText(ST_SYMDIFFERENCE(geom, ST_Intersection(geom, geom))) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

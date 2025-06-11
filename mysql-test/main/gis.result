@@ -5569,3 +5569,24 @@ ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t1`.`b`
 CREATE TABLE t1 (a POINT, b INT GENERATED ALWAYS AS (a));
 ERROR HY000: Cannot cast 'point' as 'int' in assignment of `test`.`t1`.`b`
 # End of 11.5 tests
+#
+# Start of 11.8 tests
+#
+#
+# MDEV-35739 Linestring self-intersection equality
+#
+CREATE TABLE t1(geom geometry NOT NULL);
+INSERT INTO t1 (geom) VALUES(ST_GeomFromText('LINESTRING(2 2,4 4,6 2,3 2,2 4)'));
+SELECT ST_ASTEXT(geom) FROM t1;
+ST_ASTEXT(geom)
+LINESTRING(2 2,4 4,6 2,3 2,2 4)
+SELECT ST_EQUALS(geom, ST_INTERSECTION(geom, geom)) AS isequal, ST_ASTEXT(ST_INTERSECTION(geom, geom)) AS intersection FROM t1;
+isequal	intersection
+1	LINESTRING(2 2,4 4,6 2,3 2,2 4)
+SELECT ST_AsText(ST_SYMDIFFERENCE(geom, ST_Intersection(geom, geom))) FROM t1;
+ST_AsText(ST_SYMDIFFERENCE(geom, ST_Intersection(geom, geom)))
+GEOMETRYCOLLECTION EMPTY
+DROP TABLE t1;
+#
+# End of 11.8 tests
+#

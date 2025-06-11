@@ -382,6 +382,8 @@ public:
             (expected_points > ((m_data_end - data) /
                                 (POINT_DATA_SIZE + extra_point_space))));
   }
+
+  bool operator==(Geometry &rhs) const;
 protected:
   const char *m_data;
   const char *m_data_end;
