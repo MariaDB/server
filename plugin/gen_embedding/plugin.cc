@@ -41,6 +41,17 @@ static struct st_mysql_sys_var* system_variables[]= {
   NULL
 };
 
+/*
+  Utility functions
+*/
+
+static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+  size_t realsize = size * nmemb;
+  std::ostringstream *read_data = static_cast<std::ostringstream *>(userp);
+  read_data->write(static_cast<char *>(contents), realsize);
+  return realsize;
+}
+
 class Item_func_gen_embedding: public Item_str_func 
 {
   String tmp_js, api_response;
@@ -50,17 +61,53 @@ class Item_func_gen_embedding: public Item_str_func
       Make the request to OpenAI API to generate the embedding
       Store the result in api_response
       This is a placeholder for the actual implementation
-    */
-    
-    // std::cout << "Host " << host << std::endl;
-    // std::cout <<  "API KEY" << api_key << std::endl;
-
-    String *value = args[0]->val_json(&api_response); // For now just pass the input text
-    api_response.copy(*value);
+      */
+     
+     // std::cout << "Host " << host << std::endl;
+     // std::cout <<  "API KEY" << api_key << std::endl;
+    // TODO: This will be changed to val_str
+    String *value = args[0]->val_json(&api_response); // This value should be used as the input for the OpenAI API request
     if (!value) {
       null_value= true;
       return 1;
     }
+     
+    CURLcode ret;
+    CURL *hnd;
+    std::ostringstream read_data_stream;
+    std::string response;
+    struct curl_slist *slist1;
+
+    slist1 = NULL;
+    slist1 = curl_slist_append(slist1, "Authorization: Bearer TODO YOUR_API_KEY_HERE");
+    slist1 = curl_slist_append(slist1, "Content-Type: application/json");
+
+    hnd = curl_easy_init();
+    curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
+    curl_easy_setopt(hnd, CURLOPT_URL, "http://127.0.0.1:5000/embeddings"); // This is a temporary mock server for local testing, TODO YOUR_HOST_HERE
+    curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
+    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, "{\n    \"input\": \"YOUR_INPUT_HERE\",\n    \"model\": \"TODO YOUR_MODEL_HERE\",\n    \"encoding_format\": \"float\"\n  }");
+    curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)132);
+    curl_easy_setopt(hnd, CURLOPT_HTTPHEADER, slist1);
+    curl_easy_setopt(hnd, CURLOPT_USERAGENT, "curl/8.5.0");
+    curl_easy_setopt(hnd, CURLOPT_MAXREDIRS, 50L);
+    curl_easy_setopt(hnd, CURLOPT_HTTP_VERSION, (long)CURL_HTTP_VERSION_2TLS);
+    curl_easy_setopt(hnd, CURLOPT_FTP_SKIP_PASV_IP, 1L);
+    curl_easy_setopt(hnd, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+    curl_easy_setopt(hnd, CURLOPT_WRITEDATA, &read_data_stream);
+
+    ret = curl_easy_perform(hnd);
+
+    curl_easy_cleanup(hnd);
+    hnd = NULL;
+    curl_slist_free_all(slist1);
+    slist1 = NULL;
+    response = read_data_stream.str();
+    std::cout << "CURL return code: " << ret << std::endl;
+    // return (int)ret;
+
+    api_response.copy(response.c_str(), response.length(), &my_charset_utf8mb3_general_ci); // TODO This charset works, but is this the correct one?
     return 0;
   }
 
