@@ -29,8 +29,6 @@ CREATE TABLE t2 (
 INSERT INTO t2 VALUES
 (1,1),(2,2),(3,3);
 
--- source include/count_sessions.inc
-
 -- connect (con_trx,localhost,root,,)
 -- connect (con_verify_innodb_trx,localhost,root,,)
 
@@ -89,7 +87,5 @@ FROM INFORMATION_SCHEMA.INNODB_TRX;
 -- connection default
 DROP TABLE t2;
 DROP TABLE t1;
-
--- source include/wait_until_count_sessions.inc
 
 SET GLOBAL innodb_lock_wait_timeout=@save_timeout;

@@ -1,9 +1,6 @@
 -- source include/have_query_cache.inc
 -- source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 #
 # Tests with query cache
 #
@@ -20,9 +17,6 @@ flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
 flush status;
---disable_warnings
-drop table if exists t1, t2, t3, t11, t21;
---enable_warnings
 #
 # FLUSH QUERY CACHE
 #
@@ -356,12 +350,8 @@ drop database d;
 
 drop table t1, t2, t3;
 
---echo #
 --echo # End of 10.5 tests
---echo #
 
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
 SET GLOBAL query_cache_size=@query_cache_size_save;
 SET GLOBAL query_cache_type=@query_cache_type_save;
 set GLOBAL sql_mode=@sql_mode_save;

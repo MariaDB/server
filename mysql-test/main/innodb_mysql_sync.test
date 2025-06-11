@@ -5,9 +5,6 @@
 --source include/have_partition.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 
 --echo #
 --echo # Bug 42074 concurrent optimize table and 
@@ -96,7 +93,6 @@ KILL @id;
 SET DEBUG_SYNC= "now SIGNAL killed";
 DROP TABLE t1, t2;
 disconnect con1;
---source include/wait_until_count_sessions.inc
 SET DEBUG_SYNC= "RESET";
 
 
@@ -698,8 +694,3 @@ SET DEBUG_SYNC= 'now WAIT_FOR rebuild';
 
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
-
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

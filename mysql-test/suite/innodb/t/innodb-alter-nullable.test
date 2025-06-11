@@ -1,8 +1,5 @@
 --source include/innodb_page_size.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 CREATE TABLE t (c1 INT PRIMARY KEY, c2 INT NOT NULL, c3 INT) ENGINE=InnoDB;
 INSERT INTO t VALUES (1,2,3),(4,5,6),(7,8,9);
 
@@ -155,7 +152,3 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 SELECT * FROM t3;
 DROP TABLE t1,t2,t3;
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

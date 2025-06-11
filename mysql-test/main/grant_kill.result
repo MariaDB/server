@@ -46,6 +46,4 @@ disconnect foo;
 disconnect bar;
 DROP USER foo@localhost;
 DROP USER bar@localhost;
-#
 # End of 10.5 tests
-#

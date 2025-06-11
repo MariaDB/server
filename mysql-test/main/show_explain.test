@@ -933,7 +933,6 @@ connection con1;
 reap;
 SET debug_dbug=@old_debug;
 
-revoke all privileges on test.* from test2@localhost;
 drop user test2@localhost;
 
 disconnect con2;

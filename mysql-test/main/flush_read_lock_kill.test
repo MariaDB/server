@@ -13,9 +13,6 @@
 # won't block FLUSH TABLES WITH GLOBAL READ LOCK.
 --source include/have_innodb.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connection con1;
@@ -75,7 +72,3 @@ connection default;
 disconnect con2;
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-

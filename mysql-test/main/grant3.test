@@ -1,8 +1,5 @@
 # Can't run with embedded server because we use GRANT
--- source include/not_embedded.inc
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
+--source include/not_embedded.inc
 
 set global sql_mode="";
 set local sql_mode="";
@@ -12,11 +9,6 @@ set local sql_mode="";
 SET NAMES binary;
 connect (master,localhost,root,,);
 connection master;
-
-# Cleanup
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 delete from mysql.user where user like 'mysqltest\_%';
 delete from mysql.db where user like 'mysqltest\_%';
@@ -237,6 +229,3 @@ disconnect foo;
 connection default;
 drop user foo@localhost;
 drop database db1;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

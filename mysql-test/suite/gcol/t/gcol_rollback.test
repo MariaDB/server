@@ -3,13 +3,7 @@
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
-# Make sure there are no unexpected open tables from previous tests
---disable_query_log
 FLUSH TABLES;
---enable_query_log
 
 CREATE TABLE t (
   a INTEGER,
@@ -129,8 +123,5 @@ INSERT INTO t1 (col1) VALUES (1);
 ROLLBACK;
 disconnect con1;
 DROP TABLE t1;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 --echo # End of 10.4 tests

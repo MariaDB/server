@@ -41,11 +41,9 @@ select * from t1;
 select count(row_start) from t1;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 --echo 
 --echo #Cleanup
---source include/wait_until_disconnected.inc
 connection default;
 drop user user_1;
 drop database d;

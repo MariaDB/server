@@ -5810,8 +5810,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)

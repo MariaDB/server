@@ -9,13 +9,6 @@
 # This test often times out with MemorySanitizer.
 -- source include/not_msan.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
 #
 # Bug#29579 Clients using SSL can hang the server
 #
@@ -63,9 +56,6 @@ connect (ssl_con,localhost,root,,,,,SSL);
 drop table t1;
 connection default;
 disconnect ssl_con;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 ##  This test file is for testing encrypted communication only, not other
 ##  encryption routines that the SSL library happens to provide!

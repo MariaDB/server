@@ -30,7 +30,9 @@ GRANT USAGE ON *.* TO `pfsuser`@`localhost`
 GRANT SELECT, UPDATE ON `performance_schema`.* TO `pfsuser`@`localhost`
 select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 update performance_schema.setup_instruments set enabled='YES';
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection default;
 grant READ_ONLY ADMIN on *.* to pfsuser@localhost;
 flush privileges;

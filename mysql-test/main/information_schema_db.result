@@ -213,9 +213,7 @@ connection default;
 use test;
 drop view testdb_1.v1, v2, testdb_1.v3, v4;
 drop database testdb_1;
-connection testdb_1;
 disconnect testdb_1;
-connection testdb_2;
 disconnect testdb_2;
 connection default;
 drop user testdb_1@localhost;
@@ -249,9 +247,7 @@ ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `
 connection default;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-connection user1;
 disconnect user1;
-connection default;
 set global sql_mode=default;
 #
 # MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables

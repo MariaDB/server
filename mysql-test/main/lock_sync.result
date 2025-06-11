@@ -734,9 +734,6 @@ SET DEBUG_SYNC="RESET";
 #
 # Bug#57130 crash in Item_field::print during SHOW CREATE TABLE or VIEW
 #
-DROP TABLE IF EXISTS t1;
-DROP VIEW IF EXISTS v1;
-DROP FUNCTION IF EXISTS f1;
 CREATE TABLE t1(a INT);
 CREATE FUNCTION f1() RETURNS INTEGER RETURN 1;
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE f1() = 1;
@@ -851,16 +848,25 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 SET AUTOCOMMIT=OFF;
 SELECT * FROM t1;
 a
+connect  con1,localhost,root,,test;
 DROP TRIGGER tr1;
+connection default;
 INSERT INTO t2 SELECT * FROM t2;
 SELECT f() FROM t2;
 ERROR 42000: FUNCTION test.f does not exist
+connect  con2,localhost,root,,test;
 set debug_sync= 'after_open_table_mdl_shared signal s1';
 ALTER VIEW v1 AS SELECT f() FROM t1;
+connection con1;
 CREATE FUNCTION f() RETURNS INT RETURN 1;
+connection default;
 set debug_sync= 'now wait_for s1';
 SELECT * FROM ( SELECT * FROM v1 ) sq;
 COMMIT;
+connection con2;
+disconnect con1;
+disconnect con2;
+connection default;
 DROP VIEW v1;
 DROP FUNCTION IF EXISTS f;
 DROP TABLE t1, t2;

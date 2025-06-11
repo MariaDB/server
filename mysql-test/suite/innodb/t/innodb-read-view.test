@@ -11,7 +11,6 @@
 #    g. T3 Does a select - it should not see the changes of T1 & T2
 
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 CREATE TABLE t1 (c1 INT , c2 CHAR(10), PRIMARY KEY (c1)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES(0, "0");
@@ -164,5 +163,3 @@ disconnect con1;
 connection default;
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc

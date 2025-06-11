@@ -1,17 +1,9 @@
 # This test should work in embedded server after mysqltest is fixed
--- source include/not_embedded.inc
+--source include/not_embedded.inc
 
---echo Tests of synchronization of stored procedure execution.
+--echo # Tests of synchronization of stored procedure execution.
 
 --source include/have_debug_sync.inc
-
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
-# Clean up resources used in this test case.
---disable_warnings
-SET DEBUG_SYNC= 'RESET';
---enable_warnings
 
 --echo #
 --echo # Bug #30977 Concurrent statement using stored function and
@@ -164,7 +156,3 @@ connection default;
 disconnect con3;
 
 SET DEBUG_SYNC = 'RESET';
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

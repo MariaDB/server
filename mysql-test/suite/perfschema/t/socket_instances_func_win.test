@@ -327,12 +327,8 @@ $part;
 #
 
 --echo # Disconnect con1 and con2
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
 --connection default
 
 #

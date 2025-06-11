@@ -1,6 +1,4 @@
 --source include/have_partition.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
 --source include/default_optimizer_switch.inc
 --source include/have_innodb.inc
 --source include/test_db_charset_latin1.inc
@@ -2771,12 +2769,8 @@ connection user21261;
 UPDATE v1,t2 SET x=1 WHERE x=y;
 connection root;
 SELECT * FROM t1;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user21261'@'localhost';
 DROP USER 'user21261'@'localhost';
-DROP VIEW v1;
-DROP TABLE t1;
 DROP DATABASE bug21261DB;
-
 connection default;
 USE test;
 disconnect root;
@@ -4762,11 +4756,6 @@ CREATE VIEW v4 AS
 
 --echo # Cleanup
 DROP VIEW v1, v2, v3;
-
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # lp:833600 Wrong result with view + outer join + uncorrelated subquery (non-semijoin) 
@@ -6902,8 +6891,6 @@ INSERT INTO view1(x1,x) VALUES (1,1);
 DROP VIEW view1;
 DROP TABLE table1;
 
---echo #
 --echo # End of 10.11 test
---echo #
 
 --source include/test_db_charset_restore.inc

@@ -47,10 +47,6 @@ connection default;
 SELECT CURRENT_USER;
 CURRENT_USER
 root@localhost
-REVOKE ALL ON db1.* FROM mysqltest_1@localhost;
-DROP DATABASE IF EXISTS db2;
-Warnings:
-Note	1008	Can't drop database 'db2'; database doesn't exist
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;
 set global sql_mode=default;

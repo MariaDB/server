@@ -39,7 +39,6 @@ DROP TABLE t1;
 
 # Cleanup
 disconnect con1;
---source include/wait_until_disconnected.inc
 remove_file $outfile;
 connection default;
 SET @@global.max_allowed_packet = @old_max_allowed_packet;

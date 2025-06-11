@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT) ENGINE=InnoDB;
@@ -43,5 +42,3 @@ SELECT * FROM t3;
 DROP TABLE t1, t2, t3;
 --error ER_TRG_DOES_NOT_EXIST
 DROP TRIGGER tr;
-
---source include/wait_until_count_sessions.inc

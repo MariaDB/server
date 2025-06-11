@@ -96,10 +96,6 @@ SELECT `USER`, `HOST`, VARIABLE_NAME, VARIABLE_VALUE
 --disconnect con1
 --disconnect con2
 
-# Wait till all disconnects are completed
-let $count_sessions= 2;
---source include/wait_until_count_sessions.inc
-
 --disable_query_log
 eval SELECT VARIABLE_NAME, (VARIABLE_VALUE - $initial) AS DELTA from performance_schema.global_status WHERE VARIABLE_NAME = 'Select_range';
 --enable_query_log
@@ -111,10 +107,6 @@ eval SELECT VARIABLE_NAME, (VARIABLE_VALUE - $initial) AS DELTA from performance
 --enable_query_log
 
 --disconnect con3
-
-# Wait till all disconnects are completed
-let $count_sessions= 1;
---source include/wait_until_count_sessions.inc
 
 --disable_query_log
 eval SELECT VARIABLE_NAME, (VARIABLE_VALUE - $initial) AS DELTA from performance_schema.global_status WHERE VARIABLE_NAME = 'Select_range';

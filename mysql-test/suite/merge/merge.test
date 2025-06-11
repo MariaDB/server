@@ -4,9 +4,6 @@
 
 --source include/test_db_charset_latin1.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 # MERGE tables require MyISAM tables
 set @save_default_storage_engine=@@global.default_storage_engine;
 set global default_storage_engine=myisam;
@@ -2846,10 +2843,6 @@ DROP TABLE m1;
 
 set global default_storage_engine=@save_default_storage_engine;
 
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # MDEV-31083 ASAN use-after-poison in myrg_attach_children
 --echo #
@@ -2860,11 +2853,7 @@ CREATE TABLE mrg (f TEXT) ENGINE=MERGE, UNION(t1);
 SELECT * FROM mrg;
 DROP TABLE mrg, t1;
 
---echo End of 10.5 tests
-
---echo #
---echo # End of 10.0 tests
---echo #
+--echo # End of 10.5 tests
 
 --echo #
 --echo # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results

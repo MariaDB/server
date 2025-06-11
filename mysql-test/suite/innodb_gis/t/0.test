@@ -29,14 +29,9 @@ set transaction isolation level read uncommitted;
 select count(*) from t1 where ST_Within(t1.c2, @g1);
 --enable_ps2_protocol
 disconnect con1;
-
---source include/wait_until_disconnected.inc
-
 connection a;
 commit;
 disconnect a;
---source include/wait_until_disconnected.inc
-
 connection default;
 drop table t1;
 

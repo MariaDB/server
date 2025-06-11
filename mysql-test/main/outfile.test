@@ -1,6 +1,4 @@
 --source include/not_embedded.inc
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 
 #
 # test of into outfile|dumpfile
@@ -112,6 +110,3 @@ use test;
 revoke all privileges on *.* from user_1@localhost;
 drop user user_1@localhost;
 drop database mysqltest;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

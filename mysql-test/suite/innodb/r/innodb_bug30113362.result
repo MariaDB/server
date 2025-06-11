@@ -1,3 +1,6 @@
+SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+SET @old_innodb_adaptive_hash_index = @@innodb_adaptive_hash_index;
+SET @old_innodb_stats_persistent = @@innodb_stats_persistent;
 SET GLOBAL innodb_adaptive_hash_index = false;
 SET GLOBAL innodb_stats_persistent = false;
 connect  purge_control,localhost,root,,;
@@ -120,3 +123,6 @@ CLUST_INDEX_SIZE
 1792
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
+SET GLOBAL innodb_stats_persistent = @old_innodb_stats_persistent;

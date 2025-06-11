@@ -1,5 +1,3 @@
-drop table if exists t1,t2;
-drop DATABASE if exists mysqltest_1;
 connect  locker,localhost,root,,;
 connect  locker2,localhost,root,,;
 connect  reader,localhost,root,,;

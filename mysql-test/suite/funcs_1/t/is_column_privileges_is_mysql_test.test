@@ -21,9 +21,6 @@
 # 3.2.9.3  Ensure that the table does not show any information on any databases
 #          on which the current user and PUBLIC have no privileges.
 #
---disable_warnings
-DROP DATABASE IF EXISTS db_datadict;
---enable_warnings
 CREATE DATABASE db_datadict;
 
 # Create a low privileged user.
@@ -56,4 +53,3 @@ eval $my_show3;
 connection default;
 DROP USER 'testuser1'@'localhost';
 DROP DATABASE db_datadict;
-

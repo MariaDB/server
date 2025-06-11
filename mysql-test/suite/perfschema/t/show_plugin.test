@@ -26,14 +26,10 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 
---enable_connect_log
-
 --echo #
 --echo # ================================================================================
 --echo # SETUP
 --echo # ================================================================================
---echo # Save the initial number of concurrent sessions
---source include/count_sessions.inc
 --echo #
 --echo # Verify EXAMPLE plugin is not loaded
 SELECT COUNT(*) = 0 AS "Expect 1" FROM information_schema.plugins WHERE plugin_name = "EXAMPLE";
@@ -181,18 +177,9 @@ WHERE variable_name LIKE "example_%" ORDER BY variable_value;
 --echo # ================================================================================
 --echo # 3.5 - DISCONNECT CLIENTS
 --echo # ================================================================================
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
-
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
-
---connection con3
 --disconnect con3
---source include/wait_until_disconnected.inc
-
 --connection default
 
 --echo #
@@ -250,18 +237,9 @@ WHERE variable_name LIKE "example_%" ORDER BY variable_value;
 --echo # ================================================================================
 --echo # 3.11 - DISCONNECT CLIENTS
 --echo # ================================================================================
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
-
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
-
---connection con3
 --disconnect con3
---source include/wait_until_disconnected.inc
-
 --connection default
 
 --echo #
@@ -314,8 +292,3 @@ select @@session.innodb_strict_mode;
 --echo #
 
 --echo #
---disable_connect_log
-
---echo #
---echo # Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

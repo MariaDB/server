@@ -1,9 +1,6 @@
 --source include/have_ssl_communication.inc
 --source include/slow_environ.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 --echo # connect with read timeout so SLEEP() should timeout
 connect (ssl_con,localhost,root,,,,,SSL read_timeout=5$_timeout_adjustment);
 
@@ -16,6 +13,3 @@ SELECT SLEEP(600);
 
 connection default;
 disconnect ssl_con;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

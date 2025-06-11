@@ -478,7 +478,7 @@ COUNT(1)
 SELECT COUNT(1) FROM oms_live_th.d;
 COUNT(1)
 0
-connect con4,localhost,root,,;
+connection default;
 DROP DATABASE bob_live_sg;
 DROP DATABASE oms_live_sg;
 DROP DATABASE bob_live_ph;

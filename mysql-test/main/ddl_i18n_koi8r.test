@@ -1110,12 +1110,8 @@ SHOW CREATE TABLE mysqltest2.t2|
 #
 delimiter ;|
 
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
---connection con3
 --disconnect con3
---source include/wait_until_disconnected.inc
 --connection default
 USE test;
 DROP DATABASE mysqltest1;

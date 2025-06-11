@@ -2,14 +2,6 @@
 # Test of rename table
 #
 
---source include/count_sessions.inc
-
---disable_warnings
-drop table if exists t0,t1,t2,t3,t4;
-# Clear up from other tests (to ensure that SHOW TABLES below is right)
-drop table if exists t0,t5,t6,t7,t8,t9,t1_1,t1_2,t9_1,t9_2;
---enable_warnings
-
 create table t0 SELECT 1,"table 1";
 create table t2 SELECT 2,"table 2";
 create table t3 SELECT 3,"table 3";
@@ -91,9 +83,7 @@ alter table v1 rename to v2;
 drop view v1;
 drop table t1;
 
---echo End of 5.0 tests
-
---source include/wait_until_count_sessions.inc
+--echo # End of 5.0 tests
 
 #
 # Test of rename with temporary tables

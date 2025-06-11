@@ -1,9 +1,6 @@
 # Grant tests not performed with embedded server
 -- source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
 
 set GLOBAL sql_mode="";
@@ -14,19 +11,6 @@ SET NAMES binary;
 # GRANT tests that require several connections
 # (usually it's GRANT, reconnect as another user, try something)
 #
-
-
-# prepare playground before tests
---disable_warnings
-drop database if exists mysqltest;
-drop database if exists mysqltest_1;
---enable_warnings
-delete from mysql.user where user like 'mysqltest\_%';
-delete from mysql.db where user like 'mysqltest\_%';
-delete from mysql.tables_priv where user like 'mysqltest\_%';
-delete from mysql.columns_priv where user like 'mysqltest\_%';
-flush privileges;
-
 
 grant all privileges on `my\_1`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
@@ -1022,7 +1006,4 @@ DROP USER mysqltest_u3@localhost;
 DROP USER mysqltest_u4@localhost;
 DROP USER mysqltest_u5@localhost;
 
-
 set GLOBAL sql_mode=default;
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

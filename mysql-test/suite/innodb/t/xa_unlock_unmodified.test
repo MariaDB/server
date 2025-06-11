@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
@@ -82,5 +81,3 @@ DROP TABLE t;
 
 SET GLOBAL innodb_enable_xap_unlock_unmodified_for_primary_debug=
   @old_innodb_enable_xap_unlock_unmodified_for_primary_debug;
-
---source include/wait_until_count_sessions.inc

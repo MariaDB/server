@@ -9,9 +9,6 @@
 # of the log tables (which are CSV-based). By connect mysql; show tables;
 --source include/have_csv.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 SET global secure_auth=0;
 
 #connect (con1,localhost,root,,"");
@@ -251,11 +248,6 @@ let $wait_condition =
 --connect (default,localhost,root,,test)
 
 --echo
---echo # -- Waiting for connections to close...
-let $count_sessions=1;
---source include/wait_until_count_sessions.inc
-
---echo
 DROP USER mysqltest_u1@localhost;
 
 --echo
@@ -425,9 +417,6 @@ source include/switch_to_mysql_global_priv.inc;
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
 
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
 --echo #
@@ -557,6 +546,4 @@ let $status_var_value= 1;
 show global status like 'Connection_errors%';
 set global max_connections= @max_con.save;
 
---echo #
 --echo # End of 10.5 tests
---echo #

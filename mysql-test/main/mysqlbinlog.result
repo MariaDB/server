@@ -692,7 +692,7 @@ a	b
 connection default;
 DROP DATABASE mysqltest1;
 DROP USER untrusted@localhost;
-Bug#32580 mysqlbinlog cannot read binlog event with user variables
+# Bug#32580 mysqlbinlog cannot read binlog event with user variables
 connection default;
 USE test;
 SET BINLOG_FORMAT = STATEMENT;

@@ -157,7 +157,6 @@ CREATE TABLE t1(a INT) engine= MEMORY;
 FLUSH TABLE t1 FOR EXPORT;
 ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 DROP TABLE t1;
-connection con1;
 disconnect con1;
 connection default;
 # Test 7: Check privileges required.
@@ -198,7 +197,6 @@ LOCK TABLE t1 READ;
 UNLOCK TABLES;
 connection default;
 UNLOCK TABLES;
-connection con1;
 disconnect con1;
 connection default;
 DROP TABLE t1, t2;
@@ -294,7 +292,6 @@ ERROR HY000: Can't execute the given command because you have active locked tabl
 LOCK TABLES test.t1 WRITE;
 UNLOCK TABLES;
 DROP TABLE t1;
-connection con1;
 disconnect con1;
 connection default;
 # End of 5.6 tests

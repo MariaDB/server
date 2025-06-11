@@ -5,7 +5,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 --connection default
 # There are various scenarious in which a transaction already holds "half"
@@ -139,5 +138,3 @@ INSERT INTO t (`id`) VALUES (1), (2);
 
 DROP TABLE `t`;
 SET DEBUG_SYNC='reset';
-
---source include/wait_until_count_sessions.inc

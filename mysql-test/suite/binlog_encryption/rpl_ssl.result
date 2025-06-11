@@ -55,5 +55,5 @@ master_ssl = 1,
 master_ssl_ca = '',
 master_ssl_cert = '',
 master_ssl_key = '';
-End of 5.0 tests
+# End of 5.0 tests
 include/rpl_end.inc

@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
@@ -38,7 +37,6 @@ COMMIT;
 --source include/wait_all_purged.inc
 
 --disconnect con1
---source include/wait_until_count_sessions.inc
 
 SELECT * FROM t1;
 CHECK TABLE t1;

@@ -47,7 +47,6 @@ insert into secret_db.t1 values ("|_33T|-|4><");
 
 connection default;
 
-
 drop role test_ROLE;
 drop role test_role;
 drop user test_user;

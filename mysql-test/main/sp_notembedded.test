@@ -4,9 +4,6 @@
 set @old_concurrent_insert= @@global.concurrent_insert;
 set @@global.concurrent_insert= 0;
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 delimiter |;
 
 #
@@ -324,5 +321,3 @@ drop user foo1@localhost;
 #
 
 set @@global.concurrent_insert= @old_concurrent_insert;
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

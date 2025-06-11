@@ -89,7 +89,6 @@ SELECT MAX(key1) INTO @dummy FROM t1 WHERE f() < 1;
 CREATE TABLE t3 (i INT) AS SELECT MAX(key1) FROM t1 WHERE f() < 1;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 

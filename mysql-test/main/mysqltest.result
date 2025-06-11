@@ -998,4 +998,4 @@ SELECT 1 /* doesn't throw error */;
 SELECT 1 /* doesn't throw error */;
 1
 1
-End of tests
+# End of tests

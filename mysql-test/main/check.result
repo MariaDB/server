@@ -1,8 +1,6 @@
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection con1;
-drop table if exists t1,t2;
-drop view if exists v1;
 create table t1(n int not null, key(n), key(n), key(n), key(n));
 Warnings:
 Note	1831	Duplicate index `n_2`. This is deprecated and will be disallowed in a future release
@@ -18,6 +16,7 @@ connection default;
 disconnect con1;
 disconnect con2;
 drop table t1;
+# End of 4.1 tests
 Create table t1(f1 int);
 Create table t2(f1 int);
 Create view v1 as Select * from t1;

@@ -951,10 +951,6 @@ where THREAD_ID = $con4_thread_id;
 count(*)
 0
 connection default;
-revoke all privileges, grant option from user1@localhost;
-revoke all privileges, grant option from user2@localhost;
-revoke all privileges, grant option from user3@localhost;
-revoke all privileges, grant option from user4@localhost;
 drop user user1@localhost;
 drop user user2@localhost;
 drop user user3@localhost;

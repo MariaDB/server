@@ -4,7 +4,6 @@
 #
 
 --source include/innodb_row_format.inc
---source include/count_sessions.inc
 
 connect (control_purge,localhost,root,,);
 connection default;
@@ -96,4 +95,3 @@ dec $index;
 }
 
 disconnect control_purge;
---source include/wait_until_count_sessions.inc

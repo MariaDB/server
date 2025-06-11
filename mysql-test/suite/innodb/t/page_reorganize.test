@@ -2,8 +2,6 @@
 --source include/have_innodb_16k.inc
 --source include/have_debug.inc
 
---source include/count_sessions.inc
-
 --echo #
 --echo # Bug# 20005279 ASSERT !OTHER_LOCK, LOCK_MOVE_REORGANIZE_PAGE()
 --echo #
@@ -60,5 +58,3 @@ CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
 SET DEBUG_DBUG = '+d,do_page_reorganize';
 INSERT INTO t1 VALUES(0,0);
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc

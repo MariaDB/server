@@ -222,8 +222,6 @@ UNLOCK TABLES;
 --echo # Reaping DROP TABLE t1
 --reap
 --disconnect con2
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE t2;
 
@@ -250,10 +248,7 @@ CREATE TABLE t1(a INT) engine= MEMORY;
 FLUSH TABLE t1 FOR EXPORT;
 DROP TABLE t1;
 
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
-
 --connection default
 
 --echo # Test 7: Check privileges required.
@@ -313,10 +308,7 @@ UNLOCK TABLES;
 --connection default
 UNLOCK TABLES;
 
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE t1, t2;
 
@@ -423,9 +415,7 @@ LOCK TABLES test.t1 WRITE;
 UNLOCK TABLES;
 DROP TABLE t1;
 
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
 --connection default
 
 --echo # End of 5.6 tests

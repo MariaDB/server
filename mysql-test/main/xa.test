@@ -1,21 +1,12 @@
 #
 # WL#1756
 #
--- source include/have_innodb.inc
+--source include/have_innodb.inc
 --source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
---disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
---enable_query_log
 
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 create table t1 (a int) engine=innodb;
 xa start 'test1';
 insert t1 values (10);
@@ -84,7 +75,6 @@ xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 
 select * from t1;
 disconnect con1;
---source include/wait_until_count_sessions.inc
 xa rollback 'testb',0x2030405060,11;
 xa recover;
 
@@ -584,8 +574,6 @@ XA ROLLBACK 'xid1';
 --error ER_PARSE_ERROR
 XA START 'gtrid', 'bqual', 0x80000000;
 
---source include/wait_until_count_sessions.inc
-
 --echo #
 --echo # XA states and SHOW commands
 --echo #
@@ -696,7 +684,6 @@ xa rollback 'test1';
 xa recover;
 drop table asd;
 disconnect con_tmp;
---source include/wait_until_disconnected.inc
 connection default;
 
 --echo # MDEV-30978: a read-only server should still allow the commit of
@@ -719,8 +706,6 @@ xa prepare '2';
 xa rollback '2';
 
 --echo # Read-only disconnect case
-
---source include/count_sessions.inc
 connect (con1_ro,localhost,root,,);
 xa start '3';
 select 0;
@@ -729,12 +714,10 @@ xa prepare '3';
 disconnect con1_ro;
 
 connection default;
---source include/wait_until_count_sessions.inc
 xa recover;
 --error ER_XA_RBROLLBACK
 xa commit '3';
 
---source include/count_sessions.inc
 connect (con2_ro,localhost,root,,);
 xa start '4';
 select 0;
@@ -743,14 +726,10 @@ xa prepare '4';
 disconnect con2_ro;
 
 connection default;
---source include/wait_until_count_sessions.inc
 xa recover;
 --error ER_XA_RBROLLBACK
 xa rollback '4';
 
 set @@global.read_only=@sav_read_only;
 
-
---echo #
 --echo # End of 10.5 tests
---echo #

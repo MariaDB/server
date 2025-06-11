@@ -64,8 +64,6 @@ INSERT INTO ```t'\"_str` VALUES
 INSERT INTO ```t'\"_str` VALUES
 ('4', 'abc', 0x00616263, 0x61626300, 0x61006263, 0x6100626300, 0x610062630000);
 
---source include/count_sessions.inc
-
 -- connect (con_lock,localhost,root,,)
 -- connect (con_min_trylock,localhost,root,,)
 -- connect (con_max_trylock,localhost,root,,)
@@ -167,8 +165,6 @@ SET @@sql_mode=@save_sql_mode;
 -- disconnect con_verify_innodb_locks
 
 DROP TABLE t_min, t_max, ```t'\"_str`;
-
---source include/wait_until_count_sessions.inc
 
 #
 # Test that transaction data is correctly "visualized" in

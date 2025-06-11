@@ -4,8 +4,6 @@
 --echo #             INNODB_TEMP_TABLE_INFO
 --echo #
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 --source include/have_innodb.inc
 
 --echo # -------------------------------
@@ -106,9 +104,6 @@ drop table test.t_temp;
 
 drop database my_db;
 drop database some_db;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-28332: Alter on temporary table causes ER_TABLE_EXISTS_ERROR note

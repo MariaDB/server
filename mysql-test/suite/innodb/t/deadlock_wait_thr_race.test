@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
---source include/count_sessions.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
@@ -73,4 +72,3 @@ SET DEBUG_SYNC="now SIGNAL upd_cont_2";
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
 DROP TABLE t2;
---source include/wait_until_count_sessions.inc

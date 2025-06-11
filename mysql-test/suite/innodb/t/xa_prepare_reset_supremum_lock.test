@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 CREATE TABLE t (
   `a` INT NOT NULL,
@@ -45,4 +44,3 @@ INSERT INTO t VALUES (30);
 --connection default
 XA COMMIT '1';
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

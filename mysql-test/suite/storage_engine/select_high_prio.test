@@ -3,12 +3,6 @@
 #
 --source have_engine.inc
 
---source include/count_sessions.inc
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 # We will have 3 connections: 
 #   con1 will lock a table in READ mode
 #   con0 will run UPDATE (and will wait on the lock)
@@ -130,8 +124,6 @@ let $wait_timeout = 30;
 
 # Cleanup
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc
 
 --source cleanup_engine.inc
 

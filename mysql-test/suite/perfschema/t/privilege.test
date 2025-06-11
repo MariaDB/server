@@ -316,7 +316,6 @@ TRUNCATE TABLE performance_schema.events_waits_current;
 
 --echo # Clean up
 --disconnect pfs_user_4
---source include/wait_until_disconnected.inc
 --connection default
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM pfs_user_4;
 DROP USER pfs_user_4;

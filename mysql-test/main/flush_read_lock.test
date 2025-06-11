@@ -9,9 +9,7 @@
 --source include/have_debug_sync.inc
 # Parts of this test use DDL on events, BINLOG statement and
 # other statements which are not supported in embedded server.
--- source include/not_embedded.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
+--source include/not_embedded.inc
 
 set global sql_mode="";
 set local sql_mode="";
@@ -2144,10 +2142,6 @@ disconnect con2;
 disconnect con3;
 
 set global sql_mode=default;
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
 
 --echo #
 --echo # Deadlock between FTWRL under open handler and DDL/LOCK TABLES

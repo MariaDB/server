@@ -7,7 +7,6 @@ flush query cache;
 flush query cache;
 reset query cache;
 flush status;
-drop table if exists t1, t2, t3, t11, t21;
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
 create table t2 (a int not null);
@@ -480,9 +479,7 @@ select 'x' a, 'y' b from d.t1, d.t2;
 a	b
 drop database d;
 drop table t1, t2, t3;
-#
 # End of 10.5 tests
-#
 SET GLOBAL query_cache_size=@query_cache_size_save;
 SET GLOBAL query_cache_type=@query_cache_type_save;
 set GLOBAL sql_mode=@sql_mode_save;

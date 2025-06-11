@@ -13,8 +13,6 @@ c timestamp generated always as ((a not in (b,b))) stored
 insert t1(a) values(7777777777);
 show warnings;
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 connect(con2,localhost,root,,);
 --disable_warnings
 set sql_mode='';
@@ -24,5 +22,4 @@ show warnings;
 
 drop table t1;
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;

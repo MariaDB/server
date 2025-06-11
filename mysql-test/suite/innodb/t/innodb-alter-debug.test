@@ -2,8 +2,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
---source include/count_sessions.inc
-
 SET NAMES utf8;
 
 CREATE TABLE ① (
@@ -201,6 +199,3 @@ SET debug_dbug=@save_dbug;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

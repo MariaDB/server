@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 SET @old_max_allowed_packet= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet = 2 * 1024 * 1024 + 1024;
 connect  con1, localhost, root,,;

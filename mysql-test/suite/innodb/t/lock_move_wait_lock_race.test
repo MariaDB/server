@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
@@ -56,4 +55,3 @@ SET DEBUG_SYNC="now SIGNAL trx2_cont";
 --connection default
 SET DEBUG_SYNC="RESET";
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

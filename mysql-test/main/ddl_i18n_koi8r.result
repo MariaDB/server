@@ -2844,9 +2844,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `col1` varchar(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=cp1251 COLLATE=cp1251_general_cs
-connection con2;
 disconnect con2;
-connection con3;
 disconnect con3;
 connection default;
 USE test;

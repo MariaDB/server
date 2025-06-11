@@ -9,7 +9,7 @@ GRANT USAGE ON *.* TO `boo1`@`%`
 GRANT SELECT, CREATE, DROP, ALTER ON `foo`.* TO `boo1`@`%`
 CREATE user boo2;
 create database foo;
-CONNECT con1,localhost, boo1,, foo;
+connect con1,localhost, boo1,, foo;
 SET check_constraint_checks=1;
 CREATE TABLE t0
 (
@@ -108,11 +108,11 @@ def	foo	t3	b	Column	`b` > 0
 def	foo	t3	b	Table	`b` > 10
 def	foo	t3	b1	Table	`b` < 123456789012345678901234567890123456789012345678901234567890123456789
 disconnect con1;
-CONNECT con2, localhost, boo2,,"*NO-ONE*";
+connect con2, localhost, boo2,,"*NO-ONE*";
 SELECT * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 disconnect con2;
-CONNECT con1, localhost, boo1,,foo;
+connect con1, localhost, boo1,,foo;
 DROP TABLE t0;
 DROP TABLE t1;
 DROP TABLE t2;
@@ -140,7 +140,7 @@ CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAU
 def	db	t1	CONSTRAINT_1	Table	`b` > 0
 def	mysql	global_priv	Priv	Column	json_valid(`Priv`)
 def	mysql	servers	Options	Column	json_valid(`Options`)
-CONNECT con1,localhost, foo,, db;
+connect con1,localhost, foo,, db;
 SELECT a FROM t1;
 a
 1
