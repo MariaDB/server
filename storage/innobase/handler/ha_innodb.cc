@@ -4078,12 +4078,8 @@ static int innodb_init_params()
     log_sys.log_buffered= true;
 #endif
 
-#if !defined LINUX_NATIVE_AIO && !defined HAVE_URING && !defined _WIN32
-  /* Currently native AIO is supported only on windows and linux
-  and that also when the support is compiled in. In all other
-  cases, we ignore the setting of innodb_use_native_aio. */
-  srv_use_native_aio= FALSE;
-#endif
+  if (!tpool::supports_native_aio())
+    srv_use_native_aio= FALSE;
 
 #ifdef _WIN32
   switch (srv_file_flush_method) {
