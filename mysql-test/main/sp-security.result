@@ -5,8 +5,6 @@ use test;
 create user user1@localhost;
 grant usage on *.* to user1@localhost;
 flush privileges;
-drop table if exists t1;
-drop database if exists db1_secret;
 create database db1_secret;
 create procedure db1_secret.dummy() begin end;
 drop procedure db1_secret.dummy;
@@ -1727,7 +1725,5 @@ connection default;
 disconnect conn1;
 drop user user@localhost;
 drop database test_db;
-#
 # End of 11.3 tests
-#
 set @@global.collation_server=@save_collation_server;

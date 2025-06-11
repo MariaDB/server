@@ -650,10 +650,6 @@ evalp select /*4-3*/ count(*) from performance_schema.events_waits_history_long
 
 --connection default
 
-revoke all privileges, grant option from user1@localhost;
-revoke all privileges, grant option from user2@localhost;
-revoke all privileges, grant option from user3@localhost;
-revoke all privileges, grant option from user4@localhost;
 drop user user1@localhost;
 drop user user2@localhost;
 drop user user3@localhost;

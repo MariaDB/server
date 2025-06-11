@@ -189,8 +189,6 @@ set global server_audit_logging= off;
 set global server_audit_incl_users='root';
 set global server_audit_logging= on;
 disconnect cn1;
-let $count_sessions=1;
-source include/wait_until_count_sessions.inc;
 
 drop user user1@localhost;
 

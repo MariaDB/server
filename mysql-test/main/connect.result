@@ -277,8 +277,6 @@ disconnect tmp_con7;
 # -- Restoring default connection...
 connect  default,localhost,root,,test;
 
-# -- Waiting for connections to close...
-
 DROP USER mysqltest_u1@localhost;
 
 # -- End of Bug#33507.
@@ -477,6 +475,4 @@ Connection_errors_peer_address	0
 Connection_errors_select	0
 Connection_errors_tcpwrap	0
 set global max_connections= @max_con.save;
-#
 # End of 10.5 tests
-#

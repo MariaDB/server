@@ -2,7 +2,6 @@
 
 -- source include/have_innodb.inc
 -- source include/have_debug.inc
--- source include/count_sessions.inc
 
 set @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
 
@@ -127,4 +126,3 @@ select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME
 drop table t1;
 
 set global innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
--- source include/wait_until_count_sessions.inc

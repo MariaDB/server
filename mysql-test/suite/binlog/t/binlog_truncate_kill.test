@@ -46,7 +46,6 @@ connection con1;
 --source include/show_binlog_events.inc
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 
 SELECT * FROM t1;

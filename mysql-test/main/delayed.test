@@ -534,12 +534,8 @@ INSERT DELAYED INTO t2 VALUES (8);
 UNLOCK TABLES;
 SET AUTOCOMMIT= 1;
 
-connection con2;
 disconnect con2;
---source include/wait_until_disconnected.inc
-connection con1;
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 DROP TABLE t1, t2, t3;
@@ -585,7 +581,6 @@ connection con1;
 --reap
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 drop tables tm, t1, t2;
 

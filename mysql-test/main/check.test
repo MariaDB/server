@@ -1,13 +1,6 @@
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connection con1;
---disable_warnings
-drop table if exists t1,t2;
-drop view if exists v1;
---enable_warnings
 
 # Add a lot of keys to slow down check
 create table t1(n int not null, key(n), key(n), key(n), key(n));
@@ -32,7 +25,7 @@ disconnect con2;
 drop table t1;
 
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 #
 # Bug#9897 Views: 'Check Table' crashes MySQL, with a view and a table
@@ -75,10 +68,6 @@ connection default;
 UNLOCK TABLES;
 DROP TABLE t1;
 disconnect con1;
-
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-15338

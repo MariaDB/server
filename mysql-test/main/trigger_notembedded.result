@@ -3,7 +3,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 CREATE USER mysqltest_dfn@localhost;
 CREATE USER mysqltest_inv@localhost;
@@ -177,7 +176,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 use mysqltest_db1;
 CREATE TABLE t1(col CHAR(20));
@@ -352,7 +350,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 CREATE TABLE t1 (i1 INT);
@@ -509,7 +506,6 @@ DROP TABLE t1,t2;
 SET SESSION LOW_PRIORITY_UPDATES=DEFAULT;
 SET GLOBAL LOW_PRIORITY_UPDATES=DEFAULT;
 End of 5.0 tests.
-drop table if exists t1;
 create table t1 (i int);
 connect  flush,localhost,root,,test,,;
 connection default;
@@ -543,7 +539,6 @@ connection default;
 disconnect con1;
 DROP USER 'no_rights'@'localhost';
 DROP DATABASE db1;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 CREATE USER mysqltest_u1@localhost;
@@ -569,7 +564,7 @@ DROP USER mysqltest_u1@localhost;
 disconnect con1;
 connection default;
 USE test;
-End of 5.1 tests.
+# End of 5.1 tests.
 #
 # MDEV-34551: Column list in the trigger definition
 #

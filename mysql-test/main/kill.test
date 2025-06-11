@@ -6,9 +6,7 @@
 # connection does not read() from a socket, but returns control to the
 # application. 'mysqltest' does not handle the kill request.
 #
-
--- source include/count_sessions.inc
--- source include/not_embedded.inc
+--source include/not_embedded.inc
 
 --disable_service_connection
 
@@ -221,7 +219,6 @@ drop table t2;
 --echo #
 --echo # Test kill USER
 --echo #
---source include/count_sessions.inc
 grant ALL on test.* to test@localhost;
 grant ALL on test.* to test2@localhost;
 connect (con3, localhost, test,,);
@@ -246,7 +243,6 @@ connection con4;
 --error 2013,2006,5014
 select 1;
 connection default;
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-4911 - add KILL query id, and add query id information to

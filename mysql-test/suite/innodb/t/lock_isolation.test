@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
@@ -254,5 +253,4 @@ SELECT * FROM t WHERE a=1 FOR UPDATE;
 SET DEBUG_SYNC="RESET";
 DROP TABLE t;
 
---source include/wait_until_count_sessions.inc
 --echo # End of 10.6 tests

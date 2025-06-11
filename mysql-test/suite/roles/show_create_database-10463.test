@@ -48,7 +48,6 @@ where table_schema = 'db' order by table_name;
 
 
 connection default;
-
 drop database db;
 drop role r1;
 drop user beep;

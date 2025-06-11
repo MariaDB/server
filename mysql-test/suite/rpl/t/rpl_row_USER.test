@@ -53,7 +53,6 @@ REVOKE ALL ON mysqltest1.* FROM 'tester'@'%';
 REVOKE ALL ON mysqltest1.* FROM ''@'localhost%';
 DROP USER tester@'%';
 DROP USER ''@'localhost%';
-FLUSH PRIVILEGES;
 --sync_slave_with_master
 # End of 5.0 test case
 --source include/rpl_end.inc
