@@ -14088,10 +14088,10 @@ int ha_innobase::truncate()
                 trx);
     if (!err)
     {
+      trx->commit(deleted);
       m_prebuilt->table->acquire();
       create_table_info_t::create_table_update_dict(m_prebuilt->table,
                                                     m_user_thd, info, *table);
-      trx->commit(deleted);
     }
     else
     {
