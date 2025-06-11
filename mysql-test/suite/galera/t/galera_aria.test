@@ -1,0 +1,19 @@
+--source include/galera_cluster.inc
+--source include/have_aria.inc
+--source include/log_bin.inc
+
+set session sql_mode='';
+SET @@enforce_storage_engine=INNODB;
+--error ER_OPTION_PREVENTS_STATEMENT 
+CREATE TABLE t1 (c INT ) ENGINE=ARIA;
+SHOW WARNINGS;
+
+CREATE TABLE t1 (c INT );
+DROP TABLE t1;
+CREATE TABLE t1 (c INT ) ENGINE=INNODB;
+DROP TABLE t1;
+
+SET @@enforce_storage_engine=ARIA;
+--error ER_OPTION_PREVENTS_STATEMENT 
+CREATE TABLE t1 (c INT ) ENGINE=INNODB;
+SHOW WARNINGS;
