@@ -1364,7 +1364,7 @@ EXPLAIN
 SELECT i FROM t1 WHERE (1) NOT IN (SELECT i FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	index_subquery	k	k	5	const	2	Using index
+2	SUBQUERY	t2	index_subquery	k	k	5	const	2	Using index; Using where
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1555,7 +1555,7 @@ EXPLAIN
 SELECT ( 5 ) IN ( SELECT * FROM v2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	index_subquery	NULL	distinct_key	5	const	2	
+2	SUBQUERY	<derived3>	index_subquery	NULL	distinct_key	5	const	2	Using where
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1608,7 +1608,7 @@ EXPLAIN
 SELECT ( 5 ) IN ( SELECT * FROM v2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	index_subquery	NULL	distinct_key	5	const	2	
+2	SUBQUERY	<derived3>	index_subquery	NULL	distinct_key	5	const	2	Using where
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
