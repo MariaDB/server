@@ -201,28 +201,11 @@ private:
 
 namespace tpool
 {
-
-#ifdef LINUX_NATIVE_AIO
-aio *create_libaio(thread_pool* tp, int max_io);
-#endif
-
-aio *create_linux_aio(thread_pool *pool, int max_aio,
-                      aio_implementation implementation)
+aio *create_uring(thread_pool *pool, int max_aio)
 {
-  switch (implementation) {
-  case OS_DEFAULT:
-  case OS_IO_URING:
-    try {
-      return new aio_uring(pool, max_aio);
-    } catch (std::runtime_error&) {
-      return nullptr;
-    }
-    break;
-#ifdef LINUX_NATIVE_AIO
-  case OS_AIO:
-    return create_libaio(pool, max_aio);
-#endif
-  default:
+  try {
+    return new aio_uring(pool, max_aio);
+  } catch (std::runtime_error&) {
     return nullptr;
   }
 }

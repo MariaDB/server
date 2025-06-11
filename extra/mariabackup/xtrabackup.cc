@@ -2544,15 +2544,7 @@ static bool innodb_init_param()
 
 	ut_ad(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
 
-#if defined(_WIN32) || defined(LINUX_NATIVE_AIO) || defined(HAVE_URING)
-	srv_use_native_aio = TRUE;
-#else
-	/* Currently native AIO is supported only on windows and linux
-	and that also when the support is compiled in. In all other
-	cases, we ignore the setting of innodb_use_native_aio. */
-	srv_use_native_aio = FALSE;
-
-#endif
+	srv_use_native_aio= tpool::supports_native_aio();
 
 	/* Assign the default value to srv_undo_dir if it's not specified, as
 	my_getopt does not support default values for string options. We also
@@ -2587,9 +2579,6 @@ static bool innodb_init_param()
 		}
 	}
 
-#ifdef _WIN32
-	srv_use_native_aio = TRUE;
-#endif
 	return false;
 
 error:

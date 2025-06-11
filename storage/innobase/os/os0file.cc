@@ -3089,29 +3089,18 @@ int os_aio_init() noexcept
   int max_events= max_read_events + max_write_events;
   int ret= 1;
 
-#if defined __linux__ && (defined HAVE_URING || defined LINUX_NATIVE_AIO)
   if (srv_use_native_aio)
   {
-    switch (srv_linux_aio_method) {
-    case SRV_LINUX_AIO_AUTO:
-    case SRV_LINUX_AIO_IO_URING:
-# ifdef HAVE_URING
-      ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events,
-                                          tpool::OS_IO_URING);
-# endif
-# ifdef LINUX_NATIVE_AIO
-#  ifdef HAVE_URING
-      if (ret && srv_linux_aio_method == SRV_LINUX_AIO_AUTO)
-        sql_print_warning("InnoDB: io_uring failed: falling back to libaio");
-      else
-        break;
-      /* fallthough */
-#  endif /* HAVE_URING */
-    case SRV_LINUX_AIO_LIBAIO:
-      ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events,
-                                          tpool::OS_AIO);
-# endif
-    }
+    tpool::aio_implementation aio_impl= tpool::OS_IO_DEFAULT;
+#ifdef __linux__
+    compile_time_assert(SRV_LINUX_AIO_IO_URING == (srv_linux_aio_t)tpool::OS_IO_URING);
+    compile_time_assert(SRV_LINUX_AIO_LIBAIO == (srv_linux_aio_t) tpool::OS_IO_LIBAIO);
+    compile_time_assert(SRV_LINUX_AIO_AUTO == (srv_linux_aio_t) tpool::OS_IO_DEFAULT);
+    aio_impl=(tpool::aio_implementation) srv_linux_aio_method;
+#endif
+
+    ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events,
+                                        aio_impl);
     if (ret)
     {
       srv_use_native_aio= false;
@@ -3122,13 +3111,9 @@ int os_aio_init() noexcept
       sql_print_information("InnoDB: Using %s", srv_thread_pool
                             ->get_aio_implementation());
   }
-#endif /* linux */
-
   if (ret)
-    ret= srv_thread_pool->configure_aio(srv_use_native_aio,
-                                        max_events,
-                                        tpool::OS_DEFAULT);
-
+    ret= srv_thread_pool->configure_aio(false, max_events,
+                                        tpool::OS_IO_DEFAULT);
   if (!ret)
   {
     read_slots= new io_slots(max_read_events, srv_n_read_io_threads);

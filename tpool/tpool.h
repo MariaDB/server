@@ -19,7 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <mutex>
 #include <atomic>
 #include <tpool_structs.h>
-#ifdef LINUX_NATIVE_AIO
+#ifdef HAVE_LIBAIO
 #include <libaio.h>
 #endif
 #ifdef HAVE_URING
@@ -130,9 +130,9 @@ struct aiocb
   :OVERLAPPED
 #endif
 {
-#if defined LINUX_NATIVE_AIO || defined HAVE_URING
+#if defined HAVE_LIBAIO || defined HAVE_URING
   union {
-# ifdef LINUX_NATIVE_AIO
+# ifdef HAVE_LIBAIO
     /** The context between io_submit() and io_getevents();
     must be the first data member! */
     iocb m_iocb;
@@ -214,10 +214,10 @@ extern aio *create_simulated_aio(thread_pool *tp);
 
 enum aio_implementation
 {
-  OS_DEFAULT
+  OS_IO_DEFAULT
 #ifdef __linux__
   , OS_IO_URING
-  , OS_AIO
+  , OS_IO_LIBAIO
 #endif
 };
 
@@ -226,6 +226,7 @@ class thread_pool
 protected:
   /* AIO handler */
   std::unique_ptr<aio> m_aio{};
+  aio_implementation m_aio_impl= OS_IO_DEFAULT;
   virtual aio *create_native_aio(int max_io, aio_implementation)= 0;
 
 public:
@@ -249,7 +250,10 @@ public:
   int configure_aio(bool use_native_aio, int max_io, aio_implementation impl)
   {
     if (use_native_aio)
+    {
       m_aio.reset(create_native_aio(max_io, impl));
+      m_aio_impl= impl;
+    }
     else
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
@@ -260,12 +264,7 @@ public:
     assert(m_aio);
     if (use_native_aio)
     {
-      const aio_implementation impl=
-#ifdef LINUX_NATIVE_AIO
-        !strcmp(get_aio_implementation(), "Linux native AIO") ? OS_AIO :
-#endif
-        OS_DEFAULT;
-      auto new_aio= create_native_aio(max_io, impl);
+      auto new_aio= create_native_aio(max_io, m_aio_impl);
       if (!new_aio)
         return -1;
       m_aio.reset(new_aio);
@@ -306,6 +305,19 @@ public:
   virtual void wait_end() {};
   virtual ~thread_pool() {}
 };
+
+/** Return true if compiled with native AIO support.*/
+constexpr bool supports_native_aio()
+{
+#ifdef _WIN32
+  return true;
+#elif defined(__linux__) && (defined(HAVE_LIBAIO) || defined(HAVE_URING))
+  return true;
+#else
+  return false;
+#endif
+}
+
 const int DEFAULT_MIN_POOL_THREADS= 1;
 const int DEFAULT_MAX_POOL_THREADS= 500;
 extern thread_pool *

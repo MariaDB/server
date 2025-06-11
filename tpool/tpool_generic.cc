@@ -37,14 +37,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 namespace tpool
 {
-
 #ifdef __linux__
-# if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
   aio *create_linux_aio(thread_pool* tp, int max_io, aio_implementation);
-# else
-  static aio *create_linux_aio(thread_pool *, int, aio_implementation)
-  { return nullptr; }
-# endif
 #elif defined _WIN32
   aio *create_win_aio(thread_pool* tp, int max_io);
 #endif
