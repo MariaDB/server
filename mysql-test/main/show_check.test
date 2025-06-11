@@ -348,7 +348,6 @@ drop table t1;
 --error ER_DBACCESS_DENIED_ERROR
 drop database mysqltest;
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connect (con2,localhost,mysqltest_2,,"*NO-ONE*");
 connection con2;
@@ -361,7 +360,6 @@ drop table mysqltest.t1;
 --error ER_DBACCESS_DENIED_ERROR
 drop database mysqltest;
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connect (con3,localhost,mysqltest_3,,"*NO-ONE*");
 connection con3;
@@ -371,7 +369,6 @@ show create database mysqltest;
 drop table mysqltest.t1;
 drop database mysqltest;
 disconnect con3;
---source include/wait_until_disconnected.inc
 
 connection default;
 set names binary;
@@ -909,67 +906,6 @@ DROP PROCEDURE p1;
 DROP FUNCTION f1;
 
 #
-# Part 2: check that table with non-latin1 characters are dumped/restored
-# correctly.
-#
-# See MDEV-14651 for details
-# Ensure that all needed objects are dropped.
-
-#set names koi8r;
-
-#--disable_warnings
-#DROP DATABASE IF EXISTS mysqltest1;
-#--enable_warnings
-
-# Create objects.
-
-#CREATE DATABASE mysqltest1;
-
-#use mysqltest1;
-
-#CREATE TABLE t1(колонка1 INT);
-
-# Check:
-#   - Dump mysqltest1;
-
-#--let $outfile1=$MYSQLTEST_VARDIR/tmp/show_check.mysqltest1.sql
-
-#--source include/count_sessions.inc
-#--echo
-#--echo ---> Dumping mysqltest1 to outfile1
-#--exec $MYSQL_DUMP --default-character-set=latin1 --character-sets-dir=$MYSQL_SHAREDIR/charsets --databases mysqltest1 > $outfile1
-# Take care that the additional session caused by MYSQL_DUMP has disappeared.
-#--source include/wait_until_count_sessions.inc
-
-#   - Clean mysqltest1;
-
-#--echo
-#--echo
-
-#DROP DATABASE mysqltest1;
-
-#   - Restore mysqltest1;
-
-#--echo
-#--echo
-
-#--source include/count_sessions.inc
-#--echo ---> Restoring mysqltest1...
-#--exec $MYSQL test < $outfile1
-#--remove_file $outfile1
-# Take care that the additional session caused by MYSQL has disappeared.
-#--source include/wait_until_count_sessions.inc
-
-#   - Check definition of the table.
-
-#SHOW CREATE TABLE mysqltest1.t1;
-
-# Cleanup.
-
-#DROP DATABASE mysqltest1;
-#use test;
-
-#
 # Bug#28808 log_queries_not_using_indexes variable dynamic change is ignored
 #
 --disable_ps2_protocol
@@ -1032,7 +968,6 @@ connect (con4,localhost,mysqltest_4,,mysqltest);
 connection con4;
 show create database mysqltest;
 disconnect con4;
---source include/wait_until_disconnected.inc
 connection default;
 delete from mysql.user where user='mysqltest_4';
 delete from mysql.db where user='mysqltest_4';
@@ -1268,7 +1203,6 @@ SHOW ENGINE MYISAM STATUS;
 --enable_result_log
 
 disconnect conn1;
---source include/wait_until_disconnected.inc
 connection default;
 DROP USER test_u@localhost;
 
@@ -1292,7 +1226,6 @@ connection con1;
 SHOW CREATE TABLE t1;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 UNLOCK TABLES;
@@ -1364,7 +1297,6 @@ connection con1;
 ALTER TABLE t1 CHARACTER SET = utf8;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 
 connection default;
 COMMIT;
@@ -1398,7 +1330,6 @@ SELECT RELEASE_LOCK('t');
 --connection con1
 --reap
 --disconnect con1
---source include/wait_until_disconnected.inc
 --connection default
 SET NAMES latin1;
 

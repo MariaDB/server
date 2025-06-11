@@ -3898,10 +3898,7 @@ f
 foo
 bar
 DROP TABLE mrg, t1;
-End of 10.5 tests
-#
-# End of 10.0 tests
-#
+# End of 10.5 tests
 #
 # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
 #

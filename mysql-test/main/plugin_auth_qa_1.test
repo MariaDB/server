@@ -62,8 +62,6 @@ GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 --echo 2)
 --replace_result $MASTER_MYSOCK MASTER_MYSOCK
 --exec $MYSQL -u plug_user --password=plug_dest -e "SELECT current_user();SELECT user();USE test_user_db;CREATE TABLE t1(a int);SHOW TABLES;DROP TABLE t1;" 2>&1
-REVOKE ALL PRIVILEGES ON test_user_db.* FROM 'plug_user';
-#REVOKE ALL PRIVILEGES ON test_user_db.* FROM 'plug_dest'';
 DROP USER plug_user,plug_dest;
 
 --echo ========== test 1.2 ========================================

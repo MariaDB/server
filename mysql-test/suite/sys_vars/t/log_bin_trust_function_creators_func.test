@@ -22,11 +22,6 @@
 
 source include/have_log_bin.inc;
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
-
 --echo '#--------------------FN_DYNVARS_063_01-------------------------#'
 ########################################################################
 #    Setting initial value of variable to 0 and verifying whether user

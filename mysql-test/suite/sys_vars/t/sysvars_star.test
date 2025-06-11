@@ -39,5 +39,3 @@ drop user foo@localhost;
 set global low_priority_updates=default;
 disable_warnings;
 uninstall soname 'sql_errlog';
-let $count_sessions= 1;
-source include/wait_until_count_sessions.inc;

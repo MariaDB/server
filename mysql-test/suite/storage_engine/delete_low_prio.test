@@ -3,12 +3,6 @@
 #
 --source have_engine.inc
 
---source include/count_sessions.inc
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 --let $create_definiiton = a $int_col, b $char_col
 --source create_table.inc
 INSERT INTO t1 (a,b) VALUES (1,'f'),(2,'b');
@@ -153,8 +147,6 @@ SELECT a,b FROM t1;
 
 # Cleanup
 DROP TABLE t1;
-
---source include/wait_until_count_sessions.inc
 
 --source cleanup_engine.inc
 

@@ -5,13 +5,6 @@
 --source include/not_embedded.inc
 set @start_read_only= @@global.read_only;
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
---disable_warnings
-DROP TABLE IF EXISTS t1,t2,t3;
---enable_warnings
-
 # READ_ONLY does nothing to SUPER users
 # so we use a non-SUPER one:
 
@@ -353,15 +346,11 @@ COMMIT;
 START TRANSACTION READ WRITE;
 COMMIT;
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 DROP USER user1;
 
 SET GLOBAL read_only= 0;
 DROP TABLE t1;
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
 
 --echo # End of 10.0 tests
 

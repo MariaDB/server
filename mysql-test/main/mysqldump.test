@@ -14,9 +14,6 @@ call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 # There are tables in 'mysql' database of type innodb
 --source include/have_innodb.inc
 
@@ -2386,10 +2383,6 @@ DROP TABLE t1;
 --echo #                     CONSISTENCY
 --echo #
 
---disable_warnings
-DROP DATABASE IF EXISTS b12809202_db;
---enable_warnings
-
 CREATE DATABASE b12809202_db;
 CREATE TABLE b12809202_db.t1 (c1 INT);
 CREATE TABLE b12809202_db.t2 (c1 INT);
@@ -2422,9 +2415,6 @@ DROP DATABASE b12809202_db;
 --echo # Delete all existing binary logs.
 --echo #
 RESET MASTER;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # Bug#45740 MYSQLDUMP DOESN'T DUMP GENERAL_LOG AND SLOW_QUERY CAUSES RESTORE PROBLEM

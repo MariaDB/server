@@ -44,7 +44,6 @@ drop table table_11733 ;
 drop user test@localhost;
 
 disconnect con1;
-
 #
 # Bug #35732: read-only blocks SELECT statements in InnoDB
 #
@@ -102,7 +101,6 @@ DROP TABLE t1;
 DROP USER test@localhost;
 
 disconnect con1;
-
 --echo # End of 5.1 tests
 
 --echo #

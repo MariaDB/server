@@ -317,8 +317,6 @@ SELECT COUNT(1) FROM oms_live_th.c;
 SELECT COUNT(1) FROM oms_live_th.d;
 
 
-connect(con4,localhost,root,,);
-
 DROP DATABASE bob_live_sg;
 DROP DATABASE oms_live_sg;
 DROP DATABASE bob_live_ph;

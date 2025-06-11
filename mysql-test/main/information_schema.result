@@ -1,7 +1,5 @@
 set global sql_mode="";
 set local sql_mode="";
-DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5;
-DROP VIEW IF EXISTS v1;
 show variables where variable_name like "skip_show_database";
 Variable_name	Value
 skip_show_database	OFF
@@ -2340,12 +2338,7 @@ connection default;
 disconnect con1;
 set global sql_mode=default;
 USE test;
-#
 # End of 10.0 tests
-#
-#
-# Start of 10.1 tests
-#
 #
 # MDEV-13242 Wrong results for queries with row constructors and information_schema
 #
@@ -2378,9 +2371,7 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name='aaaaaaaaa
 SCHEMA_NAME
 SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a',193);
 SCHEMA_NAME
-#
 # End of 10.1 tests
-#
 #
 # MDEV-14836: Assertion `m_status == DA_ERROR' failed in
 # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
@@ -2422,9 +2413,7 @@ SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEM
 TABLE_SCHEMA	TABLE_NAME
 a/~.b	t1
 DROP DATABASE `a/~.b`;
-#
 # End of 10.2 Test
-#
 #
 # MDEV-21201:No records produced in information_schema query,
 # depending on projection
@@ -2563,9 +2552,7 @@ SET SQL_MODE=DEFAULT;
 select progress from information_schema.processlist limit 1;
 progress
 0.000
-#
 # End of 10.3 tests
-#
 #
 # MDEV-MDEV-31064 Changes of the procedure are not immediatly seen in queries to I_S.parameter from other connections
 #
@@ -2585,12 +2572,7 @@ COUNT(*)
 disconnect con2;
 connection default;
 DROP PROCEDURE sp1;
-#
 # End of 10.4 tests
-#
-#
-# Start of 10.5 tests
-#
 #
 # MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
 #
@@ -2606,6 +2588,4 @@ created
 SET SESSION sql_mode=DEFAULT;
 DROP VIEW i;
 DROP TABLE t1;
-#
 # End of 10.5 tests
-#

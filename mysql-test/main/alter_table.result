@@ -1780,7 +1780,6 @@ DROP TABLE t1;
 # --enable_info allows us to see how many rows were updated
 # by ALTER TABLE. in-place will show 0 rows, while copy > 0.
 #
-DROP TABLE IF EXISTS ti1, ti2, ti3, tm1, tm2, tm3;
 # Single operation tests
 CREATE TABLE ti1(a INT NOT NULL, b INT, c INT) engine=InnoDB;
 CREATE TABLE tm1(a INT NOT NULL, b INT, c INT) engine=MyISAM;

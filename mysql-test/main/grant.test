@@ -3,16 +3,11 @@
 # Grant tests not performed with embedded server
 --source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 SET GLOBAL log_bin_trust_function_creators = 1;
---disable_cursor_protocol
 select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
---enable_cursor_protocol
 
 connect (master,localhost,root,,);
 connection master;
@@ -967,8 +962,6 @@ USE bug23556;
 TRUNCATE t1;
 
 connection default;
-USE bug23556;
-DROP TABLE t1;
 USE test;
 DROP DATABASE bug23556;
 DROP USER bug23556@localhost;
@@ -1570,17 +1563,8 @@ create table t4 select * from t2;
 --error ER_TABLEACCESS_DENIED_ERROR
 create table t1 select * from t2;
 
-
 connection default;
-drop table t1,t2,t4,t5,t6;
-
-revoke create         on mysqltest.*  from mysqltest@localhost;
-revoke select, insert on mysqltest.t2 from mysqltest@localhost;
-revoke insert         on mysqltest.t4 from mysqltest@localhost;
-revoke create, insert on mysqltest.t5 from mysqltest@localhost;
-revoke create, insert on mysqltest.t6 from mysqltest@localhost;
 drop user mysqltest@localhost;
-
 disconnect user1;
 drop database mysqltest;
 use test;
@@ -2228,8 +2212,6 @@ DROP USER untrusted@localhost;
 DROP DATABASE secret;
 
 set GLOBAL sql_mode=default;
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-22755 CREATE USER leads to indirect SIGABRT in __stack_chk_fail () from fill_schema_user_privileges + *** stack smashing detected *** (on optimized builds)
@@ -2299,15 +2281,8 @@ CREATE USER bug33578113;
 GRANT DROP ON performance_schema.* TO bug33578113;
 REVOKE DROP ON performance_schema.* FROM bug33578113;
 DROP USER bug33578113;
---source include/wait_until_count_sessions.inc
 
---echo #
 --echo # End of 10.2 tests
---echo #
-
---echo #
---echo # Start of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-19948 'show grants' return privileges individually
@@ -2330,9 +2305,7 @@ SHOW GRANTS FOR ten2;
 DROP USER ten2;
 source include/switch_to_mysql_global_priv.inc;
 
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-17932 : Assertion upon double RENAME USER
@@ -2355,8 +2328,6 @@ RENAME USER 'name' to 'a';
 DROP USER foo;
 DROP USER a;
 
---echo #
 --echo # End of 10.4 tests
---echo #
 
 update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

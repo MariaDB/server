@@ -199,11 +199,8 @@ wait/io/socket/sql/client_connection	<LOCALHOST>
 wait/io/socket/sql/client_connection	<LOCALHOST>
 wait/io/socket/sql/client_connection	
 connection default;
-connection con1;
 disconnect con1;
-connection con2;
 disconnect con2;
-connection con3;
 disconnect con3;
 connection default;
 # After waiting a bit we should have no differences to socket_instances

@@ -1,4 +1,3 @@
-drop table if exists t1;
 '#--------------------FN_DYNVARS_063_01-------------------------#'
 SET @start_value= @@global.log_bin_trust_function_creators;
 ## Creating new user tt ##

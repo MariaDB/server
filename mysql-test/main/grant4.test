@@ -231,7 +231,6 @@ repair table mysqltest_db1.t1;
 
 --echo # Clean-up.
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;

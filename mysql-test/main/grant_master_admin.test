@@ -41,7 +41,6 @@ SHOW SLAVE HOSTS;
 connection default;
 DROP USER user1@localhost;
 
-
 --echo #
 --echo # End of 10.5 tests
 --echo #

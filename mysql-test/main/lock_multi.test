@@ -1,11 +1,3 @@
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
---disable_warnings
-drop table if exists t1,t2;
-drop DATABASE if exists mysqltest_1;
---enable_warnings
-
 # Test to see if select will get the lock ahead of low priority update
 
 --disable_ps2_protocol
@@ -759,7 +751,6 @@ connect (con2,localhost,root);
 LOCK TABLES v1 WRITE, t1 READ;
 FLUSH TABLE t1;
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 --echo # Connection 1
 connection default;
@@ -781,7 +772,6 @@ connect (con2,localhost,root);
 LOCK TABLES t1 WRITE, v1 READ;
 FLUSH TABLE t1;
 disconnect con2;
---source include/wait_until_disconnected.inc
 
 connection default;
 LOCK TABLES t1 WRITE;
@@ -1079,7 +1069,3 @@ connection default;
 disconnect con1;
 UNLOCK TABLES;
 DROP TABLE t1;
-
-
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc

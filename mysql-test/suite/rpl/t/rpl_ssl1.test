@@ -67,7 +67,7 @@ drop table t1;
 sync_slave_with_master;
 source include/show_slave_status.inc;
 source include/check_slave_is_running.inc;
-# End of 4.1 tests
+--echo # End of 4.1 tests
 
 # Start replication with ssl_verify_server_cert turned on
 connection slave;

@@ -24,8 +24,8 @@ connection default;
 let $wait_condition= select count(*) = 1 from information_schema.processlist;
 --source include/wait_condition.inc
 
-# 41 is for ps-procotol
---replace_result 41 18
+# 32 is for ps-procotol
+--replace_result 32 18
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
@@ -34,7 +34,7 @@ connect(foo, localhost, foo, bar, test);
 
 connection default;
 
---replace_result 41 18
+--replace_result 32 18
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
 --enable_ps2_protocol
 
