@@ -1547,6 +1547,12 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
   DBUG_ASSERT(fixed());
+  SCOPE_EXIT([this] () {
+    collector.reset();
+    func.reset();
+    res_receiver.reset();
+  });
+
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
@@ -1559,7 +1565,23 @@ String *Item_func_spatial_operation::val_str(String *str_value)
                     g2.construct(args[1], &tmp_value2))))
   {
     str_value= 0;
-    goto exit;
+    DBUG_RETURN(str_value);
+  }
+
+  /*
+    Optimization to evaluate the particular self-intersection
+      ST_INTERSECTION(geom, geom);
+  */
+  if (spatial_op == Gcalc_function::op_type::op_intersection &&
+      *g1.geom == *g2.geom)
+  {
+    /*
+      Return either argument as the result, it doesn't matter which because
+      they're identical.
+    */
+    String *sres= args[0]->val_str(&tmp_value1);  // tmp_value1 is empty...
+    str_value->swap(*sres);  // ...so swap the val_str result with str_value...
+    DBUG_RETURN(str_value);  // ...to create a valid query result.
   }
 
   g1.mbr.add_mbr(&g2.mbr);
@@ -1568,33 +1590,29 @@ String *Item_func_spatial_operation::val_str(String *str_value)
   if ((null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn)))
   {
     str_value= 0;
-    goto exit;
+    DBUG_RETURN(str_value);
   }
 
   collector.prepare_operation();
   if (func.alloc_states())
-    goto exit;
+    DBUG_RETURN(str_value);
 
   operation.init(&func);
 
   if (operation.count_all(&collector) ||
       operation.get_result(&res_receiver))
-    goto exit;
+    DBUG_RETURN(str_value);
 
 
   str_value->set_charset(&my_charset_bin);
   str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
-    goto exit;
+    DBUG_RETURN(str_value);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
-    goto exit;
+    DBUG_RETURN(str_value);
 
-exit:
-  collector.reset();
-  func.reset();
-  res_receiver.reset();
   DBUG_RETURN(str_value);
 }
 
