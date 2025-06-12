@@ -130,6 +130,7 @@ static char *default_home= (char *)".";
 #define my_write(A, B, C, D) loc_write(A, B, C)
 #define my_malloc(A, B, C) malloc(B)
 #define my_free(A) free(A)
+#define my_seek(A,B,C,D) lseek(A,B,C)
 #ifdef my_errno
   #undef my_errno
 #endif
