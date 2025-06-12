@@ -116,6 +116,7 @@ grant auto_create to foo2@localhost identified by 'pass';
 
 
 --connection default
+--disconnect con1
 drop user foo@localhost;
 drop user bar@localhost;
 drop role auto_create;

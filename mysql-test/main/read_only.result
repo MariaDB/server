@@ -331,11 +331,11 @@ ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN
 select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
 ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
 commit;
+disconnect con1;
 SET GLOBAL read_only=0;
 select count(*) from t1;
 count(*)
 4
 drop table t1;
 drop user user1;
-disconnect con1;
 # End of 11.8 tests

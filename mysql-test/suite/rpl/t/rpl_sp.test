@@ -367,6 +367,7 @@ sync_slave_with_master;
 
 
 # Clean up
+disconnect con1;
 connection master;
 drop function fn1;
 drop database mysqltest1;

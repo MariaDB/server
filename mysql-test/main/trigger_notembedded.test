@@ -345,6 +345,8 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS ORDER BY trigger_name;
 #
 
 --connection default
+--disconnect wl2818_definer_con
+--disconnect wl2818_invoker_con
 
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
@@ -634,6 +636,7 @@ SELECT @mysqltest_var;
 # Cleanup.
 #
 
+--disconnect bug15166_u1_con
 DROP USER mysqltest_u1@localhost;
 
 DROP DATABASE mysqltest_db1;
@@ -967,11 +970,11 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_u1@localhost;
 --error ER_TABLEACCESS_DENIED_ERROR
 UPDATE IGNORE t1, t2 SET t1.a1 = 2, t2.a1 = 3 WHERE t1.a1 = 1 AND t2.a1 = 2;
 # Cleanup
+--disconnect con1
+--connection default
 
 DROP DATABASE mysqltest_db1;
 DROP USER mysqltest_u1@localhost;
---disconnect con1
---connection default
 USE test;
 
 --echo # End of 5.1 tests.

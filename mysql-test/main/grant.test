@@ -962,11 +962,11 @@ USE bug23556;
 TRUNCATE t1;
 
 connection default;
+disconnect bug23556;
 USE test;
 DROP DATABASE bug23556;
 DROP USER bug23556@localhost;
 connection default;
-disconnect bug23556;
 
 
 #
@@ -1564,8 +1564,8 @@ create table t4 select * from t2;
 create table t1 select * from t2;
 
 connection default;
-drop user mysqltest@localhost;
 disconnect user1;
+drop user mysqltest@localhost;
 drop database mysqltest;
 use test;
 

@@ -61,6 +61,7 @@ CREATE OR REPLACE USER u1@localhost;
 CREATE OR REPLACE ROLE developer;
 
 connection default;
+disconnect user_a;
 SELECT CURRENT_USER;
 DROP DATABASE db1;
 DROP USER mysqltest_1@localhost;

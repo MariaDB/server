@@ -68,6 +68,7 @@ connection user1;
 select * from mysqltest.v3;
 	
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 
