@@ -114,7 +114,7 @@ wait
 EOF
 
 SET SESSION debug_dbug="+d,crash_dispatch_command_before";
---error 2006,2013
+--error 2006,2013,2002
 SELECT 1;
 --source include/wait_until_disconnected.inc
 
