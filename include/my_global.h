@@ -281,10 +281,6 @@ C_MODE_END
 #error "Please add -fno-exceptions to CXXFLAGS and reconfigure/recompile"
 #endif
 
-#if defined(_lint) && !defined(lint)
-#define lint
-#endif
-
 #ifndef stdin
 #include <stdio.h>
 #endif
@@ -502,7 +498,7 @@ C_MODE_END
 #endif
 
 /* We might be forced to turn debug off, if not turned off already */
-#if (defined(FORCE_DBUG_OFF) || defined(_lint)) && !defined(DBUG_OFF)
+#if defined(FORCE_DBUG_OFF) && !defined(DBUG_OFF)
 #  define DBUG_OFF
 #  ifdef DBUG_ON
 #    undef DBUG_ON
@@ -524,7 +520,7 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-#if defined(__GNUC__) && !defined(_lint)
+#if defined(__GNUC__)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */
 typedef char	pbool;		/* Mixed prototypes can take char */
