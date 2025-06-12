@@ -194,7 +194,14 @@ chunked_tokenize_utf8(grn_ctx *ctx,
   const char *string_end = string + string_bytes;
   grn_encoding encoding = tokenizer->query->encoding;
 
+#if defined __GNUC__
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wsign-compare"
+#endif
   if (string_bytes < grn_mecab_chunk_size_threshold) {
+#if defined __GNUC__
+# pragma GCC diagnostic pop
+#endif
     return chunked_tokenize_utf8_chunk(ctx,
                                        tokenizer,
                                        string,

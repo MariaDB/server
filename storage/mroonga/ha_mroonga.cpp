@@ -337,7 +337,7 @@ static int mrn_change_encoding(grn_ctx *ctx, const CHARSET_INFO *charset)
   return mrn::encoding::set(ctx, charset);
 }
 
-#if defined DBUG_TRACE && !defined(_lint)
+#if defined DBUG_TRACE
 static const char *mrn_inspect_thr_lock_type(enum thr_lock_type lock_type)
 {
   const char *inspected = "<unknown>";
