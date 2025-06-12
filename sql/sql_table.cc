@@ -1147,8 +1147,8 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
 
-    TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table);
-    if (share && share->from_share)
+    if (!table->table && thd->find_tmp_table_share(table,
+                                                   Tmp_table_kind::GLOBAL))
     {
       if (drop_temporary)
         my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
@@ -4709,9 +4709,13 @@ int create_table_impl(THD *thd,
       If a table exists, it must have been pre-opened. Try looking for one
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
-    TABLE *tmp_table= internal_tmp_table ? NULL :
-      thd->find_temporary_table(Lex_ident_db(db), Lex_ident_table(table_name),
-                                THD::TMP_TABLE_ANY);
+    TABLE *tmp_table= internal_tmp_table ||
+                       (create_info->table_options &
+                        HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+      ? NULL
+      : thd->find_temporary_table(Lex_ident_db(db), Lex_ident_table(table_name),
+                                THD::TMP_TABLE_ANY,
+                                  Tmp_table_kind::TMP);
 
     if (tmp_table)
     {
@@ -6141,7 +6145,8 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   TABLE *table= NULL;
   if (thd->has_open_global_temporary_tables())
   {
-    if (thd->open_temporary_table_impl(out_table, &table))
+    if (thd->open_temporary_table_impl(out_table, &table,
+                                       Tmp_table_kind::GLOBAL))
       return TRUE;
 
     if (table)
@@ -8780,9 +8785,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
-  if ((create_info->fields_option_struct= 
+  if ((create_info->fields_option_struct=
          thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
-      (create_info->indexes_option_struct= 
+      (create_info->indexes_option_struct=
          thd->calloc<ha_index_option_struct*>(table->s->total_keys)) == NULL)
     DBUG_RETURN(1);
 
@@ -11111,7 +11116,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         If such table exists, there must be a corresponding TABLE_SHARE in
         THD::all_temp_tables list.
       */
-      if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name))
+      if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name,
+                                    Tmp_table_kind::TMP))
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);
         DBUG_RETURN(true);
@@ -11874,7 +11880,7 @@ alter_copy:
 
   if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
   {
-    if (thd->find_tmp_table_share(table_list))
+    if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
     {
       // The table is opened in the same connection.
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));

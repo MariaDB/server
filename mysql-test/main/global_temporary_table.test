@@ -360,4 +360,59 @@ deallocate prepare ins_stmt;
 truncate t;
 drop table t;
 
+
+--echo # Global temporary tables exist in the global tables namespace.
+
+create global temporary table t(x int) on commit preserve rows;
+insert t values (111);
+
+create temporary table t(y int);
+insert t values (222);
+select * from t;
+show create table t;
+truncate t;
+select * from t;
+drop table t;
+
+show create table t;
+select * from t;
+truncate table t;
+drop table t;
+
+
+create global temporary table t(x int) on commit preserve rows;
+insert t values (1111);
+create temporary table t(y int);
+
+insert t values (222);
+
+alter table t add z int;
+
+select * from t;
+rename table t to t1;
+select * from t1;
+drop table t1;
+
+select * from t;
+truncate t;
+drop table t;
+
+--echo # Invert the creation order: local temporary table is created first
+create temporary table t(y int);
+create global temporary table t(x int) on commit preserve rows select 1111 as x;
+
+insert t values (222);
+
+alter table t add z int;
+
+select * from t;
+rename table t to t1;
+select * from t1;
+select * from t;
+drop table t1;
+
+truncate t;
+drop table t;
+
+
 --disconnect con1

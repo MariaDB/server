@@ -457,14 +457,6 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* If it is a temporary table, no need to take locks. */
   if (is_temporary_table(table_ref))
   {
-    TMP_TABLE_SHARE *share=(TMP_TABLE_SHARE*) table_ref->table->s;
-    if (share->from_share)
-    {
-      thd->drop_temporary_table(table_ref->table, NULL, true);
-      thd->reset_sp_cache= true;
-      DBUG_RETURN(false);
-    }
-
     /*
       In RBR, the statement is not binlogged if the table is temporary or
       table is not up to date in binlog.
@@ -482,6 +474,13 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       log a failed row-by-row delete even if under RBR as the table
       might not exist on the slave.
     */
+  }
+  else if (TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table_ref,
+                                                        Tmp_table_kind::GLOBAL))
+  {
+    error= thd->drop_tmp_table_share(NULL, share, true);
+    thd->reset_sp_cache= true;
+    binlog_stmt= !thd->is_current_stmt_binlog_format_row();
   }
   else /* It's not a temporary table. */
   {
