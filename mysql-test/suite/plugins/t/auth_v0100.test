@@ -23,6 +23,7 @@ connection c1;
 
 --query_vertical select user(), current_user(), @@external_user
 connection default;
+disconnect c1;
 drop user tt;
 drop user zzzzzzzzzzzzzzzz;
 uninstall plugin auth_0x0100;

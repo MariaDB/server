@@ -165,10 +165,10 @@ connection con1;
   );
 connection default;
 -- echo # user root (cleanup):
+  disconnect con1;
   DROP DATABASE mysqltest2;
   USE test;
   DROP USER mysqltest_1@localhost;
-  disconnect con1;
 
 #
 # Bug #24633 SQL MODE "NO_DIR_IN_CREATE" does not work with partitioned tables 

@@ -371,6 +371,7 @@ INSERT INTO t1 VALUES (1,USER());
 
 SELECT * FROM t1;
 connection default;
+disconnect unsecure;
 DROP DATABASE mysqltest1;
 DROP USER untrusted@localhost;
 

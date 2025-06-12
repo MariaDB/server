@@ -954,6 +954,7 @@ select * from t2;
 log
 triggered
 triggered
+disconnect a;
 drop table t1,t2, t3;
 drop user foo;
 create table t1 (a int, b int);

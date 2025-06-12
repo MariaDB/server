@@ -55,6 +55,7 @@ c
 select d from mysqltest.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 'v1'
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 create database mysqltest;
@@ -62,7 +63,7 @@ create table mysqltest.t1 (a int, b int);
 create algorithm=temptable view mysqltest.v1 (c,d) as select a+1,b+1 from mysqltest.t1;
 create user mysqltest_1@localhost;
 grant select (c) on mysqltest.v1 to mysqltest_1@localhost;
-connection user1;
+connect  user1,localhost,mysqltest_1,,mysqltest;
 select c from mysqltest.v1;
 c
 select d from mysqltest.v1;
@@ -189,9 +190,9 @@ show create view mysqltest.v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t2`.`a` + 1 AS `c`,`t2`.`b` + 1 AS `d` from `t2`	latin1	latin1_swedish_ci
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (10,2), (20,3), (30,4), (40,5), (50,10);
@@ -250,9 +251,9 @@ ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `
 update v3 set a=a+c;
 ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v3`
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (1,2), (2,3), (3,4), (4,5), (5,10);
@@ -314,9 +315,9 @@ ERROR 42000: INSERT command denied to user 'mysqltest_1'@'localhost' for table `
 insert into v2 select x,y from t2;
 ERROR 42000: INSERT command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v2`
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int);
@@ -355,10 +356,10 @@ grant update,select(b) on mysqltest.t2 to mysqltest_1@localhost;
 connection user1;
 create view v4 as select b+1 from mysqltest.t2;
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 drop view v1,v2,v4;
-disconnect user1;
 create database mysqltest;
 create table mysqltest.t1 (a int);
 create user mysqltest_1@localhost;
@@ -366,9 +367,9 @@ grant all privileges on mysqltest.* to mysqltest_1@localhost;
 connect  user1,localhost,mysqltest_1,,mysqltest;
 create view v1 as select * from t1;
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int);
 create user mysqltest_1@localhost;
@@ -386,10 +387,10 @@ ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function
 grant select on mysqltest.t1 to mysqltest_1@localhost;
 select * from v1;
 a	b
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop view v1;
 drop database mysqltest;
-disconnect user1;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
@@ -422,10 +423,10 @@ ERROR HY000: View 'mysqltest.v4' references invalid table(s) or column(s) or fun
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
-disconnect user1;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
@@ -457,9 +458,9 @@ f2()
 NULL
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 use test;
 create database mysqltest;
 use mysqltest;
@@ -491,9 +492,9 @@ a	b
 1	1
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
@@ -523,10 +524,10 @@ ERROR HY000: View 'mysqltest.v4' references invalid table(s) or column(s) or fun
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
-disconnect user1;
 create user 'test14256'@'%';
 grant all on test.* to 'test14256'@'%';
 connect  test14256,localhost,test14256,,test;
@@ -567,10 +568,10 @@ SHOW CREATE TABLE v1;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v1`
 UNLOCK TABLES;
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
-disconnect user1;
 disconnect root;
 connection default;
 create definer=some_user@`` sql security invoker view v1 as select 1;
@@ -888,9 +889,9 @@ connection root;
 SHOW CREATE VIEW v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci
+disconnect u1;
 DROP USER u26813@localhost;
 DROP DATABASE db26813;
-disconnect u1;
 #
 # Bug#29908 A user can gain additional access through the ALTER VIEW.
 #
@@ -935,11 +936,11 @@ ALTER VIEW v2 AS SELECT f1 FROM t1;
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=UNDEFINED DEFINER=`u29908_1`@`localhost` SQL SECURITY INVOKER VIEW `v2` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci
+disconnect u1;
+disconnect u2;
 DROP USER u29908_1@localhost;
 DROP USER u29908_2@localhost;
 DROP DATABASE mysqltest_29908;
-disconnect u1;
-disconnect u2;
 #######################################################################
 CREATE DATABASE mysqltest1;
 CREATE DATABASE mysqltest2;

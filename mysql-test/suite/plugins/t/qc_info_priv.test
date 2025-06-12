@@ -10,6 +10,7 @@ connection conn1;
 select a from t1;
 select count(*) from information_schema.query_cache_info;
 connection default;
+disconnect conn1;
 drop user mysqltest;
 drop table t1;
 

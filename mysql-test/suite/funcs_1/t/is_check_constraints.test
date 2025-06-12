@@ -114,6 +114,7 @@ SELECT a FROM t1;
 --sorted_result
 SELECT * FROM information_schema.check_constraints;
 
+disconnect con1;
 --connection default
 
 DROP USER foo;

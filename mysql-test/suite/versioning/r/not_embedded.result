@@ -65,9 +65,9 @@ Grants for mysqltest_1@localhost
 GRANT ALL PRIVILEGES ON *.* TO `mysqltest_1`@`localhost`
 GRANT DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost`
 GRANT DELETE HISTORY ON `mysqltest`.`t` TO `mysqltest_1`@`localhost`
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 disconnect root;
 connection default;
 #

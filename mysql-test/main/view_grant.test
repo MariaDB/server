@@ -78,6 +78,7 @@ select c from mysqltest.v1;
 select d from mysqltest.v1;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 
@@ -88,7 +89,7 @@ create algorithm=temptable view mysqltest.v1 (c,d) as select a+1,b+1 from mysqlt
 create user mysqltest_1@localhost;
 grant select (c) on mysqltest.v1 to mysqltest_1@localhost;
 
-connection user1;
+connect (user1,localhost,mysqltest_1,,mysqltest);
 select c from mysqltest.v1;
 # there are no privileges on column 'd'
 --error ER_COLUMNACCESS_DENIED_ERROR
@@ -211,9 +212,9 @@ explain select c from mysqltest.v4;
 show create view mysqltest.v4;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 
 #
 # UPDATE privileges on VIEW columns and whole VIEW
@@ -260,9 +261,9 @@ update t2,v3 set v3.a=v3.a+v3.c where t2.x=v3.c;
 update v3 set a=a+c;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 
 #
 # DELETE privileges on VIEW
@@ -326,9 +327,9 @@ insert into v2 values (5,6);
 insert into v2 select x,y from t2;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 
 #
 # test of CREATE VIEW privileges if we have limited privileges
@@ -386,10 +387,10 @@ connection user1;
 create view v4 as select b+1 from mysqltest.t2;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 drop view v1,v2,v4;
-disconnect user1;
 
 #
 # user with global DB privileges
@@ -403,9 +404,9 @@ connect (user1,localhost,mysqltest_1,,mysqltest);
 create view v1 as select * from t1;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 
 #
 # view definer grants revoking
@@ -430,10 +431,10 @@ select * from v1;
 grant select on mysqltest.t1 to mysqltest_1@localhost;
 select * from v1;
 
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop view v1;
 drop database mysqltest;
-disconnect user1;
 
 #
 # rights on execution of view underlying functions (Bug#9505)
@@ -473,10 +474,10 @@ select * from v4;
 select * from v5;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
-disconnect user1;
 
 #
 # revertion of previous test, definer of view lost his/her rights to execute
@@ -518,10 +519,10 @@ select * from v4;
 --error ER_VIEW_INVALID
 select * from v5;
 
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
-disconnect user1;
 
 #
 # definer/invoker rights for columns
@@ -556,9 +557,9 @@ select * from v4;
 --error ER_VIEW_INVALID
 select * from v5;
 
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 
 create database mysqltest;
 
@@ -588,10 +589,10 @@ select * from v4;
 select * from v5;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
-disconnect user1;
 
 #
 # Bug#14256 definer in view definition is not fully qualified
@@ -650,6 +651,7 @@ SHOW CREATE TABLE v1;
 UNLOCK TABLES;
 
 connection root;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 use test;
@@ -657,7 +659,6 @@ use test;
 #
 # switch to default connection
 #
-disconnect user1;
 disconnect root;
 connection default;
 
@@ -1022,9 +1023,9 @@ ALTER VIEW v3 AS SELECT f2 FROM t1;
 connection root;
 SHOW CREATE VIEW v3;
 
+disconnect u1;
 DROP USER u26813@localhost;
 DROP DATABASE db26813;
-disconnect u1;
 
 --echo #
 --echo # Bug#29908 A user can gain additional access through the ALTER VIEW.
@@ -1064,11 +1065,11 @@ SHOW CREATE VIEW v1;
 ALTER VIEW v2 AS SELECT f1 FROM t1;
 SHOW CREATE VIEW v2;
 
+disconnect u1;
+disconnect u2;
 DROP USER u29908_1@localhost;
 DROP USER u29908_2@localhost;
 DROP DATABASE mysqltest_29908;
-disconnect u1;
-disconnect u2;
 --echo #######################################################################
 
 #

@@ -860,6 +860,7 @@ CALL p_baddefiner();
 CALL p_invoker();
 CALL p_definer();
 
+--disconnect user
 --connection default
 DROP TABLE t1;
 DROP PROCEDURE p_definer;

@@ -604,6 +604,8 @@ let $message= Testcase 3.5.7.17 (see Testcase 3.5.1.1);
 
 # Cleanup section 3.5
 	connection default;
+        disconnect con1_general;
+        disconnect con1_super;
 	drop user test_general@localhost;
 	drop user test_general;
 	drop user test_super@localhost;

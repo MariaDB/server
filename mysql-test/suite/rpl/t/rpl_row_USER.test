@@ -47,6 +47,7 @@ SELECT * FROM mysqltest1.t1 ORDER BY a;
 
 connection master;
 # Lets cleanup
+disconnect m_1;
 
 DROP DATABASE mysqltest1;
 REVOKE ALL ON mysqltest1.* FROM 'tester'@'%';

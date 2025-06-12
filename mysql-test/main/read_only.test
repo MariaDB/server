@@ -447,10 +447,10 @@ select count(*) from t1 LOCK IN SHARE MODE;
 select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
 commit;
 
+disconnect con1;
 SET GLOBAL read_only=0;
 select count(*) from t1;
 drop table t1;
 drop user user1;
-disconnect con1;
 
 --echo # End of 11.8 tests

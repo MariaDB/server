@@ -147,6 +147,7 @@ a
 2
 SELECT * FROM information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
+disconnect con1;
 connection default;
 DROP USER foo;
 DROP DATABASE db;

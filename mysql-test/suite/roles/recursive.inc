@@ -245,6 +245,7 @@ show status like 'debug%';
 #
 
 connection default;
+disconnect foo;
 drop user foo@localhost;
 drop role role1;
 drop role role2;

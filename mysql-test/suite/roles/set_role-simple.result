@@ -56,4 +56,5 @@ Grants for user1@%
 GRANT USAGE ON *.* TO `user1`@`%`
 set role none;
 connection default;
+disconnect con1;
 drop user user1;

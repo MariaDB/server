@@ -67,6 +67,7 @@ DEALLOCATE PREPARE stmt_1;
 --source include/rpl_end.inc
 
 --connection default
+--disconnect con2
 # Clean up
 DROP USER u1;
 

@@ -60,6 +60,11 @@ select * from s1;
 #
 
 connection default;
+disconnect normal;
+disconnect read_only;
+disconnect read_write;
+disconnect alter;
+disconnect only_alter;
 drop user 'normal'@'%';
 drop user 'read_only'@'%';
 drop user 'read_write'@'%';

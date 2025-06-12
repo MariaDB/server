@@ -353,6 +353,7 @@ revoke select on test.* from role1;
 show status like 'debug%';
 Variable_name	Value
 connection default;
+disconnect foo;
 drop user foo@localhost;
 drop role role1;
 drop role role2;

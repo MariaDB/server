@@ -2769,12 +2769,12 @@ connection user21261;
 UPDATE v1,t2 SET x=1 WHERE x=y;
 connection root;
 SELECT * FROM t1;
+disconnect user21261;
 DROP USER 'user21261'@'localhost';
 DROP DATABASE bug21261DB;
+disconnect root;
 connection default;
 USE test;
-disconnect root;
-disconnect user21261;
 
 set GLOBAL sql_mode=default;
 set LOCAL sql_mode=default;

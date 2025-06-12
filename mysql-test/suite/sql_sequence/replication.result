@@ -1086,6 +1086,8 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 connection master;
 drop table t1,s1;
 connection master;
+disconnect m_normal_1;
+disconnect m_normal_2;
 drop database s_db;
 drop user normal_1@'%';
 drop user normal_2@'%';

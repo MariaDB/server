@@ -340,6 +340,7 @@ a
 connection master;
 drop procedure foo;
 connection slave;
+disconnect con1;
 connection master;
 drop function fn1;
 drop database mysqltest1;

@@ -951,6 +951,10 @@ where THREAD_ID = $con4_thread_id;
 count(*)
 0
 connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
 drop user user1@localhost;
 drop user user2@localhost;
 drop user user3@localhost;

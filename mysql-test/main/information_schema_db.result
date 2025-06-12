@@ -45,6 +45,7 @@ call mbase.p1();
 call mbase.p1();
 call mbase.p1();
 connection default;
+disconnect user1;
 use `inf%`;
 drop user mysqltest_1@localhost;
 drop table t1;
@@ -62,7 +63,6 @@ drop function func2;
 drop database `inf%`;
 drop procedure mbase.p1;
 drop database mbase;
-disconnect user1;
 #
 # Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
 #
@@ -245,9 +245,9 @@ testdb_1	v1
 show create view testdb_1.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `testdb_1`.`v1`
 connection default;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-disconnect user1;
 set global sql_mode=default;
 #
 # MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables
