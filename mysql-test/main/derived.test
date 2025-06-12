@@ -1194,6 +1194,7 @@ drop table t1,t2,t3;
 
 --echo # Tests from the bug report
 
+--disable_view_protocol
 CREATE TABLE t (pk INT PRIMARY KEY);
 INSERT INTO t VALUES (1), (2), (3);
 
@@ -1248,6 +1249,7 @@ SHOW CREATE VIEW v1;
 
 DROP VIEW v_t, v1;
 DROP TABLE t;
+--enable_view_protocol
 
 --echo # Tests on views created using SELECT statements that contain derived columns
 
