@@ -36,6 +36,7 @@ CREATE DEFINER='root'@'localhost' TRIGGER tr_after AFTER INSERT ON t1 FOR EACH R
 INSERT INTO t1 VALUES (1);
 --disable_connect_log
 # Cleanup
+--disconnect conn_test
 --connection master
 DROP USER 'test_user'@'localhost';
 DROP TABLE t1, t2;

@@ -1294,11 +1294,11 @@ connection bug23556;
 USE bug23556;
 TRUNCATE t1;
 connection default;
+disconnect bug23556;
 USE test;
 DROP DATABASE bug23556;
 DROP USER bug23556@localhost;
 connection default;
-disconnect bug23556;
 connect  con1, localhost, root,,*NO-ONE*;
 connection con1;
 GRANT PROCESS ON * TO user@localhost;
@@ -1777,8 +1777,8 @@ ERROR 42S01: Table 't4' already exists
 create table t1 select * from t2;
 ERROR 42000: INSERT command denied to user 'mysqltest'@'localhost' for table `mysqltest`.`t1`
 connection default;
-drop user mysqltest@localhost;
 disconnect user1;
+drop user mysqltest@localhost;
 drop database mysqltest;
 use test;
 call mtr.add_suppression("Can't open and lock privilege tables");

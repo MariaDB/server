@@ -71,6 +71,8 @@ use bug_db;
 --echo # Cleanup
 --echo #
 connection default;
+disconnect john;
+disconnect usertestjohn;
 drop user john;
 drop user usertestjohn;
 drop role client;

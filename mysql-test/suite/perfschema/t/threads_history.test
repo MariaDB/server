@@ -649,6 +649,10 @@ evalp select /*4-3*/ count(*) from performance_schema.events_waits_history_long
   where THREAD_ID = $con4_thread_id;
 
 --connection default
+--disconnect con1
+--disconnect con2
+--disconnect con3
+--disconnect con4
 
 drop user user1@localhost;
 drop user user2@localhost;

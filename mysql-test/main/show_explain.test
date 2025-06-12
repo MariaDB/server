@@ -933,9 +933,9 @@ connection con1;
 reap;
 SET debug_dbug=@old_debug;
 
+disconnect con2;
 drop user test2@localhost;
 
-disconnect con2;
 --echo #
 --echo # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
 --echo # on its target thread

@@ -36,9 +36,9 @@ connection mqph2;
 select * from t1;
 # cleanup
 connection default;
-drop user mysqltest_1@localhost;
 disconnect mqph;
 disconnect mqph2;
+drop user mysqltest_1@localhost;
 
 # Test of MAX_UPDATES_PER_HOUR limit
 create user mysqltest_1@localhost;
@@ -61,9 +61,9 @@ delete from t1;
 select * from t1;
 # Cleanup
 connection default;
-drop user mysqltest_1@localhost;
 disconnect muph;
 disconnect muph2;
+drop user mysqltest_1@localhost;
 
 # Test of MAX_CONNECTIONS_PER_HOUR limit
 create user mysqltest_1@localhost;

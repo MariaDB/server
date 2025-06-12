@@ -134,6 +134,7 @@ DROP FUNCTION f1;
 --echo ## Dropping table t1 & t2 ##
 DROP TABLE t1,t2;
 
+disconnect test_con1;
 disconnect test_con2;
 
 connection default;

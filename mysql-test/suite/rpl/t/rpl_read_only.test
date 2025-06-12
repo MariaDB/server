@@ -146,6 +146,8 @@ connection master;
 xa rollback '1';
 
 ## Cleanup
+disconnect master2;
+disconnect slave2;
 connection master;
 drop user test;
 drop table t1;

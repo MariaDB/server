@@ -2900,12 +2900,12 @@ connection root;
 SELECT * FROM t1;
 x
 1
+disconnect user21261;
 DROP USER 'user21261'@'localhost';
 DROP DATABASE bug21261DB;
+disconnect root;
 connection default;
 USE test;
-disconnect root;
-disconnect user21261;
 set GLOBAL sql_mode=default;
 set LOCAL sql_mode=default;
 create table t1 (f1 datetime);

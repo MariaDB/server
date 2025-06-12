@@ -16,6 +16,7 @@ GRANT USAGE ON *.* TO `foo`
 show grants for foo@'%';
 ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
 connection default;
+disconnect conn_1;
 drop user test, foo;
 drop role foo;
 CREATE TABLE t1 (a INT);

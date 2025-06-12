@@ -20,6 +20,7 @@ show grants for foo;  # role
 --error ER_DBACCESS_DENIED_ERROR
 show grants for foo@'%'; # user
 --connection default
+--disconnect conn_1
 drop user test, foo;
 drop role foo;
 

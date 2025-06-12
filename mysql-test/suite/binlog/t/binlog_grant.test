@@ -193,6 +193,7 @@ call mtr.add_suppression("Access denied; you need (at least one of) the BINLOG R
 
 --echo #  Test cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--disconnect user1
 DROP TABLE t2,t1;
 DROP USER user1@localhost;
 

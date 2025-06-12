@@ -44,6 +44,7 @@ ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege
 CREATE OR REPLACE ROLE developer;
 ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
 connection default;
+disconnect user_a;
 SELECT CURRENT_USER;
 CURRENT_USER
 root@localhost

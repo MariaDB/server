@@ -433,6 +433,8 @@ query	INSUFFICIENT_PRIVILEGES
 	1
 set optimizer_trace='enabled=off';
 connection default;
+disconnect con_foo;
+disconnect con_bar;
 select current_user();
 current_user()
 root@localhost

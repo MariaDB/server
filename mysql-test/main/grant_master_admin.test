@@ -39,6 +39,7 @@ connection con1;
 SHOW SLAVE HOSTS;
 
 connection default;
+disconnect con1;
 DROP USER user1@localhost;
 
 --echo #

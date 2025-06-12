@@ -21,9 +21,9 @@ connection mqph2;
 select * from t1;
 ERROR 42000: User 'mysqltest_1' has exceeded the 'max_queries_per_hour' resource (current value: 2)
 connection default;
-drop user mysqltest_1@localhost;
 disconnect mqph;
 disconnect mqph2;
+drop user mysqltest_1@localhost;
 create user mysqltest_1@localhost;
 grant all on test.* to mysqltest_1@localhost with max_updates_per_hour 2;
 flush user_resources;
@@ -48,9 +48,9 @@ ERROR 42000: User 'mysqltest_1' has exceeded the 'max_updates_per_hour' resource
 select * from t1;
 i
 connection default;
-drop user mysqltest_1@localhost;
 disconnect muph;
 disconnect muph2;
+drop user mysqltest_1@localhost;
 create user mysqltest_1@localhost;
 grant all on test.* to mysqltest_1@localhost with max_connections_per_hour 2;
 flush user_resources;
