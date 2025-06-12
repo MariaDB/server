@@ -158,10 +158,8 @@ public:
   typedef I_P_List<T, B, C, I> Base;
   typedef I_P_List_iterator<T, Base> Iterator;
   typedef I_P_List_iterator<const T, Base> Const_Iterator;
-#ifndef _lint
   friend class I_P_List_iterator<T, Base>;
   friend class I_P_List_iterator<const T, Base>;
-#endif
 };
 
 
