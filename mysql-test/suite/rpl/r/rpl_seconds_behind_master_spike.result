@@ -13,7 +13,7 @@ connection slave;
 # Enable breakpoints
 SET @save_dbug= @@GLOBAL.debug_dbug;
 SET @@GLOBAL.debug_dbug=
-"+d,pause_sql_thread_on_fde,negate_clock_diff_with_master";
+'+d,pause_sql_thread_on_fde,negate_clock_diff_with_master';
 connection master;
 # Flush logs on master forces slave to generate a Format description
 # event in its relay log
