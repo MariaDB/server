@@ -368,7 +368,7 @@ struct FVector
       return subdist;
     dp+= dot_product(dims+subdist_part, other->dims+subdist_part,
                      vec_len - subdist_part);
-    double dist= abs2 + other->abs2 - k * dp;
+    float dist= abs2 + other->abs2 - k * dp;
     stats->subdist.add(subdist/dist);
     return dist;
   }
@@ -1550,14 +1550,13 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
       ((float*)buf.ptr())[i]= i == 0;
   }
 
-  const longlong max_layer= candidates.links[0]->max_layer;
   auto target= FVector::create(ctx, thd->alloc(FVector::alloc_size(ctx->vec_len)),
                                res->ptr());
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;
 
-  MHNSW_param p(ctx, graph, max_layer);
+  MHNSW_param p(ctx, graph, candidates.links[0]->max_layer);
 
   for (; p.layer > 0; p.layer--)
   {
