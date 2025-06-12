@@ -324,8 +324,9 @@ static int flush_check_for_global_temporary_tables(THD *thd, TABLE_LIST *tl)
 
   for (;tl; tl= tl->next_global)
   {
-    TABLE_SHARE *share= thd->find_tmp_table_share(tl);
-    if (share && share->db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE)
+    TABLE_SHARE *share= thd->find_tmp_table_share(tl,
+                                                  Tmp_table_kind::GLOBAL);
+    if (share)
     {
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       return 1;
