@@ -406,7 +406,8 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   for (TABLE_LIST *table= tables; table; table= table->next_global)
   {
     DBUG_ASSERT(table->db.str && table->table_name.str);
-    if (table->updating && !thd->find_tmp_table_share(table))
+    if (table->updating && !thd->find_tmp_table_share(table,
+                                                      Tmp_table_kind::ANY))
       return 1;
   }
   return 0;

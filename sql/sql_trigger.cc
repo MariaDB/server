@@ -577,7 +577,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
   /* We do not allow creation of triggers on temporary tables or sequence. */
   if (tables->required_type == TABLE_TYPE_SEQUENCE ||
-      (create && thd->find_tmp_table_share(tables)))
+      (create && thd->find_tmp_table_share(tables, Tmp_table_kind::ANY)))
   {
     my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), tables->alias.str);
     goto end;

@@ -1174,8 +1174,8 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
 
-    TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table);
-    if (share && share->from_share)
+    if (!table->table && thd->find_tmp_table_share(table,
+                                                   Tmp_table_kind::GLOBAL))
     {
       if (drop_temporary)
         my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
@@ -4688,7 +4688,7 @@ int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_rm,
                       const Lex_ident_db &orig_db,
                       const Lex_ident_table &orig_table_name,
-                      const LEX_CSTRING &db, const LEX_CSTRING &table_name,
+                      const Lex_ident_db &db, const Lex_ident_table &table_name,
                       const LEX_CSTRING &path, const DDL_options_st options,
                       HA_CREATE_INFO *create_info, Alter_info *alter_info,
                       int create_table_mode, bool *is_trans, KEY **key_info,
@@ -4750,8 +4750,8 @@ int create_table_impl(THD *thd,
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
     TABLE *tmp_table= internal_tmp_table ? NULL :
-      thd->find_temporary_table(Lex_ident_db(db), Lex_ident_table(table_name),
-                                THD::TMP_TABLE_ANY);
+                  thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
+                                            Tmp_table_kind::TMP);
 
     if (tmp_table)
     {
@@ -6208,7 +6208,8 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   TABLE *table= NULL;
   if (thd->has_open_global_temporary_tables())
   {
-    if (thd->open_temporary_table_impl(out_table, &table))
+    if (thd->open_temporary_table_impl(out_table, &table,
+                                       Tmp_table_kind::GLOBAL))
       return TRUE;
 
     if (table)
@@ -6258,7 +6259,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     int res= mysql_create_table_no_lock(thd,
                                         NULL, NULL,
                                         &create_info, &alter_info,
-                                        NULL, C_ORDINARY_CREATE,
+                                        NULL, C_ORDINARY_CREATE|C_ALTER_TABLE,
                                         out_table);
     if (res > 0)
     {
@@ -11191,7 +11192,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         If such table exists, there must be a corresponding TABLE_SHARE in
         THD::all_temp_tables list.
       */
-      if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name))
+      if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name,
+                                    Tmp_table_kind::TMP))
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);
         DBUG_RETURN(true);
@@ -11956,7 +11958,7 @@ alter_copy:
 
   if (table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
   {
-    if (thd->find_tmp_table_share(table_list))
+    if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
     {
       // The table is opened in the same connection.
       my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));

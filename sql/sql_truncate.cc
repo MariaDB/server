@@ -478,7 +478,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       might not exist on the slave.
     */
   }
-  else if (TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table_ref))
+  else if (TMP_TABLE_SHARE *share= thd->find_tmp_table_share(table_ref,
+                                                        Tmp_table_kind::GLOBAL))
   {
     error= thd->drop_tmp_table_share(NULL, share, true);
     thd->reset_sp_cache= true;
