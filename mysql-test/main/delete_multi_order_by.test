@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_csv.inc
 
 create table t1 (id int primary key, v int);
 create table t2 (id int primary key, v int);
@@ -203,3 +204,30 @@ select * from t2;
 select * from t3;
 
 drop table t1, t2, t3;
+
+--echo #
+--echo # Begin 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-36997 Assertion failed in ha_tina::delete_row on multi delete
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (v INT (1) NOT NULL) ENGINE=CSV;
+INSERT INTO t1 SELECT 1 away;
+SELECT COUNT(*) from t1;
+DELETE FROM a3,a1 USING t1 AS a1 JOIN t1 AS a2 JOIN t1 AS a3;
+SELECT COUNT(*) from t1;
+DROP TABLE t1;
+
+SET sql_mode='';
+CREATE TABLE t1 (v VECTOR (1) NOT NULL) ENGINE=CSV;
+INSERT INTO t1 SELECT 1 away;
+SELECT COUNT(*) from t1;
+DELETE FROM a3,a1 USING t1 AS a1 JOIN t1 AS a2 JOIN t1 AS a3;
+SELECT COUNT(*) from t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End 11.8 tests
+--echo #
