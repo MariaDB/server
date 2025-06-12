@@ -49,6 +49,7 @@ Master_SSL_CA_File = 'MYSQL_TEST_DIR/std_data/cacert.pem'
 Master_SSL_Cert = 'MYSQL_TEST_DIR/std_data/client-cert.pem'
 Master_SSL_Key = 'MYSQL_TEST_DIR/std_data/client-key.pem'
 include/check_slave_is_running.inc
+# End of 4.1 tests
 connection slave;
 stop slave;
 include/wait_for_slave_to_stop.inc

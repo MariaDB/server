@@ -1,4 +1,5 @@
 --source include/not_ubsan.inc
+--source include/count_sessions.inc
 
 let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
 let $REGEX_PASSWORD_LAST_CHANGED=/password_last_changed": [0-9]*/password_last_changed": #/;
@@ -48,6 +49,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -68,6 +70,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -88,6 +91,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -108,6 +112,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -130,6 +135,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -146,6 +152,7 @@ show create user mysqltest1;
 --echo # password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
+--source include/wait_until_count_sessions.inc
 drop user mysqltest1;
 
 #
@@ -198,6 +205,7 @@ show create user mysqltest1;
 --echo # SET PASSWORD helps
 set password for mysqltest1 = password('bla');
 --exec $try_auth -u mysqltest1 -pbla
+--source include/wait_until_count_sessions.inc
 --replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
@@ -219,9 +227,8 @@ show create user mysqltest1;
 --exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
 --echo # no plugin, second password works = ok
 --exec $try_auth -u mysqltest1 -pworks --plugin-dir=$plugindir/no
---disable_warnings
+--source include/wait_until_count_sessions.inc
 drop user mysqltest1;
---enable_warnings
 
 uninstall soname 'auth_ed25519';
 --remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt

@@ -208,8 +208,6 @@ connect(plug_con,localhost,plug,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_con;
---sleep 2
---sleep 2
 DROP USER plug;
 DROP USER plug_dest;
 
@@ -220,7 +218,6 @@ connect (conssl1,localhost,ssl_user1,,sa_db,,,SSL);
 select variable_value > '' as 'have_ssl' from information_schema.session_status where variable_name='ssl_cipher';
 disconnect conssl1;
 connection default;
---sleep 2
 DROP USER ssl_user1@localhost;
 
 set global server_audit_query_log_limit= 15;
