@@ -3,6 +3,7 @@ include/master-slave.inc
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
+SET @@GLOBAL.slave_parallel_threads= 1;
 include/start_slave.inc
 # Future events must be logged at least 2 seconds after
 # the slave starts
@@ -23,7 +24,7 @@ connection slave;
 SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
 # The relay log FDE has been processed - here we check to ensure it was
 # not considered in Seconds_Behind_Master calculation
-Seconds_Behind_Master = '0'
+Seconds_Behind_Master = '2'
 # Resume slave SQL (worker) thread
 SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
 SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
@@ -50,6 +51,7 @@ set debug_sync='now wait_for paused_on_event';
 include/stop_slave.inc
 set debug_sync='RESET';
 SET @@global.debug_dbug=$save_dbug;
+SET @@GLOBAL.slave_parallel_threads= DEFAULT;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 connection master;
