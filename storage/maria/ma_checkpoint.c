@@ -285,7 +285,7 @@ static int really_execute_checkpoint(void)
     if (unlikely(translog_write_record(&lsn, LOGREC_CHECKPOINT,
                                        &dummy_transaction_object, NULL,
                                        total_rec_length,
-                                       log_pos - log_array,
+                                       (uint)(log_pos - log_array),
                                        log_array, NULL, NULL) ||
                  translog_flush(lsn)))
     {
