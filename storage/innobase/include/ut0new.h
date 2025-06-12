@@ -277,8 +277,11 @@ public:
 
 #ifdef UNIV_PFS_MEMORY
 	/** Default constructor. */
-	ut_allocator(PSI_memory_key key = PSI_NOT_INSTRUMENTED)
+	ut_allocator(PSI_memory_key key)
 		: m_key(key)
+	{
+	}
+	ut_allocator(): m_key(PSI_NOT_INSTRUMENTED)
 	{
 	}
 #else
