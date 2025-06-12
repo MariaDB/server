@@ -7372,7 +7372,7 @@ void dump_tables_for_database_wild(const char *db, const char *pattern)
             my_progname_short, mysql_error(mysql));
     DBUG_VOID_RETURN;
   }
-  number_of_tables= dbinfo->row_count;
+  number_of_tables= static_cast<int>(dbinfo->row_count);
   if (!(tables_to_dump= (char **) my_malloc(
             PSI_NOT_INSTRUMENTED,
             (number_of_tables + (int) 2) * sizeof(char *), MYF(MY_WME))))
