@@ -1,0 +1,2 @@
+--let $slave_parallel_threads= 1
+--source ./rpl_seconds_behind_master_spike.test
