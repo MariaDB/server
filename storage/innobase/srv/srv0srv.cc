@@ -137,6 +137,10 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
+#ifdef __linux__
+/* This enum is defined which linux native io method to use */
+ulong	srv_linux_aio_method;
+#endif
 my_bool	srv_numa_interleave;
 /** copy of innodb_use_atomic_writes; @see innodb_init_params() */
 my_bool	srv_use_atomic_writes;
