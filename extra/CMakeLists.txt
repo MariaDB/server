@@ -53,6 +53,13 @@ MYSQL_ADD_EXECUTABLE(perror perror.c)
 ADD_DEPENDENCIES(perror GenError)
 TARGET_LINK_LIBRARIES(perror mysys)
 
+# FRM Parser utility
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql)
+MYSQL_ADD_EXECUTABLE(frm_parser frm_parser.cc)
+TARGET_COMPILE_DEFINITIONS(frm_parser PRIVATE MYSQL_SERVER)
+TARGET_LINK_LIBRARIES(frm_parser mysys sql)
+ADD_DEPENDENCIES(frm_parser GenError)
+
 IF(UNIX)
 MYSQL_ADD_EXECUTABLE(resolveip resolveip.c)
 TARGET_LINK_LIBRARIES(resolveip mysys)
