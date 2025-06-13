@@ -332,6 +332,36 @@ VAR var_reg[10];
 
 HASH var_hash;
 
+struct my_string {
+  char *str;
+  size_t length;
+};
+
+enum ExpressionValueType {
+  INT,
+  STRING,
+  NULL_VAL
+};
+
+struct ExpressionValue
+{
+  ExpressionValueType type;
+  int int_val;
+  my_string str_val;
+
+  ExpressionValue() : type(NULL_VAL), int_val(0), str_val{NULL, 0} {}
+
+  ~ExpressionValue()
+  {
+    if (str_val.str)
+    {
+      my_free(str_val.str);
+      str_val.str= NULL;
+      str_val.length= 0;
+    }
+  }
+};
+
 struct st_connection
 {
   MYSQL *mysql;
@@ -666,6 +696,19 @@ int multi_reg_replace(struct st_replace_regex* r,char* val);
 void free_win_path_patterns();
 #endif
 
+/* For expression parsing */
+static void expr_val_init(ExpressionValue *ev, int value);
+static void expr_val_init(ExpressionValue *ev, const char *value, size_t len);
+static void expr_val_free(ExpressionValue *ev);
+static void expr(ExpressionValue *result, const char **s);
+static void logical_or(ExpressionValue *result, const char **s);
+static void logical_and(ExpressionValue *result, const char **s);
+static void equality(ExpressionValue *result, const char **s);
+static void comparison(ExpressionValue *result, const char **s);
+static void term(ExpressionValue *result, const char **s);
+static void factor(ExpressionValue *result, const char **s);
+static void unary(ExpressionValue *result, const char **s);
+static void primary(ExpressionValue *result, const char **s);
 
 /* For replace_column */
 static char *replace_column[MAX_COLUMNS];
@@ -1172,6 +1215,47 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 	escaped= 0;
 	dynstr_append_mem(query_eval, p, 1);
       }
+      // Sorry for the interruption, I'm working here.
+      else if (*(p + 1) == '(')
+      {
+        const char* expr_start = p + 2;
+        int paren_level = 1;
+        const char* expr_end = expr_start;
+
+        // Find the matching closing parenthesis
+        while (*expr_end && paren_level > 0)
+        {
+          if (*expr_end == '(') paren_level++;
+          if (*expr_end == ')') paren_level--;
+          expr_end++;
+        }
+        if (paren_level != 0)
+          die("Unmatched parenthesis in expression starting at '%.*s'", 10, p);
+        expr_end--; // Go back to the ')'
+
+        // Recursively evaluate the content of the expression
+        DYNAMIC_STRING sub_expr_eval;
+        init_dynamic_string(&sub_expr_eval, "", 256, 1024);
+        do_eval(&sub_expr_eval, expr_start, expr_end, FALSE);
+
+        const char* eval_ptr = sub_expr_eval.str;
+        ExpressionValue result_val;
+        expr(&result_val, &eval_ptr);
+
+        while(*eval_ptr && my_isspace(charset_info, *eval_ptr))
+          eval_ptr++;
+
+        if (*eval_ptr != '\0')
+          die("Syntax error in sub-expression '%.*s'", (int)sub_expr_eval.length, sub_expr_eval.str);
+
+        char result_buf[22];
+        my_snprintf(result_buf, sizeof(result_buf), "%d", result_val.int_val);
+        dynstr_append_mem(query_eval, result_buf, strlen(result_buf));
+        expr_val_free(&result_val);
+        dynstr_free(&sub_expr_eval);
+        p = expr_end;
+      }
+      // --- End of interruption ---
       else
       {
 	if (!(v= var_get(p, &p, 0, 0)))
@@ -2813,6 +2897,33 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
   DBUG_VOID_RETURN;
 }
 
+/* Init for integer values */
+static void expr_val_init(ExpressionValue *ev, int value)
+{
+  ev->type= ExpressionValueType::INT;
+  ev->int_val= value;
+  ev->str_val.str= NULL;
+  ev->str_val.length= 0;
+}
+
+/* Init for string values */
+static void expr_val_init(ExpressionValue *ev, const char *value, size_t len)
+{
+  ev->type= ExpressionValueType::STRING;
+  ev->str_val.str= (char*) value;
+  ev->str_val.length= len;
+}
+
+
+static void expr_val_free(ExpressionValue *ev)
+{
+  if (ev->str_val.str)
+  {
+    my_free(ev->str_val.str);
+    ev->str_val.str= NULL;
+    ev->str_val.length= 0;
+  }
+}
 
 static void
 set_result_format_version(ulong new_version)
@@ -5041,6 +5152,256 @@ int do_save_master_pos()
 }
 
 
+static int match(const char **s, const char *op)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+  size_t len= strlen(op);
+  if (strncmp(*s, op, len) == 0)
+  {
+    *s += len;
+    return 1;
+  }
+  return 0;
+}
+
+
+/* Workaround for the fact there is no quote character in the expression parser */
+static bool is_operator_char(char c)
+{
+  return strchr("!*%/+-<>=&|()", c) != NULL;
+}
+
+static void primary(ExpressionValue *result, const char **s)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+  if (match(s, "("))
+  {
+    expr(result, s);
+    if (!match(s, ")"))
+      die("Syntax error: Expected ')' in expression");
+    return;
+  }
+
+
+  const char *start = *s;
+  const char *end = start;
+
+  while (*end && !my_isspace(charset_info, *end) && !is_operator_char(*end))
+    end++;
+  
+  if (start == end)
+    die("Syntax error: Expected a value but found operator or end of expression");
+
+  size_t token_len = end - start;
+  char *token = (char*) my_malloc(PSI_NOT_INSTRUMENTED, token_len + 1, MYF(MY_WME|MY_FAE));
+  if (!token)
+    die("Out of memory");
+  memcpy(token, start, token_len);
+  token[token_len] = '\0';
+  
+  // Try to parse this token as an integer. A string is a failed int parse.
+  char *endptr;
+  int int_val = strtol(token, &endptr, 10);
+  
+  // It's an int only if strtol consumed the whole token.
+  if (*endptr == '\0')
+  {
+    expr_val_init(result, int_val);
+    my_free(token);
+  }
+  else
+  {
+    expr_val_init(result, token, token_len);
+  }
+
+  *s = end;
+}
+
+
+static void unary(ExpressionValue *result, const char **s)
+{
+  if (match(s, "!"))
+  {
+    unary(result, s);
+    if (result->type != ExpressionValueType::INT)
+      die("Type error: logical NOT requires an integer operand");
+    result->int_val = !result->int_val;
+    return;
+  }
+  primary(result, s);
+}
+
+
+static void factor(ExpressionValue *result, const char **s)
+{
+  unary(result, s);
+  ExpressionValue rhs;
+  while (true)
+  {
+    if (match(s, "*"))
+    {
+      unary(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '*' requires integer operands");
+      result->int_val *= rhs.int_val;
+    }
+    else if (match(s, "/"))
+    {
+      unary(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '/' requires integer operands");
+      if (rhs.int_val == 0)
+        die("Evaluation error: Division by zero");
+      result->int_val /= rhs.int_val;
+    }
+    else if (match(s, "%"))
+    {
+        unary(&rhs, s);
+        if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+          die("Type error: operator '%%' requires integer operands");
+        if (rhs.int_val == 0)
+          die("Evaluation error: Modulo by zero");
+        result->int_val %= rhs.int_val;
+    }
+    else break;
+  }
+}
+
+
+static void term(ExpressionValue *result, const char **s)
+{
+  factor(result, s);
+  ExpressionValue rhs;
+  while (true)
+  {
+    if (match(s, "+"))
+    {
+      factor(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '+' requires integer operands");
+      result->int_val+= rhs.int_val;
+    }
+    else if (match(s, "-"))
+    {
+      factor(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '-' requires integer operands");
+      result->int_val-= rhs.int_val;
+    }
+    else break;
+  }
+}
+
+
+static void comparison(ExpressionValue *result, const char **s)
+{
+  term(result, s);
+  ExpressionValue rhs;
+  while (true)
+  {
+    if (match(s, "<="))
+    {
+      term(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '<=' requires integer operands");
+      result->int_val= result->int_val <= rhs.int_val;
+    }
+    else if (match(s, ">="))
+    {
+      term(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '>=' requires integer operands");
+      result->int_val= result->int_val >= rhs.int_val;
+    }
+    else if (match(s, "<"))
+    {
+      term(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '<' requires integer operands");
+      result->int_val= result->int_val < rhs.int_val;
+    }
+    else if (match(s, ">"))
+    {
+      term(&rhs, s);
+      if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+        die("Type error: operator '>' requires integer operands");
+      result->int_val= result->int_val > rhs.int_val;
+    }
+    else
+      break;
+
+    result->type= ExpressionValueType::INT;
+  }
+}
+
+
+static void equality(ExpressionValue *result, const char **s)
+{
+  comparison(result, s);
+  ExpressionValue rhs;
+  while (true)
+  {
+    if (match(s, "=="))
+    {
+      comparison(&rhs, s);
+      if (result->type == ExpressionValueType::INT && rhs.type == ExpressionValueType::INT)
+        result->int_val= result->int_val == rhs.int_val;
+      else
+      {
+        result->int_val= strcmp(result->str_val.str, rhs.str_val.str) == 0;
+      }
+    }
+    else if (match(s, "!="))
+    {
+      comparison(&rhs, s);
+      if (result->type == ExpressionValueType::INT && rhs.type == ExpressionValueType::INT)
+        result->int_val= result->int_val != rhs.int_val;
+      else
+        result->int_val= strcmp(result->str_val.str, rhs.str_val.str) != 0;
+    }
+    else
+      break;
+    result->type= ExpressionValueType::INT;
+  }
+}
+
+
+static void logical_and(ExpressionValue *result, const char **s)
+{
+  equality(result, s);
+  ExpressionValue rhs;
+  while (match(s, "&&"))
+  { 
+    equality(&rhs, s);
+    if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+      die("Type error: operator '&&' requires integer operands");
+    result->int_val= result->int_val && rhs.int_val;
+    result->type= ExpressionValueType::INT;
+  }
+}
+
+
+static void logical_or(ExpressionValue *result, const char **s)
+{
+  logical_and(result, s);
+  ExpressionValue rhs;
+  while (match(s, "||"))
+  {
+    logical_and(&rhs, s);
+    if (result->type != ExpressionValueType::INT || rhs.type != ExpressionValueType::INT)
+      die("Type error: operator '||' requires integer operands");
+    result->int_val= result->int_val || rhs.int_val;
+    result->type= ExpressionValueType::INT;
+  }
+}
+
+
+static void expr(ExpressionValue *result, const char **s)
+{
+  logical_or(result, s);
+}
+
+
 /*
   Assign the variable <var_name> with <var_val>
 
@@ -6577,6 +6938,65 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   if (*p && *p != '{')
     die("Missing '{' after %s. Found \"%s\"", cmd_name, p);
 
+  if (*expr_start == '$' && *(expr_start + 1) == '(')
+  {
+    const char *paren_scanner = expr_start + 2;
+    int paren_level = 1;
+    while (*paren_scanner && paren_level > 0)
+    {
+      if (*paren_scanner == '(') paren_level++;
+      if (*paren_scanner == ')') paren_level--;
+      paren_scanner++;
+    }
+
+    const char *end_ptr = expr_end;
+    while(end_ptr > expr_start && my_isspace(charset_info, *(end_ptr - 1)))
+      end_ptr--;
+
+    // if the $(...) is the entire condition, evaluate it
+    if (paren_scanner == end_ptr)
+    {
+      DYNAMIC_STRING evaluated_expr;
+      init_dynamic_string(&evaluated_expr, "", 64, 256);
+
+      do_eval(&evaluated_expr, expr_start, expr_end, FALSE);
+
+      char* result_str= evaluated_expr.str;
+      while (*result_str && my_isspace(charset_info, *result_str))
+        result_str++;
+
+      /*
+        Setup the next block on the stack
+        This logic is borrowed from the end of this function
+        Any non-empty string which does not begin with 0 is TRUE
+      */
+      cur_block++;
+      cur_block->cmd= cmd;
+      cur_block->ok= (*result_str && *result_str != '0');
+
+      if (not_expr)
+        cur_block->ok= !cur_block->ok;
+
+      if (cur_block->ok)
+      {
+        cur_block->delim[0]= '\0';
+      }
+      else
+      {
+        /* Remember "old" delimiter if entering a false if block */
+        if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                                  delimiter))
+          die("Delimiter too long, truncated");
+      }
+
+      DBUG_PRINT("info", ("OK: %d", cur_block->ok));
+
+      dynstr_free(&evaluated_expr);
+      DBUG_VOID_RETURN;
+    }
+  }
+
+  
   var_init(&v,0,0,0,0);
 
   /* If expression starts with a variable, it may be a compare condition */
