@@ -1,0 +1,87 @@
+#
+# MENT-2297: Inconsistency detected - create sequence
+# Failed 'SELECT NEXT VALUE' is retried,
+# if WSREP_APPLIER_RETRY_COUNT greater then 0.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+#
+# Save original auto_increment_offset values.
+#
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+call mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed: 195, seqno .*");
+call mtr.add_suppression(".*Error: check sequence read fields: max_value: 9223372036854775806 min_value: 1 start: 1 increment: 0 cache: 1000 reserved:.*");
+
+#
+# Verify there are two nodes in galera cluster.
+#
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+#
+# Create a sequence table on node1.
+#
+CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE TABLE seq_test;
+
+#
+# Set WSREP_APPLIER_RETRY_COUNT to 2 on node2
+# and enable seq_gen_invalid_data debug sync point.
+#
+--connection node_2
+--let $default_wsrep_applier_retry_count = `SELECT @@global.wsrep_applier_retry_count`
+SET GLOBAL WSREP_APPLIER_RETRY_COUNT = 2;
+SET GLOBAL debug_dbug="+d,seq_gen_invalid_data";
+
+--let $wait_condition = SELECT GLOBAL_VALUE = 2 FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_APPLIER_RETRY_COUNT'
+--source include/wait_condition.inc
+
+#
+# Execute 'SELECT NEXT VALUE' which will fail
+# on first call of seq_gen_invalid_data debug sync point,
+# but with WSREP_APPLIER_RETRY_COUNT == 2 should succeed on retry.
+#
+--connection node_1
+SELECT NEXT VALUE FOR seq_test;
+SELECT NEXT VALUE FOR seq_test;
+
+--connection node_2
+SELECT NEXT VALUE FOR seq_test;
+SELECT NEXT VALUE FOR seq_test;
+
+
+#
+# Verify 'SELECT NEXT VALUE' event apply failed.
+#
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_text = Error: check sequence read fields
+--let $assert_select = \[ERROR\] Error: check sequence read fields: max_value: 9223372036854775806 min_value: 1 start: 1 increment: 0 cache: 1000 reserved: .*
+--source include/assert_grep.inc
+
+
+#
+# Verify there are two nodes in galera cluster.
+#
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+
+#
+# Cleanup
+#
+--connection node_2
+# Restore original variable values.
+--eval SET @@global.wsrep_applier_retry_count= $default_wsrep_applier_retry_count
+--source ../galera/include/auto_increment_offset_restore.inc
+
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = '';
+DROP SEQUENCE seq_test;

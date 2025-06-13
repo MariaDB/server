@@ -29,6 +29,7 @@
 #include "sql_update.h"
 #include "sql_base.h"
 #include "log_event.h"
+#include <debug_sync.h>
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h" /* wsrep_start_transaction() */
@@ -259,7 +260,28 @@ int ha_sequence::write_row(const uchar *buf)
                                              lock_wait_timeout))
         DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
+    DBUG_EXECUTE_IF("seq_after_upgrade_lock",
+    {
+      const char act[]=
+      "now "
+      "SIGNAL sync.seq_after_upgrade_lock_reached "
+      "WAIT_FOR signal.seq_after_upgrade_lock";
+      DBUG_ASSERT(!debug_sync_set_action(
+        thd, STRING_WITH_LEN(act)));
+    };);
+
     tmp_seq.read_fields(table);
+    DBUG_EXECUTE_IF("seq_gen_invalid_data",
+    {
+      DBUG_SET("-d,seq_gen_invalid_data");
+      sql_print_error("Error: check sequence read fields: "
+                      "max_value: %lld min_value: %lld start: %lld "
+                      "increment: %lld cache: %lld reserved: %lld.",
+                      tmp_seq.max_value, tmp_seq.min_value, tmp_seq.start,
+		      tmp_seq.increment, tmp_seq.cache, tmp_seq.reserved_until);
+      DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
+    };);
+
     if (tmp_seq.check_and_adjust(0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
 

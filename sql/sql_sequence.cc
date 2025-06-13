@@ -133,6 +133,12 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
        (real_increment < 0 && reserved_until <= max_value)))
     DBUG_RETURN(FALSE);
 
+  sql_print_information("Error: check sequence values : "
+                        "max_value: %lld min_value: %lld start: %lld "
+                        "cache: %lld real_increment: %lld max_increment: %lld "
+	                "reserved_until: %lld next_free_value: %lld.",
+                        max_value, min_value, start, cache, real_increment,
+                        max_increment, reserved_until, next_free_value);
   DBUG_RETURN(TRUE);                           // Error
 }
 
@@ -176,7 +182,6 @@ void sequence_definition::store_fields(TABLE *table)
   table->field[5]->store(cache, 0);
   table->field[6]->store((longlong) cycle != 0, 0);
   table->field[7]->store((longlong) round, 1);
-
   dbug_tmp_restore_column_map(&table->write_set, old_map);
   print_dbug();
 }

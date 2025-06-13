@@ -1,0 +1,44 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+call mtr.add_suppression("WSREP: Event 3 Write_rows_v1 apply failed: 195, seqno .*");
+call mtr.add_suppression(".*Error: check sequence read fields: max_value: 9223372036854775806 min_value: 1 start: 1 increment: 0 cache: 1000 reserved:.*");
+connection node_1;
+CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE TABLE seq_test;
+Table	Create Table
+seq_test	CREATE TABLE `seq_test` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=InnoDB SEQUENCE=1
+connection node_2;
+SET GLOBAL WSREP_APPLIER_RETRY_COUNT = 2;
+SET GLOBAL debug_dbug="+d,seq_gen_invalid_data";
+connection node_1;
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+1
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+3
+connection node_2;
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+2002
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+2004
+include/assert_grep.inc [Error: check sequence read fields]
+connection node_2;
+SET @@global.wsrep_applier_retry_count= 0;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = '';
+DROP SEQUENCE seq_test;

@@ -8702,6 +8702,17 @@ func_exit:
 	}
 
 #ifdef WITH_WSREP
+	DBUG_EXECUTE_IF("sync.wsrep_after_update_row",
+	{
+	  const char act[]=
+	    "now "
+	    "SIGNAL sync.wsrep_after_update_row_reached "
+	    "WAIT_FOR signal.wsrep_after_update_row";
+	  DBUG_ASSERT(!debug_sync_set_action(m_user_thd, STRING_WITH_LEN(act)));
+	};);
+#endif /* ENABLED_DEBUG_SYNC */
+
+#ifdef WITH_WSREP
 	if (error == DB_SUCCESS &&
 	    /* For sequences, InnoDB transaction may not have been started yet.
 	    Check THD-level wsrep state in that case. */

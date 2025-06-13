@@ -1373,7 +1373,9 @@ static int replay_transaction(THD* thd,
     {
       Wsrep_schema_impl::thd_context_switch thd_context_switch(thd, orig_thd);
 
-      ret= wsrep_apply_events(orig_thd, rli, buf.ptr(), buf.length());
+      wsrep::mutable_buffer unused;
+      ret= wsrep_apply_events(orig_thd, rli, {buf.c_ptr_quick(), buf.length()},
+			      unused, false);
       if (ret)
       {
         WSREP_WARN("Wsrep_schema::replay_transaction: failed to apply fragments");
