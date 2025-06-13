@@ -1,0 +1,1095 @@
+# ----------------------------------------------------------------------------
+# Test for MDEV-36108: Variable substitutions in mysqltest
+# ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Test conversion functions (conv, bin, oct, hex)
+# ----------------------------------------------------------------------------
+# Basic conv() function tests
+conv(10, 10, 2) -> 1010
+conv(255, 10, 16) -> FF
+conv(FF, 16, 10) -> 255
+conv(1010, 2, 10) -> 10
+conv(64, 10, 8) -> 100
+conv(77, 8, 10) -> 63
+# ----------------------------------------------------------------------------
+# Test shortcut functions bin(), oct(), hex()
+# ----------------------------------------------------------------------------
+# Testing bin() function
+bin(10) -> 1010
+bin(255) -> 11111111
+bin(0) -> 0
+# Testing oct() function
+oct(64) -> 100
+oct(512) -> 1000
+# Testing hex() function
+hex(255) -> FF
+hex(4095) -> FFF
+# ----------------------------------------------------------------------------
+# Test extended base support (bases 2-62)
+# ----------------------------------------------------------------------------
+# Testing extended bases
+conv(ZZ, 36, 10) -> 1295
+conv(z, 62, 10) -> 61
+conv(Hello, 62, 10) -> 260914464
+# ----------------------------------------------------------------------------
+# Test signed vs unsigned interpretation
+# ----------------------------------------------------------------------------
+# Testing signed vs unsigned interpretation
+conv(-1, 10, 16) -> FFFFFFFFFFFFFFFF
+conv(-1, 10, -16) -> -1
+conv(-10, 10, 2) -> 1111111111111111111111111111111111111111111111111111111111110110
+conv(-10, 10, -2) -> -1010
+conv(-255, 10, 16) -> FFFFFFFFFFFFFF01
+conv(-255, 10, -16) -> -FF
+conv(-1234, -10, 2) -> 1111111111111111111111111111111111111111111111111111101100101110
+conv(-1234, -10, -2) -> -10011010010
+# ----------------------------------------------------------------------------
+# Edge cases and boundary conditions
+# ----------------------------------------------------------------------------
+# Testing edge cases and boundaries
+conv(0, 10, 2) -> 0
+conv(0, 16, 10) -> 0
+conv(9223372036854775807, 10, 16) -> 7FFFFFFFFFFFFFFF
+conv(~0, 10, 2) -> 1111111111111111111111111111111111111111111111111111111111111111
+conv(7FFFFFFFFFFFFFFF, 16, 10) -> 9223372036854775807
+conv(777777777777777777777, 8, 10) -> 9223372036854775807
+conv(1111111111111111111111111111111111111111111111111111111111111111, 2, 10) -> 18446744073709551615
+conv(9223372036854775807, 10, 2) -> 111111111111111111111111111111111111111111111111111111111111111
+conv(18446744073709551615, 10, 16) -> FFFFFFFFFFFFFFFF
+conv(18446744073709551615, 10, 2) -> 1111111111111111111111111111111111111111111111111111111111111111
+conv(-~0, 10, 2) -> 1
+conv(0000123, 10, 16) -> 7B
+# ----------------------------------------------------------------------------
+# Test case sensitivity in conversion
+# ----------------------------------------------------------------------------
+# Testing case sensitivity
+conv(AbCd, 16, 10) -> 43981
+conv(abcd, 16, 10) -> 43981
+conv(ABCD, 16, 10) -> 43981
+# ----------------------------------------------------------------------------
+# Test with variables and expressions
+# ----------------------------------------------------------------------------
+# Testing with variables and expressions
+conv(FF, 16, 10) -> 255
+# ----------------------------------------------------------------------------
+# Error cases - Invalid bases
+# ----------------------------------------------------------------------------
+# Testing error cases - Invalid bases
+# Base too small (< 2)
+mysqltest: At line 1: conv() from_base must be between 2 and 62, got 1
+# Base too large (> 62 for our parser, > 36 for MariaDB)
+mysqltest: At line 1: conv() from_base must be between 2 and 62, got 63
+# Zero base
+mysqltest: At line 1: conv() from_base must be between 2 and 62, got 0
+# ----------------------------------------------------------------------------
+# Error cases - Invalid characters for base
+# ----------------------------------------------------------------------------
+# Testing error cases - Invalid characters
+# Character not valid for base 8
+mysqltest: At line 1: invalid number '189' for base 8
+# Character not valid for base 16
+mysqltest: At line 1: invalid number 'XYZ' for base 16
+# Special characters
+mysqltest: At line 1: invalid number '@#$' for base 36
+# ----------------------------------------------------------------------------
+# Error cases - Function argument count
+# ----------------------------------------------------------------------------
+# Testing error cases - Wrong argument count
+# Too few arguments for conv
+mysqltest: At line 1: conv() expects 3 arguments (N, from_base, to_base), got 2
+# Too many arguments for conv
+mysqltest: At line 1: conv() expects 3 arguments (N, from_base, to_base), got 4
+# Too many arguments for bin
+mysqltest: At line 1: bin() expects 1 argument, got 2
+# No arguments for hex
+mysqltest: At line 1: hex() expects 1 argument, got 0
+# ----------------------------------------------------------------------------
+# Overflow cases
+# ----------------------------------------------------------------------------
+# Testing overflow cases
+# Number too large for 64-bit
+mysqltest: At line 1: Range error: 99999999999999999999999999999999 value out of range for Integer type
+# Very long hex string that would cause overflow
+mysqltest: At line 1: Range error: value out of range for Integer type
+# ----------------------------------------------------------------------------
+# Test REPLACE function
+# ----------------------------------------------------------------------------
+# Basic REPLACE function tests
+replace("hello world", "world", "mariadb") -> "hello mariadb"
+replace("hello hello hello", "hello", "hi") -> "hi hi hi"
+replace("test string", "test", "") -> " string"
+replace("no change", "missing", "replacement") -> "no change"
+# ----------------------------------------------------------------------------
+# REPLACE with empty strings
+# ----------------------------------------------------------------------------
+# REPLACE with empty strings
+replace("hello world", "", "test") -> "hello world"
+replace("hello world", "hello", "") -> " world"
+replace("", "test", "replacement") -> ""
+# ----------------------------------------------------------------------------
+# REPLACE with special characters
+# ----------------------------------------------------------------------------
+# REPLACE with special characters
+replace("a+b=c", "+", "-") -> "a-b=c"
+replace("test\nstring", "\n", " ") -> "test string"
+replace("quoted 'string'", "'", "") -> "quoted string"
+replace('quoted "string"', '"', "") -> "quoted string"
+# ----------------------------------------------------------------------------
+# REPLACE with variables
+# ----------------------------------------------------------------------------
+# REPLACE with variables
+replace("hello world", "world", "mariadb") -> "hello mariadb"
+replace("test test test", "test", "mariadb") -> "mariadb mariadb mariadb"
+# ----------------------------------------------------------------------------
+# REPLACE edge cases
+# ----------------------------------------------------------------------------
+# REPLACE edge cases
+replace("aaa", "aa", "b") -> "ba"
+replace("aaaa", "aa", "b") -> "bb"
+replace("test", "test", "test") -> "test"
+replace("", "", "something") -> ""
+# ----------------------------------------------------------------------------
+# Test SUBSTR function
+# ----------------------------------------------------------------------------
+# SUBSTR function
+substr("hello", -7, -7) -> ""
+substr("hello", -7, -6) -> ""
+substr("hello", -7, -5) -> ""
+substr("hello", -7, -4) -> ""
+substr("hello", -7, -3) -> ""
+substr("hello", -7, -2) -> ""
+substr("hello", -7, -1) -> ""
+substr("hello", -7, 0) -> ""
+substr("hello", -7, 1) -> ""
+substr("hello", -7, 2) -> ""
+substr("hello", -7, 3) -> ""
+substr("hello", -7, 4) -> ""
+substr("hello", -7, 5) -> ""
+substr("hello", -7, 6) -> ""
+substr("hello", -7, 7) -> ""
+substr("hello", -6, -7) -> ""
+substr("hello", -6, -6) -> ""
+substr("hello", -6, -5) -> ""
+substr("hello", -6, -4) -> ""
+substr("hello", -6, -3) -> ""
+substr("hello", -6, -2) -> ""
+substr("hello", -6, -1) -> ""
+substr("hello", -6, 0) -> ""
+substr("hello", -6, 1) -> ""
+substr("hello", -6, 2) -> ""
+substr("hello", -6, 3) -> ""
+substr("hello", -6, 4) -> ""
+substr("hello", -6, 5) -> ""
+substr("hello", -6, 6) -> ""
+substr("hello", -6, 7) -> ""
+substr("hello", -5, -7) -> ""
+substr("hello", -5, -6) -> ""
+substr("hello", -5, -5) -> ""
+substr("hello", -5, -4) -> ""
+substr("hello", -5, -3) -> ""
+substr("hello", -5, -2) -> ""
+substr("hello", -5, -1) -> ""
+substr("hello", -5, 0) -> ""
+substr("hello", -5, 1) -> "h"
+substr("hello", -5, 2) -> "he"
+substr("hello", -5, 3) -> "hel"
+substr("hello", -5, 4) -> "hell"
+substr("hello", -5, 5) -> "hello"
+substr("hello", -5, 6) -> "hello"
+substr("hello", -5, 7) -> "hello"
+substr("hello", -4, -7) -> ""
+substr("hello", -4, -6) -> ""
+substr("hello", -4, -5) -> ""
+substr("hello", -4, -4) -> ""
+substr("hello", -4, -3) -> ""
+substr("hello", -4, -2) -> ""
+substr("hello", -4, -1) -> ""
+substr("hello", -4, 0) -> ""
+substr("hello", -4, 1) -> "e"
+substr("hello", -4, 2) -> "el"
+substr("hello", -4, 3) -> "ell"
+substr("hello", -4, 4) -> "ello"
+substr("hello", -4, 5) -> "ello"
+substr("hello", -4, 6) -> "ello"
+substr("hello", -4, 7) -> "ello"
+substr("hello", -3, -7) -> ""
+substr("hello", -3, -6) -> ""
+substr("hello", -3, -5) -> ""
+substr("hello", -3, -4) -> ""
+substr("hello", -3, -3) -> ""
+substr("hello", -3, -2) -> ""
+substr("hello", -3, -1) -> ""
+substr("hello", -3, 0) -> ""
+substr("hello", -3, 1) -> "l"
+substr("hello", -3, 2) -> "ll"
+substr("hello", -3, 3) -> "llo"
+substr("hello", -3, 4) -> "llo"
+substr("hello", -3, 5) -> "llo"
+substr("hello", -3, 6) -> "llo"
+substr("hello", -3, 7) -> "llo"
+substr("hello", -2, -7) -> ""
+substr("hello", -2, -6) -> ""
+substr("hello", -2, -5) -> ""
+substr("hello", -2, -4) -> ""
+substr("hello", -2, -3) -> ""
+substr("hello", -2, -2) -> ""
+substr("hello", -2, -1) -> ""
+substr("hello", -2, 0) -> ""
+substr("hello", -2, 1) -> "l"
+substr("hello", -2, 2) -> "lo"
+substr("hello", -2, 3) -> "lo"
+substr("hello", -2, 4) -> "lo"
+substr("hello", -2, 5) -> "lo"
+substr("hello", -2, 6) -> "lo"
+substr("hello", -2, 7) -> "lo"
+substr("hello", -1, -7) -> ""
+substr("hello", -1, -6) -> ""
+substr("hello", -1, -5) -> ""
+substr("hello", -1, -4) -> ""
+substr("hello", -1, -3) -> ""
+substr("hello", -1, -2) -> ""
+substr("hello", -1, -1) -> ""
+substr("hello", -1, 0) -> ""
+substr("hello", -1, 1) -> "o"
+substr("hello", -1, 2) -> "o"
+substr("hello", -1, 3) -> "o"
+substr("hello", -1, 4) -> "o"
+substr("hello", -1, 5) -> "o"
+substr("hello", -1, 6) -> "o"
+substr("hello", -1, 7) -> "o"
+substr("hello", 0, -7) -> ""
+substr("hello", 0, -6) -> ""
+substr("hello", 0, -5) -> ""
+substr("hello", 0, -4) -> ""
+substr("hello", 0, -3) -> ""
+substr("hello", 0, -2) -> ""
+substr("hello", 0, -1) -> ""
+substr("hello", 0, 0) -> ""
+substr("hello", 0, 1) -> ""
+substr("hello", 0, 2) -> ""
+substr("hello", 0, 3) -> ""
+substr("hello", 0, 4) -> ""
+substr("hello", 0, 5) -> ""
+substr("hello", 0, 6) -> ""
+substr("hello", 0, 7) -> ""
+substr("hello", 1, -7) -> ""
+substr("hello", 1, -6) -> ""
+substr("hello", 1, -5) -> ""
+substr("hello", 1, -4) -> ""
+substr("hello", 1, -3) -> ""
+substr("hello", 1, -2) -> ""
+substr("hello", 1, -1) -> ""
+substr("hello", 1, 0) -> ""
+substr("hello", 1, 1) -> "h"
+substr("hello", 1, 2) -> "he"
+substr("hello", 1, 3) -> "hel"
+substr("hello", 1, 4) -> "hell"
+substr("hello", 1, 5) -> "hello"
+substr("hello", 1, 6) -> "hello"
+substr("hello", 1, 7) -> "hello"
+substr("hello", 2, -7) -> ""
+substr("hello", 2, -6) -> ""
+substr("hello", 2, -5) -> ""
+substr("hello", 2, -4) -> ""
+substr("hello", 2, -3) -> ""
+substr("hello", 2, -2) -> ""
+substr("hello", 2, -1) -> ""
+substr("hello", 2, 0) -> ""
+substr("hello", 2, 1) -> "e"
+substr("hello", 2, 2) -> "el"
+substr("hello", 2, 3) -> "ell"
+substr("hello", 2, 4) -> "ello"
+substr("hello", 2, 5) -> "ello"
+substr("hello", 2, 6) -> "ello"
+substr("hello", 2, 7) -> "ello"
+substr("hello", 3, -7) -> ""
+substr("hello", 3, -6) -> ""
+substr("hello", 3, -5) -> ""
+substr("hello", 3, -4) -> ""
+substr("hello", 3, -3) -> ""
+substr("hello", 3, -2) -> ""
+substr("hello", 3, -1) -> ""
+substr("hello", 3, 0) -> ""
+substr("hello", 3, 1) -> "l"
+substr("hello", 3, 2) -> "ll"
+substr("hello", 3, 3) -> "llo"
+substr("hello", 3, 4) -> "llo"
+substr("hello", 3, 5) -> "llo"
+substr("hello", 3, 6) -> "llo"
+substr("hello", 3, 7) -> "llo"
+substr("hello", 4, -7) -> ""
+substr("hello", 4, -6) -> ""
+substr("hello", 4, -5) -> ""
+substr("hello", 4, -4) -> ""
+substr("hello", 4, -3) -> ""
+substr("hello", 4, -2) -> ""
+substr("hello", 4, -1) -> ""
+substr("hello", 4, 0) -> ""
+substr("hello", 4, 1) -> "l"
+substr("hello", 4, 2) -> "lo"
+substr("hello", 4, 3) -> "lo"
+substr("hello", 4, 4) -> "lo"
+substr("hello", 4, 5) -> "lo"
+substr("hello", 4, 6) -> "lo"
+substr("hello", 4, 7) -> "lo"
+substr("hello", 5, -7) -> ""
+substr("hello", 5, -6) -> ""
+substr("hello", 5, -5) -> ""
+substr("hello", 5, -4) -> ""
+substr("hello", 5, -3) -> ""
+substr("hello", 5, -2) -> ""
+substr("hello", 5, -1) -> ""
+substr("hello", 5, 0) -> ""
+substr("hello", 5, 1) -> "o"
+substr("hello", 5, 2) -> "o"
+substr("hello", 5, 3) -> "o"
+substr("hello", 5, 4) -> "o"
+substr("hello", 5, 5) -> "o"
+substr("hello", 5, 6) -> "o"
+substr("hello", 5, 7) -> "o"
+substr("hello", 6, -7) -> ""
+substr("hello", 6, -6) -> ""
+substr("hello", 6, -5) -> ""
+substr("hello", 6, -4) -> ""
+substr("hello", 6, -3) -> ""
+substr("hello", 6, -2) -> ""
+substr("hello", 6, -1) -> ""
+substr("hello", 6, 0) -> ""
+substr("hello", 6, 1) -> ""
+substr("hello", 6, 2) -> ""
+substr("hello", 6, 3) -> ""
+substr("hello", 6, 4) -> ""
+substr("hello", 6, 5) -> ""
+substr("hello", 6, 6) -> ""
+substr("hello", 6, 7) -> ""
+substr("hello", 7, -7) -> ""
+substr("hello", 7, -6) -> ""
+substr("hello", 7, -5) -> ""
+substr("hello", 7, -4) -> ""
+substr("hello", 7, -3) -> ""
+substr("hello", 7, -2) -> ""
+substr("hello", 7, -1) -> ""
+substr("hello", 7, 0) -> ""
+substr("hello", 7, 1) -> ""
+substr("hello", 7, 2) -> ""
+substr("hello", 7, 3) -> ""
+substr("hello", 7, 4) -> ""
+substr("hello", 7, 5) -> ""
+substr("hello", 7, 6) -> ""
+substr("hello", 7, 7) -> ""
+substr("hello world", 1, 5) -> "hello"
+substr("hello world", 7) -> "world"
+substr("hello world", 1, 3) -> "hel"
+substr("hello world", 7, 5) -> "world"
+# ----------------------------------------------------------------------------
+# SUBSTR with negative indices
+# ----------------------------------------------------------------------------
+# SUBSTR with negative indices
+substr("hello world", -5) -> "world"
+substr("hello world", -5, 3) -> "wor"
+substr("hello world", -10, 5) -> "ello "
+substr("hello world", -20) -> ""
+# ----------------------------------------------------------------------------
+# SUBSTR boundary conditions
+# ----------------------------------------------------------------------------
+# SUBSTR boundary conditions
+substr("hello world", 1, 0) -> ""
+substr("hello world", 1, 20) -> "hello world"
+substr("hello world", 12) -> ""
+substr("hello world", 0) -> ""
+substr("hello world", 0, 5) -> ""
+# ----------------------------------------------------------------------------
+# SUBSTR with variables
+# ----------------------------------------------------------------------------
+# SUBSTR with variables
+substr("hello world", 7, 5) -> "world"
+substr("hello world", -5) -> "world"
+# ----------------------------------------------------------------------------
+# SUBSTR edge cases
+# ----------------------------------------------------------------------------
+# SUBSTR edge cases
+substr("", 1) -> ""
+substr("a", 1, 5) -> "a"
+substr("hello", 1, -1) -> ""
+substr("hello", 5, 1) -> "o"
+# ----------------------------------------------------------------------------
+# Combined function tests
+# ----------------------------------------------------------------------------
+# Combined function tests
+replace(substr("hello world", 1, 5), "hello", "hi") -> "hi"
+substr(replace("hello world", "world", "mariadb"), 7) -> "mariadb"
+replace(substr("test test test", 1, 9), "test", "check") -> "check check"
+upper(replace("hello world", "world", "mariadb")) -> "HELLO MARIADB"
+length(trim(replace("  hello world  ", "world", "mariadb"))) -> "13"
+instr(lower("HELLO WORLD"), "world") -> 7
+locate(upper("o"), upper("hello world")) -> 5
+reverse(substr(upper("hello world"), 1, 5)) -> "OLLEH"
+# ----------------------------------------------------------------------------
+# String functions in while loops
+# ----------------------------------------------------------------------------
+# String functions in while loops
+Character at position 1: h (upper: H, lower: h)
+Character at position 2: e (upper: E, lower: e)
+Character at position 3: l (upper: L, lower: l)
+Character at position 4: l (upper: L, lower: l)
+Character at position 5: o (upper: O, lower: o)
+# String processing with multiple functions
+Original: "HelloWorld" -> Processed: HeLLoWoRLD
+# ----------------------------------------------------------------------------
+# Error cases for REPLACE function
+# ----------------------------------------------------------------------------
+# Testing error cases for REPLACE function
+# Wrong number of arguments
+mysqltest: At line 1: replace() expects 3 arguments (str, from, to), got 1
+mysqltest: At line 1: replace() expects 3 arguments (str, from, to), got 2
+mysqltest: At line 1: replace() expects 3 arguments (str, from, to), got 4
+# Wrong argument types
+mysqltest: At line 1: replace() arguments must be strings
+mysqltest: At line 1: replace() arguments must be strings
+mysqltest: At line 1: replace() arguments must be strings
+# ----------------------------------------------------------------------------
+# Error cases for SUBSTR function
+# ----------------------------------------------------------------------------
+# Testing error cases for SUBSTR function
+# Wrong number of arguments
+mysqltest: At line 1: substr() expects 2 or 3 arguments (str, start [, length]), got 1
+mysqltest: At line 1: substr() expects 2 or 3 arguments (str, start [, length]), got 4
+# Wrong argument types
+mysqltest: At line 1: substr() first argument must be a string
+mysqltest: At line 1: substr() start position must be numeric
+mysqltest: At line 1: substr() length must be numeric
+# Expression evaluation tests completed successfully
+# ----------------------------------------------------------------------------
+# Basic INSTR function tests
+# ----------------------------------------------------------------------------
+# Basic INSTR function tests
+instr("hello world", "world") -> 7
+instr("hello world", "hello") -> 1
+instr("hello world", "o") -> 5
+instr("hello world", "xyz") -> 0
+instr("hello world", "") -> 1
+# ----------------------------------------------------------------------------
+# INSTR with single characters
+# ----------------------------------------------------------------------------
+# INSTR with single characters
+instr("hello", "h") -> 1
+instr("hello", "e") -> 2
+instr("hello", "l") -> 3
+instr("hello", "o") -> 5
+instr("hello", "x") -> 0
+# ----------------------------------------------------------------------------
+# INSTR with repeated characters
+# ----------------------------------------------------------------------------
+# INSTR with repeated characters
+instr("hello", "l") -> 3
+instr("hello hello", "hello") -> 1
+instr("aaa", "aa") -> 1
+# ----------------------------------------------------------------------------
+# INSTR with empty strings
+# ----------------------------------------------------------------------------
+# INSTR with empty strings
+instr("", "hello") -> 0
+instr("hello", "") -> 1
+instr("", "") -> 1
+# ----------------------------------------------------------------------------
+# INSTR with special characters
+# ----------------------------------------------------------------------------
+# INSTR with special characters
+instr("a+b=c", "+") -> 2
+instr("test\nstring", "\n") -> 5
+instr("quoted 'string'", "'") -> 8
+instr('quoted "string"', '"') -> 8
+instr("test@example.com", "@") -> 5
+# ----------------------------------------------------------------------------
+# INSTR with variables
+# ----------------------------------------------------------------------------
+# INSTR with variables
+instr("hello world", "world") -> 7
+instr("hello world", "o") -> 5
+# ----------------------------------------------------------------------------
+# INSTR edge cases
+# ----------------------------------------------------------------------------
+# INSTR edge cases
+instr("hello", "hello") -> 1
+instr("hello", "hellox") -> 0
+instr("hello", "h") -> 1
+instr("hello", "o") -> 5
+instr("a", "a") -> 1
+# ----------------------------------------------------------------------------
+# INSTR with case sensitivity
+# ----------------------------------------------------------------------------
+# INSTR with case sensitivity
+instr("Hello World", "hello") -> 1
+instr("Hello World", "HELLO") -> 1
+# ----------------------------------------------------------------------------
+# INSTR with whitespace
+# ----------------------------------------------------------------------------
+# INSTR with whitespace
+instr("hello world", " ") -> 6
+instr("  hello  ", "hello") -> 3
+instr("hello   world", "   ") -> 6
+instr("hello\tworld", "\t") -> 6
+# ----------------------------------------------------------------------------
+# INSTR with complex expressions
+# ----------------------------------------------------------------------------
+# INSTR with complex expressions
+instr("hello world", substr("world test", 1, 5)) -> 7
+instr(replace("hello world", "world", "mariadb"), "mariadb") -> 7
+# ----------------------------------------------------------------------------
+# INSTR with arithmetic expressions
+# ----------------------------------------------------------------------------
+# INSTR with arithmetic expressions
+instr("hello world", "world") + 5 -> 12
+instr("hello world", "hello") * 2 -> 2
+# ----------------------------------------------------------------------------
+# INSTR with logical operators
+# ----------------------------------------------------------------------------
+# INSTR with logical operators
+instr("hello world", "hello") > 0 && instr("hello world", "world") > 0 -> 1
+instr("hello world", "hello") > 0 || instr("hello world", "xyz") > 0 -> 1
+# ----------------------------------------------------------------------------
+# INSTR integration with other functions
+# ----------------------------------------------------------------------------
+# INSTR integration with other functions
+instr("hello world", substr("world test", 1, 5)) -> 7
+instr(replace("hello world", "world", "mariadb"), "mariadb") -> 7
+# ----------------------------------------------------------------------------
+# INSTR error cases
+# ----------------------------------------------------------------------------
+# Testing error cases for INSTR function
+# Wrong number of arguments
+mysqltest: At line 1: instr() expects 2 arguments (str, substr), got 1
+mysqltest: The test didn't produce any output
+# Wrong argument types
+mysqltest: The test didn't produce any output
+mysqltest: The test didn't produce any output
+# ----------------------------------------------------------------------------
+# Test LOCATE function
+# ----------------------------------------------------------------------------
+# LOCATE function tests
+locate('world', 'hello world') -> 7
+locate('o', 'hello world') -> 5
+locate('o', 'hello world', 6) -> 8
+locate('xyz', 'hello world') -> 0
+locate('', 'hello world') -> 1
+locate('hello', '') -> 0
+locate('', '') -> 1
+locate('l', 'hello world', 1) -> 3
+locate('l', 'hello world', 4) -> 4
+locate('l', 'hello world', 10) -> 10
+# ----------------------------------------------------------------------------
+# LOCATE with empty strings
+# ----------------------------------------------------------------------------
+# LOCATE with empty strings
+locate('', 'hello world') -> 1
+locate('hello', '') -> 0
+locate('', '') -> 1
+# ----------------------------------------------------------------------------
+# LOCATE with special characters
+# ----------------------------------------------------------------------------
+# LOCATE with special characters
+locate('+', 'a+b=c') -> 2
+locate('@', 'test@example.com') -> 5
+locate('.', 'file.txt') -> 5
+# ----------------------------------------------------------------------------
+# LOCATE with variables
+# ----------------------------------------------------------------------------
+# LOCATE with variables
+locate("world", "hello world") -> 7
+locate('o', "hello world", 6) -> 8
+# ----------------------------------------------------------------------------
+# LOCATE edge cases
+# ----------------------------------------------------------------------------
+# LOCATE edge cases
+locate('hello', 'hello world') -> 1
+locate('world', 'hello world') -> 7
+locate('xyz', 'hello world') -> 0
+locate('o', 'hello world', 1) -> 5
+locate('o', 'hello world', 20) -> 0
+# ----------------------------------------------------------------------------
+# Error cases for LOCATE function
+# ----------------------------------------------------------------------------
+# Testing error cases for LOCATE function
+# Wrong number of arguments
+mysqltest: At line 1: locate() expects 2 or 3 arguments (substr, str [, start]), got 1
+mysqltest: At line 1: locate() expects 2 or 3 arguments (substr, str [, start]), got 4
+# Wrong argument types
+mysqltest: The test didn't produce any output
+mysqltest: The test didn't produce any output
+mysqltest: At line 1: locate() start position must be numeric
+# ----------------------------------------------------------------------------
+# Test LOWER function
+# ----------------------------------------------------------------------------
+# LOWER function tests
+lower('HELLO WORLD') -> hello world
+lower('Hello World') -> hello world
+lower('hello world') -> hello world
+lower('ABC123') -> abc123
+lower('') -> 
+lower('MIXED Case 123') -> mixed case 123
+lower('SPECIAL@#$%') -> special@#$%
+# ----------------------------------------------------------------------------
+# LOWER with empty strings
+# ----------------------------------------------------------------------------
+# LOWER with empty strings
+lower('') -> 
+# ----------------------------------------------------------------------------
+# LOWER with special characters
+# ----------------------------------------------------------------------------
+# LOWER with special characters
+lower('TEST@EXAMPLE.COM') -> test@example.com
+lower('FILE.TXT') -> file.txt
+lower('HELLO-WORLD_123') -> hello-world_123
+# ----------------------------------------------------------------------------
+# LOWER with variables
+# ----------------------------------------------------------------------------
+# LOWER with variables
+lower("HELLO WORLD") -> hello world
+# ----------------------------------------------------------------------------
+# LOWER edge cases
+# ----------------------------------------------------------------------------
+# LOWER edge cases
+lower('A') -> a
+lower('a') -> a
+lower('123') -> 123
+lower('MiXeD cAsE') -> mixed case
+# ----------------------------------------------------------------------------
+# Test UPPER function
+# ----------------------------------------------------------------------------
+# UPPER function tests
+upper('hello world') -> HELLO WORLD
+upper('Hello World') -> HELLO WORLD
+upper('HELLO WORLD') -> HELLO WORLD
+upper('abc123') -> ABC123
+upper('') -> 
+upper('mixed case 123') -> MIXED CASE 123
+upper('special@#$%') -> SPECIAL@#$%
+# ----------------------------------------------------------------------------
+# UPPER with empty strings
+# ----------------------------------------------------------------------------
+# UPPER with empty strings
+upper('') -> 
+# ----------------------------------------------------------------------------
+# UPPER with special characters
+# ----------------------------------------------------------------------------
+# UPPER with special characters
+upper('test@example.com') -> TEST@EXAMPLE.COM
+upper('file.txt') -> FILE.TXT
+upper('hello-world_123') -> HELLO-WORLD_123
+# ----------------------------------------------------------------------------
+# UPPER with variables
+# ----------------------------------------------------------------------------
+# UPPER with variables
+upper("hello world") -> HELLO WORLD
+# ----------------------------------------------------------------------------
+# UPPER edge cases
+# ----------------------------------------------------------------------------
+# UPPER edge cases
+upper('a') -> A
+upper('A') -> A
+upper('123') -> 123
+upper('MiXeD cAsE') -> MIXED CASE
+# ----------------------------------------------------------------------------
+# Test REVERSE function
+# ----------------------------------------------------------------------------
+# REVERSE function tests
+reverse('hello') -> olleh
+reverse('hello world') -> dlrow olleh
+reverse('12345') -> 54321
+reverse('') -> 
+reverse('a') -> a
+reverse('ab') -> ba
+reverse('ABC123') -> 321CBA
+# ----------------------------------------------------------------------------
+# Test TRIM function
+# ----------------------------------------------------------------------------
+# TRIM function tests
+trim('  hello world  ') -> hello world
+trim('hello world') -> hello world
+trim('   ') -> 
+trim('') -> 
+trim('  hello') -> hello
+trim('hello  ') -> hello
+trim('  hello  world  ') -> hello  world
+# ----------------------------------------------------------------------------
+# Test LTRIM function
+# ----------------------------------------------------------------------------
+# LTRIM function tests
+ltrim('  hello world') -> hello world
+ltrim('hello world') -> hello world
+ltrim('   ') -> 
+ltrim('') -> 
+ltrim('  hello  world') -> hello  world
+ltrim('hello  world') -> hello  world
+ltrim('  hello') -> hello
+# ----------------------------------------------------------------------------
+# Test RTRIM function
+# ----------------------------------------------------------------------------
+# RTRIM function tests
+rtrim('hello world  ') -> hello world
+rtrim('hello world') -> hello world
+rtrim('   ') -> 
+rtrim('') -> 
+rtrim('  hello  world  ') ->   hello  world
+rtrim('hello  world') -> hello  world
+rtrim('hello  ') -> hello
+# ----------------------------------------------------------------------------
+# Test LPAD function
+# ----------------------------------------------------------------------------
+# LPAD function tests
+lpad('hello', 10, '*') -> *****hello
+lpad('hello', 5, '*') -> hello
+lpad('hello', 3, '*') -> hel
+lpad('hello', 10, ' ') ->      hello
+lpad('', 5, '*') -> *****
+lpad('hello', 10, 'ab') -> ababahello
+lpad('hello', 0, '*') -> 
+# ----------------------------------------------------------------------------
+# Test RPAD function
+# ----------------------------------------------------------------------------
+# RPAD function tests
+rpad('hello', 10, '*') -> hello*****
+rpad('hello', 5, '*') -> hello
+rpad('hello', 3, '*') -> hel
+rpad('hello', 10, ' ') -> hello     
+rpad('', 5, '*') -> *****
+rpad('hello', 10, 'ab') -> helloababa
+rpad('hello', 0, '*') -> 
+# ----------------------------------------------------------------------------
+# Test LENGTH function
+# ----------------------------------------------------------------------------
+# LENGTH function tests
+length('hello') -> 5
+length('hello world') -> 11
+length('') -> 0
+length('12345') -> 5
+length('  hello  ') -> 9
+length('a') -> 1
+length('special@#$%') -> 11
+# ----------------------------------------------------------------------------
+# Test special characters and Latin characters
+# ----------------------------------------------------------------------------
+# Special characters and Latin characters tests
+length('Björn') -> 6
+upper('björn') -> BJöRN
+lower('BJÖRN') -> bj�rn
+reverse('Björn') -> nr��jB
+locate('ö', 'Björn') -> 3
+substr('Björn', 1, 3) -> Bj�
+trim('  Björn  ') -> Björn
+concat('Björn', ' ', 'Müller') -> Björn Müller
+replace('Björn Müller', 'Müller', 'Schmidt') -> Björn Schmidt
+instr('Björn Müller', 'Müller') -> 8
+lpad('Björn', 10, '*') -> ****Björn
+rpad('Björn', 10, '*') -> Björn****
+length('Khåled Rïyad') -> 14
+upper('josé maría') -> JOSé MARíA
+substr('José María', 1, 4) -> Jos�
+# ----------------------------------------------------------------------------
+# Test special characters and symbols
+# ----------------------------------------------------------------------------
+# Special characters and symbols tests
+concat('path', '/', 'to', '/', 'file.txt') -> path/to/file.txt
+instr('user@domain.com', 'domain.com') -> 6
+length('path/to/file.txt') -> 16
+locate('.', 'file.txt') -> 5
+locate('/', 'path/to/file.txt') -> 5
+upper('test@example.com') -> TEST@EXAMPLE.COM
+lower('TEST@EXAMPLE.COM') -> test@example.com
+lpad('file', 8, '.') -> ....file
+rpad('path', 10, '/') -> path//////
+replace('file.txt', 'txt', 'doc') -> file.doc
+replace('path/to/file.txt', 'file.txt', 'document.doc') -> path/to/document.doc
+reverse('path/to/file.txt') -> txt.elif/ot/htap
+substr('path/to/file.txt', 1, 4) -> path
+trim('  path/to/file.txt  ') -> path/to/file.txt
+# ----------------------------------------------------------------------------
+# Test complex combinations of string functions
+# ----------------------------------------------------------------------------
+# Complex string function combinations
+length(trim('  hello world  ')) -> 11
+upper(lower('MiXeD CaSe')) -> MIXED CASE
+reverse(lpad('hi', 5, '*')) -> ih***
+locate('o', upper('hello world')) -> 5
+substr(trim('  hello world  '), 1, 5) -> hello
+length(concat('hello', ' ', 'world')) -> 11
+reverse(upper('hello')) -> OLLEH
+lpad(rtrim('hello  '), 10, '*') -> *****hello
+least(length('hello'), length('world'), length('test')) -> 4
+greatest(instr('hello world', 'h'), instr('hello world', 'w'), instr('hello world', 'o')) -> 7
+repeat(upper(substr('hello', 1, 2)), 3) -> HEHEHE
+insert(lower('HELLO WORLD'), 7, 5, upper('mariadb')) -> hello MARIADB
+concat_ws('-', upper('hello'), lower('WORLD'), reverse('test')) -> HELLO-world-tset
+ifnull(nullif(trim('  hello  '), 'hello'), 'default') -> default
+coalesce(nullif('test', 'test'), upper('backup')) -> BACKUP
+substring_index(concat('www', '.', 'mariadb', '.', 'org'), '.', 2) -> www.mariadb
+# ----------------------------------------------------------------------------
+# Test CONCAT function
+# ----------------------------------------------------------------------------
+# Basic CONCAT function tests
+concat('a','b','c') -> abc
+concat(42, 'a') -> 42a
+concat(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, '1', 'a') -> 123456789101a
+concat('') -> 
+concat('å', 'ñ', 'ç', 'ü', 'é', 'ö', 'ß', 'æ', 'ø', 'î', 'ë', 'ä', 'ï', 'ô', 'à', 'ù', 'ê', 'â', 'ý', 'þ', 'ð', 'ł', 'ś', 'ż', 'ź', 'ć') -> åñçüéößæøîëäïôàùêâýþðłśżźć
+concat('', 1) -> 1
+# ----------------------------------------------------------------------------
+# Test SUBSTRING_INDEX function
+# ----------------------------------------------------------------------------
+# SUBSTRING_INDEX function tests
+substring_index('www.mariadb.org', '.', 2) -> www.mariadb
+substring_index('www.mariadb.org', '.', -2) -> mariadb.org
+substring_index('www.mariadb.org', '.', 0) -> 
+substring_index('www.mariadb.org', '', 1) -> 
+substring_index('www.mariadb.org', '', -1) -> 
+substring_index('mariadb', '.', 0) -> 
+substring_index('mariadb', '.', -1) -> mariadb
+substring_index('mariadb', '.', 1) -> mariadb
+substring_index('mariadb', 'A', 1) -> mariadb
+substring_index('mariadb', 'A', -1) -> mariadb
+substring_index('mariadb', 'A', 0) -> 
+substring_index('mariadb', 'z', 2) -> mariadb
+substring_index('', 'z', -2) -> 
+substring_index('mariadb', 'ar', 0) -> 
+# ----------------------------------------------------------------------------
+# Test REGEXP_INSTR function
+# ----------------------------------------------------------------------------
+# REGEXP_INSTR function tests
+regexp_instr('abc','b') -> 2
+regexp_instr('abc','x') -> 0
+regexp_instr('abc','') -> 1
+regexp_instr('','a') -> 0
+regexp_instr('','') -> 1
+regexp_instr('BJÖRN','N') -> 6
+regexp_instr('ABC','(?-i)b') -> 0
+regexp_instr('ABC','(?i)b') -> 2
+# ----------------------------------------------------------------------------
+# Test REGEXP_SUBSTR function
+# ----------------------------------------------------------------------------
+# REGEXP_SUBSTR function tests
+regexp_substr('ab12cd','[0-9]+') -> 12
+regexp_substr('ab12cd','') -> 
+regexp_substr('abcd','[0-9]+') -> 
+regexp_substr('','[0-9]+') -> 
+regexp_substr('','') -> 
+regexp_substr('See https://mariadb.org/en/foundation/ for details','https?://[^/]*') -> https://mariadb.org
+regexp_substr('ABC','b') -> B
+regexp_substr('ABC','(?i)b') -> B
+# ----------------------------------------------------------------------------
+# Test REGEXP_REPLACE function
+# ----------------------------------------------------------------------------
+# REGEXP_REPLACE function tests
+regexp_replace('ABC','b','x') -> AxC
+regexp_replace('ab12cd','[0-9]','') -> abcd
+regexp_replace('<html><head><title>title</title><body>body</body></htm>', '<.+?>',' ') ->    title  body  
+regexp_replace('James Bond','^(.*) (.*)$','\2, \1') -> Bond, James
+regexp_replace('ABC','b','-') -> A-C
+regexp_replace('ABC','(?-i)b','-') -> ABC
+regexp_replace('ABC','(?i)b','-') -> A-C
+regexp_replace('ABC','b','') -> AC
+regexp_replace('ABC','(?-i)b','') -> ABC
+regexp_replace('ABC','','') -> ABC
+regexp_replace('ABC','','A') -> ABC
+regexp_replace('','.','x') -> 
+regexp_replace('ABC','b','$') -> A$C
+regexp_replace('ABC','b','$A') -> A$AC
+regexp_replace('ABCC','C$','D') -> ABCD
+regexp_replace('ABC$','\$','D') -> ABCD
+# ----------------------------------------------------------------------------
+# Test LEAST function
+# ----------------------------------------------------------------------------
+# LEAST function tests
+least(1, 2, 3) -> 1
+least('a', 'b', 'c') -> a
+least(NULL, 1, 2) -> 
+least(NULL, NULL, NULL) -> 
+least('a', 1, 'b') -> 0
+least(1, 'a', 'b') -> 0
+least('z', '-2', 'a') -> -2
+least('z', -2, 'a') -> -2
+least('    -4a', -1, 'b') -> -4
+least('  ', 10, 'b') -> 0
+least(' -0 ', 10, 'b') -> 0
+least('', 10, '-b') -> 0
+least(18446744073709551615, 18446744073709551614, 18446744073709551613) -> 18446744073709551613
+least(18446744073709551615, -1, 18446744073709551613) -> -1
+# ----------------------------------------------------------------------------
+# Test GREATEST function
+# ----------------------------------------------------------------------------
+# GREATEST function tests
+greatest(1, 2, 3) -> 3
+greatest('a', 'b', 'c') -> c
+greatest(NULL, 1, 2) -> 
+greatest(NULL, NULL, NULL) -> 
+greatest('a', 1, 'b') -> 1
+greatest(1, 'a', 'b') -> 1
+greatest('z', '-2', 'a') -> z
+greatest('z', -2, 'a') -> 0
+greatest('    -4a', -1, 'b') -> 0
+greatest('  ', 10, 'b') -> 10
+greatest(' -0 ', 10, 'b') -> 10
+greatest('', 10, '-b') -> 10
+greatest(18446744073709551615, 18446744073709551614, 18446744073709551613) -> 18446744073709551615
+greatest(18446744073709551615, -1, 18446744073709551613) -> 18446744073709551615
+greatest(3.14, 2.71, 3.15) -> 3.15
+greatest(-10, -5, -20) -> -5
+greatest('apple', 'banana', 'cherry') -> cherry
+greatest('100', '20', '3') -> 3
+# ----------------------------------------------------------------------------
+# Test REPEAT function
+# ----------------------------------------------------------------------------
+# REPEAT function tests
+repeat('MariaDB ',4) -> MariaDB MariaDB MariaDB MariaDB 
+repeat('a', 0) -> 
+repeat('a', 1) -> a
+repeat('', 0) -> 
+repeat('a', -1) -> 
+repeat('a', 18446744073709551615) -> 
+repeat('', 4) -> 
+repeat('', -1) -> 
+repeat('a32423413', 10) -> a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413a32423413
+# ----------------------------------------------------------------------------
+# Test NULLIF function
+# ----------------------------------------------------------------------------
+# NULLIF function tests
+nullif('a', 'a') -> 
+nullif('a', 'b') -> a
+nullif('a', NULL) -> a
+nullif(NULL, 'a') -> 
+nullif(NULL, NULL) -> 
+# ----------------------------------------------------------------------------
+# Test COALESCE function
+# ----------------------------------------------------------------------------
+# COALESCE function tests
+coalesce(NULL, 'a') -> a
+coalesce(NULL, NULL) -> 
+coalesce(NULL, 'a', 'b') -> a
+coalesce('a', 'b', 'c') -> a
+coalesce('a', NULL, 'b') -> a
+coalesce(NULL, NULL, 'a') -> a
+coalesce(NULL, NULL, NULL) -> 
+coalesce(NULL, 'a', NULL, 'b') -> a
+# ----------------------------------------------------------------------------
+# Test IFNULL function
+# ----------------------------------------------------------------------------
+# IFNULL function tests
+ifnull(NULL, 'a') -> a
+ifnull('a', NULL) -> a
+ifnull(NULL, NULL) -> 
+ifnull('a', 'b') -> a
+ifnull('a', 'a') -> a
+# ----------------------------------------------------------------------------
+# Test INSERT function
+# ----------------------------------------------------------------------------
+# INSERT function tests
+insert('Hello World', 2, 3, 'Xyz') -> HXyzo World
+insert('Hello World', 2, 3, '') -> Ho World
+insert('Hello World', 2, 3, NULL) -> 
+insert('Hello World', 0, 0, 'Xyz') -> Hello World
+insert('Hello World', 0, 0, '') -> Hello World
+insert('Quadratic', 3, 4, 'What') -> QuWhattic
+insert('Quadratic', -1, 4, 'What') -> Quadratic
+insert('Quadratic', 3, 100, 'What') -> QuWhat
+insert('Quadratic', -32, -100, 'wow') -> Quadratic
+insert('Quadratic', 32, 100, 'wow') -> Quadratic
+insert('Quadratic', 1, 8, 'wow') -> wowc
+insert('Quadratic', 1, 1000, 'wow') -> wow
+insert('Quadratic', 4, 2, 'wow') -> Quawowatic
+insert('Quadratic', 4, 2, '') -> Quaatic
+insert('', 4, 2, 'wow') -> 
+insert('Quadratic', 4, -2, 'wow') -> Quawow
+insert('Quadratic', 4, 0, 'wow') -> Quawowdratic
+# ----------------------------------------------------------------------------
+# Test CONCAT_WS function
+# ----------------------------------------------------------------------------
+# CONCAT_WS function tests
+concat_ws('-', 'a', 'b', 'c') -> a-b-c
+concat_ws('#', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z') -> a#b#c#d#e#f#g#h#i#j#k#l#m#n#o#p#q#r#s#t#u#v#w#x#y#z
+concat_ws(' ,', 'a') -> a
+concat_ws('', 'abc', 'def', 'ghi') -> abcdefghi
+concat_ws('', 'abc') -> abc
+concat_ws('&', 'abc') -> abc
+concat_ws(' ,', '') -> 
+concat_ws('&', 'abc', NULL) -> abc
+concat_ws('...', 'abc', NULL, 'def') -> abc...def
+concat_ws(NULL, 'abc', NULL, 'def') -> 
+# ----------------------------------------------------------------------------
+# Test functions with variables
+# ----------------------------------------------------------------------------
+# Functions with variables
+least('test string', 'string') -> string
+greatest('test string', 'string') -> test string
+repeat('string', 3) -> stringstringstring
+insert('test string', 5, 6, 'value') -> testvalueg
+concat_ws(' ', 'test string', 'string', 'value') -> test string string value
+ifnull(NULL, 'value') -> value
+coalesce(NULL, NULL, 'value') -> value
+nullif('test string', 'string') -> test string
+# ----------------------------------------------------------------------------
+# Test functions with special characters
+# ----------------------------------------------------------------------------
+# Functions with special characters
+least('Björn', 'Müller', 'Schmidt') -> Björn
+greatest('Björn', 'Müller', 'Schmidt') -> Schmidt
+repeat('ö', 5) -> ööööö
+insert('Björn Müller', 7, 6, 'Schmidt') -> BjörnSchmidter
+concat_ws(' ', 'José', 'María', 'González') -> José María González
+ifnull(NULL, 'François') -> François
+coalesce(NULL, 'Håkon', 'Olsen') -> Håkon
+nullif('test@example.com', 'user@domain.com') -> test@example.com
+# ----------------------------------------------------------------------------
+# Test functions with mixed data types
+# ----------------------------------------------------------------------------
+# Functions with mixed data types
+least(123, 'abc', 456) -> 0
+greatest(123, 'abc', 456) -> 456
+repeat('test', 3) -> testtesttest
+insert('test123', 5, 3, 'ABC') -> testABC
+concat_ws('-', 'prefix', 123, 'suffix') -> prefix-123-suffix
+ifnull(123, 'fallback') -> 123
+coalesce(NULL, 456, 'backup') -> 456
+nullif(123, 456) -> 123
+# ----------------------------------------------------------------------------
+# Test functions in complex expressions
+# ----------------------------------------------------------------------------
+# Functions in complex expressions
+least(1, 2, 3) + 10 -> 11
+greatest(1, 2, 3) * 5 -> 15
+length(repeat('ab', 4)) -> 8
+upper(insert('hello world', 7, 5, 'mariadb')) -> HELLO MARIADB
+length(concat_ws(' ', 'hello', 'world', 'test')) -> 16
+ifnull(NULL, 'default') == 'default' -> 1
+coalesce(NULL, NULL, 'found') != 'missing' -> 1
+nullif('same', 'same') -> 
+# ----------------------------------------------------------------------------
+# Test functions in conditional expressions
+# ----------------------------------------------------------------------------
+# Functions in conditional expressions
+least returns minimum value correctly
+greatest returns maximum value correctly
+repeat with count 0 returns empty string
+CONCAT_WS joins with separator correctly
+ifnull returns first value when not NULL
+coalesce returns first non-NULL value
+nullif returns first value when values differ
+# ----------------------------------------------------------------------------
+# Test functions with arithmetic in arguments
+# ----------------------------------------------------------------------------
+# Functions with arithmetic in arguments
+least(1+2, 2*2, 3+1) -> 3
+greatest(1+2, 2*2, 3+1) -> 4
+repeat('x', 2+3) -> xxxxx
+insert('hello', 1+1, 2*1, 'hi') -> hhilo
+insert('testing', 2, 3, 'xyz') -> txyzing
+# ----------------------------------------------------------------------------
+# Test nested function calls
+# ----------------------------------------------------------------------------
+# Nested function calls
+least(length('hello'), length('world'), length('test')) -> 4
+greatest(length('hello'), length('world'), length('test')) -> 5
+repeat(upper('ab'), 3) -> ABABAB
+insert(upper('hello world'), 7, 5, lower('MARIADB')) -> HELLO mariadb
+concat_ws(' ', upper('hello'), lower('WORLD')) -> HELLO world
+ifnull(nullif('same', 'same'), 'default') -> default
+coalesce(nullif('test', 'test'), 'backup') -> backup
+# Expression evaluation string functions tests completed successfully
