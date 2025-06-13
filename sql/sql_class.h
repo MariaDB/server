@@ -5951,6 +5951,7 @@ public:
   bool                      wsrep_has_ignored_error;
   /* true if wsrep_on was ON in last wsrep_on_update */
   bool                      wsrep_was_on;
+  uint64                    wsrep_assert_bitmask;
 
   /*
     When enabled, do not replicate/binlog updates from the current table that's
@@ -5988,7 +5989,6 @@ public:
   {
     return m_wsrep_client_state.transaction().id().get();
   }
-
 
   /*
     Set next trx id
@@ -8552,6 +8552,12 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
                         const char *end_ptr);
 
 #include "deprecation.h"
+
+
+#ifdef WITH_WSREP
+extern void wsrep_set_assert(THD* thd, uint64 assert, bool is_disabled);
+extern bool wsrep_get_assert(THD* thd, uint64 assert);
+#endif
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */
