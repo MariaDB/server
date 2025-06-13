@@ -31,10 +31,6 @@
 # Using_Gtid needs to start as NO before updating debug_dbug
 --source include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
-if ($slave_parallel_threads)
-{
-  --eval SET @@GLOBAL.slave_parallel_threads= $slave_parallel_threads
-}
 --source include/start_slave.inc
 
 --let $sleep_time=2
@@ -159,10 +155,6 @@ while (!$caught_up)
 --source include/stop_slave.inc
 set debug_sync='RESET';
 SET @@global.debug_dbug=$save_dbug;
-if ($slave_parallel_threads)
-{
-  SET @@GLOBAL.slave_parallel_threads= DEFAULT;
-}
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 
