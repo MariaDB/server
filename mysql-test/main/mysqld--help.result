@@ -80,6 +80,50 @@ The following specify which files/extra groups are read (specified before remain
  from the master
  --binlog-do-db=name Tells the master it should log updates for the specified
  database, and exclude all others not explicitly mentioned
+ --binlog-dump-do-db=name 
+ Tells the primary's binlog dump threads to only transmit
+ binary log events that update databases whose names
+ appear in this comma-separated list. Applies for all
+ replicas that connect to this server. Note: Unlike
+ binlog_do_db, this does not prevent transactions from
+ being written to the local binary log file
+ --binlog-dump-do-table=name 
+ Tells the primary's binlog dump threads to only transmit
+ binary log events that update tables whose names appear
+ in this comma-separated list. Applies for all replicas
+ that connect to this server. Note: Unlike
+ binlog_do_table, this does not prevent transactions from
+ being written to the local binary log file
+ --binlog-dump-ignore-db=name 
+ Tells the primary's binlog dump threads to only transmit
+ binary log events that update databases whose names do
+ not appear in this comma-separated list. Applies for all
+ replicas that connect to this server. Note: Unlike
+ binlog_ignore_db, this does not prevent transactions from
+ being written to the local binary log file
+ --binlog-dump-ignore-table=name 
+ Tells the primary's binlog dump threads to not transmit
+ any binary log events that update tables whose names
+ appear in this comma-separated list, even if other tables
+ might be updated by the same statement. Applies for all
+ replicas that connect to this server. Note: Unlike
+ binlog_ignore_table, this does not prevent transactions
+ from being written to the local binary log file
+ --binlog-dump-wild-do-table=name 
+ Tells the primary's binlog dump threads to only transmit
+ binary log events for statements where any of the updated
+ tables match the specified database and table name
+ patterns (wildcards allowed). Applies for all replicas
+ that connect to this server. Note: Unlike
+ binlog_wild_do_table, this does not prevent transactions
+ from being written to the local binary log file
+ --binlog-dump-wild-ignore-table=name 
+ Tells the primary's binlog dump threads to not transmit
+ binary log events for tables that match the given
+ wildcard pattern. Applies for all replicas that connect
+ to this server. Note: Unlike binlog_wild_ignore_table,
+ this does not prevent transactions from being written to
+ the local binary log file
  --binlog-expire-logs-seconds=# 
  If non-zero, binary logs will be purged after
  binlog_expire_logs_seconds seconds; It and

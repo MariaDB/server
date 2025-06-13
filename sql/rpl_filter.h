@@ -158,6 +158,6 @@ private:
 
 extern Rpl_filter *global_rpl_filter;
 extern Rpl_filter *binlog_filter;
-extern Rpl_filter *binlog_dump_thread_filter;
+extern Rpl_filter *binlog_dump_filter;
 
 #endif // RPL_FILTER_H

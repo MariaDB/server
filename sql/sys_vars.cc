@@ -5838,47 +5838,6 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-bool Sys_var_binlog_dump_filter::global_update(THD *thd, set_var *var)
-{
-  bool result= true;                            // Assume error
-
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-
-  // passing NULL as Master_info is just a workaround to follow the Sys_var_rpl_filter's overridden method
-  result= set_filter_value(var->save_result.string_value.str, NULL);
-  
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  return result;
-}
-
-bool Sys_var_binlog_dump_filter::set_filter_value(const char *value, Master_info *mi)
-{
-  bool status= true;
-
-  switch (opt_id) {
-  case OPT_BINLOG_DUMP_DO_DB:
-    status= binlog_dump_thread_filter->set_do_db(value);
-    break;
-  case OPT_BINLOG_DUMP_DO_TABLE:
-    status= binlog_dump_thread_filter->set_do_table(value);
-    break;
-  case OPT_BINLOG_DUMP_IGNORE_DB:
-    status= binlog_dump_thread_filter->set_ignore_db(value);
-    break;
-  case OPT_BINLOG_DUMP_IGNORE_TABLE:
-    status= binlog_dump_thread_filter->set_ignore_table(value);
-    break;
-  case OPT_BINLOG_DUMP_WILD_DO_TABLE:
-    status= binlog_dump_thread_filter->set_wild_do_table(value);
-    break;
-  case OPT_BINLOG_DUMP_WILD_IGNORE_TABLE:
-    status= binlog_dump_thread_filter->set_wild_ignore_table(value);
-    break;
-  }
-
-  return status;
-}
-
 const uchar *
 Sys_var_rpl_filter::global_value_ptr(THD *thd,
                                      const LEX_CSTRING *base_name) const
@@ -5946,22 +5905,22 @@ Sys_var_binlog_dump_filter::global_value_ptr(THD *thd,
 
   switch(this->opt_id) {
     case OPT_BINLOG_DUMP_DO_DB:
-      binlog_dump_thread_filter->get_do_db(&tmp);
+      binlog_dump_filter->get_do_db(&tmp);
       break;
     case OPT_BINLOG_DUMP_IGNORE_DB:
-      binlog_dump_thread_filter->get_ignore_db(&tmp);
+      binlog_dump_filter->get_ignore_db(&tmp);
       break;
     case OPT_BINLOG_DUMP_DO_TABLE:
-      binlog_dump_thread_filter->get_do_table(&tmp);
+      binlog_dump_filter->get_do_table(&tmp);
       break;
     case OPT_BINLOG_DUMP_IGNORE_TABLE:
-      binlog_dump_thread_filter->get_ignore_table(&tmp);
+      binlog_dump_filter->get_ignore_table(&tmp);
       break;
     case OPT_BINLOG_DUMP_WILD_DO_TABLE:
-      binlog_dump_thread_filter->get_wild_do_table(&tmp);
+      binlog_dump_filter->get_wild_do_table(&tmp);
       break;
     case OPT_BINLOG_DUMP_WILD_IGNORE_TABLE:
-      binlog_dump_thread_filter->get_wild_ignore_table(&tmp);
+      binlog_dump_filter->get_wild_ignore_table(&tmp);
       break;
   }
 
@@ -6018,45 +5977,57 @@ static Sys_var_rpl_filter Sys_replicate_rewrite_db(
        PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_REWRITE_DB);
 
 static Sys_var_binlog_dump_filter Sys_binlog_dump_do_db(
-  "binlog_dump_do_db", OPT_BINLOG_DUMP_DO_DB,
-  "Tells the primary to restrict binlog dump to updates of tables "
-  "whose names appear in the comma-separated list. "
-  "This filtering is applied only at the binlog and is not replicated to the relay log",
-  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_DO_DB);
+       "binlog_dump_do_db", OPT_BINLOG_DUMP_DO_DB,
+       "Tells the primary's binlog dump threads to only transmit binary log events "
+       "that update databases whose names appear in this comma-separated list. "
+       "Applies for all replicas that connect to this server. "
+       "Note: Unlike binlog_do_db, this does not prevent transactions from being written "
+       "to the local binary log file",
+      PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_DO_DB);
 
 static Sys_var_binlog_dump_filter Sys_binlog_dump_ignore_db(
-  "binlog_dump_ignore_db", OPT_BINLOG_DUMP_IGNORE_DB,
-  "Tells the primary to restrict binlog dump to updates of tables "
-  "whose names do not appear in the comma-separated list. "
-  "This filtering is applied only at the binlog and is not replicated to the relay log",
-  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_IGNORE_DB);
+       "binlog_dump_ignore_db", OPT_BINLOG_DUMP_IGNORE_DB,
+       "Tells the primary's binlog dump threads to only transmit binary log events "
+       "that update databases whose names do not appear in this comma-separated list. "
+       "Applies for all replicas that connect to this server. "
+       "Note: Unlike binlog_ignore_db, this does not prevent transactions from being written "
+       "to the local binary log file",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_IGNORE_DB);
 
 static Sys_var_binlog_dump_filter Sys_binlog_dump_do_table(
-  "binlog_dump_do_table", OPT_BINLOG_DUMP_DO_TABLE,
-  "Tells the primary to restrict binlog dump to tables in the "
-  "comma-separated list. "
-  "This filtering is applied only at the binlog and is not replicated to the relay log",
-  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_DO_TABLE);
+       "binlog_dump_do_table", OPT_BINLOG_DUMP_DO_TABLE,
+       "Tells the primary's binlog dump threads to only transmit binary log events "
+       "that update tables whose names appear in this comma-separated list. "
+       "Applies for all replicas that connect to this server. "
+       "Note: Unlike binlog_do_table, this does not prevent transactions from being written "
+       "to the local binary log file",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_DO_TABLE);
 
 static Sys_var_binlog_dump_filter Sys_binlog_dump_ignore_table(
-  "binlog_dump_ignore_table", OPT_BINLOG_DUMP_IGNORE_TABLE,
-  "Tells the primary not to dump any statement that updates the specified table, "
-  "even if other tables might be updated by the same statement. "
-  "This filtering is applied only at the binlog and is not replicated to the relay log",
-  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_IGNORE_TABLE);
+       "binlog_dump_ignore_table", OPT_BINLOG_DUMP_IGNORE_TABLE,
+       "Tells the primary's binlog dump threads to not transmit any binary log events "
+       "that update tables whose names appear in this comma-separated list, even if other "
+       "tables might be updated by the same statement. Applies for all replicas that connect "
+       "to this server. Note: Unlike binlog_ignore_table, this does not prevent transactions "
+      "from being written to the local binary log file",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_IGNORE_TABLE);
 
 static Sys_var_binlog_dump_filter Sys_binlog_dump_wild_do_table(
-  "binlog_dump_wild_do_table", OPT_BINLOG_DUMP_WILD_DO_TABLE,
-  "Tells the primary to restrict binlog dump to statements where any of the "
-  "updated tables match the specified database and table name patterns. "
-  "This filtering is applied only at the binlog and is not replicated to the relay log",
-  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_WILD_DO_TABLE);
+       "binlog_dump_wild_do_table", OPT_BINLOG_DUMP_WILD_DO_TABLE,
+       "Tells the primary's binlog dump threads to only transmit binary log events "
+       "for statements where any of the updated tables match the specified database and "
+       "table name patterns (wildcards allowed). Applies for all replicas that connect "
+       "to this server. Note: Unlike binlog_wild_do_table, this does not prevent transactions "
+       "from being written to the local binary log file",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_WILD_DO_TABLE);
 
 static Sys_var_binlog_dump_filter Sys_binlog_dump_wild_ignore_table(
-  "binlog_dump_wild_ignore_table", OPT_BINLOG_DUMP_WILD_IGNORE_TABLE,
-  "Tells the primary not to dump to the tables that match the given wildcard pattern. "
-  "This filtering is applied only at the binlog and is not replicated to the relay log",
-  PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_WILD_IGNORE_TABLE);
+       "binlog_dump_wild_ignore_table", OPT_BINLOG_DUMP_WILD_IGNORE_TABLE,
+       "Tells the primary's binlog dump threads to not transmit binary log events "
+       "for tables that match the given wildcard pattern. Applies for all replicas that "
+       "connect to this server. Note: Unlike binlog_wild_ignore_table, this does not prevent "
+       "transactions from being written to the local binary log file",
+       PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DUMP_WILD_IGNORE_TABLE);
 
 static Sys_var_rpl_filter Sys_replicate_do_table(
        "replicate_do_table", OPT_REPLICATE_DO_TABLE,

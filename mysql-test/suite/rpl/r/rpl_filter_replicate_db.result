@@ -3,6 +3,8 @@ include/master-slave.inc
 # Stop slave to set replicate_do_db
 connection slave;
 include/stop_slave.inc
+SET @old_replicate_do_db= @@GLOBAL.replicate_do_table;
+SET @old_replicate_ignore_db= @@GLOBAL.replicate_ignore_table;
 SET @@GLOBAL.replicate_do_db = 'test';
 SET @@GLOBAL.replicate_ignore_db = 'ignored_db';
 include/start_slave.inc
@@ -34,7 +36,10 @@ DROP TABLE t2;
 USE test;
 DROP DATABASE ignored_db;
 include/sync_slave_sql_with_master.inc
-include/rpl_end.inc
 connection slave;
-SET @@GLOBAL.replicate_do_db="";
-SET @@GLOBAL.replicate_ignore_db="";
+include/stop_slave.inc
+SET @@GLOBAL.replicate_do_db=@old_replicate_do_db;
+SET @@GLOBAL.replicate_ignore_db=@old_replicate_ignore_db;
+include/start_slave.inc
+connection master;
+include/rpl_end.inc

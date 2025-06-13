@@ -22,15 +22,9 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
 
---echo # Stop slave to set replicate_do_db
-connection slave;
---source include/stop_slave.inc
-SET @@GLOBAL.binlog_dump_do_table = 'test.t1';
-SET @@GLOBAL.binlog_dump_ignore_table = 'test.t2';
---source include/start_slave.inc
+connection master;
 
 --echo # On master: create two databases and insert data
-connection master;
 CREATE TABLE t1 (id INT PRIMARY KEY, data VARCHAR(50));
 CREATE TABLE t2 (id INT PRIMARY KEY, data VARCHAR(50));
 INSERT INTO t1 VALUES (1, 'row in t1');
@@ -87,7 +81,3 @@ DROP TABLE t1;
 DROP TABLE t2;
 --source include/sync_slave_sql_with_master.inc
 --source include/rpl_end.inc
-
-connection slave;
-SET @@GLOBAL.binlog_dump_do_table="";
-SET @@GLOBAL.binlog_dump_ignore_table="";

@@ -758,7 +758,7 @@ class Master_info;
 class Sys_var_rpl_filter: public sys_var
 {
 private:
-
+  int opt_id;
   privilege_t m_access_global;
 
 public:
@@ -767,8 +767,8 @@ public:
     : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL), 
-              m_access_global(access_global),
-              opt_id(getopt_id)
+              opt_id(getopt_id),
+              m_access_global(access_global)
   {
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
@@ -801,25 +801,72 @@ public:
   }
 
 protected:
-  int opt_id;
-
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
     const override;
   bool set_filter_value(const char *value, Master_info *mi);
 };
 
-// No additional functionality all behavior is inherited from Sys_var_rpl_filter to
-// avoid code duplication. This class inherits Sys_var_rpl_filter since setting the
-// global variable should also be dynamic unlike Sys_var_binlog_filter.
-class Sys_var_binlog_dump_filter: public Sys_var_rpl_filter
+/**
+  This class implements the system variable interface for binlog dump filters.
+  @note:
+  It is a static system variable, which means it can only be set from the command line arguments
+  or from the configuration and can not modified at runtime. 
+  TODO: refactor along with Sys_var_rpl_filter and Sys_var_binlog_filter since most
+        of the code is duplicated.
+ */
+class Sys_var_binlog_dump_filter: public sys_var
 {
-  using Sys_var_rpl_filter::Sys_var_rpl_filter;
+private:
+  int opt_id;
+  privilege_t m_access_global;
+
 public:
-  bool global_update(THD *thd, set_var *var) override;
+  Sys_var_binlog_dump_filter(const char *name, int getopt_id, const char *comment,
+                     privilege_t access_global)
+    : sys_var(&all_sys_vars, name, comment, sys_var::READONLY+sys_var::GLOBAL, 0, NO_GETOPT,
+              NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL), 
+              opt_id(getopt_id),
+              m_access_global(access_global)
+  {
+    option.var_type|= GET_STR;
+  }
+
+  bool do_check(THD *thd, set_var *var) override
+
+  {
+
+    DBUG_ASSERT(FALSE);
+
+    return true;
+
+  }
+  void session_save_default(THD *, set_var *) override
+  { DBUG_ASSERT(FALSE); }
+
+  void global_save_default(THD *thd, set_var *var) override
+  { DBUG_ASSERT(FALSE); }
+
+  bool session_update(THD *, set_var *) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, m_access_global);
+  }
+
 protected:
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
     const override;
-  bool set_filter_value(const char *value, Master_info *mi);
 };
 
 class Sys_var_binlog_filter: public sys_var

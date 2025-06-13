@@ -2,24 +2,18 @@
 # Purpose:
 #
 # This test verifies the correct behavior of replication table filters,
-# specifically: replicate_do/ignore_table, and binlog_dump_do/ignore_.table
+# specifically: replicate_do/ignore_table
 #
 # The test compares the master's binary log (binlog) and the slave's relay log
 # to confirm how these filters affect data replication.
 #
 # Key points:
 #
-# 1. replicate_do_table filters what the slave SQL thread applies.
+# replicate_do/ignore_table filters what the slave SQL thread applies.
 #    - All changes are written to the master's binlog regardless of this filter.
 #    - The slave's relay log contains all events, but the SQL thread applies only
 #      events for the specified databases.
 #    - As a result both the Master's binlog and Slave's relaylog will contain all changes
-#
-# 2. binlog_dump_do_table filters what the master sends to the slave via the binlog dump thread.
-#    - Changes are written to the master's binlog, but only filtered events
-#      are sent to the slave.
-#    - As a result the Master's binlog will have all the events written but the Slave's relaylog file 
-#      will contain only the filtered events
 #
 # This test ensures that these filters behave as expected, by examining
 # which events appear in the master's binlog and the slave's relay log.
@@ -31,6 +25,8 @@
 --echo # Stop slave to set replicate_do_db
 connection slave;
 --source include/stop_slave.inc
+SET @old_replicate_do_table= @@GLOBAL.replicate_do_table;
+SET @old_replicate_ignore_table= @@GLOBAL.replicate_ignore_table;
 SET @@GLOBAL.replicate_do_table = 'test.t1';
 SET @@GLOBAL.replicate_ignore_table = 'test.t2';
 --source include/start_slave.inc
@@ -92,8 +88,12 @@ connection master;
 DROP TABLE t1;
 DROP TABLE t2;
 --source include/sync_slave_sql_with_master.inc
---source include/rpl_end.inc
 
 connection slave;
-SET @@GLOBAL.replicate_do_table="";
-SET @@GLOBAL.replicate_ignore_table="";
+--source include/stop_slave.inc
+SET @@GLOBAL.replicate_do_table=@old_replicate_do_table;
+SET @@GLOBAL.replicate_ignore_table=@old_replicate_ignore_table;
+--source include/start_slave.inc
+
+connection master;
+--source include/rpl_end.inc
