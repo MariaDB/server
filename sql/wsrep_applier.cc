@@ -128,17 +128,19 @@ void wsrep_store_error(const THD* const thd,
               dst.size(), dst.size() ? dst.data() : "(null)");
 }
 
-int wsrep_apply_events(THD*        thd,
-                       Relay_log_info* rli,
-                       const void* events_buf,
-                       size_t      buf_len)
+static int apply_events(THD*        thd,
+                        Relay_log_info* rli,
+                        const void* events_buf,
+			size_t      buf_len,
+                        LEX_CSTRING &savepoint,
+                        bool set_savepoint)
 {
   char *buf= (char *)events_buf;
   int rcode= 0;
   int event= 1;
   Log_event_type typ;
 
-  DBUG_ENTER("wsrep_apply_events");
+  DBUG_ENTER("apply_events");
   if (!buf_len) WSREP_DEBUG("empty rbr buffer to apply: %lld",
                             (long long) wsrep_thd_trx_seqno(thd));
 
@@ -147,6 +149,15 @@ int wsrep_apply_events(THD*        thd,
     thd->variables.gtid_domain_id= wsrep_gtid_server.domain_id;
   else
     thd->variables.gtid_domain_id= global_system_variables.gtid_domain_id;
+
+  bool in_trans = thd->in_active_multi_stmt_transaction();
+  if (in_trans && set_savepoint) {
+    if (wsrep_applier_retry_count > 0 && !thd->wsrep_trx().is_streaming() &&
+        trans_savepoint(thd, savepoint)) {
+      rcode = 1;
+      goto error;
+    }
+  }
 
   while (buf_len)
   {
@@ -254,6 +265,19 @@ int wsrep_apply_events(THD*        thd,
       delete ev;
       goto error;
     }
+
+    /* Transaction was started by the event, set the savepoint to rollback to
+     * in case of failure. */
+    if (!in_trans && thd->in_active_multi_stmt_transaction()) {
+      in_trans = true;
+      if (wsrep_applier_retry_count > 0 && !thd->wsrep_trx().is_streaming()
+          && set_savepoint && trans_savepoint(thd, savepoint)) {
+        delete ev;
+        rcode = 1;
+        goto error;
+      }
+    }
+
     event++;
 
     delete_or_keep_event_post_apply(thd->wsrep_rgi, typ, ev);
@@ -266,4 +290,54 @@ error:
   wsrep_set_apply_format(thd, NULL);
 
   DBUG_RETURN(rcode);
+}
+
+int wsrep_apply_events(THD*                       thd,
+                        Relay_log_info*            rli,
+                        const wsrep::const_buffer& data,
+                        wsrep::mutable_buffer&     err,
+                        bool const                 include_msg)
+{
+  static char savepoint_name[20] = "wsrep_retry";
+  static size_t savepoint_name_len = strlen(savepoint_name);
+  static LEX_CSTRING savepoint= { savepoint_name, savepoint_name_len };
+  uint n_retries = 0;
+  bool savepoint_exists = false;
+
+  int ret= apply_events(thd, rli, data.data(), data.size(), savepoint, true);
+
+  while (ret && n_retries < wsrep_applier_retry_count &&
+	 (savepoint_exists = trans_savepoint_exists(thd, savepoint))) {
+    /* applying failed, retry applying events */
+
+    /* rollback to savepoint without telling Wsrep-lib */
+    thd->variables.wsrep_on = false;
+    if (FALSE != trans_rollback_to_savepoint(thd, savepoint)) {
+      thd->variables.wsrep_on = true;
+      break;
+    }
+    thd->variables.wsrep_on = true;
+
+    /* reset THD object for retry */
+    thd->clear_error();
+    thd->reset_for_next_command();
+
+    /* retry applying events */
+    ret= apply_events(thd, rli, data.data(), data.size(), savepoint, false);
+    n_retries++;
+  }
+
+  if (savepoint_exists) {
+    trans_release_savepoint(thd, savepoint);
+  }
+
+  if (ret || wsrep_thd_has_ignored_error(thd))
+  {
+    if (ret) {
+      wsrep_store_error(thd, err, include_msg);
+    }
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
+  }
+
+  return ret;
 }

@@ -7804,6 +7804,9 @@ ha_innobase::write_row(
 
 	trx_t*		trx = thd_to_trx(m_user_thd);
 
+#ifdef WITH_WSREP
+	fprintf(stderr, "\nha_innobase::write_row query: %s\n", wsrep_thd_query(m_user_thd));
+#endif
 	/* Validation checks before we commence write_row operation. */
 	if (int err = is_valid_trx()) {
 		DBUG_RETURN(err);
@@ -8700,6 +8703,18 @@ func_exit:
 		err = convert_error_code_to_mysql(
 			error, m_prebuilt->table->flags, m_user_thd);
 	}
+
+#ifdef WITH_WSREP
+	DBUG_EXECUTE_IF("sync.wsrep_after_update_row",
+	{
+	  const char act[]=
+	    "now "
+	    "SIGNAL sync.wsrep_after_update_row_reached "
+	    "WAIT_FOR signal.wsrep_after_update_row";
+	  fprintf(stderr, "\n2. sync.wsrep_after_update_row\n");  
+	  DBUG_ASSERT(!debug_sync_set_action(m_user_thd, STRING_WITH_LEN(act)));
+	};);
+#endif /* ENABLED_DEBUG_SYNC */
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS &&

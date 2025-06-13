@@ -129,6 +129,7 @@ ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
 ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
+uint wsrep_applier_retry_count= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;
 
