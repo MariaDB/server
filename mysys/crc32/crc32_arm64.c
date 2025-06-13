@@ -33,7 +33,7 @@ my_crc32_t crc32c_aarch64_available(void)
 }
 # else
 #  include <sys/auxv.h>
-#  ifdef __FreeBSD__
+#  if defined(__FreeBSD__) || defined(__OpenBSD__)
 static unsigned long getauxval(unsigned int key)
 {
   unsigned long val;
