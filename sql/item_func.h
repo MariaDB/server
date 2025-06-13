@@ -35,8 +35,8 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
-extern int st_append_json(String *s,
-             CHARSET_INFO *json_cs, const uchar *js, uint js_len);
+extern bool st_append_json(String *s,
+              CHARSET_INFO *json_cs, const uchar *js, uint js_len);
 class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
@@ -84,6 +84,8 @@ protected:
   {
     return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
   }
+
+  void update_nullability_post_fix_fields();
 
 public:
 

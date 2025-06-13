@@ -2140,6 +2140,8 @@ struct vers_history_point_t
   Item *item;
 };
 
+struct vers_select_conds_t;
+
 class Vers_history_point : public vers_history_point_t
 {
   void fix_item();
@@ -2160,7 +2162,8 @@ public:
   }
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
-  bool check_unit(THD *thd);
+  bool check_unit(THD *thd, vers_select_conds_t *vers_conds);
+  bool has_param() const;
   bool eq(const vers_history_point_t &point) const;
 };
 
@@ -2170,6 +2173,7 @@ struct vers_select_conds_t
   vers_system_time_t orig_type;
   bool used:1;
   bool delete_history:1;
+  bool has_param:1;
   Vers_history_point start;
   Vers_history_point end;
   Lex_ident name;
@@ -2185,6 +2189,7 @@ struct vers_select_conds_t
     orig_type= SYSTEM_TIME_UNSPECIFIED;
     used= false;
     delete_history= false;
+    has_param= false;
     start.empty();
     end.empty();
   }
@@ -2199,6 +2204,7 @@ struct vers_select_conds_t
     used= false;
     delete_history= (type == SYSTEM_TIME_HISTORY ||
       type == SYSTEM_TIME_BEFORE);
+    has_param= false;
     start= _start;
     end= _end;
     name= _name;

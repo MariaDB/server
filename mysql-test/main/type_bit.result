@@ -825,12 +825,12 @@ c
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c` decimal(1,0) DEFAULT NULL
+  `c` decimal(1,0) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 SELECT COALESCE(val, 1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(val, 1)	246	2	1	Y	32896	0	63
+def					COALESCE(val, 1)	246	2	1	N	32897	0	63
 COALESCE(val, 1)
 0
 DROP TABLE t1;
