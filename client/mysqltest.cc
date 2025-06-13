@@ -666,6 +666,16 @@ int multi_reg_replace(struct st_replace_regex* r,char* val);
 void free_win_path_patterns();
 #endif
 
+/* For expression parsing */
+static long long expr(const char**);
+static long long logical_or(const char**);
+static long long logical_and(const char**);
+static long long equality(const char**);
+static long long comparison(const char**);
+static long long term(const char**);
+static long long factor(const char**);
+static long long unary(const char**);
+static long long primary(const char**);
 
 /* For replace_column */
 static char *replace_column[MAX_COLUMNS];
@@ -5022,6 +5032,165 @@ int do_save_master_pos()
 }
 
 
+static void skip_whitespace(const char **s)
+{
+  while (isspace(**s)) (*s)++;
+}
+
+
+static int match(const char **s, const char *op)
+{
+  skip_whitespace(s);
+  size_t len= strlen(op);
+  if (strncmp(*s, op, len) == 0)
+  {
+    *s += len;
+    return 1;
+  }
+  return 0;
+}
+
+
+static long long primary(const char **s)
+{
+  skip_whitespace(s);
+  if (match(s, "("))
+  {
+    long long result= expr(s);
+    if (!match(s, ")"))
+      die("Syntax error: Expected ')' in expression");
+    return result;
+  }
+
+  long long result= 0;
+  const char *start= *s;
+  while (isdigit(**s))
+  {
+    result= result * 10 + (**s - '0');
+    (*s)++;
+  }
+
+  if (*s == start)
+    die("Syntax error: Expected a number or a '(' in expression");
+  
+  return result;
+}
+
+
+static long long unary(const char **s)
+{
+  if (match(s, "!"))
+    return !unary(s);
+  return primary(s);
+}
+
+
+static long long factor(const char **s)
+{
+  long long result= unary(s);
+  while (true) {
+    if (match(s, "*")) result *= unary(s);
+    else if (match(s, "/"))
+    {
+      long long divisor= unary(s);
+      if (divisor == 0)
+        die("Evaluation error: Division by zero");
+      result /= divisor;
+    }
+    else if (match(s, "%")) {
+        long long divisor= unary(s);
+        if (divisor == 0)
+          die("Evaluation error: Modulo by zero");
+        result %= divisor;
+    }
+    else break;
+  }
+  return result;
+}
+
+
+static long long term(const char **s)
+{
+  long long result= factor(s);
+  while (true) {
+    if (match(s, "+")) result += factor(s);
+    else if (match(s, "-")) result -= factor(s);
+    else break;
+  }
+  return result;
+}
+
+
+static long long comparison(const char **s)
+{
+  long long result= term(s);
+  while (true)
+  {
+    if (match(s, "<=")) result= result <= term(s);
+    else if (match(s, ">=")) result= result >= term(s);
+    else if (match(s, "<")) result= result < term(s);
+    else if (match(s, ">")) result= result > term(s);
+    else break;
+  }
+  return result;
+}
+
+
+static long long equality(const char **s)
+{
+  long long result= comparison(s);
+  while (true)
+  {
+    if (match(s, "==")) result= result == comparison(s);
+    else if (match(s, "!=")) result= result != comparison(s);
+    else break;
+  }
+  return result;
+}
+
+
+static long long logical_and(const char **s)
+{
+  long long result= equality(s);
+  while (match(s, "&&"))
+  { 
+    result= result && equality(s);
+  }
+  return result;
+}
+
+
+static long long logical_or(const char **s)
+{
+  long long result= logical_and(s);
+  while (match(s, "||"))
+  {
+    result= result || logical_and(s);
+  }
+  return result;
+}
+
+
+static long long expr(const char **s)
+{
+  return logical_or(s);
+}
+
+
+static bool is_parserable(const char *s)
+{
+  // TODO: This is a temporary fix to allow the parser to handle strings
+  // Scan the string for any characters that are not part of a valid expression
+  // (digit, operator, parentheses, or whitespace). If we find any such
+  // character, we assume it's a plain string and not a candidate for the
+  
+  for (const char *p= s; *p; p++)
+  {
+    if (!isdigit(*p) && !isspace(*p) && !strchr("+-*/%<>=!&|()", *p)) return false;
+  }
+  return true;
+}
+
 /*
   Assign the variable <var_name> with <var_val>
 
@@ -5070,6 +5239,21 @@ void do_let(struct st_command *command)
     p++;
 
   do_eval(&let_rhs_expr, p, command->end, FALSE);
+
+  // TODO: This is a temporary fix to allow the parser to handle Strings vs Integers
+  if (is_parserable(let_rhs_expr.str))
+  {
+    const char *eval_ptr = let_rhs_expr.str;
+    long long result= expr(&eval_ptr);
+    skip_whitespace(&eval_ptr);
+    if (*eval_ptr != '\0')
+      die("Syntax error in expression near '%.*s'", (int)strlen(eval_ptr), eval_ptr);
+    
+    // Convert the integer result back into a string.
+    char result_buf[22];
+    my_snprintf(result_buf, sizeof(result_buf), "%lld", result);
+    dynstr_set(&let_rhs_expr, result_buf);
+  }
 
   command->last_argument= command->end;
   /* Assign var_val to var_name */

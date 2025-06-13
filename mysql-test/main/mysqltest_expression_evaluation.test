@@ -1,0 +1,85 @@
+--echo #
+--echo # Expression Evaluation Test Suite for 'let' command
+--echo #
+
+--echo # -----------------------------------------
+--echo # 1. Simple Arithmetic
+--echo # -----------------------------------------
+let $a = 10 + 5;
+let $b = 10 - 4;
+let $c = 3 * 7;
+let $d = 20 / 4;
+let $e = 21 % 5;
+--echo # Results of simple arithmetic:
+--echo # Expected: 15 6 21 5 1
+--echo # Actual:   $a $b $c $d $e
+
+--echo # -----------------------------------------
+--echo # 2. Operator Precedence
+--echo # -----------------------------------------
+let $p1 = 2 + 3 * 4;
+let $p2 = 20 / 2 - 3;
+--echo # Results of operator precedence:
+--echo # Expected: 14 7
+--echo # Actual:   $p1 $p2
+
+--echo # -----------------------------------------
+--echo # 3. Parentheses
+--echo # -----------------------------------------
+let $p3 = (2 + 3) * 4;
+let $p4 = 20 / (5 - 3);
+--echo # Results of parentheses:
+--echo # Expected: 20 10
+--echo # Actual:   $p3 $p4
+
+--echo # -----------------------------------------
+--echo # 4. Using Variables in Expressions
+--echo # -----------------------------------------
+let $v1 = 100;
+let $v2 = 25;
+let $v_res = $v1 / $v2 + 1;
+--echo # Result of using variables:
+--echo # Expected: 5
+--echo # Actual:   $v_res
+
+--echo # -----------------------------------------
+--echo # 5. Comparison and Logical Operators
+--echo # -----------------------------------------
+let $comp1 = 10 > 5;
+let $comp2 = 10 < 5;
+let $comp3 = 5 == 5;
+let $comp4 = 5 != 5;
+let $log1 = $comp1 && $comp3;  # 1 && 1
+let $log2 = $comp1 && $comp2;  # 1 && 0
+let $log3 = $comp2 || $comp3;  # 0 || 1
+let $log4 = !$comp1;        # !1
+--echo # Results of comparison/logical ops:
+--echo # Expected: 1 0 1 0 1 0 1 0
+--echo # Actual:   $comp1 $comp2 $comp3 $comp4 $log1 $log2 $log3 $log4
+
+--echo # -----------------------------------------
+--echo # 6. Complex Expression
+--echo # -----------------------------------------
+let $n_complex = 2;
+let $c_complex = 3;
+# The expression: 3 + 2 + 435 + 3 + 4 * (2 - 1) && 5 < 2
+# Evaluates to:  447 && 0
+let $res_complex = $c_complex + $n_complex + 435 + 3 + 4 * (2 - 1) && 5 < 2;
+--echo # Result of complex expression:
+--echo # Expected: 0
+--echo # Actual:   $res_complex
+
+--echo # -----------------------------------------
+--echo # 7. String assignment
+--echo # -----------------------------------------
+let $str_test = This is a test string;
+--echo # Expected: This is a test string
+--echo # Actual:   $str_test
+
+--echo # -----------------------------------------
+--echo # 7. SQL query
+--echo # -----------------------------------------
+let $query_test = `SELECT 1+1`;
+--echo # Expected: 2
+--echo # Actual:   $query_test
+
