@@ -555,5 +555,16 @@ Warnings:
 Note	1050	Table 't1' already exists
 DROP TABLES t1,t2;
 #
+# MDEV-30364 Assertion MDL_EXCLUSIVE on DISCARD TABLESPACE in LOCK TABLE mode
+#
+create table t (c int) engine=innodb;
+lock table t read;
+alter table t discard tablespace;
+ERROR HY000: Table 't' was locked with a READ lock and can't be updated
+lock table t write;
+alter table t discard tablespace;
+unlock tables;
+drop table t;
+#
 # End of 10.6 tests
 #

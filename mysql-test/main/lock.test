@@ -3,6 +3,7 @@
 #
 
 --source include/have_partition.inc
+--source include/have_innodb.inc
 
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
@@ -672,6 +673,18 @@ UNLOCK TABLES;
 CREATE TABLE IF NOT EXISTS t1 LIKE t2;
 
 DROP TABLES t1,t2;
+
+--echo #
+--echo # MDEV-30364 Assertion MDL_EXCLUSIVE on DISCARD TABLESPACE in LOCK TABLE mode
+--echo #
+create table t (c int) engine=innodb;
+lock table t read;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+alter table t discard tablespace;
+lock table t write;
+alter table t discard tablespace;
+unlock tables;
+drop table t;
 
 --echo #
 --echo # End of 10.6 tests
