@@ -115,13 +115,12 @@ alter table t1 add index(size1);
 explain select * from t1 where cast(json_extract(js1,'$.size') as int)=5 ;
 
 #
-# JSON_UNQUOTE() returns utf8mb3_unicode_ci, even if JSON_VALID() and other
-# functions seem to accept utf8mb4 characters (This is a bug, MDEV-35496)
+# JSON_UNQUOTE() returns utf8mb4_bin
 #
 # Without COLLATE clause, the default is utf8mb4_uca1400_ai_ci.
 #
 alter table t1 add
-  color varchar(100) COLLATE utf8mb3_general_ci
+  color varchar(100) COLLATE utf8mb4_bin
     as (json_unquote(json_extract(js1, '$.color')));
 alter table t1 add index(color);
 

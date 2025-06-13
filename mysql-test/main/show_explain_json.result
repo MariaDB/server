@@ -421,7 +421,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -476,7 +476,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -531,7 +531,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -942,7 +942,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -987,7 +987,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -1032,7 +1032,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -1092,7 +1092,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -1137,7 +1137,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",
@@ -1182,7 +1182,7 @@ SHOW EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "query_block": {
             "select_id": 2,
             "cost": "COST_REPLACED",

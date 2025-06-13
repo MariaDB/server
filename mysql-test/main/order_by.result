@@ -4538,7 +4538,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 50,
           "r_hit_ratio": 0,
           "query_block": {

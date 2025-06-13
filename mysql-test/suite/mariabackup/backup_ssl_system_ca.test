@@ -20,11 +20,11 @@ rmdir $targetdir;
 
 echo # tcp, not self-signed cert with a wrong hostname: fails;
 error 1;
-exec $XTRABACKUP --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
 
 echo # tcp, not self-signed cert with a wrong hostname: fails even with a password (no auto-verification);
 error 1;
-exec $XTRABACKUP --protocol=tcp --user=backup_user --password=x --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=backup_user --password=x --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
 
 remove_file $MYSQL_TMP_DIR/ed1f42db.0;
 DROP USER backup_user;

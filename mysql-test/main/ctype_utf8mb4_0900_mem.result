@@ -1,0 +1,108 @@
+#
+# MDEV-36213 Doubled memory usage (11.4.4 <-> 11.4.5)
+#
+SET NAMES utf8mb4;
+CREATE FUNCTION memory_used() RETURNS BIGINT RETURN
+(SELECT variable_value
+FROM information_schema.global_status
+WHERE variable_name='memory_used');
+CREATE PROCEDURE p1(cl VARCHAR(64))
+BEGIN
+DECLARE mem_before BIGINT;
+DECLARE mem_after BIGINT;
+DECLARE query TEXT DEFAULT CONCAT('SET @a= _utf8mb4 0x20 COLLATE ', cl);
+SET mem_before= memory_used();
+EXECUTE IMMEDIATE query;
+SET mem_after= memory_used();
+SELECT
+CASE
+WHEN mem_after-mem_before >= 1024*1024 THEN '>=1M'
+      ELSE '<1M'
+    END AS diff,
+CONCAT(query,';') AS query;
+END;
+/
+CREATE PROCEDURE p2(cl VARCHAR(64))
+BEGIN
+DECLARE mem_before BIGINT;
+DECLARE mem_after BIGINT;
+DECLARE query TEXT DEFAULT CONCAT(
+'SELECT id, full_collation_name'
+    ' FROM information_schema.collation_character_set_applicability'
+    ' WHERE full_collation_name LIKE ''PATTERN'' ORDER BY id');
+SET query= REPLACE(query, 'PATTERN', cl);
+SELECT query;
+SET mem_before= memory_used();
+EXECUTE IMMEDIATE query;
+SET mem_after=memory_used();
+SELECT
+CASE
+WHEN mem_before-mem_after >= 1024*1024 THEN '>=1M'
+      ELSE '<1M'
+    END AS diff;
+END;
+/
+#
+# Initialize spanish2 collations, an UCA-14.0.0 collation goes first
+#
+>=1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_ai_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_ai_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_as_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_as_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_nopad_ai_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_nopad_ai_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_nopad_as_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_spanish2_nopad_as_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_es_trad_0900_ai_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_es_trad_0900_as_cs;
+#
+# I_S queries for initialized collations should not add memory
+#
+SELECT id, full_collation_name FROM information_schema.collation_character_set_applicability WHERE full_collation_name LIKE 'utf8mb4_uca1400_spanish2%' ORDER BY id
+2416	utf8mb4_uca1400_spanish2_ai_ci
+2417	utf8mb4_uca1400_spanish2_ai_cs
+2418	utf8mb4_uca1400_spanish2_as_ci
+2419	utf8mb4_uca1400_spanish2_as_cs
+2420	utf8mb4_uca1400_spanish2_nopad_ai_ci
+2421	utf8mb4_uca1400_spanish2_nopad_ai_cs
+2422	utf8mb4_uca1400_spanish2_nopad_as_ci
+2423	utf8mb4_uca1400_spanish2_nopad_as_cs
+<1M
+SELECT id, full_collation_name FROM information_schema.collation_character_set_applicability WHERE full_collation_name LIKE 'utf8mb4_%es_trad_0900%' ORDER BY id
+270	utf8mb4_es_trad_0900_ai_ci
+293	utf8mb4_es_trad_0900_as_cs
+<1M
+#
+# I_S queries for not initialized collations should not add memory
+#
+SELECT id, full_collation_name FROM information_schema.collation_character_set_applicability WHERE full_collation_name LIKE 'utf8mb4_uca1400_german2%' ORDER BY id
+2464	utf8mb4_uca1400_german2_ai_ci
+2465	utf8mb4_uca1400_german2_ai_cs
+2466	utf8mb4_uca1400_german2_as_ci
+2467	utf8mb4_uca1400_german2_as_cs
+2468	utf8mb4_uca1400_german2_nopad_ai_ci
+2469	utf8mb4_uca1400_german2_nopad_ai_cs
+2470	utf8mb4_uca1400_german2_nopad_as_ci
+2471	utf8mb4_uca1400_german2_nopad_as_cs
+<1M
+SELECT id, full_collation_name FROM information_schema.collation_character_set_applicability WHERE full_collation_name LIKE 'utf8mb4_%de_pb_0900%' ORDER BY id
+256	utf8mb4_de_pb_0900_ai_ci
+279	utf8mb4_de_pb_0900_as_cs
+<1M
+#
+# Initialize german2 collations, an UCA-9.0.0 alias goes first
+#
+>=1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_de_pb_0900_ai_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_de_pb_0900_as_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_ai_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_ai_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_as_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_as_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_nopad_ai_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_nopad_ai_cs;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_nopad_as_ci;
+<1M	SET @a= _utf8mb4 0x20 COLLATE utf8mb4_uca1400_german2_nopad_as_cs;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION memory_used;
+# End of 11.4 tests

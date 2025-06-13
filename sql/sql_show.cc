@@ -4470,7 +4470,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
     break;
   }
 
-  if (lower_case_table_names && !rc)
+  if (lower_case_table_names == 1 && !rc)
   {
     if (lookup_field_values->db_value.str && lookup_field_values->db_value.str[0])
       lookup_field_values->db_value= thd->make_ident_casedn(

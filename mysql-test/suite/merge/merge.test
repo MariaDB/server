@@ -2672,37 +2672,24 @@ insert into tmp (b) values (1);
 
 insert into t1 (a) values (1);
 insert into t3 (b) values (1);
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from m1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from m2));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t2));
 
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, m1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, m2));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, t1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from t3, t2));
 
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, m1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, m2));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, t1));
---error ER_UPDATE_TABLE_USED
 insert into m1 (a) values ((select max(a) from tmp, t2));
- 
---error ER_VIEW_PREVENT_UPDATE
+
 insert into m1 (a) values ((select max(a) from v1));
---error ER_VIEW_PREVENT_UPDATE
 insert into m1 (a) values ((select max(a) from tmp, v1));
+select count(*) from m1;
 
 
 drop view v1;

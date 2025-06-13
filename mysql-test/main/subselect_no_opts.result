@@ -691,22 +691,24 @@ create table t3 (b int);
 insert into t2 values (1);
 insert into t3 values (1),(2);
 INSERT INTO t1 (x) VALUES ((SELECT x FROM t1));
-ERROR HY000: Table 't1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 INSERT INTO t1 (x) VALUES ((SELECT b FROM t3));
 ERROR 21000: Subquery returns more than 1 row
 INSERT INTO t1 (x) VALUES ((SELECT a FROM t2));
 select * from t1;
 x
+NULL
 1
 insert into t2 values (1);
 INSERT DELAYED INTO t1 (x) VALUES ((SELECT SUM(a) FROM t2));
 select * from t1;
 x
+NULL
 1
 2
 INSERT INTO t1 (x) select (SELECT SUM(a)+1 FROM t2) FROM t2;
 select * from t1;
 x
+NULL
 1
 2
 3
@@ -714,6 +716,7 @@ x
 INSERT INTO t1 (x) select (SELECT SUM(x)+2 FROM t1) FROM t2;
 select * from t1;
 x
+NULL
 1
 2
 3
@@ -723,6 +726,7 @@ x
 INSERT DELAYED INTO t1 (x) VALUES ((SELECT SUM(a) FROM t2));
 select * from t1;
 x
+NULL
 1
 2
 3
@@ -739,7 +743,7 @@ insert into t3 values (1),(2);
 select * from t1;
 x	y
 replace into t1 (x, y) VALUES ((SELECT x FROM t1), (SELECT a+1 FROM t2));
-ERROR HY000: Table 't1' is specified twice, both as a target for 'INSERT' and as a separate source for data
+ERROR 23000: Column 'x' cannot be null
 replace into t1 (x, y) VALUES ((SELECT a FROM t3), (SELECT a+1 FROM t2));
 ERROR 21000: Subquery returns more than 1 row
 replace into t1 (x, y) VALUES ((SELECT a FROM t2), (SELECT a+1 FROM t2));
@@ -807,12 +811,20 @@ SELECT * FROM t2 WHERE id IN (SELECT 5 UNION SELECT 2);
 id
 2
 INSERT INTO t2 VALUES ((SELECT * FROM t2));
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+ERROR 21000: Subquery returns more than 1 row
 INSERT INTO t2 VALUES ((SELECT id FROM t2));
-ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+ERROR 21000: Subquery returns more than 1 row
+select * from t2;
+id
+1
+2
+INSERT INTO t2 VALUES ((SELECT count(*) FROM t2));
+INSERT INTO t2 VALUES ((SELECT max(id) FROM t2));
 SELECT * FROM t2;
 id
 1
+2
+2
 2
 CREATE TABLE t1 (id int(11) default NULL, KEY id (id)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 values (1),(1);

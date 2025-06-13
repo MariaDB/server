@@ -1695,7 +1695,7 @@ typedef struct st_spider_result
     st_spider_result   *next;
   SPIDER_POSITION      *first_position; /* for quick mode */
   int                  pos_page_size; /* for quick mode */
-  longlong             record_num;
+  longlong             record_num;    /* number of rows */
   bool                 finish_flg;
   bool                 use_position;
   bool                 first_pos_use_position;
@@ -1738,7 +1738,7 @@ typedef struct st_spider_result_list
   bool                    sorted;
   bool                    desc_flg;
   longlong                current_row_num;
-  longlong                record_num;
+  longlong                record_num; /* number of rows */
   bool                    finish_flg;
   longlong                limit_num;
   longlong                internal_offset;

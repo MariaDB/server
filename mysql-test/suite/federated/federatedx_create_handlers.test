@@ -8,9 +8,6 @@ ALTER DATABASE federated CHARACTER SET latin1;
 
 set global federated_pushdown=1;
 
-#Enable after fix MDEV-31846 or in v. 10.5 and later
---disable_cursor_protocol
-
 connection slave;
 
 DROP TABLE IF EXISTS federated.t1;
@@ -859,7 +856,5 @@ DROP TABLES federated.t1, federated.t2, federated.t11, federated.t12,
 connection default;
 
 set global federated_pushdown=0;
-
---enable_cursor_protocol
 
 source include/federated_cleanup.inc;

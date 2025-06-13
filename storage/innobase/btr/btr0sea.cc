@@ -408,7 +408,7 @@ ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
   if (!parts[0].table.array)
   {
     enabled= true;
-    alloc(buf_pool.curr_size() / sizeof(void *) / 64);
+    alloc(buf_pool.curr_pool_size() / sizeof(void *) / 64);
   }
 
   ut_ad(enabled);

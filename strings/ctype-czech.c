@@ -608,7 +608,8 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
   my_min_str_8bit_simple,
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
-  my_ci_get_collation_name_generic
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 struct charset_info_st my_charset_latin2_czech_cs =

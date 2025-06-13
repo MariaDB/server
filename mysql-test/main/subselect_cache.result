@@ -74,7 +74,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 10,
           "r_hit_ratio": 60,
           "query_block": {
@@ -141,7 +141,7 @@ ANALYZE
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 10,
           "r_hit_ratio": 60,
           "query_block": {
@@ -194,7 +194,7 @@ ANALYZE
         }
       },
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 10,
           "r_hit_ratio": 60,
           "query_block": {
@@ -249,7 +249,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
@@ -294,7 +294,7 @@ EXPLAIN
     ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "union_result": {
@@ -335,7 +335,7 @@ EXPLAIN
         }
       },
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,

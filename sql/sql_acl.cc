@@ -8509,19 +8509,13 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     /*
       If sequence is used as part of NEXT VALUE, PREVIOUS VALUE or SELECT,
-      we need to modify the requested access rights depending on how the
-      sequence is used.
+      the privilege will be checked in ::fix_fields().
+      Direct SELECT of a sequence table doesn't set t_ref->sequence, so
+      privileges will be checked normally, as for any table.
     */
     if (t_ref->sequence &&
         !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
-    {
-      /*
-        We want to have either SELECT or INSERT rights to sequences depending
-        on how they are accessed
-      */
-      orig_want_access= ((t_ref->lock_type >= TL_FIRST_WRITE) ?
-                         INSERT_ACL : SELECT_ACL);
-    }
+      continue;
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,

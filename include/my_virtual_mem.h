@@ -24,7 +24,9 @@
 extern "C" {
 #endif
 
+# ifdef _WIN32
 char *my_virtual_mem_reserve(size_t *size);
+# endif
 char *my_virtual_mem_commit(char *ptr, size_t size);
 void my_virtual_mem_decommit(char *ptr, size_t size);
 void my_virtual_mem_release(char *ptr, size_t size);

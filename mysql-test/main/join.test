@@ -2005,6 +2005,31 @@ where
   t2.kp1=t1.a and t2.kp1<=100 and t2.kp2<=20;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-36592: If the join_condition is specified via USING (column_list), the query plan depends ...
+--echo #
+CREATE TABLE t1 (
+  id int(11),
+  f1 char(255),
+  PRIMARY KEY  (id)
+);
+INSERT INTO t1 (id) VALUES (1),(2),(3);
+UPDATE t1 SET f1=REPEAT('a',250);
+
+CREATE TABLE t2 (id  int(11), f2 INT NOT NULL);
+INSERT INTO t2 select seq, seq from seq_1_to_20;
+
+ANALYZE TABLE t1, t2;
+
+--echo # In both queries, t1 should use type=index, not type=ALL:
+EXPLAIN SELECT count(*) FROM t2 JOIN t1 USING (id);
+EXPLAIN SELECT count(*) FROM t1 JOIN t2 USING (id);
+
+DROP TABLE t1,t2;
+
+--echo # End of 10.11 tests
+
 --echo #
 --echo # MDEV-30256 Wrong result (missing rows) upon join with empty table
 --echo #
