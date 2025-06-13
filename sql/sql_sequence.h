@@ -103,6 +103,12 @@ public:
     sequence_definition::operator= (*seq);
     adjust_values(reserved_until);
     all_values_used= 0;
+    fprintf(stderr, "Check sequence values copy: "
+                    "max_value: %lld min_value: %lld start: %lld "
+                    "cache: %lld real_increment: %lld "
+                    "reserved_until: %lld next_free_value: %lld.",
+                    max_value, min_value, start, cache, real_increment,
+                    reserved_until, next_free_value);
   }
   longlong next_value(TABLE *table, bool second_round, int *error);
   int set_value(TABLE *table, longlong next_value, ulonglong round_arg,
