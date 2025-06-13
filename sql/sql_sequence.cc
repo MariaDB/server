@@ -133,6 +133,12 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
        (real_increment < 0 && reserved_until <= max_value)))
     DBUG_RETURN(FALSE);
 
+  sql_print_error("Check failed, sequence is invalid. "
+                  "max_value: %lld min_value: %lld start: %lld "
+                  "cache: %lld real_increment: %lld max_increment: %lld "
+	          "reserved_until: %lld next_free_value: %lld.",
+                  max_value, min_value, start, cache, real_increment,
+                  max_increment, reserved_until, next_free_value);
   DBUG_RETURN(TRUE);                           // Error
 }
 
