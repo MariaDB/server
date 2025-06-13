@@ -1,0 +1,174 @@
+# Backward compatibility - no evaluation
+5 + 2 (no evaluation) -> 5 + 2 
+# Basic arithmetic operations
+10 + 5 -> 15
+10 - 4 -> 6
+3 * 7 -> 21
+20 / 4 -> 5
+21 % 5 -> 1
+# Negative numbers and unary minus
+-5 -> -5
+-1 + 3 -> 2
+-(2 + 3) -> -5
+-1 * -2 -> 2
+-10 / 2 -> -5
+-7 % 3 -> -1
+# Negative numbers in complex expressions
+5 + -3 -> 2
+10 - -5 -> 15
+-2 * 3 + 1 -> -5
+# Operator precedence
+2 + 3 * 4 - 1 -> 13
+20 / 2 - 3 -> 7
+10 - 4 + 2 -> 7
+# Parentheses override precedence
+(2 + 3) * 4 -> 20
+20 / (5 - 3) -> 10
+((2 + 3) * (4 + 1)) -> 25
+(10 / (3 + 2)) + 1 -> 3
+# Variables in expressions
+100 / 25 + 1 = 5
+Variable substitution: 10 + 20 == 30 is 1
+Multiple variables: 10 * 20 / 10 = 20
+# Comparison operators
+10 > 5 -> 1
+10 < 5 -> 0
+5 == 5 -> 1
+5 != 5 -> 0
+10 >= 10 -> 1
+10 <= 9 -> 0
+5 <= 5 -> 1
+5 >= 5 -> 1
+5 != 6 -> 1
+# Logical operators and combinations
+1 && 1 -> 1
+1 && 0 -> 0
+0 || 1 -> 1
+0 || 0 -> 0
+!0 -> 1
+!1 -> 0
+1 && 1 && 1 -> 1
+1 && 1 && 0 -> 0
+0 || 0 || 1 -> 1
+0 || 0 || 0 -> 0
+!0 -> 1;
+!1 -> 0;
+!(5 > 10) -> 1;
+!(2 + 3 == 6) -> 1
+# Complex expressions
+2 + 3 * 4 > 10 -> 1
+(5 + 5) == (2 * 5) -> 1
+1 + 2 + 3 + 4 == 10 -> 1
+3 + 2 > 4 && 5 > 2 -> 1
+# Expressions with varying spaces
+10 + 5 (with spaces) -> 15
+10+5 (no spaces) -> 15
+10+ 5 (mixed spaces) -> 15
+Spaced comparison works
+No space comparison works
+Mixed spacing works
+# String comparisons with spaces
+"hello' world" == hello world = 0
+hello world != goodbye world = 1
+# Basic equality: quoted vs quoted
+"hello" == "hello" -> 1
+'hello' == 'hello' -> 1
+"hello" == 'hello' -> 1
+"" == "" -> 1
+'' == '' -> 1
+"" == '' -> 1
+# Basic in-equality: quoted vs quoted
+"hello" == "world" -> 0
+"hello" == "Hello" -> 0
+"hello" == "hello " -> 0
+"" == "a" -> 0
+# Unquoted vs quoted strings
+hello == "hello" -> 1
+hello == 'hello' -> 1
+hello   == "hello" -> 1
+hello == "  hello  " -> 0
+hello world == "hello world" -> 1
+hello world   == "hello world" -> 1
+hello   world == "hello   world" -> 1
+hello world == "hello   world" -> 0
+hello   world == "hello world" -> 0
+# Unquoted vs unquoted strings
+hello == hello -> 1
+hello == hello   -> 1
+hello world == hello world -> 1
+hello   world   ==   hello world   -> 0
+# Strings with special characters (inside quotes)
+"'hello'" == "'hello'" -> 1
+'"hello"' == '"hello"' -> 1
+"a+b=c" == "a+b=c" -> 1
+"a*b" == "a*b" -> 1
+"a()b" == "a()b" -> 1
+"a\b" == "a\b" -> 1
+# Complex expressions with string equality
+"a" == "a" && 1 == 1 -> 1
+"a" == "b" || "c" == "c" -> 1
+!("a" == "b") -> 1
+(1+2) == 3 && "x" == "x" -> 1
+"x" == "y" || (5 > 3) -> 1
+# Using variables
+"test string" == 'test string' -> 1
+"test string" == "another string" -> 0
+"test string" != "another string" -> 1
+"test string" == test string -> 1
+# Using results from SQL
+CREATE TABLE t1 (s VARCHAR(20));
+INSERT INTO t1 VALUES ('data');
+data == "data" -> 1
+data == data -> 1
+data == 'data' -> 1
+DROP TABLE t1;
+# Edge cases
+"  " == " " -> 0
+" " == "" -> 0
+"" == "" -> 1
+# Numeric strings
+"123" == 123 -> 0
+123 == "123" -> 0
+"0" == 0 -> 0
+1 == "1.0" -> 0
+# Mixed quotes in variables
+'This is a "quoted" string' == 'This is a "quoted" string' -> 1
+"This is a 'quoted' string" == "This is a 'quoted' string" -> 1
+# Mixed type comparisons
+0 != "string" -> 1
+123 == "123" -> 0
+"abc" == 123 -> 0
+# Expression in SQL query
+SQL with expression (7 * 8) -> 56
+# Basic SQL result usage in expressions
+Expression with SQL: SQL(15) + 5 -> 20
+# Complex SQL queries in expressions
+SQL count matches expression -> 3
+# Basic if statement conditions
+if (1) evaluates to true
+Non-zero number is true
+Non-empty string is true
+Non-empty string with spaces is true
+# Variable comparisons in if statements
+Arithmetic in comparison: (5 * 2) == 10 is true
+# String comparisons in if statements
+if (hello != world) evaluates to true
+if (hello world == hello world) evaluates to true
+# While loop with expression condition
+While loop iteration: 3
+While loop iteration: 2
+While loop iteration: 1
+# Test case: Empty unquoted string (illegal)
+mysqltest: At line 1: Syntax error: invalid expression
+# Test case: Empty unquoted string with only spaces (illegal)
+mysqltest: At line 1: Syntax error: invalid expression
+# Test case: Unmatched parenthesis
+mysqltest: At line 1: Unmatched parenthesis in expression starting at '$((1 + 2)'
+# Test case: Division by zero
+mysqltest: At line 1: Evaluation error: Division by zero
+# Test case: Modulo by zero
+mysqltest: At line 1: Evaluation error: Modulo by zero
+#
+# Empty value handling (commented out for now)
+# TODO: should we add support for empty unquoted string
+# Expression evaluation tests completed successfully
