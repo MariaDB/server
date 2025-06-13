@@ -9,6 +9,11 @@ enum Wsrep_service_key_type
     WSREP_SERVICE_KEY_EXCLUSIVE
 };
 
+
+/* the bits in the bitmask for disabling temporarily some asserts */
+#define  WSREP_ASSERT_INNODB_TRX   1
+
+
 #if (defined (MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED)) || (!defined(MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_STATIC_INCLUDED))
 
 #else

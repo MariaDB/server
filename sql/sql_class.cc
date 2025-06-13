@@ -767,6 +767,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_affected_rows(0),
    wsrep_has_ignored_error(false),
    wsrep_was_on(false),
+   wsrep_assert_bitmask(0),
    wsrep_ignore_table(false),
    wsrep_aborter(0),
    wsrep_delayed_BF_abort(false),
@@ -9060,3 +9061,20 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
   size_t length= end_ptr - start_ptr;
   return {strmake_root(thd->mem_root, start_ptr, length), length};
 }
+
+
+#ifdef WITH_WSREP
+void wsrep_set_assert(THD *thd, uint64 assert, bool is_disabled)
+{
+  if (is_disabled) {
+    thd->wsrep_assert_bitmask |= assert;
+  } else {
+    thd->wsrep_assert_bitmask &= ~assert;
+  }
+}
+
+bool wsrep_get_assert(THD *thd, uint64 assert)
+{
+  return (thd->wsrep_assert_bitmask & assert ? true: false);
+}
+#endif /* WITH_WSREP */
