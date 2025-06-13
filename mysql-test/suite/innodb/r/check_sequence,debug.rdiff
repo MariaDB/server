@@ -1,0 +1,17 @@
+--- check_sequence.result
++++ check_sequence,debug.result
+@@ -112,3 +112,14 @@
+ 3
+ disconnect prevent_purge;
+ DROP SEQUENCE s1;
++CREATE SEQUENCE s ENGINE=InnoDB;
++ALTER TABLE s SEQUENCE=0;
++FLUSH TABLES;
++SET STATEMENT DEBUG_DBUG="+d,fail_root_page" FOR
++CHECK TABLE s;
++Table	Op	Msg_type	Msg_text
++test.s	check	Warning	InnoDB: Sequence table test/s is corrupted.
++test.s	check	error	Corrupt
++ALTER TABLE s SEQUENCE=1;
++ERROR HY000: InnoDB: Table `test`.`s` is corrupted.
++DROP SEQUENCE s;

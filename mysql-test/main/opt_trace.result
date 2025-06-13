@@ -1285,6 +1285,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.1821659,
@@ -1340,6 +1341,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.1821659,
@@ -2533,6 +2535,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "a_b",
                         "rows_read": 41,
                         "rows_out": 41,
                         "cost": 0.051379171,
@@ -3012,6 +3015,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                           ],
                           "chosen_access_method": {
                             "type": "eq_ref",
+                            "index": "PRIMARY",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.007120904,
@@ -3980,6 +3984,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       ],
                       "chosen_access_method": {
                         "type": "ref",
+                        "index": "pk_a_b",
                         "rows_read": 1,
                         "rows_out": 1,
                         "cost": 0.000928812,
@@ -4676,6 +4681,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "range",
+                        "index": "a",
                         "rows_read": 3,
                         "rows_out": 3,
                         "cost": 0.001755494,
@@ -4702,6 +4708,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       ],
                       "chosen_access_method": {
                         "type": "range",
+                        "index": "a",
                         "rows_read": 3,
                         "rows_out": 3,
                         "cost": 0.001755494,
@@ -4744,6 +4751,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1,
                             "rows_out": 1,
                             "cost": 0.002376836,
@@ -4795,6 +4803,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
+                            "index": "a",
                             "rows_read": 1.166666667,
                             "rows_out": 1.166666667,
                             "cost": 0.002392836,
@@ -11275,6 +11284,7 @@ JS
                                 "chosen_access_method": 
                                 {
                                     "type": "ref",
+                                    "index": "b",
                                     "rows_read": 1,
                                     "rows_out": 1,
                                     "cost": 0.01901531,
@@ -11521,6 +11531,7 @@ JS
                                 "chosen_access_method": 
                                 {
                                     "type": "ref",
+                                    "index": "a",
                                     "rows_read": 1,
                                     "rows_out": 1,
                                     "cost": 0.01840091,
@@ -12906,6 +12917,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                                     "chosen_access_method": 
                                     {
                                         "type": "ref",
+                                        "index": "idx_a",
                                         "rows_read": 1.8367,
                                         "rows_out": 1.8367,
                                         "cost": 0.002051185,
@@ -13201,6 +13213,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                       ],
                       "chosen_access_method": {
                         "type": "range",
+                        "index": "a",
                         "rows_read": 0.189,
                         "rows_out": 0.017766,
                         "cost": 0.006364199,

@@ -588,8 +588,7 @@ static int rdb_i_s_cfoptions_fill_table(
     cf_option_types.push_back(
         {"PREFIX_EXTRACTOR", opts.prefix_extractor == nullptr
                                  ? "NULL"
-                                 : std::string(opts.prefix_extractor->Name())});
-
+                                 : std::string(opts.prefix_extractor->AsString())});
     // get COMPACTION_STYLE option
     switch (opts.compaction_style) {
       case rocksdb::kCompactionStyleLevel:
@@ -647,7 +646,7 @@ static int rdb_i_s_cfoptions_fill_table(
 
     // get table related options
     std::vector<std::string> table_options =
-        split_into_vector(opts.table_factory->GetPrintableTableOptions(), '\n');
+        split_into_vector(opts.table_factory->GetPrintableOptions(), '\n');
 
     for (auto option : table_options) {
       option.erase(std::remove(option.begin(), option.end(), ' '),

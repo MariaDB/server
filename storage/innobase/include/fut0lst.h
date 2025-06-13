@@ -161,9 +161,8 @@ inline fil_addr_t flst_get_prev_addr(const flst_node_t *node)
 void flst_write_addr(const buf_block_t &block, byte *faddr,
                      uint32_t page, uint16_t boffset, mtr_t *mtr);
 
-# ifdef UNIV_DEBUG
 /** Validate a file-based list. */
-void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr);
-# endif
+dberr_t flst_validate(const buf_block_t *base, uint16_t boffset,
+                      mtr_t *mtr) noexcept;
 
 #endif /* !UNIV_INNOCHECKSUM */

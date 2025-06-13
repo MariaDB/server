@@ -225,6 +225,13 @@ void my_ci_set_level_flags(struct charset_info_st *cs, uint flags);
 uint my_casefold_multiply_1(CHARSET_INFO *cs);
 uint my_casefold_multiply_2(CHARSET_INFO *cs);
 
+my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other);
+
+struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
+                                    const LEX_CSTRING name,
+                                    LEX_CSTRING *out_name,
+                                    const LEX_CSTRING comment,
+                                    LEX_CSTRING *out_comment);
 
 /* Some common character set names */
 extern const char charset_name_latin2[];

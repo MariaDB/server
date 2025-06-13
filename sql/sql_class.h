@@ -3434,7 +3434,6 @@ public:
             binlog_flush_pending_rows_event(stmt_end, TRUE));
   }
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
-  void binlog_remove_rows_events();
   uint has_pending_row_events();
   bool binlog_need_stmt_format(bool is_transactional) const
   {

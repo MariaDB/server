@@ -4423,6 +4423,7 @@ protected:
   TABLE_LIST *table_list;
   TABLE *table;
   bool print_table_list_identifier(THD *thd, String *to) const;
+  bool check_access_and_fix_fields(THD *, Item **ref, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
   Item_longlong_func(thd), table_list(table_list_arg) {}
@@ -4432,6 +4433,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("nextval") };
     return name;
   }
+  bool fix_fields(THD *thd, Item **ref) override
+  { return check_access_and_fix_fields(thd, ref, INSERT_ACL | SELECT_ACL); }
   bool fix_length_and_dec(THD *thd) override
   {
     if (table_list->table)
@@ -4474,6 +4477,8 @@ class Item_func_lastval :public Item_func_nextval
 public:
   Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
   Item_func_nextval(thd, table_list_arg) {}
+  bool fix_fields(THD *thd, Item **ref) override
+  { return check_access_and_fix_fields(thd, ref, SELECT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4498,6 +4503,8 @@ public:
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
+  bool fix_fields(THD *thd, Item **ref) override
+  { return check_access_and_fix_fields(thd, ref, INSERT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {

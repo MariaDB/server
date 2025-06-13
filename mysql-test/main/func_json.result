@@ -424,7 +424,7 @@ coercibility(json_unquote(json_object('bar', c))) as coer_json_unquote,
 coercibility('bar') as coer_literal
 from t1 limit 1;
 coll_json_unquote	coer_json_unquote	coer_literal
-utf8mb3_general_ci	4	6
+utf8mb4_bin	4	6
 create table t2 as select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1 limit 0;
 show create table t2;
 Table	Create Table
@@ -1786,6 +1786,43 @@ data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
+#
+# MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+#
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+hex_smiley
+F09F988A
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+smiley
+😊
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+equal_smileys
+1
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+less_or_equal_smileys
+1
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+v	collation_v
+{ "color":"😊" }	utf8mb4_uca1400_ai_ci
+select json_valid(@v) as valid;
+valid
+1
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+color_extraction	color_extraction_collation
+"😊"	utf8mb4_uca1400_ai_ci
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+unquoted	unquoted_collation
+😊	utf8mb4_bin
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+invalid_utf8mb4
+"\uc080\ude0a"
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
+show warnings;
+Level	Code	Message
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
 #
 # End of 10.6 tests
 #

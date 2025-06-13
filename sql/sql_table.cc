@@ -3190,7 +3190,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
 
     DBUG_ASSERT(sql_field->charset);
 
-    if (check_column_name(sql_field->field_name.str))
+    if (check_column_name(sql_field->field_name))
     {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), sql_field->field_name.str);
       DBUG_RETURN(TRUE);
@@ -3833,7 +3833,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
       key_part_info++;
     }
-    if (!key_info->name.str || check_column_name(key_info->name.str))
+    if (!key_info->name.str || check_column_name(key_info->name))
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name.str);
       DBUG_RETURN(TRUE);
@@ -6398,7 +6398,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(drop->name))
+        if (table->s->period.name.streq(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -9391,7 +9391,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     for (bool found= false; !found && (drop= drop_it++); )
     {
       found= drop->type == Alter_drop::PERIOD &&
-             table->s->period.name.streq(drop->name);
+             table->s->period.name.streq(Lex_ident(drop->name));
     }
 
     if (drop)
@@ -12588,6 +12588,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   copy_end=copy;
   to->s->default_fields= 0;
   error= 1;
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE &&
+      from->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT &&
+      from->file->stats.records != 1)
+  {
+    if (from->file->stats.records > 1)
+      my_error(ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS, MYF(0));
+    else
+      my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
+    goto err;
+  }
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -12798,6 +12808,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         else
           to->next_number_field->reset();
       }
+      if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 1)
+      {
+        my_error(ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS, MYF(0));
+        error= 1;
+        break;
+      }
       error= to->file->ha_write_row(to->record[0]);
       to->auto_increment_field_not_null= FALSE;
       if (unlikely(error))
@@ -12869,6 +12885,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   DEBUG_SYNC(thd, "alter_table_copy_end");
 
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 0)
+  {
+    my_error(ER_SEQUENCE_TABLE_HAS_TOO_FEW_ROWS, MYF(0));
+    error= 1;
+  }
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
 
@@ -12887,6 +12908,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (alt_error > 0)
     {
       error= alt_error;
+      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }
