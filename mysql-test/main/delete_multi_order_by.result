@@ -391,3 +391,37 @@ id	v
 select * from t3;
 id	v
 drop table t1, t2, t3;
+#
+# Begin 11.8 tests
+#
+#
+# MDEV-36997 Assertion failed in ha_tina::delete_row on multi delete
+#
+SET sql_mode='';
+CREATE TABLE t1 (v INT (1) NOT NULL) ENGINE=CSV;
+INSERT INTO t1 SELECT 1 away;
+SELECT COUNT(*) from t1;
+COUNT(*)
+1
+DELETE FROM a3,a1 USING t1 AS a1 JOIN t1 AS a2 JOIN t1 AS a3;
+SELECT COUNT(*) from t1;
+COUNT(*)
+0
+DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (v VECTOR (1) NOT NULL) ENGINE=CSV;
+INSERT INTO t1 SELECT 1 away;
+Warnings:
+Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t1`.`v`
+Warning	1292	Incorrect vector value: '1' for column `test`.`t1`.`v` at row 1
+SELECT COUNT(*) from t1;
+COUNT(*)
+1
+DELETE FROM a3,a1 USING t1 AS a1 JOIN t1 AS a2 JOIN t1 AS a3;
+SELECT COUNT(*) from t1;
+COUNT(*)
+0
+DROP TABLE t1;
+#
+# End 11.8 tests
+#
