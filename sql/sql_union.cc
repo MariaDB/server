@@ -2436,8 +2436,8 @@ bool st_select_lex_unit::exec()
       fake_select_lex->table_list.empty();
       if (likely(!saved_error))
       {
-	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-        thd->inc_examined_row_count(examined_rows);
+        thd->limit_found_rows=
+            (ulonglong) table->file->stats.records + add_rows;
       }
       /*
 	Mark for slow query log if any of the union parts didn't use
@@ -2448,6 +2448,8 @@ bool st_select_lex_unit::exec()
   thd->lex->current_select= lex_select_save;
 err:
   thd->lex->set_limit_rows_examined();
+  if (likely(!saved_error))
+    thd->inc_examined_row_count(examined_rows);
   DBUG_RETURN(saved_error);
 }
 
