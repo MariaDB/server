@@ -537,7 +537,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
   {
 #ifdef HAVE_WOLFSSL
     /* CRL does not work with WolfSSL. */
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     goto err2;
 #else
     X509_STORE *store= SSL_CTX_get_cert_store(ssl_fd->ssl_context);

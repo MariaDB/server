@@ -577,7 +577,7 @@ int main(int argc __attribute__((unused)), char *argv[])
                   (uint) rec.header[22],
                   LSN_IN_PARTS(rec.lsn));
           translog_free_record_header(&rec);
-          DBUG_ASSERT(0);
+          DBUG_ASSERT_NO_ASSUME(0);
           goto err;
         }
       }

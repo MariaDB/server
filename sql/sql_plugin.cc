@@ -3029,7 +3029,7 @@ static size_t var_storage_size(int flags)
   case PLUGIN_VAR_SET:          return sizeof(ulonglong);
   case PLUGIN_VAR_STR:          return sizeof(char*);
   case PLUGIN_VAR_DOUBLE:       return sizeof(double);
-  default: DBUG_ASSERT(0);      return 0;
+  default: DBUG_ASSERT_NO_ASSUME(0);      return 0;
   }
 }
 
@@ -3108,7 +3108,7 @@ static st_bookmark *register_var(const char *plugin, const char *name,
     if (my_hash_insert(&bookmark_hash, (uchar*) result))
     {
       fprintf(stderr, "failed to add placeholder to hash");
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
     }
   }
   my_afree(varname);
@@ -3473,7 +3473,7 @@ static SHOW_TYPE pluginvar_show_type(const st_mysql_sys_var *plugin_var)
   case PLUGIN_VAR_DOUBLE:
     return SHOW_DOUBLE;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return SHOW_UNDEF;
   }
 }
@@ -3566,7 +3566,7 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
   case PLUGIN_VAR_DOUBLE:
     return getopt_ulonglong2double(option.def_value) == *(double*)value;
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return 0;
 }
 
@@ -3671,7 +3671,7 @@ static const void *var_def_ptr(st_mysql_sys_var *pv)
     case PLUGIN_VAR_DOUBLE | PLUGIN_VAR_THDLOCAL:
       return &((thdvar_double_t*) pv)->def_val;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return NULL;
     }
 }
