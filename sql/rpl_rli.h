@@ -258,6 +258,12 @@ public:
     Seconds_Behind_Master as zero while the SQL thread is so waiting.
   */
   bool sql_thread_caught_up;
+  /**
+    * Turn `false` when the SQL driver thread receives user events
+    * Turn `true` through rpl_parallel::update_workers_idle(Relay_log_info *)
+    @pre Only meaningful if `mi->using_parallel()`
+  */
+  bool worker_threads_caught_up;
 
   void clear_until_condition();
   /**
@@ -621,10 +627,14 @@ struct inuse_relaylog {
   */
   rpl_gtid *relay_log_state;
   uint32 relay_log_state_count;
-  /* Number of events in this relay log queued for worker threads. */
-  Atomic_counter<int64> queued_count;
-  /* Number of events completed by worker threads. */
-  Atomic_counter<int64> dequeued_count;
+  /** Number of events in this relay log queued for worker threads.
+    @pre Hold `rli->data_lock` while accessing
+  */
+  int64_t queued_count;
+  /** Number of events completed by worker threads.
+    @pre Hold `rli->data_lock` while accessing
+  */
+  int64_t dequeued_count;
   /* Set when all events have been read from a relaylog. */
   bool completed;
   char name[FN_REFLEN];
