@@ -4329,6 +4329,373 @@ SELECT d.*, SUM(p) FROM demo d;
 dim1	dim2	dim3	p	SUM(p)
 100	10	1	2	371
 DROP VIEW v;
+#
+# MDEV-30073: query with NOT EXISTS over subquery using mergeable derived
+#             table / view executed in PS/SP for the second time
+#
+CREATE TABLE t1 (
+product_key int,
+dealerid int
+);
+INSERT INTO t1 VALUES
+(3569, 4),
+(3569, 112);
+CREATE TABLE t2 (
+id int,
+product_key int
+);
+INSERT INTO t2 VALUES
+(16494, 3569),
+(16494, 3569);
+CREATE TABLE t3 (
+dealerid int
+);
+INSERT INTO t3 VALUES (4), (5);
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT dt.id
+FROM (SELECT id, product_key FROM t2) dt, t3
+WHERE
+dt.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t1.product_key' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.dealerid' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`product_key` AS `product_key`,`test`.`t1`.`dealerid` AS `dealerid` from `test`.`t1` where !(<expr_cache><`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`>(<in_optimizer>((`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`),(`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`product_key`,`test`.`t3`.`dealerid` from `test`.`t2` join `test`.`t3` where `test`.`t2`.`product_key` is not null and `test`.`t3`.`dealerid` is not null ), <primary_index_lookup>(`test`.`t1`.`product_key` in <temporary table> on distinct_key where `test`.`t1`.`product_key` = `<subquery2>`.`product_key` and `test`.`t1`.`dealerid` = `<subquery2>`.`dealerid`)))) and `test`.`t1`.`dealerid` is not null and `test`.`t1`.`product_key` is not null)
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT dt.id
+FROM (SELECT id, product_key FROM t2) dt, t3
+WHERE
+dt.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+product_key	dealerid
+3569	112
+PREPARE stmt FROM "SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT dt.id
+FROM (SELECT id, product_key FROM t2) dt, t3
+WHERE
+dt.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+)";
+EXECUTE stmt;
+product_key	dealerid
+3569	112
+EXECUTE stmt;
+product_key	dealerid
+3569	112
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p1() SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT dt.id
+FROM (SELECT id, product_key FROM t2) dt, t3
+WHERE
+dt.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+CALL p1();
+product_key	dealerid
+3569	112
+CALL p1();
+product_key	dealerid
+3569	112
+DROP PROCEDURE p1;
+CREATE view v1 AS SELECT id, product_key FROM t2;
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT v1.id
+FROM v1, t3
+WHERE
+v1.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t1.product_key' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.dealerid' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`product_key` AS `product_key`,`test`.`t1`.`dealerid` AS `dealerid` from `test`.`t1` where !(<expr_cache><`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`>(<in_optimizer>((`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`),(`test`.`t1`.`product_key`,`test`.`t1`.`dealerid`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`product_key`,`test`.`t3`.`dealerid` from `test`.`t2` join `test`.`t3` where `test`.`t2`.`product_key` is not null and `test`.`t3`.`dealerid` is not null ), <primary_index_lookup>(`test`.`t1`.`product_key` in <temporary table> on distinct_key where `test`.`t1`.`product_key` = `<subquery2>`.`product_key` and `test`.`t1`.`dealerid` = `<subquery2>`.`dealerid`)))) and `test`.`t1`.`dealerid` is not null and `test`.`t1`.`product_key` is not null)
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT v1.id
+FROM v1, t3
+WHERE
+v1.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+product_key	dealerid
+3569	112
+PREPARE stmt FROM "SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT v1.id
+FROM v1, t3
+WHERE
+v1.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+)";
+EXECUTE stmt;
+product_key	dealerid
+3569	112
+EXECUTE stmt;
+product_key	dealerid
+3569	112
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p2() SELECT * FROM t1
+WHERE
+! EXISTS
+(
+SELECT v1.id
+FROM v1, t3
+WHERE
+v1.product_key = t1.product_key AND
+t3.dealerid = t1.dealerid
+);
+CALL p2();
+product_key	dealerid
+3569	112
+CALL p2();
+product_key	dealerid
+3569	112
+DROP PROCEDURE p2;
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+#
+# MDEV-23828: query with EXISTS over subquery using mergeable derived
+#             table / view executed in PS/SP for the second time
+#
+CREATE TABLE t1 (a int, b varchar(8));
+INSERT INTO t1 VALUES (7,'foo'),(1,'far'), (3,'bar');
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM ( SELECT * FROM t1 WHERE a < 5) dt
+WHERE dt.a = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join (`test`.`t1`) where `test`.`t1`.`a` < 5
+SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM ( SELECT * FROM t1 WHERE a < 5) dt
+WHERE dt.a = t1.a);
+a	b
+1	far
+3	bar
+PREPARE stmt FROM "SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM ( SELECT * FROM t1 WHERE a < 5) dt
+WHERE dt.a = t1.a)";
+EXECUTE stmt;
+a	b
+1	far
+3	bar
+EXECUTE stmt;
+a	b
+1	far
+3	bar
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p1() SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM ( SELECT * FROM t1 WHERE a < 5) dt
+WHERE dt.a = t1.a);
+CALL p1();
+a	b
+1	far
+3	bar
+CALL p1();
+a	b
+1	far
+3	bar
+DROP PROCEDURE p1;
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a < 5;
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM v1 WHERE v1.a = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join (`test`.`t1`) where `test`.`t1`.`a` < 5
+SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM v1 WHERE v1.a = t1.a);
+a	b
+1	far
+3	bar
+PREPARE stmt FROM "SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM v1 WHERE v1.a = t1.a)";
+EXECUTE stmt;
+a	b
+1	far
+3	bar
+EXECUTE stmt;
+a	b
+1	far
+3	bar
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p2() SELECT * FROM t1
+WHERE EXISTS (SELECT b FROM v1 WHERE v1.a = t1.a);
+CALL p2();
+a	b
+1	far
+3	bar
+CALL p2();
+a	b
+1	far
+3	bar
+DROP PROCEDURE p2;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-30396: 2nd execution of query with EXISTS subquery over view / DT
+#
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO t1 VALUES ('m'),('v');
+CREATE TABLE t2 (b int, c varchar(1));
+INSERT INTO t2 VALUES (2,'m'),(1,'x');
+CREATE VIEW v2 AS SELECT * FROM t2;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM v2 WHERE c = t1.a );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where 1
+SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM v2 WHERE c = t1.a );
+a
+m
+PREPARE stmt FROM "SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM v2 WHERE c = t1.a )";
+EXECUTE stmt;
+a
+m
+EXECUTE stmt;
+a
+m
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p1() SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM v2 WHERE c = t1.a );
+CALL p1();
+a
+m
+CALL p1();
+a
+m
+DROP PROCEDURE p1;
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE EXISTS ( SELECT b FROM (SELECT * FROM t2) dt WHERE c = t1.a );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where 1
+SELECT * FROM t1
+WHERE EXISTS ( SELECT b FROM (SELECT * FROM t2) dt WHERE c = t1.a );
+a
+m
+PREPARE stmt FROM "SELECT * FROM t1
+WHERE EXISTS ( SELECT b FROM (SELECT * FROM t2) dt WHERE c = t1.a )";
+EXECUTE stmt;
+a
+m
+EXECUTE stmt;
+a
+m
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p2() SELECT * FROM t1
+WHERE EXISTS ( SELECT b FROM (SELECT * FROM t2) dt WHERE c = t1.a );
+CALL p2();
+a
+m
+CALL p2();
+a
+m
+DROP PROCEDURE p2;
+DROP VIEW v2;
+DROP TABLE t1,t2;
+#
+# MDEV-31175: 2nd execution of SELECT with mergeable view / DT
+#             and aggregate function
+#
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 VALUES (1,1), (2,2);
+CREATE VIEW v1 AS SELECT a AS x, (select x) AS y FROM t1;
+EXPLAIN EXTENDED SELECT sum(y) FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1276	Field or reference 'x' of SELECT #3 was resolved in SELECT #2
+Note	1003	/* select#1 */ select sum((/* select#3 */ select `x`)) AS `sum(y)` from `test`.`t1`
+SELECT sum(y) FROM v1;
+sum(y)
+3
+PREPARE stmt FROM "SELECT sum(y) FROM v1";
+EXECUTE stmt;
+sum(y)
+3
+EXECUTE stmt;
+sum(y)
+3
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p1() SELECT sum(y) FROM v1;
+CALL p1();
+sum(y)
+3
+CALL p1();
+sum(y)
+3
+DROP PROCEDURE p1;
+EXPLAIN EXTENDED SELECT sum(y) FROM (SELECT a AS x, (select x) AS y FROM t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1276	Field or reference 'x' of SELECT #3 was resolved in SELECT #2
+Note	1003	/* select#1 */ select sum((/* select#3 */ select `x`)) AS `sum(y)` from `test`.`t1`
+SELECT sum(y) FROM (SELECT a AS x, (select x) AS y FROM t1) dt;
+sum(y)
+3
+PREPARE stmt FROM "SELECT sum(y) FROM (SELECT a AS x, (select x) AS y FROM t1) dt";
+EXECUTE stmt;
+sum(y)
+3
+EXECUTE stmt;
+sum(y)
+3
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p2() SELECT sum(y) FROM (SELECT a AS x, (select x) AS y FROM t1) dt;
+CALL p2();
+sum(y)
+3
+CALL p2();
+sum(y)
+3
+DROP PROCEDURE p2;
+DROP VIEW v1;
+DROP TABLE t1;
 # End of 10.4 tests
 #
 # MDEV-31277: 2-nd execution of PS to select from materialized view
@@ -4361,6 +4728,130 @@ Election	Voted	ElectionID
 deallocate prepare stmt1;
 drop view v1;
 drop table t1, t2;
+#
+# MDEV-33081: 2-nd execution of query with forced materialization
+#             of a mergeable view because of too many base tables
+#
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t3 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t4 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t5 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t6 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t7 (a int PRIMARY KEY) ENGINE=MYISAM;
+CREATE TABLE t8 (a int PRIMARY KEY) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (1), (2);
+INSERT INTO t2 VALUES (1), (2);
+INSERT INTO t3 VALUES (1), (2);
+INSERT INTO t4 VALUES (1), (2);
+INSERT INTO t5 VALUES (1), (2);
+INSERT INTO t6 VALUES (1), (2);
+INSERT INTO t7 VALUES (1), (2);
+INSERT INTO t8 VALUES (1), (2);
+CREATE VIEW v1 AS
+SELECT t8.a
+FROM t1
+LEFT JOIN t2 ON t2.a = t1.a
+LEFT JOIN t3 ON t3.a = t2.a
+LEFT JOIN t4 ON t4.a = t3.a
+LEFT JOIN t5 ON t5.a = t4.a
+LEFT JOIN t6 ON t6.a = t5.a
+LEFT JOIN t7 ON t7.a = t6.a
+LEFT JOIN t8 ON t8.a = t7.a
+;
+CREATE TABLE t9 (a int PRIMARY KEY, b int) ENGINE=MYISAM;
+INSERT INTO t9 VALUES (1,10), (2,20);
+CREATE VIEW v2 AS
+SELECT t8.a, t9.b + 100 as b
+FROM t1
+LEFT JOIN t2 ON t2.a = t1.a
+LEFT JOIN t3 ON t3.a = t2.a
+LEFT JOIN t8 ON t8.a = t3.a
+LEFT JOIN t9 ON t9.a = t8.a
+;
+SELECT dt.b FROM
+(
+SELECT v2.b + 200 as b
+FROM v1 AS s1
+LEFT JOIN v1 AS s2 ON s2.a = s1.a
+LEFT JOIN v1 AS s3 ON s3.a = s2.a
+LEFT JOIN v1 AS s4 ON s4.a = s3.a
+LEFT JOIN v1 AS s5 ON s5.a = s4.a
+LEFT JOIN v1 AS s6 ON s6.a = s5.a
+LEFT JOIN v1 AS s7 ON s7.a = s6.a
+LEFT JOIN v2 ON v2.a = s7.a
+WHERE s1.a > 1
+) dt;
+b
+320
+PREPARE stmt FROM "SELECT dt.b FROM
+(
+SELECT v2.b + 200 as b
+FROM v1 AS s1
+LEFT JOIN v1 AS s2 ON s2.a = s1.a
+LEFT JOIN v1 AS s3 ON s3.a = s2.a
+LEFT JOIN v1 AS s4 ON s4.a = s3.a
+LEFT JOIN v1 AS s5 ON s5.a = s4.a
+LEFT JOIN v1 AS s6 ON s6.a = s5.a
+LEFT JOIN v1 AS s7 ON s7.a = s6.a
+LEFT JOIN v2 ON v2.a = s7.a
+WHERE s1.a > 1
+) dt";
+EXECUTE stmt;
+b
+320
+EXECUTE stmt;
+b
+320
+DEALLOCATE PREPARE stmt;
+DROP view v2;
+CREATE VIEW v2 AS
+SELECT t8.a as b, t9.b as a
+FROM t1
+LEFT JOIN t2 ON t2.a = t1.a
+LEFT JOIN t3 ON t3.a = t2.a
+LEFT JOIN t8 ON t8.a = t3.a
+LEFT JOIN t9 ON t9.a = t8.a;
+SET optimizer_switch = 'table_elimination=off';
+SELECT dt.b FROM
+(
+SELECT v2.b + 200 as b
+FROM v1 AS s1
+LEFT JOIN v1 AS s2 ON s2.a = s1.a
+LEFT JOIN v1 AS s3 ON s3.a = s2.a
+LEFT JOIN v1 AS s4 ON s4.a = s3.a
+LEFT JOIN v1 AS s5 ON s5.a = s4.a
+LEFT JOIN v1 AS s6 ON s6.a = s5.a
+LEFT JOIN v1 AS s7 ON s7.a = s6.a
+LEFT JOIN v2 ON v2.a = s7.a
+WHERE s1.a > 1
+) dt;
+b
+NULL
+PREPARE stmt FROM "SELECT dt.b FROM
+(
+SELECT v2.b + 200 as b
+FROM v1 AS s1
+LEFT JOIN v1 AS s2 ON s2.a = s1.a
+LEFT JOIN v1 AS s3 ON s3.a = s2.a
+LEFT JOIN v1 AS s4 ON s4.a = s3.a
+LEFT JOIN v1 AS s5 ON s5.a = s4.a
+LEFT JOIN v1 AS s6 ON s6.a = s5.a
+LEFT JOIN v1 AS s7 ON s7.a = s6.a
+LEFT JOIN v2 ON v2.a = s7.a
+WHERE s1.a > 1
+) dt";
+EXECUTE stmt;
+b
+NULL
+EXECUTE stmt;
+b
+NULL
+DEALLOCATE PREPARE stmt;
+SET optimizer_switch = 'table_elimination=default';
+DROP view v2;
+DROP VIEW v1;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9;
 # End of 10.5 tests
 #
 # MDEV-31143: view with ORDER BY used in query with rownum() in WHERE
@@ -4430,3 +4921,24 @@ deallocate prepare stmt;
 drop view v1,v2;
 drop table t1,t2;
 # End of 10.6 tests
+#
+# MDEV-6704 Wrong result (extra rows) on 2nd execution of PS with
+#   exists_to_in, MERGE view
+#
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (i INT, b VARCHAR(3)) ENGINE=MyISAM;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t2;
+INSERT INTO t2 VALUES (4,'foo'),(5,'baz');
+PREPARE stmt FROM
+"SELECT * FROM t1 WHERE NOT EXISTS ( SELECT i FROM v2 WHERE b = a )";
+EXECUTE stmt;
+a
+bar
+EXECUTE stmt;
+a
+bar
+DEALLOCATE PREPARE stmt;
+DROP VIEW v2;
+DROP TABLE t1, t2;
+# End of 10.11 tests
