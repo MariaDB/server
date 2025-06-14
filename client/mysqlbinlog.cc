@@ -1576,8 +1576,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
       if (is_stmt_end)
         print_event_info->found_row_event= 0;
-      else if (opt_flashback &&
-          !print_event_info->m_table_map_ignored.get_table(e->get_table_id()))
+      else if (opt_flashback)
         destroy_evt= FALSE;
       break;
     }
@@ -1591,8 +1590,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                           e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
       DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
-      if (!is_stmt_end && opt_flashback &&
-          !print_event_info->m_table_map_ignored.get_table(e->get_table_id()))
+      if (!is_stmt_end && opt_flashback)
         destroy_evt= FALSE;
       break;
     }
