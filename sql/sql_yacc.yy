@@ -324,7 +324,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum ha_key_alg key_alg;
   enum ha_rkey_function ha_rkey_mode;
   enum index_hint_type index_hint;
-  enum interval_type interval, interval_time_st;
+  enum interval_type interval, interval_time_st, range_time_stamp;
   enum row_type row_type;
   enum sp_variable::enum_mode spvar_mode;
   enum thr_lock_type lock_type;
@@ -1696,6 +1696,7 @@ rule:
 %type <interval> interval
 
 %type <interval_time_st> interval_time_stamp
+%type <range_time_stamp> range_time_stamp
 
 %type <db_type> storage_engines known_storage_engines
 
@@ -6624,8 +6625,27 @@ field_type_temporal:
           {
             $$.set(thd->type_handler_for_datetime(), $2);
           }
+        | INTERVAL_SYM interval_qualifier
+        {
+            $$.set(&type_handler_interval_DDhhmmssff);
+        }
         ;
 
+interval_qualifier:
+        single_datetime_field
+      | range_datetime_field
+
+single_datetime_field:
+        range_time_stamp opt_field_length
+
+range_datetime_field:
+        start_field end_field
+
+start_field:
+        range_time_stamp opt_field_length TO_SYM
+
+end_field:
+        range_time_stamp | SECOND_SYM opt_field_length | MONTH_SYM
 
 field_type_lob:
           TINYBLOB opt_compressed
@@ -12431,16 +12451,18 @@ interval:
         ;
 
 interval_time_stamp:
-          DAY_SYM         { $$=INTERVAL_DAY; }
+        range_time_stamp  {}
         | WEEK_SYM        { $$=INTERVAL_WEEK; }
-        | HOUR_SYM        { $$=INTERVAL_HOUR; }
-        | MINUTE_SYM      { $$=INTERVAL_MINUTE; }
         | MONTH_SYM       { $$=INTERVAL_MONTH; }
         | QUARTER_SYM     { $$=INTERVAL_QUARTER; }
         | SECOND_SYM      { $$=INTERVAL_SECOND; }
         | MICROSECOND_SYM { $$=INTERVAL_MICROSECOND; }
-        | YEAR_SYM        { $$=INTERVAL_YEAR; }
         ;
+range_time_stamp:
+        YEAR_SYM   { $$ = INTERVAL_YEAR; }
+        | DAY_SYM    { $$ = INTERVAL_DAY; }
+        | HOUR_SYM   { $$ = INTERVAL_HOUR; }
+        | MINUTE_SYM { $$ = INTERVAL_MINUTE; }
 
 date_time_type:
           DATE_SYM  {$$=MYSQL_TIMESTAMP_DATE;}
@@ -16866,7 +16888,6 @@ reserved_keyword_udt_not_param_type:
         | INSENSITIVE_SYM
         | INSERT
         | INTERSECT_SYM
-        | INTERVAL_SYM
         | INTO
         | IS
         | ITERATE_SYM
