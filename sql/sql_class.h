@@ -5452,6 +5452,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
+  bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
