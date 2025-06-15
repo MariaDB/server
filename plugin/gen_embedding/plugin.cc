@@ -54,7 +54,7 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 
 class Item_func_gen_embedding: public Item_str_func 
 {
-  String tmp_js, api_response;
+  String tmp_js, api_response, tmp_str;
 
   int make_openai_request() {
     /* 
@@ -65,13 +65,16 @@ class Item_func_gen_embedding: public Item_str_func
      
      // std::cout << "Host " << host << std::endl;
      // std::cout <<  "API KEY" << api_key << std::endl;
-    // TODO: This will be changed to val_str
-    String *value = args[0]->val_json(&api_response); // This value should be used as the input for the OpenAI API request
-    if (!value) {
+    String *input = args[0]->val_str(&api_response); // This value should be used as the input for the OpenAI API request
+    if (!input) {
       null_value= true;
       return 1;
     }
-     
+    String *model = args[1]->val_str(&tmp_str);
+    if (!model) {
+      null_value= true;
+      return 1;
+    }
     CURLcode ret;
     CURL *hnd;
     std::ostringstream read_data_stream;
@@ -79,15 +82,22 @@ class Item_func_gen_embedding: public Item_str_func
     struct curl_slist *slist1;
 
     slist1 = NULL;
-    slist1 = curl_slist_append(slist1, "Authorization: Bearer TODO YOUR_API_KEY_HERE");
+    std::string authorization = std::string("Authorization: Bearer ") + api_key;
+    slist1 = curl_slist_append(slist1, authorization.c_str());
     slist1 = curl_slist_append(slist1, "Content-Type: application/json");
 
     hnd = curl_easy_init();
     curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
-    curl_easy_setopt(hnd, CURLOPT_URL, "http://127.0.0.1:5000/embeddings"); // This is a temporary mock server for local testing, TODO YOUR_HOST_HERE
+    curl_easy_setopt(hnd, CURLOPT_URL, host);
     curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
-    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, "{\n    \"input\": \"YOUR_INPUT_HERE\",\n    \"model\": \"TODO YOUR_MODEL_HERE\",\n    \"encoding_format\": \"float\"\n  }");
-    curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)132);
+    std::string post_fields =
+      std::string("{\"input\": \"") +
+      input->c_ptr() + 
+      "\", \"model\": \"" +
+      model->c_ptr() +
+      "\",\"encoding_format\": \"float\"}";
+    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, post_fields.c_str());
+    curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)post_fields.length());
     curl_easy_setopt(hnd, CURLOPT_HTTPHEADER, slist1);
     curl_easy_setopt(hnd, CURLOPT_USERAGENT, "curl/8.5.0");
     curl_easy_setopt(hnd, CURLOPT_MAXREDIRS, 50L);
