@@ -4479,6 +4479,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
       {
+        DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+          if (typ == FORMAT_DESCRIPTION_EVENT)
+            DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+              "now WAIT_FOR main_sql_thread_continue"
+            )));
+        );
 #ifdef WITH_WSREP
 	wsrep_after_statement(thd);
 #endif /* WITH_WSREP */

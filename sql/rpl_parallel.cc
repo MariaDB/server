@@ -109,6 +109,9 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
         "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
       )));
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL main_sql_thread_continue"
+      )));
     );
   #endif
 
