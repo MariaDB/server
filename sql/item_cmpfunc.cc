@@ -5037,6 +5037,12 @@ bool Item_func_in::ora_join_processor(void *arg)
 {
   if (with_ora_join())
   {
+    if (cols() > 1 && args[0]->with_ora_join())
+    {
+        // used in ROW operaton
+        my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+        return TRUE;
+    }
     uint n= argument_count();
     DBUG_ASSERT(n >= 2);
     // first argument (0) is right part of IN where oracle joins are allowed

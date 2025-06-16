@@ -294,9 +294,9 @@ Warning	4232	Oracle outer join operator (+) ignored in '"test"."tj1"."a" = 1'
 # ORA-01719
 #
 SELECT * FROM tj1, tj2 WHERE tj1.a IN (tj2.c(+), tj2.d(+));
-ERROR HY000: Invalid usage of (+) operator: used in OR or IN
+ERROR HY000: Invalid usage of (+) operator: used in OR, IN or ROW operation
 SELECT * FROM tj1, tj2 WHERE tj1.a NOT IN (tj2.c(+), tj2.d(+));
-ERROR HY000: Invalid usage of (+) operator: used in OR or IN
+ERROR HY000: Invalid usage of (+) operator: used in OR, IN or ROW operation
 #
 # Outer join in 'IN' condition with a single expression
 # This is also allowed in oracle since the expression is

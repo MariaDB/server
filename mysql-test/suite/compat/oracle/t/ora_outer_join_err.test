@@ -107,3 +107,32 @@ select u2.a, (select t1.a, t2.a from t1,t2 where u1.a(+) = t2.a)
   from t1 as u1, t2 as u2 where  u1.a(+) = u2.a;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-36883: Oracle outer join syntax (+): operator (+) is not
+--echo # processed in condition like "(t2.b(+) , t1.b) in (select ...)"
+--echo #
+create table t1 ( c int, b char(1));
+insert into t1 values (1,'b');
+
+create table t2 ( a int  , b char(1));
+insert into t2 values (1,'a');
+
+create table t3 (c1 char(1), c2 char(2));
+insert into t3 values ('c','d');
+insert into t3 values ('c','d');
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT t2.b
+FROM t1, t2 WHERE t1.c = t2.a(+) AND (t2.b(+), t1.b) IN (SELECT * from t3);
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT t2.b
+FROM t1, t2 WHERE t1.c = t2.a(+) AND (t2.b(+), t1.b) IN (('a','a'),('b','b'));
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT t2.b
+FROM t1, t2 WHERE t1.c = t2.a(+) AND (t2.b(+), t1.b) = (SELECT * from t3
+ORDER BY a LIMIT 1);
+
+drop tables t1,t2,t3;
