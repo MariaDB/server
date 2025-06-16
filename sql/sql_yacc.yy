@@ -1784,8 +1784,8 @@ rule:
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
-        slave master_def master_defs master_file_def slave_until_opts
-        repair analyze opt_with_admin opt_with_admin_option
+        slave master_def master_defs master_file_def slave_until_opts 
+        slave_until_file_def repair analyze opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
         persistent_index_stat_spec
@@ -8409,9 +8409,40 @@ slave_until:
         ;
 
 slave_until_opts:
-          master_file_def
-        | slave_until_opts ',' master_file_def
+          slave_until_file_def
+        | slave_until_opts ',' slave_until_file_def
         ;
+
+slave_until_file_def:
+    MASTER_LOG_FILE_SYM '=' TEXT_STRING_sys
+    {
+      Lex->mi.log_file_name = $3.str;
+    }
+  | MASTER_LOG_POS_SYM '=' ulonglong_num
+    {
+      /* 
+          If the user specified a value < BIN_LOG_HEADER_SIZE, adjust it
+          instead of causing subsequent errors. 
+          We need to do it in this file, because only there we know that 
+          MASTER_LOG_POS has been explicitly specified. On the contrary
+          in change_master() (sql_repl.cc) we cannot distinguish between 0
+          (MASTER_LOG_POS explicitly specified as 0) and 0 (unspecified),
+          whereas we want to distinguish (specified 0 means "read the binlog
+          from 0" (4 in fact), unspecified means "don't change the position
+          (keep the preceding value)").
+      */
+      Lex->mi.pos= MY_MAX(BIN_LOG_HEADER_SIZE, $3);
+    }
+  | RELAY_LOG_FILE_SYM '=' TEXT_STRING_sys
+    {
+      Lex->mi.relay_log_name = $3.str;
+    }
+  | RELAY_LOG_POS_SYM '=' ulong_num
+    {
+      /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
+      Lex->mi.relay_log_pos= MY_MAX(BIN_LOG_HEADER_SIZE, $3);
+    }
+  ;
 
 checksum:
           CHECKSUM_SYM table_or_tables
