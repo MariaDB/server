@@ -291,7 +291,6 @@ public:
   double unsplit_oper_cost;
   /* Cardinality of T when nothing is pushed */
   double unsplit_card;
-  double last_refills;
 
   SplM_plan_info *find_plan(TABLE *table, uint key, uint parts);
 };
@@ -1056,6 +1055,25 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   if (best_table)
   {
     *spl_pd_boundary= this->table->map;
+    /*
+      Compute "refills" - how many times we'll need to refill the split-
+      materialized temp. table. Split-materialized table has references to
+      preceding table(s). Suppose the join prefix is (t1, t2, t3) and
+      split-materialized refers to table t2:
+
+        t1  t2  t3  <split_materialized>
+            ^             |
+            +------------ +
+
+      If we do not use join buffer for table t3, then we'll need to refill
+      the split-materialized table partial_join_cardinality({t1, t2}) times.
+      (this assumes that fanout of table t3 is greater than 1, which is
+      typically true).
+      If table t3 uses join buffer, then every time we get a record combination
+      of {t1.row,t2.row,t3.row} the t2.row may be different and so we will need
+      to refill <split_materialized> every time, that is,
+      partial_join_cardinality(t1,t3,t3) times.
+    */
     if (!best_param_tables)
       refills= 1;
     else
@@ -1176,7 +1194,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       The best plan that employs splitting is cheaper than
       the plan without splitting
     */
-    startup_cost= spl_opt_info->last_refills * spl_plan->cost;
+    startup_cost= refills * spl_plan->cost;
     records= (ha_rows) (spl_opt_info->unsplit_card * spl_plan->split_sel);
     if (unlikely(thd->trace_started()) && ! already_printed)
     {
