@@ -4,6 +4,7 @@
 
 -- source include/have_log_bin.inc
 -- source include/binlog_start_pos.inc
+-- source include/count_sessions.inc
 
 --disable_query_log
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
@@ -365,6 +366,7 @@ echo mysql mysqltest1 -uuntrusted < var/tmp/bug31611.sql;
 error 1;
 exec $MYSQL mysqltest1 -uuntrusted < $MYSQLTEST_VARDIR/tmp/bug31611.sql;
 --remove_file $MYSQLTEST_VARDIR/tmp/bug31611.sql
+
 connection unsecure;
 error ER_TABLEACCESS_DENIED_ERROR;
 INSERT INTO t1 VALUES (1,USER());
@@ -373,6 +375,7 @@ SELECT * FROM t1;
 connection default;
 disconnect unsecure;
 DROP DATABASE mysqltest1;
+--source include/wait_until_count_sessions.inc
 DROP USER untrusted@localhost;
 
 --echo # Bug#32580 mysqlbinlog cannot read binlog event with user variables
