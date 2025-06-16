@@ -2409,6 +2409,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     else
       return table_options;
   }
+  bool check_if_valid_log_table();
 };
 
 
