@@ -6550,6 +6550,8 @@ void THD::leave_locked_tables_mode()
       mysql_ha_set_explicit_lock_duration(this);
     if (ull_hash.records)
       mysql_ull_set_explicit_lock_duration(this);
+    if (has_open_global_temporary_tables())
+      global_tmp_tables_set_explicit_lock_duration();
   }
   locked_tables_mode= LTM_NONE;
 }

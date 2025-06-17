@@ -2112,6 +2112,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     }
     if (best_table)
     {
+      if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
+          !thd->use_real_global_temporary_share())
+        goto get_new_table;
+
       table= best_table;
       table->query_id= thd->query_id;
       table->init(thd, table_list);
@@ -2149,6 +2153,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     DBUG_RETURN(TRUE);
   }
 
+get_new_table:
   /*
     Non pre-locked/LOCK TABLES mode, and the table is not temporary.
     This is the normal use case.
@@ -5607,7 +5612,8 @@ static bool check_lock_and_start_stmt(THD *thd,
     lock_type= table_list->lock_type;
 
   if ((int) lock_type >= (int) TL_FIRST_WRITE &&
-      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE)
+      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE &&
+      table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
     my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
              table_list->table->alias.c_ptr());
