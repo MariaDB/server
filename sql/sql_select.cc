@@ -110,7 +110,8 @@
 /* Used to ensure that costs are calculate the same way */
 inline bool compare_cost(double a, double b)
 {
-  DBUG_ASSERT(a >= 0.0 && b >= 0.0);
+  DBUG_ASSERT((is_double_zero(a) || a > 0.0) &&
+              (is_double_zero(b) || b > 0.0));
   return (a >= b - b/10000000.0 && a <= b+b/10000000.0);
 }
 
@@ -11687,7 +11688,7 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
          In 11.0+, that time is already included in pos->read_time)
       */
       partial_join_cost -= pos->read_time*fraction;
-      DBUG_ASSERT(partial_join_cost >= 0.0);
+      DBUG_ASSERT(is_double_zero(partial_join_cost) || partial_join_cost > 0.0);
 
       /* Add the cost of the new access method we've got: */
       partial_join_cost= COST_ADD(partial_join_cost, *first_table_cost);
