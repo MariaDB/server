@@ -27,3 +27,24 @@ CALL sp();
 DROP PROCEDURE sp;
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-36979 Same alias name with different case on same table is not working in functions
+--echo #
+create table t1 ( id int primary key auto_increment, name varchar(10));
+insert into t1 (name) values ('wrbyviwb');
+insert into t1 (name) values ('wrbyrwb1');
+insert into t1 (name) values ('wrbrwb3');
+select cnt.name from t1 cnt join ( select CMT.id from t1 CMT where CMT.id=1) t2 on t2.id=cnt.id;
+delimiter //;
+create function t1test(val int) returns varchar(400) charset utf8
+begin
+  declare output varchar(400) default '';
+  set output = (select cnt.name from t1 cnt join ( select CMT.id from t1 CMT where CMT.id=val) t2 on t2.id=cnt.id);
+  return output;
+end//
+delimiter ;//
+select t1test(1);
+drop function t1test;
+drop table t1;
+
+--echo # End of 10.11 tests
