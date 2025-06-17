@@ -272,7 +272,7 @@ show create table tx;
 
 drop table tx;
 
---echo ### FLUSH, LOCK
+--echo ### FLUSH
 create global temporary table t(x int primary key) on commit preserve rows;
 flush table t;
 insert t values (1);
@@ -282,8 +282,6 @@ select * from t;
 truncate t;
 flush table t;
 
---error ER_BAD_TABLE_ERROR
-lock table t write;
 drop table t;
 
 --echo # Multi-table DML
@@ -413,6 +411,87 @@ select * from t1;
 select * from t;
 drop table t1;
 
+truncate t;
+drop table t;
+
+--echo # LOCK TABLES
+create global temporary table t(x int) on commit preserve rows;
+lock tables t write;
+insert t values(1);
+select * from t;
+truncate t;
+drop table t;
+--error ER_NO_SUCH_TABLE
+select * from t;
+unlock tables;
+
+create global temporary table t(x int) on commit preserve rows;
+insert t values(1);
+lock tables t write;
+select * from t;
+unlock tables;
+truncate t;
+drop table t;
+
+--echo # Write lock works
+create global temporary table t(x int) on commit preserve rows;
+lock tables t write;
+insert t values(1);
+--connection con1
+--error ER_LOCK_WAIT_TIMEOUT
+set statement lock_wait_timeout= 0 for
+    select * from t nowait;
+--error ER_LOCK_WAIT_TIMEOUT
+lock tables t write nowait;
+--connection default
+truncate t;
+drop table t;
+
+--echo # Global descriptor is locked for read, but it allows inserting
+--echo # into local copies
+create global temporary table t(x int) on commit preserve rows;
+lock tables t read;
+insert t values(1);
+--connection con1
+select * from t;
+--connection default
+select * from t;
+--connection con1
+truncate t;
+--connection default
+truncate t;
+unlock tables;
+drop table t;
+
+create global temporary table t(x int) on commit preserve rows;
+lock tables t read;
+--connection con1
+lock tables t read nowait;
+--connection default
+insert t values(1);
+--connection con1
+select * from t;
+--connection default
+select * from t;
+--connection con1
+truncate t;
+unlock tables;
+--connection default
+truncate t;
+unlock tables;
+drop table t;
+
+--echo # mariabackup
+create global temporary table t(x int) on commit preserve rows;
+insert t values (1), (2), (3);
+
+let $mysqldumpfile = $MYSQLTEST_VARDIR/tmp/mysqldumpfile.sql;
+--exec $MYSQL_DUMP test t > $mysqldumpfile
+truncate t;
+drop table t;
+--exec $MYSQL test < $mysqldumpfile
+show create table t;
+select * from t;
 truncate t;
 drop table t;
 
