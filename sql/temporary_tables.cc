@@ -365,6 +365,25 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
   DBUG_RETURN(result);
 }
 
+void THD::global_tmp_tables_set_explicit_lock_duration()
+{
+  bool locked= lock_temporary_tables();
+
+  All_tmp_tables_list::Iterator it(*temporary_tables);
+  while (TMP_TABLE_SHARE *share= it++)
+  {
+    if (!share->from_share)
+      continue;
+    mdl_context.set_lock_duration(share->mdl_request.ticket, MDL_EXPLICIT);
+  }
+
+  if (locked)
+  {
+    DBUG_ASSERT(m_tmp_tables_locked);
+    unlock_temporary_tables();
+  }
+}
+
 bool THD::use_real_global_temporary_share() const
 {
   return (sql_command_flags() & (CF_ALTER_TABLE   |
@@ -373,6 +392,7 @@ bool THD::use_real_global_temporary_share() const
         && lex->sql_command != SQLCOM_CREATE_TABLE) ||
         lex->sql_command == SQLCOM_CREATE_VIEW      ||
         lex->sql_command == SQLCOM_TRUNCATE         ||
+        lex->sql_command == SQLCOM_LOCK_TABLES      ||
         stmt_arena->is_stmt_prepare();
 }
 

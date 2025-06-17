@@ -6197,12 +6197,6 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 {
   DBUG_ASSERT(!thd->rgi_slave); // slave won't use global temporary tables
 
-  if (thd->lex->sql_command == SQLCOM_LOCK_TABLES)
-  {
-    my_error(ER_BAD_TABLE_ERROR, MYF(0), source->table_name.str);
-    return TRUE;
-  }
-
   /*
     First, lookup in tmp tables list for cases like "t join t"
     This also could happen if tl->open_type is OT_BASE_ONLY
