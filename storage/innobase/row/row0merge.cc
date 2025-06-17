@@ -5177,6 +5177,9 @@ dberr_t row_merge_bulk_t::write_to_tmp_file(ulint index_no)
                        m_block, m_crypt_block,
                        buf->index->table->space->id))
     return DB_TEMP_FILE_WRITE_FAIL;
+
+  DBUG_EXECUTE_IF("write_to_tmp_file_fail",
+                  return DB_TEMP_FILE_WRITE_FAIL;);
   MEM_UNDEFINED(&m_block[0], srv_sort_buf_size);
   return DB_SUCCESS;
 }

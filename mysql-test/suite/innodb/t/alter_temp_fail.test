@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--echo #
+--echo # MDEV-36017 Alter table aborts when temporary
+--echo #                directory is full
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100),
+		f3 CHAR(100))ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, 'a', 'b' FROM seq_1_to_4096;
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 ADD KEY(f1), ADD INDEX(f3(10));
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+INSERT INTO t1 SELECT * FROM t1;
+SET STATEMENT DEBUG_DBUG="+d,os_file_write_fail" FOR COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+--error ER_TEMP_FILE_WRITE_FAILURE
+reap;
+disconnect con1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+SET STATEMENT DEBUG_DBUG="+d,ddl_log_write_fail" FOR
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+DROP TABLE t1;

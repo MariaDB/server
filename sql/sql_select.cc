@@ -4867,11 +4867,6 @@ int JOIN::exec_inner()
         UNION temp table.
   */
 
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_exec(thd, "join_execution");
-  trace_exec.add_select_number(select_lex->select_number);
-  Json_writer_array trace_steps(thd, "steps");
-
   if (!select_lex->outer_select() &&                            // (1)
       select_lex != select_lex->master_unit()->fake_select_lex) // (2)
     thd->lex->set_limit_rows_examined();
@@ -25175,6 +25170,13 @@ test_if_quick_select(JOIN_TAB *tab)
     tab->table->file->ha_index_or_rnd_end();
 
   quick_select_return res;
+  Json_writer_object wrapper(tab->join->thd);
+  Json_writer_object range_fer(tab->join->thd,
+                               "range-checked-for-each-record");
+  range_fer.add_select_number(tab->join->select_lex->select_number);
+  range_fer.add("loop", tab->join->explain->time_tracker.get_loops());
+
+  Json_writer_array rows_est(tab->join->thd, "rows_estimation");
   res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                       (table_map) 0, HA_POS_ERROR, 0,
                                       FALSE, /*remove where parts*/FALSE,

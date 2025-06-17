@@ -271,7 +271,7 @@ IF(WIN32)
   # The resulting files will have .pl extension (those are perl scripts)
 
   # Input files with pl.in extension
-  SET(PLIN_FILES mysql_config)
+  SET(PLIN_FILES mysql_config print_ddl_recovery_log)
   # Input files with .sh extension
 
   SET(SH_FILES mysql_convert_table_format mysqld_multi mysqldumpslow
@@ -330,6 +330,8 @@ ELSE()
   # Configure this one, for testing, but do not install it.
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_config.pl.in
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_config.pl ESCAPE_QUOTES @ONLY)
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/print_ddl_recovery_log.pl.in
+    ${CMAKE_CURRENT_BINARY_DIR}/print_ddl_recovery_log.pl ESCAPE_QUOTES @ONLY)
   # On Unix, most of the files end up in the bin directory
   SET(BIN_SCRIPTS
     msql2mysql
@@ -391,7 +393,7 @@ ELSE()
 ENDIF()
 
 # Install libgcc as  mylibgcc.a
-IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_FLAGS MATCHES "-static")
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_FLAGS MATCHES "-static")
   EXECUTE_PROCESS (
    COMMAND ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_COMPILER_ARG1}
      ${CMAKE_CXX_FLAGS} --print-libgcc

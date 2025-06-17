@@ -43,6 +43,12 @@ SET SESSION wsrep_sync_wait=0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_node1';
 --enable_query_log
@@ -52,10 +58,6 @@ CREATE TABLE t1 (f1 INTEGER) engine=InnoDB;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
-SET SESSION wsrep_sync_wait=0;
---let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
---source include/wait_condition.inc
-
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_node2';
 --enable_query_log
@@ -83,6 +85,10 @@ SET SESSION wsrep_sync_wait = 15;
 SELECT COUNT(*) FROM t1;
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 

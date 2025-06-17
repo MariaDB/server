@@ -148,12 +148,6 @@ select * from db1.t1	{
           }
         ]
       }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
-      }
     }
   ]
 }	0	0
@@ -289,12 +283,6 @@ select * from db1.v1	{
             "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]

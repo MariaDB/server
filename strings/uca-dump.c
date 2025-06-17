@@ -24,7 +24,7 @@
 #include "m_ctype.h"
 #include "ctype-uca.h"
 
-
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 #define MAX_ALLOWED_CODE 0x10FFFF
 
 
@@ -398,7 +398,7 @@ static const char *pname_prefix[]= {"_p", "_p", "_p"};
 static const char *pname_suffix[]= {"", "_secondary", "_tertiary"};
 
 
-void usage(const char *prog)
+static void usage(const char *prog)
 {
   printf("Usage:\n");
   printf("%s [options] filename\n", prog);
@@ -411,7 +411,7 @@ static inline int lstrncmp(const char *str, const LEX_CSTRING lstr)
 }
 
 
-int process_option(OPT *options, const char *opt)
+static int process_option(OPT *options, const char *opt)
 {
   static const LEX_CSTRING opt_name_prefix= {STRING_WITH_LEN("--name-prefix=")};
   static const LEX_CSTRING opt_levels= {STRING_WITH_LEN("--levels=")};
@@ -458,7 +458,7 @@ int process_option(OPT *options, const char *opt)
 }
 
 
-int process_options(OPT *options, int ac, char **av)
+static int process_options(OPT *options, int ac, char **av)
 {
   int i;
   for (i= 1; i < ac; i++)
@@ -484,7 +484,7 @@ int process_options(OPT *options, int ac, char **av)
 }
 
 
-FILE *open_file(const char *name)
+static FILE *open_file(const char *name)
 {
   if (!strcmp(name, "-"))
     return stdin;
@@ -492,14 +492,14 @@ FILE *open_file(const char *name)
 }
 
 
-void close_file(FILE *file)
+static void close_file(FILE *file)
 {
   if (file != stdin)
     fclose(file);
 }
 
 
-char *strrtrim(char *str)
+static char *strrtrim(char *str)
 {
   char *end= str + strlen(str);
   for ( ; str < end; end--)
@@ -524,7 +524,7 @@ char *strrtrim(char *str)
   of them at the moment, it was easier to write these routines in ctype-uca.h
   manually. So @implicitweights lines are ignored here.
 */
-my_bool parse_at_line(MY_DUCET *ducet, const char *str)
+static my_bool parse_at_line(MY_DUCET *ducet, const char *str)
 {
   static const LEX_CSTRING version= {STRING_WITH_LEN("@version ")};
   if (!lstrncmp(str, version))
@@ -994,3 +994,4 @@ int main(int ac, char **av)
   
   return 0;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME

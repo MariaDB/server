@@ -1074,11 +1074,11 @@ static struct st_mysql_sys_var* example_system_variables[]= {
 // this is an example of SHOW_SIMPLE_FUNC and of my_snprintf() service
 // If this function would return an array, one should use SHOW_FUNC
 static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
-                             char *buf)
+                             void *buf, system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
   var->value= buf; // it's of SHOW_VAR_FUNC_BUFF_SIZE bytes
-  my_snprintf(buf, SHOW_VAR_FUNC_BUFF_SIZE,
+  my_snprintf((char*) buf, SHOW_VAR_FUNC_BUFF_SIZE,
               "enum_var is %lu, ulong_var is %lu, int_var is %d, "
               "double_var is %f, %.6b", // %b is a MariaDB/MySQL extension
               srv_enum_var, srv_ulong_var, THDVAR(thd, int_var),
