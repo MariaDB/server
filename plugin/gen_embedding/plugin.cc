@@ -60,16 +60,15 @@ class Item_func_gen_embedding: public Item_str_func
     /* 
       Make the request to OpenAI API to generate the embedding
       Store the result in api_response
-      This is a placeholder for the actual implementation
-      */
-     
-     // std::cout << "Host " << host << std::endl;
-     // std::cout <<  "API KEY" << api_key << std::endl;
-    String *input = args[0]->val_str(&api_response); // This value should be used as the input for the OpenAI API request
+    */
+    
+    // Input for the OpenAI API
+    String *input = args[0]->val_str(&api_response);
     if (!input) {
       null_value= true;
       return 1;
     }
+    // Model for the OpenAI API
     String *model = args[1]->val_str(&tmp_str);
     if (!model) {
       null_value= true;
@@ -80,6 +79,7 @@ class Item_func_gen_embedding: public Item_str_func
     std::ostringstream read_data_stream;
     std::string response;
     struct curl_slist *slist1;
+    long http_response_code;
 
     slist1 = NULL;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
@@ -108,17 +108,33 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_setopt(hnd, CURLOPT_WRITEDATA, &read_data_stream);
 
     ret = curl_easy_perform(hnd);
-
+    if (ret != CURLE_OK) {
+      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+        "curl returned this error code: %u "
+        "with the following error message: %s", ME_ERROR_LOG | ME_WARNING, ret,
+        curl_easy_strerror(ret));
+      goto cleanup;
+    }
+    curl_easy_getinfo(hnd, CURLINFO_RESPONSE_CODE, &http_response_code);
+    if (http_response_code != 200) { // TODO: Maybe the check here should be http_response_code < 200 || http_response_code >= 300
+      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+        "Bad http response code: %lu", ME_ERROR_LOG | ME_WARNING, http_response_code); // TODO: Grab the error message from response
+      goto cleanup;
+    }
     curl_easy_cleanup(hnd);
     hnd = NULL;
     curl_slist_free_all(slist1);
     slist1 = NULL;
     response = read_data_stream.str();
-    std::cout << "CURL return code: " << ret << std::endl;
-    // return (int)ret;
 
     api_response.copy(response.c_str(), response.length(), &my_charset_utf8mb3_general_ci); // TODO This charset works, but is this the correct one?
     return 0;
+cleanup:
+    curl_easy_cleanup(hnd);
+    hnd = NULL;
+    curl_slist_free_all(slist1);
+    slist1 = NULL;
+    return 1;
   }
 
   
