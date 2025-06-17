@@ -5836,6 +5836,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length,
                                         Tmp_table_kind find_kind);
 
+  void global_tmp_tables_set_explicit_lock_duration();
   bool use_real_global_temporary_share() const;
 
   bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
