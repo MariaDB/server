@@ -865,7 +865,6 @@ os_file_status_posix(
 
 	if (!ret) {
 		/* file exists, everything OK */
-		MSAN_STAT_WORKAROUND(&statinfo);
 	} else if (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG) {
 		/* file does not exist */
 		return(true);
@@ -1039,7 +1038,6 @@ static ATTRIBUTE_COLD void os_file_log_buffered()
 /** @return whether the log file may work with unbuffered I/O. */
 static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
 {
-  MSAN_STAT_WORKAROUND(&st);
   char b[20 + sizeof "/sys/dev/block/" ":" "/../queue/physical_block_size"];
   if (snprintf(b, sizeof b, "/sys/dev/block/%u:%u/queue/physical_block_size",
                major(st.st_dev), minor(st.st_dev)) >=
@@ -1443,7 +1441,6 @@ os_file_size_t os_file_get_size(const char *filename) noexcept
 	int	ret = stat(filename, &s);
 
 	if (ret == 0) {
-		MSAN_STAT_WORKAROUND(&s);
 		file_size.m_total_size = s.st_size;
 		/* st_blocks is in 512 byte sized blocks */
 		file_size.m_alloc_size = s.st_blocks * 512;
@@ -1487,8 +1484,6 @@ os_file_get_status_posix(
 
 		return(DB_FAIL);
 	}
-
-	MSAN_STAT_WORKAROUND(statinfo);
 
 	switch (statinfo->st_mode & S_IFMT) {
 	case S_IFDIR:
@@ -3754,7 +3749,6 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
   struct stat statbuf;
   if (!fstat(file, &statbuf))
   {
-    MSAN_STAT_WORKAROUND(&statbuf);
     block_size= statbuf.st_blksize;
 # ifdef __linux__
     on_ssd= fil_system.is_ssd(statbuf.st_dev);

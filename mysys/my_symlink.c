@@ -115,7 +115,6 @@ int my_is_symlink(const char *filename __attribute__((unused)))
   struct stat stat_buff;
   if (lstat(filename, &stat_buff))
     return 0;
-  MSAN_STAT_WORKAROUND(&stat_buff);
   return !!S_ISLNK(stat_buff.st_mode);
 #elif defined (_WIN32)
   DWORD dwAttr = GetFileAttributes(filename);

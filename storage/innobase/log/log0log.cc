@@ -284,11 +284,9 @@ remap:
     struct stat st;
     if (!fstat(file, &st))
     {
-      MSAN_STAT_WORKAROUND(&st);
       const auto st_dev= st.st_dev;
       if (!stat("/dev/shm", &st))
       {
-        MSAN_STAT_WORKAROUND(&st);
         is_pmem= st.st_dev == st_dev;
         if (!is_pmem)
           return ptr; /* MAP_FAILED */
