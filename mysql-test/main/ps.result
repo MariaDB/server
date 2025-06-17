@@ -3065,13 +3065,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select 1 AS `1` from `test`.`t1` `t2` left join `test`.`t1` on(1) where 1
+Note	1003	select 1 AS `1` from `test`.`t1` `t2` left join `test`.`t1` on(1) where true
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select 1 AS `1` from `test`.`t1` `t2` left join `test`.`t1` on(1) where 1
+Note	1003	select 1 AS `1` from `test`.`t1` `t2` left join `test`.`t1` on(1) where true
 DEALLOCATE PREPARE stmt;
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1;
@@ -5527,11 +5527,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where false) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
 SHOW WARNINGS;
 Level	Code	Message
 Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where false) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
 # Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
 # and their content must be the same as in case running the statement
 # in regular way
@@ -5544,11 +5544,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where false) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
 SHOW WARNINGS;
 Level	Code	Message
 Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where false) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
 #
@@ -5564,14 +5564,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where false)
 PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
+Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where false)
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2, t3;
 #

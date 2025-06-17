@@ -2198,7 +2198,7 @@ where t1_a.pk is null and t1_a.i1 != 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
-Note	1003	select 1 AS `1` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t1_a` where 0
+Note	1003	select 1 AS `1` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t1_a` where false
 drop table t1,t2;
 #
 # MDEV-18640: TABLE::prune_range_rowid_filters: Conditional jump or
