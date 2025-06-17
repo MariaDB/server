@@ -12002,7 +12002,14 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
          In 11.0+, that time is already included in pos->read_time)
       */
       partial_join_cost -= pos->read_time*fraction;
-      DBUG_ASSERT(partial_join_cost >= 0.0);
+      /*
+        Handle possible rounding errors when
+        partial_join_cost==pos->read_time*fraction:
+        Catch larger negatives, proceed with non-negative cost.
+      */
+      DBUG_ASSERT(partial_join_cost >= -DBL_EPSILON);
+      if (partial_join_cost < 0.0)
+        partial_join_cost= 0.0;
 
       /* Add the cost of the new access method we've got: */
       partial_join_cost= COST_ADD(partial_join_cost, *first_table_cost);
