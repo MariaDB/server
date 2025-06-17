@@ -2544,13 +2544,13 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	insert into t2(a) values(new.a)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Annotate_rows	#	#	insert into t3(a) values(new.a)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
