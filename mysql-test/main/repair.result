@@ -251,3 +251,14 @@ test.t1	repair	status	OK
 set myisam_repair_threads = default;
 drop table t1;
 # End of 10.2 tests
+#
+# Start of 10.11 tests
+#
+USE test;
+CREATE TEMPORARY TABLE t(c INT NOT NULL) ENGINE=CSV;
+INSERT INTO t VALUES(1);
+REPAIR TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	status	OK
+DELETE FROM t;
+# End of 10.11 tests
