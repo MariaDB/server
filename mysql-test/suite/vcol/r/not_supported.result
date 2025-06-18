@@ -55,3 +55,34 @@ ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS A
 #
 # End of 10.3 tests
 #
+#
+# MDEV-29155 CREATE OR REPLACE with self-referencing CHECK hangs forever, cannot be killed
+#
+create table t1 (a int);
+create table t2 (b int)
+# create or replace table t (b int);
+create table t3 (c int, check(exists(select a from t1) or exists(select b from t2)));
+ERROR 42000: CHECK does not support subqueries or stored functions
+create table t3 (c int, check(exists(select c from t3)));
+ERROR 42000: CHECK does not support subqueries or stored functions
+create table t3 (d int);
+create or replace table t3 (c int, check(exists(select a from t1) or exists(select b from t2)));
+ERROR 42000: CHECK does not support subqueries or stored functions
+drop table t3;
+create table t3 (d int);
+create or replace table t3 (c int, check(exists(select c from t3)));
+ERROR 42000: CHECK does not support subqueries or stored functions
+drop table t3;
+create table t3 (c int);
+alter table t3 add check(exists(select a from t1) or exists(select b from t2));
+ERROR 42000: CHECK does not support subqueries or stored functions
+alter table t3 add check(exists(select c from t3));
+ERROR 42000: CHECK does not support subqueries or stored functions
+create table t3 (c int default (select a from t1));
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `c`
+create table t3 (c int, d int generated always as (select a from t1 limit 1));
+ERROR HY000: Function or expression 'select ...' cannot be used in the GENERATED ALWAYS AS clause of `d`
+drop tables t1, t2, t3;
+#
+# End of 10.4 tests
+#

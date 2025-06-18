@@ -266,6 +266,7 @@ col1
 SET AUTOCOMMIT = 0;
 UPDATE t_permanent_innodb SET col1 = 9;
 UPDATE t_permanent_aria SET col1 = 9;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_myisam SET col1 = 9;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t_permanent_aria2 SET col1 = 9;

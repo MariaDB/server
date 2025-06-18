@@ -716,6 +716,10 @@ static void stop_timer(pool_timer_t *timer)
 
   @return a ready connection, or NULL on shutdown
 */
+
+/* ev[MAX_EVENTS] may bloat the stack frame beyond 16 KiB */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static TP_connection_generic * listener(worker_thread_t *current_thread,
                                thread_group_t *thread_group)
 {
@@ -831,6 +835,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
 
   DBUG_RETURN(retval);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /**
   Adjust thread counters in group or global
@@ -1158,6 +1163,9 @@ static bool too_many_threads(thread_group_t *thread_group)
   NULL is returned if timeout has expired,or on shutdown.
 */
 
+/* ev[MAX_EVENTS] may bloat the stack frame beyond 16 KiB */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 TP_connection_generic *get_event(worker_thread_t *current_thread,
   thread_group_t *thread_group,  struct timespec *abstime)
 {
@@ -1263,6 +1271,7 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
 
   DBUG_RETURN(connection);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 

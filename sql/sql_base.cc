@@ -4770,6 +4770,7 @@ restart:
             goto error;
 
           error= FALSE;
+          std::this_thread::yield();
           goto restart;
         }
         goto error;
@@ -4835,6 +4836,7 @@ restart:
 
             error= FALSE;
             sroutine_to_open= &thd->lex->sroutines_list.first;
+            std::this_thread::yield();
             goto restart;
           }
           /*
@@ -5115,6 +5117,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   FOREIGN_KEY_INFO *fk;
   Query_arena *arena, backup;
   TABLE *table= table_list->table;
+  bool error= FALSE;
 
   if (!table->file->referenced_by_foreign_key())
     DBUG_RETURN(FALSE);
@@ -5150,10 +5153,24 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
     tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
         NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
         op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
+
+#ifdef WITH_WSREP
+    /*
+      Append table level shared key for the referenced/foreign table for:
+        - statement that updates existing rows (UPDATE, multi-update)
+        - statement that deletes existing rows (DELETE, DELETE_MULTI)
+      This is done to avoid potential MDL conflicts with concurrent DDLs.
+    */
+    if (wsrep_foreign_key_append(thd, fk))
+    {
+      error= TRUE;
+      break;
+    }
+#endif // WITH_WSREP
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(error);
 }
 
 /**

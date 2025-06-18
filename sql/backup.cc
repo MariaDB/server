@@ -50,6 +50,7 @@ TYPELIB backup_stage_names= CREATE_TYPELIB_FOR(stage_names);
 static MDL_ticket *backup_flush_ticket;
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
+static backup_stages backup_stage;
 
 static bool backup_start(THD *thd);
 static bool backup_flush(THD *thd);
@@ -67,6 +68,7 @@ void backup_init()
   backup_flush_ticket= 0;
   backup_log= -1;
   backup_log_error= 0;
+  backup_stage= BACKUP_FINISHED;
 }
 
 bool run_backup_stage(THD *thd, backup_stages stage)
@@ -139,6 +141,7 @@ bool run_backup_stage(THD *thd, backup_stages stage)
       my_error(ER_BACKUP_STAGE_FAILED, MYF(0), stage_names[(uint) stage]);
       DBUG_RETURN(1);
     }
+    backup_stage= next_stage;
     next_stage= (backup_stages) ((uint) next_stage + 1);
   } while ((uint) next_stage <= (uint) stage);
 
@@ -173,6 +176,7 @@ static bool backup_start(THD *thd)
 
   /* this will be reset if this stage fails */
   thd->current_backup_stage= BACKUP_START;
+  backup_stage= BACKUP_START;
 
   /*
     Wait for old backup to finish and block ddl's so that we can start the
@@ -455,6 +459,7 @@ bool backup_end(THD *thd)
     // This is needed as we may call backup_end without backup_block_commit
     stop_ddl_logging();
     backup_flush_ticket= 0;
+    backup_stage= BACKUP_FINISHED;
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
@@ -512,7 +517,7 @@ bool backup_reset_alter_copy_lock(THD *thd)
   bool res= 0;
   MDL_ticket *ticket= thd->mdl_backup_ticket;
 
-  /* Ticket maybe NULL in case of LOCK TABLES or for temporary tables*/
+  /* Ticket maybe NULL in case of LOCK TABLES or for temporary tables */
   if (ticket)
     res= thd->mdl_context.upgrade_shared_lock(ticket, MDL_BACKUP_DDL,
                                               thd->variables.lock_wait_timeout);
@@ -637,6 +642,13 @@ static char *add_bool_to_buffer(char *ptr, bool value) {
 
 void backup_log_ddl(const backup_log_info *info)
 {
+  /*
+    We should not get any backup_log_ddl request after BACKUP_WAIT_FOR_FLUSH
+    has been executed.
+  */
+  DBUG_ASSERT(backup_stage <= BACKUP_WAIT_FOR_FLUSH ||
+              backup_stage >= BACKUP_END);
+
   if (backup_log >= 0 && backup_log_error == 0)
   {
     mysql_mutex_lock(&LOCK_backup_log);

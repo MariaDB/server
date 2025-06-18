@@ -138,6 +138,7 @@ scripts/mysqld_safe
 scripts/mysqldumpslow
 scripts/mysqlhotcopy
 scripts/mytop
+scripts/print_ddl_recovery_log.pl
 scripts/wsrep_sst_backup
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump

@@ -307,5 +307,25 @@ SELECT * FROM t1 WHERE f LIKE '2023%';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-36536 Add option to not collect statistics for long char/varchars
+--echo #
+
+select  @@session.analyze_max_length;
+create table t1 (c0 char(2), c1 char(16), c2 char(64), v1 varchar(16), v2 varchar(1000), b1 blob, i1 int)
+character set utf8mb4 COLLATE utf8mb4_bin;
+insert into t1 values ("A", "A","A","A","A","A",1), ("B","B","B","B","B","B",1);
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+select column_name from mysql.column_stats where table_name = 't1';
+set @@session.analyze_max_length= 64;
+truncate table mysql.column_stats;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+select column_name from mysql.column_stats where table_name = 't1';
+truncate table mysql.column_stats;
+ANALYZE TABLE t1 PERSISTENT for COLUMNS (c0,c2,v1,v2,i1) INDEXES ALL;
+select column_name from mysql.column_stats where table_name = 't1';
+set @@session.analyze_max_length= default;
+drop table t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

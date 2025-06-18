@@ -6995,9 +6995,6 @@ PRAGMA_REENABLE_CHECK_STACK_FRAME
   - user has file privilege
 */
 
-/* Stack size 16664 in clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 bool ha_connect::FileExists(const char *fn, bool bf)
 {
   if (!fn || !*fn)
@@ -7033,10 +7030,9 @@ bool ha_connect::FileExists(const char *fn, bool bf)
 
     if (n < 0) {
       if (errno != ENOENT) {
-        char buf[_MAX_PATH + 20];
-
-        snprintf(buf, sizeof(buf),  "Error %d for file %s", errno, filename);
-        push_warning(table->in_use, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, buf);
+        push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "Error %d for file %s", errno, filename);
         return true;
       } else
         return false;
@@ -7048,7 +7044,6 @@ bool ha_connect::FileExists(const char *fn, bool bf)
 
   return true;
 } // end of FileExists
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 // Called by SameString and NoFieldOptionChange
 bool ha_connect::CheckString(PCSZ str1, PCSZ str2)

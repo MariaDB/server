@@ -159,7 +159,7 @@ extern "C" void my_tzname(char* sys_timezone, size_t size)
   {
     /* TZ environment variable not set - return default timezone name*/
     UChar default_tzname[MAX_TIMEZONE_LEN];
-    UErrorCode ec;
+    UErrorCode ec= U_ZERO_ERROR;
     int32_t len=
         ucal_getDefaultTimeZone(default_tzname, MAX_TIMEZONE_LEN, &ec);
     if (U_SUCCESS(ec))

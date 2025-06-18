@@ -21,6 +21,7 @@
 /* Classes in mysql */
 
 #include <atomic>
+#include <thread>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -767,6 +768,7 @@ typedef struct system_variables
   ulong saved_lock_wait_timeout;
 #endif /* WITH_WSREP */
 
+  uint analyze_max_length;
   ulong auto_increment_increment, auto_increment_offset;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;

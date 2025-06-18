@@ -456,6 +456,19 @@ static Sys_var_double Sys_analyze_sample_percentage(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100),
        DEFAULT(100));
 
+/*
+  The max length have to be UINT_MAX32 to not remove GEOMETRY fields
+  from analyze.
+*/
+
+static Sys_var_uint Sys_analyze_max_length(
+       "analyze_max_length",
+       "Fields which length in bytes more than this are skipped by ANALYZE "
+       "TABLE PERSISTENT unless explicitly listed in the FOR COLUMNS () clause",
+       SESSION_VAR(analyze_max_length),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(32, UINT_MAX32),
+       DEFAULT(UINT_MAX32), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",
@@ -5468,7 +5481,8 @@ static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with sanitize (compiler option), this "
        "variable is set to the sanitizer mode used. Possible values are "
-       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer)",
+       "ASAN (Address sanitizer) and/or UBSAN (Undefined Behavior Sanitizer),"
+       " or MSAN (memory sanitizer)",
         READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
        DEFAULT(SANITIZER_MODE));
 #endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */

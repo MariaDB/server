@@ -9032,7 +9032,7 @@ char *set_server_version(char *buf, size_t size)
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
   const char *is_valgrind=
-#ifdef HAVE_valgrind
+#if defined(HAVE_valgrind) && !__has_feature(memory_sanitizer)
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
