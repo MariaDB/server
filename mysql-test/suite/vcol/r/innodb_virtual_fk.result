@@ -93,7 +93,7 @@ t	CREATE TABLE `t` (
   KEY `b` (`b`),
   KEY `c` (`c`),
   KEY `a` (`a`),
-  CONSTRAINT `t_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t` (`b`)
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 #
