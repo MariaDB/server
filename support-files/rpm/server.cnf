@@ -11,6 +11,15 @@
 # you can put MariaDB-only options here
 [mariadb]
 
+#
+# * Enable the Feedback plugin and submit anonymous usage information
+#
+# Feedback plugin collects basic anonymous statistical information that can be
+# used by the developers to improve MariaDB. This is an easy way to help with
+# MariaDB development. Collected statistics can be viewed at
+# http://mariadb.org/feedback-plugin
+#feedback=ON
+
 # This group is read by both MariaDB and MySQL servers
 [mysqld]
 
