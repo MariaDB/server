@@ -22,6 +22,7 @@
 #include <curl/curl.h>
 #include "sql_type_vector.h"
 #include "item_jsonfunc.cc"
+#include <unordered_map>
 
 static char *host, *api_key;
 
@@ -55,6 +56,11 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 class Item_func_gen_embedding: public Item_str_func 
 {
   String tmp_js, api_response, tmp_str;
+  std::unordered_map<std::string, int> model_dimensions = {
+    {"text-embedding-3-small", 1536},
+    {"text-embedding-ada-002", 1536},
+    {"text-embedding-3-large", 3072}
+  };
 
   int make_openai_request() {
     /* 
@@ -81,6 +87,7 @@ class Item_func_gen_embedding: public Item_str_func
     struct curl_slist *slist1;
     long http_response_code;
 
+    std::string model_name= (std::string) args[1]->val_str()->c_ptr();
     slist1 = NULL;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
     slist1 = curl_slist_append(slist1, authorization.c_str());
@@ -106,7 +113,15 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_setopt(hnd, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(hnd, CURLOPT_WRITEDATA, &read_data_stream);
-
+    // Before performing the request, check if the model is supported
+    // This might allow us to avoid a request if the model is not supported
+    if (model_dimensions.find(model_name) == model_dimensions.end()) {
+      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+        "Model %s is not supported", ME_ERROR_LOG | ME_WARNING, model_name.c_str());
+      null_value= true;
+      goto cleanup;
+    }
+    
     ret = curl_easy_perform(hnd);
     if (ret != CURLE_OK) {
       my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
@@ -150,9 +165,20 @@ cleanup:
       // Is there a better place to do this?
       host = THDVAR(thd, host);
       api_key = THDVAR(thd, api_key);
+      uint max_dimensions = 3072; // Default to the largest embedding size
+      if (args[1]->const_item()) { // If a const, we can parse the model name here and determine the max dimensions 
+        std::string model_name= (std::string) args[1]->val_str()->c_ptr();
+        if (model_dimensions.find(args[1]->val_str()->c_ptr()) != model_dimensions.end()) {
+          max_dimensions = model_dimensions[model_name];
+        }
+        else {
+          // TODO: Can we also early exit here?
+          my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+            "Model %s is not supported", ME_ERROR_LOG | ME_WARNING, model_name.c_str());
+        }
+      }
 
       decimals= 0;
-      uint max_dimensions = 3072;
       // TODO: What is the best way/place to do this allocation?
       MEM_ROOT *root= thd->active_stmt_arena_to_use()->mem_root;
       uint n_paths = 1;
