@@ -135,7 +135,7 @@ maria_declare_plugin_end;
 MYSQL_PLUGIN_EXPORT
 char *ed25519_password(UDF_INIT *initid __attribute__((unused)),
                        UDF_ARGS *args, char *result, unsigned long *length,
-                       char *is_null, char *error __attribute__((unused)))
+                       unsigned char *is_null, unsigned char *error __attribute__((unused)))
 {
   unsigned char pk[CRYPTO_PUBLICKEYBYTES];
 

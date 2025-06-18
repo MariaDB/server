@@ -32,6 +32,13 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=calloc-transposed-args")
 
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
 
+STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+       CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+       CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
+       CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+
 # this does everything, gets the var from the correct scope, appends new
 # values, sets in the correct scope
 macro(APPEND_FOR_CPACK V)

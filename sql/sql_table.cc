@@ -8181,7 +8181,7 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   if (table->file->ha_prepare_inplace_alter_table(altered_table,
                                                   ha_alter_info))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   debug_crash_here("ddl_log_alter_after_prepare_inplace");
 
@@ -8237,21 +8237,17 @@ static bool mysql_inplace_alter_table(THD *thd,
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
 
-  if (start_alter_id && wait_for_master(thd))
-    goto rollback;
-
-  if (res)
-    goto rollback;
-
+  if (res || (start_alter_id && wait_for_master(thd)))
+    goto rollback_no_restore_lock;
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Set MDL_BACKUP_DDL */
   if (backup_reset_alter_copy_lock(thd))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Crashing here should cause the original table to be used */
   debug_crash_here("ddl_log_alter_after_copy");
@@ -8280,7 +8276,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (!(table->file->partition_ht()->flags &
         HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT) &&
       notify_tabledef_changed(table_list))
-    goto rollback;
+    goto rollback_restore_lock;
 
   {
     TR_table trt(thd, true);
@@ -8293,17 +8289,17 @@ static bool mysql_inplace_alter_table(THD *thd,
         if (!TR_table::use_transaction_registry)
         {
           my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-          goto rollback;
+          goto rollback_restore_lock;
         }
         if (trt.update(trx_start_id, trx_end_id))
-          goto rollback;
+          goto rollback_restore_lock;
       }
     }
 
     if (table->file->ha_commit_inplace_alter_table(altered_table,
                                                   ha_alter_info,
                                                   true))
-      goto rollback;
+      goto rollback_restore_lock;
     DEBUG_SYNC(thd, "alter_table_inplace_after_commit");
   }
 
@@ -8400,7 +8396,11 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DBUG_RETURN(commit_succeded_with_error);
 
- rollback:
+rollback_restore_lock:
+  /* Wait for backup if it is running */
+  backup_reset_alter_copy_lock(thd);
+
+rollback_no_restore_lock:
   table->file->ha_commit_inplace_alter_table(altered_table,
                                              ha_alter_info,
                                              false);
@@ -12524,12 +12524,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 {
   int error= 1;
   Copy_field *copy= NULL, *copy_end;
+  void *rli_buff;
   ha_rows found_count= 0, delete_count= 0;
   SORT_INFO  *file_sort= 0;
   READ_RECORD info;
-  TABLE_LIST   tables;
-  List<Item>   fields;
-  List<Item>   all_fields;
   bool auto_increment_field_copied= 0;
   bool cleanup_done= 0;
   bool init_read_record_done= 0;
@@ -12545,7 +12543,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
-  if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
+  // Relay_log_info is too big to put on a stack
+  if (!(rli_buff= thd->alloc(sizeof(Relay_log_info))) ||
+      !(copy= new (thd->mem_root) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);
 
   if (mysql_trans_prepare_alter_copy_data(thd))
@@ -12588,6 +12588,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   copy_end=copy;
   to->s->default_fields= 0;
   error= 1;
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE &&
+      from->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT &&
+      from->file->stats.records != 1)
+  {
+    if (from->file->stats.records > 1)
+      my_error(ER_INTERNAL_ERROR, MYF(0), "More than one row in the table");
+    else
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Fewer than one row in the table");
+    goto err;
+  }
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -12646,6 +12656,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else
     {
+      TABLE_LIST   tables;
+      List<Item>   fields;
+      List<Item>   all_fields;
       bzero((char *) &tables, sizeof(tables));
       tables.table= from;
       tables.alias= tables.table_name= from->s->table_name;
@@ -12798,6 +12811,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         else
           to->next_number_field->reset();
       }
+      if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 1)
+      {
+        my_error(ER_INTERNAL_ERROR, MYF(0), "More than one row in the table");
+        error= 1;
+        break;
+      }
       error= to->file->ha_write_row(to->record[0]);
       to->auto_increment_field_not_null= FALSE;
       if (unlikely(error))
@@ -12869,6 +12888,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   DEBUG_SYNC(thd, "alter_table_copy_end");
 
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 0)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0), "Fewer than one row in the table");
+    error= 1;
+  }
+
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
 
@@ -12903,8 +12928,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     enum_sql_command saved_sql_command= thd->lex->sql_command;
     Table_map_log_event table_event(thd, from, from->s->table_map_id,
                                     from->file->has_transactions());
-    Relay_log_info rli(false);
-    rpl_group_info rgi(&rli);
+
+    Relay_log_info *rli= new(rli_buff) Relay_log_info(false);
+    rpl_group_info rgi(rli);
     RPL_TABLE_LIST rpl_table(to, TL_WRITE, from, table_event.get_table_def(),
                              copy, copy_end);
     DBUG_ASSERT(to->pos_in_table_list == NULL);
@@ -12917,7 +12943,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     Cache_flip_event_log *binlog= from->s->online_alter_binlog;
     DBUG_ASSERT(binlog->is_open());
 
-    rli.relay_log.description_event_for_exec=
+    rli->relay_log.description_event_for_exec=
                                             new Format_description_log_event(4);
 
     // We'll be filling from->record[0] from row events
@@ -12967,6 +12993,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     to->pos_in_table_list= NULL; // Safety
     DBUG_ASSERT(thd->lex->sql_command == saved_sql_command);
     thd->lex->sql_command= saved_sql_command; // Just in case
+    rli->~Relay_log_info();
   }
 #endif
 
@@ -12982,7 +13009,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
-  
+
   if (unlikely(error) && online)
   {
     /*
@@ -12997,13 +13024,13 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
        If share exists, we'll always have ref_count >= 1.
        Once it reaches destroy(), nobody can acquire it again,
        therefore, only release() is possible at this moment.
-       
+
        Also, this will release the binlog.
     */
     from->s->tdc->flush_unused(1);
   }
 
- err:
+end:
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
 
@@ -13032,6 +13059,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
     error= 1;
   DBUG_RETURN(error > 0 ? -1 : 0);
+
+err:
+  backup_reset_alter_copy_lock(thd);
+  goto end;
 }
 
 

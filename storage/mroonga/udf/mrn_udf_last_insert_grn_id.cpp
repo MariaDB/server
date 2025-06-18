@@ -45,7 +45,7 @@ MRN_API my_bool last_insert_grn_id_init(UDF_INIT *init, UDF_ARGS *args, char *me
   return 0;
 }
 
-MRN_API longlong last_insert_grn_id(UDF_INIT *init, UDF_ARGS *args, char *is_null, char *error)
+MRN_API longlong last_insert_grn_id(UDF_INIT *init, UDF_ARGS *args, uchar *is_null, uchar *error)
 {
   THD *thd = current_thd;
   st_mrn_slot_data *slot_data = mrn_get_slot_data(thd, false);

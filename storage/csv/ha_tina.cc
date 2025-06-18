@@ -1463,6 +1463,7 @@ int ha_tina::rnd_end()
       of the old datafile.
     */
     if (mysql_file_close(data_file, MYF(0)) ||
+        mysql_file_delete(csv_key_file_data, share->data_file_name, MYF(0)) ||
         mysql_file_rename(csv_key_file_data,
                           fn_format(updated_fname, share->table_name,
                                     "", CSN_EXT,

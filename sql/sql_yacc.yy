@@ -6184,9 +6184,12 @@ opt_check_constraint:
         ;
 
 check_constraint:
-          CHECK_SYM '(' expr ')'
+          CHECK_SYM '('
+          { Lex->clause_that_disallows_subselect= "CHECK"; }
+          expr ')'
           {
-            Virtual_column_info *v= add_virtual_expression(thd, $3);
+            Virtual_column_info *v= add_virtual_expression(thd, $4);
+            Lex->clause_that_disallows_subselect= NULL;
             if (unlikely(!v))
               MYSQL_YYABORT;
             $$= v;

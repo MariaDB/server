@@ -729,4 +729,30 @@ create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 drop table t1;
 
+--echo #
+--echo # MDEV-33675 assertion(reclength < vreclength) in setup_vcols_for_repair()
+--echo #
+create table t (c1 bit, unique key(c1) using hash) engine=myisam;
+insert into t values (0);
+check table t;
+insert into t values();
+select cast(c1 as unsigned) c1 from t;
+drop table t;
+
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+                 c4 long as (c1) stored) engine=myisam;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+drop table t1;
+
+create table t1 (c1 bit, c2 long as (c1) virtual, c3 char(10),
+                 c4 long as (c1) stored) engine=aria;
+insert into t1 (c1, c3) values (1, "a");
+check table t1;
+insert into t1 values();
+select hex(c1), hex(c2), c3, hex(c4) from t1;
+drop table t1;
+
 --echo # End of 10.5 tests

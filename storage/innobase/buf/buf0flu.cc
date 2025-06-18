@@ -2279,6 +2279,12 @@ redo log capacity filled threshold.
 @return true if adaptive flushing is recommended. */
 static bool af_needed_for_redo(lsn_t oldest_lsn) noexcept
 {
+  /* We may have oldest_lsn > log_sys.get_lsn_approx() if
+  log_t::write_buf() or log_t::persist() are executing concurrently
+  with this. In that case, age > af_lwm should hold, and
+  buf_flush_page_cleaner() would execute one more timed wait. (Not a
+  big problem.) */
+
   lsn_t age= log_sys.get_lsn_approx() - oldest_lsn;
   lsn_t af_lwm= static_cast<lsn_t>(srv_adaptive_flushing_lwm *
     static_cast<double>(log_sys.log_capacity) / 100);
@@ -2340,8 +2346,10 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	ulint			n_pages = 0;
 
 	const lsn_t cur_lsn = log_sys.get_lsn_approx();
-	ut_ad(oldest_lsn <= cur_lsn);
-	ulint pct_for_lsn = af_get_pct_for_lsn(cur_lsn - oldest_lsn);
+	/* We may have cur_lsn < oldest_lsn if
+	log_t::write_buf() or log_t::persist() were executing concurrently. */
+	ulint pct_for_lsn = cur_lsn < oldest_lsn
+                ? 0 : af_get_pct_for_lsn(cur_lsn - oldest_lsn);
 	time_t curr_time = time(nullptr);
 	const double max_pct = srv_max_buf_pool_modified_pct;
 

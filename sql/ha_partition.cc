@@ -2209,7 +2209,10 @@ int ha_partition::copy_partitions(ulonglong * const copied,
   else if (m_part_info->part_type == VERSIONING_PARTITION)
   {
     if (m_part_info->check_constants(ha_thd(), m_part_info))
+    {
+      result= HA_ERR_PARTITION_LIST;
       goto init_error;
+    }
   }
 
   while (reorg_part < m_reorged_parts)

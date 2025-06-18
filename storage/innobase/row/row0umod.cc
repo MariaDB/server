@@ -1105,9 +1105,8 @@ row_undo_mod_upd_exist_sec(
 		dtuple_t* entry = row_build_index_entry(
 			node->row, node->ext, index, heap);
 		if (UNIV_UNLIKELY(!entry)) {
-			/* The server must have crashed in
-			row_upd_clust_rec_by_insert() before
-			the updated externally stored columns (BLOBs)
+			/* InnoDB must have run of space or been killed
+			before the updated externally stored columns (BLOBs)
 			of the new clustered index entry were written. */
 
 			/* The table must be in DYNAMIC or COMPRESSED
@@ -1115,19 +1114,6 @@ row_undo_mod_upd_exist_sec(
 			store a local 768-byte prefix of each
 			externally stored column. */
 			ut_a(dict_table_has_atomic_blobs(index->table));
-
-			/* This is only legitimate when
-			rolling back an incomplete transaction
-			after crash recovery. */
-			ut_a(thr_get_trx(thr)->is_recovered);
-
-			/* The server must have crashed before
-			completing the insert of the new
-			clustered index entry and before
-			inserting to the secondary indexes.
-			Because node->row was not yet written
-			to this index, we can ignore it.  But
-			we must restore node->undo_row. */
 		} else {
 			/* NOTE that if we updated the fields of a
 			delete-marked secondary index record so that

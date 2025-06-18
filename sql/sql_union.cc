@@ -466,21 +466,30 @@ int select_unit::update_counter(Field* counter, longlong value)
     Try to disable index
   
   @retval
-    true    index is disabled this time
+    true    index is disabled and unfold is needed
     false   this time did not disable the index
 */
 
 bool select_unit_ext::disable_index_if_needed(SELECT_LEX *curr_sl)
 { 
+  const bool oracle_mode= thd->variables.sql_mode & MODE_ORACLE;
   if (is_index_enabled && 
-      (curr_sl == curr_sl->master_unit()->union_distinct || 
+      ((!oracle_mode &&
+        curr_sl == curr_sl->master_unit()->union_distinct) ||
         !curr_sl->next_select()) )
   {
     is_index_enabled= false;
-    if (table->file->ha_disable_indexes(key_map(0), false))
+    int error= table->file->ha_disable_indexes(key_map(0), false);
+    if (error)
+    {
+      table->file->print_error(error, MYF(0));
+      DBUG_ASSERT(0);
       return false;
+    }
     table->no_keyread=1;
-    return true;
+    /* In case of Oracle mode we unfold at the last operator */
+    DBUG_ASSERT(!oracle_mode || !curr_sl->next_select());
+    return oracle_mode || !curr_sl->distinct;
   }
   return false;
 }
@@ -763,8 +772,7 @@ bool select_unit_ext::send_eof()
                         next_sl &&
                         next_sl->get_linkage() == INTERSECT_TYPE &&
                         !next_sl->distinct;
-  bool need_unfold= (disable_index_if_needed(curr_sl) &&
-                    !curr_sl->distinct);
+  bool need_unfold= disable_index_if_needed(curr_sl);
 
   if (((curr_sl->distinct && !is_next_distinct) ||
       curr_op_type == INTERSECT_ALL ||
@@ -772,7 +780,8 @@ bool select_unit_ext::send_eof()
       !need_unfold)
   {
     if (!next_sl)
-      DBUG_ASSERT(curr_op_type != INTERSECT_ALL);
+      DBUG_ASSERT((thd->variables.sql_mode & MODE_ORACLE) ||
+                  curr_op_type != INTERSECT_ALL);
     bool need_update_row;
     if (unlikely(table->file->ha_rnd_init_with_error(1)))
       return 1;
@@ -1409,8 +1418,8 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   uint union_part_count= 0;
   select_result *tmp_result;
   bool is_union_select;
-  bool have_except= false, have_intersect= false,
-    have_except_all_or_intersect_all= false;
+  bool have_except= false, have_intersect= false;
+  have_except_all_or_intersect_all= false;
   bool instantiate_tmp_table= false;
   bool use_direct_union_result= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
@@ -2350,6 +2359,7 @@ bool st_select_lex_unit::exec_inner()
   ulonglong add_rows=0;
   bool first_execution= !executed;
   bool was_executed= executed;
+  int error;
 
   executed= 1;
   if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item &&
@@ -2431,17 +2441,32 @@ bool st_select_lex_unit::exec_inner()
       if (likely(!saved_error))
       {
 	records_at_start= table->file->stats.records;
+
+        /* select_unit::send_data() writes rows to (temporary) table */
 	if (sl->tvc)
 	  sl->tvc->exec(sl);
 	else
 	  saved_error= sl->join->exec();
+        /*
+          Allow UNION ALL to work: disable unique key. We cannot disable indexes
+          in the middle of the query because enabling indexes requires table to be empty
+          (see heap_enable_indexes()). So there is special union_distinct property
+          which is the rightmost distinct UNION in the expression and we release
+          the unique key after the last (rightmost) distinct UNION, therefore only the
+          subsequent UNION ALL work as non-distinct.
+        */
         if (sl == union_distinct && !have_except_all_or_intersect_all &&
             !(with_element && with_element->is_recursive))
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (table->file->ha_disable_indexes(key_map(0), false))
+          error= table->file->ha_disable_indexes(key_map(0), false);
+          if (error)
+          {
+            table->file->print_error(error, MYF(0));
+            DBUG_ASSERT(0);
             return true;
+          }
 	  table->no_keyread=1;
 	}
 	if (likely(!saved_error))
