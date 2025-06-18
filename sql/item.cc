@@ -5792,6 +5792,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
+    if (group_by_ref && (*group_by_ref)->type() == Item::REF_ITEM)
+      return ((Item_ref*)(*group_by_ref))->ref;
     if (group_by_ref)
       return group_by_ref;
     DBUG_ASSERT(FALSE);
@@ -10446,7 +10448,11 @@ bool Item_cache_bool::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_bool_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= false;
   return true;
@@ -10458,7 +10464,11 @@ bool  Item_cache_int::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_int_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
@@ -10535,7 +10545,11 @@ bool Item_cache_temporal::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_datetime_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_datetime_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10546,7 +10560,11 @@ bool Item_cache_time::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_time_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_time_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10674,8 +10692,12 @@ bool Item_cache_timestamp::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   null_value_inside= null_value=
-    example->val_native_with_conversion_result(current_thd, &m_native, type_handler());
+    example->val_native_with_conversion_result(thd, &m_native, type_handler());
+  if (!err && thd->is_error())
+    value_cached= false;
   return true;
 }
 
@@ -10685,7 +10707,11 @@ bool Item_cache_real::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return TRUE;
 }
@@ -10752,7 +10778,11 @@ bool Item_cache_decimal::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   my_decimal *val= example->val_decimal_result(&decimal_value);
+  if (!err && thd->is_error())
+    value_cached= false;
   if (!(null_value_inside= null_value= example->null_value) &&
         val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
@@ -10808,8 +10838,12 @@ bool Item_cache_str::cache_value()
     return FALSE;
   }
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
+  if (!err && thd->is_error())
+    value_cached= false;
   if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)

@@ -406,9 +406,10 @@ public:
   @param encrypted  whether the log is encrypted */
   static void header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept;
 
-  /** @return a lower bound estimate of get_lsn(),
+  /** @return an estimate of get_lsn(),
   using acquire-release ordering with write_buf() or persist();
-  this is exact unless append_prepare_wait() is pending */
+  an upper bound if said functions have updated only one of the fields,
+  a lower bound if append_prepare_wait() is pending, otherwise exact */
   lsn_t get_lsn_approx() const noexcept
   {
     /* acquire-release ordering with write_buf() and persist() */

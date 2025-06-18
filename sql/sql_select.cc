@@ -1279,10 +1279,25 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
 
       if (vers_conditions.type == SYSTEM_TIME_ALL)
+      {
+        if (vers_conditions.has_param)
+        {
+          /*
+            Parameter substitution (set_params_from_actual_params()) works
+            on existing items so we don't have to reevaluate table->where
+            (in update_this below), we just update SELECT_LEX WHERE expression
+            from existing table conditions.
+          */
+          DBUG_ASSERT(vers_conditions.delete_history);
+          DBUG_ASSERT(thd->stmt_arena->is_stmt_execute());
+          where= and_items(thd, where, table->where);
+        }
         continue;
+      }
     }
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
+    bool update_this= update_conds;
 
     if (vers_conditions.is_set() && vers_conditions.type != SYSTEM_TIME_HISTORY)
     {
@@ -1299,9 +1314,23 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name.str);
         DBUG_RETURN(-1);
       }
+      if (vers_conditions.has_param)
+      {
+        /*
+          PS parameter in history expression requires processing at execution
+          stage when parameters has values substituted. So at prepare continue
+          the loop, but at execution enter update_this. The second execution
+          is skipped on vers_conditions.type == SYSTEM_TIME_ALL condition.
+        */
+        DBUG_ASSERT(vers_conditions.delete_history);
+        if (thd->stmt_arena->is_stmt_prepare())
+          continue;
+        DBUG_ASSERT(thd->stmt_arena->is_stmt_execute());
+        update_this= true;
+      }
     }
 
-    if (update_conds)
+    if (update_this)
     {
       vers_conditions.period = &table->table->s->vers;
       Item *cond= period_get_condition(thd, table, this, &vers_conditions,

@@ -5377,7 +5377,8 @@ static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
        "If the server is compiled with sanitize (compiler option), this "
        "variable is set to the sanitizer mode used. Possible values are "
-       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer).",
+       "ASAN (Address sanitizer) and/or UBSAN (Undefined Behavior Sanitizer),"
+       " or MSAN (memory sanitizer).",
         READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
        DEFAULT(SANITIZER_MODE));
 #endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */

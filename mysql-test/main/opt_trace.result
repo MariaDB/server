@@ -11069,9 +11069,9 @@ SUBQ	a
 985	1
 985	2
 # The trace must be empty:
-select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record')) as TRACE
 from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+TRACE
 NULL
 # The trace must be empty:
 select json_detailed(json_extract(trace, '$**.join_execution'))

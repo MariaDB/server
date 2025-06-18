@@ -1,0 +1,5 @@
+!include include/default_my.cnf
+
+[ENV]
+MSAN_OPTIONS=allocator_may_return_null=1:abort_on_error=1
+

@@ -330,7 +330,7 @@ public:
 	char   *LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx = 10);
 
 protected:
-	my_bool SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
+	my_bool SetArrayOptions(PGLOBAL g, char *p, int i);
 	PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
 	PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    GetCalcValue(PGLOBAL g, PJAR bap, int n);

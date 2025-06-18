@@ -6054,7 +6054,6 @@ allocate:
 
   while ((item= it++))
   {
-    DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
     transl[field_count++].item= item;
@@ -10520,8 +10519,8 @@ bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.check_unit(thd) ||
-         end.check_unit(thd);
+  return start.check_unit(thd, this) ||
+         end.check_unit(thd, this);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -10547,7 +10546,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::check_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd, vers_select_conds_t *vers_conds)
 {
   if (!item)
     return false;
@@ -10557,6 +10556,9 @@ bool Vers_history_point::check_unit(THD *thd)
              item->full_name(), "FOR SYSTEM_TIME");
     return true;
   }
+  else if (item->with_param())
+    vers_conds->has_param= true;
+
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();

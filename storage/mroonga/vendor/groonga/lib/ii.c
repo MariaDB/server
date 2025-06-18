@@ -44,6 +44,8 @@
 # include <onigmo.h>
 #endif
 
+#include "my_attribute.h"
+
 #define MAX_PSEG                 0x20000
 #define MAX_PSEG_SMALL           0x00200
 /* MAX_PSEG_MEDIUM has enough space for the following source:
@@ -2833,6 +2835,8 @@ chunk_flush(grn_ctx *ctx, grn_ii *ii, chunk_info *cinfo, uint8_t *enc, uint32_t 
   return ctx->rc;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 chunk_merge(grn_ctx *ctx, grn_ii *ii, buffer *sb, buffer_term *bt,
             chunk_info *cinfo, grn_id rid, datavec *dv,
@@ -2940,6 +2944,8 @@ chunk_merge(grn_ctx *ctx, grn_ii *ii, buffer *sb, buffer_term *bt,
   return ctx->rc;
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 static void
 buffer_merge_dump_datavec(grn_ctx *ctx,
                           grn_ii *ii,
@@ -2988,6 +2994,8 @@ buffer_merge_dump_datavec(grn_ctx *ctx,
 
   GRN_OBJ_FIN(ctx, &buffer);
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 /* If dc doesn't have enough space, program may be crashed.
  * TODO: Support auto space extension or max size check.
@@ -3313,6 +3321,8 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
   db->header.nterms_void = nterms_void;
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void
 fake_map(grn_ctx *ctx, grn_io *io, grn_io_win *iw, void *addr, uint32_t seg, uint32_t size)
@@ -4509,6 +4519,9 @@ grn_ii_get_disk_usage(grn_ctx *ctx, grn_ii *ii)
   return usage;
 }
 
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 #define BIT11_01(x) ((x >> 1) & 0x7ff)
 #define BIT31_12(x) (x >> 12)
 
@@ -4783,6 +4796,8 @@ exit :
   grn_ii_expire(ctx, ii);
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 grn_rc
 grn_ii_delete_one(grn_ctx *ctx, grn_ii *ii, grn_id tid, grn_ii_updspec *u, grn_hash *h)
