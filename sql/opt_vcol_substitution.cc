@@ -454,14 +454,17 @@ Item* Item_func_null_predicate::vcol_subst_transformer(THD *thd, uchar *arg)
 Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
 {
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
+  Field *vcol_field= nullptr;
 
-  /* Check that all arguments inside IN() are constants */
-  if (!compatible_types_scalar_bisection_possible())
+  /*
+    Check that the left hand side of IN() is a virtual column expression and
+    that all arguments inside IN() are constants.
+  */
+  if (!(vcol_field= is_vcol_expr(ctx, args[0])) ||
+      !compatible_types_scalar_bisection_possible())
     return this;
 
-  Field *vcol_field;
-  if ((vcol_field= is_vcol_expr(ctx, args[0])))
-    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
   return this;
 }
 
