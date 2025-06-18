@@ -460,6 +460,7 @@ static bool is_cond_sj_in_equality(Item *item);
 static bool sj_table_is_included(JOIN *join, JOIN_TAB *join_tab);
 static Item *remove_additional_cond(Item* conds);
 static void remove_subq_pushed_predicates(JOIN *join, Item **where);
+static bool is_or_with_removable_equality(Item *conds);
 
 enum_nested_loop_state 
 end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
@@ -5776,23 +5777,26 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 static Item *remove_additional_cond(Item* conds)
 {
   if (conds->name.str == in_additional_cond.str)
-    return 0;
-  if (conds->type() == Item::COND_ITEM)
+    return is_or_with_removable_equality(conds) ? nullptr : conds;
+
+  if (conds->type() != Item::COND_ITEM)
+    return conds;
+
+  Item_cond *cnd= (Item_cond*) conds;
+  List_iterator<Item> li(*(cnd->argument_list()));
+  Item *item;
+  while ((item= li++))
   {
-    Item_cond *cnd= (Item_cond*) conds;
-    List_iterator<Item> li(*(cnd->argument_list()));
-    Item *item;
-    while ((item= li++))
-    {
-      if (item->name.str == in_additional_cond.str)
-      {
-	li.remove();
-	if (cnd->argument_list()->elements == 1)
-	  return cnd->argument_list()->head();
-	return conds;
-      }
-    }
+    if (item->name.str != in_additional_cond.str)
+      continue;
+
+    li.remove();
+    if (cnd->argument_list()->elements == 1)
+      return cnd->argument_list()->head();
+
+    return conds;
   }
+
   return conds;
 }
 
@@ -5801,9 +5805,14 @@ static Item *remove_additional_cond(Item* conds)
   Remove the predicates pushed down into the subquery
 
   SYNOPSIS
-    remove_subq_pushed_predicates()
-      where   IN  Must be NULL
-              OUT The remaining WHERE condition, or NULL
+    remove_subq_pushed_predicates_impl()
+
+    @where   IN  If not NULL and predicate eligible for removal, this function
+                 removes it.
+             OUT The remaining WHERE condition, or NULL
+    @return  true if the predicate was removed.  If @where was NULL, then the
+             return value indicates whether the predicate would have been
+             removed.
 
   DESCRIPTION
     Given that this join will be executed using (unique|index)_subquery,
@@ -5823,26 +5832,51 @@ static Item *remove_additional_cond(Item* conds)
     TODO: We can remove the equalities that will be guaranteed to be true by the
     fact that subquery engine will be using index lookup. This must be done only
     for cases where there are no conversion errors of significance, e.g. 257
-    that is searched in a byte. But this requires homogenization of the return 
+    that is searched in a byte. But this requires homogenization of the return
     codes of all Field*::store() methods.
 */
 
-static void remove_subq_pushed_predicates(JOIN *join, Item **where)
+static bool remove_subq_pushed_predicates_impl(Item *item, Item **where)
 {
-  if (join->conds->type() == Item::FUNC_ITEM &&
-      ((Item_func *)join->conds)->functype() == Item_func::EQ_FUNC &&
-      ((Item_func *)join->conds)->arguments()[0]->type() == Item::REF_ITEM &&
-      ((Item_func *)join->conds)->arguments()[1]->type() == Item::FIELD_ITEM &&
-      test_if_ref (join->conds,
-                   (Item_field *)((Item_func *)join->conds)->arguments()[1],
-                   ((Item_func *)join->conds)->arguments()[0]))
+  if (item->type() == Item::FUNC_ITEM &&
+      ((Item_func *)item)->functype() == Item_func::EQ_FUNC &&
+      ((Item_func *)item)->arguments()[0]->type() == Item::REF_ITEM &&
+      ((Item_func *)item)->arguments()[1]->type() == Item::FIELD_ITEM &&
+      test_if_ref (item,
+                   (Item_field *)((Item_func *)item)->arguments()[1],
+                   ((Item_func *)item)->arguments()[0]))
   {
-    *where= 0;
-    return;
+    if (where)
+      *where= nullptr;
+    return true;
   }
+
+  return false;
 }
 
 
+/*
+  See documentation above for remove_subq_pushed_predicates_impl
+*/
+static void remove_subq_pushed_predicates(JOIN *join, Item **where)
+{
+  remove_subq_pushed_predicates_impl(join->conds, where);
+}
+
+
+/*
+  See documentation above for remove_subq_pushed_predicates_impl
+*/
+static bool is_or_with_removable_equality(Item *conds)
+{
+  DBUG_ASSERT(conds->name.str == in_additional_cond.str);
+  Item_cond_or *or_cond= dynamic_cast<Item_cond_or*>(conds);
+  if (!or_cond)
+    return false;
+  Item *item= or_cond->argument_list()->head();
+
+  return remove_subq_pushed_predicates_impl(item, nullptr);
+}
 
 
 /**
