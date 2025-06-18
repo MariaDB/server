@@ -237,27 +237,48 @@ struct FVector
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
   {
     // Using vector long long for int64_t accumulation
-    vector long long ll_sum= {0, 0};
-    // Round up to process full vector, including padding
-    size_t base= ((len + POWER_dims - 1) / POWER_dims) * POWER_dims;
+    vector long long ll_sum1= {0, 0};
+    vector long long ll_sum2= {0, 0};
+    vector long long ll_sum3= {0, 0};
+    vector long long ll_sum4= {0, 0};
 
-    for (size_t i= 0; i < base; i+= POWER_dims)
+    size_t elements_per_loop= POWER_dims * 4;
+
+    // Round up to nearest multiple of elements_per_loop (with padding)
+    size_t base= ((len + elements_per_loop - 1) / elements_per_loop) *
+                 elements_per_loop;
+
+    for (size_t i= 0; i < base; i+= elements_per_loop)
     {
-      vector short x= vec_ld(0, &v1[i]);
-      vector short y= vec_ld(0, &v2[i]);
+      vector short x1= vec_ld(0, &v1[i + 0 * POWER_dims]);
+      vector short y1= vec_ld(0, &v2[i + 0 * POWER_dims]);
+      vector short x2= vec_ld(0, &v1[i + 1 * POWER_dims]);
+      vector short y2= vec_ld(0, &v2[i + 1 * POWER_dims]);
+      vector short x3= vec_ld(0, &v1[i + 2 * POWER_dims]);
+      vector short y3= vec_ld(0, &v2[i + 2 * POWER_dims]);
+      vector short x4= vec_ld(0, &v1[i + 3 * POWER_dims]);
+      vector short y4= vec_ld(0, &v2[i + 3 * POWER_dims]);
 
-      // Vectorized multiplication using vec_mule() and vec_mulo()
-      vector int product_hi= vec_mule(x, y);
-      vector int product_lo= vec_mulo(x, y);
+      vector int hi1= vec_mule(x1, y1);
+      vector int lo1= vec_mulo(x1, y1);
+      vector int hi2= vec_mule(x2, y2);
+      vector int lo2= vec_mulo(x2, y2);
+      vector int hi3= vec_mule(x3, y3);
+      vector int lo3= vec_mulo(x3, y3);
+      vector int hi4= vec_mule(x4, y4);
+      vector int lo4= vec_mulo(x4, y4);
 
-      // Extend vector int to vector long long for accumulation
-      vector long long llhi1= vec_unpackh(product_hi);
-      vector long long llhi2= vec_unpackl(product_hi);
-      vector long long lllo1= vec_unpackh(product_lo);
-      vector long long lllo2= vec_unpackl(product_lo);
-
-      ll_sum+= llhi1 + llhi2 + lllo1 + lllo2;
+      ll_sum1+= vec_unpackh(hi1) + vec_unpackl(hi1) +
+                vec_unpackh(lo1) + vec_unpackl(lo1);
+      ll_sum2+= vec_unpackh(hi2) + vec_unpackl(hi2) +
+                vec_unpackh(lo2) + vec_unpackl(lo2);
+      ll_sum3+= vec_unpackh(hi3) + vec_unpackl(hi3) +
+                vec_unpackh(lo3) + vec_unpackl(lo3);
+      ll_sum4+= vec_unpackh(hi4) + vec_unpackl(hi4) +
+                vec_unpackh(lo4) + vec_unpackl(lo4);
     }
+
+    vector long long ll_sum= ll_sum1 + ll_sum2 + ll_sum3 + ll_sum4;
 
     return static_cast<float>(static_cast<int64_t>(ll_sum[0]) +
                               static_cast<int64_t>(ll_sum[1]));
@@ -265,7 +286,8 @@ struct FVector
 
   static size_t alloc_size(size_t n)
   {
-    return alloc_header + MY_ALIGN(n * 2, POWER_bytes) + POWER_bytes - 1;
+    return alloc_header + MY_ALIGN(n * 2, POWER_bytes * 4) +
+           POWER_bytes * 4 - 1;
   }
 
   static FVector *align_ptr(void *ptr)
@@ -276,7 +298,8 @@ struct FVector
 
   void fix_tail(size_t vec_len)
   {
-    bzero(dims + vec_len, (MY_ALIGN(vec_len, POWER_dims) - vec_len) * 2);
+    bzero(dims + vec_len,
+         (MY_ALIGN(vec_len, POWER_dims * 4) - vec_len) * 2);
   }
 #undef DEFAULT_IMPLEMENTATION
 #endif
