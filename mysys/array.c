@@ -504,32 +504,6 @@ int mem_root_allocate_dynamic(MEM_ROOT *mem_root,
   DBUG_RETURN(FALSE);
 }
 
-
-inline int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
-                                   const void *element, size_t idx)
-{
-  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
-    return TRUE;
-
-  if (idx >= array->max_element)
-  {
-    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
-      return 1;
-    array->elements++;
-  }
-
-  /*
-     Ensure the array size has increased and the index is
-     now well within the array bounds.
-  */
-  DBUG_ASSERT(idx < array->max_element);
-
-  memcpy(array->buffer+(idx * array->size_of_element), element,
-         array->size_of_element);
-
-  return FALSE;
-}
-
 /*
   Note: If these two are merged, the resultant function will have to have
   a conditional block of code. Now, these are called in recursive functions.
@@ -553,22 +527,9 @@ inline void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_
   return element_ptr;
 }
 
-inline void* mem_root_dynamic_array_resize_and_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx)
+inline void mem_root_dynamic_array_copy_values(MEM_ROOT_DYNAMIC_ARRAY *dest, MEM_ROOT_DYNAMIC_ARRAY *src)
 {
-  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
-    return NULL;
+  int number_of_elements= dest->max_element < src->max_element ? dest->max_element : src->max_element;
 
-  if (idx >= array->max_element)
-  {
-    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
-      return NULL;
-  }
-
-  /*
-     Ensure the array size has increased and the index is
-     now well within the array bounds.
-  */
-  DBUG_ASSERT(idx < array->max_element);
-
-  return mem_root_dynamic_array_get_val(array, idx);
+  memcpy(dest->buffer, src->buffer, dest->size_of_element * number_of_elements);
 }

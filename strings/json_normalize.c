@@ -669,7 +669,7 @@ json_norm_parse(struct json_norm_value *root, json_engine_t *je, MEM_ROOT *curre
       const uchar *key_end;
       struct json_norm_value* new_val_ptr= NULL;
       struct json_norm_value** curr_val_ptr =
-            (struct json_norm_value**)mem_root_dynamic_array_get_val(stack, current);
+            (struct json_norm_value**)(stack->buffer) + current;
       struct json_norm_value* curr_val = *curr_val_ptr;
       DBUG_ASSERT(curr_val->type == JSON_VALUE_OBJECT);
 
@@ -705,7 +705,7 @@ json_norm_parse(struct json_norm_value *root, json_engine_t *je, MEM_ROOT *curre
     case JST_VALUE:
     {
       struct json_norm_value** curr_val_ptr =
-             (struct json_norm_value**)mem_root_dynamic_array_get_val(stack, current);
+             (struct json_norm_value**)(stack->buffer) + current;
       struct json_norm_value* curr_val = *curr_val_ptr;
       struct json_norm_array* current_arr = &curr_val->value.array;
 
