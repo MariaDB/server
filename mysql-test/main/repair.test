@@ -269,3 +269,14 @@ set myisam_repair_threads = default;
 drop table t1;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+USE test;
+CREATE TEMPORARY TABLE t(c INT NOT NULL) ENGINE=CSV;
+INSERT INTO t VALUES(1);
+REPAIR TABLE t;
+DELETE FROM t;
+
+--echo # End of 10.11 tests
