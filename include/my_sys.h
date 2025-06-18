@@ -1195,13 +1195,65 @@ extern int mem_root_dynamic_array_init(MEM_ROOT *mem_root,
                                        size_t init_alloc,
                                        size_t alloc_increment,
                                        myf my_flags);
-extern int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
-                                          const void *element, size_t idx);
-extern void* mem_root_dynamic_array_resize_and_get_val(MEM_ROOT_DYNAMIC_ARRAY *array,
-                                            size_t idx);
+int mem_root_allocate_dynamic(MEM_ROOT *mem_root,
+                              MEM_ROOT_DYNAMIC_ARRAY *array,
+                              size_t idx);
 extern void* mem_root_dynamic_array_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx);
 extern void mem_root_dynamic_array_reset(MEM_ROOT_DYNAMIC_ARRAY *array);
 extern int mem_root_dynamic_array_resize_not_allowed(MEM_ROOT_DYNAMIC_ARRAY *array);
+extern void mem_root_dynamic_array_copy_values(MEM_ROOT_DYNAMIC_ARRAY *dest, MEM_ROOT_DYNAMIC_ARRAY *src);
+static inline int mem_root_dynamic_array_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  DBUG_ASSERT(idx < array->max_element);
+
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element); 
+}
+static inline int mem_root_dynamic_array_resize_and_set_val(MEM_ROOT_DYNAMIC_ARRAY *array,
+                                   const void *element, size_t idx)
+{
+  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
+    return TRUE;
+
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
+      return 1;
+    array->elements++;
+  }
+
+  /*
+     Ensure the array size has increased and the index is
+     now well within the array bounds.
+  */
+  DBUG_ASSERT(idx < array->max_element);
+
+  memcpy(array->buffer+(idx * array->size_of_element), element,
+         array->size_of_element);
+
+  return FALSE;
+}
+
+static inline void* mem_root_dynamic_array_resize_and_get_val(MEM_ROOT_DYNAMIC_ARRAY *array, size_t idx)
+{
+  if (array->malloc_flags & MY_BUFFER_NO_RESIZE)
+    return NULL;
+
+  if (idx >= array->max_element)
+  {
+    if (mem_root_allocate_dynamic(array->mem_root, array, idx))
+      return NULL;
+  }
+
+  /*
+     Ensure the array size has increased and the index is
+     now well within the array bounds.
+  */
+  DBUG_ASSERT(idx < array->max_element);
+
+  return mem_root_dynamic_array_get_val(array, idx);
+}
 
 #include <mysql/psi/psi.h>
 

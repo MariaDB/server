@@ -599,7 +599,7 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
 
         json_scan_start(&je, m_js->charset(), node_start, node_end);
 
-        cur_step= (json_path_step_t*)(mem_root_dynamic_array_get_val(&jc->m_path.steps, 0));
+        cur_step= (json_path_step_t*)(jc->m_path.steps.buffer);
         not_found= json_find_path(&je, &jc->m_path, &cur_step, &array_counters) ||
                    json_read_value(&je);
 

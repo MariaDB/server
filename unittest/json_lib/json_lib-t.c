@@ -114,7 +114,7 @@ static void
 test_path_parsing(json_path_t *p)
 {
   json_path_step_t *initial_step= NULL;
-  initial_step= (json_path_step_t*)(mem_root_dynamic_array_get_val(&p->steps, 0));
+  initial_step= (json_path_step_t*)(p->steps.buffer);
 
   if (json_path_setup(p, ci, s_e(p0)))
     goto error;
@@ -152,7 +152,7 @@ test_search(MEM_ROOT_DYNAMIC_ARRAY* array_counters, json_engine_t *je, json_path
 
   cur_step= &p->steps;
   n_matches= scal_values= 0;
-  tmp_ptr= (json_path_step_t*)mem_root_dynamic_array_get_val(cur_step, 0);
+  tmp_ptr= (json_path_step_t*)(cur_step->buffer);
   while (json_find_path(je, p, &tmp_ptr, array_counters) == 0)
   {
     n_matches++;

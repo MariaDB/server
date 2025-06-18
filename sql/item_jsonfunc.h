@@ -81,7 +81,7 @@ protected:
   bool extract(MEM_ROOT *mem_root, String *to, Item *js,
                Item *jp, CHARSET_INFO *cs,
                MEM_ROOT_DYNAMIC_ARRAY *,
-               String *func_name_str);
+               LEX_CSTRING *func_name);
   void init_json_engine_stack(MEM_ROOT *mem_root);
 public:
   Json_path_extractor() {}
@@ -182,6 +182,8 @@ public:
 class Item_func_json_value: public Item_str_func,
                             public Json_path_extractor
 {
+  LEX_CSTRING func_name_str;
+
 public:
   Item_func_json_value(THD *thd, Item *js, Item *i_path):
     Item_str_func(thd, js, i_path) {}
@@ -205,6 +207,8 @@ public:
 class Item_func_json_query: public Item_json_func,
                             public Json_path_extractor
 {
+  LEX_CSTRING func_name_str;
+
 public:
   Item_func_json_query(THD *thd, Item *js, Item *i_path):
     Item_json_func(thd, js, i_path)
@@ -926,6 +930,7 @@ class Item_func_json_key_value: public Item_json_func,
 {
   String tmp_str, tmp_val;
   json_engine_t je, je_scan;
+  LEX_CSTRING func_name_str;
 
 public:
   Item_func_json_key_value(THD *thd, Item *js, Item *i_path):

@@ -4897,7 +4897,7 @@ SELECT JSON_KEY_VALUE('', '$.a');
 JSON_KEY_VALUE('', '$.a')
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function ''
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_key_value'
 SELECT JSON_KEY_VALUE('[1,2,3]', '');
 JSON_KEY_VALUE('[1,2,3]', '')
 NULL
