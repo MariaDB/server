@@ -264,6 +264,7 @@ index_stat_def= {INDEX_STAT_N_FIELDS, index_stat_fields, 4, index_stat_pk_col};
   Open all statistical tables and lock them
 */
 
+ATTRIBUTE_NOINLINE
 static int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
 {
   int rc;
@@ -2904,9 +2905,6 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   After having been updated the statistical system tables are closed.     
 */
 
-/* Stack usage 20248 from clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 int update_statistics_for_table(THD *thd, TABLE *table)
 {
   TABLE_LIST tables[STATISTICS_TABLES];
@@ -2935,9 +2933,13 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
+  char statbuf[sizeof(Index_stat)];
+  static_assert(sizeof(statbuf) >= sizeof(Table_stat), "");
+  static_assert(sizeof(statbuf) >= sizeof(Column_stat), "");
+
   /* Update the statistical table table_stats */
   stat_table= tables[TABLE_STAT].table;
-  Table_stat table_stat(stat_table, table);
+  Table_stat &table_stat= *new(statbuf) Table_stat(stat_table, table);
   restore_record(stat_table, s->default_values);
   table_stat.set_key_fields();
   err= table_stat.update_stat();
@@ -2946,7 +2948,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   /* Update the statistical table column_stats */
   stat_table= tables[COLUMN_STAT].table;
-  Column_stat column_stat(stat_table, table);
+  Column_stat &column_stat= *new(statbuf) Column_stat(stat_table, table);
   for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *table_field= *field_ptr;
@@ -2961,7 +2963,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   /* Update the statistical table index_stats */
   stat_table= tables[INDEX_STAT].table;
-  Index_stat index_stat(stat_table, table);
+  Index_stat &index_stat= *new(statbuf) Index_stat(stat_table, table);
 
   for (uint key= 0; key < table->s->keys; key++)
   {
@@ -2991,7 +2993,6 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
@@ -3075,14 +3076,17 @@ read_statistics_for_table(THD *thd, TABLE *table,
   /* Read statistics from the statistical table table_stats */
   Table_statistics *read_stats= new_stats_cb->table_stats;
   stat_table= stat_tables[TABLE_STAT].table;
-  Table_stat table_stat(stat_table, table);
+  char statbuf[sizeof(Index_stat)];
+  static_assert(sizeof(statbuf) >= sizeof(Table_stat), "");
+  static_assert(sizeof(statbuf) >= sizeof(Column_stat), "");
+  Table_stat &table_stat= *new(statbuf) Table_stat(stat_table, table);
   table_stat.set_key_fields();
   if (table_stat.get_stat_values(new_stats_cb->table_stats))
     new_stats_cb->stats_available|= TABLE_STAT_TABLE;
 
   /* Read statistics from the statistical table column_stats */
   stat_table= stat_tables[COLUMN_STAT].table;
-  Column_stat column_stat(stat_table, table);
+  Column_stat &column_stat= *new(statbuf) Column_stat(stat_table, table);
   Column_statistics *column_statistics= new_stats_cb->table_stats->column_stats;
   for (field_ptr= table_share->field;
        *field_ptr;
@@ -3104,7 +3108,7 @@ read_statistics_for_table(THD *thd, TABLE *table,
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
-  Index_stat index_stat(stat_table, table);
+  Index_stat &index_stat= *new(statbuf) Index_stat(stat_table, table);
   Index_statistics *index_statistics= new_stats_cb->table_stats->index_stats;
   for (key_info= table_share->key_info,
        key_info_end= key_info + table_share->keys;
@@ -3400,9 +3404,6 @@ end:
   The function is called when executing the statement DROP TABLE 'tab'.
 */
 
-/* Stack size 20248 with clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *tab)
 {
@@ -3426,7 +3427,10 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
 
   /* Delete statistics on table from the statistical table index_stats */
   stat_table= tables[INDEX_STAT].table;
-  Index_stat index_stat(stat_table, db, tab);
+  char statbuf[sizeof(Index_stat)];
+  static_assert(sizeof(statbuf) >= sizeof(Table_stat), "");
+  static_assert(sizeof(statbuf) >= sizeof(Column_stat), "");
+  Index_stat &index_stat= *new(statbuf) Index_stat(stat_table, db, tab);
   index_stat.set_full_table_name();
   while (index_stat.find_next_stat_for_prefix(2))
   {
@@ -3437,7 +3441,7 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
 
   /* Delete statistics on table from the statistical table column_stats */
   stat_table= tables[COLUMN_STAT].table;
-  Column_stat column_stat(stat_table, db, tab);
+  Column_stat &column_stat= *new(statbuf) Column_stat(stat_table, db, tab);
   column_stat.set_full_table_name();
   while (column_stat.find_next_stat_for_prefix(2))
   {
@@ -3448,7 +3452,7 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
    
   /* Delete statistics on table from the statistical table table_stats */
   stat_table= tables[TABLE_STAT].table;
-  Table_stat table_stat(stat_table, db, tab);
+  Table_stat &table_stat= *new(statbuf) Table_stat(stat_table, db, tab);
   table_stat.set_key_fields();
   if (table_stat.find_stat())
   {
@@ -3471,7 +3475,6 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   new_trans.restore_old_transaction();
   DBUG_RETURN(rc);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**
@@ -3840,7 +3843,6 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
   int rc= 0;
   uint duplicate_counter= 0;
   List_iterator<Alter_info::RENAME_INDEX_STAT_PARAMS> it(*indexes);
-  Alter_info::RENAME_INDEX_STAT_PARAMS *index;
   char tmp_name_buffer[32];
   LEX_CSTRING tmp_name= {tmp_name_buffer, 0};
   DBUG_ENTER("rename_indexes_in_stat_tables");
@@ -3861,15 +3863,16 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
   /* Rename index in the statistical table index_stat */
 
   stat_table= tables.table;
+  char statbuf[sizeof(Index_stat)];
 
   /*
     Loop over all indexes and rename to new name or temp name in case of
     conflicts
   */
 
-  while ((index= it++))
+  while (Alter_info::RENAME_INDEX_STAT_PARAMS *index= it++)
   {
-    Index_stat index_stat(stat_table, tab);
+    Index_stat &index_stat= *new(statbuf) Index_stat(stat_table, tab);
     uint found= 0;
 
     /* We have to make a loop as one index may have many entries */
@@ -3937,12 +3940,11 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
       the final name.
     */
 
-    Alter_info::RENAME_INDEX_STAT_PARAMS *index;
     it.rewind();
-    Index_stat index_stat(stat_table, tab);
+    Index_stat &index_stat= *new(statbuf) Index_stat(stat_table, tab);
     stat_table->file->ha_index_init(index_stat.stat_key_idx, 0);
 
-    while ((index= it++))
+    while (Alter_info::RENAME_INDEX_STAT_PARAMS *index= it++)
     {
       int err __attribute__((unused));
 
@@ -4016,9 +4018,6 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
   The function is called when executing any statement that renames a table
 */
 
-/* Stack size 20968 with clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *tab,
                                 const LEX_CSTRING *new_db,
@@ -4027,26 +4026,39 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   int err;
   enum_binlog_format save_binlog_format;
   TABLE *stat_table;
-  TABLE_LIST tables[STATISTICS_TABLES];
   int rc= 0;
   DBUG_ENTER("rename_table_in_stat_tables");
-   
+
+  TABLE_LIST *tables=
+    static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
+                                       STATISTICS_TABLES * sizeof *tables,
+                                       MYF(MY_WME)));
+  if (!tables)
+    DBUG_RETURN(1);
+
   start_new_trans new_trans(thd);
 
   if (open_stat_tables(thd, tables, TRUE))
   {
+  func_exit:
+    my_free(tables);
     new_trans.restore_old_transaction();
-    DBUG_RETURN(0);
+    DBUG_RETURN(rc);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   /* Rename table in the statistical table index_stats */
   stat_table= tables[INDEX_STAT].table;
-  Index_stat index_stat(stat_table, db, tab);
-  index_stat.set_full_table_name();
+  char statbuf[sizeof(Index_stat)];
+  static_assert(sizeof(statbuf) >= sizeof(Table_stat), "");
+  static_assert(sizeof(statbuf) >= sizeof(Column_stat), "");
 
-  Stat_table_write_iter index_iter(&index_stat);
+  Index_stat &index_stat= *new(statbuf) Index_stat(stat_table, db, tab);
+  index_stat.set_full_table_name();
+  char ibuf[sizeof(Stat_table_write_iter)];
+
+  auto &index_iter= *new(ibuf) Stat_table_write_iter(&index_stat);
   if (index_iter.init(2))
     rc= 1;
   while (!index_iter.get_next_row())
@@ -4060,9 +4072,9 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
 
   /* Rename table in the statistical table column_stats */
   stat_table= tables[COLUMN_STAT].table;
-  Column_stat column_stat(stat_table, db, tab);
+  Column_stat &column_stat= *new(statbuf) Column_stat(stat_table, db, tab);
   column_stat.set_full_table_name();
-  Stat_table_write_iter column_iter(&column_stat);
+  auto &column_iter= *new(ibuf) Stat_table_write_iter(&column_stat);
   if (column_iter.init(2))
     rc= 1;
   while (!column_iter.get_next_row())
@@ -4076,7 +4088,7 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
    
   /* Rename table in the statistical table table_stats */
   stat_table= tables[TABLE_STAT].table;
-  Table_stat table_stat(stat_table, db, tab);
+  Table_stat &table_stat= *new(statbuf) Table_stat(stat_table, db, tab);
   table_stat.set_key_fields();
   if (table_stat.find_stat())
   {
@@ -4092,11 +4104,8 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   thd->restore_stmt_binlog_format(save_binlog_format);
   if (thd->commit_whole_transaction_and_close_tables())
     rc= 1;
-
-  new_trans.restore_old_transaction();
-  DBUG_RETURN(rc);
+  goto func_exit;
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /**

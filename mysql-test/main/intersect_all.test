@@ -328,3 +328,69 @@ intersect all
 select * from t3 where a < 5;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-25158 Segfault on INTERSECT ALL with UNION in Oracle mode
+--echo #
+create table t3 (x int);
+create table u3 (x int);
+create table i3 (x int);
+explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+set sql_mode= 'oracle';
+explain SELECT * from t3 union select * from u3 intersect all select * from i3;
+select * from t3 union select * from u3 intersect select * from i3;
+SELECT * from t3 union select * from u3 intersect all select * from i3;
+insert into t3 values (0);
+insert into i3 values (0);
+Select * from t3 union select * from u3 intersect select * from i3;
+SELECT * FROM t3 UNION SELECT * FROM u3 INTERSECT ALL SELECT * FROM i3;
+drop tables t3, u3, i3;
+
+--enable_info
+--echo # First line of these results is column names, not the result
+--echo # (pay attention to "affected rows")
+
+# MSSQL:
+# 1	2
+# 1	2
+values (1, 2) union all values (1, 2);
+
+# MSSQL:
+# 1	2
+# 4	3
+# 4	3
+values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3);
+
+# MSSQL:
+# 1	2
+# 4	3
+# 4	3
+# 1	2
+values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2);
+
+# MSSQL:
+# 1	2
+# 4	3
+values (1, 2) union all values (1, 2) union values (4, 3) union all values (4, 3) union all values (1, 2) union values (1, 2);
+--disable_info
+
+create table t1 (a int, b int);
+create table t2 like t1;
+insert t1 values (1, 2), (1, 2), (1, 2), (2, 3), (2, 3), (3, 4), (3, 4);
+insert t2 values (1, 2), (1, 2), (2, 3), (2, 3), (2, 3), (2, 3), (4, 5);
+select * from t1 intersect select * from t2;
+select * from t1 intersect all select * from t2;
+--echo # Default: first INTERSECT ALL, then UNION
+--echo # Oracle: first UNION, then INTERSECT ALL
+# VIEW is stored and executed normal mode (see Sql_mode_save_for_frm_handling)
+--disable_view_protocol
+select * from t1 union values (1, 2) intersect all select * from t2;
+--enable_view_protocol
+select * from t1 union (values (1, 2) intersect all select * from t2);
+(select * from t1 union values (1, 2)) intersect all select * from t2;
+select * from t1 intersect all select * from t2 union values (1, 2);
+select * from t1 intersect all (select * from t2 union values (1, 2));
+(select * from t1 intersect all select * from t2) union values (1, 2);
+explain select * from t1 intersect all select * from t2 union values (1, 2);
+drop tables t1, t2;
+set sql_mode= default;

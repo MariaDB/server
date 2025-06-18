@@ -4913,6 +4913,7 @@ static int flush_cached_blocks(PAGECACHE *pagecache,
    @retval PCFLUSH_PINNED Pinned blocks was met and skipped.
    @retval PCFLUSH_PINNED_AND_ERROR PCFLUSH_ERROR and PCFLUSH_PINNED.
 */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
                                       PAGECACHE_FILE *file,
@@ -5242,6 +5243,7 @@ int flush_pagecache_blocks_with_filter(PAGECACHE *pagecache,
   pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
   DBUG_RETURN(res);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /*

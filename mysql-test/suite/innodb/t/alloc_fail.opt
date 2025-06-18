@@ -1,0 +1,2 @@
+--innodb_sort_buffer_size=64k
+--innodb_rollback_on_timeout=1

@@ -3,6 +3,7 @@
 #
 --source include/not_asan.inc
 --source include/not_ubsan.inc
+--source include/not_msan.inc
 --replace_result 392192 299008
 select @@global.thread_stack;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR

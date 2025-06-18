@@ -5,7 +5,7 @@
 -- source include/not_embedded.inc
 -- source include/count_sessions.inc
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 # Connect/Disconnect look that aborted_clients stays 0
 connect (con1,localhost,root,,);
 disconnect con1;

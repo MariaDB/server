@@ -228,26 +228,58 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
     IF(SIGNCODE)
       SIGN_TARGET(${target} ${COMP})
     ENDIF()
+    IF(INSTALL_RUNTIME_DEPENDENCIES)
+      # Populate INSTALLED_TARGETS list (stored as global property)
+      # The list is used in INSTALL_RUNTIME_DEPS
+      GET_PROPERTY(installed_targets GLOBAL PROPERTY INSTALLED_TARGETS)
+      IF(NOT installed_targets)
+        SET(installed_targets)
+      ENDIF()
+      LIST(APPEND installed_targets "${target}")
+      SET_PROPERTY(GLOBAL PROPERTY INSTALLED_TARGETS "${installed_targets}")
+      SET(RUNTIME_DEPS RUNTIME_DEPENDENCY_SET ${target})
+    ENDIF()
+    INSTALL(TARGETS ${target} DESTINATION ${ARG_DESTINATION} ${COMP} ${RUNTIME_DEPS})
+    INSTALL_DEBUG_SYMBOLS(${target} ${COMP} INSTALL_LOCATION ${ARG_DESTINATION})
   ENDFOREACH()
+ENDFUNCTION()
 
-  IF(WIN32 AND INSTALL_RUNTIME_DEPENDENCIES)
-    STRING(JOIN "." runtime_deps_set_name ${TARGETS})
-    SET(RUNTIME_DEPS RUNTIME_DEPENDENCY_SET "${runtime_deps_set_name}")
+
+# On Windows, installs runtime dependency for all targets
+FUNCTION(INSTALL_RUNTIME_DEPS)
+  IF(NOT WIN32 OR NOT INSTALL_RUNTIME_DEPENDENCIES)
+    RETURN()
   ENDIF()
+  # Install all runtime dependencies
 
-  INSTALL(TARGETS ${TARGETS} DESTINATION ${ARG_DESTINATION} ${COMP} ${RUNTIME_DEPS})
-  INSTALL_DEBUG_SYMBOLS(${TARGETS} ${COMP} INSTALL_LOCATION ${ARG_DESTINATION})
+  GET_PROPERTY(installed_targets GLOBAL PROPERTY INSTALLED_TARGETS)
+  # Exclude all dependencies that are shared libraries from the
+  # same build.
+  FOREACH(tgt ${installed_targets})
+    SET(exclude_libs)
+    GET_TARGET_PROPERTY(link_libraries ${tgt} LINK_LIBRARIES)
+    IF(link_libraries)
+      FOREACH(lib ${link_libraries})
+        IF(TARGET ${lib})
+          GET_TARGET_PROPERTY(type ${lib} TYPE)
+          IF(type MATCHES "SHARED")
+            LIST(APPEND exclude_libs "$<TARGET_FILE_BASE_NAME:${lib}>\\.dll")
+          ENDIF()
+        ENDIF()
+      ENDFOREACH()
+    ENDIF()
 
-  IF(WIN32 AND INSTALL_RUNTIME_DEPENDENCIES)
     INSTALL(
       RUNTIME_DEPENDENCY_SET
-      "${runtime_deps_set_name}"
+      ${tgt}
       COMPONENT RuntimeDeps
       DESTINATION ${INSTALL_BINDIR}
       PRE_EXCLUDE_REGEXES
       "api-ms-" # Windows stuff
       "ext-ms-"
-      "server\\.dll" # main server DLL, installed separately
+      "icuuc\\.dll" # Old Windows 10 (1809)
+      "icuin\\.dll"
+      ${exclude_libs}
       "clang_rt" # ASAN libraries
       "vcruntime"
       POST_EXCLUDE_REGEXES
@@ -257,7 +289,7 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
       ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
       $<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>
     )
-  ENDIF()
+  ENDFOREACH()
 ENDFUNCTION()
 
 # Optionally install mysqld/client/embedded from debug build run. outside of the current build dir

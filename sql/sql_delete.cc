@@ -1662,6 +1662,10 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
 err:
   if (err_table)
     err_table->file->print_error(local_error,MYF(ME_FATAL));
+  if (tmp_table->file->inited == handler::init_stat::RND)
+    tmp_table->file->ha_rnd_end();
+  if (table->file->inited == handler::init_stat::RND)
+    table->file->ha_rnd_end();
   DBUG_RETURN(local_error);
 }
 
