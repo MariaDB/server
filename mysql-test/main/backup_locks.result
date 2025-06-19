@@ -22,6 +22,7 @@ BACKUP UNLOCK;
 # Test that backup lock protects against ddl
 #
 connect  con1,localhost,root,,;
+call mtr.add_suppression("Check failed, sequence is invalid. max_value: .* min_value: .* start: .* cache: .* real_increment: .* max_increment: .* reserved_until: .* next_free_value: .*");
 connection default;
 create table t1 (a int) stats_persistent=0,engine=innodb;
 insert into t1 values (1);

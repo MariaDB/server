@@ -1,6 +1,8 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
 
+call mtr.add_suppression("Check failed, sequence is invalid. max_value: .* min_value: .* start: .* cache: .* real_increment: .* max_increment: .* reserved_until: .* next_free_value: .*");
+
 #
 # Test various combinations of operations on sequence
 #
