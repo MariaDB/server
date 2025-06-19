@@ -360,9 +360,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 65
+%expect 63
 %else
-%expect 66
+%expect 64
 %endif
 
 /*
@@ -5591,7 +5591,21 @@ opt_versioning_interval_start:
          {
            $$= NULL;
          }
-       | STARTS_SYM literal
+       | STARTS_SYM TIMESTAMP TEXT_STRING
+         {
+           if (unlikely(!($$= type_handler_datetime.create_literal_item(thd,
+                                                            $3.str, $3.length,
+                                                            YYCSCL, true))))
+             MYSQL_YYABORT;
+         }
+       | STARTS_SYM DATE_SYM TEXT_STRING
+         {
+           if (unlikely(!($$= type_handler_newdate.create_literal_item(thd,
+                                                           $3.str, $3.length,
+                                                           YYCSCL, true))))
+             MYSQL_YYABORT;
+         }
+       | STARTS_SYM NUM_literal
          {
            $$= $2;
          }
@@ -15733,7 +15747,7 @@ temporal_literal:
                                                             YYCSCL, true))))
               MYSQL_YYABORT;
           }
-        | INTERVAL_SYM TEXT_STRING interval_qualifier
+        | INTERVAL_SYM %prec EMPTY_FROM_CLAUSE TEXT_STRING interval_qualifier
                     {
                       if (unlikely(!($$= type_handler_datetime.create_literal_item(thd,
                                                                       $2.str, $2.length,
