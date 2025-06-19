@@ -4,11 +4,30 @@ CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incr_dir=$MYSQLTEST_VARDIR/tmp/backup_incr;
 mkdir $targetdir;
-let $streamfile=$MYSQLTEST_VARDIR/tmp/backup.xb;
+mkdir $incr_dir;
 
-echo # xtrabackup backup to stream;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --databases-exclude=foobar --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
+let $streamfile=$MYSQLTEST_VARDIR/tmp/backup.xb;
+let $stream_incr_file=$MYSQLTEST_VARDIR/tmp/backup_incr.xb;
+
+echo # xtrabackup full backup to stream;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --databases-exclude=foobar --history=fullback --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
+
+INSERT INTO t VALUES(2), (3), (4);
+
+echo # xtrabackup incremental backup to stream;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup  --incremental-history-name=fullback --history=incr_1  --stream=xbstream > $stream_incr_file 2>$targetdir/backup_incr.log;
+
+echo # checking recording of history;
+--replace_result mariabackup.exe mariabackup
+--vertical_results
+SELECT tool_name, name, partial, incremental, format, compressed
+FROM mysql.mariadb_backup_history
+ORDER BY innodb_from_lsn;
+
+--horizontal_results
+
 echo # xbstream extract;
 --disable_result_log
 exec $XBSTREAM -x -C $targetdir  < $streamfile;
@@ -16,9 +35,17 @@ exec $XBSTREAM -x -C $targetdir  < $streamfile;
 echo # xtrabackup prepare;
 exec $XTRABACKUP --prepare --target-dir=$targetdir;
 
+echo # xbstream extract for incremental backup;
+exec $XBSTREAM -x -C $incr_dir  < $stream_incr_file;
+
+echo # xtrabackup incremental prepare;
+exec $XTRABACKUP --prepare --target-dir=$targetdir --incremental-dir=$incr_dir;
+
 -- source include/restart_and_restore.inc
 --enable_result_log
 SELECT * FROM t;
 DROP TABLE t;
+DROP TABLE mysql.mariadb_backup_history;
 rmdir $targetdir;
-
+remove_file $streamfile;
+remove_file $stream_incr_file;

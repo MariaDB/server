@@ -17,7 +17,7 @@ mariadb_backup_history	CREATE TABLE `mariadb_backup_history` (
   `innodb_to_lsn` bigint(20) unsigned DEFAULT NULL,
   `partial` enum('Y','N') DEFAULT NULL,
   `incremental` enum('Y','N') DEFAULT NULL,
-  `format` enum('file','tar','xbstream') DEFAULT NULL,
+  `format` enum('file','tar','mbstream') DEFAULT NULL,
   `compressed` enum('Y','N') DEFAULT NULL,
   PRIMARY KEY (`uuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
