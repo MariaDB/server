@@ -3341,7 +3341,7 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags) override;
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
-                         COND **conds);
+                         COND **conds, List<Item> *all_fields);
   void copy_andor_arguments(THD *thd, Item_cond *item);
   bool walk(Item_processor processor, void *arg,
             item_walk_flags flags) override;

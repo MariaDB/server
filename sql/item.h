@@ -2292,6 +2292,7 @@ public:
     return 0;
   }
   virtual bool ora_join_processor(void *arg) { return 0; }
+  virtual bool recalc_maybe_null_processor(void *arg) { return 0; }
   virtual bool remove_ora_join_processor(void *arg)
   {
     with_flags&= ~item_with_t::ORA_JOIN;
@@ -2901,6 +2902,15 @@ protected:
     for (uint i= 0; i < arg_count; i++)
     {
       if (args[i]->walk(processor, arg, flags))
+        return true;
+    }
+    return false;
+  }
+  bool arg_check_maybe_null()
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->maybe_null())
         return true;
     }
     return false;
@@ -3945,6 +3955,11 @@ public:
     return 0;
   }
   bool ora_join_processor(void *arg) override;
+  bool recalc_maybe_null_processor(void *arg) override
+  {
+    set_maybe_null(field->maybe_null());
+    return 0;
+  }
   bool check_ora_join(Item **reference, bool outer_ref_fixed);
   void cleanup() override;
   Item_equal *get_item_equal() override { return item_equal; }
@@ -5887,6 +5902,11 @@ public:
       return true;
     return (this->*processor)(arg);
   }
+  bool recalc_maybe_null_processor(void *arg) override
+  {
+    set_maybe_null(arg_check_maybe_null());
+    return 0;
+  }
   /*
     Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema
   */
@@ -6216,6 +6236,11 @@ public:
     return cleanup_processor(arg);
   }
   bool ora_join_processor(void *arg) override;
+  bool recalc_maybe_null_processor(void *arg) override
+  {
+    set_maybe_null((*ref)->maybe_null());
+    return 0;
+  }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
 };

@@ -744,7 +744,8 @@ static bool init_tables_array(TABLE_LIST *tables,
 bool setup_oracle_join(THD *thd, Item **conds,
                        TABLE_LIST *tables,
                        SQL_I_List<TABLE_LIST> &select_table_list,
-                       List<TABLE_LIST> *select_join_list)
+                       List<TABLE_LIST> *select_join_list,
+                       List<Item> *all_fields)
 {
   DBUG_ENTER("setup_oracle_join");
   uint n_tables= select_table_list.elements;
@@ -964,6 +965,9 @@ bool setup_oracle_join(THD *thd, Item **conds,
       {
         DBUG_ASSERT(curr->on_conds.elements > 0);
         curr->table->outer_join|=JOIN_TYPE_LEFT;
+        // it is done after setting table map so maybe_null also set
+        if (curr->table->table)
+          curr->table->table->maybe_null= JOIN_TYPE_LEFT;
         if (curr->on_conds.elements == 1)
         {
           curr->table->on_expr= curr->on_conds.head();
@@ -1027,6 +1031,34 @@ bool setup_oracle_join(THD *thd, Item **conds,
 
   if (add_conditions_to_where(thd, conds, std::move(return_to_where)))
     DBUG_RETURN(TRUE);
+
+  // refresh nulability of already fixed parts (WHERE, SELECT list, moved ON)
+  if (conds[0])
+  {
+    conds[0]->update_used_tables();
+    conds[0]->walk(&Item::recalc_maybe_null_processor, 0, 0);
+  }
+  if (all_fields)
+  {
+    List_iterator<Item> it(*all_fields);
+    Item *item;
+    while((item= it++))
+    {
+      item->update_used_tables();
+      item->walk(&Item::recalc_maybe_null_processor, 0, 0);
+    }
+  }
+  for (i= 0; i < n_tables; i++)
+  {
+    // we have to count becaust this lists are included in other lists
+    List_iterator<Item> it(*all_fields);
+    Item *item;
+    for (uint j= 0; j < tab[i].on_conds.elements && (item= it++); j++)
+    {
+      item->update_used_tables();
+      item->walk(&Item::recalc_maybe_null_processor, 0, 0);
+    }
+  }
 
   DBUG_RETURN(FALSE);
 }

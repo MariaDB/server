@@ -800,7 +800,12 @@ public:
     }
     return FALSE;
   }
-
+  bool recalc_maybe_null_processor(void *arg) override
+  {
+    if (left_expr->maybe_null())
+      set_maybe_null(true);
+    return 0;
+  }
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
   friend class Item_in_optimizer;

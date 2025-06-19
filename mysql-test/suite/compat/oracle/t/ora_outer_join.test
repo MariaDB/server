@@ -468,4 +468,26 @@ from (select 1 as a) a,
      (select 2 as b) b
      where a.a=b.b(+);
 
---echo # End of 12.0 tests
+--echo #
+--echo # MDEV-36866: Oracle outer join syntax (+): query with checking for
+--echo # null of non-null column uses wrong query plan and returns wrong
+--echo # result
+--echo #
+
+create table t1 (a int default NULL);
+create table t2 (a int not null);
+insert into t1 values (1), (2), (3), (4), (5), (6), (NULL);
+insert into t2 values (1), (4), (5), (6), (7);
+
+select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
+explain select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
+
+select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
+explain select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
+
+select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)=1;
+explain extended select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)=1;
+
+drop table t1,t2;
+
+--echo # End of 12.1 tests

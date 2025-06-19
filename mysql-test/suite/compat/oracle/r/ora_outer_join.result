@@ -684,4 +684,39 @@ from (select 1 as a) a,
 where a.a=b.b(+);
 a
 1
-# End of 12.0 tests
+#
+# MDEV-36866: Oracle outer join syntax (+): query with checking for
+# null of non-null column uses wrong query plan and returns wrong
+# result
+#
+create table t1 (a int default NULL);
+create table t2 (a int not null);
+insert into t1 values (1), (2), (3), (4), (5), (6), (NULL);
+insert into t2 values (1), (4), (5), (6), (7);
+select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
+a	a
+explain select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
+a	a
+2	NULL
+3	NULL
+NULL	NULL
+explain select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)=1;
+a	a
+2	NULL
+3	NULL
+NULL	NULL
+explain extended select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select "test"."t1"."a" AS "a","test"."t2"."a" AS "a" from "test"."t1" left join "test"."t2" on("test"."t2"."a" = "test"."t1"."a") where "test"."t2"."a" is null = 1
+drop table t1,t2;
+# End of 12.1 tests

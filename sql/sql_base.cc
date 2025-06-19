@@ -8913,10 +8913,11 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
 
   SYNOPSIS
     setup_conds()
-    thd     thread handler
-    tables  list of tables for name resolving (select_lex->table_list)
-    leaves  list of leaves of join table tree (select_lex->leaf_tables)
-    conds   WHERE clause
+    thd            thread handler
+    tables         list of tables for name resolving (select_lex->table_list)
+    leaves         list of leaves of join table tree (select_lex->leaf_tables)
+    conds          WHERE clause
+    all_fields     SELECT list + hidden fields
 
   DESCRIPTION
     TODO
@@ -8927,7 +8928,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
 */
 
 int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
-                COND **conds)
+                COND **conds, List<Item> *all_fields)
 {
   SELECT_LEX *select_lex= thd->lex->current_select;
   TABLE_LIST *table= NULL;	// For HP compilers
@@ -8982,7 +8983,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
       goto err_no_arena;
 
     if (setup_oracle_join(thd, conds, tables, select_lex->table_list,
-                          &select_lex->top_join_list))
+                          &select_lex->top_join_list, all_fields))
       goto err_no_arena;
   }
 
