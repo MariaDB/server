@@ -8,3 +8,7 @@
 
   print "$line_count\n"
 EOF
+
+# replace the timestamp and the hostname with constant values
+--replace_regex /\d* \d\d:\d\d:\d\d\,[^,]*\,/TIME,HOSTNAME,/ /\,[1-9]\d*\,/,1,/ /\,[1-9]\d*/,ID/ /:\d+,/:PORT,/
+cat_file $MYSQLD_DATADIR/server_audit.log;
