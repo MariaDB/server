@@ -299,6 +299,8 @@ buffer_segment_new(grn_ctx *ctx, grn_ii *ii, uint32_t *segno)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 buffer_segment_reserve(grn_ctx *ctx, grn_ii *ii,
                        uint32_t *lseg0, uint32_t *pseg0,
@@ -384,6 +386,8 @@ buffer_segment_reserve(grn_ctx *ctx, grn_ii *ii,
   */
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define BGQENQUE(lseg) do {\
   if (ii->header->binfo[lseg] != GRN_II_PSEG_NOT_ASSIGNED) {\
@@ -3338,6 +3342,8 @@ fake_map(grn_ctx *ctx, grn_io *io, grn_io_win *iw, void *addr, uint32_t seg, uin
   iw->addr = addr;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 buffer_flush(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
 {
@@ -3469,6 +3475,8 @@ buffer_flush(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
   }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 void
 grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
@@ -3736,6 +3744,8 @@ array_update(grn_ctx *ctx, grn_ii *ii, uint32_t dls, buffer *db)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_rc
 buffer_split(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
 {
@@ -3980,6 +3990,8 @@ buffer_split(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h)
   }
   return ctx->rc;
 }
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 #define SCALE_FACTOR 2048
 #define MAX_NTERMS   8192
@@ -4520,7 +4532,7 @@ grn_ii_get_disk_usage(grn_ctx *ctx, grn_ii *ii)
 }
 
 
-PRAGMA_DISABLE_CHECK_STACK_FRAME
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define BIT11_01(x) ((x >> 1) & 0x7ff)
 #define BIT31_12(x) (x >> 12)
@@ -4797,7 +4809,7 @@ exit :
   return ctx->rc;
 }
 
-PRAGMA_REENABLE_CHECK_STACK_FRAME
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 grn_rc
 grn_ii_delete_one(grn_ctx *ctx, grn_ii *ii, grn_id tid, grn_ii_updspec *u, grn_hash *h)
@@ -4911,6 +4923,8 @@ exit :
   if (bs) { GRN_FREE(bs); }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 #define CHUNK_USED    1
 #define BUFFER_USED   2
@@ -6309,6 +6323,8 @@ grn_uvector2updspecs(grn_ctx *ctx, grn_ii *ii, grn_id rid,
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 grn_rc
 grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id rid, unsigned int section,
                      grn_obj *oldvalue, grn_obj *newvalue, grn_obj *posting)
@@ -6627,6 +6643,8 @@ exit :
   if (new && new != newvalue) { grn_obj_close(ctx, new); }
   return ctx->rc;
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /* token_info */
 

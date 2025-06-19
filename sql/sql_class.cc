@@ -7683,7 +7683,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 }
 
 
-#if defined(DBUG_TRACE) && !defined(_lint)
+#if defined(DBUG_TRACE)
 static const char *
 show_query_type(THD::enum_binlog_query_type qtype)
 {
@@ -7697,7 +7697,7 @@ show_query_type(THD::enum_binlog_query_type qtype)
     DBUG_ASSERT(0 <= qtype && qtype < THD::QUERY_TYPE_COUNT);
   }
   static char buf[64];
-  sprintf(buf, "UNKNOWN#%d", qtype);
+  snprintf(buf, sizeof(buf), "UNKNOWN#%d", qtype);
   return buf;
 }
 #endif
