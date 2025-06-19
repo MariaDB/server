@@ -30,6 +30,7 @@ extern PSI_cond_key key_COND_binlog_send;
 
 struct Tranx_node {
   char              log_name[FN_REFLEN];
+  bool              thd_valid;             /* thd is valid for signalling */
   my_off_t          log_pos;
   THD               *thd;                   /* The thread awaiting an ACK */
   struct Tranx_node *next;            /* the next node in the sorted list */
@@ -126,7 +127,9 @@ public:
 
     trx_node= &(current_block->nodes[++last_node]);
     trx_node->log_name[0] = '\0';
+    trx_node->thd_valid= false;
     trx_node->log_pos= 0;
+    trx_node->thd= nullptr;
     trx_node->next= 0;
     trx_node->hash_next= 0;
     return trx_node;
@@ -298,7 +301,8 @@ private:
   its invocation. See the context in which it is called to know.
 */
 
-typedef int (*active_tranx_action)(THD *trx_thd, const char *log_file_name,
+typedef int (*active_tranx_action)(THD *trx_thd, bool thd_valid,
+                                   const char *log_file_name,
                                    my_off_t trx_log_file_pos);
 
 /**
@@ -381,8 +385,8 @@ public:
    * matches the thread of the respective Tranx_node::thd of the passed in
    * log_file_name and log_file_pos.
    */
-  bool is_thd_waiter(THD *thd_to_check, const char *log_file_name,
-                     my_off_t log_file_pos);
+  Tranx_node * is_thd_waiter(THD *thd_to_check, const char *log_file_name,
+                             my_off_t log_file_pos);
 
   /* Given a position, check to see whether the position is an active
    * transaction's ending position by probing the hash table.
