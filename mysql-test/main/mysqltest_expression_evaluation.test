@@ -1,0 +1,106 @@
+--echo #
+--echo # Expression Evaluation Test Suite for 'let' command
+--echo #
+
+--echo # -----------------------------------------
+--echo # Simple Arithmetic
+--echo # -----------------------------------------
+let $a = $(10 + 5);
+let $b = $(10 - 4);
+let $c = $(3 * 7);
+let $d = $(20 / 4);
+let $e = $(21 % 5);
+
+--echo # Expected: 15 6 21 5 1
+--echo # Actual:   $a $b $c $d $e
+
+--echo # -----------------------------------------
+--echo # Operator Precedence
+--echo # -----------------------------------------
+let $p1 = $(2 + 3 * 4);
+let $p2 = $(20 / 2 - 3);
+
+--echo # Expected: 14 7
+--echo # Actual:   $p1 $p2
+
+--echo # -----------------------------------------
+--echo # Parentheses
+--echo # -----------------------------------------
+let $p3 = $((2 + 3) * 4);
+let $p4 = $(20 / (5 - 3));
+
+--echo # Expected: 20 10
+--echo # Actual:   $p3 $p4
+
+--echo # -----------------------------------------
+--echo # Using Variables in Expressions
+--echo # -----------------------------------------
+let $v1 = 100;
+let $v2 = 25;
+let $v_res = $($v1 / $v2 + 1);
+
+--echo # Expected: 5
+--echo # Actual:   $v_res
+
+--echo # -----------------------------------------
+--echo # Comparison and Logical Operators
+--echo # -----------------------------------------
+let $comp1 = $(10 > 5);
+let $comp2 = $(10 < 5);
+let $comp3 = $(5 == 5);
+let $comp4 = $(5 != 5);
+let $log1 = $($comp1 && $comp3);  # 1 && 1
+let $log2 = $($comp1 && $comp2);  # 1 && 0
+let $log3 = $($comp2 || $comp3);  # 0 || 1
+let $log4 = $(!$comp1);           # !1
+
+--echo # Expected: 1 0 1 0 1 0 1 0
+--echo # Actual:   $comp1 $comp2 $comp3 $comp4 $log1 $log2 $log3 $log4
+
+--echo # -----------------------------------------
+--echo # Complex Expression
+--echo # -----------------------------------------
+let $n_complex = 2;
+let $c_complex = 3;
+let $res_complex = $($c_complex + $n_complex + 435 + 3 + 4 * (2 - 1) && 5 < 2);
+
+--echo # Expected: 0
+--echo # Actual:   $res_complex
+
+--echo # -----------------------------------------
+--echo # Backward Compatibility (No Evaluation)
+--echo # -----------------------------------------
+let $old_math = 5 + 2;
+--echo # Expected: 5 + 2
+--echo # Actual:   $old_math
+
+--echo # -----------------------------------------
+--echo # Expression Interpolation
+--echo # -----------------------------------------
+let $x = 10;
+let $y = 5;
+let $interp_str = The sum of $x and $y is $($x + $y);
+--echo # Expected: The sum of 10 and 5 is 15
+--echo # Actual:   $interp_str
+
+let $multi_interp = Result: $($x * 2), Another: $($y - 1).;
+--echo # Expected: Result: 20, Another: 4.
+--echo # Actual:   $multi_interp
+
+--echo # -----------------------------------------
+--echo # SQL Query with Expression Interpolation
+--echo # -----------------------------------------
+let $val1 = 7;
+let $val2 = 8;
+let $query_result = `SELECT $($val1 * $val2) as product`;
+
+--echo # SQL query with expression in SELECT list
+--echo # Expected to execute: SELECT 56 as product;
+--echo # Expected: 56
+--echo # Actual:   $query_result
+
+
+--echo #
+--echo # Test Complete
+--echo #
+
