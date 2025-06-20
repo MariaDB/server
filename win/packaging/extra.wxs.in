@@ -168,7 +168,7 @@
         </Control>
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
       </Dialog>
-      
+
       <!-- Error popup dialog -->
       <Dialog Id="WarningDlg" Width="320" Height="85" Title="[ProductName] Setup" NoMinimize="yes">
        <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24"
@@ -352,7 +352,7 @@
 
     <Property Id="CRLF" Value="&#xD;&#xA;" />
     <CustomAction Id="CheckDataDirectory" BinaryKey="wixca.dll" DllEntry="CheckDataDirectory" Execute="immediate" Impersonate="yes"/>
-	<CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
+    <CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
     <!--  What to do when navigation buttons are clicked -->
     <UI Id="MyWixUI_Mondo">
       <UIRef Id="WixUI_FeatureTree" />
@@ -372,11 +372,11 @@
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="NewOrUpgradeInstanceDlg" Order="999">
         NOT Installed AND UpgradableServiceFound
       </Publish>
-	  <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
       <Publish  Dialog="CustomizeDlg" Control="Next"  Property="WarningText" Order="2"
         Value="[INSTALLDIRERROR]">
        INSTALLDIRERROR
-	   </Publish>
+      </Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="SpawnDialog" Value="WarningDlg" Order="3">WarningText</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ConfirmDataCleanupDlg" Order="4">
         <![CDATA[(&DBInstance=2) AND (!DBInstance=3)]]>
@@ -837,7 +837,7 @@
        'Setting the ALLUSERS property is not allowed because [ProductName] is a per-machine application. Setup will now exit.'>
       <![CDATA[ALLUSERS = "1"]]>
     </Condition>
-	<Condition Message='This application is only supported on Windows 10, Windows Server 2016, or higher.'>
+    <Condition Message='This application is only supported on Windows 10, Windows Server 2016, or higher.'>
       <![CDATA[Installed OR (VersionNT >= 603)]]>
     </Condition>
   </Fragment>
