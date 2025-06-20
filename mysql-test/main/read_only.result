@@ -178,8 +178,10 @@ CREATE USER user1@localhost;
 GRANT ALTER ON test1.* TO user1@localhost;
 CREATE DATABASE test1;
 SET GLOBAL read_only=1;
+change_user user1,,;
 ALTER DATABASE test1 CHARACTER SET utf8;
 ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+change_user root,,;
 SET GLOBAL read_only=0;
 DROP DATABASE test1;
 DROP USER user1@localhost;

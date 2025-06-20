@@ -11,6 +11,7 @@ BEGIN
 insert into t2 select * from t1; 
 return a+1;
 END|
+change_user foo,,;
 set optimizer_trace="enabled=on";
 select * from db1.t1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t1`
@@ -18,7 +19,9 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 grant select(a)  on db1.t1 to 'foo'@'%';
+change_user foo,,;
 set optimizer_trace="enabled=on";
 select * from db1.t1;
 a
@@ -32,10 +35,12 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 grant select  on db1.t1 to 'foo'@'%';
 grant select  on db1.t2 to 'foo'@'%';
+change_user foo,,;
 set optimizer_trace="enabled=on";
 #
 # SELECT privilege on the table db1.t1
@@ -152,10 +157,12 @@ select * from db1.t1	{
   ]
 }	0	0
 set optimizer_trace="enabled=off";
+change_user root,,;
 grant select  on db1.v1 to 'foo'@'%';
 grant show view  on db1.v1 to 'foo'@'%';
 grant select  on db1.v1 to 'bar'@'%';
 grant show view  on db1.v1 to 'bar'@'%';
+change_user foo,,;
 select current_user();
 current_user()
 foo@%
@@ -288,6 +295,7 @@ select * from db1.v1	{
   ]
 }	0	0
 set optimizer_trace="enabled=off";
+change_user bar,,;
 select current_user();
 current_user()
 bar@%
@@ -307,10 +315,12 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 grant execute on function db1.f1 to 'foo'@'%';
 grant execute on function db1.f1 to 'bar'@'%';
 grant select  on db1.t1 to 'bar'@'%';
 grant insert  on db1.t2 to 'foo'@'%';
+change_user foo,,;
 select current_user();
 current_user()
 foo@%
@@ -324,6 +334,7 @@ select INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
 INSUFFICIENT_PRIVILEGES
 0
 set optimizer_trace="enabled=off";
+change_user bar,,;
 select current_user();
 current_user()
 bar@%
@@ -342,10 +353,12 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 select current_user();
 current_user()
 root@localhost
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM foo;
+change_user root,,;
 drop user if exists foo;
 drop user if exists bar;
 drop table db1.t1, db1.t2;
