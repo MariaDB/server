@@ -100,6 +100,8 @@ struct FVector
 
     FVector *vec= align_ptr(mem);
     vec->scale= scale ? scale/32767 : 1;
+    if (std::round(scale/vec->scale) > 32767)
+      vec->scale= std::nextafter(vec->scale, scale > 0 ? FLT_MAX : -FLT_MAX);
     for (size_t i= 0; i < vec_len; i++)
       vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
     vec->postprocess(vec_len);
