@@ -151,6 +151,7 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_row>(thd, this); }
   Item *do_build_clone(THD *thd) const override;
+  Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 };
 
 #endif /* ITEM_ROW_INCLUDED */
