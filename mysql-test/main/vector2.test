@@ -339,5 +339,12 @@ delete from t;
 insert into t values (0x31313131);
 delete from t;
 drop table t;
+--echo #
+--echo # MDEV-37055 UBSAN: 32801 is outside the range of representable values of type 'short'
+--echo #
+create table t1 (v vector (1) not null,vector index (v));
+insert into t1 values (0xf0a08080);
+insert into t1 values (0xfa000000);
+drop table t1;
 
 --echo # End of 11.8 tests
