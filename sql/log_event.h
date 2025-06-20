@@ -5097,6 +5097,11 @@ public:
       RLE_NO_FLAGS = 0U
   };
 
+  #ifdef MYSQL_SERVER
+    /// Type for make_thd_info()
+    using thd_info_cache= THD::Rows_log_event_info [3];
+  #endif
+
   virtual ~Rows_log_event();
 
   void set_flags(flag_set flags_arg) { m_flags |= flags_arg; }
@@ -5385,6 +5390,13 @@ protected:
     return (m_table->next_number_field &&
             m_table->next_number_field->field_index >= m_width);
   }
+
+  /**
+    Implementation template for make_thd_info(thd_info_cache)
+    that uses the given and @ref m_table's names
+  */
+  void make_thd_info(thd_info_cache cache,
+    const char *class_name, std::initializer_list<const char *> method_names);
 #endif
 
 private:
@@ -5443,7 +5455,14 @@ private:
       0 if execution succeeded, 1 if execution failed.
       
   */
-  virtual int do_exec_row(rpl_group_info *rli) = 0;
+  virtual int do_exec_row(rpl_group_info *rli, thd_info_cache cache)= 0;
+
+  /**
+    Pre-generate THD::proc_info message(s) for do_exec_row()
+    in rpl_sql_thread_info::cached_thd_info of @ref thd
+    @see make_thd_info(thd_info_cache, const char *, std::initializer_list)
+  */
+  virtual void make_thd_info(thd_info_cache cache)= 0;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 
   friend class Old_rows_log_event;
@@ -5501,7 +5520,8 @@ private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   int do_before_row_operations(const Slave_reporting_capability *const) override;
   int do_after_row_operations(const Slave_reporting_capability *const,int) override;
-  int do_exec_row(rpl_group_info *) override;
+  int do_exec_row(rpl_group_info *rli, thd_info_cache cache) override;
+  void make_thd_info(thd_info_cache cache) override;
 #endif
 };
 
@@ -5589,7 +5609,8 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   int do_before_row_operations(const Slave_reporting_capability *const) override;
   int do_after_row_operations(const Slave_reporting_capability *const,int) override;
-  int do_exec_row(rpl_group_info *) override;
+  int do_exec_row(rpl_group_info *, thd_info_cache cache) override;
+  void make_thd_info(thd_info_cache cache) override;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 };
 
@@ -5674,7 +5695,8 @@ protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   int do_before_row_operations(const Slave_reporting_capability *const) override;
   int do_after_row_operations(const Slave_reporting_capability *const,int) override;
-  int do_exec_row(rpl_group_info *) override;
+  int do_exec_row(rpl_group_info *, thd_info_cache cache) override;
+  void make_thd_info(thd_info_cache cache) override;
 #endif
 };
 
