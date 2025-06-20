@@ -424,6 +424,28 @@ int Geometry::bbox_as_json(String *wkt)
 }
 
 
+/**
+ * Geometry::operator==
+ *
+ * @param rhs   a Geometry instance to compare to *this
+ * @return true when *this is the same Geometry as rhs, false otherwise.  If
+ *              either *this or rhs have no Geometry associated (because, for
+ *              example, they are built with the default constructor) then the
+ *              comparison will always be false.
+ */
+bool Geometry::operator==(Geometry &rhs) const
+{
+  if (!m_data || !rhs.m_data)
+    return false;
+
+  const ptrdiff_t len= m_data_end - m_data;
+  if (len != rhs.m_data_end - rhs.m_data)
+    return false;
+
+  return memcmp(m_data, rhs.m_data, len) == 0;
+}
+
+
 static double wkb_get_double(const char *ptr, Geometry::wkbByteOrder bo)
 {
   double res;
