@@ -104,6 +104,17 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
       (e->force_abort && !rli->stop_for_until))
     return;
 
+  #ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
+      )));
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL main_sql_thread_continue"
+      )));
+    );
+  #endif
+
   mysql_mutex_lock(&rli->data_lock);
   cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
@@ -2034,7 +2045,11 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    ir->dequeued_count+= accumulated_ir_count;
+    Relay_log_info *rli= ir->rli;
+    mysql_mutex_lock(&rli->data_lock);
+      ir->dequeued_count+= accumulated_ir_count;
+      rpl_parallel::update_workers_idle(rli);
+    mysql_mutex_unlock(&rli->data_lock);
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }
@@ -3050,13 +3065,12 @@ rpl_parallel::stop_during_until()
 }
 
 
-bool
-rpl_parallel::workers_idle(Relay_log_info *rli)
+void rpl_parallel::update_workers_idle(Relay_log_info *rli)
 {
   mysql_mutex_assert_owner(&rli->data_lock);
-  return !rli->last_inuse_relaylog ||
-    rli->last_inuse_relaylog->queued_count ==
-    rli->last_inuse_relaylog->dequeued_count;
+  if (rli->last_inuse_relaylog->queued_count ==
+      rli->last_inuse_relaylog->dequeued_count)
+    rli->worker_threads_caught_up= true;
 }
 
 

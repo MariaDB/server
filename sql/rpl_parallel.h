@@ -511,7 +511,14 @@ struct rpl_parallel {
   int wait_for_workers_idle(THD *thd);
   int do_event(rpl_group_info *serial_rgi, Log_event *ev, ulonglong event_size);
 
-  static bool workers_idle(Relay_log_info *rli);
+  /**
+    Update trigger function for @ref Relay_log_info::worker_threads_caught_up
+    @post Set it to `true` if all events in
+      @ref Relay_log_info::last_inuse_relaylog have dequeued
+    @pre @ref Relay_log_info::data_lock held and `last_inuse_relaylog`
+      not `nullptr` (assuming `rli->mi->using_parallel()`)
+  */
+  static void update_workers_idle(Relay_log_info *rli);
 };
 
 
