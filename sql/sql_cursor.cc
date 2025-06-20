@@ -115,6 +115,8 @@ int mysql_open_cursor(THD *thd, select_result *result,
   Select_materialize *result_materialize;
   LEX *lex= thd->lex;
   int rc;
+  ulonglong orig_sql_mode= thd->variables.sql_mode;
+  ulonglong temp_sql_mode= orig_sql_mode;
 
   if (!(result_materialize= new (thd->mem_root) Select_materialize(thd, result)))
     return 1;
@@ -135,7 +137,19 @@ int mysql_open_cursor(THD *thd, select_result *result,
   thd->m_statement_psi= NULL;
   /* Mark that we can't use query cache with cursors */
   thd->query_cache_is_applicable= 0;
+  /*
+  Temporarily allow all kinds of invalid dates into the cursor.
+  This is to make sure that all data from the base table is
+  present in the temp table when materialzied.
+  */
+  temp_sql_mode |= MODE_INVALID_DATES;
+  temp_sql_mode &= ~MODE_NO_ZERO_DATE;
+  temp_sql_mode &= ~MODE_NO_ZERO_IN_DATE;
+  temp_sql_mode &= ~MODE_STRICT_ALL_TABLES;
+  temp_sql_mode &= ~MODE_STRICT_TRANS_TABLES;
+  thd->variables.sql_mode= temp_sql_mode;
   rc= mysql_execute_command(thd);
+  thd->variables.sql_mode= orig_sql_mode;
   thd->lex->restore_set_statement_var();
   thd->m_digest= parent_digest;
   thd->m_statement_psi= parent_locker;

@@ -1,0 +1,26 @@
+#
+# MDEV-31516 : Cursor Protocol gives incorrect result with
+# sql_mode='ALLOW_INVALID_DATES'
+#
+CREATE TABLE t1 (col1 date);
+set @@sql_mode='STRICT_ALL_TABLES,ALLOW_INVALID_DATES';
+INSERT INTO t1 VALUES ('2004-2-30');
+set @@sql_mode='ansi,traditional';
+INSERT IGNORE INTO t1 VALUES('2004-02-29');
+SELECT * FROM t1;
+col1
+2004-02-30
+2004-02-29
+DROP TABLE t1;
+CREATE TABLE t1 (col1 date);
+set @@sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t1 VALUES('2004-0-31');
+set @@sql_mode='STRICT_ALL_TABLES,NO_ZERO_DATE';
+INSERT INTO t1 VALUES ('2004-0-30');
+set @@sql_mode='ansi,traditional';
+SELECT * FROM t1;
+col1
+2004-00-31
+2004-00-30
+DROP TABLE t1;
+# End of 10.6 tests
