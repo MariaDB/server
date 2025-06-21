@@ -95,13 +95,12 @@ struct FVector
     float scale=0, *v= (float *)src;
     size_t vec_len= src_len / sizeof(float);
     for (size_t i= 0; i < vec_len; i++)
-      if (std::abs(scale) < std::abs(get_float(v + i)))
-        scale= get_float(v + i);
+      scale= std::max(scale, std::abs(get_float(v + i)));
 
     FVector *vec= align_ptr(mem);
     vec->scale= scale ? scale/32767 : 1;
     if (std::round(scale/vec->scale) > 32767)
-      vec->scale= std::nextafter(vec->scale, scale > 0 ? FLT_MAX : -FLT_MAX);
+      vec->scale= std::nextafter(vec->scale, FLT_MAX);
     for (size_t i= 0; i < vec_len; i++)
       vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
     vec->postprocess(vec_len);
