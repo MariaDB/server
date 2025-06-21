@@ -11471,7 +11471,8 @@ do_continue:;
 
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
-  if (!(alter_info->flags & ALTER_ADD_INDEX) && !alter_ctx.modified_primary_key)
+  if (!(alter_info->flags & (ALTER_ADD_INDEX|ALTER_ADD_FOREIGN_KEY)) &&
+      !alter_ctx.modified_primary_key)
     create_info->options|= HA_SKIP_KEY_SORT;
   else
     alter_info->flags|= ALTER_INDEX_ORDER;
