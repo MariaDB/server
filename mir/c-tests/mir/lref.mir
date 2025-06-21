@@ -1,0 +1,15 @@
+M0:	module
+e:      bss 8
+        export e
+main:	func	i32, i32:argc
+	local	i64:a
+	bge fail, argc, 2
+        laddr a, l0
+	jmp skip
+fail:   laddr a, l1
+skip:	jmpi a
+l1:     ret 1
+l0:	ret 0
+	endfunc
+	export	main
+	endmodule

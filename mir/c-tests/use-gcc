@@ -1,0 +1,2 @@
+# ! /bin/sh
+gcc -w --trigraphs -O2 -o ttt $* -lm && (./ttt;exit $?);code=$?; rm -f ./ttt; exit $code

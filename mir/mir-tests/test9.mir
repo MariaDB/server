@@ -1,0 +1,34 @@
+# va test
+# predefined variables (type of i64): .va_list_size
+
+m:		module
+exit_p:		proto  i64:v
+printf_p:	proto  p:fmt, ...
+		import printf, exit
+fun:		func i64:double_p, ...
+		local i64:va, i64:a
+		alloca va, 32 # .va_list_size ???
+		va_start va
+		bt double, double_p
+		va_arg a, va, i64:0 # memory at address 0
+                call printf_p, printf, "int %ld\n", i64:(a)
+		va_end va
+		ret
+double:
+		va_arg a, va, d:0 # memory at address 0
+		call printf_p, printf, "double %g\n", d:(a)
+		va_end va
+                ret
+endfunc
+fun_p:	        proto i64:flag, ...
+main:		func
+		local i64:i, d:r
+		mov i, 42
+		dmov r, 4.2
+		call fun_p, fun, 0, i
+		call fun_p, fun, 1, r
+		call fun_p, fun, 0, 43
+		call fun_p, fun, 1, 4.3
+		call exit_p, exit, 0
+		endfunc
+		endmodule

@@ -1,0 +1,6 @@
+m: module
+f: func
+ret
+TEST_LABEL:
+endfunc
+endmodule

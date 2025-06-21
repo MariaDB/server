@@ -1,0 +1,12 @@
+M0:	module
+proto0:	proto	i32, u64:U0___format, ...
+	import	printf
+main:	func	i32, i32:i0_argc, u64:U0_argv
+	local	i64:i_0, i64:i_1
+# 2 args, 2 locals
+	call	proto0, printf, i_0, "English\n\000"
+	call	proto0, printf, i_1, "\355\225\234\352\270\200\n\000"
+	ret	0
+	endfunc
+	export	main
+	endmodule
