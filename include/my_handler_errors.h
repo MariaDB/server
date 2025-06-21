@@ -114,7 +114,8 @@ static const char *handler_error_messages[]=
   "Transaction was aborted",
   /* HA_ERR_LOCAL_TMP_SPACE_FULL=201 */
   "Local temporary space limit reached",
-  "Global temporary space limit reached"
+  "Global temporary space limit reached",
+  "NEED TO SKIP A ROW"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

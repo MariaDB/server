@@ -9227,7 +9227,7 @@ void switch_defaults_to_nullable_trigger_fields(TABLE *table)
 /**
   Test NOT NULL constraint after BEFORE triggers
 */
-static bool not_null_fields_have_null_values(TABLE *table)
+bool not_null_fields_have_null_values(TABLE *table)
 {
   Field **orig_field= table->field;
   Field **filled_field= table->field_to_fill();
@@ -9273,7 +9273,7 @@ static bool not_null_fields_have_null_values(TABLE *table)
                mustn't be processed by the INSERT statement.
 */
 
-static inline bool no_need_to_skip_a_row(bool *skip_row_indicator)
+bool no_need_to_skip_a_row(bool *skip_row_indicator)
 {
   /*
     A row currently being processed mustn't be skipped in case the parameter

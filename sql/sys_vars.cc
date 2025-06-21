@@ -7607,3 +7607,10 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   // Allow a smaller minimum value for debug builds to help with testing
   VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
+
+extern my_bool mir_jit_enabled;
+static Sys_var_mybool Sys_mir_jit_enabled(
+       "mir_jit_enabled",
+       "Enabling mir jit compiler for update queries",
+       GLOBAL_VAR(mir_jit_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
