@@ -347,4 +347,12 @@ insert into t1 values (0xf0a08080);
 insert into t1 values (0xfa000000);
 drop table t1;
 
+--echo #
+--echo # MDEV-37022 Assertion when adding FK to MyISAM/Aria table with a vector index
+--echo #
+create table t1 (v vector(1) not null,vector (v));
+alter table t1 add x int references t1(x),add y int constraint c references t1(y);
+show create table t1;
+drop table t1;
+
 --echo # End of 11.8 tests
