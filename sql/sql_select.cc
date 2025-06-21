@@ -4865,7 +4865,6 @@ void JOIN::exec_inner()
     }
     /* Single select (without union) always returns 0 or 1 row */
     thd->limit_found_rows= send_records;
-    thd->set_examined_row_count(0);
     DBUG_VOID_RETURN;
   }
 
