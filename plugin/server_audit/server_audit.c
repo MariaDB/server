@@ -1424,6 +1424,16 @@ static int write_log(const char *message, size_t len, int take_lock)
         ++log_write_failures;
         result= 1;
       }
+      {
+        char buf[1024];
+        size_t sz;
+        size_t fb_left= logfile->cache.write_end - logfile->cache.write_pos;
+
+        sz= my_snprintf(buf, sizeof(buf),"buflen %zd %zd\n",
+            logfile->cache.buffer_length, fb_left);
+        if (logfile->buffer_size)
+          logger_write(logfile, buf, sz);
+      }
     }
   }
   else if (output_type == OUTPUT_SYSLOG)
