@@ -468,4 +468,20 @@ create table t1 (v vector (1) not null,vector index (v));
 insert into t1 values (0xf0a08080);
 insert into t1 values (0xfa000000);
 drop table t1;
+#
+# MDEV-37022 Assertion when adding FK to MyISAM/Aria table with a vector index
+#
+create table t1 (v vector(1) not null,vector (v));
+alter table t1 add x int references t1(x),add y int constraint c references t1(y);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `v` vector(1) NOT NULL,
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  KEY `x` (`x`),
+  KEY `c` (`y`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
 # End of 11.8 tests
