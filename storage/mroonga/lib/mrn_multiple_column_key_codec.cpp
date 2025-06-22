@@ -522,6 +522,7 @@ namespace mrn {
       break;
     case MYSQL_TYPE_VARCHAR_COMPRESSED:
     case MYSQL_TYPE_BLOB_COMPRESSED:
+    case MYSQL_TYPE_INTERVAL:
       DBUG_ASSERT(0);
 #ifdef MRN_HAVE_MYSQL_TYPE_JSON
     case MYSQL_TYPE_JSON:

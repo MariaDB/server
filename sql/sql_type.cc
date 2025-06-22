@@ -171,7 +171,7 @@ Named_type_handler<Type_handler_long_blob> type_handler_long_blob("longblob");
 Named_type_handler<Type_handler_blob> type_handler_blob("blob");
 Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed("blob");
 
-Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
+Named_type_handler<Type_handler_interval_DDhhmmssff> type_handler_interval_DDhhmmssff("interval");
 
 Vers_type_timestamp       vers_type_timestamp;
 Vers_type_trx             vers_type_trx;
@@ -399,6 +399,38 @@ my_decimal *Temporal::bad_to_decimal(my_decimal *to) const
 {
   my_decimal_set_zero(to);
   return NULL;
+}
+
+static size_t interval_default_length(enum interval_type type) {
+  switch(type) {
+  case INTERVAL_YEAR:
+  case INTERVAL_YEAR_MONTH:
+    return 4;
+
+  case INTERVAL_MONTH:
+    return 6;
+
+  case INTERVAL_DAY:
+  case INTERVAL_DAY_HOUR:
+  case INTERVAL_DAY_MINUTE:
+  case INTERVAL_DAY_SECOND:
+    return 7;
+
+  case INTERVAL_HOUR:
+  case INTERVAL_HOUR_MINUTE:
+  case INTERVAL_HOUR_SECOND:
+    return 8;
+
+  case INTERVAL_MINUTE:
+  case INTERVAL_MINUTE_SECOND:
+    return 10;
+
+  case INTERVAL_SECOND:
+    return 12;
+
+  default:
+    return 0;
+  }
 }
 
 
@@ -2248,6 +2280,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_TIME2:       return &type_handler_time2;
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime2; // Map to datetime2
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
+  case MYSQL_TYPE_INTERVAL:    return &type_handler_interval_DDhhmmssff;
   case MYSQL_TYPE_NEWDATE:
     /*
       NEWDATE is actually a real_type(), not a field_type(),
@@ -2301,6 +2334,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime;
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
+  case MYSQL_TYPE_INTERVAL: return &type_handler_interval_DDhhmmssff;
   };
   return NULL;
 }
@@ -3012,6 +3046,21 @@ bool Type_handler_datetime_common::
 {
   return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
 }
+
+bool Type_handler_interval_DDhhmmssff::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->pack_flag= f_set_interval_type(def->decimals >> 3);
+  def->decimals&= FIELDFLAG_MAX_DEC_INTERVAL;
+  def->pack_flag|= f_set_decimals_interval(def->decimals);
+  interval_type itype= (enum interval_type) f_get_interval_type(def->pack_flag);
+
+  if (def->length == 0)
+    def->length= interval_default_length(itype);
+
+  return def->fix_attributes_interval(itype);
+}
+
 
 bool Type_handler_set::
        Column_definition_fix_attributes(Column_definition *def) const
@@ -8200,7 +8249,14 @@ Item *Type_handler_long_blob::
   }
   return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
 }
-
+bool Type_handler_interval_DDhhmmssff::
+          Column_definition_prepare_stage2(Column_definition* c,
+                                     handler* file,
+                                     ulonglong table_flags) const
+{
+  c->pack_flag|= f_settype((uint) MYSQL_TYPE_INTERVAL);
+  return false;
+}
 Item *Type_handler_interval_DDhhmmssff::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
@@ -8684,6 +8740,25 @@ Field *Type_handler_datetime2::
                     attr->temporal_dec(MAX_DATETIME_WIDTH));
 }
 
+  Field *Type_handler_interval_DDhhmmssff::
+    make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &rec, const Bit_addr &bit,
+                          const Column_definition_attributes *attr,
+                          uint32 flags) const
+  {
+  return new (mem_root) Field_interval(
+      rec.ptr(),
+      16,
+      rec.null_ptr(),
+      rec.null_bit(),
+      attr->unireg_check,
+      name,
+      (enum interval_type)f_get_interval_type(attr->pack_flag),
+      attr->length,
+      f_decimals_interval(attr->pack_flag)
+      );
+  }
 
 Field *Type_handler_null::
   make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,

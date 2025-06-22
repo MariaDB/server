@@ -473,4 +473,74 @@ void my_timestamp_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
   }
 }
 
+/**
+  Convert MariaDBxx binary interval representation to in-memory representation.
+
+  @param  OUT tm  The variable to convert to.
+  @param      ptr The pointer to read the value from.
+  @param      dec Precision.
+*/
+void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec)
+{
+  DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  tm->tv_sec= mi_uint5korr(ptr);
+  switch (dec)
+  {
+  case 0:
+  default:
+    tm->tv_usec= 0;
+    return;
+  case 1:
+  case 2:
+    tm->tv_usec= ((uint) ptr[5]) * 10000;
+    break;
+  case 3:
+  case 4:
+    tm->tv_usec= (uint) mi_uint2korr(ptr + 5) * 100;
+    break;
+  case 5:
+  case 6:
+    tm->tv_usec= (uint) mi_uint3korr(ptr + 5);
+  }
+  // The binary data my be corrupt. Cut fractional seconds to the valid range.
+  set_if_smaller(tm->tv_usec, my_max_usec_value[dec]);
+}
+
+
+/**
+  Convert MariaDBxx in-memory interval representation to on-disk representation.
+
+  @param        tm   The value to convert.
+  @param  OUT   ptr  The pointer to store the value to.
+  @param        dec  Precision.
+*/
+void my_interval_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
+{
+  DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+  /* Stored value must have been previously properly rounded or truncated
+   * TODO: I will implement rounding & truncation for interval datatype.
+   */
+  DBUG_ASSERT((tm->tv_usec %
+               (int) log_10_int[TIME_SECOND_PART_DIGITS - dec]) == 0);
+  mi_int5store(ptr, tm->tv_sec);
+  switch (dec)
+  {
+  case 0:
+  default:
+    break;
+  case 1:
+  case 2:
+    ptr[5]= (unsigned char) (char) (tm->tv_usec / 10000);
+    break;
+  case 3:
+  case 4:
+    mi_int2store(ptr + 5, tm->tv_usec / 100);
+    break;
+    /* Impossible second precision. Fall through */
+  case 5:
+  case 6:
+    mi_int3store(ptr + 5, tm->tv_usec);
+  }
+}
+
 /****************************************/

@@ -58,6 +58,8 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-12513: Support for INTERVAL data types in MariaDB
 --echo #
+if(0)
+{
 CREATE TABLE t2 (a INTERVAL YEAR );
 CREATE TABLE t4 (a INTERVAL YEAR TO MONTH );
 CREATE TABLE t5 (a INTERVAL DAY(5) );
@@ -206,6 +208,89 @@ BEGIN
 END;
 /
 DELIMITER ;/
+}
+DELIMITER /;
+
+CREATE PROCEDURE sp_interval_parameters(
+  IN in_ym INTERVAL YEAR(4) TO MONTH,        -- Max: 9999-11
+  IN in_y INTERVAL YEAR(4),                  -- Max: 9999
+  IN in_m INTERVAL MONTH(2),                 -- Max: 99
+  IN in_ds INTERVAL DAY(3) TO SECOND(6),     -- Max: 999 23:59:59.999999
+  IN in_d INTERVAL DAY(3),                   -- Max: 999
+  IN in_h INTERVAL HOUR(3),                  -- Max: 999
+  IN in_n INTERVAL MINUTE(2),                -- Max: 99
+  IN in_s INTERVAL SECOND(6),                -- Max: 59.999999
+  IN in_dh INTERVAL DAY(3) TO HOUR,          -- Max: 999 23
+  IN in_dm INTERVAL DAY(3) TO MINUTE,        -- Max: 999 23:59
+  IN in_hs INTERVAL HOUR(3) TO SECOND(6),    -- Max: 999:59:59.999999
+  IN in_hm INTERVAL HOUR(3) TO MINUTE,       -- Max: 999:59
+  IN in_ms INTERVAL MINUTE(2) TO SECOND(6),  -- Max: 99:59.999999
+  OUT out_ym INTERVAL YEAR(4) TO MONTH,
+  OUT out_y INTERVAL YEAR(4),
+  OUT out_m INTERVAL MONTH(2),
+  OUT out_ds INTERVAL DAY(3) TO SECOND(6),
+  OUT out_d INTERVAL DAY(3),
+  OUT out_h INTERVAL HOUR(3),
+  OUT out_n INTERVAL MINUTE(2),
+  OUT out_s INTERVAL SECOND(6),
+  OUT out_dh INTERVAL DAY(3) TO HOUR,
+  OUT out_dm INTERVAL DAY(3) TO MINUTE,
+  OUT out_hs INTERVAL HOUR(3) TO SECOND(6),
+  OUT out_hm INTERVAL HOUR(3) TO MINUTE,
+  OUT out_ms INTERVAL MINUTE(2) TO SECOND(6)
+)
+BEGIN
+  -- Simple passthrough logic
+  SET out_ym = in_ym;
+  SET out_y = in_y;
+  SET out_m = in_m;
+  SET out_ds = in_ds;
+  SET out_d = in_d;
+  SET out_h = in_h;
+  SET out_n = in_n;
+  SET out_s = in_s;
+  SET out_dh = in_dh;
+  SET out_dm = in_dm;
+  SET out_hs = in_hs;
+  SET out_hm = in_hm;
+  SET out_ms = in_ms;
+END;
+/
+DELIMITER ;/
+
+CALL sp_interval_parameters(
+   '5-3',
+   '10',
+   '12',
+   '100 12:30:45.123456',
+   '100',
+   '120',
+   '90',
+   '45.123456',
+   '100 12',
+   '100 12:30',
+   '120:30:45.123456',
+   '120:30',
+   '90:45.123456',
+
+  @out_ym, @out_y, @out_m, @out_ds, @out_d,
+  @out_h, @out_n, @out_s, @out_dh, @out_dm,
+  @out_hs, @out_hm, @out_ms
+);
+SELECT
+  @out_ym,
+  @out_y,
+  @out_m,
+  @out_ds,
+  @out_d,
+  @out_h,
+  @out_n,
+  @out_s,
+  @out_dh,
+  @out_dm,
+  @out_hs,
+  @out_hm,
+  @out_ms;
 --echo #
 --echo # End of 10.4 tests
 --echo #

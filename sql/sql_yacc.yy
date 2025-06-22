@@ -132,6 +132,36 @@ static Item* escape(THD *thd)
   return new (thd->mem_root) Item_string_ascii(thd, esc, MY_TEST(esc[0]));
 }
 
+inline enum interval_type combine_interval_range(enum interval_type start, enum interval_type end) {
+  switch (start) {
+    case INTERVAL_YEAR:
+      if (end == INTERVAL_MONTH) return INTERVAL_YEAR_MONTH;
+      break;
+    case INTERVAL_DAY:
+      switch (end) {
+        case INTERVAL_HOUR:         return INTERVAL_DAY_HOUR;
+        case INTERVAL_MINUTE:       return INTERVAL_DAY_MINUTE;
+        case INTERVAL_SECOND:       return INTERVAL_DAY_SECOND;
+        default: break;
+      }
+      break;
+    case INTERVAL_HOUR:
+      switch (end) {
+        case INTERVAL_MINUTE:       return INTERVAL_HOUR_MINUTE;
+        case INTERVAL_SECOND:       return INTERVAL_HOUR_SECOND;
+        default: break;
+      }
+      break;
+    case INTERVAL_MINUTE:
+      switch (end) {
+        case INTERVAL_SECOND:       return INTERVAL_MINUTE_SECOND;
+        default: break;
+      }
+      break;
+    default: break;
+  }
+  return INTERVAL_LAST;
+}
 
 /**
   @brief Bison callback to report a syntax/OOM error
@@ -344,6 +374,12 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     Item *expr;
     LEX_CSTRING expr_str;
   } expr_and_query_str;
+  struct Interval_qualifier {
+    enum interval_type type;
+    Lex_length_and_dec_st start_prec;
+    Lex_length_and_dec_st end_prec;
+  };
+  struct Interval_qualifier Interval_quali;
 }
 
 %{
@@ -1333,6 +1369,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %precedence MICROSECOND_SYM
 %precedence WEEK_SYM
 %precedence QUARTER_SYM
+
 %type <lex_comment>
         HINT_COMMENT opt_hint_comment
 
@@ -1602,6 +1639,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <opt_hints>
         opt_optimizer_hint
+
+%type <Interval_quali>
+        interval_qualifier
+        single_datetime_field
+        range_datetime_field
+
 
 %destructor
 {
@@ -5591,21 +5634,7 @@ opt_versioning_interval_start:
          {
            $$= NULL;
          }
-       | STARTS_SYM TIMESTAMP TEXT_STRING
-         {
-           if (unlikely(!($$= type_handler_datetime.create_literal_item(thd,
-                                                            $3.str, $3.length,
-                                                            YYCSCL, true))))
-             MYSQL_YYABORT;
-         }
-       | STARTS_SYM DATE_SYM TEXT_STRING
-         {
-           if (unlikely(!($$= type_handler_newdate.create_literal_item(thd,
-                                                           $3.str, $3.length,
-                                                           YYCSCL, true))))
-             MYSQL_YYABORT;
-         }
-       | STARTS_SYM NUM_literal
+       | STARTS_SYM literal
          {
            $$= $2;
          }
@@ -6648,24 +6677,15 @@ field_type_temporal:
             $$.set(thd->type_handler_for_datetime(), $2);
           }
         | INTERVAL_SYM interval_qualifier
-        {
-            $$.set(&type_handler_interval_DDhhmmssff);
-        }
+          {
+            uint8 frac_prec = $2.end_prec.length();
+            uint8 packed = frac_prec | (static_cast<uint8>($2.type) << 3);
+            $2.start_prec.set_length_and_dec($2.start_prec.length(),packed);
+            $$.set(static_cast<const Type_handler*>(&type_handler_interval_DDhhmmssff),$2.start_prec);
+          }
         ;
 
-interval_qualifier:
-          single_datetime_field
-        | range_datetime_field;
 
-single_datetime_field:
-        interval_time_stamp opt_field_length
-        %prec PREC_INTERVAL_CONTEXT;
-
-range_datetime_field:
-        interval_time_stamp opt_field_length
-        TO_SYM
-        interval_time_stamp opt_field_length;
-                
 field_type_lob:
           TINYBLOB opt_compressed
           {
@@ -12454,6 +12474,32 @@ using_list:
           }
         ;
 
+interval_qualifier:
+    single_datetime_field   { $$ = $1; }
+    | range_datetime_field  { $$ = $1; }
+;
+
+single_datetime_field:
+    interval_time_stamp opt_field_length
+    %prec PREC_INTERVAL_CONTEXT
+    {
+        $$.type = $1;
+        $$.start_prec = $2;
+        $$.end_prec.reset();
+    }
+;
+
+range_datetime_field:
+    interval_time_stamp opt_field_length
+    TO_SYM
+    interval_time_stamp opt_field_length
+    {
+        $$.type = combine_interval_range($1, $4);
+        $$.start_prec = $2;
+        $$.end_prec = $5;
+    }
+;
+
 interval:
           interval_time_stamp    {}
         | DAY_HOUR_SYM           { $$=INTERVAL_DAY_HOUR; }
@@ -15747,13 +15793,6 @@ temporal_literal:
                                                             YYCSCL, true))))
               MYSQL_YYABORT;
           }
-        | INTERVAL_SYM %prec EMPTY_FROM_CLAUSE TEXT_STRING interval_qualifier
-                    {
-                      if (unlikely(!($$= type_handler_datetime.create_literal_item(thd,
-                                                                      $2.str, $2.length,
-                                                                      YYCSCL, true))))
-                        MYSQL_YYABORT;
-                    }
         ;
 
 with_clause:

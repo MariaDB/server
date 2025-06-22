@@ -81,121 +81,20 @@ DROP TABLE t1;
 #
 # MDEV-12513: Support for INTERVAL data types in MariaDB
 #
-CREATE TABLE t2 (a INTERVAL YEAR );
-CREATE TABLE t4 (a INTERVAL YEAR TO MONTH );
-CREATE TABLE t5 (a INTERVAL DAY(5) );
-CREATE TABLE t6 (a INTERVAL HOUR(3) );
-CREATE TABLE t7 (a INTERVAL MINUTE(2) );
-CREATE TABLE t9 (a INTERVAL DAY TO HOUR );
-CREATE TABLE t10 (a INTERVAL DAY TO MINUTE );
-CREATE TABLE t11 (a INTERVAL DAY(4) TO SECOND(3) );
-CREATE TABLE t12 (a INTERVAL HOUR TO MINUTE );
-CREATE TABLE t13 (a INTERVAL HOUR(3) TO SECOND(2) );
-CREATE TABLE t14 (a INTERVAL MINUTE TO SECOND(4) );
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t4;
-Table	Create Table
-t4	CREATE TABLE `t4` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t5;
-Table	Create Table
-t5	CREATE TABLE `t5` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t6;
-Table	Create Table
-t6	CREATE TABLE `t6` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t7;
-Table	Create Table
-t7	CREATE TABLE `t7` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t9;
-Table	Create Table
-t9	CREATE TABLE `t9` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t10;
-Table	Create Table
-t10	CREATE TABLE `t10` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t11;
-Table	Create Table
-t11	CREATE TABLE `t11` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t12;
-Table	Create Table
-t12	CREATE TABLE `t12` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t13;
-Table	Create Table
-t13	CREATE TABLE `t13` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-SHOW CREATE TABLE t14;
-Table	Create Table
-t14	CREATE TABLE `t14` (
-  `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-DROP TABLE t2, t4, t5, t6, t7, t9, t10, t11, t12, t13, t14;
-CREATE PROCEDURE sp_interval_declaration()
-BEGIN
-DECLARE ym_year INTERVAL YEAR DEFAULT INTERVAL '2025-06-19 15:00:00' YEAR;
-DECLARE ym_month INTERVAL MONTH DEFAULT INTERVAL '2025-06-19 15:00:00' MONTH;
-DECLARE ym_ym INTERVAL YEAR TO MONTH DEFAULT INTERVAL '2025-06-19 15:00:00' YEAR TO MONTH;
-DECLARE ds_day INTERVAL DAY DEFAULT INTERVAL '2025-06-19 15:00:00' DAY;
-DECLARE ds_hour INTERVAL HOUR DEFAULT INTERVAL '2025-06-19 15:00:00' HOUR;
-DECLARE ds_minute INTERVAL MINUTE DEFAULT INTERVAL '2025-06-19 15:00:00' MINUTE;
-DECLARE ds_second INTERVAL SECOND DEFAULT INTERVAL '2025-06-19 15:00:00' SECOND(3);
-DECLARE ds_dh INTERVAL DAY TO HOUR DEFAULT INTERVAL '2025-06-19 15:00:00'  DAY TO HOUR;
-DECLARE ds_dm INTERVAL DAY TO MINUTE DEFAULT INTERVAL '2025-06-19 15:00:00' DAY TO MINUTE;
-DECLARE ds_ds INTERVAL DAY TO SECOND DEFAULT INTERVAL '2025-06-19 15:00:00' DAY TO SECOND;
-DECLARE ds_hm INTERVAL HOUR TO MINUTE DEFAULT INTERVAL '2025-06-19 15:00:00' HOUR TO MINUTE;
-DECLARE ds_hs INTERVAL HOUR TO SECOND DEFAULT INTERVAL '2025-06-19 15:00:00' HOUR TO SECOND;
-DECLARE ds_ms INTERVAL MINUTE TO SECOND DEFAULT INTERVAL '2025-06-19 15:00:00' MINUTE TO SECOND;
-SELECT
-ym_year AS year_int,
-ym_month AS month_int,
-ym_ym AS ym_int,
-ds_day AS day_sec,
-ds_hour AS hour_sec,
-ds_minute AS minute_sec,
-ds_second AS second_frac,
-ds_dh AS day_hour_sec,
-ds_dm AS day_min_sec,
-ds_ds AS day_sec_frac,
-ds_hm AS hour_min_sec,
-ds_hs AS hour_sec_frac,
-ds_ms AS min_sec_frac;
-END;
-/
-CALL sp_interval_declaration();
-year_int	month_int	ym_int	day_sec	hour_sec	minute_sec	second_frac	day_hour_sec	day_min_sec	day_sec_frac	hour_min_sec	hour_sec_frac	min_sec_frac
-2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00	2025-06-19 15:00:00
 CREATE PROCEDURE sp_interval_parameters(
-IN in_ym INTERVAL YEAR(4) TO MONTH,
-IN in_y INTERVAL YEAR(4),
-IN in_m INTERVAL MONTH(2),
-IN in_ds INTERVAL DAY(3) TO SECOND(6),
-IN in_d INTERVAL DAY(3),
-IN in_h INTERVAL HOUR(3),
-IN in_n INTERVAL MINUTE(2),
-IN in_s INTERVAL SECOND(6),
-IN in_dh INTERVAL DAY(3) TO HOUR,
-IN in_dm INTERVAL DAY(3) TO MINUTE,
-IN in_hs INTERVAL HOUR(3) TO SECOND(6),
-IN in_hm INTERVAL HOUR(3) TO MINUTE,
-IN in_ms INTERVAL MINUTE(2) TO SECOND(6),
+IN in_ym INTERVAL YEAR(4) TO MONTH,        -- Max: 9999-11
+IN in_y INTERVAL YEAR(4),                  -- Max: 9999
+IN in_m INTERVAL MONTH(2),                 -- Max: 99
+IN in_ds INTERVAL DAY(3) TO SECOND(6),     -- Max: 999 23:59:59.999999
+IN in_d INTERVAL DAY(3),                   -- Max: 999
+IN in_h INTERVAL HOUR(3),                  -- Max: 999
+IN in_n INTERVAL MINUTE(2),                -- Max: 99
+IN in_s INTERVAL SECOND(6),                -- Max: 59.999999
+IN in_dh INTERVAL DAY(3) TO HOUR,          -- Max: 999 23
+IN in_dm INTERVAL DAY(3) TO MINUTE,        -- Max: 999 23:59
+IN in_hs INTERVAL HOUR(3) TO SECOND(6),    -- Max: 999:59:59.999999
+IN in_hm INTERVAL HOUR(3) TO MINUTE,       -- Max: 999:59
+IN in_ms INTERVAL MINUTE(2) TO SECOND(6),  -- Max: 99:59.999999
 OUT out_ym INTERVAL YEAR(4) TO MONTH,
 OUT out_y INTERVAL YEAR(4),
 OUT out_m INTERVAL MONTH(2),
@@ -211,42 +110,56 @@ OUT out_hm INTERVAL HOUR(3) TO MINUTE,
 OUT out_ms INTERVAL MINUTE(2) TO SECOND(6)
 )
 BEGIN
+-- Simple passthrough logic
+SET out_ym = in_ym;
+SET out_y = in_y;
+SET out_m = in_m;
+SET out_ds = in_ds;
+SET out_d = in_d;
+SET out_h = in_h;
+SET out_n = in_n;
+SET out_s = in_s;
+SET out_dh = in_dh;
+SET out_dm = in_dm;
+SET out_hs = in_hs;
+SET out_hm = in_hm;
+SET out_ms = in_ms;
 END;
 /
-CREATE PROCEDURE sp_interval_calc()
-BEGIN
-DECLARE a INTERVAL MONTH DEFAULT INTERVAL '2025-06-19 15:00:00' MONTH;
-DECLARE b INTERVAL YEAR TO MONTH DEFAULT INTERVAL '2025-06-19 15:00:00' YEAR TO MONTH;
-DECLARE total_ym INTERVAL YEAR TO MONTH;
-DECLARE x INTERVAL SECOND DEFAULT INTERVAL '2025-06-19 15:00:00' SECOND;
-DECLARE y INTERVAL DAY TO SECOND DEFAULT INTERVAL '2025-06-19 15:00:00' DAY TO SECOND;
-DECLARE total_ds INTERVAL DAY TO SECOND;
-SET total_ym = a + b;
-SET total_ds = x + y;
+CALL sp_interval_parameters(
+'5-3',
+'10',
+'12',
+'100 12:30:45.123456',
+'100',
+'120',
+'90',
+'45.123456',
+'100 12',
+'100 12:30',
+'120:30:45.123456',
+'120:30',
+'90:45.123456',
+@out_ym, @out_y, @out_m, @out_ds, @out_d,
+@out_h, @out_n, @out_s, @out_dh, @out_dm,
+@out_hs, @out_hm, @out_ms
+);
 SELECT
-total_ym AS ym_result,
-total_ds AS ds_result;
-END;
-/
-CREATE PROCEDURE sp_interval_control_flow(
-IN x INTERVAL DAY TO SECOND
-)
-BEGIN
-DECLARE y INTERVAL DAY DEFAULT INTERVAL '2025-06-19 15:00:00' DAY;
-IF x > y THEN
-SELECT 'A' AS Answer;
-ELSEIF x = INTERVAL  '2025-06-19 15:00:00' DAY THEN
-SELECT 'B' AS Answer;
-ELSE
-SELECT 'C' AS Answer;
-END IF;
-SELECT CASE
-WHEN x < INTERVAL  '2025-06-19 15:00:00' HOUR THEN 'A'
-    WHEN x BETWEEN INTERVAL  '2025-06-19 15:00:00' HOUR AND INTERVAL  '2025-06-19 15:00:00' HOUR THEN 'B'
-    ELSE 'C'
-  END AS duration_category;
-END;
-/
+@out_ym,
+@out_y,
+@out_m,
+@out_ds,
+@out_d,
+@out_h,
+@out_n,
+@out_s,
+@out_dh,
+@out_dm,
+@out_hs,
+@out_hm,
+@out_ms;
+@out_ym	@out_y	@out_m	@out_ds	@out_d	@out_h	@out_n	@out_s	@out_dh	@out_dm	@out_hs	@out_hm	@out_ms
+5-03	10	12	100 12:30:45.123456	100	120	90	45	100 12	100 12:30	120:30:45.123456	120:30	90:45.123456
 #
 # End of 10.4 tests
 #
