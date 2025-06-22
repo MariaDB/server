@@ -869,7 +869,7 @@ Pos	Instruction
 1	set v_b@5 NULL
 2	cpush c@0
 3	set p_value_a@6 arg_value_a@0
-4	set p_value_b@7 (select arg_value_b@1)
+4	set p_value_b@7 arg_value_b@1
 5	set p_pattern_a@8 arg_pattern_a@2
 6	set p_pattern_b@9 arg_pattern_b@3
 7	set p_limit_a@10 100
