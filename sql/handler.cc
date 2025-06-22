@@ -6523,8 +6523,10 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     if ((error= share.path.length > sizeof(file_name) - HLINDEX_BUF_LEN))
       goto err;
 
+    enum_sql_command old_sql_command= thd->lex->sql_command;
     for (uint i= share.keys; i < share.total_keys; i++)
     {
+      thd->lex->sql_command= SQLCOM_CREATE_INDEX;
       my_snprintf(path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
       if (create_info->index_file_name)
         my_snprintf(index_file_name_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
@@ -6544,6 +6546,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
                                              &unused)))
         break;
     }
+    thd->lex->sql_command= old_sql_command;
     free_table_share(&index_share);
   }
 

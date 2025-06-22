@@ -270,9 +270,24 @@ set global innodb_force_primary_key=1;
 insert into t values (0x31313131);
 insert into t values (0x32323232);
 drop table t;
-create table t (v vector (1) not null,vector index (v)) engine=innodb;
-ERROR 42000: This table type requires a primary key
 set global innodb_force_primary_key=0;
+#
+# MDEV-36777 create vector table failed with VECTOR INDEX when innodb_force_primary_key=on
+#
+set global innodb_force_primary_key=on;
+create table t1 (v vector(5) not null, vector index (v)) engine=innodb;
+ERROR 42000: This table type requires a primary key
+create table t1 (id int primary key, v vector(5) not null, vector index (v)) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+set global innodb_force_primary_key=default;
 #
 # MDEV-35922 Server crashes in mhnsw_read_first upon using vector key with views
 #
