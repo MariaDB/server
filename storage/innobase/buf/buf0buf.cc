@@ -1514,6 +1514,27 @@ void buf_pool_t::close() noexcept
   {
     const size_t size{size_in_bytes};
 
+#ifdef __SANITIZE_ADDRESS__
+    /* Sequence of operation which leads to use_after_poison error:
+
+       mmap();
+       __asan_poison_memory_region();
+       munmap();
+       mmap() reuses the same virtual address
+       Write into the memory region throws the error.
+
+    Recent clang-18, gcc-13.3 doesn't detect this error.
+    Older like clang-14..clang-16 and gcc-10, gcc-11, gcc-12 detects
+    this error. Please check the reported bug
+    (https://github.com/google/sanitizers/issues/1705)
+
+    Unpoison the whole buffer pool memory to avoid this error */
+    #if (defined(__GNUC__) && !defined(__clang__) && (__GNUC__ < 14)) ||\
+        (defined(__clang__) && (__clang_major__ < 18))
+      MEM_MAKE_ADDRESSABLE(memory, size);
+    #endif /* __GNUC__ __clang */
+#endif /* __SANITIZE_ADDRESS__ */
+
     for (char *extent= memory,
            *end= memory + block_descriptors_in_bytes(n_blocks);
          extent < end; extent+= innodb_buffer_pool_extent_size)
