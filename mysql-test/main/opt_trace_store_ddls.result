@@ -477,4 +477,40 @@ CREATE TABLE `t1` (
 ) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 drop table t2;
+#
+# MDEV-37207: test multi delete of 2 tables
+# trace result should have the ddls for both the tables
+#
+create table t1(id1 int not null auto_increment primary key);
+create table t2(id2 int not null);
+insert into t1 values (1),(2);
+insert into t2 values (1),(1),(2),(2);
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `id2` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# rerun the same delete query
+# Now, trace result should have the ddls for all 2 tables,
+# even though no data is deleted
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `id2` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
 drop database db1;
