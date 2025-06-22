@@ -6189,7 +6189,53 @@ error:
 	  const_keys Bitmap of all keys with may be used with quick_select
 	  keyuse     Pointer to possible keys
 *****************************************************************************/
+/*
+  This function is called when we're merging two KEYUSE arrays representing
 
+  (
+    ..
+    KEYUSE(t1.col1=t2.col2 OR t1.col1 IS NULL) AND  -- in or_null
+    ..
+  )
+  OR
+  (
+    KEYUSE(t1.col1 IS NULL) AND  --  start 
+    ...
+    KEYUSE(t2.col2 IS NULL) ...  --  end
+  )
+
+  the idea is to check whether or_null.val is a "tblX.fieldY" 
+  if yes walk through start..end  and see if it has an entry representing "tblX.fieldY IS NULL"
+*/
+
+bool check_if_null_comparison(const KEY_FIELD *or_null, const KEY_FIELD *start, const KEY_FIELD *end)
+{
+  const KEY_FIELD *kf;
+  Item *real_val= or_null->val->real_item();
+  
+  // todo: also check for whether it would be into KEYUSE?
+  if (real_val->type() != Item::FIELD_ITEM)
+    return false;
+  
+  Field *field= ((Item_field*)real_val)->field;
+
+  //if (field->part_of_key.is_clear_all())
+  //  return false;
+
+  /*
+   *  Find "field is null"
+  */
+  for (kf= start; kf != end ; kf++)
+  {
+    if (kf->field->table == field->table && 
+        kf->field == field &&  // TODO: compare field numbers to handler partially covered columns.
+        kf->val->can_eval_in_optimize() && kf->val->is_null())
+    {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
   Merge new key definitions to old ones, remove those not used in both.
@@ -6264,6 +6310,7 @@ merge_key_fields(KEY_FIELD *start,KEY_FIELD *new_fields,KEY_FIELD *end,
     {
       if (old->field == new_fields->field)
       {
+        bool old_is_null, new_is_null;
         /*
           NOTE: below const_item() call really works as "!used_tables()", i.e.
           it can return FALSE where it is feasible to make it return TRUE.
@@ -6308,15 +6355,42 @@ merge_key_fields(KEY_FIELD *start,KEY_FIELD *new_fields,KEY_FIELD *end,
                                 new_fields->null_rejecting);
 	}
 	else if (old->eq_func && new_fields->eq_func &&
-		 ((old->val->can_eval_in_optimize() && old->val->is_null()) ||
-                  (!new_fields->val->is_expensive() &&
-                   new_fields->val->is_null())))
+		 ((old_is_null=(old->val->can_eval_in_optimize() && 
+                               old->val->is_null())) ||
+                  (new_is_null= (!new_fields->val->is_expensive() &&
+                   new_fields->val->is_null()))))
 	{
 	  /* field = expression OR field IS NULL */
 	  old->level= and_level;
           if (old->field->maybe_null())
 	  {
-	    old->optimize= KEY_OPTIMIZE_REF_OR_NULL;
+            bool inferred_null_aware_eq= false;
+            if (old->optimize != KEY_OPTIMIZE_REF_OR_NULL)
+            {
+              const KEY_FIELD *x_start, *x_end;
+              if (!old_is_null)
+              {
+                x_start= new_fields;
+                x_end= end;
+              }
+              else
+              {
+                x_start= start;
+                x_end= new_fields;
+              }
+              /*
+                psergey-todo: scan the whole sequence being ORed and 
+                check if it has "$RIGHT_EXPR IS NULL"
+              */
+              if (check_if_null_comparison(old, x_start, x_end))
+                inferred_null_aware_eq= true;
+            }
+
+            if (inferred_null_aware_eq)
+              old->optimize= KEY_OPTIMIZE_EQ;
+            else
+              old->optimize= KEY_OPTIMIZE_REF_OR_NULL;
+
             /* The referred expression can be NULL: */ 
             old->null_rejecting= 0;
 	  }

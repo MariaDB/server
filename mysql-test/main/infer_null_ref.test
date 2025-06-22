@@ -1,0 +1,14 @@
+--source include/have_sequence.inc
+
+create table t20 (a int, b int, index(a));
+create table t21 (a int, b int, index(a));
+
+insert into t20 select seq,seq from seq_1_to_1000;
+insert into t21 select seq,seq from seq_1_to_2000;
+
+--echo # This will use ref, not ref-or-null:
+explain
+select * from t20,t21 where t21.a=t20.a or (t21.a is null and t20.a is null);
+
+drop table t20,t21;
+

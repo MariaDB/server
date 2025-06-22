@@ -1,0 +1,11 @@
+create table t20 (a int, b int, index(a));
+create table t21 (a int, b int, index(a));
+insert into t20 select seq,seq from seq_1_to_1000;
+insert into t21 select seq,seq from seq_1_to_2000;
+# This will use ref, not ref-or-null:
+explain
+select * from t20,t21 where t21.a=t20.a or (t21.a is null and t20.a is null);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	ALL	a	NULL	NULL	NULL	1000	
+1	SIMPLE	t21	ref	a	a	5	test.t20.a	1	
+drop table t20,t21;
