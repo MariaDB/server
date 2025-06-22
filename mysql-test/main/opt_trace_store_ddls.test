@@ -361,4 +361,54 @@ select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
 drop table t1;
 drop table t2;
 
+--echo #
+--echo # MDEV-37207: test multi delete of 3 tables
+--echo # trace result should have the ddls for all 3 tables
+--echo #
+
+create table t1(id1 int not null auto_increment primary key, t char(12));
+create table t2(id2 int not null, t char(12));
+create table t3(id3 int not null, t char(12));
+--disable_query_log
+begin;
+let $1 = 100;
+while ($1)
+ {
+  let $2 = 5;
+  eval insert into t1(t) values ('$1');
+  while ($2)
+   {
+     eval insert into t2(id2,t) values ($1,'$2');
+     let $3 = 10;
+     while ($3)
+     {
+       eval insert into t3(id3,t) values ($1,'$2');
+       dec $3;
+     }
+     dec $2;
+   }
+  dec $1;
+ }
+commit;
+--enable_query_log
+ 
+select count(*) from t1 where id1 > 95;
+select count(*) from t2 where id2 > 95;
+select count(*) from t3 where id3 > 95;
+
+delete t1.*, t2.*, t3.*  from t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 95;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo # rerun the same delete query
+--echo # Now, trace result should have the ddls for all 3 tables,
+--echo # even though no data is deleted
+delete t1.*, t2.*, t3.*  from t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 95;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ 
+drop table t1, t2, t3;
+
 drop database db1;

@@ -477,4 +477,60 @@ CREATE TABLE `t1` (
 ) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 drop table t2;
+#
+# MDEV-37207: test multi delete of 3 tables
+# trace result should have the ddls for all 3 tables
+#
+create table t1(id1 int not null auto_increment primary key, t char(12));
+create table t2(id2 int not null, t char(12));
+create table t3(id3 int not null, t char(12));
+select count(*) from t1 where id1 > 95;
+count(*)
+5
+select count(*) from t2 where id2 > 95;
+count(*)
+25
+select count(*) from t3 where id3 > 95;
+count(*)
+250
+delete t1.*, t2.*, t3.*  from t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 95;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t3` (
+  `id3` int(11) NOT NULL,
+  `t` char(12) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t2` (
+  `id2` int(11) NOT NULL,
+  `t` char(12) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  `t` char(12) DEFAULT NULL,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# rerun the same delete query
+# Now, trace result should have the ddls for all 3 tables,
+# even though no data is deleted
+delete t1.*, t2.*, t3.*  from t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 95;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t3` (
+  `id3` int(11) NOT NULL,
+  `t` char(12) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t2` (
+  `id2` int(11) NOT NULL,
+  `t` char(12) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  `t` char(12) DEFAULT NULL,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2, t3;
 drop database db1;
