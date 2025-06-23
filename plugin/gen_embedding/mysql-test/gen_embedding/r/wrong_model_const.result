@@ -1,0 +1,7 @@
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported");
+select vec_totext(generate_embedding_openai('abc', 'wrong-model-name'));
+vec_totext(generate_embedding_openai('abc', 'wrong-model-name'))
+NULL
+Warnings:
+Warning	1	GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported
+Warning	1	GENERATE_EMBEDDING_OPENAI: Model wrong-model-name is not supported
