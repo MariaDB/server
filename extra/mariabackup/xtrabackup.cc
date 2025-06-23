@@ -2593,6 +2593,7 @@ error:
 	return true;
 }
 
+alignas(8)
 static byte log_hdr_buf[log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT];
 
 /** Initialize an InnoDB log file header in log_hdr_buf[] */
