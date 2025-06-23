@@ -279,6 +279,9 @@ public:
   {
     return negated_item(thd);
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
@@ -887,6 +890,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_equal>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1191,6 +1197,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_interval>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1215,6 +1224,12 @@ public:
       return TRUE;
     fix_attributes(args, arg_count);
     return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null())
+      set_maybe_null(is_all_arg_imaybe_null());
+    return 0;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1317,6 +1332,12 @@ public:
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null())
+      set_maybe_null(is_all_arg_imaybe_null());
+    return 0;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -2847,6 +2868,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool count_sargable_conds(void *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;

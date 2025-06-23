@@ -490,4 +490,67 @@ explain extended select t1.*,t2.* from t1,t2 where t1.a=t2.a(+) and isnull(t2.a)
 
 drop table t1,t2;
 
+--echo #
+--echo # Correct nullability test
+--echo #
+
+create table t1 (a int not null, s varchar(10) not null);
+create table t2 (a int not null, s varchar(10) not null);
+insert into t1 values (1, 'one');
+insert into t1 values (2, 'two');
+insert into t2 values (2, 'two');
+insert into t2 values (3, 'three');
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t2.a);
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t1.a+t2.a);
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(coalesce(t2.s, 'null'));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(ifnull(t2.s, 'null'));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(coalesce(t2.s, null));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(ifnull(t2.s, null));
+
+--echo # optimizer do not optimize out subselects but it guaranty the same in future
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t2.a in (select a from t1));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t2.a in (1, 2, 3));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(t1.a in (1, 2, 3));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(isnull(t2.a));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(field(t2.a, 2, 23));
+
+explain extended
+select * from t1,t2 where t1.a = t2.a (+) and
+  isnull(benchmark(10, t2.a));
+
+
+drop table t1, t2;
+
 --echo # End of 12.1 tests

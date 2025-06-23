@@ -210,6 +210,14 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_to_base64>(thd, this); }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && args[0]->maybe_null())
+    {
+      set_maybe_null();
+    }
+    return 0;
+  }
 };
 
 class Item_func_from_base64 :public Item_str_binary_checksum_func
@@ -1223,6 +1231,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqlerrm>(thd, this); }
 };
@@ -1344,6 +1355,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_current_role>(thd, this); }
+  // null do not depend on nullability of the argument
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -2058,6 +2072,9 @@ public:
      base_flags&= ~item_base_t::MAYBE_NULL;
      return FALSE;
   };
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   table_map not_null_tables() const override { return 0; }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override

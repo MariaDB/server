@@ -800,10 +800,10 @@ public:
     }
     return FALSE;
   }
-  bool recalc_maybe_null_processor(void *arg) override
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
-    if (left_expr->maybe_null())
-      set_maybe_null(true);
+    if (!maybe_null() && left_expr->maybe_null())
+      set_maybe_null();
     return 0;
   }
   friend class Item_ref_null_helper;

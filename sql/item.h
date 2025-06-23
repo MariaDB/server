@@ -2292,7 +2292,13 @@ public:
     return 0;
   }
   virtual bool ora_join_processor(void *arg) { return 0; }
-  virtual bool recalc_maybe_null_processor(void *arg) { return 0; }
+  /*
+    This marks the item as nullable. Note that if we'd want a method that
+    marks the item as not nullable (maybe_null=false) we'd need to process
+    carefully functions (e.g. json*) that can always return null even with
+    non-null arguments
+  */
+  virtual bool add_maybe_null_after_ora_join_processor(void *arg) { return 0; }
   virtual bool remove_ora_join_processor(void *arg)
   {
     with_flags&= ~item_with_t::ORA_JOIN;
@@ -2906,7 +2912,7 @@ protected:
     }
     return false;
   }
-  bool arg_check_maybe_null()
+  bool is_any_arg_imaybe_null()
   {
     for (uint i= 0; i < arg_count; i++)
     {
@@ -2914,6 +2920,15 @@ protected:
         return true;
     }
     return false;
+  }
+  bool is_all_arg_imaybe_null()
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->maybe_null())
+        return false;
+    }
+    return true;
   }
   bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
@@ -3955,8 +3970,10 @@ public:
     return 0;
   }
   bool ora_join_processor(void *arg) override;
-  bool recalc_maybe_null_processor(void *arg) override
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
+    // we only add maybe_null flag
+    DBUG_ASSERT(!maybe_null() || field->maybe_null());
     set_maybe_null(field->maybe_null());
     return 0;
   }
@@ -5902,9 +5919,11 @@ public:
       return true;
     return (this->*processor)(arg);
   }
-  bool recalc_maybe_null_processor(void *arg) override
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
-    set_maybe_null(arg_check_maybe_null());
+    // see Item::add_maybe_null_after_ora_join_processor
+    if (!maybe_null())
+      set_maybe_null(is_any_arg_imaybe_null());
     return 0;
   }
   /*
@@ -6236,9 +6255,10 @@ public:
     return cleanup_processor(arg);
   }
   bool ora_join_processor(void *arg) override;
-  bool recalc_maybe_null_processor(void *arg) override
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
-    set_maybe_null((*ref)->maybe_null());
+    if ((*ref)->maybe_null())
+      set_maybe_null();
     return 0;
   }
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg) override
@@ -6459,6 +6479,12 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_wrapper>(thd, this); }
   Item *do_build_clone(THD *) const override { return nullptr; }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (orig_item->maybe_null())
+      set_maybe_null();
+    return 0;
+  }
 };
 
 

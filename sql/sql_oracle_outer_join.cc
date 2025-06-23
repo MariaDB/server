@@ -965,7 +965,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
       {
         DBUG_ASSERT(curr->on_conds.elements > 0);
         curr->table->outer_join|=JOIN_TYPE_LEFT;
-        // it is done after setting table map so maybe_null also set
+        // update maybe_null which was previously set in setup_table_map()
         if (curr->table->table)
           curr->table->table->maybe_null= JOIN_TYPE_LEFT;
         if (curr->on_conds.elements == 1)
@@ -1032,12 +1032,15 @@ bool setup_oracle_join(THD *thd, Item **conds,
   if (add_conditions_to_where(thd, conds, std::move(return_to_where)))
     DBUG_RETURN(TRUE);
 
-  // refresh nulability of already fixed parts (WHERE, SELECT list, moved ON)
+  // Refresh nullability of already fixed parts:
+
+  // WHERE
   if (conds[0])
   {
     conds[0]->update_used_tables();
-    conds[0]->walk(&Item::recalc_maybe_null_processor, 0, 0);
+    conds[0]->walk(&Item::add_maybe_null_after_ora_join_processor, 0, 0);
   }
+  // SELECT list and hidden fields
   if (all_fields)
   {
     List_iterator<Item> it(*all_fields);
@@ -1045,9 +1048,10 @@ bool setup_oracle_join(THD *thd, Item **conds,
     while((item= it++))
     {
       item->update_used_tables();
-      item->walk(&Item::recalc_maybe_null_processor, 0, 0);
+      item->walk(&Item::add_maybe_null_after_ora_join_processor, 0, 0);
     }
   }
+  // parts of WHERE moved to ON (original ONs will be fixed later)
   for (i= 0; i < n_tables; i++)
   {
     // we have to count becaust this lists are included in other lists
@@ -1056,7 +1060,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
     for (uint j= 0; j < tab[i].on_conds.elements && (item= it++); j++)
     {
       item->update_used_tables();
-      item->walk(&Item::recalc_maybe_null_processor, 0, 0);
+      item->walk(&Item::add_maybe_null_after_ora_join_processor, 0, 0);
     }
   }
 
