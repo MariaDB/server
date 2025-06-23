@@ -27,6 +27,10 @@
 #include "create_tmp_table.h"
 #include "sql_parse.h"
 
+#ifndef DBUG_OFF
+int dbug_json_check_min_stack_requirement();
+#endif
+
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
 class table_function_handlerton
@@ -104,13 +108,9 @@ int get_disallowed_table_deps_for_list(MEM_ROOT *mem_root,
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  return -dbug_json_check_min_stack_requirement(););
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
-    return 1;
+    return -1;
 
   while ((table= li++))
   {
@@ -1345,19 +1345,15 @@ void Table_function_json_table::fix_after_pullout(TABLE_LIST *sql_table,
      Recursively make all tables in the join_list also depend on deps.
 */
 
-static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
+static bool add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
 {
   TABLE_LIST *table;
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  dbug_json_check_min_stack_requirement(); return true;);
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
-    return;
+    return true;
   while ((table= li++))
   {
     table->dep_tables |= deps;
@@ -1365,9 +1361,11 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
     if ((nested_join= table->nested_join))
     {
        // set the deps inside, too
-       add_extra_deps(&nested_join->join_list, deps);
+       if (add_extra_deps(&nested_join->join_list, deps))
+         return true;
     }
   }
+  return false;
 }
 
 
@@ -1447,11 +1445,7 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  if (dbug_json_check_min_stack_requirement()) return 0;);
   if ((res=check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL)))
     return res;
 

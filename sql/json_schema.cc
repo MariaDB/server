@@ -21,6 +21,11 @@
 #include "json_schema.h"
 #include "json_schema_helper.h"
 #include "pcre2.h"
+
+#ifndef DBUG_OFF
+int dbug_json_check_min_stack_requirement();
+#endif
+
 static HASH all_keywords_hash;
 
 static Json_schema_keyword *create_json_schema_keyword(THD *thd)
@@ -2779,15 +2784,9 @@ bool create_object_and_handle_keyword(THD *thd, json_engine_t *je,
   List<Json_schema_keyword> temporary_list;
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up=
-                         (available_stack_size(thd->thread_stack,
-                                               &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  dbug_json_check_min_stack_requirement(); return true;);
   if (check_stack_overrun(thd, STACK_MIN_SIZE , NULL))
-    return 1;
+    return true;
 
   while (json_scan_next(je)== 0 && je->stack_p >= level)
   {
