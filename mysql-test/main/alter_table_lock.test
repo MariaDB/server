@@ -78,3 +78,25 @@ drop table t1;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+--echo #
+--echo # MDEV-35611 Assertion failure in Diagnostics_area::sql_errno upon interrupted ALTER
+--echo #
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1);
+LOCK TABLE t READ;
+--connection con1
+SET max_statement_time=0.001;
+--error ER_STATEMENT_TIMEOUT
+ALTER TABLE t FORCE;
+--error ER_STATEMENT_TIMEOUT
+ALTER TABLE IF EXISTS t FORCE;
+# Cleanup
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
