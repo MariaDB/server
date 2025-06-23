@@ -1,0 +1,6 @@
+source include/have_gen_embedding.inc;
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/embeddings";
+select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
