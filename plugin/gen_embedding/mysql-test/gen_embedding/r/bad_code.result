@@ -1,5 +1,5 @@
 call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Bad http response code: 400");
-set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/embeddings";
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/errorcode";
 select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
 vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'))
 NULL

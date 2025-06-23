@@ -1,8 +1,0 @@
-!include include/default_my.cnf
-
-[openai]
-filename = @ENV.MTR_SUITE_DIR/json_responses/openai_response_ada_002.json
-http_code = 200
-
-[ENV]
-OPENAI_PORT = @OPT.port

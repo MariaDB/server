@@ -7,28 +7,29 @@ import signal
 
 HOST = '127.0.0.1' # TODO: This should be configurable
 PORT = int(sys.argv[1])
-FILENAME = sys.argv[2]
-RETURN_CODE = int(sys.argv[3])
+SUCCESS_FILENAME = sys.argv[2]
 
+def get_response(filename, status_code):
+    if not os.path.exists(filename):
+        print(f"File {filename} not found.")
+        return build_response(json.dumps({"error": "File not found"}), 404)
+
+    with open(filename, 'r') as file:
+        content = file.read()
+
+    return build_response(content, status_code, content_type="application/json")
 
 def handle_request(request):
     try:
         request_line = request.splitlines()[0]
         method, path, _ = request_line.split()
-        
-        if path == "/embeddings" and method in ("GET", "POST"):
-            if not os.path.exists(FILENAME):
-                print(FILENAME)
-                response_body = json.dumps({"error": "File not found"})
-                return build_response(response_body, 404)
-
-            with open(FILENAME, 'r') as file:
-                embeddings = json.load(file)
-
-            response_body = json.dumps(embeddings)
-            return build_response(response_body, RETURN_CODE, content_type="application/json")
+        if path == "/success" and method in ("GET", "POST"):
+            return get_response(SUCCESS_FILENAME, 200)
+        elif path == "/errorcode" and method in ("GET", "POST"):
+            # The response body is irreleveant for this endpoint, the tests only care about the status code
+            return build_response(json.dumps({"error": "Not Found"}), 400)
         else:
-            return build_response(json.dumps({"error": "Not Found"}), 404)
+            return build_response(json.dumps({"error": "Bad API endpoint or method"}), 404)
 
     except Exception as e:
         return build_response(json.dumps({"error": str(e)}), 500)
@@ -36,9 +37,8 @@ def handle_request(request):
 def build_response(body, status_code, content_type="application/json"):
     reason_phrases = {
         200: "OK",
-        404: "Not Found",
-        404: "Other Not Found",
-        500: "Internal Server Error"
+        400: "Error",
+        404: "Not Found"
     }
     status_text = reason_phrases.get(status_code, "Unknown")
     response = (
@@ -54,7 +54,11 @@ def build_response(body, status_code, content_type="application/json"):
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((HOST, PORT))
+    try:
+        server_socket.bind((HOST, PORT))
+    except OSError as e:
+        print(f"Error binding to port {PORT}: {e}")
+        sys.exit(0)
     server_socket.listen(1)
 
     print(f"Serving '/embeddings' on http://{HOST}:{PORT} ...")
