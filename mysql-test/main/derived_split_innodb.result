@@ -963,4 +963,39 @@ cnt
 6
 DROP TABLE t1;
 # End of 10.4 tests
+#
+# MDEV-37057 Wrong result with LATERAL DERIVED
+#
+CREATE TABLE t1 (
+a int NOT NULL,
+b int default null,
+amount decimal DEFAULT NULL,
+KEY t1_IDX (a,b) USING BTREE
+) ENGINE=INNODB;
+CREATE TABLE t2 (
+a int NOT NULL,
+b int default null,
+name varchar(50) DEFAULT NULL,
+KEY t2_IDX (a,b) USING BTREE
+) ENGINE=INNODB;
+INSERT INTO t1 VALUES
+(1, NULL, 10.0000), (2, 2, 20.0000), (3, 3, 30.0000), (4, 4, 40.0000),
+(5, 5, NULL), (6, 6, NULL), (7, 7, 70.0000), (8, 8, 80.0000);
+INSERT INTO t2 VALUES
+(1, NULL, 'A'), (2,2, 'B'), (3,3, 'C'), (4,4, 'D'), (5,5, NULL), (6,6, NULL),
+(7,7, 'E'), (8,8, 'F'), (9,9, 'G'), (10,10,'H'), (11,11, NULL), (12,12, NULL);
+# Must use Split-Materialized:
+explain $query;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	range	t2_IDX	t2_IDX	4	NULL	1	Using index condition
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	1	Using where
+2	LATERAL DERIVED	t1	ref	t1_IDX	t1_IDX	9	test.t2.a,test.t2.b	1	
+$query;
+a	b	name	total_amt
+1	NULL	A	10
+# Compare with correct result:
+set statement optimizer_switch='split_materialized=off' for $query;
+a	b	name	total_amt
+1	NULL	A	10
+DROP TABLE t1,t2;
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
