@@ -549,4 +549,95 @@ DROP TABLE t1;
 
 --echo # End of 10.4 tests
 
+#
+# MDEV-37057 Wrong result with LATERAL DERIVED
+#
+
+CREATE TABLE `t1` (
+  `ID` bigint(20) NOT NULL,
+  `a` varchar(128) NOT NULL,
+  `b` varchar(256) DEFAULT NULL,
+  `c` varchar(767) DEFAULT NULL,
+  `d` bigint(20) DEFAULT NULL,
+  `e` char(1) NOT NULL,
+  KEY `t1_IDX` (`a`,`b`,`c`) USING BTREE
+) ENGINE=InnoDB;
+
+INSERT INTO `t1` VALUES
+(3952987,'gfduishsdifugh','g7gfdshsidfhugssdfghss',NULL,13,'Y'),
+(3952990,'gfduishsdifugh','g7gfdshsidfhugssdfghss',NULL,14,'N'),
+(11281269,'fd76gfsd76tfgsgdf','q87f6d7s657s6gfgfdsdfg',NULL,1,'Y'),
+(11600791,'fd76gfsd76tfgsgdf','q87f6d7s657s6gfgfdsdfg',NULL,3,'N'),
+(30687884,'oihgfdsuighdfg','asiduf_sdffdsiuhsdfhh',NULL,946,'Y'),
+(30687898,'oihgfdsuighdfg','asiduf_sdffdsiuhsdfhh',NULL,947,'N'),
+(30688870,'oihgfdsuighdfg','gfsdhyudfg_ff_fggffggffggf',NULL,952,'Y'),
+(30688937,'oihgfdsuighdfg','gfsdhyudfg_ff_fggffggffggf',NULL,953,'N'),
+(30698445,'oihgfdsuighdfg','iufhd_fdssdfdfsd_fdssdfdfdfd',NULL,19598,'Y'),
+(30698479,'oihgfdsuighdfg','iufhd_fdssdfdfsd_fdssdfdfdfd',NULL,19599,'N'),
+(179317919,'uigfsdhsghghgf','fd89asdf776asdf766s6',NULL,3856,'Y'),
+(179317923,'uigfsdhsghghgf','fd89asdf776asdf766s6',NULL,3857,'N'),
+(180354215,'uigfsdhsghghgf','asiduf_sdffdsiuhsdfhh',NULL,4279,'Y'),
+(180869514,'gyygfssdfgsdfg','asiduf_sdffdsiuhsdfhh',NULL,1920,'Y'),
+(181237156,'gyygfssdfgsdfg','asiduf_sdffdsiuhsdfhh',NULL,1924,'N'),
+(181283787,'gyygfssdfgsdfg','iufhd_fdssdfdfsd_fdssdfdfdfd',NULL,43584,'Y'),
+(181284091,'uigfsdhsghghgf','asiduf_sdffdsiuhsdfhh',NULL,4308,'N'),
+(181284043,'gyygfssdfgsdfg','iufhd_fdssdfdfsd_fdssdfdfdfd',NULL,43588,'N'),
+(181338945,'jbvgfsdihsdfg','g89gfdhsudyfyugsdfgyugsyugsss',NULL,48191,'Y'),
+(181348380,'jbvgfsdihsdfg','g89gfdhsudyfyugsdfgyugsyugsss',NULL,48234,'N');
+
+let $q1=
+select STRAIGHT_JOIN count(*) FROM t1
+INNER JOIN
+(
+SELECT a, b, c, max(d) maxd  FROM t1
+GROUP BY a, b, c
+) dt1 ON t1.a = dt1.a AND t1.b = dt1.b
+  AND (t1.c = dt1.c OR (t1.c IS NULL AND dt1.c IS NULL))
+LEFT JOIN
+(
+SELECT a, b, c, max(d) umaxd  FROM t1  WHERE e = 'Y'
+GROUP BY a, b, c
+) dt2 ON t1.a = dt2.a AND t1.b = dt2.b
+  AND (t1.c = dt2.c OR (t1.c IS NULL AND dt2.c IS NULL))
+WHERE t1.d < dt1.maxd  AND NOT t1.d <=> dt2.umaxd;
+
+let $q2=
+select STRAIGHT_JOIN count(*) FROM t1
+INNER JOIN
+(
+SELECT a, b, c, max(d) maxd  FROM t1
+GROUP BY a, b, c
+) dt1 ON t1.a = dt1.a AND t1.b = dt1.b  AND t1.c <=> dt1.c
+LEFT JOIN
+(
+SELECT a, b, c, max(d) umaxd  FROM t1  WHERE e = 'Y'
+GROUP BY a, b, c
+) dt2 ON t1.a = dt2.a AND t1.b = dt2.b  AND t1.c <=> dt2.c
+WHERE t1.d < dt1.maxd  AND NOT t1.d <=> dt2.umaxd;
+
+--replace_regex /"rows": [0-9]+/"rows": "X"/ /"filtered": [0-9.]+/"filtered": "X"/
+eval explain format=json $q1;
+eval $q1;
+
+--replace_regex /"rows": [0-9]+/"rows": "X"/ /"filtered": [0-9.]+/"filtered": "X"/
+eval explain format=json $q2;
+eval $q2;
+
+--echo  poison stats
+insert into t1
+  select 1, x.seq, y.seq, z.seq, 1,  'N'
+  from seq_1_to_10 x, seq_1_to_20 y, seq_1_to_20 z;
+delete from t1 where ID = 1;
+
+--replace_regex /"rows": [0-9]+/"rows": "X"/ /"filtered": [0-9.]+/"filtered": "X"/
+eval explain format=json $q1;
+eval $q1;
+
+--replace_regex /"rows": [0-9]+/"rows": "X"/ /"filtered": [0-9.]+/"filtered": "X"/
+eval explain format=json $q2;
+eval $q2;
+
+DROP TABLE `t1`;
+
+# End of 10.6 tests;
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
