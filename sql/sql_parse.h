@@ -189,20 +189,4 @@ check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
-
-/*
-  Allocating memory and *also* using it (reading and
-  writing from it) because some build instructions cause
-  compiler to optimize out stack_used_up. Since alloca()
-  here depends on stack_used_up, it doesnt get executed
-  correctly and causes json_debug_nonembedded to fail
-  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
-*/
-#define ALLOCATE_MEM_ON_STACK(A) do \
-                              { \
-                                uchar *array= (uchar*)alloca(A); \
-                                bzero(array, A); \
-                                my_checksum(0, array, A); \
-                              } while(0)
-
 #endif /* SQL_PARSE_INCLUDED */
