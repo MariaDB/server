@@ -21,7 +21,7 @@
 #include "sql_parse.h" // For check_stack_overrun
 
 #ifndef DBUG_OFF
-static int dbug_json_check_min_stack_requirement()
+int dbug_json_check_min_stack_requirement()
 {
   my_error(ER_STACK_OVERRUN_NEED_MORE, MYF(ME_FATAL),
            my_thread_stack_size, my_thread_stack_size, STACK_MIN_SIZE);
