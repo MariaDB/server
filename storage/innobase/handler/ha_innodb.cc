@@ -315,6 +315,25 @@ static TYPELIB innodb_stats_method_typelib = {
 	NULL
 };
 
+/** Possible values for system variable "innodb_linux_aio" */
+#ifdef __linux__
+const char* innodb_linux_aio_names[] = {
+	"auto",     /* SRV_LINUX_AIO_AUTO */
+	"io_uring", /* SRV_LINUX_AIO_IO_URING */
+	"aio",      /* SRV_LINUX_AIO_LIBAIO */
+	NullS
+};
+
+/** Used to define an enumerate type of the system variable
+innodb_linux_aio. Used by mariadb-backup too. */
+TYPELIB innodb_linux_aio_typelib = {
+	array_elements(innodb_linux_aio_names) - 1,
+	"innodb_linux_aio_typelib",
+	innodb_linux_aio_names,
+	NULL
+};
+#endif
+
 /** Possible values of the parameter innodb_checksum_algorithm */
 const char* innodb_checksum_algorithm_names[] = {
 	"crc32",
@@ -4059,12 +4078,8 @@ static int innodb_init_params()
     log_sys.log_buffered= true;
 #endif
 
-#if !defined LINUX_NATIVE_AIO && !defined HAVE_URING && !defined _WIN32
-  /* Currently native AIO is supported only on windows and linux
-  and that also when the support is compiled in. In all other
-  cases, we ignore the setting of innodb_use_native_aio. */
-  srv_use_native_aio= FALSE;
-#endif
+  if (!tpool::supports_native_aio())
+    srv_use_native_aio= FALSE;
 
 #ifdef _WIN32
   switch (srv_file_flush_method) {
@@ -19664,6 +19679,15 @@ static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   "Use native AIO if supported on this platform.",
   NULL, NULL, TRUE);
 
+#ifdef __linux__
+static MYSQL_SYSVAR_ENUM(linux_aio, srv_linux_aio_method,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Specifies which Linux AIO implementation should be used."
+  " Possible value are \"auto\" (default) to select io_uring"
+  " and fallback to aio, or explicit \"io_uring\" or \"aio\"",
+  nullptr, nullptr, SRV_LINUX_AIO_AUTO, &innodb_linux_aio_typelib);
+#endif
+
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -20059,6 +20083,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(autoinc_lock_mode),
   MYSQL_SYSVAR(use_native_aio),
+#ifdef __linux__
+  MYSQL_SYSVAR(linux_aio),
+#endif
 #ifdef HAVE_LIBNUMA
   MYSQL_SYSVAR(numa_interleave),
 #endif /* HAVE_LIBNUMA */
