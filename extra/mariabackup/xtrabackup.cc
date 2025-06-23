@@ -2593,6 +2593,7 @@ error:
 	return true;
 }
 
+alignas(8)
 static byte log_hdr_buf[log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT];
 
 /** Initialize an InnoDB log file header in log_hdr_buf[] */
@@ -5520,10 +5521,6 @@ fail:
 
 	backup_datasinks.init();
 
-	if (!select_history()) {
-		goto fail;
-	}
-
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
 	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
@@ -5538,6 +5535,11 @@ fail:
 	if (innodb_log_checkpoint_now != false) {
 		mysql_read_query_result(mysql_connection);
 	}
+
+	if (!select_history()) {
+		goto fail;
+	}
+
 	/* label it */
 	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
 	log_hdr_init();
