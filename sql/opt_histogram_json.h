@@ -71,21 +71,7 @@ class Histogram_json_hb final : public Histogram_base
   /* Collection-time only: collected histogram in the JSON form. */
   std::string json_text;
 
-  struct Bucket
-  {
-    // The left endpoint in KeyTupleFormat. The endpoint is inclusive, this
-    // value is in this bucket.
-    std::string start_value;
-
-    // Cumulative fraction: The fraction of table rows that fall into this
-    //  and preceding buckets.
-    double cum_fract;
-
-    // Number of distinct values in the bucket.
-    longlong ndv;
-  };
-
-  std::vector<Bucket> buckets;
+  std::vector<Histogram_bucket> buckets;
 
   std::string last_bucket_end_endp;
 
@@ -128,6 +114,11 @@ public:
                            double avg_sel) override;
   double range_selectivity(Field *field, key_range *min_endp,
                            key_range *max_endp, double avg_sel) override;
+
+  std::vector<Histogram_bucket> get_histogram() override
+  {
+    return buckets;
+  }
 
   void set_json_text(ulonglong sz, const char *json_text_arg,
                      size_t json_text_len)
