@@ -650,8 +650,11 @@ int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)
   return 0;
 }
 
-int MHNSW_Trx::do_rollback(THD *thd, bool)
+int MHNSW_Trx::do_rollback(THD *thd, bool all)
 {
+  if (!all && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    return do_savepoint_rollback(thd, nullptr);
+
   MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx_next)
@@ -663,8 +666,11 @@ int MHNSW_Trx::do_rollback(THD *thd, bool)
   return 0;
 }
 
-int MHNSW_Trx::do_commit(THD *thd, bool)
+int MHNSW_Trx::do_commit(THD *thd, bool all)
 {
+  if (!all && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    return 0;
+
   MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx_next)
@@ -734,8 +740,9 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
     thd_set_ha_data(thd, &tp, trx);
     if (!trx->next)
     {
-      bool all= thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
-      trans_register_ha(thd, all, &tp, 0);
+      if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+        trans_register_ha(thd, true, &tp, 0);
+      trans_register_ha(thd, false, &tp, 0);
     }
   }
   trx->refcnt++;

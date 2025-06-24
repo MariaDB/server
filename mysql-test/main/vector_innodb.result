@@ -360,4 +360,18 @@ drop table t;
 #
 create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
 ERROR 42000: Primary key was too long for vector indexes, max length is 256 bytes
+#
+# MDEV-37068 Can't find record in 't1' on INSERT to Vector table
+#
+SET sql_mode='';
+create table t1 (v vector (1) not null,vector vec (v),unique vu (v)) engine=innodb;
+start transaction;
+insert t1 values (10), (20);
+ERROR 23000: Duplicate entry '\x00\x00\x00\x00' for key 'vu'
+insert t1 values (1);
+Warnings:
+Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t1`.`v`
+Warning	1292	Incorrect vector value: '1' for column `test`.`t1`.`v` at row 1
+drop table t1;
+set sql_mode=default;
 # End of 11.8 tests
