@@ -64,6 +64,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
@@ -8678,4 +8679,9 @@ void THD::my_ok_with_recreate_info(const Recreate_info &info,
 THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
+}
+
+bool THD::is_cursor_execution() const
+{
+  return dynamic_cast<Select_materialize*>(this->lex->result);
 }
