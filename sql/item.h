@@ -3972,7 +3972,12 @@ public:
   bool ora_join_processor(void *arg) override;
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
-    // we only add maybe_null flag
+    /*
+      Before this operation field nullability can not be removed
+      (only can be set).
+      maybe_null() store the old nullability state, and
+      field->maybe_null() is the current state.
+    */
     DBUG_ASSERT(!maybe_null() || field->maybe_null());
     set_maybe_null(field->maybe_null());
     return 0;
