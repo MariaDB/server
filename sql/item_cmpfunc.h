@@ -1227,8 +1227,8 @@ public:
   }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
-    if (!maybe_null())
-      set_maybe_null(is_all_arg_imaybe_null());
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
     return 0;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1335,8 +1335,8 @@ public:
   }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
-    if (!maybe_null())
-      set_maybe_null(is_all_arg_imaybe_null());
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
     return 0;
   }
   LEX_CSTRING func_name_cstring() const override

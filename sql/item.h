@@ -2912,7 +2912,7 @@ protected:
     }
     return false;
   }
-  bool is_any_arg_imaybe_null()
+  bool is_any_arg_maybe_null()
   {
     for (uint i= 0; i < arg_count; i++)
     {
@@ -2921,11 +2921,11 @@ protected:
     }
     return false;
   }
-  bool is_all_arg_imaybe_null()
+  bool is_all_arg_maybe_null()
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (args[i]->maybe_null())
+      if (!args[i]->maybe_null())
         return false;
     }
     return true;
@@ -5923,7 +5923,7 @@ public:
   {
     // see Item::add_maybe_null_after_ora_join_processor
     if (!maybe_null())
-      set_maybe_null(is_any_arg_imaybe_null());
+      set_maybe_null(is_any_arg_maybe_null());
     return 0;
   }
   /*

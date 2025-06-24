@@ -210,14 +210,6 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_to_base64>(thd, this); }
-  bool add_maybe_null_after_ora_join_processor(void *arg) override
-  {
-    if (!maybe_null() && args[0]->maybe_null())
-    {
-      set_maybe_null();
-    }
-    return 0;
-  }
 };
 
 class Item_func_from_base64 :public Item_str_binary_checksum_func

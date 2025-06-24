@@ -525,7 +525,9 @@ explain extended
 select * from t1,t2 where t1.a = t2.a (+) and
   isnull(ifnull(t2.s, null));
 
---echo # optimizer do not optimize out subselects but it guaranty the same in future
+--echo # Our optimizer does not optimize out never-null-subselects under
+--echo # isnull() so we do not test it. The following test is to make
+--echo # sure that nullable one stay in the WHERE.
 explain extended
 select * from t1,t2 where t1.a = t2.a (+) and
   isnull(t2.a in (select a from t1));
