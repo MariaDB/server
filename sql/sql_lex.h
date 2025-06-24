@@ -4901,6 +4901,7 @@ public:
                               DDL_options ddl_options);
 
   bool check_dependencies_in_with_clauses();
+  bool prepare_unreferenced_in_with_clauses();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last,
