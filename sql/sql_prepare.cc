@@ -1621,6 +1621,10 @@ static int mysql_test_select(Prepared_statement *stmt,
   */
   if (unit->prepare(unit->derived, 0, 0))
     goto error;
+
+  if (thd->lex->prepare_unreferenced_in_with_clauses())
+    goto error;
+
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
