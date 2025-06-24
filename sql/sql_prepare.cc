@@ -3767,6 +3767,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
 
   cursor->fetch(num_rows);
 
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+
   if (!cursor->is_open())
   {
     stmt->close_cursor();
